@@ -503,6 +503,24 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                     .segment()
                                     .toArray(ValueLayout.JAVA_INT));
 
+                    var nestedCompiled = engine.compile(List.of(noGradNone.relu()));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(nestedCompiled));
+                    int nestedPreparationIndex = events.size();
+                    try (InferenceSession nested = engine.session(nestedCompiled)) {
+                        assertEquals(nestedPreparationIndex + 1, events.size());
+                        ObservedTrace preparation = events.get(nestedPreparationIndex);
+                        assertEquals("PREPARE", preparation.phase());
+                        assertEquals(
+                                "CUSTOM_KERNEL",
+                                enumName(component(preparation.payload(), "route")));
+                        try (var result = nested.run(List.of(noGradPrediction, noGradTarget))) {
+                            assertEquals(1, result.resultCount());
+                            assertPublication(result, 0, 1.0f, 1.0f, 4.0f, 16.0f);
+                        }
+                    }
+
                     Tensor seed = nativeTensor(
                             descriptor(Shape.scalar()), arena, 1.0f);
                     assertThrows(
@@ -527,22 +545,51 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             descriptor(Shape.scalar()), arena, 1.0f);
                     Tensor scalarTarget = nativeTensor(
                             descriptor(Shape.scalar()), arena, 0.0f);
-                    for (Tensor blocked : List.of(
-                            bfloatPrediction.meanSquaredError(
-                                    bfloatTarget, LossReduction.NONE),
-                            bfloatPrediction.meanSquaredError(
-                                    floatTarget, LossReduction.NONE),
-                            doublePrediction.meanSquaredError(
-                                    doubleTarget, LossReduction.NONE),
-                            scalarPrediction.meanSquaredError(
-                                    scalarTarget, LossReduction.NONE),
-                            noGradPrediction.softmax(1),
-                            noGradPrediction.categoricalCrossEntropyWithLogits(
-                                    noGradTarget, 1, LossReduction.NONE))) {
+                    Tensor indexTarget = nativeIntTensor(Shape.of(2), arena, 0, 1);
+                    Tensor channel = nativeTensor(
+                            descriptor(Shape.of(2)), arena, 1.0f, 1.0f);
+                    ScalarValue epsilon = ScalarValue.float32(1.0e-5f);
+                    var training = noGradPrediction.batchNormTraining(
+                            1,
+                            channel,
+                            channel,
+                            channel,
+                            channel,
+                            ScalarValue.float32(0.5f),
+                            epsilon);
+                    List<List<Tensor>> blockedGraphs = List.of(
+                            List.of(bfloatPrediction.meanSquaredError(
+                                    bfloatTarget, LossReduction.NONE)),
+                            List.of(bfloatPrediction.meanSquaredError(
+                                    floatTarget, LossReduction.NONE)),
+                            List.of(doublePrediction.meanSquaredError(
+                                    doubleTarget, LossReduction.NONE)),
+                            List.of(scalarPrediction.meanSquaredError(
+                                    scalarTarget, LossReduction.NONE)),
+                            List.of(noGradPrediction.softmax(1)),
+                            List.of(noGradPrediction.logSoftmax(1)),
+                            List.of(noGradPrediction.categoricalCrossEntropyWithLogits(
+                                    noGradTarget, 1, LossReduction.NONE)),
+                            List.of(noGradPrediction.categoricalCrossEntropyWithLogits(
+                                    indexTarget, 1, LossReduction.NONE)),
+                            List.of(noGradPrediction.batchNormInference(
+                                    1, channel, channel, channel, channel, epsilon)),
+                            List.of(
+                                    training.output(),
+                                    training.nextRunningMean(),
+                                    training.nextRunningVariance()),
+                            List.of(noGradPrediction.layerNorm(Shape.of(2), epsilon)),
+                            List.of(noGradPrediction.rmsNorm(Shape.of(2), epsilon)));
+                    int preparationEvents = events.size();
+                    for (List<Tensor> blocked : blockedGraphs) {
                         assertThrows(
                                 IllegalStateException.class,
-                                () -> engine.compile(List.of(blocked)));
+                                () -> engine.compile(blocked));
                     }
+                    assertEquals(
+                            preparationEvents,
+                            events.size(),
+                            "blocked families must fail before Metal preparation");
                 }
             }
         }

@@ -554,8 +554,7 @@ another.
   production surface.
 - Blocked Metal 0016–0018, 0026–0027, 0030–0037, 0039–0040, 0051, and 0053 have no active
   production write scope. Task 0061 is Complete through reviewed implementation head `3913bac1`.
-  Task 0062 is the sole Ready Metal frontier from base `5bd268ee`; independent plan review and
-  remediation returned `APPROVE` with zero P0/P1/P2.
+  Task 0062 is In review after implementation/proof `1cf8a6ef`; no Metal task is Ready.
   Model 0028 owns the reduction semantic contract, Complete Model 0029 owns the MATMUL
   final-publication semantic contract, and Complete Metal 0021–0025 retain reviewed implementations.
 
@@ -613,9 +612,10 @@ structurally maps full grouped NCHW/OIHW Conv2d geometry, but the selector gives
 algorithm contract, so one execution cannot prove the complete recursive output subset over every
 shape. Metal 0032 remains Blocked without a probe under its frozen profile-common premise. Its MSE
 formula is recursively reachable for `ACCELERATOR` through subtraction, `delta*delta`, reduction,
-and the exact divisor. Ready Task 0062 supersedes that premise only with a same-type positive-rank
-FLOAT32 ACCELERATOR plan using the already-qualified SUB/MUL/full-SUM/full-MEAN routes; production
-remains unchanged until Task 0062 executes and passes its proof, native, public, and review gates.
+and the exact divisor. In-review Task 0062 supersedes that premise only with an implemented
+same-type positive-rank FLOAT32 ACCELERATOR domain using the already-qualified
+SUB/MUL/full-SUM/full-MEAN routes. Production now reflects that bounded cutover; final completion
+still requires its cumulative Class C review gate.
 Metal 0033 remains Blocked without a probe: attention arithmetic is recursively reachable for
 `ACCELERATOR`, but the macOS-15 direct unmasked output-only SDPA selector is opaque, additive mask
 semantics mismatch Model, and no

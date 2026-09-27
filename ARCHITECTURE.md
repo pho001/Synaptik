@@ -198,11 +198,14 @@ The following invariants must remain true:
   INT64-dominant promotion and modular result arithmetic. Under `ACCELERATOR`, Metal additionally
   realizes the documented FLOAT32 arithmetic, scalar, reduction, and scan rows; every
   positive-static FLOAT32 `MATMUL` vector, matrix, batched, and right-aligned broadcast geometry;
-  and no-gradient BFLOAT16/FLOAT32 mixed `MATMUL` with FLOAT32 result. MATMUL operands are
+  no-gradient BFLOAT16/FLOAT32 mixed `MATMUL` with FLOAT32 result; and same-type canonical
+  positive-rank FLOAT32 MSE forward execution for `NONE`, `SUM`, and `MEAN`. MATMUL operands are
   canonical or authenticated local identity-prefix, last-two-axis transposes. Existing rank-two
   FLOAT32 matrix products retain direct MPSGraph; all newly admitted geometries and carrier pairs
-  use the fixed custom program. Strict floating MATMUL and every other unsupported
-  profile/operation pair fail closed. Metal indexing validates complete bounds and scatter target
+  use the fixed custom program. MSE uses fixed MPSGraph subtraction, self-multiplication, and its
+  optional qualified full reduction. Strict floating MATMUL and MSE, generated MSE backward, every
+  other normalization/loss kind, and every other unsupported profile/operation pair fail closed.
+  Metal indexing validates complete bounds and scatter target
   uniqueness before dispatch or target writes and leaves targets unchanged on failure. Canonical
   cross-owner transfer supports all six current data types at ranks `0..16`; transfer coverage does
   not widen operation capability. Runtime and Trace remain profile-free.

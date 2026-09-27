@@ -27,15 +27,18 @@ fully static rank-0..16 values of all six carriers over canonical or approved po
 non-overlapping layouts. Metal executes a closed occurrence-specific matrix. Its common domain
 includes the exact unary, affine, canonicalization, indexing, BOOL, Task-0059 raw-movement, and
 Task-0060 replacement/fold/aggregate rows. `ACCELERATOR` additionally admits the documented
-FLOAT32 arithmetic, reductions, scans, and every positive-static FLOAT32 `MATMUL` vector, matrix,
-batched, and broadcast geometry. Both profiles admit no-gradient promoted INT32/INT64 `MATMUL`;
-accelerator also admits no-gradient BFLOAT16/FLOAT32 mixed pairs with FLOAT32 result. Canonical or
-authenticated local last-two-axis transpose operands are allowed. Existing rank-two FLOAT32
-matrix products retain direct MPSGraph; new MATMUL geometries and carrier pairs use the fixed custom
-program. Every unlisted occurrence fails closed. Eligible singleton negation retains its custom
+FLOAT32 arithmetic, reductions, scans, every positive-static FLOAT32 `MATMUL` vector, matrix,
+batched, and broadcast geometry, and same-type canonical positive-rank FLOAT32 MSE forward
+execution for `NONE`, `SUM`, and `MEAN`. Both profiles admit no-gradient promoted INT32/INT64
+`MATMUL`; accelerator also admits no-gradient BFLOAT16/FLOAT32 mixed pairs with FLOAT32 result.
+Canonical or authenticated local last-two-axis transpose operands are allowed. Existing rank-two
+FLOAT32 matrix products retain direct MPSGraph; new MATMUL geometries and carrier pairs use the
+fixed custom program. MSE uses fixed MPSGraph subtraction, self-multiplication, and optional full
+reduction and grants no generated backward ownership; every other normalization/loss kind remains
+false. Every unlisted occurrence fails closed. Eligible singleton negation retains its custom
 alternative, and exact custom nodes fix their whole partition to one custom program with declared
 run-owned intermediates and direct targets. ABI 5, thirteen exports, and the schema-15 operation
-and attribute registries remain fixed; backend-local route and workload identities are version 17.
+and attribute registries remain fixed; backend-local route and workload identities are version 18.
 Standard-Metal convenience, generic plugin registration/discovery, CUDA, broader optimizers,
 durable persistence, and generic graph/plan tuning remain planned.
 Focused documentation identifies the exact current boundary for each area.

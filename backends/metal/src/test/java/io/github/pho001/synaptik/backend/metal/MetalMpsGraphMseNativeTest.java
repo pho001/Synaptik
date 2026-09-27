@@ -184,6 +184,74 @@ class MetalMpsGraphMseNativeTest {
         }
     }
 
+    @Test
+    void realCustomProgramPreservesBothFeedsForNestedMse() {
+        String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
+        assumeTrue(
+                configured != null && !configured.isBlank(),
+                "SYNAPTIK_METAL_TEST_LIBRARY is not set");
+        MetalNativeApi api = MetalNativeApi.open(
+                Path.of(configured).toAbsolutePath().normalize());
+        Shape shape = Shape.of(2, 2);
+        int[] predictionBits = bits(1.0f, -2.0f, 3.0f, -4.0f);
+        int[] targetBits = bits(0.0f, -1.0f, 5.0f, -8.0f);
+        MetalMpsGraphProgram program = new MetalMpsGraphProgram(List.of(
+                mseNode(0, 1, 2, 1L),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.RELU,
+                        new int[] {2},
+                        new int[] {3},
+                        MetalMpsGraphProgram.AttributeKind.NONE,
+                        new long[0])));
+        List<MetalMpsGraphProgram.ValueDescriptor> descriptors = List.of(
+                descriptor(DataType.FLOAT32, shape, false),
+                descriptor(DataType.FLOAT32, shape, false),
+                descriptor(DataType.FLOAT32, shape, false),
+                descriptor(DataType.FLOAT32, shape, false));
+        MetalNativeApi.Handle context = null;
+        MetalNativeApi.Handle executable = null;
+        var buffers = new ArrayList<MetalNativeApi.Handle>();
+        try {
+            context = api.createContext();
+            executable = api.createMpsGraphExecutable(
+                    context,
+                    NumericalProfile.ACCELERATOR,
+                    descriptors,
+                    program,
+                    new int[] {0, 1},
+                    new int[] {3},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            for (int index = 0; index < descriptors.size(); index++) {
+                buffers.add(api.createBuffer(context, 4L * Integer.BYTES));
+            }
+            upload(api, buffers.get(0), predictionBits);
+            upload(api, buffers.get(1), targetBits);
+            upload(api, buffers.get(2), poison(4));
+            upload(api, buffers.get(3), poison(4));
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment inputs = arena.allocate(ADDRESS, buffers.size());
+                for (int index = 0; index < buffers.size(); index++) {
+                    inputs.setAtIndex(ADDRESS, index, buffers.get(index).carrier());
+                }
+                MemorySegment outputs = arena.allocate(ADDRESS, 1);
+                outputs.setAtIndex(ADDRESS, 0, buffers.get(3).carrier());
+                api.runExecutable(executable, buffers.size(), inputs, 1, outputs);
+            }
+            int[] expected = bits(1.0f, 1.0f, 4.0f, 16.0f);
+            assertArrayEquals(expected, download(api, buffers.get(2), 4));
+            assertArrayEquals(expected, download(api, buffers.get(3), 4));
+            assertArrayEquals(predictionBits, download(api, buffers.get(0), 4));
+            assertArrayEquals(targetBits, download(api, buffers.get(1), 4));
+        } finally {
+            for (int index = buffers.size(); index-- > 0;) {
+                api.releaseBuffer(buffers.get(index));
+            }
+            if (executable != null) api.releaseExecutable(executable);
+            if (context != null) api.releaseContext(context);
+            api.close();
+        }
+    }
+
     private static int[] runScenario(
             MetalNativeApi api,
             Shape tensorShape,

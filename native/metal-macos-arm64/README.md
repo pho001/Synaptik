@@ -486,17 +486,18 @@ cases additionally exercise integral execution under both profiles and general a
 FLOAT32 forward/generated-gradient and mixed-carrier execution.
 
 MSE coverage executes `NONE`, `SUM`, and `MEAN` through direct targets, repeated inputs, retained
-executable reuse, isolated sessions, and immutable prediction/target buffers. Its independent
-source-derived oracle recursively enumerates permitted DAZ/FTZ choices at the subtraction and
-self-multiplication sites, every all-contributors-once binary reduction tree, final exact-count
-division, signed-zero freedoms, and NaN classification over zeros, subnormal/normal boundaries,
-maximum finite values, infinities, and quiet/signaling NaNs. Java/native malformed-image parity
-rejects wrong reductions, types, ranks, Shapes, and gradient flags. The fixed source composition
-against the already qualified primitive and full-reduction domains is the authorization proof;
-these executions corroborate it rather than grant capability by sampling. The packaged CPU-free
-Engine proof covers sole Metal ownership, all three publications including four-byte scalars,
-reused and independent sessions, input preservation, strict/excluded-domain rejection, and
-generated-backward rejection.
+executable reuse, isolated sessions, immutable prediction/target buffers, and the same nested
+MPSGraph composition inside a custom program. Its independent source-derived oracle recursively
+enumerates permitted DAZ/FTZ choices at the subtraction and self-multiplication sites, every
+all-contributors-once binary reduction tree, final exact-count division, signed-zero freedoms, and
+NaN classification over zeros, subnormal/normal boundaries, maximum finite values, infinities, and
+quiet/signaling NaNs. Java/native malformed-image parity rejects wrong reductions, types, ranks,
+Shapes, and gradient flags. The fixed source composition against the already qualified primitive
+and full-reduction domains is the authorization proof; these executions corroborate it rather than
+grant capability by sampling. The packaged CPU-free Engine proof covers sole Metal ownership, all
+three publications including four-byte scalars, direct and nested-custom-program execution, reused
+and independent sessions, input preservation, strict/excluded-domain and all eight neighboring
+normalization/loss-family rejection, and generated-backward rejection.
 
 ## Boundaries
 

@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0062 Ready; Complete through Task 0061; 0053 Blocked | [Metal 0062](backends/metal/tasks/0062-accelerator-mse-and-normalization-loss-boundary.md) is the sole Ready frontier from base `5bd268ee`; independent plan review and remediation returned `APPROVE` with zero P0/P1/P2. Current production remains `69/46`, structural execution `87/28`, schema 15, identity 17, ABI 5, and thirteen exports. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0062 In review; Complete through Task 0061; 0053 Blocked | [Metal 0062](backends/metal/tasks/0062-accelerator-mse-and-normalization-loss-boundary.md) is in cumulative Class C review after implementation/proof `1cf8a6ef`. Current production is `70/45`, structural execution `88/27`, schema 15, identity 18, ABI 5, and thirteen exports. No Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -519,16 +519,18 @@ image. Both profiles retain the exact common unary, affine, canonicalization, in
 Task-0059 movement, Task-0060 replacement/fold/aggregate, and no-gradient promoted INT32/INT64
 MATMUL rows. Accelerator additionally admits the documented FLOAT32 arithmetic, extrema, scalar,
 reduction, and scan rows; every positive-static FLOAT32 MATMUL vector, matrix, batched, and
-broadcast geometry; and no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 result. Existing
+broadcast geometry; no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 result; and same-type
+canonical positive-rank FLOAT32 MSE forward execution for `NONE`, `SUM`, and `MEAN`. Existing
 all-FLOAT32 rank-two matrix products retain MPSGraph; all other admitted MATMUL forms use the fixed
-custom program. A partition containing an exact custom node materializes each required logical
-value in a declared run-owned physical storage span and invokes one fixed shared custom-program
-native executable per hot run.
+custom program. MSE remains the fixed nested MPSGraph composition when a containing partition
+selects the custom program. A partition containing an exact custom node materializes each required
+logical value in a declared run-owned physical storage span and invokes one fixed shared
+custom-program native executable per hot run.
 Schema 15 carries type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, route wire
-`2` or `3`, and complete positive-stride storage-layout geometry; exactly 87 operation kinds are
-structurally executable and 69 are production-capable. Workload, policy, candidate, compatibility,
-route, and codec identities are version seventeen; candidate wires and complete-plan wrapper
-remain stable.
+`2` or `3`, and complete positive-stride storage-layout geometry; exactly 88 operation kinds are
+structurally executable and 70 are production-capable. Workload, policy, candidate, compatibility,
+route, and codec identities are version eighteen; candidate wires and complete-plan wrapper remain
+stable.
 
 Metal 0025 remains Complete at reviewed revision `f88066e3`; its schema-11/version-twelve facts are
 historical. Blocked 0026–0027/0030–0037/0039–0040 changed no executable capability. Complete 0041
@@ -639,12 +641,12 @@ matrix with narrowing, or infer capability from registered schema.
 Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
 0017, Trace 0003, and Metal
 0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045/0046/0048/0049/0050/0054/
-0055/0056/0057/0058/0059/0060/0061/0062 are Complete. Metal 0016–0018, 0026–0027, 0030–0037,
-planning-only 0039, failed-gate 0040, provider-gated 0047, historical consumed-oracle 0051, and
-proof-blocked 0053 remain Blocked under their recorded contracts. Task 0052 is Complete; Task 0054
-remains its exact historical pre-cutover inventory. Tasks 0055–0061 are completed
-foundation/catalog and operation-family prerequisites, and Task 0062 is the completed bounded MSE
-forward cutover.
+0055/0056/0057/0058/0059/0060/0061 are Complete. Metal 0062 is In review. Metal 0016–0018,
+0026–0027, 0030–0037, planning-only 0039, failed-gate 0040, provider-gated 0047, historical
+consumed-oracle 0051, and proof-blocked 0053 remain Blocked under their recorded contracts. Task
+0052 is Complete; Task 0054 remains its exact historical pre-cutover inventory. Tasks 0055–0061 are
+completed foundation/catalog and operation-family prerequisites, and Task 0062 is the in-review
+bounded MSE forward cutover.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.

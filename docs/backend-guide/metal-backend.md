@@ -925,9 +925,10 @@ Current validation composes:
   occurrences.
 - real-device MSE execution for `NONE`, `SUM`, and `MEAN` through the fixed
   `SUB -> MUL -> qualified full reduction` composition, with the source-derived recursive
-  floating-result oracle, repeated-input identity, direct targets, executable reuse, isolated
-  sessions, input preservation, Java/native malformed-image parity, sole Metal Engine ownership,
-  strict/excluded-domain rejection, and no generated-backward ownership;
+  floating-result oracle, repeated-input identity, direct and nested-custom-program execution,
+  executable reuse, isolated sessions, input preservation, Java/native malformed-image parity,
+  sole Metal Engine ownership, strict/excluded-domain and all eight neighboring-family rejection,
+  and no generated-backward ownership;
 
 Compiler contract coverage checks exact forward view layouts, explicit rank-edit materialization,
 and inverse first-order operations. The existing indexing formula guard remains unchanged. Metal
@@ -1048,6 +1049,7 @@ Related documentation:
 - [Metal task 0025](../planning/backends/metal/tasks/0025-exact-float32-unfold-axis-materialization.md)
 - [Metal task 0058](../planning/backends/metal/tasks/0058-remaining-elementwise-arithmetic.md)
 - [Metal task 0061](../planning/backends/metal/tasks/0061-general-static-matmul-domain.md)
+- [Metal task 0062](../planning/backends/metal/tasks/0062-accelerator-mse-and-normalization-loss-boundary.md)
 - [Native ABI and build guide](../../native/metal-macos-arm64/README.md)
 
 ## Numerical profiles
@@ -1057,13 +1059,14 @@ classification, BOOL logic, WHERE, `NEG`/`ABS`/`FLOOR`/`CEIL`/`SIGN`/`RELU`, and
 promoted INT32/INT64 MATMUL rows common to both profile matrices. `ACCELERATOR` additionally admits
 tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`, all six comparisons, scalar MIN/MAX/CLAMP,
 canonical FLOAT32 SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every CUM_SUM/CUM_PROD scan mode, every
-positive-static FLOAT32 MATMUL rank/broadcast geometry with authenticated local transposes, and the
-no-gradient mixed BFLOAT16/FLOAT32 pairs. These arithmetic routes remain inside Model's
-exact/discrete or recursive primitive/aggregate floors; they gain no generic final-output
-tolerance. The profile is retained in
-partition plans and every route/tuning/codec/workload identity. Java enforces the boundary before
-native entry. ABI version `5` retains thirteen export names and accepts one bounded schema-15
-route-bearing image; operation wires `1..115`, attribute wires `0..41`, and type wires `1..6`
-cover the current structural registry without widening capability. Route, candidate, compatibility,
-workload, exact-policy, and codec identities are version `17`; the complete-plan wrapper remains
-version `1`.
+positive-static FLOAT32 MATMUL rank/broadcast geometry with authenticated local transposes, the
+no-gradient mixed BFLOAT16/FLOAT32 pairs, and same-type positive-rank FLOAT32 MSE for `NONE`,
+`SUM`, and `MEAN`. These arithmetic routes remain inside Model's exact/discrete or recursive
+primitive/aggregate floors; they gain no generic final-output tolerance. MSE owns no generated
+backward graph and grants no neighboring normalization/loss-family capability. The profile is
+retained in partition plans and every route/tuning/codec/workload identity. Java enforces the
+boundary before native entry. ABI version `5` retains thirteen export names and accepts one bounded
+schema-15 route-bearing image; operation wires `1..115`, attribute wires `0..41`, and type wires
+`1..6` cover the current structural registry without widening capability. Route, candidate,
+compatibility, workload, exact-policy, and codec identities are version `18`; the complete-plan
+wrapper remains version `1`.

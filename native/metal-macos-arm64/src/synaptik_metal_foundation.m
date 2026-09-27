@@ -3802,7 +3802,8 @@ static int32_t synaptik_metal_create_decoded(
                         || node.operation == SYNAPTIK_METAL_MPSGRAPH_DIV
                         || node.operation == SYNAPTIK_METAL_MPSGRAPH_TENSOR_POW
                         || node.operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL
-                        || node.operation == SYNAPTIK_METAL_MPSGRAPH_GATHER)
+                        || node.operation == SYNAPTIK_METAL_MPSGRAPH_GATHER
+                        || node.operation == SYNAPTIK_METAL_MPSGRAPH_MSE)
                     input_count = 2U;
                 BOOL nested_transposed_matmul =
                         node.operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL
