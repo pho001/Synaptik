@@ -63,8 +63,9 @@ historical pre-cutover audit. Neither substitutes for this current source-backed
 - Prepared route: exact current production route family. `DUAL` is only the bounded singleton-NEG
   candidate set; `BY-DOMAIN` is MATMUL's occurrence-selected fixed MPSGraph/custom boundary.
 - Compiler: `D` conditional differentiable formula owner, `ND` intentional non-differentiability,
-  `D/ND/FC` role/type/cardinality-dependent classification, and `FC*` the explicit audit finding
-  that the current signature inventory omits the kind even though another preflight rejects it.
+  `D/ND/FC` role/type/cardinality-dependent classification, and `FC-B` an intentional forward-only
+  boundary excluded from the supported-formula registry and rejected by explicit pre-allocation
+  preflight.
 - Domain/blocker codes below are normative evidence pointers for the baseline claim.
 
 ## Canonical 115-row baseline ledger
@@ -87,8 +88,8 @@ and remediations must cite a wire from this table.
 | 10 | `SQUEEZE` / `AxisTransformKind.SQUEEZE` | `AxisTransformAttrs; 1 -> 1` | Y | T | D/A | `CUSTOM_PROGRAM` | `D` | `D66-AFF` |
 | 11 | `CONTIGUOUS` / `ContiguousKind.CONTIGUOUS` | `NoOperationAttrs; 1 -> 1` | Y | T | D/A | `CUSTOM_PROGRAM` | `D` | `D66-AFF` |
 | 12 | `ABS` / `UnaryElementwiseKind.ABS` | `NoOperationAttrs; 1 -> 1` | Y | T | D/P | `MPSGRAPH` | `D` | `D22` |
-| 13 | `SUM` / `AggregateReductionKind.SUM` | `NoOperationAttrs/AxisReductionAttrs/MultiAxisReductionAttrs/SumToShapeAttrs; 1 -> 1 / MaskedReductionAttrs; 2 -> 1` | Y | T | D/P | `MPSGRAPH` | `D` | `D20-RED` |
-| 14 | `MEAN` / `AggregateReductionKind.MEAN` | `NoOperationAttrs/AxisReductionAttrs/MultiAxisReductionAttrs; 1 -> 1 / MaskedReductionAttrs; 2 -> 1` | Y | T | D/P | `MPSGRAPH` | `D` | `D20-RED` |
+| 13 | `SUM` / `AggregateReductionKind.SUM` | `NoOperationAttrs/AxisReductionAttrs/MultiAxisReductionAttrs/SumToShapeAttrs; 1 -> 1 / MaskedReductionAttrs; 2 -> 1` | Y | T | D/P | `MPSGRAPH` | `D/ND/FC` | `D20-RED` |
+| 14 | `MEAN` / `AggregateReductionKind.MEAN` | `NoOperationAttrs/AxisReductionAttrs/MultiAxisReductionAttrs; 1 -> 1 / MaskedReductionAttrs; 2 -> 1` | Y | T | D/P | `MPSGRAPH` | `D/ND/FC` | `D20-RED` |
 | 15 | `MATMUL` / `MatmulKind.MATMUL` | `NoOperationAttrs; 2 -> 1` | Y | T | D/A | `BY-DOMAIN` | `D` | `D61-MM` |
 | 16 | `GATHER` / `AxisGatherKind.GATHER` | `IndexAxisAttrs; 2 -> 1` | Y | T | D/A | `CUSTOM_PROGRAM` | `D/ND/FC` | `D66-IDX` |
 | 17 | `ONE_HOT` / `OneHotKind.ONE_HOT` | `OneHotAttrs; 1 -> 1` | Y | T | D/A | `CUSTOM_PROGRAM` | `ND` | `D66-IDX` |
@@ -111,7 +112,7 @@ and remediations must cite a wire from this table.
 | 34 | `CUM_PROD` / `CumulativeScanKind.CUM_PROD` | `CumulativeScanAttrs; 1 -> 1` | Y | T | D/A | `CUSTOM_PROGRAM` | `D/ND/FC` | `D52` |
 | 35 | `SCALED_DOT_PRODUCT_ATTENTION` / `ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION` | `ScaledDotProductAttentionAttrs; 3..4 -> 1..2` | N | F | D/P | `BLOCKED` | `D/ND/FC` | `B-ATTN` |
 | 36 | `CONV2D` / `Conv2dKind.CONV2D` | `Conv2dAttrs; 2..3 -> 1` | Y | T | D/A | `CUSTOM_PROGRAM` | `D` | `D64-CONV` |
-| 37 | `CONV3D` / `Conv3dKind.CONV3D` | `Conv3dAttrs; 2..3 -> 1` | Y | T | D/A | `CUSTOM_PROGRAM` | `FC*` | `D64-CONV` |
+| 37 | `CONV3D` / `Conv3dKind.CONV3D` | `Conv3dAttrs; 2..3 -> 1` | Y | T | D/A | `CUSTOM_PROGRAM` | `FC-B` | `D64-CONV` |
 | 38 | `TENSOR_POW` / `BinaryArithmeticKind.POW` | `NoOperationAttrs; 2 -> 1` | Y | F | D/P | `BLOCKED` | `D` | `B-POWER` |
 | 39 | `CAST` / `CastKind.CAST` | `CastAttrs; 1 -> 1` | Y | T | D/A | `CUSTOM_PROGRAM` | `D/ND/FC` | `D66-CAST` |
 | 40 | `IS_FINITE` / `FloatingClassificationKind.IS_FINITE` | `NoOperationAttrs; 1 -> 1` | Y | T | D/A | `CUSTOM_PROGRAM` | `ND` | `D66-BOOL` |
@@ -161,7 +162,7 @@ and remediations must cite a wire from this table.
 | 84 | `FOLD3D` / `WindowTransformKind.FOLD3D` | `Fold3dAttrs; 1 -> 1` | Y | T | C/A | `CUSTOM_PROGRAM` | `D` | `D66-WINDOW` |
 | 85 | `MEAN_SQUARED_ERROR` / `LossKind.MEAN_SQUARED_ERROR` | `MeanSquaredErrorAttrs; 2 -> 1` | Y | T | C/P | `MPSGRAPH` | `D` | `D62-MSE` |
 | 86 | `DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS` / `LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS` | `DenseCategoricalCrossEntropyWithLogitsAttrs; 2 -> 1` | N | F | D/P | `BLOCKED` | `D` | `B-LOSS` |
-| 87 | `INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS` / `LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS` | `IndexCategoricalCrossEntropyWithLogitsAttrs; 2 -> 1` | N | F | C/P | `BLOCKED` | `D` | `B-LOSS` |
+| 87 | `INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS` / `LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS` | `IndexCategoricalCrossEntropyWithLogitsAttrs; 2 -> 1` | N | F | C/P | `BLOCKED` | `D/ND/FC` | `B-LOSS` |
 | 88 | `BATCH_NORM_INFERENCE` / `BatchNormKind.BATCH_NORM_INFERENCE` | `BatchNormInferenceAttrs; 5 -> 1` | N | F | D/P | `BLOCKED` | `D` | `B-NORM` |
 | 89 | `BATCH_NORM_TRAINING` / `BatchNormKind.BATCH_NORM_TRAINING` | `BatchNormTrainingAttrs; 5 -> 5` | N | F | C/P | `BLOCKED` | `D/ND/FC` | `B-NORM` |
 | 90 | `LAYER_NORM` / `LayerNormKind.LAYER_NORM` | `LayerNormAttrs; 1 -> 1 / AffineLayerNormAttrs; 3 -> 1` | N | F | C/P | `BLOCKED` | `D` | `B-NORM` |
@@ -177,9 +178,9 @@ and remediations must cite a wire from this table.
 | 100 | `AVERAGE_POOL3D` / `Pool3dKind.AVERAGE_POOL3D` | `AveragePool3dAttrs; 1 -> 1` | Y | T | C/A | `CUSTOM_PROGRAM` | `D` | `D64-POOL` |
 | 101 | `DROPOUT` / `DropoutKind.DROPOUT` | `DropoutAttrs; 2 -> 3` | Y | T | U/A | `CUSTOM_PROGRAM` | `D/ND/FC` | `D65-RNG` |
 | 102 | `INITIAL_STATE` / `GraphRngKind.INITIAL_STATE` | `GraphRngStateAttrs; 0 -> 1` | Y | T | U/A | `CUSTOM_PROGRAM` | `ND` | `D65-RNG` |
-| 103 | `RNN_TANH` / `RecurrentScanKind.RNN_TANH` | `RecurrentDirection; 5..6 -> 2` | N | F | U/P | `BLOCKED` | `FC*` | `B-RNN` |
-| 104 | `GRU_RESET_AFTER` / `RecurrentScanKind.GRU_RESET_AFTER` | `RecurrentDirection; 5..6 -> 2` | N | F | U/P | `BLOCKED` | `FC*` | `B-RNN` |
-| 105 | `LSTM` / `RecurrentScanKind.LSTM` | `RecurrentDirection; 6..7 -> 3` | N | F | U/P | `BLOCKED` | `FC*` | `B-RNN` |
+| 103 | `RNN_TANH` / `RecurrentScanKind.RNN_TANH` | `RecurrentDirection; 5..6 -> 2` | N | F | U/P | `BLOCKED` | `FC-B` | `B-RNN` |
+| 104 | `GRU_RESET_AFTER` / `RecurrentScanKind.GRU_RESET_AFTER` | `RecurrentDirection; 5..6 -> 2` | N | F | U/P | `BLOCKED` | `FC-B` | `B-RNN` |
+| 105 | `LSTM` / `RecurrentScanKind.LSTM` | `RecurrentDirection; 6..7 -> 3` | N | F | U/P | `BLOCKED` | `FC-B` | `B-RNN` |
 | 106 | `PROD` / `AggregateReductionKind.PROD` | `NoOperationAttrs/AxisReductionAttrs/MultiAxisReductionAttrs; 1 -> 1` | Y | T | D/A | `CUSTOM_PROGRAM` | `D` | `D60-EXACT-RED` |
 | 107 | `ALL` / `AggregateReductionKind.ALL` | `NoOperationAttrs/AxisReductionAttrs/MultiAxisReductionAttrs; 1 -> 1` | Y | T | D/A | `CUSTOM_PROGRAM` | `ND` | `D60-EXACT-RED` |
 | 108 | `ANY` / `AggregateReductionKind.ANY` | `NoOperationAttrs/AxisReductionAttrs/MultiAxisReductionAttrs; 1 -> 1` | Y | T | D/A | `CUSTOM_PROGRAM` | `ND` | `D60-EXACT-RED` |
@@ -206,14 +207,14 @@ and remediations must cite a wire from this table.
 | `D61-MM` | Wire 15: exact promoted integral profile-common and ACCELERATOR floating vector/matrix/batched/broadcast MATMUL domains; occurrence-selective fixed MPSGraph/custom route, Task-0061 type/shape/native/generated-gradient evidence. |
 | `D62-MSE` | Wire 85: ACCELERATOR same-type positive-static FLOAT32 MSE NONE/SUM/MEAN with exact gradient-flag relation; fixed MPSGraph composition (including nested execution in a custom whole program), Task-0062 tests. |
 | `D63-ARG` | Wires 109–110: profile-common numeric canonical positive-static single-axis ARG_MAX/ARG_MIN with INT64 output and exact tie/order policy; fixed Task-0063 custom route and native/public tests. |
-| `D63-ORDER` | Wires 94–96: profile-common admitted numeric SORT/ARGSORT/TOP_K positive-static domains with exact stable order, INT64 indices, and TOP_K two-output roles; fixed Task-0063 custom route and saved-role tests. |
+| `D63-ORDER` | Wires 94–96: profile-common all-six-carrier SORT/ARGSORT/TOP_K positive-static domains with exact stable order, INT64 indices, and TOP_K two-output roles; fixed Task-0063 custom route and saved-role tests. |
 | `D64-CONV` | Wires 36–37: ACCELERATOR static grouped Conv2d/Conv3d FLOAT32-result domains over FLOAT32/BFLOAT16 roles; BFLOAT16-containing forms are no-grad and Conv3d generated backward remains explicitly fail-closed; fixed custom route and Task-0064 tests. |
 | `D64-POOL` | Wires 97–100: profile-common three-floating-carrier exact maximum Pool2d/3d and ACCELERATOR FLOAT32 average Pool2d/3d; fixed custom route, Task-0064 winner/divisor/native/public evidence. |
 | `D65-RNG` | Wires 101–102: profile-common raw INITIAL_STATE and ACCELERATOR FLOAT32 explicit-state DROPOUT with output/mask/next-state roles; fixed custom route, Task-0065 replay/branch/session/backward evidence. |
 | `D66-AFF` | Wires 6–11: profile-common all-six-carrier static rank-0..16 RESHAPE/EXPAND/PERMUTE/EXPAND_DIMS/SQUEEZE/CONTIGUOUS over authenticated logical/physical layouts; fixed custom route and Task-0066 raw/public/generated-gradient evidence. |
 | `D66-BOOL` | Wires 40–45: profile-common three-floating-carrier classification and BOOL logical operations over admitted scalar/broadcast/affine occurrences; fixed custom route and Task-0057/0066 tests. |
 | `D66-CAST` | Wire 39: all 36 ordered casts over the six Model carriers, with floating-to-floating differentiation only and exact integer-defined conversion; fixed custom route and Task-0059/0066 exhaustive tests. |
-| `D66-IDX` | Wires 16–19 and 69: profile-common admitted all-carrier GATHER/SCATTER replacement/UNFOLD_AXIS movement with INT32/INT64 index parity where applicable, scalar support, bounds/uniqueness before mutation, and no additive semantics; fixed custom route and Task-0066 tests. |
+| `D66-IDX` | Wires 16, 18–19, and 69: profile-common admitted all-carrier GATHER/SCATTER replacement/UNFOLD_AXIS movement with INT32/INT64 index parity where applicable, scalar support, bounds/uniqueness before mutation, and no additive semantics. Wire 17 ONE_HOT instead admits canonical INT32/INT64 scalar-or-tensor indices, positive depth, and canonical BOOL output whose final dimension is depth. All use fixed custom routes and Task-0066 tests. |
 | `D66-MOVE` | Wires 71–79: profile-common exact all-carrier ND/replacement/select/pad/slice/composition/tile movement over authenticated static layouts; fixed custom route and Task-0059/0060/0066 tests. |
 | `D66-WHERE` | Wire 51: profile-common BOOL-conditioned admitted floating promotion/broadcast selection with saved condition role and exact output carrier; fixed custom route and Task-0057/0066 tests. |
 | `D66-WINDOW` | Wires 80–84: admitted non-overlap folds plus 2D/3D window movement; FOLD_AXIS excludes BOOL, image windows/folds use FLOAT64/FLOAT32/BFLOAT16, and overlap/additive cases remain false; fixed custom route and Task-0059/0060/0066 tests. |
@@ -233,40 +234,72 @@ and remediations must cite a wire from this table.
 | `B-RNN` | 103–105 | Recurrent rows lack complete TANH/EXP/SIGMOID proof, runtime valid-length/state contracts, custom recurrence, and Compiler BPTT. |
 | `B-AGG` | 111–115 | LOG_SUM_EXP/VARIANCE/STANDARD_DEVIATION/L1/L2 need complete contributor/order/correction/elementary/generated-gradient proof. Existing primitives are dependencies, not authorization. |
 
+## Production-false structural partition
+
+Production false does not mean structural machinery is absent. The 32 `P=F` rows split exactly and
+disjointly into:
+
+- `S=Y/P=F` (18 retained non-authorizing recipes): wires
+  `38,50,53,54,56,57,58,59,65,66,67,68,70,111,112,113,114,115`;
+- `S=N/P=F` (14 structurally unavailable rows): wires
+  `35,55,64,86,87,88,89,90,91,92,93,103,104,105`.
+
+Catalog and native structural recipes for the first set are evidence about encodability only. They
+must remain unreachable from production unless an exact Model occurrence first passes the
+capability gate and authenticated candidate/preparation path; neither the catalog nor forceable
+test-only structure authorizes capability.
+
 ## Mechanical reconciliation
 
 The implementation phase must add one permanent source-backed audit test/artifact that fails unless:
 
-1. current Model declarations total 40 families, 115 constants, and the exact current signature set;
+1. current Model declarations total 40 families, 115 constants, and 137 exact signatures;
 2. every wire `1..115` maps to exactly one Model kind and every Model kind maps back once;
 3. structural `101/14`, capability-kind `83/32`, MPSGraph `75/35/5`, and custom `70/45/0`
-   partitions are disjoint and exhaustive;
+   partitions are disjoint and exhaustive, including the exact `18 S=Y/P=F` and
+   `14 S=N/P=F` split;
 4. the 83 true rows each have an actual accepted representative occurrence plus exact preparation,
    route, Java/native schema, execution, and behavioral evidence rather than membership arithmetic;
-5. the 32 false rows have no accepted representative, lowering route, native execution claim, or
-   active documentation claim, and their blockers remain explicit;
+5. no production-false Model occurrence is accepted by `MetalCapabilityProvider` or reaches an
+   ordinary or test-forced production preparation route without first passing the exact capability
+   and candidate-authentication gates; retained structural lowering/native recipes are inventoried
+   as non-authorizing, and active docs make no production-capability claim for them;
 6. generated backward claims are checked from the actual Compiler-emitted graph, including saved
-   condition/index/mask/state roles and forward-only Conv3d/recurrent boundaries;
+   condition/index/mask/state roles and forward-only Conv3d/recurrent boundaries; the supported
+   formula registry remains exactly 38 families / 111 constants / 133 fingerprints and its explicit
+   deferred set is exactly Conv3d plus the three recurrent signatures, so the combined partition is
+   40 / 115 / 137 without claiming formulas for deferred rows;
 7. schema 15, ABI 5, thirteen exports, 42 attribute wires, three route wires, identity 22, and
    identity-21 rejection remain exact; and
 8. active docs agree while historical tasks/evidence remain byte-unchanged.
 
 Representative positives prove reachability only for the exact coded domain. Boundary negatives must
 cover profile, carrier, attrs, cardinality, rank/shape/layout, gradient flags, route forcing, schema,
-identity, resource aliasing, and native preflight where applicable.
+identity, and native preflight where applicable. Route-specific resource evidence is mandatory:
 
-## Baseline findings requiring reviewed remediation
+| Route | Required valid topology | Required rejection and fail-before-mutation evidence |
+|---|---|---|
+| `MPSGRAPH` | Distinct inputs and outputs. | Reject every input/output and output/output alias in Java before downcall and at raw native run; targets retain sentinels. |
+| `CUSTOM_PROGRAM` | Complete value table is pairwise distinct; each `output[i]` equals exactly `values[targetValueIndices[i]]`. | Reject duplicate value handles, wrong/swapped/duplicate target handles, and extra aliases in Java and raw native paths before execution; inputs and target sentinels remain unchanged. |
+| `CUSTOM_SINGLE_NEG` | Distinct input and output. | Reject input/output alias before dispatch and retain sentinels. |
 
-- `A-001` — `FirstOrderGradientCoverage` still declares 38 families / 111 constants / 133
-  fingerprints and omits Conv3d plus all three recurrent kinds. `AutogradPreflight` separately
-  rejects Conv3d/recurrent before Tensor construction, so no gradient is authorized, but the closed
-  first-order registry is not 115/115. Remediation must add explicit current signatures and explicit
-  fail-closed dispositions, producing 40 families / 115 constants / 137 fingerprints without
-  enabling Conv3d adjoints or recurrent BPTT.
-- `A-002` — the current `83/32` test derives production truth as `executable - 18` from a manually
+## Baseline conclusions and findings requiring reviewed remediation
+
+- `C-001` — `FirstOrderGradientCoverage` intentionally owns only the 38-family / 111-kind /
+  133-fingerprint supported-formula inventory. `AutogradPreflight` rejects Conv3d plus RNN/GRU/LSTM
+  before Tensor construction, and `FirstOrderGradientCoverageTest` proves the supported and deferred
+  partitions are disjoint and combine to the full 40 / 115 / 137 Model inventory. Preserve this
+  forward-only boundary; do not add nonexistent formulas or owners.
+- `A-001` — the current `83/32` test derives production truth as `executable - 18` from a manually
   repeated set. It does not prove that all 83 rows have a constructible capability-positive
   occurrence or exact downstream route. Remediation must replace arithmetic-only evidence with the
   canonical wire/Model mapping and actual representative reachability ledger.
+- `A-002` — root `README.md` still says backend-local route/workload identities are version 20.
+  Current source and other active documents use version 22 and reject version 21 and every older
+  identity. Correct this active-document mismatch without rewriting historical evidence.
+- `A-003` — existing Java and raw-native alias evidence does not yet close the route-specific matrix
+  above for both opposite MPSGraph/custom-program contracts. Add exact valid-topology and rejection
+  evidence, including raw-native wrong-target/duplicate custom handles and unchanged sentinels.
 
 Other findings remain audit output, not assumptions. In particular `L1_NORM`, variance, and every
 other false row must stay false until complete Model/profile/formula/order/gradient/native evidence
