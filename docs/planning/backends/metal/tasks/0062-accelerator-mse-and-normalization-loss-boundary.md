@@ -2,7 +2,8 @@
 
 ## Status
 
-In review — implementation and required validation completed at `1cf8a6ef`.
+In review — implementation/proof `1cf8a6ef`, documentation `3e0e4ea4`, and cumulative-review
+remediation `b12dbe73` are validated; zero-finding re-review is pending.
 
 ## Change class
 
@@ -218,10 +219,12 @@ The source-derived oracle preserves the shared subtraction result at the self-mu
 enumerates primitive DAZ/FTZ choices, all-contributors-once reduction trees, final-only signed-zero
 freedom, mandatory mean division, and NaN class over rank-two/rank-sixteen ordinary and special
 corpora. Java/native malformed-image parity covers reduction, attribute, type, Shape, rank, and
-gradient metadata. Prepared, conformance, and public Engine proofs cover stable feed/target order,
-direct scalar publication, repeated input, retained executable reuse, isolated sessions, input
-preservation, both gradient-metadata classes, sole Metal ownership, excluded domains, blocked
-families, and generated-backward rejection.
+gradient metadata. Prepared, conformance, native, and public Engine proofs cover stable feed/target
+order, direct scalar publication, repeated input, retained executable reuse, isolated sessions,
+input preservation, both gradient-metadata classes, direct and nested-custom-program MSE, sole
+Metal ownership, excluded domains, every neighboring normalization/loss family, and
+generated-backward rejection. Review remediation `b12dbe73` preserved both nested MSE operands and
+added the mixed custom-program regression plus complete public family negatives.
 
 Native build, fixed ad-hoc signing, package publication, package verification, the complete
 packaged Metal suite, Metal conformance tests, the complete public explicit-composition Metal Engine

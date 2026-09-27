@@ -554,7 +554,8 @@ another.
   production surface.
 - Blocked Metal 0016–0018, 0026–0027, 0030–0037, 0039–0040, 0051, and 0053 have no active
   production write scope. Task 0061 is Complete through reviewed implementation head `3913bac1`.
-  Task 0062 is In review after implementation/proof `1cf8a6ef`; no Metal task is Ready.
+  Task 0062 is In review after implementation/proof `1cf8a6ef`, documentation `3e0e4ea4`, and
+  cumulative-review remediation `b12dbe73`; no Metal task is Ready.
   Model 0028 owns the reduction semantic contract, Complete Model 0029 owns the MATMUL
   final-publication semantic contract, and Complete Metal 0021–0025 retain reviewed implementations.
 
@@ -671,8 +672,9 @@ corrected approved plan `d81ec940` and reviewed implementation head
 `3913bac1`; independent cumulative code, evidence, and security reviews each returned `APPROVE`
 with zero P0/P1/P2. It retained `69/46` capability, `87/28` structural execution, `75/35/5`
 MPSGraph catalog, `47/68/0` custom catalog, and backend-local identity 17. Task 0062 is In review
-at implementation/proof `1cf8a6ef`; its validated cutover advances capability to `70/45`,
-structural execution to `88/27`, and backend-local identity to 18 without changing either catalog.
+through cumulative-review remediation `b12dbe73`; its validated cutover advances capability to
+`70/45`, structural execution to `88/27`, and backend-local identity to 18 without changing either
+catalog.
 No Metal task is Ready; Task 0053 remains Blocked on its external constructive-real bridge.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
