@@ -176,6 +176,7 @@ import java.util.Objects;
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     private static final long UINT32_MAX = 0xffff_ffffL;
+    private static final long TASK0064_MAX_POOL_KERNEL_POSITIONS = 65_536L;
 
     /**
      * Stable Planning ownership identity for the Metal backend.
@@ -1646,9 +1647,12 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                             padding[axis], dilation[axis], ceil)) {
                 return false;
             }
-            divisor = Math.multiplyExact(divisor, kernel[axis]);
+            if (divisor > TASK0064_MAX_POOL_KERNEL_POSITIONS / kernel[axis]) {
+                return false;
+            }
+            divisor *= kernel[axis];
         }
-        return divisor <= UINT32_MAX;
+        return true;
     }
 
     private static boolean task0064FloatCarrier(DataType type) {

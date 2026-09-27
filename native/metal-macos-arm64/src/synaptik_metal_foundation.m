@@ -20,6 +20,7 @@
 #define SYNAPTIK_MAX_NODE_INPUTS 16U
 #define SYNAPTIK_MAX_NODE_OUTPUTS 5U
 #define SYNAPTIK_MAX_ATTRIBUTE_WORDS 65U
+#define SYNAPTIK_TASK0064_MAX_POOL_KERNEL_POSITIONS 65536U
 
 enum {
     SYNAPTIK_METAL_STATUS_OK = 0,
@@ -969,6 +970,51 @@ static BOOL task0059_window_extent(
     *result = numerator / stride
             + ((ceil_mode && numerator % stride != 0U) ? 1U : 0U) + 1U;
     return *result != 0U;
+}
+
+static BOOL task0059_mpsgraph_window_origins_fit(
+        SynaptikMetalDecodedNode node, NSArray<MPSShape *> *shapes) {
+    NSUInteger dimensions;
+    BOOL fold;
+    switch ((SynaptikMetalOperation)node.operation) {
+        case SYNAPTIK_METAL_CUSTOM_UNFOLD2D:
+            dimensions = 2U;
+            fold = NO;
+            break;
+        case SYNAPTIK_METAL_CUSTOM_UNFOLD3D:
+            dimensions = 3U;
+            fold = NO;
+            break;
+        case SYNAPTIK_METAL_MPSGRAPH_FOLD2D:
+            dimensions = 2U;
+            fold = YES;
+            break;
+        case SYNAPTIK_METAL_MPSGRAPH_FOLD3D:
+            dimensions = 3U;
+            fold = YES;
+            break;
+        default:
+            return YES;
+    }
+    MPSShape *spatial_shape = shapes[fold ? node.output : node.first_input];
+    NSUInteger offset = fold ? dimensions + 3U : 0U;
+    NSUInteger first_bounded_axis = dimensions == 3U ? 1U : 0U;
+    for (NSUInteger spatial = first_bounded_axis;
+            spatial < dimensions; spatial++) {
+        uint64_t stride = node.attribute_values[offset + dimensions + spatial];
+        uint64_t extent = 0U;
+        if (!task0059_window_extent(
+                    spatial_shape[spatial + 2U].unsignedLongLongValue,
+                    node.attribute_values[offset + spatial],
+                    node.attribute_values[offset + dimensions * 2U + spatial],
+                    stride,
+                    node.attribute_values[offset + dimensions * 3U + spatial],
+                    node.attribute_values[offset + dimensions * 4U] != 0U,
+                    &extent)
+                || extent - 1U > UINT32_MAX / stride)
+            return NO;
+    }
+    return YES;
 }
 
 static BOOL task0059_crop_region_matches(
@@ -2825,6 +2871,9 @@ static MPSGraphImToColOpDescriptor *task0059_im2col_descriptor(
     if (!task0059_window_extent(inputH, kH, pH, sH, dH, ceil_mode, &hOut)
             || !task0059_window_extent(inputW, kW, pW, sW, dW, ceil_mode, &wOut))
         return nil;
+    if ((hOut - 1U) > UINT32_MAX / sH
+            || (wOut - 1U) > UINT32_MAX / sW)
+        return nil;
     uint64_t effectiveH = dH * (kH - 1U) + 1U;
     uint64_t effectiveW = dW * (kW - 1U) + 1U;
     if ((hOut - 1U) > (UINT64_MAX - effectiveH) / sH
@@ -3001,11 +3050,11 @@ static BOOL task0064_validate_node(
                     &expected)
                 || output[axis + 2U].unsignedLongLongValue != expected
                 || !task0064_positive_uint32(kernel)
-                || divisor > UINT32_MAX / kernel)
+                || divisor > SYNAPTIK_TASK0064_MAX_POOL_KERNEL_POSITIONS / kernel)
             return NO;
         divisor *= kernel;
     }
-    return divisor <= UINT32_MAX;
+    return YES;
 }
 
 
@@ -3651,6 +3700,9 @@ static int32_t synaptik_metal_create_decoded(
                             return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     }
                     if (!task0059_validate_shape(node, shapes))
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    if (route == SYNAPTIK_METAL_ROUTE_MPSGRAPH
+                            && !task0059_mpsgraph_window_origins_fit(node, shapes))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     if (route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM) {
                         if (node.operation == SYNAPTIK_METAL_MPSGRAPH_FOLD_AXIS

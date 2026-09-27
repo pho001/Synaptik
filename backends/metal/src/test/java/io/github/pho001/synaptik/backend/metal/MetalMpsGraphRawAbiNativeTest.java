@@ -277,6 +277,82 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
+    void task0059JavaAndNativeRejectCeilWindowOriginsBeyondUint32() throws Throwable {
+        Path library = configuredLibrary();
+        long uint32Max = 0xffff_ffffL;
+        long hostilePositions = 1_073_741_825L;
+        try (RawAbi abi = new RawAbi(library)) {
+            var unfold2d = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.UNFOLD2D,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
+                            new long[] {1, 1, 1, 4, 0, 0, 1, 1, 1})));
+            assertTask0059WindowOriginRejected(
+                    abi,
+                    unfold2d,
+                    List.of(
+                            descriptor(DataType.FLOAT32, 1, 1, 1, uint32Max),
+                            descriptor(DataType.FLOAT32, 1, 1, hostilePositions)),
+                    "UNFOLD2D");
+
+            var unfold3d = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.UNFOLD3D,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalMpsGraphProgram.AttributeKind.WINDOW_3D,
+                            new long[] {
+                                1, 1, 1, 1, 1, 4, 0, 0, 0, 1, 1, 1, 1
+                            })));
+            assertTask0059WindowOriginRejected(
+                    abi,
+                    unfold3d,
+                    List.of(
+                            descriptor(DataType.FLOAT32, 1, 1, 1, 1, uint32Max),
+                            descriptor(DataType.FLOAT32, 1, 1, hostilePositions)),
+                    "UNFOLD3D");
+
+            var fold2d = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.FOLD2D,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D,
+                            new long[] {
+                                4, 1, 1, 1, uint32Max,
+                                1, 1, 1, 4, 0, 0, 1, 1, 1
+                            })));
+            assertTask0059WindowOriginRejected(
+                    abi,
+                    fold2d,
+                    List.of(
+                            descriptor(DataType.FLOAT32, 1, 1, hostilePositions),
+                            descriptor(DataType.FLOAT32, 1, 1, 1, uint32Max)),
+                    "FOLD2D");
+
+            var fold3d = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.FOLD3D,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_3D,
+                            new long[] {
+                                5, 1, 1, 1, 1, uint32Max,
+                                1, 1, 1, 1, 1, 4, 0, 0, 0, 1, 1, 1, 1
+                            })));
+            assertTask0059WindowOriginRejected(
+                    abi,
+                    fold3d,
+                    List.of(
+                            descriptor(DataType.FLOAT32, 1, 1, hostilePositions),
+                            descriptor(DataType.FLOAT32, 1, 1, 1, 1, uint32Max)),
+                    "FOLD3D");
+        }
+    }
+
+    @Test
     void javaAndNativeRejectGradOrScalarShapeForAdmittedScalarRecipes() throws Throwable {
         Path library = configuredLibrary();
         try (RawAbi abi = new RawAbi(library)) {
@@ -960,7 +1036,86 @@ class MetalMpsGraphRawAbiNativeTest {
                     abi, NumericalProfile.STRICT_IEEE, terminalOnePast, terminalOnePastValues,
                     new int[] {0}, new int[] {1}, "ceil terminal origin one past UINT32_MAX");
 
+            var boundedPoolWork = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.MAX_POOL2D,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
+                            new long[] {1, 65_536, 1, 1, 0, 32_767, 1, 1, 0})));
+            List<MetalMpsGraphProgram.ValueDescriptor> boundedPoolWorkValues = List.of(
+                    descriptor(DataType.BFLOAT16, 1, 1, 1, 2),
+                    descriptor(DataType.BFLOAT16, 1, 1, 1, 1));
+            assertTask0064AcceptedByJavaAndNative(
+                    abi, NumericalProfile.STRICT_IEEE, boundedPoolWork, boundedPoolWorkValues,
+                    new int[] {0}, new int[] {1}, "pool kernel-position cap");
+
+            var amplifiedPoolWork = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.AVERAGE_POOL2D,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
+                            new long[] {1, 65_537, 1, 1, 0, 32_768, 1, 1, 0})));
+            List<MetalMpsGraphProgram.ValueDescriptor> amplifiedPoolWorkValues = List.of(
+                    descriptor(DataType.FLOAT32, 1, 1, 1, 1),
+                    descriptor(DataType.FLOAT32, 1, 1, 1, 1));
+            assertTask0064RejectedByJavaAndNative(
+                    abi, NumericalProfile.ACCELERATOR, amplifiedPoolWork,
+                    amplifiedPoolWorkValues, new int[] {0}, new int[] {1},
+                    "pool kernel-position cap one past");
+
+            var amplifiedPool3dWork = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.MAX_POOL3D,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalMpsGraphProgram.AttributeKind.WINDOW_3D,
+                            new long[] {
+                                1, 1, 65_537, 1, 1, 1, 0, 0, 32_768, 1, 1, 1, 0
+                            })));
+            List<MetalMpsGraphProgram.ValueDescriptor> amplifiedPool3dWorkValues = List.of(
+                    descriptor(DataType.BFLOAT16, 1, 1, 1, 1, 1),
+                    descriptor(DataType.BFLOAT16, 1, 1, 1, 1, 1));
+            assertTask0064RejectedByJavaAndNative(
+                    abi, NumericalProfile.STRICT_IEEE, amplifiedPool3dWork,
+                    amplifiedPool3dWorkValues, new int[] {0}, new int[] {1},
+                    "Pool3d kernel-position cap one past");
+
         }
+    }
+
+    private static void assertTask0059WindowOriginRejected(
+            RawAbi abi,
+            MetalMpsGraphProgram program,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            String message) throws Throwable {
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                NumericalProfile.STRICT_IEEE,
+                values,
+                program,
+                new int[] {0},
+                new int[] {1},
+                MetalPreparedRoute.CUSTOM_PROGRAM);
+        byte[] customImage = program.encodedProgramImage(
+                values, new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
+        assertEquals(0, abi.create(customImage, customImage.length),
+                message + " native custom route");
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        NumericalProfile.STRICT_IEEE,
+                        values,
+                        program,
+                        new int[] {0},
+                        new int[] {1},
+                        MetalPreparedRoute.MPSGRAPH),
+                message + " Java MPSGraph route");
+        byte[] mpsGraphImage = program.encodedProgramImage(
+                values, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
+        assertEquals(1, abi.create(mpsGraphImage, mpsGraphImage.length),
+                message + " native MPSGraph route");
     }
 
     private static void assertTask0064AcceptedByJavaAndNative(

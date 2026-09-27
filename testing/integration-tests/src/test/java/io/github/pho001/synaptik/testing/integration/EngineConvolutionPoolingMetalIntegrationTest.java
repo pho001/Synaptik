@@ -69,18 +69,23 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
                 try (var firstSession = engine.session(compiled);
                         var secondSession = engine.session(compiled)) {
-                    assertResults(firstSession.run(List.of(bias, weight, input)), List.of(
+                    List<byte[]> original = List.of(
                             floats(3.5f, 5.5f, 7.5f),
                             floats(2, 3, 4),
-                            floats(1.5f, 2.5f, 3.5f)));
-
-                    writeFloats(mutableInput.storage(), 4, 3, 2, 1);
+                            floats(1.5f, 2.5f, 3.5f));
                     List<byte[]> changed = List.of(
                             floats(7.5f, 5.5f, 3.5f),
                             floats(4, 3, 2),
                             floats(3.5f, 2.5f, 1.5f));
-                    assertResults(
-                            secondSession.run(List.of(input, weight, bias)), changed);
+                    try (RunResult firstResult =
+                            firstSession.run(List.of(bias, weight, input))) {
+                        writeFloats(mutableInput.storage(), 4, 3, 2, 1);
+                        try (RunResult secondResult =
+                                secondSession.run(List.of(input, weight, bias))) {
+                            assertOpenResults(secondResult, changed);
+                            assertOpenResults(firstResult, original);
+                        }
+                    }
                     assertResults(
                             firstSession.run(List.of(weight, bias, input)), changed);
                 }
@@ -428,14 +433,18 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
 
     private static void assertResults(RunResult result, List<byte[]> expected) {
         try (result) {
-            assertEquals(expected.size(), result.resultCount());
-            for (int index = 0; index < expected.size(); index++) {
-                ByteBuffer bytes = result.materialize(
-                        result.publications().get(index), expected.get(index).length).bytes();
-                byte[] actual = new byte[bytes.remaining()];
-                bytes.get(actual);
-                assertArrayEquals(expected.get(index), actual, "publication " + index);
-            }
+            assertOpenResults(result, expected);
+        }
+    }
+
+    private static void assertOpenResults(RunResult result, List<byte[]> expected) {
+        assertEquals(expected.size(), result.resultCount());
+        for (int index = 0; index < expected.size(); index++) {
+            ByteBuffer bytes = result.materialize(
+                    result.publications().get(index), expected.get(index).length).bytes();
+            byte[] actual = new byte[bytes.remaining()];
+            bytes.get(actual);
+            assertArrayEquals(expected.get(index), actual, "publication " + index);
         }
     }
 

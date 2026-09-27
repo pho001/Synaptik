@@ -482,6 +482,7 @@ abstract class MetalNativeApi implements AutoCloseable {
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
         private static final long UINT32_MAX = 0xffff_ffffL;
+        private static final long TASK0064_MAX_POOL_KERNEL_POSITIONS = 65_536L;
 
         private MpsGraphExecutableAbi() {}
 
@@ -857,7 +858,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                             SLICE, SLICE_UPDATE, CONCAT, STACK, TILE, FOLD_AXIS, UNFOLD2D, FOLD2D,
                             UNFOLD3D, FOLD3D -> {
                         requireShape(
-                                task0059ShapeMatches(node, values),
+                                task0059ShapeMatches(node, values, route),
                                 node.kind() + " attributes and output shape disagree");
                         if (route == MetalPreparedRoute.CUSTOM_PROGRAM
                                 && node.kind() == MetalMpsGraphProgram.NodeKind.SCATTER_ND
@@ -1283,9 +1284,12 @@ abstract class MetalNativeApi implements AutoCloseable {
                             words[spatial * 4] != 0L)) {
                         return false;
                     }
-                    divisor = Math.multiplyExact(divisor, kernel);
+                    if (divisor > TASK0064_MAX_POOL_KERNEL_POSITIONS / kernel) {
+                        return false;
+                    }
+                    divisor *= kernel;
                 }
-                return divisor <= UINT32_MAX;
+                return true;
             } catch (ArithmeticException | IndexOutOfBoundsException exception) {
                 return false;
             }
@@ -1497,7 +1501,8 @@ abstract class MetalNativeApi implements AutoCloseable {
 
         private static boolean task0059ShapeMatches(
                 MetalMpsGraphProgram.Node node,
-                List<MetalMpsGraphProgram.ValueDescriptor> values) {
+                List<MetalMpsGraphProgram.ValueDescriptor> values,
+                MetalPreparedRoute route) {
             try {
                 int[] inputs = node.inputs();
                 long[] input = values.get(inputs[0]).dimensions();
@@ -1704,7 +1709,9 @@ abstract class MetalNativeApi implements AutoCloseable {
                                             words[dimensions * 2 + spatial],
                                             words[dimensions + spatial],
                                             words[dimensions * 3 + spatial],
-                                            words[dimensions * 4] != 0));
+                                            words[dimensions * 4] != 0,
+                                            route == MetalPreparedRoute.MPSGRAPH
+                                                    && (dimensions == 2 || spatial > 0)));
                         }
                         long[] expected = {
                                 input[0],
@@ -1738,7 +1745,9 @@ abstract class MetalNativeApi implements AutoCloseable {
                                             words[offset + dimensions * 2 + spatial],
                                             words[offset + dimensions + spatial],
                                             words[offset + dimensions * 3 + spatial],
-                                            words[offset + dimensions * 4] != 0));
+                                            words[offset + dimensions * 4] != 0,
+                                            route == MetalPreparedRoute.MPSGRAPH
+                                                    && (dimensions == 2 || spatial > 0)));
                         }
                         yield matches
                                 && input[0] == output[0]
@@ -1872,14 +1881,18 @@ abstract class MetalNativeApi implements AutoCloseable {
 
         private static long task0059WindowExtent(
                 long input, long kernel, long padding, long stride,
-                long dilation, boolean ceil) {
+                long dilation, boolean ceil, boolean boundedOrigin) {
             long effective =
                     Math.addExact(Math.multiplyExact(dilation, kernel - 1), 1);
             long numerator = Math.subtractExact(
                     Math.addExact(input, Math.multiplyExact(2, padding)), effective);
             if (numerator < 0) throw new ArithmeticException("window does not fit");
-            return Math.addExact(
+            long result = Math.addExact(
                     numerator / stride + (ceil && numerator % stride != 0 ? 1 : 0), 1);
+            if (boundedOrigin && result - 1L > UINT32_MAX / stride) {
+                throw new ArithmeticException("MPSGraph window origin exceeds uint32");
+            }
+            return result;
         }
 
         static void validateRun(

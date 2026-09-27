@@ -183,6 +183,41 @@ class MetalConvolutionPoolingCapabilityTest {
     }
 
     @Test
+    void poolingKernelPositionWorkIsIndependentlyBounded() {
+        Operation exactLimit = new Operation(
+                Pool2dKind.MAX_POOL2D,
+                new MaxPool2dAttrs(1, 65_536, 1, 1, 0, 32_767, 1, 1, false));
+        assertTrue(supports(
+                NumericalProfile.STRICT_IEEE,
+                exactLimit,
+                List.of(descriptor(DataType.FLOAT32, Shape.of(1, 1, 1, 2), false)),
+                descriptor(DataType.FLOAT32, Shape.of(1, 1, 1, 1), false)));
+
+        Operation onePast = new Operation(
+                Pool2dKind.MAX_POOL2D,
+                new MaxPool2dAttrs(1, 65_537, 1, 1, 0, 32_768, 1, 1, false));
+        assertFalse(supports(
+                NumericalProfile.STRICT_IEEE,
+                onePast,
+                List.of(descriptor(DataType.FLOAT32, Shape.of(1, 1, 1, 1), false)),
+                descriptor(DataType.FLOAT32, Shape.of(1, 1, 1, 1), false)));
+
+        Operation onePast3d = new Operation(
+                Pool3dKind.AVERAGE_POOL3D,
+                new AveragePool3dAttrs(
+                        1, 1, 65_537,
+                        1, 1, 1,
+                        0, 0, 32_768,
+                        1, 1, 1,
+                        false));
+        assertFalse(supports(
+                NumericalProfile.ACCELERATOR,
+                onePast3d,
+                List.of(descriptor(DataType.FLOAT32, Shape.of(1, 1, 1, 1, 1), false)),
+                descriptor(DataType.FLOAT32, Shape.of(1, 1, 1, 1, 1), false)));
+    }
+
+    @Test
     void attentionRemainsProductionFalse() {
         Operation attention = new Operation(
                 ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION,
