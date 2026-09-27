@@ -203,6 +203,9 @@ Training-to-Metal optimizer bridge.
 - Historical Metal 0028's FLOAT16 reservation is recorded by planning-only Task 0039 as Blocked on
   Draft Model 0026. Historical Metal 0029 is now detailed by Blocked Task 0040, whose direct
   BFLOAT16 Gather selector canonicalized the first selected signaling NaN.
+- Complete Task 0066 supersedes only Task 0040's future-route conclusion with an exact custom raw-
+  movement GATHER route. Task 0040's direct-selector `0xffa6 -> 0x7fc0` failure and every historical
+  evidence record remain unchanged.
 - Metal 0030 is Blocked without production changes. Its one raw-winner execution passed ordinary
   and signed-subnormal preservation plus shape/input/guard controls, but failed signed-zero order
   and every NaN-class cell; exact winner selection remains outside the recursive floating floors.
@@ -375,7 +378,7 @@ before extracting a package or widening another type.
 | 0063 | [Exact ordering and arg extrema](tasks/0063-exact-ordering-and-arg-extrema.md) | Complete | 0062 Complete through `06c57844`; current Model ordering/top-K/arg-extrema and Compiler-gradient contracts; completed six-carrier, INT64, schema-15, custom-program, catalog, lifecycle, and public Engine foundations | Every concurrent Metal capability/schema/native/custom-source/multi-output/route/package/shared-document scope and resumed 0053 production | None | Approved plan and external P1 unsigned-32-bit cap correction -> implementation/proof `9931d5f8` -> documentation `f7800a26` -> remediation `8a74b499` -> final source/test correction `86399d53` -> active-document reconciliation and external final cumulative `APPROVE` at `c80d79c0` with zero P0/P1/P2 | Native build/sign/package/verification; complete packaged Metal suite; Metal conformance; four-case Engine integration; Javadoc; architecture tests; documentation/link/diff checks; tracked full-width INT32 XOR key and clean worktree confirmed | Implements exact stable SORT/ARGSORT, exact TOP_K with sorted and coordinate-order multi-output publication, and first/last ARG_MAX/ARG_MIN across the specified six- or five-carrier domains. Custom-only routing, integer-only comparator paths, canonical dense positive-rank limits, and pre-resource `UINT32_MAX` rejection are landed. Current production is `75/40`, structural execution `93/22`, catalogs `75/35/5` and `52/63/0`, schema 15, identity 19, ABI 5. |
 | 0064 | [Convolution, pooling, and attention boundary](tasks/0064-convolution-pooling-and-attention-boundary.md) | Complete | 0063 Complete through `c80d79c0`; approved plan `994cd69199cdb5e2524e9b7f48bbdd0fac4a9094`; current Model convolution/pooling/attention and Compiler-gradient contracts; retained 0030/0031/0033/0036 and 0053 blockers | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/package/shared-document scope and resumed 0053 production | None | Approved plan → implementation/proof `58d1da7f` → documentation and seven remediation revisions → completion reconciliation `3df362e1` | Native/package, complete Metal and Compiler, conformance, CPU-free Engine, Javadoc/architecture, full test/build, documentation/diff, and independent cumulative Class C review all passed | Completed six fixed custom convolution/pooling rows; attention and absent ConvTranspose remain fail-closed; capability `81/34`, structural `99/16`, catalogs `75/35/5` and `58/57/0`, schema 15, identity 20, ABI 5, thirteen exports. |
 | 0065 | [Explicit-state RNG, dropout, and recurrent boundary](tasks/0065-explicit-state-rng-dropout-and-recurrent-boundary.md) | Complete | 0064 Complete through `3df362e1`; approved plan `9ceee2b53c88a8c87ca4b8a42cdd2c92682074c9`; Model explicit-state RNG/dropout and recurrent contracts; Compiler saved-mask gradients and BPTT boundary | Every concurrent Metal random/recurrent/schema/native/custom-route/package/shared-document scope and resumed 0053 production | None | Approved plan → exact custom implementation/proof → package/docs → cumulative code/evidence/security review | Native build/sign/package; complete Metal, focused Compiler, conformance, CPU-free Engine, Javadoc/architecture, full test/build, documentation/diff | Adds both-profile raw INITIAL_STATE and accelerator FLOAT32 DROPOUT at `83/32` capability and `101/14` structural execution with identity 21; retains eager distributions and all recurrent rows fail-closed |
-| 0066 | [Dtype, layout, and gradient gap closure](tasks/0066-dtype-layout-gradient-gap-closure.md) | Ready | 0065 Complete through documentation `c48b94d7fb2dfa6391901ede580cf886d74cc889`; current exact six-carrier Model cast/layout/indexing/window contracts; Compiler generated-gradient, saved-role, and logical-layout closure contracts | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/resource/publication/transfer/package/shared-document scope; concurrent Compiler layout/gradient or transfer-contract edits; resumed 0053 production | None | Independent plan review approved with zero P0/P1/P2; one serial backend-neutral static-crop layout closure plus exact custom movement/conversion/predicate/index cutover | Native build/sign/package; complete Metal, focused Compiler direct/generated-graph, conformance, CPU-free public Engine forward/backward/saved-role evidence, Javadoc/architecture, one full test/build, documentation/diff, and cumulative independent Class C review | Broadens exactly existing wires `6..11,16..19,39..45,51,69,71..84`; adds only fully-static target-relative crop inference/closure in Compiler; keeps capability `83/32`, structural `101/14`, MPSGraph `75/35/5`, schema 15, ABI 5, and thirteen exports; targets custom `70/45/0` and identity 22 while preserving every semantic blocker. |
+| 0066 | [Dtype, layout, and gradient gap closure](tasks/0066-dtype-layout-gradient-gap-closure.md) | Complete | 0065 Complete through documentation `c48b94d7fb2dfa6391901ede580cf886d74cc889`; approved plan `e0ec3d2360b0b7ab1119ce0613a612bf3e18b218`; current exact six-carrier Model cast/layout/indexing/window contracts; Compiler generated-gradient, saved-role, and logical-layout closure contracts | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/resource/publication/transfer/package/shared-document scope; concurrent Compiler layout/gradient or transfer-contract edits; resumed 0053 production | None | Approved plan with zero P0/P1/P2 → implementation `0b88f897` → package/documentation reconciliation → cumulative independent Class C review | Native build/sign/package; complete Metal, focused Compiler direct/generated-graph, conformance, CPU-free public Engine forward/backward/saved-role evidence, Javadoc/architecture, one full test/build, documentation/diff, and cumulative independent Class C review | Broadens exactly existing wires `6..11,16..19,39..45,51,69,71..84`; adds only the bounded Compiler static-crop/layout accommodations; keeps capability `83/32`, structural `101/14`, MPSGraph `75/35/5`, schema 15, ABI 5, and thirteen exports; completes custom `70/45/0` and identity 22 while preserving every semantic blocker. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -428,7 +431,7 @@ Completed profile spine and serial successors:
 `0062 (Complete) + current ordering/top-K/arg-extrema and Compiler gradient contracts + schema-15 custom-program/multi-output foundations -> 0063 (Complete)`
 `0063 (Complete) + current convolution/pooling/attention, gradient, and retained selector/proof evidence -> 0064 (Complete through 3df362e1)`
 `0064 (Complete) + current explicit-state RNG/dropout/recurrent contracts + schema-15/custom-program/multi-output foundations + retained 0035/0037/0053 evidence -> 0065 (Complete)`
-`0065 (Complete) + current dtype/layout/indexing/window and Compiler generated-gradient/saved-role/logical-layout contracts + schema-15 custom-program foundations -> 0066 (Ready; independent plan review approved)`
+`0065 (Complete) + current dtype/layout/indexing/window and Compiler generated-gradient/saved-role/logical-layout contracts + schema-15 custom-program foundations -> 0066 (Complete)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -513,14 +516,14 @@ implementation `4f35576c`, conformance correction `4a5cbdef`, and final approved
 `1718b28a`. Its normative
 [per-wire route-evidence audit](tasks/0056-route-evidence-audit.md) cites an exact installed-header
 selector or finite composition and current Model semantic/signature source for every one of the
-115 rows. The current catalog remains MPSGraph
-`75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`; Task 0065 advances custom state to
-`60 AVAILABLE / 55 PENDING / 0 UNAVAILABLE-WITH-PROOF`. The closed route identity retains wires
-`1..3`; schema 15 embeds the fixed route, identities are version 21, and capability is
+115 rows. The current catalogs are MPSGraph
+`75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE` and custom
+`70 AVAILABLE / 45 PENDING / 0 UNAVAILABLE-WITH-PROOF`. The closed route identity retains wires
+`1..3`; schema 15 embeds the fixed route, identities are version 22, and capability is
 `83 true / 32 false`. Package-private forcing remains result-set-only after fresh handoff
-authentication; the Task-0063 through Task-0065 production rows reject MPSGraph. There is no
-device, oracle, timing, benchmark, public API, hot fallback, retry, cache, or autotune behavior.
-Every other Metal task retains its recorded status.
+authentication; every Task-0066 selected occurrence rejects MPSGraph. There is no device, oracle,
+timing, benchmark, public API, hot fallback, retry, cache, or autotune behavior. Every other Metal
+task retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
 
@@ -551,11 +554,12 @@ another.
 - Complete Task 0056 owns the internal 115-kind structural route catalog and one immutable
   prepared-route identity. Task 0057 advanced its candidate/codec identities to 15 and fixed the
   shared route name to `CUSTOM_PROGRAM`; Task 0059 advanced all backend-local identities to 16,
-  Complete Task 0061 advanced them to 17, Complete Task 0062 advanced them to 18, and Complete
-  Task 0063 advanced them to 19, and implemented Task 0064 advances every backend-local identity to
-  20. Identity 19 and every older identity fail closed. Catalog states still are not correctness
-  approval; local timing is never authority, and only the existing cold authenticated handoff
-  remains as a seam for separately approved controlled autotuning.
+  Complete Task 0061 advanced them to 17, Complete Task 0062 advanced them to 18, Complete Task
+  0063 advanced them to 19, Complete Task 0064 advanced them to 20, Complete Task 0065 advanced
+  them to 21, and Complete Task 0066 advances them to 22. Identity 21 and every older identity fail
+  closed. Catalog states still are not correctness approval; local timing is never authority, and
+  only the existing cold authenticated handoff remains a seam for separately approved controlled
+  autotuning.
 - Complete Metal 0044 owns its documentation/audit no-change record; no active owner may reinterpret
   its bounded report as a winner or production decision.
 - Complete Metal 0043 retains its reviewed benchmark implementation and evidence; Complete Metal
@@ -573,11 +577,11 @@ another.
   `9ceee2b53c88a8c87ca4b8a42cdd2c92682074c9`, implementation `05d83074`, and correctness
   remediation `ed7a3369`; independent cumulative code/evidence/documentation and
   security/determinism review returned `APPROVE` with zero unresolved P0/P1/P2. Task 0066 is
-  `Ready`, owns only the approved backend-neutral static-crop layout closure plus exact Metal
-  occurrence cutover, and is the sole authorized Metal production frontier. Model 0028
-  owns the reduction semantic contract, Complete Model 0029 owns the MATMUL final-publication
-  semantic contract, and
-  Complete Metal 0021–0025 retain reviewed implementations.
+  Complete through approved plan `e0ec3d2360b0b7ab1119ce0613a612bf3e18b218` and implementation
+  `0b88f897`; it owns only the approved backend-neutral static-crop/layout accommodations plus the
+  exact Metal occurrence cutover. No Metal task is Ready. Model 0028 owns the reduction semantic
+  contract, Complete Model 0029 owns the MATMUL final-publication semantic contract, and Complete
+  Metal 0021–0025 retain reviewed implementations.
 
 ## Milestones and current frontier
 
@@ -595,12 +599,12 @@ documentation/diff evidence, and independent Class C final `APPROVE` with zero f
 
 Current ABI 5 retains exactly thirteen exports and accepts one bounded schema-15 route-bearing
 program image. Type wires are `1..6`, operation wires are `1..115`, attribute wires are `0..41`,
-and workload/exact-policy/candidate/compatibility/route/codec identities are version twenty-one.
-Task 0055's schema-13/identity-14 foundation, Task 0056's structural catalog, Task 0057's
-schema-14/identity-15 route cutover, Task 0059's schema-15/identity-16 cutover, and Tasks
-0061–0064's identity-17 through identity-20 cutovers remain historical prerequisites. Task 0065
-rejects identity 20 and every older identity while retaining exactly 83 production kinds and 101
-structurally executable kinds.
+route wires are `1..3`, and workload/exact-policy/candidate/compatibility/route/codec identities
+are version twenty-two. Task 0055's schema-13/identity-14 foundation, Task 0056's structural
+catalog, Task 0057's schema-14/identity-15 route cutover, Task 0059's schema-15/identity-16 cutover,
+and Tasks 0061–0065's identity-17 through identity-21 cutovers remain historical prerequisites.
+Task 0066 rejects identity 21 and every older identity while retaining exactly 83 production kinds
+and 101 structurally executable kinds.
 Complete Model 0028 owns the root-only exact-zero reduction rule. Complete Model 0029 owns the
 MATMUL-only final-publication exact-zero sign rule. Metal 0018 remains Blocked without production
 changes. Complete Metal 0022
@@ -712,12 +716,20 @@ Pool2d/Pool3d, while attention and absent ConvTranspose contracts remain fail-cl
 
 Task 0065 is Complete through approved plan `9ceee2b53c88a8c87ca4b8a42cdd2c92682074c9`,
 implementation `05d83074`, and correctness remediation `ed7a3369`. Its fixed custom rows implement
-exact both-profile zero-input `INITIAL_STATE` and accelerator FLOAT32
-`DROPOUT`, including replay, branching/chaining, saved-mask backward, evaluation bypass, prepared
-reuse, and session/concurrency isolation. Generic eager distributions add no graph row, and all
-recurrent rows remain blocked. Current capability is `83/32`, structural execution is `101/14`,
-catalogs are `75/35/5` MPSGraph and `60/55/0` custom, schema is 15, backend-local identity is 21,
-ABI is 5, and thirteen exports remain fixed.
+exact both-profile zero-input `INITIAL_STATE` and accelerator FLOAT32 `DROPOUT`, including replay,
+branching/chaining, saved-mask backward, evaluation bypass, prepared reuse, and
+session/concurrency isolation. Generic eager distributions add no graph row, and all recurrent
+rows remain blocked.
+
+Task 0066 is Complete through approved plan `e0ec3d2360b0b7ab1119ce0613a612bf3e18b218` and
+implementation `0b88f897`. Its exact existing-wire cutover implements all 36 casts, all-carrier
+movement, FLOAT64/FLOAT32/BFLOAT16 classification and promoted WHERE, scalar/affine logical versus
+physical layout handling, INT64 indexing parity, and bounded generated gradients with saved roles.
+Every selected occurrence uses `CUSTOM_PROGRAM`; dynamic/empty/signed-stride/overlap,
+additive/reduction, transcendental, attention, and recurrent blockers remain fail-closed. Current
+capability is `83/32`, structural execution is `101/14`, catalogs are `75/35/5` MPSGraph and
+`70/45/0` custom, schema is 15, backend-local identity is 22, ABI is 5, and thirteen exports remain
+fixed. No Metal task is Ready.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030

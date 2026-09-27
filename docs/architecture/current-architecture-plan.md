@@ -61,28 +61,38 @@ non-overlapping layouts with checked physical spans.
 CPU realizes both numerical profiles through identical exact behavior and routes. Model defines
 `STRICT_IEEE` as the unchanged current contract and `ACCELERATOR` as its total recursive
 `FLOAT32` superset; that semantic reach does not imply backend support. Metal execution remains
-occurrence- and profile-qualified. Its common domain includes the exact unary, affine,
-canonicalization, indexing, classification, BOOL, Task-0059 movement, Task-0060
-replacement/fold/aggregate, and unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema rows.
+occurrence- and profile-qualified. Its common domain includes exact unary operations; all 36 ordered
+casts; FLOAT64/FLOAT32/BFLOAT16 classification; scalar and right-aligned BOOL logic; the nine
+promoted floating `WHERE` signatures; and exact six-carrier affine, indexing, replacement, and
+movement occurrences. Exact index roles accept INT32 or INT64. `FOLD_AXIS` admits the five numeric
+carriers but not BOOL; `UNFOLD2D`/`FOLD2D` and `UNFOLD3D`/`FOLD3D` admit only
+FLOAT64/FLOAT32/BFLOAT16. Replacement scatter remains `NONE` only, and window folds remain
+non-overlapping. The bounded generated-gradient closure covers floating casts, inverse affine
+movement, exact replacement, saved condition/index roles, and non-overlapping window adjoints
+without inferring arithmetic reductions, additive scatter, overlap accumulation, dynamic or empty
+geometry, signed-stride transfer, or any of the 32 production-false semantic families.
 Both profiles additionally admit no-gradient INT32/INT64 MATMUL with INT64-dominant promotion and
 exact modular result arithmetic. Accelerator additionally admits the documented FLOAT32
-arithmetic, extrema, scalar, reduction, and scan rows; every positive-static FLOAT32 MATMUL vector,
-matrix, batched, and right-aligned broadcast geometry; and no-gradient BFLOAT16/FLOAT32 mixed
-MATMUL with FLOAT32 result. MATMUL operands are canonical or authenticated local identity-prefix,
-last-two-axis transposes. Existing rank-two FLOAT32 matrix products retain direct MPSGraph; every
-new geometry and carrier pair uses the fixed custom program. The five ordering/arg-extrema kinds
-are custom-only, with one paired-output TOP_K step. Strict floating MATMUL and every other unlisted
-occurrence fail closed before route selection.
+arithmetic, extrema, scalar, reduction, scan, MSE, average-pooling, convolution, and explicit-state
+dropout rows; every positive-static FLOAT32 MATMUL vector, matrix, batched, and right-aligned
+broadcast geometry; and no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 result. Both
+profiles admit exact maximum pooling and raw INT64 initial state. Strict floating MATMUL and every
+other unlisted occurrence fail closed before route selection.
 Canonical typed host ingress/publication and direct CPU/Metal transfer support all six data types at
 ranks `0..16`; transfer also accepts resolved positive-stride non-overlapping physical storage
 layouts and rejects unresolved, zero-stride, negative-stride, or overlapping geometry. BOOL
-validation visits logical elements only. An eligible singleton NEG retains its dedicated custom
-route. Any partition containing an exact custom node or MATMUL outside the retained direct slice
-uses the fixed shared whole-program route with declared run-owned value buffers and one Java/native
-invocation. Current Metal uses ABI 5 with the same thirteen exports and one bounded schema-15
-route-bearing program image over type wires `1..6`, operation wires `1..115`, and attribute wires
-`0..41`; backend-local identities are version nineteen. Structural coverage is `93 / 22`;
-production capability is exactly `75 / 40`.
+validation visits logical elements only. Selected affine view results retain authenticated logical
+Shape, stride, and offset while Java preparation and native preflight independently derive and
+validate the physical storage span before any write; selected materializing results are canonical.
+An eligible singleton NEG retains its dedicated custom route. Every occurrence selected by Task
+0066 wires `6..11,16..19,39..45,51,69,71..84` uses the fixed shared `CUSTOM_PROGRAM` route with
+declared run-owned value buffers and one Java/native invocation; there is no selected-node
+MPSGraph fallback. Current Metal uses ABI 5 with the same thirteen exports and one bounded
+schema-15 route-bearing program image over type wires `1..6`, operation wires `1..115`, attribute
+wires `0..41`, and route wires `1..3`. Structural coverage is `101 / 14`; production capability is
+exactly `83 / 32`; route catalogs are `75 / 35 / 5` MPSGraph and `70 / 45 / 0` custom.
+Backend-local identities are version twenty-two, and identity twenty-one and every older identity
+fail closed.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over

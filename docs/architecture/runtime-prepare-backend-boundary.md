@@ -645,16 +645,19 @@ accelerator floors. Prepare does not interpret them: a backend must reject an un
 profile/operation pair before route selection, preserve strict capability as an accelerator
 subset, prove its complete route results fall inside Model's recursive set, and retain profile
 identity in every reusable plan/cache boundary. CPU admits both profiles through identical exact
-routes. Metal's common exact occurrence domain under both profiles contains its unary, affine,
-canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060 replacement/fold/aggregate,
-unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema, and no-gradient promoted INT32/INT64
-MATMUL rows. Accelerator additionally admits the documented FLOAT32 arithmetic, extrema, scalar,
-reduction, and scan rows; same-type canonical positive-rank FLOAT32 MSE for all three reductions;
-every positive-static FLOAT32 MATMUL vector, matrix, batched, and right-aligned broadcast geometry;
-and no-gradient BFLOAT16/FLOAT32 mixed MATMUL. Every other occurrence fails closed before route
-selection. ABI 5 retains thirteen exports and consumes one bounded schema-15 route-bearing image
-over type wires `1..6`, operation wires `1..115`, and attribute wires `0..41`; backend identities
-are version nineteen. Structural coverage is `93 / 22` and production capability is `75 / 40`.
-CPU/Metal transfer accepts canonical or resolved positive-stride non-overlapping all-carrier
-storage layouts without widening operation capability.
+routes. Metal's common exact occurrence domain under both profiles contains exact unary rows, all
+36 casts, FLOAT64/FLOAT32/BFLOAT16 classification and promoted WHERE, scalar/broadcast BOOL,
+all-carrier affine/index/replacement/movement, the admitted non-overlapping fold/window subsets,
+unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema, no-gradient promoted INT32/INT64
+MATMUL, exact maximum pooling, and raw initial state. Accelerator additionally admits the
+documented FLOAT32 arithmetic, extrema, scalar, reduction, scan, MSE, general MATMUL,
+average-pooling, convolution, and explicit-state dropout rows. Every Task-0066 selected occurrence
+uses one fixed custom whole-program route; every other unsupported occurrence fails closed before
+route selection. ABI 5 retains thirteen exports and consumes one bounded schema-15 route-bearing
+image over type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, and route wires
+`1..3`; backend identities are version twenty-two. Structural coverage is `101 / 14`, production
+capability is `83 / 32`, and the MPSGraph/custom catalogs are `75 / 35 / 5` and `70 / 45 / 0`.
+Identity twenty-one and every older identity fail closed. CPU/Metal transfer accepts canonical or
+resolved positive-stride non-overlapping all-carrier storage layouts without widening operation
+capability.
 Runtime therefore requires neither profile interpretation nor a policy lookup.

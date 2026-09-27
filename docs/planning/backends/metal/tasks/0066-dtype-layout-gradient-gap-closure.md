@@ -2,19 +2,18 @@
 
 ## Status
 
-Ready — planning only from clean post-Task-0065 revision
-`c48b94d7fb2dfa6391901ede580cf886d74cc889`. Independent Class C plan review returned `APPROVE`
-with zero P0/P1/P2 findings after the dtype/layout/gradient domain remediations. This is the sole
-Ready Metal task; its serial implementation proceeds without another approval stop.
+Complete — independently approved plan
+`e0ec3d2360b0b7ab1119ce0613a612bf3e18b218` was implemented at `0b88f897`. The cutover preserves
+all named blockers and fixed schema/ABI/export boundaries while completing the exact selected
+occurrence, route, physical-layout, generated-gradient, package, and documentation scope.
 
 ## Change class
 
-Class C — the future implementation broadens occurrence capability inside 33 already-production-
-true operation kinds, replaces ten pending movement rows with fixed custom implementations, closes
+Class C — the implementation broadens occurrence capability inside 33 already-production-true
+operation kinds, replaces ten pending movement rows with fixed custom implementations, closes
 first-order movement gradients that generate only already-exact operations, and advances every
-backend-local identity. It adds no operation kind and does not reopen the semantic families represented
-by the current 32 production-false rows. Independent plan review has passed; independent cumulative
-code/evidence/documentation and security review remains the completion gate.
+backend-local identity. It adds no operation kind and does not reopen the semantic families
+represented by the 32 production-false rows.
 
 ## Goal
 
@@ -486,17 +485,21 @@ closure as semantic support for another row.
 
 ## Files and symbols
 
-Implementation owners after plan approval:
+Implementation ownership:
 
-- Compiler `LayoutInference` target-relative slice derivation,
-  `StaticResultLogicalLayoutClosure`'s narrow post-input-layout crop branch, their backend-neutral
-  Javadocs, and focused direct plus actual generated PAD/CONCAT graph tests covering initially
-  unresolved derivative splats and static/resolved versus dynamic/empty/unresolved cases; no
-  generated-gradient formula changes;
+- Compiler `LayoutInference` target-relative slice derivation and
+  `StaticResultLogicalLayoutClosure`'s narrow post-input-layout crop retry, with backend-neutral
+  Javadocs and focused direct plus generated PAD/CONCAT graph tests for initially unresolved
+  derivative splats and static/resolved versus dynamic/empty/unresolved cases;
+- `CapturedGraphInference`'s matching layout-only deferral, explicitly restricted to `SLICE`, so
+  the inference/closure pass can resolve that crop without broadening `SLICE_UPDATE` or changing a
+  gradient formula;
+- `AutogradPreflight`'s existing 3D window counterpart validation, corrected to compare semantic
+  type, Shape, and gradient properties rather than an incidental intermediate layout;
 - `MetalCapabilityProvider`, `MetalMpsGraphProgram`, `MetalNegPartitionPreparer`,
   `MetalNegPreparationPlan`, `MetalNativeApi`, `MetalOperationRouteCatalog`, custom candidate/tuning/
   codec identities, transfer/publication authentication, and affected package/type Javadocs;
-- native foundation preflight/metadata/pipeline/step/binding code plus one
+- native foundation preflight/metadata/pipeline/step/binding code plus
   `synaptik_task0066_dtype_layout_kernels.h`, with no new export or schema field;
 - focused capability/catalog/schema/native/malformed/raw-word/index/layout/rank-zero/bounds tests,
   including allocation-free overflow and native-parity rejection;
@@ -504,12 +507,10 @@ Implementation owners after plan approval:
   carriers, cast matrix representatives, scalar/view/broadcast composition, saved condition/index
   roles, exact first-order generated graphs, reuse/concurrency/sessions, and early failures; and
 - current Metal/backend/native guides, capability/preparer status, architecture identity claims,
-  this brief, master plan, and roadmap after behavior stabilizes.
+  this brief, master plan, and roadmap.
 
-No Model or Compiler gradient-formula edit is planned. Implementation includes the approved Compiler
-target-relative crop inference and post-input-layout closure branch plus the approved Metal Java/
-native/test, public Engine integration, and current documentation scopes. The planning-only revision
-changes exactly this brief, the Metal master plan, and the roadmap.
+No Model or Compiler gradient-formula edit occurred. The three Compiler accommodations above are
+the complete backend-neutral Compiler source scope used by the implementation.
 
 ## Acceptance criteria
 
@@ -586,9 +587,10 @@ SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/package-v1/maco
 git diff --check
 ```
 
-No timing or benchmark command is authorized. The complete packaged Metal suite, focused Compiler
-contracts, conformance, public Engine smoke, architecture/Javadoc, and one repository validation pass
-close implementation.
+No timing or benchmark command was run. Native build/sign/package/verification, the Gradle package
+tasks, complete Metal tests, focused Compiler contracts, Metal conformance, the dedicated CPU-free
+public Engine integration, Metal Javadoc, architecture tests, `./gradlew test`, `./gradlew build`,
+and `git diff --check` all passed for the implementation and documentation cutover.
 
 ## Documentation and review impact
 
@@ -621,3 +623,20 @@ all 32 production-false rows.
 Implementation will retain capability `83/32`, structural execution `101/14`, and MPSGraph catalog
 `75/35/5`; move exactly ten custom rows to finish `70/45/0`; retain schema 15, ABI 5, and thirteen
 exports; and advance every backend-local identity from 21 to 22.
+
+## Implementation result
+
+Implementation `0b88f897` completes exactly wires
+`6..11,16..19,39..45,51,69,71..84` through one selected-occurrence `CUSTOM_PROGRAM` route. Java
+preparation and native preflight independently derive and authenticate logical versus physical
+layout geometry; native kernels implement raw movement, validated replacement/indexing, all 36
+casts, bit-defined classification/WHERE, scalar values, and non-overlapping window movement. The
+public Engine integration covers all carrier widths, scalar and affine publication, saved
+condition/index roles, generated backward graphs, prepared reuse, independent/concurrent sessions,
+and early rejection of additive scatter, direct EXPAND adjoint reduction, and other named blockers.
+
+The resulting boundary is capability `83/32`, structural execution `101/14`, MPSGraph catalog
+`75/35/5`, custom catalog `70/45/0`, schema 15, ABI 5, thirteen exports, and backend-local identity
+22. Identity 21 and every older identity reject. Task 0040's historical direct BFLOAT16 GATHER
+failure remains unchanged; only its future-route conclusion is superseded by the exact custom raw
+movement route.
