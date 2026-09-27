@@ -794,13 +794,13 @@ gradient obligations. Unblocking requires a conforming custom or proved selector
 complete five-input/two-output/caller-INT64 schema, native lifecycle, and proof.
 
 Schema 15, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
-version-eighteen identities are current after Complete Task 0062. Complete Tasks 0055–0061 remain
-historical foundation/catalog/route/domain prerequisites; blocked Metal 0053 remains fail-closed
-without production capability. Metal 0026/0027 remain separately finalized Blocked.
-Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model
-0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit gate. Metal 0041 is
-Complete at implementation `ba16d942` plus remediation `386705ca`; Metal 0042 is Complete at
-`9feb2505705263b6efb417d606678c606c2b9598`; Metal 0043 is Complete at remediation `77e6091b`;
+version-nineteen identities are current after Task 0063 implementation/remediation. Complete Tasks
+0055–0062 remain historical foundation/catalog/route/domain prerequisites; blocked Metal 0053
+remains fail-closed without production capability. Metal 0026/0027 remain separately finalized
+Blocked. Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on
+Draft Model 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit gate. Metal
+0041 is Complete at implementation `ba16d942` plus remediation `386705ca`; Metal 0042 is Complete
+at `9feb2505705263b6efb417d606678c606c2b9598`; Metal 0043 is Complete at remediation `77e6091b`;
 Metal 0044 is Complete; Metal 0045 is Complete at remediation `26c6c911`; Metal 0046 is Complete at
 independently approved implementation `4aad1ab6`; Metal 0047 is Blocked; Metal 0048 is Complete at
 independently approved implementation `89f9fbb9`; documentation-only Metal 0049 is Complete after
@@ -808,7 +808,7 @@ remediation `6d4246f7`; Metal 0050 final verification, Task 0052, and historical
 documentation/audit-only Metal 0054 and exact BOOL Task 0057 are Complete. Historical Metal 0051
 and successor Metal 0053 are Blocked. Task 0054 remains the exact pre-cutover
 `19+2+15+79=115` record, not a current count; current capability is
-`70 true / 45 false = 115` and current structural execution is `88 true / 27 false = 115`.
+`75 true / 40 false = 115` and current structural execution is `93 true / 22 false = 115`.
 
 ## History policy
 

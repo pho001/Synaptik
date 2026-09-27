@@ -2744,13 +2744,15 @@ kernel selection, executable units, storage, workspaces, and native integration.
 backends do not own public tensor semantics or global graph compilation. CPU supplies its current
 portable and optional native routes. Metal supplies package-private storage and prepared execution
 for its closed common exact and accelerator-only domains. Both profiles include exact
-movement/replacement/fold/aggregate rows and no-gradient promoted INT32/INT64 MATMUL. Accelerator
-adds the documented FLOAT32 arithmetic/reduction/scan rows, every positive-static FLOAT32 MATMUL
-geometry with generated gradients, and no-gradient BFLOAT16/FLOAT32 mixed MATMUL. Existing
-rank-two FLOAT32 matrix products use direct MPSGraph; exact custom nodes and all other admitted
-MATMUL forms use one fixed custom whole-program route. Cross-owner transfer admits rank-zero and
-positive-rank values for all six carriers over exact supported storage layouts. CUDA remains an
-identity without concrete execution behavior. See [Module boundaries](architecture/module-boundaries.md).
+movement/replacement/fold/aggregate, no-gradient promoted INT32/INT64 MATMUL, and
+unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema rows. Accelerator adds the documented
+FLOAT32 arithmetic/reduction/scan rows, every positive-static FLOAT32 MATMUL geometry with generated
+gradients, no-gradient BFLOAT16/FLOAT32 mixed MATMUL, and same-type positive-rank FLOAT32 MSE
+forward execution. Existing rank-two FLOAT32 matrix products use direct MPSGraph; exact custom
+nodes, including every admitted ordering/arg-extrema node, and all other admitted MATMUL forms use
+one fixed custom whole-program route. Cross-owner transfer admits rank-zero and positive-rank
+values for all six carriers over exact supported storage layouts. CUDA remains an identity without
+concrete execution behavior. See [Module boundaries](architecture/module-boundaries.md).
 
 ### Cumulative scan
 
@@ -5183,22 +5185,23 @@ implements the transactional finalizer handoff.
 The current Metal backend's package-private shape-specialized Runtime recipe for one complete
 maximal profile-homogeneous partition. Both profiles admit the exact common unary, affine,
 canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060 replacement/fold/aggregate,
-and promoted integral MATMUL rows. ACCELERATOR additionally admits the documented FLOAT32
-arithmetic/reduction/scan rows, every positive-static FLOAT32 MATMUL geometry, no-gradient
-BFLOAT16/FLOAT32 mixed MATMUL, and same-type canonical positive-rank FLOAT32 MSE with `NONE`, `SUM`,
-or `MEAN`. MSE has forward ownership only; strict, excluded carriers/geometry, every other
-normalization or loss kind, and generated MSE backward remain fail-closed. Direct typed transfer can
-move all six current carriers at ranks `0..16` through canonical or supported storage layouts; BOOL
-validation visits logical elements only.
+Task-0063 ordering/top-K/numeric arg-extrema, and promoted integral MATMUL rows. ACCELERATOR
+additionally admits the documented FLOAT32 arithmetic/reduction/scan rows, every positive-static
+FLOAT32 MATMUL geometry, no-gradient BFLOAT16/FLOAT32 mixed MATMUL, and same-type canonical
+positive-rank FLOAT32 MSE with `NONE`, `SUM`, or `MEAN`. MSE has forward ownership only; strict,
+excluded carriers/geometry, every other normalization or loss kind, and generated MSE backward
+remain fail-closed. Direct typed transfer can move all six current carriers at ranks `0..16`
+through canonical or supported storage layouts; BOOL validation visits logical elements only.
 
 Metal analysis fixes stable value/node/feed/target order, lowers one bounded schema-15 route-bearing
-program image, generates a complete version-18 route batch, authenticates any supplied session
-decision, and fixes one private route before declaring resources. An eligible singleton NEG may use
-the dedicated custom pipeline. A partition containing any exact custom node or MATMUL outside the
-retained all-FLOAT32 rank-two MPSGraph slice selects the fixed shared custom whole-program route;
-an MSE node remains the same fixed nested MPSGraph composition there. Other supported partitions use
-MPSGraph. Exact structural alternatives remain package-private forcing only. These choices add no
-fallback, retry, timing selection, or partition change.
+program image, generates a complete version-19 route batch, authenticates any supplied session
+decision, and fixes one private route before declaring resources. Identity 18 and earlier fail
+closed. An eligible singleton NEG may use the dedicated custom pipeline. A partition containing
+any exact custom node or MATMUL outside the retained all-FLOAT32 rank-two MPSGraph slice selects the
+fixed shared custom whole-program route; an MSE node remains the same fixed nested MPSGraph
+composition there. Other supported partitions use MPSGraph. Exact structural alternatives remain
+package-private forcing only. These choices add no fallback, retry, timing selection, or partition
+change.
 
 Finalization compiles one persistent route resource and transfers it to `PreparedExecution`.
 Shared custom-program creation compiles the fixed reviewed safe-math/raw-word/integer/movement
