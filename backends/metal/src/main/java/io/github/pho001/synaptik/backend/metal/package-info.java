@@ -27,13 +27,14 @@
  * DIV}, {@code MIN}, and {@code MAX}; all six binary comparisons with canonical one-byte {@code
  * BOOL} output; exact FLOAT32 scalar {@code MIN}, {@code MAX}, and fused {@code CLAMP}; canonical
  * {@code FLOAT32} {@code SUM}, {@code MEAN}, {@code MIN}, {@code MAX}, binding-resolved {@code
- * SUM_TO_SHAPE}, and the Task-0069 source-owned {@code L1_NORM} slice; all four exclusive/reverse
- * modes of {@code CUM_SUM} and {@code CUM_PROD}; and every positive-static FLOAT32 {@code MATMUL}
- * vector, matrix, batched, and right-aligned broadcast geometry. The L1 slice is exactly one
- * canonical no-gradient rank-one input, ordered axes {@code [0]}, positive extent and four-byte
- * span bounded to unsigned 32 bits, and a canonical scalar or retained {@code [1]} output. Both
- * profiles admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant promotion and modular
- * result arithmetic. Accelerator additionally admits no-gradient BFLOAT16/FLOAT32 and
+ * SUM_TO_SHAPE}, and the Task-0069 source-owned {@code L1_NORM} and {@code SCATTER_ADD} slices; all
+ * four exclusive/reverse modes of {@code CUM_SUM} and {@code CUM_PROD}; and every positive-static
+ * FLOAT32 {@code MATMUL} vector, matrix, batched, and right-aligned broadcast geometry. The L1 slice
+ * is exactly one canonical no-gradient rank-one input, ordered axes {@code [0]}, positive extent
+ * and four-byte span bounded to unsigned 32 bits, and a canonical scalar or retained {@code [1]}
+ * output.
+ * Both profiles admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant promotion and
+ * modular result arithmetic. Accelerator additionally admits no-gradient BFLOAT16/FLOAT32 and
  * FLOAT32/BFLOAT16 operands with FLOAT32 result. Other admitted reductions support full,
  * normalized single-axis, ordered normalized multi-axis including empty, and exact keep-dimensions
  * forms; reduction inputs remain positive-rank while their target may be rank zero.
@@ -171,14 +172,16 @@
  * reduction-dependent, additive, transcendental, attention, and recurrent blockers remain
  * fail-closed.
  *
- * <p>Task 0069 Slice 1 adds one accelerator-only no-gradient FLOAT32 L1 norm occurrence at wire
- * 114. One output thread raw-ABS-transforms every rank-one contributor, initializes from ordinal
- * zero, performs exactly {@code N-1} safe binary32 additions in increasing ordinal order, and
- * stores once; {@code N=1} is a direct raw ABS with no addition. Java and native validation
- * independently enforce ordered axes {@code [0]}, canonical scalar or retained {@code [1]}
- * output, unsigned-32-bit element/span bounds, and distinct value-table buffers before execution.
- * The proof and source/compiler-site certificate are pinned under {@code evidence/0069}; no
- * SCATTER_ADD or VARIANCE production row is included.
+ * <p>Task 0069 Slices 1 and 2 add accelerator-only no-gradient FLOAT32 rank-one L1 norm and
+ * scatter-add occurrences at wires 114 and 70. L1 raw-ABS-transforms every contributor and uses
+ * exactly {@code N-1} source-ordered safe additions. Scatter requires axis zero, a materialized
+ * canonical INT32/INT64 index feed, and canonical base/update/output roles. The compiler places
+ * explicit {@code CONTIGUOUS} between its generated zero-base expansion and Scatter. Its complete
+ * CPU index scan precedes every dispatch and mutation; one thread per target loads the raw base
+ * once, retains every matching duplicate in source order, and stores once, while unaddressed cells
+ * are raw copies. The shared proof and
+ * source/compiler-site certificate are pinned under {@code evidence/0069}; {@code VARIANCE}
+ * remains production-false.
  *
  * <p>The selected numerical profile participates in partition-plan, route, tuning, decision-codec,
  * and workload identity. Java rejects profile/schema mismatches before native entry. ABI version
@@ -186,9 +189,9 @@
  * route-bearing image over stable type wires {@code 1..6}, operation wires {@code 1..115},
  * attribute wires {@code 0..41}, and complete optional storage-layout geometry; its fixed header
  * binds the exact numerical-profile wire. Native structural execution covers exactly 101 wires and
- * leaves 14 nonexecutable. Production capability is exactly 84 operation kinds and 31 remain false.
+ * leaves 14 nonexecutable. Production capability is exactly 85 operation kinds and 30 remain false.
  * Backend-local workload, exact-policy, candidate, compatibility, route-policy, and codec
- * identities are version twenty-three; schema version fifteen and every other schema, and identity
- * version twenty-two and earlier, fail closed.
+ * identities are version twenty-four; schema version fifteen and every other schema, and identity
+ * version twenty-three and earlier, fail closed.
  */
 package io.github.pho001.synaptik.backend.metal;

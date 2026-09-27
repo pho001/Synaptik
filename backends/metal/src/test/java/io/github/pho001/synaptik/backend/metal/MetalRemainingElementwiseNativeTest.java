@@ -1004,19 +1004,6 @@ class MetalRemainingElementwiseNativeTest {
                 library,
                 NumericalProfile.STRICT_IEEE,
                 MetalMpsGraphProgram.Node.generic(
-                        MetalMpsGraphProgram.NodeKind.SCATTER_ADD,
-                        new int[] {0, 1, 2}, new int[] {3},
-                        MetalMpsGraphProgram.AttributeKind.AXIS, new long[] {1}),
-                List.of(
-                        typed(DataType.FLOAT32, 2, 3),
-                        typed(DataType.INT32, 2, 2),
-                        typed(DataType.FLOAT32, 2, 2),
-                        typed(DataType.FLOAT32, 2, 3)),
-                List.of(data, new int[] {2, 0, 1, 1}, bits(10, 20, 30, 40))).length);
-        assertEquals(6, NonProductionStructuralFixture.executeCurrent(
-                library,
-                NumericalProfile.STRICT_IEEE,
-                MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.GATHER_ND,
                         new int[] {0, 1}, new int[] {2},
                         MetalMpsGraphProgram.AttributeKind.GATHER_ND, new long[] {0}),

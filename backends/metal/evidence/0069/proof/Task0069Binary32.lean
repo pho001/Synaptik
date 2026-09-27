@@ -171,6 +171,72 @@ structure Binary32RneContract (rne : Word → Word → Word) : Prop
     nonnegativeFinite right →
     exactRneNonnegative left right (rne left right)
 
+/-- Every non-NaN/non-infinity word, including both signed zeros and all subnormals. -/
+def finiteWord (word : Word) : Prop :=
+  rawClass word ≠ .nan ∧ rawClass word ≠ .infinity
+
+/-- Exact signed value as an integer count of the least positive binary32 subnormal. -/
+def finiteSignedScaled (word : Word) : Int :=
+  if word.sign then
+    -Int.ofNat (finiteMagnitudeScaled word)
+  else
+    Int.ofNat (finiteMagnitudeScaled word)
+
+def intDistance (left right : Int) : Nat :=
+  (left - right).natAbs
+
+/--
+Set-valued exact round-to-nearest-even relation for arbitrary finite binary32 operands. It covers
+signed cancellation and signed zero, every normal/subnormal pair, and both overflow directions.
+-/
+def exactRneFiniteSigned (left right result : Word) : Prop :=
+  let exact := finiteSignedScaled left + finiteSignedScaled right
+  if exact = 0 then
+    rawClass result = .zero ∧ result.sign = (left.sign && right.sign)
+  else if overflowThresholdScaled ≤ exact.natAbs then
+    rawClass result = .infinity ∧ result.sign = decide (exact < 0)
+  else
+    finiteWord result ∧
+      result.sign = decide (exact < 0) ∧
+      ∀ candidate, finiteWord candidate →
+        let resultDistance := intDistance exact (finiteSignedScaled result)
+        let candidateDistance := intDistance exact (finiteSignedScaled candidate)
+        resultDistance < candidateDistance ∨
+          (resultDistance = candidateDistance ∧
+            (candidate = result ∨ result.fraction.val % 2 = 0))
+
+/--
+Total set-valued binary32 RNE relation. NaN inputs produce NaN; opposite infinities produce NaN;
+one or equal-sign infinities preserve their sign and class; every remaining finite pair uses the
+signed exact-value nearest-even relation above.
+-/
+def exactRneGeneral (left right result : Word) : Prop :=
+  if rawClass left = .nan ∨ rawClass right = .nan then
+    rawClass result = .nan
+  else if rawClass left = .infinity then
+    if rawClass right = .infinity ∧ left.sign ≠ right.sign then
+      rawClass result = .nan
+    else
+      rawClass result = .infinity ∧ result.sign = left.sign
+  else if rawClass right = .infinity then
+    rawClass result = .infinity ∧ result.sign = right.sign
+  else
+    exactRneFiniteSigned left right result
+
+/--
+The Scatter primitive is constrained for every possible raw operand pair, not merely the
+nonnegative L1 subset. `exactRneGeneral` is set-valued only where binary32 permits multiple NaN
+payloads or the source's explicit DAZ/FTZ alternatives surround the primitive result.
+-/
+structure GeneralBinary32RneContract (rne : Word → Word → Word) : Prop where
+  exactRounding : ∀ left right, exactRneGeneral left right (rne left right)
+
+def generalBinary32AddSite
+    (rne : Word → Word → Word)
+    (_contract : GeneralBinary32RneContract rne)
+    (left right published : Word) : Prop :=
+  addSite rne left right published
+
 def binary32AddSite
     (rne : Word → Word → Word)
     (_contract : Binary32RneContract rne)

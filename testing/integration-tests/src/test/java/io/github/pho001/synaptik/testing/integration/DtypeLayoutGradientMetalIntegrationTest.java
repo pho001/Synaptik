@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.EngineMixedOwnerTestAccess;
 import io.github.pho001.synaptik.engine.RunResult;
@@ -540,23 +541,46 @@ final class DtypeLayoutGradientMetalIntegrationTest {
   }
 
   @Test
+  void task0069ScatterAddAndGatherDataGradientRunEndToEnd() {
+    Path library = configuredMetalLibrary();
+    try (Arena arena = Arena.ofShared();
+        Engine.Builder builder = Engine.builder()) {
+      builder.numericalProfile(NumericalProfile.ACCELERATOR);
+      builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
+      try (Engine engine = builder.build()) {
+        Tensor data = tensor(arena, DataType.FLOAT32, false, 1, 2, 3, 4);
+        Tensor indices = tensor(arena, DataType.INT64, false, 0, 0, 2);
+        Tensor updates = tensor(arena, DataType.FLOAT32, false, 10, 20, 30);
+        Tensor scattered = data.scatterAdd(indices, updates, 0);
+        var direct = engine.compile(List.of(scattered));
+        assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(direct));
+        try (var session = engine.session(direct)) {
+          assertResults(
+              session.run(List.of(data, indices, updates)),
+              List.of(canonical(DataType.FLOAT32, new long[] {31, 2, 33, 4})));
+        }
+
+        Tensor gatherTarget = tensor(arena, DataType.FLOAT32, true, 1, 2, 3, 4);
+        Tensor gatherSeed = tensor(arena, DataType.FLOAT32, false, 10, 20, 30);
+        assertGradientCase(
+            engine,
+            gatherTarget.gather(indices, 0),
+            gatherSeed,
+            gatherTarget,
+            List.of(gatherTarget, indices, gatherSeed),
+            new long[] {1, 1, 3},
+            new long[] {30, 0, 30, 0});
+      }
+    }
+  }
+
+  @Test
   void unsupportedGradientAndGeometryDomainsFailEarlyWithoutCpuFallback() {
     Path library = configuredMetalLibrary();
     try (Arena arena = Arena.ofShared();
         Engine.Builder builder = Engine.builder()) {
       builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
       try (Engine engine = builder.build()) {
-        Tensor gatherTarget = tensor(arena, DataType.FLOAT32, true, 1, 2, 3, 4);
-        Tensor duplicateIndices = tensor(arena, DataType.INT64, false, 0, 0);
-        Tensor gatherSeed = tensor(arena, DataType.FLOAT32, false, 10, 20);
-        assertMetalCompileRejected(
-            engine,
-            () ->
-                engine.compile(
-                    List.of(gatherTarget.gather(duplicateIndices, 0)),
-                    List.of(gatherSeed),
-                    List.of(gatherTarget)),
-            "SCATTER_ADD");
         Tensor arithmeticScatterData = tensor(arena, DataType.FLOAT32, false, 1, 2, 3, 4);
         Tensor arithmeticScatterIndices = tensor(arena, DataType.INT64, false, 0, 2);
         Tensor arithmeticScatterUpdates = tensor(arena, DataType.FLOAT32, false, 10, 20);

@@ -55,8 +55,8 @@ class MetalOperationRouteCatalogTest {
         assertEquals(75, direct);
         assertEquals(35, composed);
         assertEquals(5, unavailable);
-        assertEquals(71, customAvailable);
-        assertEquals(44, customPending);
+        assertEquals(72, customAvailable);
+        assertEquals(43, customPending);
         assertEquals(0, customUnavailableWithProof);
     Set<MetalMpsGraphProgram.NodeKind> task0066MovedToCustomAvailable =
         Arrays.stream(kinds)

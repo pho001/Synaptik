@@ -71,6 +71,26 @@ final class TrainingSessionCpuIntegrationTest {
     }
 
     @Test
+    void gatherDataGradientKeepsItsCpuResultAfterCanonicalZeroRepresentation() {
+        try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+            Tensor data = tensor(arena, DataType.FLOAT32, true, 1, 2, 3, 4);
+            Tensor indices = tensor(arena, DataType.INT64, false, 0, 0, 2);
+            Tensor seed = tensor(arena, DataType.FLOAT32, false, 10, 20, 30);
+            var compiled = engine.compile(
+                    List.of(data.gather(indices, 0)), List.of(seed), List.of(data));
+            try (var session = engine.session(compiled);
+                    var result = session.run(List.of(data, indices, seed))) {
+                var gradient = result.materialize(result.publications().get(1), 4L * Float.BYTES)
+                        .bytes();
+                assertEquals(30.0f, gradient.getFloat(), 0.0f);
+                assertEquals(0.0f, gradient.getFloat(), 0.0f);
+                assertEquals(30.0f, gradient.getFloat(), 0.0f);
+                assertEquals(0.0f, gradient.getFloat(), 0.0f);
+            }
+        }
+    }
+
+    @Test
     void configuredMetalMixedTrainingSucceeds() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
@@ -155,6 +175,32 @@ final class TrainingSessionCpuIntegrationTest {
         MemorySegmentStorage storage = new MemorySegmentStorage(
                 DataType.FLOAT32, 1, arena.allocate(Float.BYTES, Float.BYTES));
         storage.segment().set(ValueLayout.JAVA_FLOAT, 0, value);
+        return TensorFactory.create(descriptor, Optional.empty(), Optional.of(storage));
+    }
+
+    private static Tensor tensor(
+            Arena arena, DataType dataType, boolean requiresGrad, long... values) {
+        Shape shape = Shape.of(values.length);
+        TensorDescriptor descriptor = new TensorDescriptor(
+                dataType,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                requiresGrad);
+        MemorySegmentStorage storage = new MemorySegmentStorage(
+                dataType,
+                values.length,
+                arena.allocate(Math.multiplyExact(values.length, dataType.byteWidth()),
+                        dataType.byteWidth()));
+        for (int index = 0; index < values.length; index++) {
+            if (dataType == DataType.FLOAT32) {
+                storage.segment().setAtIndex(
+                        ValueLayout.JAVA_FLOAT, index, (float) values[index]);
+            } else if (dataType == DataType.INT64) {
+                storage.segment().setAtIndex(ValueLayout.JAVA_LONG, index, values[index]);
+            } else {
+                throw new IllegalArgumentException("unsupported fixture type " + dataType);
+            }
+        }
         return TensorFactory.create(descriptor, Optional.empty(), Optional.of(storage));
     }
 

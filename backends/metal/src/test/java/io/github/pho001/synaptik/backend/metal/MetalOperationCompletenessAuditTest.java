@@ -127,7 +127,6 @@ class MetalOperationCompletenessAuditTest {
             MetalMpsGraphProgram.NodeKind.GELU,
             MetalMpsGraphProgram.NodeKind.GELU_TANH_APPROXIMATION,
             MetalMpsGraphProgram.NodeKind.SILU,
-            MetalMpsGraphProgram.NodeKind.SCATTER_ADD,
             MetalMpsGraphProgram.NodeKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
             MetalMpsGraphProgram.NodeKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
             MetalMpsGraphProgram.NodeKind.BATCH_NORM_INFERENCE,
@@ -157,7 +156,6 @@ class MetalOperationCompletenessAuditTest {
             MetalMpsGraphProgram.NodeKind.GELU,
             MetalMpsGraphProgram.NodeKind.GELU_TANH_APPROXIMATION,
             MetalMpsGraphProgram.NodeKind.SILU,
-            MetalMpsGraphProgram.NodeKind.SCATTER_ADD,
             MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP,
             MetalMpsGraphProgram.NodeKind.VARIANCE,
             MetalMpsGraphProgram.NodeKind.STANDARD_DEVIATION,
@@ -169,8 +167,8 @@ class MetalOperationCompletenessAuditTest {
     void everyWireMapsOnceToAConstructibleModelOccurrenceAndActualCapabilityTruth() {
         MetalMpsGraphProgram.NodeKind[] kinds = MetalMpsGraphProgram.NodeKind.values();
         assertEquals(115, kinds.length);
-        assertEquals(31, PRODUCTION_FALSE.size());
-        assertEquals(17, STRUCTURAL_ONLY.size());
+        assertEquals(30, PRODUCTION_FALSE.size());
+        assertEquals(16, STRUCTURAL_ONLY.size());
         assertTrue(PRODUCTION_FALSE.containsAll(STRUCTURAL_ONLY));
 
         Set<String> modelKinds = new HashSet<>();
@@ -217,13 +215,13 @@ class MetalOperationCompletenessAuditTest {
         }
 
         assertEquals(115, modelKinds.size());
-        assertEquals(84, accepted);
+        assertEquals(85, accepted);
         assertEquals(101, executable);
         assertEquals(75, direct);
         assertEquals(35, composed);
         assertEquals(5, unavailable);
-        assertEquals(71, customAvailable);
-        assertEquals(44, customPending);
+        assertEquals(72, customAvailable);
+        assertEquals(43, customPending);
         assertEquals(0, customUnavailable);
         long productionCustom = Arrays.stream(kinds)
                 .filter(kind -> !PRODUCTION_FALSE.contains(kind))
@@ -235,7 +233,7 @@ class MetalOperationCompletenessAuditTest {
                 .filter(kind -> kind != MetalMpsGraphProgram.NodeKind.NEG)
                 .filter(kind -> kind != MetalMpsGraphProgram.NodeKind.MATMUL)
                 .count();
-        assertEquals(69, productionCustom);
+        assertEquals(70, productionCustom);
         assertEquals(13, productionMpsGraph);
         assertTrue(PRODUCTION_FALSE.stream()
                 .noneMatch(MetalMpsGraphProgram.NodeKind::isCustomProgramOperation));
@@ -442,8 +440,8 @@ class MetalOperationCompletenessAuditTest {
                     new Operation(AxisGatherKind.GATHER_ELEMENTS, new IndexAxisAttrs(1)),
                     List.of(f32(2, 3), i32(2, 2)), List.of(f32(2, 2)));
             case SCATTER_ADD -> query(NumericalProfile.ACCELERATOR,
-                    new Operation(AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(1)),
-                    List.of(f32(2, 3), i32(2, 2), f32(2, 2)), List.of(f32(2, 3)));
+                    new Operation(AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(0)),
+                    List.of(f32(3), i32(2), f32(2)), List.of(f32(3)));
             case GATHER_ND -> query(NumericalProfile.STRICT_IEEE,
                     new Operation(GatherNdKind.GATHER_ND, new GatherNdAttrs(0)),
                     List.of(f32(2, 3), i32(2, 1)), List.of(f32(2, 3)));

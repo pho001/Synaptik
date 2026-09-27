@@ -1066,6 +1066,166 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
+    void task0069RawNativeRejectsEveryCustomScatterAddBoundary() throws Throwable {
+        Path library = configuredLibrary();
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.scatterAdd(0, 1, 2, 3, 0)));
+        List<MetalMpsGraphProgram.ValueDescriptor> validValues = List.of(
+                descriptor(5),
+                descriptor(DataType.INT32, 3),
+                descriptor(3),
+                descriptor(5));
+        try (RawAbi abi = new RawAbi(library)) {
+            byte[] valid = program.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR,
+                    validValues,
+                    new int[] {0, 1, 2},
+                    new int[] {3},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            assertEquals(0, abi.create(valid, valid.length));
+            int dimensionsOffset = nodeOffset(validValues.size())
+                    + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES;
+            int stridesOffset =
+                    dimensionsOffset + readInt(valid, 7 * Integer.BYTES) * Long.BYTES;
+            int referencesOffset =
+                    stridesOffset + readInt(valid, 11 * Integer.BYTES) * Long.BYTES;
+            byte[] indexNotFeed =
+                    rewriteInt(valid, referencesOffset + Integer.BYTES, 3);
+
+            for (byte[] malformedImage : List.of(
+                    program.encodedProgramImage(
+                            NumericalProfile.STRICT_IEEE,
+                            validValues,
+                            new int[] {0, 1, 2},
+                            new int[] {3},
+                            MetalPreparedRoute.CUSTOM_PROGRAM),
+                    program.encodedProgramImage(
+                            NumericalProfile.ACCELERATOR,
+                            validValues,
+                            new int[] {0, 1, 2},
+                            new int[] {3},
+                            MetalPreparedRoute.MPSGRAPH),
+                    indexNotFeed)) {
+                assertNotEquals(0, abi.create(malformedImage, malformedImage.length));
+            }
+
+            Shape dataShape = Shape.of(5);
+            Shape updateShape = Shape.of(3);
+            long excessive = 0xffff_ffffL / Float.BYTES + 1L;
+            List<List<MetalMpsGraphProgram.ValueDescriptor>> malformedValues = List.of(
+                    List.of(
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.FLOAT32, new long[] {5}, true),
+                            descriptor(DataType.INT32, 3),
+                            descriptor(3),
+                            descriptor(5)),
+                    List.of(
+                            descriptor(1, 5),
+                            descriptor(DataType.INT32, 3),
+                            descriptor(3),
+                            descriptor(5)),
+                    List.of(
+                            descriptor(5),
+                            descriptor(DataType.INT32, 1, 3),
+                            descriptor(3),
+                            descriptor(5)),
+                    List.of(
+                            descriptor(5),
+                            descriptor(DataType.INT32, 3),
+                            descriptor(1, 3),
+                            descriptor(5)),
+                    List.of(
+                            descriptor(5),
+                            descriptor(DataType.INT32, 3),
+                            descriptor(3),
+                            descriptor(1, 5)),
+                    List.of(
+                            descriptor(DataType.FLOAT64, 5),
+                            descriptor(DataType.INT32, 3),
+                            descriptor(3),
+                            descriptor(5)),
+                    List.of(
+                            descriptor(5),
+                            descriptor(DataType.FLOAT32, 3),
+                            descriptor(3),
+                            descriptor(5)),
+                    List.of(
+                            descriptor(5),
+                            descriptor(DataType.INT32, 3),
+                            descriptor(DataType.FLOAT64, 3),
+                            descriptor(5)),
+                    List.of(
+                            descriptor(5),
+                            descriptor(DataType.INT32, 3),
+                            descriptor(3),
+                            descriptor(DataType.FLOAT64, 5)),
+                    List.of(
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.FLOAT32,
+                                    dataShape.toLongArray(),
+                                    java.util.Optional.of(LayoutDescriptor.of(
+                                            dataShape, new long[] {2}, 0, true)),
+                                    false,
+                                    false),
+                            descriptor(DataType.INT32, 3),
+                            descriptor(3),
+                            descriptor(5)),
+                    List.of(
+                            descriptor(5),
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.INT32,
+                                    updateShape.toLongArray(),
+                                    java.util.Optional.of(LayoutDescriptor.of(
+                                            updateShape, new long[] {2}, 0, true)),
+                                    false,
+                                    false),
+                            descriptor(3),
+                            descriptor(5)),
+                    List.of(
+                            descriptor(5),
+                            descriptor(DataType.INT32, 3),
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.FLOAT32,
+                                    updateShape.toLongArray(),
+                                    java.util.Optional.of(LayoutDescriptor.of(
+                                            updateShape, new long[] {2}, 0, true)),
+                                    false,
+                                    false),
+                            descriptor(5)),
+                    List.of(
+                            descriptor(5),
+                            descriptor(DataType.INT32, 3),
+                            descriptor(3),
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.FLOAT32,
+                                    dataShape.toLongArray(),
+                                    java.util.Optional.of(LayoutDescriptor.of(
+                                            dataShape, new long[] {2}, 0, true)),
+                                    false,
+                                    false)),
+                    List.of(
+                            descriptor(5),
+                            descriptor(DataType.INT32, 4),
+                            descriptor(3),
+                            descriptor(5)),
+                    List.of(
+                            descriptor(excessive),
+                            descriptor(DataType.INT64, 3),
+                            descriptor(3),
+                            descriptor(excessive)));
+            for (List<MetalMpsGraphProgram.ValueDescriptor> values : malformedValues) {
+                byte[] image = program.encodedProgramImage(
+                        NumericalProfile.ACCELERATOR,
+                        values,
+                        new int[] {0, 1, 2},
+                        new int[] {3},
+                        MetalPreparedRoute.CUSTOM_PROGRAM);
+                assertEquals(1, abi.create(image, image.length));
+            }
+        }
+    }
+
+    @Test
     void task0063JavaAndRawNativePreflightsAgreeAtUint32AndOnHostileImages()
             throws Throwable {
         Path library = configuredLibrary();

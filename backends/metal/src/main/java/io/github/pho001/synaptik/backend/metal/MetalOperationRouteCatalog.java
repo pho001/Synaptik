@@ -82,7 +82,6 @@ final class MetalOperationRouteCatalog {
         CP_POWER,
         CP_ELEMENTARY,
         CP_RECURSIVE_SITES,
-        CP_MOVE,
         CP_CONTRACT,
         CP_AGGREGATE,
         CP_STATE
@@ -111,8 +110,6 @@ final class MetalOperationRouteCatalog {
                 CustomKernelState.PENDING, CustomKernelReason.CP_POINT),
         DIRECT_CAST_CUSTOM_0059(MpsGraphState.DIRECT, MpsGraphReason.MD_CAST,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0059),
-        DIRECT_SHAPE_PENDING_MOVE(MpsGraphState.DIRECT, MpsGraphReason.MD_SHAPE,
-                CustomKernelState.PENDING, CustomKernelReason.CP_MOVE),
         DIRECT_SHAPE_CUSTOM_0059(MpsGraphState.DIRECT, MpsGraphReason.MD_SHAPE,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0059),
         DIRECT_SHAPE_CUSTOM_0060(MpsGraphState.DIRECT, MpsGraphReason.MD_SHAPE,
@@ -128,8 +125,6 @@ final class MetalOperationRouteCatalog {
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0060),
         DIRECT_MATMUL_CUSTOM_0061(MpsGraphState.DIRECT, MpsGraphReason.MD_MATMUL,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0061),
-        DIRECT_INDEX_PENDING_MOVE(MpsGraphState.DIRECT, MpsGraphReason.MD_INDEX,
-                CustomKernelState.PENDING, CustomKernelReason.CP_MOVE),
         DIRECT_INDEX_CUSTOM_0059(MpsGraphState.DIRECT, MpsGraphReason.MD_INDEX,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0059),
         DIRECT_INDEX_CUSTOM_0060(MpsGraphState.DIRECT, MpsGraphReason.MD_INDEX,
@@ -139,9 +134,8 @@ final class MetalOperationRouteCatalog {
         MpsGraphReason.MD_INDEX,
         CustomKernelState.AVAILABLE,
         CustomKernelReason.CA_0066),
-        COMPOSED_UNFOLD_AXIS_PENDING_MOVE(MpsGraphState.COMPOSED,
-                MpsGraphReason.MC_UNFOLD_AXIS, CustomKernelState.PENDING,
-                CustomKernelReason.CP_MOVE),
+        DIRECT_INDEX_CUSTOM_0069(MpsGraphState.DIRECT, MpsGraphReason.MD_INDEX,
+                CustomKernelState.AVAILABLE, CustomKernelReason.CA_0069),
     COMPOSED_UNFOLD_AXIS_CUSTOM_0066(
         MpsGraphState.COMPOSED,
         MpsGraphReason.MC_UNFOLD_AXIS,
@@ -181,29 +175,17 @@ final class MetalOperationRouteCatalog {
         COMPOSED_UNARY_PENDING_RECURSIVE(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_UNARY, CustomKernelState.PENDING,
                 CustomKernelReason.CP_RECURSIVE_SITES),
-        COMPOSED_SELECT_PENDING_MOVE(MpsGraphState.COMPOSED, MpsGraphReason.MC_SELECT,
-                CustomKernelState.PENDING, CustomKernelReason.CP_MOVE),
         COMPOSED_SELECT_CUSTOM_0059(MpsGraphState.COMPOSED, MpsGraphReason.MC_SELECT,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0059),
-        COMPOSED_STACK_PENDING_MOVE(MpsGraphState.COMPOSED, MpsGraphReason.MC_STACK,
-                CustomKernelState.PENDING, CustomKernelReason.CP_MOVE),
         COMPOSED_STACK_CUSTOM_0059(MpsGraphState.COMPOSED, MpsGraphReason.MC_STACK,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0059),
-        COMPOSED_FOLD_AXIS_PENDING_MOVE(MpsGraphState.COMPOSED,
-                MpsGraphReason.MC_FOLD_AXIS, CustomKernelState.PENDING,
-                CustomKernelReason.CP_MOVE),
         COMPOSED_FOLD_AXIS_CUSTOM_0060(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_FOLD_AXIS, CustomKernelState.AVAILABLE,
                 CustomKernelReason.CA_0060),
-        DIRECT_IM2COL_PENDING_MOVE(MpsGraphState.DIRECT, MpsGraphReason.MD_IM2COL,
-                CustomKernelState.PENDING, CustomKernelReason.CP_MOVE),
         DIRECT_IM2COL_CUSTOM_0059(MpsGraphState.DIRECT, MpsGraphReason.MD_IM2COL,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0059),
         DIRECT_IM2COL_CUSTOM_0060(MpsGraphState.DIRECT, MpsGraphReason.MD_IM2COL,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0060),
-        COMPOSED_WINDOW3D_PENDING_MOVE(MpsGraphState.COMPOSED,
-                MpsGraphReason.MC_WINDOW3D, CustomKernelState.PENDING,
-                CustomKernelReason.CP_MOVE),
         COMPOSED_WINDOW3D_CUSTOM_0059(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_WINDOW3D, CustomKernelState.AVAILABLE,
                 CustomKernelReason.CA_0059),
@@ -329,8 +311,7 @@ final class MetalOperationRouteCatalog {
             case PROD, ALL, ANY -> Entry.DIRECT_REDUCE_CUSTOM_0060;
             case MATMUL -> Entry.DIRECT_MATMUL_CUSTOM_0061;
             case GATHER, ONE_HOT, SCATTER_ELEMENTS -> Entry.DIRECT_INDEX_CUSTOM_0066;
-      case SCATTER_ADD ->
-                    Entry.DIRECT_INDEX_PENDING_MOVE;
+            case SCATTER_ADD -> Entry.DIRECT_INDEX_CUSTOM_0069;
             case SCATTER_ND -> Entry.DIRECT_INDEX_CUSTOM_0060;
             case GATHER_ELEMENTS, GATHER_ND -> Entry.DIRECT_INDEX_CUSTOM_0059;
             case UNFOLD_AXIS -> Entry.COMPOSED_UNFOLD_AXIS_CUSTOM_0066;

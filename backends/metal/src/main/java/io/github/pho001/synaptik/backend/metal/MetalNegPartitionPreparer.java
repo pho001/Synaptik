@@ -113,15 +113,18 @@ import java.util.Optional;
  * physical buffers. Under {@code ACCELERATOR}, analysis additionally accepts the documented FLOAT32
  * arithmetic/reduction/MSE/MATMUL/convolution/average-pooling rows, no-gradient BFLOAT16/FLOAT32
  * mixed MATMUL, canonical FLOAT32 {@code DROPOUT}, and the exact rank-one no-gradient FLOAT32
- * {@code L1_NORM} occurrence. Random lowering preserves initializer key/counter words, dropout's
+ * {@code L1_NORM} and {@code SCATTER_ADD} occurrences. Scatter requires canonical
+ * base/index/update/output representations; the compiler inserts explicit {@code CONTIGUOUS}
+ * between its generated zero-base {@code EXPAND} and Scatter. Its INT32/INT64 indices must remain
+ * a materialized partition feed. Random lowering preserves initializer key/counter words, dropout's
  * raw binary64 probability, and all ordered value, mask, and state edges; recurrent nodes remain
  * rejected. An affine MATMUL operand is authenticated to the exact earlier local identity-prefix,
  * last-two-axis {@code PERMUTE} on that consuming edge. Schema-sixteen lowering emits one bounded
  * self-describing image over stable type wires 1..6, complete operation registry 1..115, attribute
- * registry 0..41, and the explicit prepared route. Production capability is exactly 84 operation
+ * registry 0..41, and the explicit prepared route. Production capability is exactly 85 operation
  * kinds; additional structural recipes remain inaccessible to this analysis. Every selected
- * Task-0066 occurrence and the exact Task-0069 L1 occurrence fix the whole partition to
- * {@code CUSTOM_PROGRAM}, with no MPSGraph candidate, retry, fallback, timing, or autotuning.
+ * Task-0066 or Task-0069 occurrence fixes the whole partition to {@code CUSTOM_PROGRAM}, with no
+ * MPSGraph candidate, retry, fallback, timing, or autotuning.
  * Rank-zero values participate only where exact capability permits them. Analysis freshly
  * regenerates the complete candidate batch. Every supplied handoff authenticates its exact
  * partition, schema, workload, profile, and session target; an absent decision preserves the
@@ -278,6 +281,13 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     outputIndices,
                     inputDescriptors,
                     outputDescriptors);
+            if (lowered.kind() == MetalMpsGraphProgram.NodeKind.SCATTER_ADD) {
+                ValueId indexFeed = node.inputs().get(1);
+                if (!feeds.contains(indexFeed) || context.constants().containsKey(indexFeed)) {
+                    throw new IllegalArgumentException(
+                            "Metal SCATTER_ADD indices must be a materialized partition feed");
+                }
+            }
             if (lowered.kind() == MetalMpsGraphProgram.NodeKind.MATMUL) {
                 for (int inputIndex = 0; inputIndex < inputStates.size(); inputIndex++) {
                     if (inputStates.get(inputIndex)
@@ -1084,6 +1094,11 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             IndexAxisAttrs attrs = (IndexAxisAttrs) operation.attrs();
             return MetalMpsGraphProgram.Node.gather(
                     inputs[0], inputs[1], output, attrs.axis());
+        }
+        if (kind == AxisScatterKind.SCATTER_ADD) {
+            IndexAxisAttrs attrs = (IndexAxisAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.scatterAdd(
+                    inputs[0], inputs[1], inputs[2], output, attrs.axis());
         }
         if (kind == AxisScatterKind.SCATTER_ELEMENTS) {
             ScatterElementsAttrs attrs = (ScatterElementsAttrs) operation.attrs();

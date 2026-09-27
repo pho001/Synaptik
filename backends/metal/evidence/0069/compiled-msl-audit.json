@@ -1,5 +1,5 @@
 {
-  "task": "0069-source-owned-binary32-aggregate-slices-slice1-l1-norm",
+  "task": "0069-source-owned-binary32-aggregate-slices-1-2",
   "status": "accepted",
   "toolchain": {
     "developerDir": "/Applications/Xcode.app/Contents/Developer",
@@ -31,32 +31,52 @@
   "artifacts": {
     "source": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.metal",
-      "sha256": "070c910ff3be6853720274d670fb5a573c490ceec60d680eb323d9001c965c10"
+      "sha256": "7f10907eba7d03118d85091e7bd4e48197fea51defb908801bdad0c1e9f58caa"
     },
     "air": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.air",
-      "sha256": "fc6258b8627ec607434f02fe63eb77dd05957f9b5821e95b157e1149f2fe3189"
+      "sha256": "5b4855918e2cf5af710a87fa6c9e303440cabab821b0a1ff01883a4dca53b5e0"
     },
     "metallib": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.metallib",
-      "sha256": "ffa3c751fbab39acff50c06f6fda720e4e831a3d06657ee459921f50d11ba8f3"
+      "sha256": "7e90fd70a47087fb2ee55f269edd8a5c7ca0cad6a887bd3eb6de2f5a642bd491"
     }
   },
   "compiledAirAudit": {
     "targetTriple": "air64_v28-apple-macosx26.0.0",
-    "kernelSymbol": "l1_norm_f32_0069",
-    "rawAbs": "each static input path clears exactly the binary32 sign mask 2147483647 before bitcast to float",
-    "orderedFold": "ordinal zero initializes the accumulator; the later-contributor loop starts at one and increments by one",
-    "floatingAddInstructions": 1,
-    "floatingAddInstruction": "fadd float without fast, contract, reassoc, or afn flags",
-    "unsafeFloatingFlags": [],
-    "forbiddenFloatingInstructions": [
-      "fmul",
-      "fsub",
-      "fdiv",
-      "air.fma",
-      "llvm.fma"
-    ],
-    "output": "one static byte-store instruction in the single four-byte serialization loop reached only after the fold; no numeric output conversion"
+    "l1Norm": {
+      "kernelSymbol": "l1_norm_f32_0069",
+      "rawAbs": "each static input path clears exactly the binary32 sign mask 2147483647 before bitcast to float",
+      "orderedFold": "ordinal zero initializes the accumulator; the later-contributor loop starts at one and increments by one",
+      "floatingAddInstructions": 1,
+      "floatingAddInstruction": "fadd float without fast, contract, reassoc, or afn flags",
+      "unsafeFloatingFlags": [],
+      "forbiddenFloatingInstructions": [
+        "fmul",
+        "fsub",
+        "fdiv",
+        "air.fma",
+        "llvm.fma"
+      ],
+      "output": "one static byte-store instruction in the single four-byte serialization loop reached only after the fold; no numeric output conversion"
+    },
+    "scatterAdd": {
+      "kernelSymbol": "scatter_add_f32_0069",
+      "ownership": "one target-linear thread loads one raw base word and reaches one static four-byte store loop",
+      "orderedFilterFold": "the update ordinal phi initializes to zero, advances by one, filters by exact target equality, and feeds one loop-carried accumulator",
+      "duplicates": "no uniqueness state or filter exists; every equal target reaches the same source addition site",
+      "unaddressed": "the final select chooses the original raw base word when the addressed flag remains false",
+      "floatingAddInstructions": 1,
+      "floatingAddInstruction": "fadd float without fast, contract, reassoc, or afn flags",
+      "unsafeFloatingFlags": [],
+      "atomicInstructions": 0,
+      "forbiddenFloatingInstructions": [
+        "fmul",
+        "fsub",
+        "fdiv",
+        "air.fma",
+        "llvm.fma"
+      ]
+    }
   }
 }

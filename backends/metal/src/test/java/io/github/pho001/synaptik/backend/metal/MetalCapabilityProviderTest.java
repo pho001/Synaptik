@@ -1264,6 +1264,78 @@ class MetalCapabilityProviderTest {
     }
 
     @Test
+    void task0069ScatterAddAdmitsOnlyTheExactAcceleratorRankOneDomain() {
+        Operation scatter = new Operation(
+                AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(0));
+        TensorDescriptor data = typed(DataType.FLOAT32, Shape.of(4), false);
+        TensorDescriptor updates = typed(DataType.FLOAT32, Shape.of(3), false);
+        TensorDescriptor output = typed(DataType.FLOAT32, Shape.of(4), false);
+        for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
+            TensorDescriptor indices = typed(indexType, Shape.of(3), false);
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    NumericalProfile.ACCELERATOR,
+                    scatter,
+                    List.of(data, indices, updates),
+                    List.of(output))));
+            assertFalse(provider.supports(new OperationCapabilityQuery(
+                    NumericalProfile.STRICT_IEEE,
+                    scatter,
+                    List.of(data, indices, updates),
+                    List.of(output))));
+        }
+
+        TensorDescriptor indices = typed(DataType.INT32, Shape.of(3), false);
+        TensorDescriptor gappedIndices = new TensorDescriptor(
+                DataType.INT32,
+                Shape.of(3),
+                Optional.of(LayoutDescriptor.of(
+                        Shape.of(3), new long[] {2L}, 1L, true)),
+                false);
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                scatter,
+                List.of(data, gappedIndices, updates),
+                List.of(output))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                new Operation(AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(1)),
+                List.of(data, indices, updates),
+                List.of(output))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                scatter,
+                List.of(data, indices, typed(DataType.FLOAT32, Shape.of(2), false)),
+                List.of(output))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                scatter,
+                List.of(typed(DataType.FLOAT32, Shape.of(4), true), indices, updates),
+                List.of(output))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                scatter,
+                List.of(
+                        new TensorDescriptor(
+                                DataType.FLOAT32,
+                                Shape.of(4),
+                                Optional.of(LayoutDescriptor.of(
+                                        Shape.of(4), new long[] {2L}, 0L, true)),
+                                false),
+                        indices,
+                        updates),
+                List.of(output))));
+        TensorDescriptor tooWide = typed(
+                DataType.FLOAT32,
+                Shape.of(0xffff_ffffL / Float.BYTES + 1L),
+                false);
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                scatter,
+                List.of(tooWide, indices, updates),
+                List.of(tooWide))));
+    }
+
+    @Test
     void task0069L1NormAdmitsOnlyTheExactBinary32LeftFoldDomain() {
         Operation l1 = new Operation(
                 AggregateReductionKind.L1_NORM,

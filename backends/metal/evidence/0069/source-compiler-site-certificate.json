@@ -1,27 +1,27 @@
 {
-  "task": "0069-source-owned-binary32-aggregate-slices-slice1-l1-norm",
+  "task": "0069-source-owned-binary32-aggregate-slices-1-2",
   "status": "accepted",
   "kernelSource": {
     "path": "native/metal-macos-arm64/src/synaptik_task0069_aggregate_kernels.h",
-    "sha256": "89938c156cf00a0d19d6eccd9a2a34b850e13f45fd97fe8906b903dd5a944c0d"
+    "sha256": "9750c5908a49b2bef26600d9d72a6284a56d372deb8466049a84a1234bb358f4"
   },
   "foundationSource": {
     "path": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
-    "sha256": "dbc6f31eedf9e850229cd8ad5d3f5e6b533efedd6d919150a930bf79b4bb056a"
+    "sha256": "f52be80434b6795c083d3701811c3cf3a719a47d81c3b52ab91c5168be05ddf9"
   },
   "leanProofs": [
     {
       "path": "backends/metal/evidence/0069/proof/Task0069Binary32.lean",
-      "sha256": "8aa0d92aae3b841b32c199a2774ae9f05862dcc190f388e70287ffb56e7a2200"
+      "sha256": "add7771e01f1fa4dc8d7ef39d2fabf1e578fe36efa15033aef7cbf1f7669ffad"
     },
     {
       "path": "backends/metal/evidence/0069/proof/Task0069ReductionTree.lean",
-      "sha256": "e7d55d7bb428ac0e86641ba672ec89861421897cef4a0990c3af8df357bbc08c"
+      "sha256": "d52204714e1bed044f4deab51721548ae2468af0f8b947ee35807e691045d0f8"
     }
   ],
   "compiledMslAudit": {
     "path": "backends/metal/evidence/0069/compiled-msl-audit.json",
-    "sha256": "08d7a039163570a6e82e154eadc7930996017838d848d7b5ea7b01e7006544a6"
+    "sha256": "940aa5774570391a3b15a537dc87147cbf8751047635a236c763e68b6842d80d"
   },
   "compilerSite": {
     "runtimeCompiler": "MTLDevice.newLibraryWithSource",
@@ -29,7 +29,7 @@
     "fastMathRequested": false,
     "languageVersion": "MTLLanguageVersion3_2",
     "compiledMslAuditRequired": true,
-    "compiledMslAuditBasis": "The exact assembled production NSString source was compiled with Xcode 27.0 build 27A266a, Metal 32023.921, macOS SDK 27.0, metal3.2, no-fast-math, warnings as errors, and the explicit SDK isysroot. AIR inspection proves one unflagged fadd in l1_norm_f32_0069, raw sign clearing, the increasing-ordinal loop, no other floating arithmetic, and one final raw serialization path.",
+    "compiledMslAuditBasis": "The exact assembled production NSString source was compiled with Xcode 27.0 build 27A266a, Metal 32023.921, macOS SDK 27.0, metal3.2, no-fast-math, warnings as errors, and the explicit SDK isysroot. AIR inspection proves one unflagged fadd in each Task0069 kernel. L1 retains raw sign clearing and its increasing-ordinal fold. SCATTER_ADD retains one target writer, an increasing update-ordinal filter, one loop-carried accumulator, a raw-base unaddressed select, one static output store loop, no atomics, and no other floating arithmetic.",
     "offlineMetalCompilerAvailable": true,
     "offlineCompilerAudit": "Accepted and pinned by compiled-msl-audit.json; its runner always sets DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer and the explicit MacOSX27.0.sdk isysroot."
   },
@@ -44,6 +44,20 @@
     "reassociationSites": 0,
     "pretruncationSites": 0,
     "stores": 1
+  },
+  "scatterAddContract": {
+    "carrier": "FLOAT32",
+    "geometry": "canonical-dense rank-one D>0 data/result, canonical-dense rank-one U>0 indices/updates, axis zero, uint32-bounded extents, bytes, and dispatch",
+    "indices": "materialized canonical INT32 or INT64 partition feed, completely CPU-scanned into [0,D) before any command encoding or output mutation",
+    "contributorOrder": "raw base exactly once, then every matching update occurrence in strictly increasing source ordinal",
+    "duplicates": "retained without a uniqueness pass",
+    "unaddressed": "raw base word copied without arithmetic, classification, or numeric conversion",
+    "addressed": "one explicit safe binary32 accumulator + update site per matching occurrence",
+    "ownership": "one target-linear output thread, one final store, no atomic operation",
+    "sourceAdditionSites": 1,
+    "reassociationSites": 0,
+    "pretruncationSites": 0,
+    "storesPerTarget": 1
   },
   "siteInventory": [
     {
@@ -62,7 +76,25 @@
       "id": "raw-store",
       "operation": "as_type<uint> followed by store_word",
       "floatingArithmetic": false,
-      "proof": "The final accumulator bits are stored once without numeric conversion, epsilon, finite substitution, or pre-truncation."
+      "proof": "The final L1 accumulator bits are stored once without numeric conversion, epsilon, finite substitution, or pre-truncation."
+    },
+    {
+      "id": "scatter-raw-base",
+      "operation": "one four-byte load_word before the update loop",
+      "floatingArithmetic": false,
+      "proof": "Each target thread owns one target and captures its base word exactly once. If no update ordinal matches, the same integer word reaches the sole store."
+    },
+    {
+      "id": "scatter-stable-filtered-add",
+      "operation": "scatter_add_site_0069(accumulator, update)",
+      "floatingArithmetic": true,
+      "proof": "The loop starts at ordinal zero, increments by one through all U occurrences, and invokes the sole safe-mode addition only when the fully prevalidated index equals the owned target. Duplicate targets are not filtered."
+    },
+    {
+      "id": "scatter-single-store",
+      "operation": "addressed select followed by store_word",
+      "floatingArithmetic": false,
+      "proof": "One target-linear writer chooses the raw base word when unaddressed or the site-chain accumulator when addressed and reaches one static four-byte serialization loop. No atomic operation exists."
     }
   ],
   "contributorProof": {
@@ -75,6 +107,17 @@
     "noReassociation": "One accumulator dependency chain, one output thread, one safe-mode addition site, and no reduction primitive fix the left-associated order.",
     "singleton": "N=1 bypasses the loop and stores the raw ABS word directly."
   },
+  "scatterContributorProof": {
+    "base": "one raw load before the update scan",
+    "loopInitialization": "ordinal = 0",
+    "loopCondition": "ordinal < m.auxDims[0]",
+    "loopAdvance": "++ordinal",
+    "membership": "selected == target after a complete CPU range scan",
+    "duplicates": "every matching occurrence reaches the add site; there is no uniqueness state or pass",
+    "noReassociation": "one target thread and one loop-carried accumulator fix the left-associated source order",
+    "unaddressed": "the addressed flag remains false and selects the original baseWord",
+    "ownership": "data_linear_id maps one grid thread to each target and the output store is reached once"
+  },
   "specialValueProof": {
     "zero": "Raw ABS clears either input zero sign. Every later add is represented by the exact/RNE/DAZ/FTZ site relation; raw store preserves the device-selected permitted result bits.",
     "subnormal": "A raw ABS leaf remains exact. At an addition site each subnormal operand is exact or same-sign zero under DAZ, and each subnormal rounded result is exact or same-sign zero under FTZ; the Lean relation admits no third choice.",
@@ -85,15 +128,15 @@
     "ftz": "The formal primitive relation enumerates exact rounded output or same-sign zero only for a subnormal rounded output."
   },
   "formalProofBoundary": {
-    "proved": "Total raw classes; exact binary32 +1 word and class; exact ABS class/sign behavior; complete set-valued DAZ/FTZ alternatives; an explicit finite nonnegative nearest-even relation in 2^-149 units including the overflow midpoint and even-retained-significand ties; the reachable-operand special NaN/positive-infinity/non-NaN/nonnegative class contract; labelled contributor multiplicity; permitted left tree; N-1 add nodes; N=1 direct ABS; source-fold membership constrained by Binary32RneContract; the aggregate L1 nonnegative-or-NaN class invariant; reachable-source NaN absorption; and positive-infinity persistence in a no-NaN fold.",
-    "primitivePremise": "The single audited hardware addition instantiates Binary32RneContract on the L1-reachable domain: a signed NaN is allowed, every reachable non-NaN operand is sign-clear, finite operands obey exactRneNonnegative, the explicit bit-level RNE relation; NaN is absorbing by class under those exact premises; positive infinity plus a non-NaN nonnegative operand remains positive infinity; and nonnegative non-NaN closure holds, with only the enumerated DAZ/FTZ alternatives. The audited MTLMathModeSafe/MTLLanguageVersion3_2 runtime site and compiled unflagged AIR fadd supply the compiler-site evidence for that premise.",
-    "forbiddenAssumptions": "Both Lean files compile without sorry or axiom declarations, the generic NaN source-fold theorem requires a reachable current operand plus reachable remaining leaves, and the source-result theorem is stated over binary32AddSite carrying Binary32RneContract rather than an arbitrary Word-to-Word function."
+    "proved": "Total raw classes; exact binary32 +1 word and class; exact ABS; complete set-valued DAZ/FTZ alternatives; an explicit finite nonnegative nearest-even relation in 2^-149 units including the overflow midpoint and even-retained-significand ties; the reachable-operand special NaN/positive-infinity/non-NaN/nonnegative class contract; a total signed finite nearest-even relation covering cancellation sign, both overflow signs, every finite/subnormal pair, and NaN/opposite-infinity/same-infinity classes; labelled contributor multiplicity; permitted left trees; N-1 L1 add nodes; N=1 direct ABS; L1 source-fold membership constrained by Binary32RneContract; the aggregate L1 nonnegative-or-NaN class invariant; reachable-source NaN absorption; positive-infinity persistence in a no-NaN fold; and SCATTER_ADD occurrence construction from exact source positions, strictly increasing filtered order, exact duplicate target/word multiplicity, raw base plus stable target-filtered occurrence membership constrained by GeneralBinary32RneContract, unaddressed raw identity, and injective one-writer target ownership.",
+    "primitivePremise": "Each audited hardware addition instantiates the shared addSite relation at its exact reachable source site. L1 additionally carries Binary32RneContract on its nonnegative-or-NaN reachable domain. Every SCATTER_ADD primitive result carries GeneralBinary32RneContract and therefore satisfies exactRneGeneral for every arbitrary raw operand pair before the shared exact-or-DAZ operand and exact-or-FTZ publication alternatives. Each addressed target result is the set-valued source-position-ordered site chain over its arbitrary raw base and every matching arbitrary raw update word. The audited MTLMathModeSafe/MTLLanguageVersion3_2 runtime sites and compiled unflagged AIR fadds supply compiler-site evidence.",
+    "forbiddenAssumptions": "Both Lean files compile without sorry or axiom declarations. The L1 generic NaN theorem retains its reachable-operand premises. The SCATTER_ADD theorem constructs occurrence ordinals from source-list positions and proves filtered payload preservation rather than assuming order labels, commutativity, associativity, uniqueness, canonical NaNs, or a deterministic exceptional-value bit pattern."
   },
   "proof": {
     "lean": "Task0069Binary32.lean and Task0069ReductionTree.lean compiled with Lean 4.34.1",
     "nativeBuild": "native/metal-macos-arm64/build.sh completed successfully",
-    "runtimeCompilationAndExecution": "MetalL1NormNativeTest passed on Apple M3 Max, including singleton raw ABS, retained/scalar outputs, ordinal left-fold witness, infinity, and pre-dispatch alias rejection.",
-    "publicExecution": "EngineExplicitCompositionMetalIntegrationTest.task0069PublicAcceleratorEngineRunsSourceOwnedL1NormForBothOutputForms passed with Metal-only ownership.",
-    "compiledMslAudit": "The exact assembled runtime source compiled to AIR and metallib with the pinned Xcode 27 toolchain. The AIR body for l1_norm_f32_0069 contains one unflagged fadd, the raw sign masks, the ordinal loop starting at one, no other floating arithmetic, and only the final raw serialization store path."
+    "runtimeCompilationAndExecution": "MetalL1NormNativeTest and MetalScatterAddNativeTest passed on Apple M3 Max. SCATTER_ADD covered canonical INT32/INT64 materialized index feeds, duplicate source order, bit-exact unaddressed signed-zero/subnormal/NaN copies, addressed normal/subnormal/infinity/NaN classes, complete positive and negative range rejection before output mutation, runtime handle-alias rejection, and direct raw-native malformed profile/route/gradient/feed/type/rank/shape/layout/bounds rejection.",
+    "publicExecution": "EngineExplicitCompositionMetalIntegrationTest retains both L1 forms. IndexingScatterGradientRulesTest proves the generated zero base's immediate CONTIGUOUS-over-EXPAND representation, TrainingSessionCpuIntegrationTest proves the unchanged CPU Gather cotangent, and DtypeLayoutGradientMetalIntegrationTest.task0069ScatterAddAndGatherDataGradientRunEndToEnd covers direct fixed scatter and the canonicalized compiler-generated Gather data cotangent on Metal-only ownership.",
+    "compiledMslAudit": "The exact assembled runtime source compiled to AIR and metallib with the pinned Xcode 27 toolchain. Each Task0069 kernel contains one unflagged fadd and no other floating arithmetic. SCATTER_ADD additionally contains the target equality filter, ordinal-zero loop, loop-carried accumulator, raw-base unaddressed select, one static store loop, and no atomics."
   }
 }

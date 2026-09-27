@@ -6,10 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
+import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -28,8 +31,20 @@ final class IndexingScatterGradientRulesTest {
         Tensor data = floating(Shape.of(3));
         Tensor axisIndices = indices(Shape.of(2));
         Tensor gatherGradient = gradient(data.gather(axisIndices, 0).sum(), data);
-        assertEquals(AxisScatterKind.SCATTER_ADD,
-                gatherGradient.provenance().orElseThrow().operation().kind());
+        var scatterProvenance = gatherGradient.provenance().orElseThrow();
+        assertEquals(AxisScatterKind.SCATTER_ADD, scatterProvenance.operation().kind());
+        Tensor canonicalZero = scatterProvenance.inputs().getFirst();
+        assertEquals(
+                ContiguousKind.CONTIGUOUS,
+                canonicalZero.provenance().orElseThrow().operation().kind());
+        assertEquals(
+                LayoutDescriptor.contiguous(data.descriptor().shape()),
+                canonicalZero.descriptor().layout().orElseThrow());
+        Tensor expandedZero =
+                canonicalZero.provenance().orElseThrow().inputs().getFirst();
+        assertEquals(
+                ShapeTransformKind.EXPAND,
+                expandedZero.provenance().orElseThrow().operation().kind());
 
         Tensor elementsGradient = gradient(data.gatherElements(axisIndices, 0).sum(), data);
         assertEquals(AxisScatterKind.SCATTER_ELEMENTS,

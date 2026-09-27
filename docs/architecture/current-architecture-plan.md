@@ -85,14 +85,17 @@ validation visits logical elements only. Selected affine view results retain aut
 Shape, stride, and offset while Java preparation and native preflight independently derive and
 validate the physical storage span before any write; selected materializing results are canonical.
 An eligible singleton NEG retains its dedicated custom route. Every occurrence selected by Task
-0066 wires `6..11,16..19,39..45,51,69,71..84` and the exact Task-0069 rank-one FLOAT32 L1
-occurrence use the fixed shared `CUSTOM_PROGRAM` route with declared run-owned value buffers and
-one Java/native invocation; there is no selected-node MPSGraph fallback. Current Metal uses ABI 5
-with the same thirteen exports and one bounded schema-16 route-bearing program image over type
-wires `1..6`, operation wires `1..115`, attribute wires `0..41`, and route wires `1..3`. Structural
-coverage is `101 / 14`; production capability is exactly `84 / 31`; route catalogs are
-`75 / 35 / 5` MPSGraph and `71 / 44 / 0` custom. Backend-local identities are version
-twenty-three, and identity twenty-two and every older identity fail closed.
+0066 wires `6..11,16..19,39..45,51,69,71..84` and the exact Task-0069 rank-one FLOAT32 L1 and
+ScatterAdd occurrences at wires `114` and `70` use the fixed shared `CUSTOM_PROGRAM` route with
+declared run-owned value buffers and one Java/native invocation; there is no selected-node
+MPSGraph fallback. ScatterAdd completes its INT32/INT64 index scan before any encoding or mutation,
+keeps duplicates in source order, raw-copies unaddressed cells, and closes the existing rank-one
+Gather data cotangent. Current Metal uses ABI 5 with the same thirteen exports and one bounded
+schema-16 route-bearing program image over type wires `1..6`, operation wires `1..115`, attribute
+wires `0..41`, and route wires `1..3`. Structural coverage is `101 / 14`; production capability is
+exactly `85 / 30`; route catalogs are `75 / 35 / 5` MPSGraph and `72 / 43 / 0` custom.
+Backend-local identities are version twenty-four, and identity twenty-three and every older
+identity fail closed.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over

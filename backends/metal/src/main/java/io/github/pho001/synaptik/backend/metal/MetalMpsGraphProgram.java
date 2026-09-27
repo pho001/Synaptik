@@ -294,8 +294,7 @@ final class MetalMpsGraphProgram {
                     || wireIdentity >= 40 && wireIdentity <= 45
                     || wireIdentity == 51
                     || wireIdentity >= 60 && wireIdentity <= 63
-                    || wireIdentity == 69
-                    || wireIdentity >= 71 && wireIdentity <= 84
+                    || wireIdentity >= 69 && wireIdentity <= 84
                     || wireIdentity >= 94 && wireIdentity <= 96
                     || wireIdentity >= 106 && wireIdentity <= 110
                     || wireIdentity == 114;
@@ -571,6 +570,11 @@ final class MetalMpsGraphProgram {
             return new Node(NodeKind.SCATTER_ELEMENTS, new int[] {data, indices, updates},
                     new int[] {output}, AttributeKind.SCATTER_ELEMENTS,
                     new long[] {Integer.toUnsignedLong(axis), 1L});
+        }
+        static Node scatterAdd(int data, int indices, int updates, int output, int axis) {
+            return new Node(NodeKind.SCATTER_ADD, new int[] {data, indices, updates},
+                    new int[] {output}, AttributeKind.AXIS,
+                    new long[] {Integer.toUnsignedLong(axis)});
         }
         static Node oneHot(int indices, int output, long depth) {
             return new Node(NodeKind.ONE_HOT, new int[] {indices}, new int[] {output},

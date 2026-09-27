@@ -1063,7 +1063,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 ? elementCount(this.indexingGeometry.orElseThrow().outputExtents())
                 : this.movementGeometry.isPresent()
                 ? elementCount(this.movementGeometry.orElseThrow().outputExtents())
-                : this.bindings.getFirst().elementCount();
+                : this.bindings.getLast().elementCount();
         if (start < 0 || end < start || end > count) throw new IllegalArgumentException("invalid range");
         this.start = start;
         this.end = end;

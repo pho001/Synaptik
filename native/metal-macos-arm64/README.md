@@ -11,7 +11,7 @@ dimension, gradient, and optional storage-layout metadata; no native type, shape
 inference is part of the boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
-can structurally execute exactly 101 operation kinds; production capability is exactly 84 kinds.
+can structurally execute exactly 101 operation kinds; production capability is exactly 85 kinds.
 Task 0059 adds exact movement/indexing rows and complete positive-stride storage geometry.
 Task 0060 adds replacement/fold rows `72`, `76`, `80`, `82`, and `84` plus exact aggregate rows
 `106..108`. Task 0061 widens existing `MATMUL=15` without adding a wire: both profiles admit
@@ -61,32 +61,40 @@ Dropped output is raw positive zero; kept output uses FLOAT32 division then mult
 complement narrowed only after binary64 subtraction. State has one writer, all live outputs use
 ordinary run-local buffers, and direct MPSGraph creation rejects both wires.
 
-Task 0069 Slice 1 adds source-owned custom-only `114=L1_NORM` for accelerator FLOAT32. The exact
-domain is one canonical positive-static rank-one no-gradient input, ordered multi-axis `[0]`, and
-a canonical scalar or retained `[1]` output. Element count, four-byte span, and the one-thread
-dispatch fit unsigned 32 bits; value-table buffers are distinct. `l1_norm_f32_0069` raw-clears
-every contributor sign bit, initializes from ordinal zero, performs exactly `N-1` safe binary32
-additions in increasing ordinal order, and serializes one final raw word; `N=1` performs no
-addition. The runtime compiler fixes `MTLMathModeSafe` and `MTLLanguageVersion3_2`. The exact
-assembled production source also passes the pinned Xcode 27.0/Metal 32023.921/macOS SDK 27.0
-compiled-MSL/AIR audit with `metal3.2`, no-fast-math, warnings as errors, and the explicit SDK
-isysroot. AIR exposes one unflagged `fadd` and no other floating arithmetic in the L1 kernel.
-SCATTER_ADD and VARIANCE remain production-false.
+Task 0069 Slices 1 and 2 add source-owned custom-only `114=L1_NORM` and `70=SCATTER_ADD` for
+accelerator FLOAT32. L1 accepts one canonical positive-static rank-one no-gradient input, ordered
+multi-axis `[0]`, and a canonical scalar or retained `[1]` output. Its one output thread raw-clears
+every contributor sign bit, initializes from ordinal zero, performs exactly `N-1` source-ordered
+safe binary32 additions, and serializes one final raw word; `N=1` performs no addition.
 
-The remaining 31 production rows fail closed before native creation. A structurally valid
+ScatterAdd accepts positive canonical rank-one base/result and index/update extents, axis zero, no
+gradient flags, and a materialized canonical INT32 or INT64 index partition feed. The compiler
+places explicit `CONTIGUOUS` after its generated-zero expand. Native execution completely scans
+`[0,D)` before creating a command buffer or mutating output. One thread owns each target, raw-loads
+the base once, applies the sole safe addition to every matching update ordinal in source order,
+and stores once. Duplicate targets are retained, unaddressed cells copy the raw base word, and no
+atomic operation exists.
+
+The runtime compiler fixes `MTLMathModeSafe` and `MTLLanguageVersion3_2`. The exact assembled
+production source passes the pinned Xcode 27.0/Metal 32023.921/macOS SDK 27.0 compiled-MSL/AIR
+audit with `metal3.2`, no-fast-math, warnings as errors, and the explicit SDK isysroot. AIR exposes
+one unflagged `fadd` in each Task-0069 kernel, no other floating arithmetic, and no scatter atomics.
+VARIANCE remains production-false.
+
+The remaining 30 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 23. Java
+rather than masquerading as malformed input. Candidate and route identity are version 24. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
 shared custom-program wire 3. Schema 16 embeds wire 2 or 3 and the exact numerical profile in each
 graph image; schema 15 and every other schema, profile, or route value fail closed. The exhaustive
 Java structural catalog adds no native
 route selection, capability, autotuning, fallback, telemetry, or performance authority.
 
-For admitted nodes, the version-23 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-24 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, complete encoded logical storage-layout
-geometry, and its independently safe physical materialization. The schema-16 and identity-23
-cutover has no compatibility reader or migration alias; schema 15, identity 22, and earlier values
+geometry, and its independently safe physical materialization. The schema-16 and identity-24
+cutover has no compatibility reader or migration alias; schema 15, identity 23, and earlier values
 fail closed.
 
 ```text
@@ -264,8 +272,10 @@ type/rank/dimension rules, topological availability, feed and target uniqueness,
 operations' exact Shape and state contracts before graph construction. Unknown wires, including
 numerical-profile wires, malformed sections, unavailable values, incompatible Shapes, and wrong
 schema versions fail closed as invalid arguments. Native validation additionally requires the
-ACCELERATOR profile for every L1_NORM node. A well-formed registered operation outside current
-execution capability returns status 13. Java independently authenticates the same encoded profile
+ACCELERATOR profile for every L1_NORM and SCATTER_ADD node. Scatter indices must be a feed and
+receive their complete bounds scan before command encoding. A well-formed registered operation
+outside current execution capability returns status 13. Java independently authenticates the same
+encoded profile
 and rejects every other profile-incompatible program before native creation.
 
 Task 0066 broadens the selected existing wires without changing schema, ABI, or operation counts.
@@ -335,12 +345,13 @@ production-exact convolution/pooling wires `36`, `37`, and `97..100`, Task-0065 
 `101..102`, aggregate wires `106..108`, and structural-only wires `111..113` and `115`. Task-0059
 recipes cover direct cast/index/pad/slice/concat/tile/im2col/col2im selectors and explicit stack,
 fold-axis, and 3D-window compositions. Task-0060 adds stable log-sum-exp, correction-aware
-variance/standard-deviation, and L2-norm structural compositions. Wire `114` rejects direct
-MPSGraph creation; only the exact Task-0069 rank-one FLOAT32 L1 occurrence uses its fixed custom
-kernel. Task-0061 retains only all-FLOAT32 rank-two MATMUL in the MPSGraph recipe; typed custom
-forms are rejected by that route. Task-0064 direct/composed MPSGraph family metadata remains
-structural only. Its six production rows, both Task-0065 random rows, and Task-0069 L1 always
-select the custom program. Structural creation and execution do not widen production capability.
+variance/standard-deviation, and L2-norm structural compositions. Wires `70` and `114` reject
+direct MPSGraph creation; only the exact Task-0069 rank-one FLOAT32 ScatterAdd and L1 occurrences
+use their fixed custom kernels. Task-0061 retains only all-FLOAT32 rank-two MATMUL in the MPSGraph
+recipe; typed custom forms are rejected by that route. Task-0064 direct/composed MPSGraph family
+metadata remains structural only. Its six production rows, both Task-0065 random rows, and both
+Task-0069 occurrences always select the custom program. Structural creation and execution do not
+widen production capability.
 
 ### Status values
 

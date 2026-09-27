@@ -2,9 +2,10 @@
 
 ## Status
 
-Review needed. The authorized shared proof substrate plus Slice 1 are complete and independently
-approved after remediation, with zero remaining code, numerical-evidence, or security P0/P1/P2.
-Slices 2 and 3 are not authorized and require their preceding checkpoint plus fresh approval.
+Review needed. The authorized shared proof substrate plus Slices 1 and 2 are implemented and
+independently approved at their current serial checkpoint with zero remaining code,
+numerical-evidence, security, or determinism P0/P1/P2. Slice 3 is not authorized and requires the
+Slice-2 checkpoint plus fresh approval.
 
 ## Change class
 
@@ -77,11 +78,30 @@ carrier, attribute, or gradient combination remain false.
   the proved set-valued site chain; no final canonicalization is allowed. There are no atomics or
   write races.
 - The same admitted no-gradient node closes the existing first-order `GATHER` data cotangent only
-  for canonical rank-one `FLOAT32` data, rank-one materialized `INT32`/`INT64` indices, axis zero,
-  positive static extents, and canonical cotangent. Compiler-generated zero base plus upstream
-  updates must be captured and proved end to end. Gradient-bearing `SCATTER_ADD`, its base/update
+  for canonical rank-one `FLOAT32` data, rank-one materialized canonical `INT32`/`INT64` indices,
+  axis zero, positive static extents, and canonical cotangent. The compiler-generated zero base is
+  explicitly represented by `CONTIGUOUS` before the Scatter-Add node; upstream updates are captured
+  and proved end to end. Gradient-bearing `SCATTER_ADD`, its base/update
   cotangents, Gather-Elements/Gather-ND, and higher order remain false; no origin discriminator is
   added. Slice 2 atomically replaces the backend contract's current additive-scatter fail-closed statement with only this exact domain and generated Gather closure; it cannot ship beforehand.
+
+#### Slice-2 scope amendment — representation-only Gather closure
+
+The existing Gather data-cotangent formula is still
+`scatter_add(zero_like(data), indices, upstream, axis)`, but `zero_like(data)` is physically a
+zero-stride `EXPAND`. The exact occurrence domain above forbids that noncanonical base just as it
+forbids every other noncanonical Scatter role. Slice 2 therefore explicitly authorizes one shared
+Compiler representation operation:
+`constants.zeroLike(data).contiguous().scatterAdd(indices, gradient, axis)`.
+`CONTIGUOUS` changes only the zero tensor's physical representation; it does not change the
+mathematical cotangent formula, first-order classification, target/update values, or any public
+operation contract. Backend-neutral compiler graph coverage must prove the explicit
+canonicalization, CPU execution must prove the unchanged cotangent, and Metal-only public
+execution must prove the now-canonical Scatter occurrence. CPU's generic no-specialized-geometry
+range guard uses the output binding's logical element count, rather than a broadcast scalar source
+binding, so this explicit materialization remains executable without changing arithmetic. This
+reviewed amendment is the sole exception to the Compiler non-goal below; it does not authorize any
+other Compiler formula, representation, or CPU-kernel change.
 
 ### Slice 3 — `VARIANCE` wire 112
 
@@ -177,9 +197,13 @@ false, and submit a reviewed plan amendment rather than inventing architecture.
   identity owners and focused tests — exact occurrence admission, fixed custom route, identities.
 - `native/metal-macos-arm64/src/synaptik_task0069_aggregate_kernels.h` and
   `synaptik_metal_foundation.m` — source-owned kernels, independent preflight, fixed dispatch.
-- Metal/Compiler/conformance/integration tests and active architecture/package documentation — exact
-  slice behavior, generated Gather closure, false boundaries, counts, identity rejection, and the
-  Slice-2 atomic update to `backend-execution.md` additive-scatter and generated-gradient text.
+- `modules/compiler/.../IndexingGradientRules.java`,
+  `backends/cpu/.../CpuPreparedExecutable.java`, and focused Compiler/CPU/Metal integration tests —
+  the sole representation-only `CONTIGUOUS` amendment for generated Gather data cotangents and its
+  output-domain range guard, with unchanged mathematical results.
+- Metal/conformance tests and active architecture/package documentation — exact slice behavior,
+  generated Gather closure, false boundaries, counts, identity rejection, and the Slice-2 atomic
+  update to `backend-execution.md` additive-scatter and generated-gradient text.
 
 ## Acceptance and validation
 
@@ -202,6 +226,7 @@ this task, master plan, roadmap, and any affected native package evidence. Class
 code, numerical-evidence, and security/determinism review at every slice checkpoint.
 
 ## Result
+### Slice 1 checkpoint
 
 The authorized shared substrate and Slice 1 are implemented. Metal now admits only accelerator
 FLOAT32 no-gradient `L1_NORM` for one canonical positive-static rank-one input, ordered multi-axis
@@ -255,6 +280,65 @@ byte comparison pass. The final unfiltered serialized `./gradlew test --rerun-ta
 --max-workers=1` passes all 76 actionable tasks in 3m02s. The subsequent unfiltered serialized
 `./gradlew build --rerun-tasks --max-workers=1` passes all 87 actionable tasks in 2m57s, including
 the unchanged `CpuPartitionDagGeneratedEvidenceTest`; no timing policy, exclusion, suppression, or
-waiver is used. Current ledgers are capability `84/31`, structural `101/14`, MPSGraph `75/35/5`,
-custom `71/44/0`, and identity 23; schema 16 binds the exact supported profile wire, while ABI 5,
-thirteen exports, and all other false rows are unchanged. Slice 2 remains outside this checkpoint.
+waiver is used. At the Slice-1 checkpoint the ledgers were capability `84/31`, structural
+`101/14`, MPSGraph `75/35/5`, custom `71/44/0`, and identity 23; schema 16 bound the exact supported
+profile wire, while ABI 5, thirteen exports, and all other false rows remained unchanged. Slice 2
+was outside that checkpoint.
+
+### Slice 2 checkpoint
+
+The authorized ScatterAdd slice is implemented at wire 70. Metal admits only accelerator,
+no-gradient, canonical rank-one FLOAT32 base/update/output with axis zero, positive `D`/`U`
+extents bounded to unsigned 32-bit bytes/dispatch, and a materialized canonical rank-one INT32 or
+INT64 index partition feed. The compiler places explicit `CONTIGUOUS` between its generated
+zero-base `EXPAND` and ScatterAdd. Java and native creation independently reject strict profile,
+direct MPSGraph route, malformed attributes, alternate carriers/ranks/layouts, aliased value IDs,
+missing index feeds, gradients, and over-limit geometry; direct raw-native images exercise those
+boundaries independently of Java validation.
+
+Native execution completes the entire CPU index scan into `[0,D)` before creating a command buffer,
+encoding any step, or mutating output. One target-linear thread raw-loads its base exactly once,
+scans every update ordinal in increasing source order, applies the sole safe binary32 addition for
+each matching occurrence, and reaches one final store. Duplicate targets are retained without a
+uniqueness pass; unaddressed targets select the original raw base word; no atomic, retry, race, or
+host repair exists. The same admitted occurrence closes the existing compiler-generated rank-one
+Gather data cotangent end to end without admitting gradient-bearing ScatterAdd, its own
+cotangents, higher order, Gather-Elements, or Gather-ND. The reviewed representation-only amendment
+also corrects CPU's generic-unit range guard to use the trailing output binding rather than a
+broadcast scalar input; it changes no CPU arithmetic.
+
+`Task0069Binary32.lean` now defines the total signed `exactRneGeneral` relation and
+`GeneralBinary32RneContract` for arbitrary finite, infinity, NaN, subnormal, overflow, cancellation,
+and signed-zero operand pairs. `Task0069ReductionTree.lean` constructs occurrence ordinals from
+source-list positions and proves strictly increasing filtered order, exact duplicate target/word
+multiplicity, General-contract-constrained stable occurrence membership, raw unaddressed identity,
+and injective one-writer ownership in addition to the Slice-1 L1 theorems. The
+source/compiler-site certificate pins both
+kernels and the native preflight. The Xcode-27 compiled-MSL runner pins source/AIR/metallib
+SHA-256 values `7f10907eba7d03118d85091e7bd4e48197fea51defb908801bdad0c1e9f58caa`,
+`5b4855918e2cf5af710a87fa6c9e303440cabab821b0a1ff01883a4dca53b5e0`, and
+`7e90fd70a47087fb2ee55f269edd8a5c7ca0cad6a887bd3eb6de2f5a642bd491`.
+AIR inspection finds one unflagged `fadd` per Task-0069 kernel, no other floating arithmetic,
+ScatterAdd's ordinal-zero equality-filter loop and raw-base unaddressed select, one static
+serialization loop, and no atomics.
+
+The warnings-as-errors native build, fixed-identifier ad-hoc signing, canonical package verifier,
+Gradle package ingestion/ZIP creation, fresh permission-preserving extraction, extracted verifier,
+and byte comparison pass. The packaged dylib is `484944` bytes with SHA-256
+`b48cf79cc26190243280a8c9b9cfac1d2fd8fa1dd33b875905fa231acff0a91f` and CDHash
+`25d195103e26088d6577bba6427515fe712bbcdb`; the local ZIP is `142634` bytes with SHA-256
+`59bc207a2dde3b4f40b42fa177a79bfc760c2a03696e7beeac98894a01d189ac`.
+Complete Metal backend tests pass all 260 tests. Focused Compiler graph and CPU cotangent
+regressions, Metal capability/partition conformance, and public Engine integration pass, including
+canonical INT32/INT64 indices, duplicate source order, bit-exact unaddressed signed-zero/subnormal/
+NaN copies, addressed normal/subnormal/infinity/NaN classes, positive and negative
+error-before-mutation, runtime handle-alias rejection, raw-native malformed image rejection, and
+direct plus explicitly canonicalized generated-Gather execution on the packaged dylib.
+The unfiltered serialized `./gradlew test --rerun-tasks --no-daemon --max-workers=1` passes all
+76 actionable tasks in 3m04s with no exclusion, suppression, waiver, fallback, or timing evidence.
+The subsequent unfiltered serialized `./gradlew build --rerun-tasks --no-daemon --max-workers=1`
+passes all 87 actionable tasks in 3m06s. Final independent Slice-2 review approves the stabilized
+implementation and evidence with zero remaining P0/P1/P2.
+Current ledgers are capability `85/30`, structural `101/14`, MPSGraph `75/35/5`, custom
+`72/43/0`, schema 16, ABI 5, thirteen exports, and identity 24; identity 23 and every older value
+fail closed. `VARIANCE` remains false and Slice 3 is not authorized.

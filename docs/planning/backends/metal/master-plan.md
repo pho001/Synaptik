@@ -381,7 +381,7 @@ before extracting a package or widening another type.
 | 0066 | [Dtype, layout, and gradient gap closure](tasks/0066-dtype-layout-gradient-gap-closure.md) | Complete | 0065 Complete through documentation `c48b94d7fb2dfa6391901ede580cf886d74cc889`; approved plan `e0ec3d2360b0b7ab1119ce0613a612bf3e18b218`; current exact six-carrier Model cast/layout/indexing/window contracts; Compiler generated-gradient, saved-role, and logical-layout closure contracts | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/resource/publication/transfer/package/shared-document scope; concurrent Compiler layout/gradient or transfer-contract edits; resumed 0053 production | None | Approved plan with zero P0/P1/P2 → implementation `0b88f897` → package/documentation reconciliation → cumulative independent Class C review | Native build/sign/package; complete Metal, focused Compiler direct/generated-graph, conformance, CPU-free public Engine forward/backward/saved-role evidence, Javadoc/architecture, one full test/build, documentation/diff, and cumulative independent Class C review | Broadens exactly existing wires `6..11,16..19,39..45,51,69,71..84`; adds only the bounded Compiler static-crop/layout accommodations; keeps capability `83/32`, structural `101/14`, MPSGraph `75/35/5`, schema 15, ABI 5, and thirteen exports; completes custom `70/45/0` and identity 22 while preserving every semantic blocker. |
 | 0067 | [Current 115-kind evidence audit and reconciliation](tasks/0067-current-115-kind-evidence-audit.md) | Complete | 0066 Complete through reviewed documentation `209ba28a`; current 40-family/115-kind Model registry; current Compiler inference/autograd/saved-role contracts; schema-15/identity-22 Metal boundary | Every concurrent Metal or Compiler capability/inference/autograd/schema/native/catalog/route/preparation/test/package/shared-document scope; resumed 0053 production | None | Canonical plans `dbdf8b06`/`4b583efe`/`6b8be016` → implementation/evidence `7f9601e1` → public Engine reconciliation `2541c6f3` → findings `1d52989a` → evidence correction `4e604605` → code-review remediation and cumulative approval `453ecf22` | Permanent 115-wire capability/route/catalog audit; real native alias and public Engine proof; native build; complete Metal/Compiler; Metal conformance/integration; architecture/Javadoc; full test/build; docs/diff | Reconciles all 115 rows at exact `83/32`, `101/14`, MPSGraph `75/35/5`, custom `70/45/0`, and Compiler `38/111/133 + 4 = 40/115/137`; resolves A-001..A-006 and R-001..R-005 with independent code/security/evidence `APPROVE` and no Task-0067 blocker. |
 | 0068 | [Release-grade native integration verification](tasks/0068-release-grade-native-integration-verification.md) | Complete | 0067 Complete and independently approved at `cb830587`; current Tasks 0045–0046 package/archive contract; ABI-5/schema-15/identity-22 native boundary | Every concurrent Metal, Compiler, native, package, Gradle, test, planning, or shared-document edit during verification | None | Registered matrix `6820dd63` → fresh warnings-as-errors native build → fixed signing/package/Gradle ZIP/extracted-dylib verification → complete native/JVM/Engine/Compiler/build matrix → evidence correction `1775081a` → independent code/security/evidence `APPROVE` | Package/ZIP verification; 247 Metal backend + 10 Metal conformance + 47 tests across the five explicitly named Metal integration classes = 304 precisely scoped Metal tests; 282 Compiler and 22 complete conformance tests; 3712 repository tests; architecture/Javadoc; full `76`-task test and `87`-task build; JUnit inventory; artifact hashes; docs/diff/clean; three independent reviews | All gates passed without production-source remediation, relevant skip, environmental blocker, benchmark entry point, production fallback/retry/host repair, or local timing/tuning result used as evidence or decision. Mandatory full-suite tests retained their public tuning/fallback assertions. Independent code/security/evidence review at `1775081a` returned `APPROVE` with zero P0/P1/P2. |
-| 0069 | [Source-owned binary32 aggregate-floor slices](tasks/0069-source-owned-binary32-aggregate-slices.md) | Review needed — Slice 1 complete; Slice 2 not authorized | 0068 Complete at approved `1775081a`; current Model/Compiler contracts; bounded 0053/0060/0061 evidence | Every concurrent Metal capability/native/custom/catalog/route/identity/package/shared-document edit; Compiler indexing/reduction/autograd edit; resumed 0053 production | None | Proof substrate + L1 completed; separately reviewed SCATTER_ADD and singleton VARIANCE may follow only after fresh serial approval | Slice-1 proof/certificate/compiled-MSL audit/native/package/Metal/conformance/Engine/architecture/Javadoc/full validation; fresh review required before Slice 2 | Source-owned rank-one accelerator FLOAT32 no-gradient L1 is current; exact leaf/tree proof and validation-before-mutation landed; SCATTER_ADD and VARIANCE remain false |
+| 0069 | [Source-owned binary32 aggregate-floor slices](tasks/0069-source-owned-binary32-aggregate-slices.md) | Review needed — Slices 1–2 implemented; Slice 3 not authorized | 0068 Complete at approved `1775081a`; current Model/Compiler contracts; bounded 0053/0060/0061 evidence | Every concurrent Metal capability/native/custom/catalog/route/identity/package/shared-document edit; Compiler indexing/reduction/autograd edit; resumed 0053 production | None | Proof substrate + L1 completed and independently approved; SCATTER_ADD implemented at the next serial checkpoint; singleton VARIANCE requires fresh approval | Slice-2 proof/certificate/compiled-MSL audit/native/package/Metal/Compiler/Engine/architecture/Javadoc/full validation; independent review required before Slice 3 | Source-owned rank-one accelerator FLOAT32 no-gradient L1 and ScatterAdd are current; ScatterAdd uses complete pre-dispatch index validation, source-ordered duplicate accumulation, raw unaddressed copies, one writer/store, and closes the existing Gather data cotangent; VARIANCE remains false |
 
 ## Dependency DAG and authorized frontiers
 
@@ -437,7 +437,7 @@ Completed profile spine and serial successors:
 `0065 (Complete) + current dtype/layout/indexing/window and Compiler generated-gradient/saved-role/logical-layout contracts + schema-15 custom-program foundations -> 0066 (Complete)`
 `0066 (Complete) + current 115-kind Model/Compiler/Metal source and behavioral evidence -> 0067 (Complete)`
 `0067 (Complete) + current native/package/archive contracts -> 0068 (Complete)`
-`0068 (Complete) + current Model/Compiler contracts + retained 0053/0060/0061 evidence -> 0069 (Review needed; proof substrate + L1_NORM -> SCATTER_ADD with contract update -> singleton VARIANCE)`
+`0068 (Complete) + current Model/Compiler contracts + retained 0053/0060/0061 evidence -> 0069 (Review needed; proof substrate + L1_NORM + SCATTER_ADD complete at current checkpoint -> singleton VARIANCE not authorized)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -524,11 +524,12 @@ implementation `4f35576c`, conformance correction `4a5cbdef`, and final approved
 selector or finite composition and current Model semantic/signature source for every one of the
 115 rows. The current catalogs are MPSGraph
 `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE` and custom
-`71 AVAILABLE / 44 PENDING / 0 UNAVAILABLE-WITH-PROOF`. The closed route identity retains wires
-`1..3`; schema 16 embeds the fixed route and exact numerical profile, identities are version 23,
-and capability is `84 true / 31 false`. Package-private forcing remains result-set-only after fresh
-authentication; every Task-0066 selected occurrence rejects MPSGraph. There is no device, oracle,
-timing, benchmark, public API, hot fallback, retry, cache, or autotune behavior. Every other Metal
+`72 AVAILABLE / 43 PENDING / 0 UNAVAILABLE-WITH-PROOF`. The closed route identity retains wires
+`1..3`; schema 16 embeds the fixed route and exact numerical profile, identities are version 24,
+and capability is `85 true / 30 false`. Package-private forcing remains result-set-only after fresh
+authentication; every Task-0066 and Task-0069 selected occurrence rejects MPSGraph. There is no
+device, oracle, timing, benchmark, public API, hot fallback, retry, cache, or autotune behavior.
+Every other Metal
 task retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
@@ -592,10 +593,11 @@ another.
   security, and evidence review returned `APPROVE` with zero remaining P0/P1/P2 and no Task-0067
   blocker. Task 0068 is Complete after its fresh native/package/extracted-dylib matrix and evidence
   correction `1775081a`; independent code, security, and evidence review returned `APPROVE` with
-  zero remaining P0/P1/P2. Task 0069 remains Review needed overall, but its authorized shared proof
-  substrate and Slice 1 are independently approved after cumulative code/evidence/security
-  remediation with zero remaining P0/P1/P2. Slice 2 remains unauthorized. Model 0028 owns the
-  reduction semantic contract, Complete Model 0029 owns the MATMUL final-publication semantic
+  zero remaining P0/P1/P2. Task 0069 remains Review needed overall. Its shared proof substrate and
+  Slice 1 are independently approved after cumulative code/evidence/security remediation with zero
+  remaining P0/P1/P2; Slice 2 is implemented at the current serial checkpoint and awaits independent
+  review. Slice 3 remains unauthorized. Model 0028 owns the reduction semantic contract, Complete
+  Model 0029 owns the MATMUL final-publication semantic
   contract, and Complete Metal 0021–0025 retain reviewed implementations.
 
 ## Milestones and current frontier
@@ -615,14 +617,14 @@ documentation/diff evidence, and independent Class C final `APPROVE` with zero f
 Current ABI 5 retains exactly thirteen exports and accepts one bounded schema-16 route-bearing
 program image with the exact numerical-profile wire. Type wires are `1..6`, operation wires are
 `1..115`, attribute wires are `0..41`, route wires are `1..3`, and workload/exact-policy/candidate/
-compatibility/route/codec identities are version twenty-three. Task 0055's schema-13/identity-14
+compatibility/route/codec identities are version twenty-four. Task 0055's schema-13/identity-14
 foundation, Task 0056's structural catalog, Task 0057's schema-14/identity-15 route cutover, Task
 0059's schema-15/identity-16 cutover, Tasks 0061–0065's identity-17 through identity-21 cutovers,
-and Task 0066/0067/0068 identity 22 checkpoint remain historical prerequisites. Task 0069 Slice 1
-rejects schema 15 and every other schema plus identity 22 and every older identity while admitting
-exactly 84 production kinds and retaining 101 structurally executable kinds. Identity 23 remains
-monotonic because workload compatibility already binds the profile, schema version, and complete
-encoded image; a schema-15 decision cannot match the schema-16 workload.
+Task 0066/0067/0068 identity 22, and Task-0069 Slice-1 identity 23 remain historical
+prerequisites. Task 0069 Slice 2 rejects identity 23 and every older identity while admitting
+exactly 85 production kinds and retaining 101 structurally executable kinds. Identity 24 remains
+monotonic because workload compatibility binds the profile, schema version, complete encoded image,
+and route policy; a prior-checkpoint decision cannot match the current workload.
 Complete Model 0028 owns the root-only exact-zero reduction rule. Complete Model 0029 owns the
 MATMUL-only final-publication exact-zero sign rule. Metal 0018 remains Blocked without production
 changes. Complete Metal 0022
@@ -751,14 +753,15 @@ capability was `83/32`, structural execution `101/14`, catalogs `75/35/5` MPSGra
 `70/45/0` custom, schema 15, backend-local identity 22, ABI 5, and thirteen exports at the
 Task-0066 checkpoint. Tasks 0067 and 0068 preserved and verified that ledger.
 
-Task 0069 remains Review needed at its serial checkpoint; Slice 1 is implemented and Slice 2 is
-not authorized. The shared minimal proof substrate and exact rank-one accelerator L1 source-owned
-custom route advance current capability to `84/31`, custom catalog to `71/44/0`, and backend-local
-identity to 23; Java and native creation reject the opaque direct MPSGraph route. Structural
-`101/14`, MPSGraph `75/35/5`, schema 16, ABI 5, and thirteen exports remain fixed. Schema 16 binds
-the exact profile in every image, rejects schema 15, and makes native L1 creation require
-ACCELERATOR. The pinned Xcode-27 compiled-MSL/AIR audit confirms one unflagged L1 `fadd` and no
-other floating arithmetic in that kernel. SCATTER_ADD and VARIANCE remain false.
+Task 0069 remains Review needed at its serial checkpoint; Slices 1 and 2 are implemented and Slice 3
+is not authorized. The shared minimal proof substrate and exact rank-one accelerator L1/ScatterAdd
+source-owned custom routes advance current capability to `85/30`, custom catalog to `72/43/0`, and
+backend-local identity to 24; Java and native creation reject their opaque direct MPSGraph routes.
+Structural `101/14`, MPSGraph `75/35/5`, schema 16, ABI 5, and thirteen exports remain fixed.
+ScatterAdd completely validates INT32/INT64 indices before encoding or mutation, retains duplicate
+updates in source order, raw-copies unaddressed cells, and closes the compiler-generated rank-one
+Gather data cotangent. The pinned Xcode-27 compiled-MSL/AIR audit confirms one unflagged `fadd` in
+each Task-0069 kernel, no other floating arithmetic, and no scatter atomics. VARIANCE remains false.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030

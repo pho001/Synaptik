@@ -57,7 +57,7 @@ final class IndexingGradientRules {
         if (kind instanceof AxisGatherKind gatherKind) {
             int axis = ((IndexAxisAttrs) producer.operation().attrs()).axis();
             Tensor dataGradient = gatherKind == AxisGatherKind.GATHER
-                    ? constants.zeroLike(data).scatterAdd(indices, gradient, axis)
+                    ? constants.zeroLike(data).contiguous().scatterAdd(indices, gradient, axis)
                     : constants.zeroLike(data)
                             .scatterElements(indices, gradient, axis, ScatterReduction.ADD);
             return new Tensor[] {dataGradient, null};

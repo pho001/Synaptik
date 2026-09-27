@@ -267,18 +267,21 @@ carriers over canonical dense ranks `1..16` with unsigned-32-bit-bounded geometr
 
 Accelerator additionally admits the documented FLOAT32 arithmetic, extrema, scalar, reduction,
 scan, MSE, general MATMUL, average-pooling, convolution, explicit-state dropout, and exact
-rank-one no-gradient FLOAT32 `L1_NORM` over ordered axis `[0]`. Both profiles admit no-gradient
-INT32/INT64 MATMUL pairs with INT64-dominant promotion and modular result arithmetic. Every
-selected Task-0066 occurrence at wires `6..11,16..19,39..45,51,69,71..84` and the Task-0069 L1
-occurrence use one fixed `CUSTOM_PROGRAM` route. Capability distinguishes logical affine layouts
-from their independently authenticated physical spans and rejects dynamic/empty geometry, zero or
-negative external strides, overlap, additive scatter, reduction-dependent adjoints, and every
-other unlisted occurrence before route selection.
+rank-one no-gradient FLOAT32 `L1_NORM` and `SCATTER_ADD`. ScatterAdd uses axis zero, canonical
+base/index/update/output roles, and a materialized INT32/INT64 index feed; the compiler explicitly
+canonicalizes its generated zero base, and the complete range scan precedes dispatch and mutation.
+Both profiles admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant promotion and modular
+result arithmetic. Every selected Task-0066 occurrence at wires
+`6..11,16..19,39..45,51,69,71..84` and both Task-0069 occurrences at wires `70,114` use one fixed
+`CUSTOM_PROGRAM` route. Capability distinguishes logical affine layouts from their independently
+authenticated physical spans and rejects dynamic/empty geometry, zero or negative external
+strides, overlap, every other additive scatter, reduction-dependent adjoints, and every other
+unlisted occurrence before route selection.
 
 ABI 5 retains the thirteen export names and consumes one bounded schema-16 route-bearing program
 image. Operation wires `1..115`, attribute wires `0..41`, route wires `1..3`, and type wires
-`1..6` are structural vocabulary only. Version-twenty-three workload, policy, candidate,
+`1..6` are structural vocabulary only. Version-twenty-four workload, policy, candidate,
 compatibility, route, and codec identities authenticate that meaning without adding capability;
-version twenty-two and every older identity fail closed. Production capability is `84/31`,
+version twenty-three and every older identity fail closed. Production capability is `85/30`,
 structural execution remains `101/14`, and the MPSGraph/custom catalogs are `75/35/5` and
-`71/44/0`.
+`72/43/0`.

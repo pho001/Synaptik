@@ -46,35 +46,62 @@ def main() -> None:
 
     symbols = (generated / "runtime-source.air.nm").read_text(encoding="utf-8")
 
-    assert digest(source) == artifacts["source"]["sha256"]
-    assert digest(air) == artifacts["air"]["sha256"]
-    assert digest(metallib) == artifacts["metallib"]["sha256"]
+    assert digest(source) == artifacts["source"]["sha256"], digest(source)
+    assert digest(air) == artifacts["air"]["sha256"], digest(air)
+    assert digest(metallib) == artifacts["metallib"]["sha256"], digest(metallib)
     assert symbols.count(" T l1_norm_f32_0069") == 1
+    assert symbols.count(" T scatter_add_f32_0069") == 1
 
-    function_match = re.search(
-        r"define void @l1_norm_f32_0069\([^\n]+\) [^{]+\{(?P<body>.*?)\n\}",
-        ir,
-        re.DOTALL,
+    def kernel_body(symbol: str) -> str:
+        match = re.search(
+            rf"define void @{symbol}\([^\n]+\) [^{{]+\{{(?P<body>.*?)\n\}}",
+            ir,
+            re.DOTALL,
+        )
+        assert match is not None
+        return match.group("body")
+
+    l1_body = kernel_body("l1_norm_f32_0069")
+    l1_fadds = [line.strip() for line in l1_body.splitlines() if " fadd " in line]
+    assert len(l1_fadds) == 1
+    assert re.search(r"= fadd float %\d+, %\d+$", l1_fadds[0])
+    assert all(flag not in l1_fadds[0] for flag in ("fast", "contract", "reassoc", "afn"))
+    assert l1_body.count("2147483647") == 2
+    assert l1_body.count(" bitcast i32 ") == 2
+    assert l1_body.count(" bitcast float ") == 1
+    assert "phi i64" in l1_body and "[ 1," in l1_body
+    assert l1_body.count("store i8") == 1
+
+    scatter_body = kernel_body("scatter_add_f32_0069")
+    scatter_fadds = [
+        line.strip() for line in scatter_body.splitlines() if " fadd " in line
+    ]
+    assert len(scatter_fadds) == 1
+    assert re.search(r"= fadd float %\d+, %\d+$", scatter_fadds[0])
+    assert all(
+        flag not in scatter_fadds[0] for flag in ("fast", "contract", "reassoc", "afn")
     )
-    assert function_match is not None
-    body = function_match.group("body")
-    fadds = [line.strip() for line in body.splitlines() if " fadd " in line]
-    assert len(fadds) == 1
-    assert re.search(r"= fadd float %\d+, %\d+$", fadds[0])
-    assert all(flag not in fadds[0] for flag in ("fast", "contract", "reassoc", "afn"))
-    assert body.count("2147483647") == 2
-    assert body.count(" bitcast i32 ") == 2
-    assert body.count(" bitcast float ") == 1
-    assert "phi i64" in body and "[ 1," in body
-    assert body.count("store i8") == 1
-    for forbidden in (" fmul ", " fsub ", " fdiv ", "air.fma", "llvm.fma"):
-        assert forbidden not in body
+    assert scatter_body.count("store i8") == 1
+    assert "phi i64" in scatter_body and "[ 0," in scatter_body
+    assert "icmp eq i64" in scatter_body
+    assert "add nuw i64" in scatter_body
+    assert re.search(r"select i1 %\d+, i32 %\d+, i32 %\d+", scatter_body)
+    assert "atomic" not in scatter_body
 
-    target = manifest["compiledAirAudit"]["targetTriple"]
+    for body in (l1_body, scatter_body):
+        for forbidden in (" fmul ", " fsub ", " fdiv ", "air.fma", "llvm.fma"):
+            assert forbidden not in body
+
+    audit = manifest["compiledAirAudit"]
+    target = audit["targetTriple"]
     assert f'target triple = "{target}"' in ir
-    assert manifest["compiledAirAudit"]["kernelSymbol"] == "l1_norm_f32_0069"
-    assert manifest["compiledAirAudit"]["floatingAddInstructions"] == 1
-    assert manifest["compiledAirAudit"]["unsafeFloatingFlags"] == []
+    assert audit["l1Norm"]["kernelSymbol"] == "l1_norm_f32_0069"
+    assert audit["l1Norm"]["floatingAddInstructions"] == 1
+    assert audit["l1Norm"]["unsafeFloatingFlags"] == []
+    assert audit["scatterAdd"]["kernelSymbol"] == "scatter_add_f32_0069"
+    assert audit["scatterAdd"]["floatingAddInstructions"] == 1
+    assert audit["scatterAdd"]["unsafeFloatingFlags"] == []
+    assert audit["scatterAdd"]["atomicInstructions"] == 0
     print("Task0069 Xcode compiled-MSL/AIR audit verified")
 
 

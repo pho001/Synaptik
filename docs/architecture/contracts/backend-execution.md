@@ -343,31 +343,40 @@ promotion and modular result arithmetic. The accelerator-only set adds the docum
 tensor/scalar arithmetic, comparisons, extrema, reductions, and scans; every positive-static
 FLOAT32 MATMUL vector, matrix, batched, and right-aligned broadcast geometry; no-gradient
 BFLOAT16/FLOAT32 or FLOAT32/BFLOAT16 MATMUL with FLOAT32 result; same-type canonical positive-rank
-FLOAT32 MSE under `NONE`, `SUM`, or `MEAN`; the exact canonical no-gradient rank-one FLOAT32
-`L1_NORM` slice over ordered axis `[0]`, with scalar or retained `[1]` output; FLOAT32-result
-grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles; FLOAT32 average Pool2d/Pool3d; and canonical
-FLOAT32 explicit-state dropout. Conv1d/Pool1d may use only authenticated local singleton-height
-views. Strict capability
+FLOAT32 MSE under `NONE`, `SUM`, or `MEAN`; exact no-gradient rank-one FLOAT32 `L1_NORM` over
+ordered axis `[0]`; exact no-gradient rank-one FLOAT32 `SCATTER_ADD` over axis zero and a
+materialized INT32/INT64 index feed; FLOAT32-result grouped Conv2d/Conv3d over
+FLOAT32/BFLOAT16 roles; FLOAT32 average Pool2d/Pool3d; and canonical FLOAT32 explicit-state
+dropout. Conv1d/Pool1d may use only authenticated local singleton-height views. Strict capability
 remains a subset because every common occurrence has the same answer under accelerator; strict
 rejects every accelerator-only addition. Attention, recurrent execution, convolution transpose,
 overlapping folds, and the other recorded blockers remain unsupported.
 
-Every Task-0066 selected occurrence at wires `6..11,16..19,39..45,51,69,71..84` selects one fixed
-`CUSTOM_PROGRAM` whole-partition route. No dtype-, Shape-, or payload-dependent MPSGraph
+Every Task-0066 selected occurrence at wires `6..11,16..19,39..45,51,69,71..84` and both accepted
+Task-0069 occurrences at wires `70` and `114` select one fixed `CUSTOM_PROGRAM` whole-partition
+route. No dtype-, Shape-, or payload-dependent MPSGraph
 alternative, nested selected-node fallback, retry, timing, or autotuning exists. Unselected capable
 operations may still use their retained routes, including direct rank-two FLOAT32 MATMUL. The
 shared custom route uses fixed reviewed raw-word/integer/movement/predicate kernels behind one
 whole-program invocation with declared assigned buffers for every logical value and no host repair.
 
-Task-0069 L1 at wire `114` is also fixed `CUSTOM_PROGRAM` under `CA_0069`; Java and native
-creation reject its direct MPSGraph route. Preflight requires accelerator profile, FLOAT32, one
-canonical positive-static rank-one no-gradient input, ordered multi-axis `[0]`, a canonical scalar
-or retained `[1]` output, unsigned-32-bit element and four-byte span bounds, one dispatch thread,
-and distinct value-table buffers. That thread raw-clears each contributor's sign bit, initializes
-from ordinal zero, performs exactly `N-1` safe binary32 additions in increasing ordinal order, and
-stores the final raw word once; `N=1` performs no addition. Its task-local Lean proof, source
-certificate, and pinned Xcode-27 compiled-MSL/AIR audit establish the bounded Model result-set
-membership. `SCATTER_ADD` and `VARIANCE` remain production-false.
+Task-0069 L1 at wire `114` and ScatterAdd at wire `70` are fixed `CUSTOM_PROGRAM` under
+`CA_0069`; Java and native creation reject their direct MPSGraph routes. L1 requires accelerator
+profile, FLOAT32, one canonical positive-static rank-one no-gradient input, ordered multi-axis
+`[0]`, a canonical scalar or retained `[1]` output, unsigned-32-bit bounds, one output thread, and
+distinct buffers. It raw-clears every contributor sign and performs exactly `N-1` source-ordered
+safe additions; `N=1` performs none.
+
+ScatterAdd requires accelerator profile, canonical FLOAT32 rank-one base/update/output with positive
+static extents, axis zero, no gradient flags, and a materialized canonical rank-one INT32/INT64
+index partition feed. The compiler places explicit `CONTIGUOUS` between its generated zero-base
+`EXPAND` and Scatter. A complete CPU index scan precedes every command encoding and mutation. One
+target thread raw-loads the base once, keeps every matching duplicate in source order, and stores
+once; unaddressed targets copy the raw base, and there are no atomics or races. This exact node
+closes the existing rank-one Gather data cotangent without admitting gradient-bearing ScatterAdd
+or higher-order ownership. The shared Lean
+proof, source certificate, and pinned Xcode-27 compiled-MSL/AIR audit establish both bounded Model
+result-set memberships. `VARIANCE` remains production-false.
 
 Direct CPU/Metal transfer supports all six current data types at ranks `0..16` over canonical or
 resolved positive-stride non-overlapping storage layouts; BOOL validation visits logical elements
@@ -378,8 +387,8 @@ The package uses ABI 5 with the same thirteen exports. Node schema 16 is one bou
 self-describing, route-bearing image over type wires `1..6`, operation wires `1..115`, attribute
 wires `0..41`, route wires `1..3`, an exact numerical-profile wire, and complete optional
 storage-layout geometry. Structural execution covers exactly 101 kinds with 14 remaining
-nonexecutable; production capability is
-exactly 84 kinds with 31 remaining false. Catalog counts are exactly `75/35/5` MPSGraph and
-`71/44/0` custom. Workload, exact-policy, candidate, compatibility, route-policy, and codec
-identities are version twenty-three; identity twenty-two and every older identity fail closed. The
+nonexecutable; production capability is exactly 85 kinds with 30 remaining false. Catalog counts
+are exactly `75/35/5` MPSGraph and `72/43/0` custom. Workload, exact-policy, candidate,
+compatibility, route-policy, and codec identities are version twenty-four; identity twenty-three
+and every older identity fail closed. The
 complete-plan wrapper remains version one.

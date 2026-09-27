@@ -651,14 +651,16 @@ all-carrier affine/index/replacement/movement, the admitted non-overlapping fold
 unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema, no-gradient promoted INT32/INT64
 MATMUL, exact maximum pooling, and raw initial state. Accelerator additionally admits the
 documented FLOAT32 arithmetic, extrema, scalar, reduction, scan, MSE, general MATMUL,
-average-pooling, convolution, explicit-state dropout, and the exact rank-one FLOAT32 L1 occurrence.
-Every Task-0066 selected occurrence and the exact Task-0069 L1 occurrence use one fixed custom
-whole-program route; every other unsupported occurrence fails closed before route selection. ABI 5
-retains thirteen exports and consumes one bounded schema-16 route-bearing image over type wires
-`1..6`, operation wires `1..115`, attribute wires `0..41`, and route wires `1..3`; backend
-identities are version twenty-three. Structural coverage is `101 / 14`, production capability is
-`84 / 31`, and the MPSGraph/custom catalogs are `75 / 35 / 5` and `71 / 44 / 0`. Identity
-twenty-two and every older identity fail closed. CPU/Metal transfer accepts canonical or resolved
+average-pooling, convolution, explicit-state dropout, and the exact rank-one FLOAT32 L1 and
+ScatterAdd occurrences. Every Task-0066 selected occurrence and both Task-0069 occurrences use one
+fixed custom whole-program route; ScatterAdd performs complete index validation before encoding or
+mutation and closes the existing rank-one Gather data cotangent. Every other unsupported
+occurrence fails closed before route selection. ABI 5 retains thirteen exports and consumes one
+bounded schema-16 route-bearing image over type wires `1..6`, operation wires `1..115`, attribute
+wires `0..41`, and route wires `1..3`; backend identities are version twenty-four. Structural
+coverage is `101 / 14`, production capability is `85 / 30`, and the MPSGraph/custom catalogs are
+`75 / 35 / 5` and `72 / 43 / 0`. Identity twenty-three and every older identity fail closed.
+CPU/Metal transfer accepts canonical or resolved
 positive-stride non-overlapping all-carrier storage layouts without widening operation
 capability.
 Runtime therefore requires neither profile interpretation nor a policy lookup.

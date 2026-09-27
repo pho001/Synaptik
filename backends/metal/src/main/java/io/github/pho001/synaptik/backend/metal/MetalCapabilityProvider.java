@@ -105,8 +105,8 @@ import java.util.Objects;
  * select/slice/pad/composition/tile, and the declared non-overlapping window rows. Reads may use
  * authenticated static affine or transferred materialized layouts; outputs use the operation's
  * exact logical view or a canonical materialization. Scalar Shapes compose where the Model permits
- * them. External zero-stride aliases, negative strides, overlap, empty or dynamic geometry,
- * additive scatter, and accumulation-requiring folds remain unsupported.
+ * them. External zero-stride aliases, negative strides, overlap, empty or dynamic geometry, and
+ * accumulation-requiring folds remain unsupported.
  *
  * <p>Both profiles also admit all 36 ordered {@code CAST} pairs. The nine floating-to-floating
  * pairs preserve the Model gradient relation; integral and BOOL roles remain non-differentiable.
@@ -144,11 +144,11 @@ import java.util.Objects;
  *
  * <p>Legal forward gradient metadata is distinct from a CPU-free generated backward graph. Inverse
  * affine moves, floating casts, same-shape WHERE, positive-step select/slice/update,
- * pad/composition, unique replacement scatter/gather, and non-overlapping unfold/fold can close.
- * Additive gather adjoints, broadcast reductions, positive-rank tile adjoints,overlapping windows,
- * multi-path cotangent addition, and every non-floating derivative remain blocked. Integral PROD
- * admits INT32/INT64 modular multiplication; ALL and ANY admit canonical BOOL. LOG_SUM_EXP through
- * L2_NORM remain production-false.
+ * pad/composition, unique replacement scatter/gather, non-overlapping unfold/fold, and the exact
+ * Task-0069 rank-one Gather data cotangent can close. Broadcast reductions, positive-rank tile
+ * adjoints, overlapping windows, multi-path cotangent addition, and every non-floating derivative
+ * remain blocked. Integral PROD admits INT32/INT64 modular multiplication; ALL and ANY admit
+ * canonical BOOL. LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, and L2_NORM remain production-false.
  *
  * <p>Task 0063 admits profile-common canonical dense {@code SORT}, {@code ARGSORT}, and positive-K
  * {@code TOP_K} for all six carriers and {@code ARG_MAX}/{@code ARG_MIN} for the five numeric
@@ -170,6 +170,13 @@ import java.util.Objects;
  * element count, referenced span, and dispatch width must fit unsigned 32 bits. Every recurrent
  * kind and every non-FLOAT32, strict, dynamic, malformed-state, or over-limit dropout occurrence
  * remains unsupported.
+ *
+ * <p>Task 0069 admits accelerator-only no-gradient FLOAT32 rank-one {@code L1_NORM} and {@code
+ * SCATTER_ADD}. Scatter uses axis zero, positive static data/update extents, canonical
+ * base/index/update/output roles, and a materialized INT32/INT64 index feed. Complete index
+ * validation precedes every dispatch and mutation;
+ * duplicates retain source order, unaddressed cells preserve the raw base word, and one output
+ * thread owns each target. Gradient-bearing scatter and {@code VARIANCE} remain unsupported.
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     private static final long UINT32_MAX = 0xffff_ffffL;
@@ -312,6 +319,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             }
             if (operation.kind() == AxisGatherKind.GATHER) {
                 return supportsGather(operation, inputs, output);
+            }
+            if (operation.kind() == AxisScatterKind.SCATTER_ADD) {
+                return supportsTask0069ScatterAdd(
+                        numericalProfile, operation, inputs, output);
             }
             if (operation.kind() == AxisScatterKind.SCATTER_ELEMENTS) {
                 return supportsScatterElements(operation, inputs, output);
@@ -1952,6 +1963,52 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 && output.dataType() == DataType.FLOAT32
                 && canonicalReductionOutput(output)
                 && output.shape().rank() == 0;
+    }
+
+    private static boolean supportsTask0069ScatterAdd(
+            NumericalProfile numericalProfile,
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output) {
+        if (numericalProfile != NumericalProfile.ACCELERATOR
+                || !(operation.attrs() instanceof IndexAxisAttrs attrs)
+                || attrs.axis() != 0
+                || inputs.size() != 3) {
+            return false;
+        }
+        TensorDescriptor data = inputs.get(0);
+        TensorDescriptor indices = inputs.get(1);
+        TensorDescriptor updates = inputs.get(2);
+        if (!canonicalTyped(data, DataType.FLOAT32)
+                || !canonicalAny(indices, false)
+                || !canonicalTyped(updates, DataType.FLOAT32)
+                || !canonicalTyped(output, DataType.FLOAT32)
+                || data.shape().rank() != 1
+                || indices.shape().rank() != 1
+                || updates.shape().rank() != 1
+                || output.shape().rank() != 1
+                || indices.requiresGrad()
+                || data.requiresGrad()
+                || updates.requiresGrad()
+                || output.requiresGrad()
+                || !supportedStorageLayout(indices, 1)
+                || (indices.dataType() != DataType.INT32
+                        && indices.dataType() != DataType.INT64)) {
+            return false;
+        }
+        long dataExtent = data.shape().toLongArray()[0];
+        long updateExtent = updates.shape().toLongArray()[0];
+        if (dataExtent != output.shape().toLongArray()[0]
+                || updateExtent != indices.shape().toLongArray()[0]
+                || dataExtent < 1L
+                || updateExtent < 1L
+                || dataExtent > UINT32_MAX / Float.BYTES
+                || updateExtent > UINT32_MAX / Float.BYTES
+                || updateExtent > UINT32_MAX / indices.dataType().byteWidth()) {
+            return false;
+        }
+        long indexSpan = indices.layout().orElseThrow().referencedElementSpan();
+        return indexSpan <= UINT32_MAX / indices.dataType().byteWidth();
     }
 
     private static boolean supportsTask0069L1Norm(

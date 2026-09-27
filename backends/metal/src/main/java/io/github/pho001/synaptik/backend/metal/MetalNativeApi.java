@@ -538,6 +538,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                     new MetalMpsGraphProgram.ValueState[valueCount];
             java.util.Arrays.fill(states, MetalMpsGraphProgram.ValueState.UNAVAILABLE);
             boolean[] used = new boolean[valueCount];
+            boolean[] fed = new boolean[valueCount];
             boolean[] produced = new boolean[valueCount];
             boolean[] localTranspose = new boolean[valueCount];
             boolean[] localSingletonHeight = new boolean[valueCount];
@@ -553,6 +554,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
                 states[feed] = MetalMpsGraphProgram.ValueState.CANONICAL;
                 used[feed] = true;
+                fed[feed] = true;
             }
             for (MetalMpsGraphProgram.Node node : graphProgram.nodes()) {
                 if (!profileAllows(numericalProfile, node.kind())) {
@@ -888,6 +890,25 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 "GATHER axis and output shape disagree");
                         used[right] = true;
                     }
+                    case SCATTER_ADD -> {
+                        requireIndex(right, valueCount, "scatter indices input");
+                        requireIndex(auxiliary, valueCount, "scatter updates input");
+                        requireShape(
+                                left != right
+                                        && left != auxiliary
+                                        && left != output
+                                        && right != auxiliary
+                                        && right != output
+                                        && auxiliary != output
+                                        && fed[right]
+                                        && task0069ScatterAddMatches(
+                                                node,
+                                                values.get(left),
+                                                values.get(right),
+                                                values.get(auxiliary),
+                                                values.get(output)),
+                                "SCATTER_ADD axis, storage, feed, or shape contract disagrees");
+                    }
                     case SCATTER_ELEMENTS -> {
                         requireIndex(right, valueCount, "scatter indices input");
                         requireIndex(auxiliary, valueCount, "scatter updates input");
@@ -909,7 +930,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case ONE_HOT -> requireShape(
                             oneHotMatches(node, left, output, valueRanks, valueDimensions),
                             "ONE_HOT depth and output shape disagree");
-                    case CAST, GATHER_ELEMENTS, GATHER_ND, SCATTER_ADD, SCATTER_ND, SELECT, PAD,
+                    case CAST, GATHER_ELEMENTS, GATHER_ND, SCATTER_ND, SELECT, PAD,
                             SLICE, SLICE_UPDATE, CONCAT, STACK, TILE, FOLD_AXIS, UNFOLD2D, FOLD2D,
                             UNFOLD3D, FOLD3D -> {
                         requireShape(
@@ -1155,13 +1176,14 @@ abstract class MetalNativeApi implements AutoCloseable {
                         }
                     }
                     case SCATTER_ADD -> {
-                        if (types[left] == ValueType.BOOL
-                                || types[left] != types[auxiliary]
-                                || types[left] != types[output]
+                        if (types[left] != ValueType.FLOAT32
+                                || types[auxiliary] != ValueType.FLOAT32
+                                || types[output] != ValueType.FLOAT32
                                 || types[right] != ValueType.INT32
-                                && types[right] != ValueType.INT64) {
+                                        && types[right] != ValueType.INT64) {
                             throw new IllegalArgumentException(
-                                    "SCATTER_ADD has incompatible data, update, or index types");
+                                    "SCATTER_ADD requires FLOAT32 data/update/result and"
+                                            + " INT32 or INT64 indices");
                         }
                     }
                     case SCATTER_ND -> {
@@ -1713,6 +1735,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                         GATHER_ELEMENTS,
                         GATHER_ND,
                         SCATTER_ND,
+                        SCATTER_ADD,
                         SELECT,
                         PAD,
                         SLICE,
@@ -2247,7 +2270,8 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
 
         private static boolean task0069CustomOnly(MetalMpsGraphProgram.NodeKind kind) {
-            return kind == MetalMpsGraphProgram.NodeKind.L1_NORM;
+            return kind == MetalMpsGraphProgram.NodeKind.L1_NORM
+                    || kind == MetalMpsGraphProgram.NodeKind.SCATTER_ADD;
         }
 
         private static boolean usesCustomMatmul(
@@ -2404,7 +2428,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                             RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
                             CONTIGUOUS, GATHER, ONE_HOT, SCATTER_ELEMENTS, UNFOLD_AXIS,
                             IS_FINITE, IS_NAN, IS_INF, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
-                            WHERE, CAST, GATHER_ELEMENTS, SCATTER_ADD, GATHER_ND, SCATTER_ND,
+                            WHERE, CAST, GATHER_ELEMENTS, GATHER_ND, SCATTER_ND,
                             SELECT, PAD, SLICE, SLICE_UPDATE, CONCAT, STACK, TILE, FOLD_AXIS,
                             UNFOLD2D, FOLD2D, UNFOLD3D, FOLD3D, PROD, ALL, ANY, MATMUL,
                             SORT, ARGSORT, TOP_K, ARG_MAX, ARG_MIN, MAX_POOL2D, MAX_POOL3D,
@@ -2593,6 +2617,62 @@ abstract class MetalNativeApi implements AutoCloseable {
                 if (dimensions[inputRow + axis] != dimensions[outputRow + axis]) return false;
             }
             return dimensions[outputRow + inputRank] == attributes[0];
+        }
+
+        private static boolean task0069ScatterAddMatches(
+                MetalMpsGraphProgram.Node node,
+                MetalMpsGraphProgram.ValueDescriptor data,
+                MetalMpsGraphProgram.ValueDescriptor indices,
+                MetalMpsGraphProgram.ValueDescriptor updates,
+                MetalMpsGraphProgram.ValueDescriptor output) {
+            if (node.axis() != 0
+                    || node.attributeCount() != 1
+                    || data.rank() != 1
+                    || indices.rank() != 1
+                    || updates.rank() != 1
+                    || output.rank() != 1
+                    || data.requiresGrad()
+                    || indices.requiresGrad()
+                    || updates.requiresGrad()
+                    || output.requiresGrad()
+                    || !canonicalTask0069(data)
+                    || !canonicalTask0069Index(indices)
+                    || !canonicalTask0069(updates)
+                    || !canonicalTask0069(output)) {
+                return false;
+            }
+            long dataExtent = data.dimensions()[0];
+            long updateExtent = updates.dimensions()[0];
+            if (dataExtent != output.dimensions()[0]
+                    || updateExtent != indices.dimensions()[0]
+                    || dataExtent < 1L
+                    || updateExtent < 1L
+                    || dataExtent > UINT32_MAX / Float.BYTES
+                    || updateExtent > UINT32_MAX / Float.BYTES
+                    || updateExtent > UINT32_MAX / indices.dataType().byteWidth()) {
+                return false;
+            }
+            return indices.layout().orElseThrow().referencedElementSpan()
+                    <= UINT32_MAX / indices.dataType().byteWidth();
+        }
+
+        private static boolean canonicalTask0069(
+                MetalMpsGraphProgram.ValueDescriptor descriptor) {
+            return descriptor.dataType() == DataType.FLOAT32
+                    && descriptor.layout().isPresent()
+                    && descriptor.layout().orElseThrow().equals(
+                            LayoutDescriptor.contiguous(
+                                    Shape.of(descriptor.dimensions())));
+        }
+
+        private static boolean canonicalTask0069Index(
+                MetalMpsGraphProgram.ValueDescriptor descriptor) {
+            return (descriptor.dataType() == DataType.INT32
+                            || descriptor.dataType() == DataType.INT64)
+                    && descriptor.layout().isPresent()
+                    && descriptor.layout().orElseThrow().equals(
+                            LayoutDescriptor.contiguous(
+                                    Shape.of(descriptor.dimensions())));
         }
 
         private static boolean task0069L1Matches(
