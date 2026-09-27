@@ -1254,20 +1254,6 @@ class MetalRemainingElementwiseNativeTest {
         assertFloatWord(0.5f, deviation[0], 0.00001f);
         assertFloatWord(0.5f, deviation[1], 0.00001f);
 
-        int[] l1 = NonProductionStructuralFixture.executeCurrent(
-                library,
-                NumericalProfile.ACCELERATOR,
-                MetalMpsGraphProgram.Node.reduction(
-                        MetalMpsGraphProgram.NodeKind.L1_NORM,
-                        0,
-                        1,
-                        MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS,
-                        List.of(1),
-                        false),
-                values,
-                List.of(input));
-        assertArrayEquals(bits(3.0f, 7.0f), l1);
-
         int[] l2 = NonProductionStructuralFixture.executeCurrent(
                 library,
                 NumericalProfile.ACCELERATOR,

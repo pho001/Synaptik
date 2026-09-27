@@ -112,14 +112,15 @@ import java.util.Optional;
  * zero-stride descendants retain their logical layouts while preparation assigns independently safe
  * physical buffers. Under {@code ACCELERATOR}, analysis additionally accepts the documented FLOAT32
  * arithmetic/reduction/MSE/MATMUL/convolution/average-pooling rows, no-gradient BFLOAT16/FLOAT32
- * mixed MATMUL, and canonical FLOAT32 {@code DROPOUT}. Random lowering preserves initializer
- * key/counter words, dropout's raw binary64 probability, and all ordered value, mask, and state
- * edges; recurrent nodes remain rejected. An affine MATMUL operand is authenticated to the exact
- * earlier local identity-prefix, last-two-axis {@code PERMUTE} on that consuming edge.
- * Schema-fifteen lowering emits one bounded self-describing image over stable type wires 1..6,
- * complete operation registry 1..115, attribute registry 0..41, and the explicit prepared route.
- * Production capability is exactly 83 operation kinds; additional structural recipes remain
- * inaccessible to this analysis. Every selected Task-0066 occurrence fixes the whole partition to
+ * mixed MATMUL, canonical FLOAT32 {@code DROPOUT}, and the exact rank-one no-gradient FLOAT32
+ * {@code L1_NORM} occurrence. Random lowering preserves initializer key/counter words, dropout's
+ * raw binary64 probability, and all ordered value, mask, and state edges; recurrent nodes remain
+ * rejected. An affine MATMUL operand is authenticated to the exact earlier local identity-prefix,
+ * last-two-axis {@code PERMUTE} on that consuming edge. Schema-fifteen lowering emits one bounded
+ * self-describing image over stable type wires 1..6, complete operation registry 1..115, attribute
+ * registry 0..41, and the explicit prepared route. Production capability is exactly 84 operation
+ * kinds; additional structural recipes remain inaccessible to this analysis. Every selected
+ * Task-0066 occurrence and the exact Task-0069 L1 occurrence fix the whole partition to
  * {@code CUSTOM_PROGRAM}, with no MPSGraph candidate, retry, fallback, timing, or autotuning.
  * Rank-zero values participate only where exact capability permits them. Analysis freshly
  * regenerates the complete candidate batch. Every supplied handoff authenticates its exact

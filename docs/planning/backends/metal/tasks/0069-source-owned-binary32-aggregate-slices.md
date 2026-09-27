@@ -2,8 +2,8 @@
 
 ## Status
 
-Review needed. The authorized shared proof substrate plus Slice 1 are implemented and locally
-validated; independent code, evidence, and security review remains the final Slice-1 checkpoint.
+Review needed. The authorized shared proof substrate plus Slice 1 are complete and independently
+approved after remediation, with zero remaining code, numerical-evidence, or security P0/P1/P2.
 Slices 2 and 3 are not authorized and require their preceding checkpoint plus fresh approval.
 
 ## Change class
@@ -200,16 +200,21 @@ code, numerical-evidence, and security/determinism review at every slice checkpo
 The authorized shared substrate and Slice 1 are implemented. Metal now admits only accelerator
 FLOAT32 no-gradient `L1_NORM` for one canonical positive-static rank-one input, ordered multi-axis
 `[0]`, and canonical scalar or retained `[1]` output. Wire 114 always selects the fixed
-source-owned `CUSTOM_PROGRAM` under `CA_0069`. Java/native validation independently enforces the
-exact domain, unsigned-32-bit element/four-byte-span/dispatch bounds, and distinct buffers. One
+source-owned `CUSTOM_PROGRAM` under `CA_0069`; Java and native creation reject the opaque direct
+MPSGraph route. Java/native validation independently enforces the exact domain, unsigned-32-bit
+element/four-byte-span/dispatch bounds, and distinct buffers. One
 thread raw-clears every contributor sign bit, initializes from ordinal zero, performs exactly
 `N-1` safe binary32 additions in increasing ordinal order, and publishes one logical result;
 `N=1` performs no addition. SCATTER_ADD and VARIANCE remain production-false.
 
-The two Lean files prove total raw classes, exact ABS, complete set-valued DAZ/FTZ alternatives,
-labelled contributor multiplicity, the source left tree's `N-1` add nodes, direct singleton ABS,
-and source-fold membership in the Model result set without `sorry` or axioms. The source
-certificate pins the exact kernel/foundation/proof inputs. The required compiled-MSL audit extracts
+The two Lean files prove total raw classes; exact binary32 `+1`; exact ABS; complete set-valued
+DAZ/FTZ alternatives; an explicit finite nonnegative nearest-even relation in `2^-149` units with
+overflow-midpoint and even-significand tie rules; NaN, positive-infinity, and nonnegative non-NaN
+class behavior; the aggregate L1 nonnegative-or-NaN invariant; NaN absorption; positive-infinity
+persistence without NaN; labelled contributor multiplicity; the source left tree's `N-1` add nodes;
+direct singleton ABS; and source-fold membership constrained by `Binary32RneContract` rather than
+an arbitrary binary function. Both compile without `sorry` or axioms. The source certificate pins
+the exact kernel/foundation/proof inputs. The required compiled-MSL audit extracts
 the exact assembled runtime source and compiles it with `DEVELOPER_DIR` fixed to signed Xcode 27.0
 build 27A266a, Metal 32023.921, macOS SDK 27.0, `metal3.2`, no-fast-math, warnings as errors, and
 the explicit SDK isysroot. Pinned source/AIR/metallib SHA-256 values are
@@ -222,18 +227,25 @@ floating arithmetic, and only the final raw serialization path.
 Native warnings-as-errors build, fixed-identifier signing, canonical package verification, Gradle
 package ingestion/ZIP creation, fresh extraction, extracted-package verification, and byte
 comparison passed. The packaged dylib is `484944` bytes with SHA-256
-`18a7c09f6fd8635c1c9091803eb3e236e01f93cc7fa7a800ab65737255493c18` and ad-hoc CDHash
-`2067328cac99cd319f9981f21b221f4ce5d5ae5c`; the local ZIP is `141229` bytes with SHA-256
-`cd9e8b770d24ba7dd586532ebf0485564078fc6d9dadbc363cc45bc31f3f8ba2`.
+`234cf6fa592d5e3242e618f6abbb0566d7617a7dd9abddb1e52e544833e5f487` and ad-hoc CDHash
+`3084202223ad92cb3c064bace1ec1a6ee6cd7023`; the local ZIP is `141274` bytes with SHA-256
+`e36b49e90db66de5d70989e64d3634f7a479b48069bd255be0b34ab71bb76c54`.
 
-Complete Metal, Compiler, Metal conformance, public Engine Metal integration, architecture,
-Javadoc, repository test, and serialized full-build gates passed against only the freshly
-extracted packaged dylib. Final JUnit inventory is `3718` tests with zero failure/error,
-including Metal `252`, Compiler `282`, conformance `22`, integration `70`, and architecture `9`;
-Metal, Compiler, and conformance have no skip. The first nonserialized repository test/build
-attempts each hit the existing CPU timing-evidence test with one fork lacking an accepted sample;
-its isolated rerun passed, the complete repository test rerun passed, and the serialized
-`87`-task full build passed without source remediation. Current ledgers are capability `84/31`,
-structural `101/14`, MPSGraph `75/35/5`, custom `71/44/0`, and identity 23; schema 15, ABI 5,
-thirteen exports, and all other false rows are unchanged. Independent cumulative Slice-1 review
-is pending; Slice 2 remains outside this checkpoint.
+The initial implementation checkpoint passed complete Metal, Compiler, conformance, public Engine
+Metal integration, architecture, Javadoc, repository test, and serialized full build, totaling
+`3718` tests with zero failure/error. After cumulative remediation, the rebuilt freshly extracted
+package passed the proof/AIR runner, complete Metal `253`, Compiler `282`, conformance `22`,
+integration `70`, and architecture `9` tests with zero failure/error; integration retains one
+unrelated skip, and Metal, Compiler, and conformance retain none. Javadoc and the direct public L1
+Engine scenario also pass. The current serialized full-build attempt stopped only at the unchanged
+CPU timing-evidence gate (`no accepted sample for fork 1`), the same pre-existing nondeterministic
+gate recorded at the initial checkpoint; without rerunning that known gate, the remaining
+`84` build tasks pass serially against the freshly extracted package. Current ledgers are
+capability `84/31`, structural `101/14`, MPSGraph `75/35/5`, custom `71/44/0`, and identity 23;
+schema 15, ABI 5, thirteen exports, and all other false rows are unchanged.
+Initial independent security review approved with zero P0/P1/P2. Initial code and numerical-
+evidence findings required the explicit nearest-even/class contract, raw native malformed-image
+coverage, direct identity-22 rejection, and current ledger documentation. Cumulative review also
+identified and closed the forceable direct-MPSGraph L1 seam. Final independent code, numerical-
+evidence, and security re-review each approve the remediated checkpoint with zero remaining
+P0/P1/P2. Slice 2 remains outside this checkpoint.

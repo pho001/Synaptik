@@ -592,11 +592,11 @@ another.
   security, and evidence review returned `APPROVE` with zero remaining P0/P1/P2 and no Task-0067
   blocker. Task 0068 is Complete after its fresh native/package/extracted-dylib matrix and evidence
   correction `1775081a`; independent code, security, and evidence review returned `APPROVE` with
-  zero remaining P0/P1/P2. Task 0069 is planning-only and Review needed from clean current base
-  `69c07e30`; no production, proof, native, capability, route, or identity change is authorized
-  before independent plan/evidence/security approval. Model 0028 owns the reduction semantic
-  contract, Complete Model 0029 owns the MATMUL final-publication semantic contract, and Complete
-  Metal 0021–0025 retain reviewed implementations.
+  zero remaining P0/P1/P2. Task 0069 remains Review needed overall, but its authorized shared proof
+  substrate and Slice 1 are independently approved after cumulative code/evidence/security
+  remediation with zero remaining P0/P1/P2. Slice 2 remains unauthorized. Model 0028 owns the
+  reduction semantic contract, Complete Model 0029 owns the MATMUL final-publication semantic
+  contract, and Complete Metal 0021–0025 retain reviewed implementations.
 
 ## Milestones and current frontier
 
@@ -615,11 +615,12 @@ documentation/diff evidence, and independent Class C final `APPROVE` with zero f
 Current ABI 5 retains exactly thirteen exports and accepts one bounded schema-15 route-bearing
 program image. Type wires are `1..6`, operation wires are `1..115`, attribute wires are `0..41`,
 route wires are `1..3`, and workload/exact-policy/candidate/compatibility/route/codec identities
-are version twenty-two. Task 0055's schema-13/identity-14 foundation, Task 0056's structural
+are version twenty-three. Task 0055's schema-13/identity-14 foundation, Task 0056's structural
 catalog, Task 0057's schema-14/identity-15 route cutover, Task 0059's schema-15/identity-16 cutover,
-and Tasks 0061–0065's identity-17 through identity-21 cutovers remain historical prerequisites.
-Task 0066 rejects identity 21 and every older identity while retaining exactly 83 production kinds
-and 101 structurally executable kinds.
+Tasks 0061–0065's identity-17 through identity-21 cutovers, and Task 0066/0067/0068 identity 22
+checkpoint remain historical prerequisites. Task 0069 Slice 1 rejects identity 22 and every older
+identity while admitting exactly 84 production kinds and retaining 101 structurally executable
+kinds.
 Complete Model 0028 owns the root-only exact-zero reduction rule. Complete Model 0029 owns the
 MATMUL-only final-publication exact-zero sign rule. Metal 0018 remains Blocked without production
 changes. Complete Metal 0022
@@ -748,12 +749,13 @@ capability was `83/32`, structural execution `101/14`, catalogs `75/35/5` MPSGra
 `70/45/0` custom, schema 15, backend-local identity 22, ABI 5, and thirteen exports at the
 Task-0066 checkpoint. Tasks 0067 and 0068 preserved and verified that ledger.
 
-Task 0069 remains Review needed at its serial checkpoint, with Slice 1 complete and Slice 2 not
-authorized. The shared minimal proof substrate and exact rank-one accelerator FLOAT32 no-gradient
+Task 0069 remains Review needed at its serial checkpoint; Slice 1 is independently approved and
+Slice 2 is not authorized. The shared minimal proof substrate and exact rank-one accelerator
 L1 source-owned custom route advance current capability to `84/31`, custom catalog to `71/44/0`,
-and backend-local identity to 23; structural `101/14`, MPSGraph `75/35/5`, schema 15, ABI 5, and
-thirteen exports remain fixed. The pinned Xcode-27 compiled-MSL/AIR audit confirms one unflagged
-L1 `fadd` and no other floating arithmetic in that kernel. SCATTER_ADD and VARIANCE remain false.
+and backend-local identity to 23; Java and native creation reject the opaque direct MPSGraph route.
+Structural `101/14`, MPSGraph `75/35/5`, schema 15, ABI 5, and thirteen exports remain fixed. The
+pinned Xcode-27 compiled-MSL/AIR audit confirms one unflagged L1 `fadd` and no other floating
+arithmetic in that kernel. SCATTER_ADD and VARIANCE remain false.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030

@@ -73,6 +73,14 @@ def main() -> None:
     assert "source_result_is_binary32_model_result" in proof_text
     assert "daz_complete" in proof_text
     assert "ftz_complete" in proof_text
+    assert "typedOne : Word" in proof_text
+    assert "typedOne_class" in proof_text
+    assert "exactRneNonnegative" in proof_text
+    assert "structure Binary32RneContract" in proof_text
+    assert "binary32AddSite rne contract" in proof_text
+    assert "source_result_l1_class_contract" in proof_text
+    assert "sourceFold_nan_of_contains" in proof_text
+    assert "sourceFold_positive_infinity_of_contains" in proof_text
     assert "absWord_class_contract" in proof_text
 
     inventory = certificate["siteInventory"]

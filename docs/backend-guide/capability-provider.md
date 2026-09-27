@@ -266,18 +266,19 @@ and positive-K `TOP_K` admit all six carriers; `ARG_MAX` and `ARG_MIN` admit the
 carriers over canonical dense ranks `1..16` with unsigned-32-bit-bounded geometry.
 
 Accelerator additionally admits the documented FLOAT32 arithmetic, extrema, scalar, reduction,
-scan, MSE, general MATMUL, average-pooling, convolution, and explicit-state dropout rows.
-Both profiles admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant promotion and modular
-result arithmetic. Every selected Task-0066 occurrence at wires
-`6..11,16..19,39..45,51,69,71..84` uses one fixed `CUSTOM_PROGRAM` route. Capability
-distinguishes logical affine layouts from their independently authenticated physical spans and
-rejects dynamic/empty geometry, zero or negative external strides, overlap, additive scatter,
-reduction-dependent adjoints, and every other unlisted occurrence before route selection.
+scan, MSE, general MATMUL, average-pooling, convolution, explicit-state dropout, and exact
+rank-one no-gradient FLOAT32 `L1_NORM` over ordered axis `[0]`. Both profiles admit no-gradient
+INT32/INT64 MATMUL pairs with INT64-dominant promotion and modular result arithmetic. Every
+selected Task-0066 occurrence at wires `6..11,16..19,39..45,51,69,71..84` and the Task-0069 L1
+occurrence use one fixed `CUSTOM_PROGRAM` route. Capability distinguishes logical affine layouts
+from their independently authenticated physical spans and rejects dynamic/empty geometry, zero or
+negative external strides, overlap, additive scatter, reduction-dependent adjoints, and every
+other unlisted occurrence before route selection.
 
 ABI 5 retains the thirteen export names and consumes one bounded schema-15 route-bearing program
 image. Operation wires `1..115`, attribute wires `0..41`, route wires `1..3`, and type wires
-`1..6` are structural vocabulary only. Version-twenty-two workload, policy, candidate,
+`1..6` are structural vocabulary only. Version-twenty-three workload, policy, candidate,
 compatibility, route, and codec identities authenticate that meaning without adding capability;
-version twenty-one and every older identity fail closed. Production capability remains `83/32`,
+version twenty-two and every older identity fail closed. Production capability is `84/31`,
 structural execution remains `101/14`, and the MPSGraph/custom catalogs are `75/35/5` and
-`70/45/0`.
+`71/44/0`.

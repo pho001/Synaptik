@@ -100,11 +100,12 @@ dropout constructs no wire 101 and returns the original value and state. `RNN_TA
 approved complete elementary-function/recurrence route, runtime valid-length validation, or BPTT
 ownership.
 
-Wires `111..115` (`LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, `L1_NORM`, and `L2_NORM`)
-have package-private forceable MPSGraph recipes. Task-0069 Slice 1 separately admits only the
-accelerator no-gradient FLOAT32 L1 occurrence with one canonical positive-static rank-one input,
-ordered multi-axis `[0]`, and a canonical scalar or retained `[1]` output. Its fixed custom kernel
-raw-clears every contributor sign, initializes from ordinal zero, performs exactly `N-1` safe
+Wires `111..113` and `115` (`LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, and `L2_NORM`)
+retain package-private forceable MPSGraph recipes. Wire `114` no longer exposes its opaque
+MPSGraph composition through creation. Task-0069 Slice 1 admits only the accelerator no-gradient
+FLOAT32 L1 occurrence with one canonical positive-static rank-one input, ordered multi-axis `[0]`,
+and a canonical scalar or retained `[1]` output. Its fixed custom kernel raw-clears every
+contributor sign, initializes from ordinal zero, performs exactly `N-1` safe
 binary32 additions in increasing ordinal order, and stores one final raw word; `N=1` performs no
 addition. LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, all other L1 occurrences, and L2_NORM remain
 production-false.
@@ -418,21 +419,21 @@ consuming a caller position. Existing shared `GraphPreparation` tests independen
 chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, and typed node records are known,
-analysis creates a version-twenty-two candidate batch and workload fingerprint. Every selected
-Task-0066 occurrence forces the fixed `CUSTOM_PROGRAM` production candidate; the batch rejects a
-selected-node MPSGraph route before native allocation. Other partitions retain their established
-candidate sets, including the bounded singleton-NEG dual-route case and direct rank-two FLOAT32
-MATMUL where no selected custom-only node requires the whole-program route. Package-private
-structural forcing remains available only for a route already present in the fresh authenticated
-batch.
+analysis creates a version-twenty-three candidate batch and workload fingerprint. Every selected
+Task-0066 occurrence and the exact Task-0069 L1 occurrence force the fixed `CUSTOM_PROGRAM`
+production candidate; the batch rejects a selected-node MPSGraph route before native allocation.
+Other partitions retain their established candidate sets, including the bounded singleton-NEG
+dual-route case and direct rank-two FLOAT32 MATMUL where no selected custom-only node requires the
+whole-program route. Package-private structural forcing remains available only for a route already
+present in the fresh authenticated batch.
 
-The version-twenty-two canonical workload fingerprint covers the explicit numerical-profile wire,
+The version-twenty-three canonical workload fingerprint covers the explicit numerical-profile wire,
 the schema-fifteen route-bearing program image, ordered input and output references, all typed
 attributes, logical and physical value states, authenticated local provenance, complete tensor
 descriptors and storage layouts, target and internal-value sets, exact scalar/splat bits, logical-
 boundary roles, policy/candidate/route schemas, and ABI version. It encodes structural positions
 rather than graph object identity. Target compatibility also contains a fresh private nonce from
-the exact `MetalDeviceContext`; identity 21 and every older decision fail closed.
+the exact `MetalDeviceContext`; identity 22 and every older decision fail closed.
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. Every supplied handoff is accepted only when the exact
 partition, candidate schema, workload fingerprint, and context session match. An absent decision
@@ -450,22 +451,23 @@ Package-private tests can require one exact route only after ordinary lowering, 
 admission, semantic validation, candidate regeneration, and any supplied handoff authentication
 have succeeded. The required route must already be a member of that fresh exact batch. Thus the
 approved singleton-NEG routes and previously audited forceable structural routes can traverse the
-same lifecycle independently, while every Task-0066 selected occurrence, stale or foreign handoff,
-and unsupported operation rejects an unauthorized route before native creation. No public
-configuration, integration, Engine, tuning, or Runtime input exposes this test seam.
+same lifecycle independently, while every Task-0066 selected occurrence, the exact Task-0069 L1
+occurrence, stale or foreign handoff, and unsupported operation rejects an unauthorized route
+before native creation. No public configuration, integration, Engine, tuning, or Runtime input
+exposes this test seam.
 
 ### Session decision codec and limitations
 
-The package-private version-twenty-two Metal codec produces bounded canonical compatibility,
+The package-private version-twenty-three Metal codec produces bounded canonical compatibility,
 candidate, and checksummed decision bytes. Decode rejects wrong magic, schema, session scope,
 numerical profile, malformed or truncated content, trailing or corrupt bytes, changed workload or
 context, and unknown or pruned candidates. The bytes contain no native handle or executable.
-Identity 21 and every older codec or cross-profile decision fails closed even when its trailing
+Identity 22 and every older codec or cross-profile decision fails closed even when its trailing
 checksum is otherwise valid.
 
 The public `MetalLocalWorkloadTuning` retained by `MetalBackendIntegration` wraps this codec and
-candidate generator without changing their version-twenty-two bytes. It returns a handoff only for
-an exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
+candidate generator without changing their version-twenty-three bytes. It returns a handoff only
+for an exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
 `MetalCompletePlanTuning` authenticates the exact Phase-1 association and exposes one complete-plan
 candidate fixed to that selected route. Both collaborations use opaque exact-owner/batch values,
 defensive bytes, fresh authoritative analysis for trial and selected preparation, and
@@ -478,7 +480,7 @@ model-plan path. Cross-session Metal reuse still requires a separately authorize
 device/library fingerprint.
 
 Schema-fifteen workload bytes and workload compatibility include the fixed route. Candidate and
-decision bytes retain route wires `1..3`, route-policy version twenty-two, and the target session.
+decision bytes retain route wires `1..3`, route-policy version twenty-three, and the target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
 session)` rather than a workload digest alone. The repository has no persistent Metal executable
@@ -1065,7 +1067,7 @@ persistent Metal splat binding is accepted only as a Metal read source; it canno
 destination. Runtime executes only the resulting direct prepared references.
 
 For one exact singleton NEG Metal plan, public `prepareTuned(...)` measures the complete two-route
-local batch, authenticates the selected version-twenty-two decision, then correctness-checks and
+local batch, authenticates the selected version-twenty-three decision, then correctness-checks and
 times one complete-plan candidate fixed to that route. The returned production recipe is freshly
 prepared after representative cleanup. Metal policy, producer, and decision-codec identities are
 adapter-owned and distinct from CPU identities; existing CPU bytes and behavior remain unchanged.

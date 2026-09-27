@@ -359,15 +359,15 @@ operations may still use their retained routes, including direct rank-two FLOAT3
 shared custom route uses fixed reviewed raw-word/integer/movement/predicate kernels behind one
 whole-program invocation with declared assigned buffers for every logical value and no host repair.
 
-Task-0069 L1 at wire `114` is also fixed `CUSTOM_PROGRAM` under `CA_0069`. Java and native
-preflight require accelerator profile, FLOAT32, one canonical positive-static rank-one no-gradient
-input, ordered multi-axis `[0]`, a canonical scalar or retained `[1]` output, unsigned-32-bit
-element and four-byte span bounds, one dispatch thread, and distinct value-table buffers. That
-thread raw-clears each contributor's sign bit, initializes from ordinal zero, performs exactly
-`N-1` safe binary32 additions in increasing ordinal order, and stores the final raw word once;
-`N=1` performs no addition. Its task-local Lean proof, source certificate, and pinned Xcode-27
-compiled-MSL/AIR audit establish the bounded Model result-set membership. `SCATTER_ADD` and
-`VARIANCE` remain production-false.
+Task-0069 L1 at wire `114` is also fixed `CUSTOM_PROGRAM` under `CA_0069`; Java and native
+creation reject its direct MPSGraph route. Preflight requires accelerator profile, FLOAT32, one
+canonical positive-static rank-one no-gradient input, ordered multi-axis `[0]`, a canonical scalar
+or retained `[1]` output, unsigned-32-bit element and four-byte span bounds, one dispatch thread,
+and distinct value-table buffers. That thread raw-clears each contributor's sign bit, initializes
+from ordinal zero, performs exactly `N-1` safe binary32 additions in increasing ordinal order, and
+stores the final raw word once; `N=1` performs no addition. Its task-local Lean proof, source
+certificate, and pinned Xcode-27 compiled-MSL/AIR audit establish the bounded Model result-set
+membership. `SCATTER_ADD` and `VARIANCE` remain production-false.
 
 Direct CPU/Metal transfer supports all six current data types at ranks `0..16` over canonical or
 resolved positive-stride non-overlapping storage layouts; BOOL validation visits logical elements

@@ -1093,17 +1093,44 @@ class MetalNegRouteCandidateGeneratorTest {
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, 4, 20), current.batch()).isEmpty(),
                     "checksummed version-twenty decisions must fail closed");
-      assertTrue(
-          codec.decodeDecision(rewriteInt(first, 4, 21), current.batch()).isEmpty(),
-          "checksummed codec-v21 decisions must fail closed");
-      int compatibilityLength = java.nio.ByteBuffer.wrap(first).getInt(3 * Integer.BYTES);
-      int candidateOffset = 5 * Integer.BYTES + compatibilityLength;
-      assertTrue(
-          codec
-              .decodeDecision(
-                  rewriteInt(first, candidateOffset + 2 * Integer.BYTES, 21), current.batch())
-              .isEmpty(),
-          "checksummed candidate-schema-v21 decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, 4, 21), current.batch()).isEmpty(),
+                    "checksummed codec-v21 decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, 4, 22), current.batch()).isEmpty(),
+                    "checksummed codec-v22 decisions must fail closed");
+            int compatibilityOffset = 4 * Integer.BYTES;
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, compatibilityOffset + Integer.BYTES, 22),
+                    current.batch()).isEmpty(),
+                    "checksummed compatibility-codec-v22 decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, compatibilityOffset + 3 * Integer.BYTES, 22),
+                    current.batch()).isEmpty(),
+                    "checksummed compatibility-schema-v22 decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, compatibilityOffset + 4 * Integer.BYTES, 22),
+                    current.batch()).isEmpty(),
+                    "checksummed compatibility candidate-schema-v22 decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, compatibilityOffset + 5 * Integer.BYTES, 22),
+                    current.batch()).isEmpty(),
+                    "checksummed route-policy-v22 decisions must fail closed");
+            int compatibilityLength =
+                    java.nio.ByteBuffer.wrap(first).getInt(3 * Integer.BYTES);
+            int candidateOffset = 5 * Integer.BYTES + compatibilityLength;
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, candidateOffset + Integer.BYTES, 22),
+                    current.batch()).isEmpty(),
+                    "checksummed candidate-codec-v22 decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, candidateOffset + 2 * Integer.BYTES, 21),
+                    current.batch()).isEmpty(),
+                    "checksummed candidate-schema-v21 decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, candidateOffset + 2 * Integer.BYTES, 22),
+                    current.batch()).isEmpty(),
+                    "checksummed candidate-schema-v22 decisions must fail closed");
             assertTrue(codec.decodeDecision(rewriteInt(first, 8, 99), current.batch()).isEmpty());
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, first.length - 8, 99), current.batch()).isEmpty());

@@ -132,12 +132,155 @@ theorem source_result_is_model_result
   · exact TreeEval.leaf _
   · exact fold
 
-/-- Instantiation with the complete exact/RNE/DAZ/FTZ primitive relation. -/
+/-- Every L1 result is either NaN or has a nonnegative binary32 sign. -/
+def L1ClassInvariant (word : Word) : Prop :=
+  rawClass word = .nan ∨ word.sign = false
+
+def ValidNonNan (word : Word) : Prop :=
+  word.sign = false ∧ rawClass word ≠ .nan
+
+def PositiveInfinity (word : Word) : Prop :=
+  word.sign = false ∧ rawClass word = .infinity
+
+def AllLeaves (predicate : Leaf → Prop) : List Leaf → Prop
+  | [] => True
+  | next :: rest => predicate next ∧ AllLeaves predicate rest
+
+def AnyLeaf (predicate : Leaf → Prop) : List Leaf → Prop
+  | [] => False
+  | next :: rest => predicate next ∨ AnyLeaf predicate rest
+
+@[simp] theorem absWord_l1_class_invariant (word : Word) :
+    L1ClassInvariant (absWord word) := by
+  exact Or.inr rfl
+
+@[simp] theorem labelFrom_l1_class_invariant (start : Nat) (words : List Word) :
+    AllLeaves (fun leaf => L1ClassInvariant leaf.word) (labelFrom start words) := by
+  induction words generalizing start with
+  | nil => exact True.intro
+  | cons word rest induction =>
+      exact ⟨absWord_l1_class_invariant word, induction (start + 1)⟩
+
+theorem addSite_l1_class_invariant
+    {rne : Word → Word → Word}
+    (contract : RneSpecialClassContract rne)
+    {left right published : Word}
+    (site : addSite rne left right published)
+    (leftInvariant : L1ClassInvariant left)
+    (rightInvariant : L1ClassInvariant right) :
+    L1ClassInvariant published := by
+  by_cases leftNan : rawClass left = .nan
+  · exact Or.inl (addSite_nan_left contract site leftNan)
+  by_cases rightNan : rawClass right = .nan
+  · exact Or.inl (addSite_nan_right contract site rightNan)
+  exact Or.inr (addSite_nonnegative contract site
+    (leftInvariant.resolve_left leftNan)
+    (rightInvariant.resolve_left rightNan)
+    leftNan rightNan)
+
+theorem sourceFold_l1_class_invariant
+    {rne : Word → Word → Word}
+    (contract : RneSpecialClassContract rne)
+    {current result : Word} {rest : List Leaf}
+    (fold : SourceFold (addSite rne) current rest result) :
+    L1ClassInvariant current →
+    AllLeaves (fun leaf => L1ClassInvariant leaf.word) rest →
+    L1ClassInvariant result := by
+  induction fold with
+  | nil current =>
+      intro currentInvariant _
+      exact currentInvariant
+  | @cons current intermediate result next rest step tail induction =>
+      intro currentInvariant restInvariant
+      rcases restInvariant with ⟨nextInvariant, remainingInvariant⟩
+      exact induction
+        (addSite_l1_class_invariant contract step currentInvariant nextInvariant)
+        remainingInvariant
+
+/-- The source fold's advertised finite-nonnegative/NaN class consequence. -/
+theorem source_result_l1_class_contract
+    {rne : Word → Word → Word}
+    (contract : Binary32RneContract rne)
+    (first : Word) (rest : List Word) (result : Word)
+    (fold :
+      SourceFold (binary32AddSite rne contract)
+        (absWord first) (labelFrom 1 rest) result) :
+    L1ClassInvariant result := by
+  change SourceFold (addSite rne) (absWord first) (labelFrom 1 rest) result at fold
+  exact sourceFold_l1_class_invariant contract.toRneSpecialClassContract fold
+    (absWord_l1_class_invariant first)
+    (labelFrom_l1_class_invariant 1 rest)
+
+/-- A NaN at any current-or-later contributor position is absorbing through the source fold. -/
+theorem sourceFold_nan_of_contains
+    {rne : Word → Word → Word}
+    (contract : RneSpecialClassContract rne)
+    {current result : Word} {rest : List Leaf}
+    (fold : SourceFold (addSite rne) current rest result) :
+    rawClass current = .nan ∨ AnyLeaf (fun leaf => rawClass leaf.word = .nan) rest →
+    rawClass result = .nan := by
+  induction fold with
+  | nil current =>
+      intro contains
+      simpa [AnyLeaf] using contains
+  | @cons current intermediate result next rest step tail induction =>
+      intro contains
+      have split :
+          rawClass current = .nan ∨
+            rawClass next.word = .nan ∨
+              AnyLeaf (fun leaf => rawClass leaf.word = .nan) rest := by
+        simpa [AnyLeaf] using contains
+      rcases split with currentNan | nextNan | laterNan
+      · exact induction (Or.inl (addSite_nan_left contract step currentNan))
+      · exact induction (Or.inl (addSite_nan_right contract step nextNan))
+      · exact induction (Or.inr laterNan)
+
+theorem sourceFold_positive_infinity_of_contains
+    {rne : Word → Word → Word}
+    (contract : RneSpecialClassContract rne)
+    {current result : Word} {rest : List Leaf}
+    (fold : SourceFold (addSite rne) current rest result) :
+    ValidNonNan current →
+    AllLeaves (fun leaf => ValidNonNan leaf.word) rest →
+    (PositiveInfinity current ∨ AnyLeaf (fun leaf => PositiveInfinity leaf.word) rest) →
+    PositiveInfinity result := by
+  induction fold with
+  | nil current =>
+      intro _ _ contains
+      simpa [AnyLeaf] using contains
+  | @cons current intermediate result next rest step tail induction =>
+      intro currentValid restValid contains
+      rcases restValid with ⟨nextValid, remainingValid⟩
+      have intermediateValid : ValidNonNan intermediate := ⟨
+        addSite_nonnegative contract step
+          currentValid.1 nextValid.1 currentValid.2 nextValid.2,
+        addSite_non_nan contract step
+          currentValid.1 nextValid.1 currentValid.2 nextValid.2⟩
+      have split :
+          PositiveInfinity current ∨
+            PositiveInfinity next.word ∨
+              AnyLeaf (fun leaf => PositiveInfinity leaf.word) rest := by
+        simpa [AnyLeaf] using contains
+      have intermediateContains :
+          PositiveInfinity intermediate ∨
+            AnyLeaf (fun leaf => PositiveInfinity leaf.word) rest := by
+        rcases split with currentInfinity | nextInfinity | laterInfinity
+        · exact Or.inl (addSite_positive_infinity_left
+            contract step currentInfinity nextValid)
+        · exact Or.inl (addSite_positive_infinity_right
+            contract step currentValid nextInfinity)
+        · exact Or.inr laterInfinity
+      exact induction intermediateValid remainingValid intermediateContains
+
+/-- Instantiation with a constrained bit-level RNE primitive plus complete DAZ/FTZ alternatives. -/
 theorem source_result_is_binary32_model_result
     (rne : Word → Word → Word)
+    (contract : Binary32RneContract rne)
     (first : Word) (rest : List Word) (result : Word)
-    (fold : SourceFold (addSite rne) (absWord first) (labelFrom 1 rest) result) :
-    ModelResult (addSite rne) (first :: rest) result :=
-  source_result_is_model_result first rest result fold
-
-end Task0069
+    (fold :
+      SourceFold (binary32AddSite rne contract)
+        (absWord first) (labelFrom 1 rest) result) :
+    ModelResult (binary32AddSite rne contract) (first :: rest) result := by
+  change SourceFold (addSite rne) (absWord first) (labelFrom 1 rest) result at fold
+  change ModelResult (addSite rne) (first :: rest) result
+  exact source_result_is_model_result first rest result fold

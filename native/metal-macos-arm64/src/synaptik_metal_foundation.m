@@ -3624,6 +3624,7 @@ static int32_t synaptik_metal_create_decoded(
             if (route == SYNAPTIK_METAL_ROUTE_MPSGRAPH
                     && (!operation_has_direct_mpsgraph(node.operation)
                             || operation_is_task0066_selected(node.operation)
+                            || node.operation == SYNAPTIK_METAL_MPSGRAPH_L1_NORM
                             || matmul_uses_custom_kernel(node, shapes, value_types)))
                 return SYNAPTIK_METAL_STATUS_UNSUPPORTED_OPERATION;
             if (route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM && custom_node)
@@ -6763,8 +6764,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                 if (!type_valid || input_gradient != output_gradient)
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             }
-            if (route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM
-                    && operation == SYNAPTIK_METAL_MPSGRAPH_L1_NORM) {
+            if (operation == SYNAPTIK_METAL_MPSGRAPH_L1_NORM) {
                 uint32_t input_value = synaptik_read_le32(
                         program + references_offset + (uint64_t)input_offset * 4U);
                 uint32_t output_value = synaptik_read_le32(

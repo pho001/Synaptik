@@ -563,14 +563,15 @@ abstract class MetalNativeApi implements AutoCloseable {
             boolean containsCustomOperation = graphProgram.nodes().stream()
                     .anyMatch(node -> node.kind().isCustomProgramOperation()
                             || task0066Selected(node.kind())
-                          || usesCustomMatmul(node, types, valueRanks));
+                            || usesCustomMatmul(node, types, valueRanks));
             if (route == MetalPreparedRoute.MPSGRAPH
                     && graphProgram.nodes().stream()
                             .anyMatch(node -> task0052CustomOnly(node.kind())
                                     || task0063CustomOnly(node.kind())
                                     || task0064CustomOnly(node.kind())
                                     || task0065CustomOnly(node.kind())
-                          || task0066Selected(node.kind())
+                                    || task0066Selected(node.kind())
+                                    || task0069CustomOnly(node.kind())
                                     || usesCustomMatmul(node, types, valueRanks))) {
                 throw new IllegalArgumentException(
                         "custom-only operations have no approved direct MPSGraph route");
@@ -832,21 +833,14 @@ abstract class MetalNativeApi implements AutoCloseable {
                                     "reduction attributes, count, and output shape disagree");
                     case L1_NORM ->
                             requireShape(
-                                    route != MetalPreparedRoute.CUSTOM_PROGRAM
-                                            ? reductionMatches(
-                                                    node,
-                                                    left,
-                                                    output,
-                                                    valueRanks,
-                                                    valueDimensions)
-                                            : task0069L1Matches(
-                                                    node,
-                                                    values.get(left),
-                                                    values.get(output),
-                                                    left,
-                                                    output,
-                                                    valueRanks,
-                                                    valueDimensions),
+                                    task0069L1Matches(
+                                            node,
+                                            values.get(left),
+                                            values.get(output),
+                                            left,
+                                            output,
+                                            valueRanks,
+                                            valueDimensions),
                                     "L1_NORM attributes, storage, and output shape disagree");
                     case VARIANCE, STANDARD_DEVIATION ->
                             requireShape(
@@ -2252,7 +2246,9 @@ abstract class MetalNativeApi implements AutoCloseable {
                     || kind == MetalMpsGraphProgram.NodeKind.INITIAL_STATE;
         }
 
-
+        private static boolean task0069CustomOnly(MetalMpsGraphProgram.NodeKind kind) {
+            return kind == MetalMpsGraphProgram.NodeKind.L1_NORM;
+        }
 
         private static boolean usesCustomMatmul(
                 MetalMpsGraphProgram.Node node, ValueType[] types, int[] ranks) {

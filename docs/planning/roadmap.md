@@ -522,18 +522,20 @@ Task-0065 raw zero-input INITIAL_STATE rows. Accelerator additionally admits the
 FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows; every positive-static FLOAT32
 MATMUL vector, matrix, batched, and broadcast geometry; no-gradient BFLOAT16/FLOAT32 mixed MATMUL
 with FLOAT32 result; same-type canonical positive-rank FLOAT32 MSE forward execution for `NONE`,
-`SUM`, and `MEAN`; FLOAT32-result grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles; FLOAT32
-average Pool2d/Pool3d; and canonical FLOAT32 explicit-state dropout. Existing all-FLOAT32 rank-two
-matrix products retain MPSGraph; all other admitted MATMUL forms, all six Task-0064 rows, and both
-Task-0065 random rows use the fixed custom program. MSE remains the fixed nested MPSGraph
-composition when a containing partition selects the custom program. Task-0063 through Task-0065
-production rows and every selected Task-0066 occurrence are custom-only. A partition containing an
+`SUM`, and `MEAN`; exact rank-one no-gradient FLOAT32 `L1_NORM` over ordered axis `[0]`;
+FLOAT32-result grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles; FLOAT32 average Pool2d/Pool3d;
+and canonical FLOAT32 explicit-state dropout. Existing all-FLOAT32 rank-two matrix products retain
+MPSGraph; all other admitted MATMUL forms, all six Task-0064 rows, both Task-0065 random rows, and
+Task-0069 L1 use the fixed custom program. MSE remains the fixed nested MPSGraph composition when
+a containing partition selects the custom program. Task-0063 through Task-0065 production rows,
+every selected Task-0066 occurrence, and Task-0069 L1 are custom-only. A partition containing an
 exact custom node materializes each required logical value in a declared run-owned physical storage
 span and invokes one fixed shared custom-program native executable per hot run. Schema 15 carries
 type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, route wire `2` or `3`, and
-complete storage-layout geometry; exactly 101 operation kinds are structurally executable and 83
+complete storage-layout geometry; exactly 101 operation kinds are structurally executable and 84
 are production-capable. Workload, policy, candidate, compatibility, route, and codec identities
-are version twenty-two; candidate wires and complete-plan wrapper remain stable.
+are version twenty-three; identity 22 and every older identity fail closed while candidate wires
+and the complete-plan wrapper remain stable.
 
 Metal 0025 remains Complete at reviewed revision `f88066e3`; its schema-11/version-twelve facts are
 historical. Blocked 0026–0027/0030–0037/0039–0040 changed no executable capability. Complete 0041
@@ -737,15 +739,17 @@ Independent cumulative code, security, and evidence review at exact clean `17750
 
 Metal Task 0069 has completed only its authorized shared proof substrate and Slice 1. The exact
 current frontier is accelerator FLOAT32 no-gradient `L1_NORM` over one canonical positive-static
-rank-one input, ordered multi-axis `[0]`, and scalar or retained `[1]` output. Its source-owned
-single-thread custom kernel raw-clears every contributor sign, initializes from ordinal zero,
-performs exactly `N-1` safe binary32 additions in increasing ordinal order, and publishes one
-logical result; `N=1` performs no addition. The Lean proof, source certificate, pinned exact
+rank-one input, ordered multi-axis `[0]`, and scalar or retained `[1]` output. Java and native
+creation reject its opaque direct MPSGraph route. Its source-owned single-thread custom kernel
+raw-clears every contributor sign, initializes from ordinal zero, performs exactly `N-1` safe
+binary32 additions in increasing ordinal order, and publishes one logical result; `N=1` performs
+no addition. The Lean proof, source certificate, pinned exact
 runtime-source extraction, and Xcode 27.0 build 27A266a/Metal 32023.921/macOS SDK 27.0
 compiled-MSL/AIR audit pass. The current ledger is capability `84/31`, structural `101/14`,
 MPSGraph `75/35/5`, custom `71/44/0`, schema 15, ABI 5, thirteen exports, and identity 23.
-`SCATTER_ADD` and `VARIANCE` remain production-false; Slice 2 is not authorized before a fresh
-checkpoint and approval.
+Final independent cumulative code, numerical-evidence, and security review each return `APPROVE`
+with zero remaining P0/P1/P2. `SCATTER_ADD` and `VARIANCE` remain production-false; Slice 2 is not
+authorized before a fresh checkpoint and approval.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -860,10 +864,11 @@ loop or complete TANH/EXP/SIGMOID proof exists and Compiler still rejects BPTT. 
 three recurrent rows fail-closed rather than advertising a no-work or selected-value special case.
 
 Schema 15, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
-version-twenty-two identities remain current after Complete Task 0067. Complete Tasks 0055–0066
-provide the current foundation/catalog/route/domain prerequisites; Task 0067 changes no production
-boundary. Blocked Metal 0053 remains fail-closed without production capability. Metal 0026/0027
-remain separately finalized Blocked.
+version-twenty-three identities are current after Task 0069 Slice 1; identity 22 and every older
+identity fail closed. Complete Tasks 0055–0068 provide the current foundation/catalog/route/domain
+prerequisites, while Task 0069 advances only the authorized L1 boundary. Blocked Metal 0053
+remains fail-closed without production capability. Metal 0026/0027 remain separately finalized
+Blocked.
 Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model
 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit gate. Metal 0041 is
 Complete at implementation `ba16d942` plus remediation `386705ca`; Metal 0042 is Complete at

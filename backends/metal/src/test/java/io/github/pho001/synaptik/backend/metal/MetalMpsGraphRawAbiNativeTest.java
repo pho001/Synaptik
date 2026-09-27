@@ -884,6 +884,131 @@ class MetalMpsGraphRawAbiNativeTest {
 
 
     @Test
+    void task0069RawNativeRejectsEveryCustomL1Boundary() throws Throwable {
+        Path library = configuredLibrary();
+        var validProgram = task0069L1Program(
+                false, MetalMpsGraphProgram.ReductionForm.MULTI_AXIS, List.of(0));
+        List<MetalMpsGraphProgram.ValueDescriptor> validValues =
+                List.of(descriptor(4), descriptor());
+        try (RawAbi abi = new RawAbi(library)) {
+            byte[] valid = validProgram.encodedProgramImage(
+                    validValues,
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            assertEquals(0, abi.create(valid, valid.length));
+
+            byte[] direct = validProgram.encodedProgramImage(
+                    validValues,
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.MPSGRAPH);
+            assertEquals(13, abi.create(direct, direct.length));
+
+            var retainedProgram = task0069L1Program(
+                    true, MetalMpsGraphProgram.ReductionForm.MULTI_AXIS, List.of(0));
+            byte[] validRetained = retainedProgram.encodedProgramImage(
+                    List.of(descriptor(4), descriptor(1)),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            assertEquals(0, abi.create(validRetained, validRetained.length));
+
+            var malformed = new ArrayList<byte[]>();
+            malformed.add(task0069L1Program(
+                            false,
+                            MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS,
+                            List.of(0))
+                    .encodedProgramImage(
+                            validValues,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(task0069L1Program(
+                            false,
+                            MetalMpsGraphProgram.ReductionForm.MULTI_AXIS,
+                            List.of())
+                    .encodedProgramImage(
+                            validValues,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalPreparedRoute.CUSTOM_PROGRAM));
+            byte[] duplicateAxes = Arrays.copyOf(valid, valid.length + Long.BYTES);
+            ByteBuffer duplicateAxesBuffer =
+                    ByteBuffer.wrap(duplicateAxes).order(ByteOrder.LITTLE_ENDIAN);
+            duplicateAxesBuffer.putInt(2 * Integer.BYTES, duplicateAxes.length);
+            duplicateAxesBuffer.putInt(9 * Integer.BYTES, 5);
+            duplicateAxesBuffer.putInt(nodeOffset(2) + 7 * Integer.BYTES, 5);
+            duplicateAxesBuffer.putLong(valid.length - 2 * Long.BYTES, 2L);
+            duplicateAxesBuffer.putLong(valid.length, 0L);
+            malformed.add(duplicateAxes);
+            malformed.add(validProgram.encodedProgramImage(
+                    List.of(
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.FLOAT32, new long[] {4}, true),
+                            descriptor()),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(validProgram.encodedProgramImage(
+                    List.of(
+                            descriptor(4),
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.FLOAT32, new long[0], true)),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(validProgram.encodedProgramImage(
+                    List.of(descriptor(DataType.FLOAT64, 4), descriptor()),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(validProgram.encodedProgramImage(
+                    List.of(descriptor(2, 2), descriptor()),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(validProgram.encodedProgramImage(
+                    List.of(descriptor(4), descriptor(1)),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(retainedProgram.encodedProgramImage(
+                    List.of(descriptor(4), descriptor()),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(validProgram.encodedProgramImage(
+                    List.of(descriptor(4), descriptor(DataType.FLOAT64)),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(validProgram.encodedProgramImage(
+                    List.of(descriptor(0xffff_ffffL / Float.BYTES + 1L), descriptor()),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            Shape inputShape = Shape.of(4);
+            malformed.add(validProgram.encodedProgramImage(
+                    List.of(
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.FLOAT32,
+                                    inputShape.toLongArray(),
+                                    java.util.Optional.of(LayoutDescriptor.of(
+                                            inputShape, new long[] {2}, 0, true)),
+                                    false,
+                                    false),
+                            descriptor()),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            for (byte[] image : malformed) {
+                assertEquals(1, abi.create(image, image.length));
+            }
+        }
+    }
+
+    @Test
     void task0063JavaAndRawNativePreflightsAgreeAtUint32AndOnHostileImages()
             throws Throwable {
         Path library = configuredLibrary();
@@ -1473,6 +1598,7 @@ class MetalMpsGraphRawAbiNativeTest {
                         new int[] {1},
                         MetalMpsGraphProgram.AttributeKind.SORT,
                         new long[] {axis, 0});
+
                 values.add(descriptor(DataType.INT64, inputDimensions));
             }
             case TOP_K -> {
@@ -1504,6 +1630,19 @@ class MetalMpsGraphRawAbiNativeTest {
                 new MetalMpsGraphProgram(List.of(node)),
                 List.copyOf(values),
                 new int[] {1});
+    }
+
+    private static MetalMpsGraphProgram task0069L1Program(
+            boolean keepDimensions,
+            MetalMpsGraphProgram.ReductionForm form,
+            List<Integer> axes) {
+        return new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.reduction(
+                MetalMpsGraphProgram.NodeKind.L1_NORM,
+                0,
+                1,
+                form,
+                axes,
+                keepDimensions)));
     }
 
     private static void assertTask0063RejectedByJavaAndNative(

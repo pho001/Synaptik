@@ -327,14 +327,15 @@ input/output Shape and gradient eligibility, and no attributes.
 Raw structural fixtures additionally create prior wires `38`, `50`, `53..54`, `56..59`, and
 `65..68` only under ACCELERATOR, all Task-0059 wires `39` and `69..84` under both profiles,
 production-exact convolution/pooling wires `36`, `37`, and `97..100`, Task-0065 custom wires
-`101..102`, aggregate wires `106..108`, and structural-only wires `111..115`. Task-0059 recipes
-cover direct cast/index/pad/slice/concat/tile/im2col/col2im selectors and explicit stack,
+`101..102`, aggregate wires `106..108`, and structural-only wires `111..113` and `115`. Task-0059
+recipes cover direct cast/index/pad/slice/concat/tile/im2col/col2im selectors and explicit stack,
 fold-axis, and 3D-window compositions. Task-0060 adds stable log-sum-exp, correction-aware
-variance/standard-deviation, and L1/L2 norm structural compositions. Task-0061 retains only
-all-FLOAT32 rank-two MATMUL in the MPSGraph recipe; typed custom forms are rejected by that route.
-Task-0064 direct/composed MPSGraph family metadata remains structural only. Its six production
-rows and both Task-0065 random rows always select the custom program. Structural creation and
-execution do not widen production capability.
+variance/standard-deviation, and L2-norm structural compositions. Wire `114` rejects direct
+MPSGraph creation; only the exact Task-0069 rank-one FLOAT32 L1 occurrence uses its fixed custom
+kernel. Task-0061 retains only all-FLOAT32 rank-two MATMUL in the MPSGraph recipe; typed custom
+forms are rejected by that route. Task-0064 direct/composed MPSGraph family metadata remains
+structural only. Its six production rows, both Task-0065 random rows, and Task-0069 L1 always
+select the custom program. Structural creation and execution do not widen production capability.
 
 ### Status values
 

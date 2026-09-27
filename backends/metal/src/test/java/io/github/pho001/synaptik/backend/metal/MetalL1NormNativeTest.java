@@ -42,6 +42,16 @@ class MetalL1NormNativeTest {
                 new int[] {1},
                 MetalPreparedRoute.CUSTOM_PROGRAM);
 
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        NumericalProfile.ACCELERATOR,
+                        values(4, false, false, DataType.FLOAT32),
+                        valid,
+                        new int[] {0},
+                        new int[] {1},
+                        MetalPreparedRoute.MPSGRAPH));
+
         for (var malformed : List.of(
                 program(4, false, MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS, List.of(0)),
                 program(4, false, MetalMpsGraphProgram.ReductionForm.MULTI_AXIS, List.of()))) {

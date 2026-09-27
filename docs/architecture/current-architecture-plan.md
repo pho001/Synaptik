@@ -85,14 +85,14 @@ validation visits logical elements only. Selected affine view results retain aut
 Shape, stride, and offset while Java preparation and native preflight independently derive and
 validate the physical storage span before any write; selected materializing results are canonical.
 An eligible singleton NEG retains its dedicated custom route. Every occurrence selected by Task
-0066 wires `6..11,16..19,39..45,51,69,71..84` uses the fixed shared `CUSTOM_PROGRAM` route with
-declared run-owned value buffers and one Java/native invocation; there is no selected-node
-MPSGraph fallback. Current Metal uses ABI 5 with the same thirteen exports and one bounded
-schema-15 route-bearing program image over type wires `1..6`, operation wires `1..115`, attribute
-wires `0..41`, and route wires `1..3`. Structural coverage is `101 / 14`; production capability is
-exactly `83 / 32`; route catalogs are `75 / 35 / 5` MPSGraph and `70 / 45 / 0` custom.
-Backend-local identities are version twenty-two, and identity twenty-one and every older identity
-fail closed.
+0066 wires `6..11,16..19,39..45,51,69,71..84` and the exact Task-0069 rank-one FLOAT32 L1
+occurrence use the fixed shared `CUSTOM_PROGRAM` route with declared run-owned value buffers and
+one Java/native invocation; there is no selected-node MPSGraph fallback. Current Metal uses ABI 5
+with the same thirteen exports and one bounded schema-15 route-bearing program image over type
+wires `1..6`, operation wires `1..115`, attribute wires `0..41`, and route wires `1..3`. Structural
+coverage is `101 / 14`; production capability is exactly `84 / 31`; route catalogs are
+`75 / 35 / 5` MPSGraph and `71 / 44 / 0` custom. Backend-local identities are version
+twenty-three, and identity twenty-two and every older identity fail closed.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over
