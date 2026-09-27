@@ -168,6 +168,9 @@ class MetalMpsGraphAbsNativeTest {
                     outputAddresses.setAtIndex(ADDRESS, index, outputs.get(index).carrier());
                 }
                 MetalNativeApi.Handle runExecutable = executable;
+                for (MetalNativeApi.Handle output : outputs) {
+                    upload(api, output, INPUT_BITS);
+                }
                 outputAddresses.setAtIndex(ADDRESS, 1, outputs.getFirst().carrier());
                 MetalNativeApi.NativeFailure aliasFailure = assertThrows(
                         MetalNativeApi.NativeFailure.class,
@@ -180,6 +183,10 @@ class MetalMpsGraphAbsNativeTest {
                 assertEquals(
                         MetalNativeApi.Status.INCOMPATIBLE_RESOURCE,
                         aliasFailure.status());
+                for (MetalNativeApi.Handle output : outputs) {
+                    assertArrayEquals(INPUT_BITS, download(api, output),
+                            "output alias rejection must precede mutation");
+                }
                 outputAddresses.setAtIndex(ADDRESS, 1, outputs.get(1).carrier());
                 for (int repetition = 0; repetition < repetitions; repetition++) {
                     api.runExecutable(
