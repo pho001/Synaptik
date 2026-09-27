@@ -165,6 +165,36 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
+    void JavaPreflightRejectsLegacyCustomOnlyKindsOnDirectMpsGraph() {
+        var comparison = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.GT,
+                new int[] {0, 1},
+                new int[] {2},
+                MetalMpsGraphProgram.AttributeKind.NONE,
+                new long[0]);
+        var program = new MetalMpsGraphProgram(List.of(comparison));
+        long[][] shapes = {{4}, {4}, {4}};
+        List<MetalMpsGraphProgram.ValueDescriptor> values = MetalTestProgram.descriptors(
+                ranks(shapes), dimensions(shapes), program);
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                NumericalProfile.ACCELERATOR,
+                values,
+                program,
+                new int[] {0, 1},
+                new int[] {2},
+                MetalPreparedRoute.CUSTOM_PROGRAM);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        NumericalProfile.ACCELERATOR,
+                        values,
+                        program,
+                        new int[] {0, 1},
+                        new int[] {2},
+                        MetalPreparedRoute.MPSGRAPH));
+    }
+
+    @Test
     void typedNodeConstructionRejectsMalformedBoundsAndPairings() {
         assertThrows(IllegalArgumentException.class, () ->
                 MetalMpsGraphProgram.Node.targetShape(

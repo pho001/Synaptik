@@ -553,7 +553,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                             || usesCustomMatmul(node, types, valueRanks));
             if (route == MetalPreparedRoute.MPSGRAPH
                     && graphProgram.nodes().stream()
-                            .anyMatch(node -> task0063CustomOnly(node.kind())
+                            .anyMatch(node -> task0052CustomOnly(node.kind())
+                                    || task0063CustomOnly(node.kind())
                                     || usesCustomMatmul(node, types, valueRanks))) {
                 throw new IllegalArgumentException(
                         "custom-only operations have no approved direct MPSGraph route");
@@ -1700,6 +1701,12 @@ abstract class MetalNativeApi implements AutoCloseable {
                 throw new IllegalArgumentException(
                         "Metal MPSGraph " + role + " index is out of range");
             }
+        }
+
+        private static boolean task0052CustomOnly(MetalMpsGraphProgram.NodeKind kind) {
+            int wire = kind.wireIdentity();
+            return wire >= MetalMpsGraphProgram.NodeKind.GT.wireIdentity()
+                    && wire <= MetalMpsGraphProgram.NodeKind.CUM_PROD.wireIdentity();
         }
 
         private static boolean task0063CustomOnly(MetalMpsGraphProgram.NodeKind kind) {
