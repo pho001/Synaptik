@@ -126,8 +126,8 @@ BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 output; Task-0064 convolution/average
 Task-0065 FLOAT32 dropout. Every unlisted occurrence fails closed before route selection. Metal
 uses ABI 5 with the same thirteen exports and one bounded schema-15 route-bearing program image.
 Operation wires `1..115`, attribute wires `0..41`, and type wires `1..6` cover current structural
-vocabulary; version-twenty-one identities authenticate that meaning without widening capability,
-and version twenty fails closed.
+vocabulary; version-twenty-two identities authenticate that meaning without widening capability,
+and version twenty-one plus every older identity fails closed.
 Model remains the sole semantic owner of profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).

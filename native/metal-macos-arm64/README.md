@@ -258,6 +258,8 @@ saturating floating-to-signed conversion, modular INT64-to-INT32 narrowing, and 
 FLOAT64/FLOAT32/BFLOAT16 classification and all nine promoted floating WHERE signatures are
 bit-defined. GATHER, ONE_HOT, replacement scatter, and ND/index movement accept INT32 or INT64
 indices over their declared all-carrier domains.
+Rank-zero GATHER and ONE_HOT indices and rank-zero RESHAPE/PERMUTE shapes use those same checked
+paths; scalar means one represented element and never implies an empty tensor.
 
 All six carriers enter exact affine movement and canonicalization. Logical zero-stride descendants
 are admitted only from authenticated local EXPAND provenance, while every separately bound
@@ -265,6 +267,8 @@ physical descriptor remains safe and dense where materialized. External zero-str
 negative-stride, overlapping, empty, dynamic, and unresolved layouts fail closed. Selected
 occurrences use one deterministic custom whole-program route; bounds and destination uniqueness
 are proved before mutation, and there is no retry, fallback, timing, autotuning, or host repair.
+UNFOLD_AXIS accepts every positive static window that fits the selected extent; the historical
+size-16 direct-selector expansion limit does not constrain its fixed custom kernel.
 
 Task 0060 adds exact custom execution for replacement-only SCATTER_ND and signed SLICE_UPDATE
 (including crop placement) over all six carriers. Scatter accepts canonical INT32/INT64 indices

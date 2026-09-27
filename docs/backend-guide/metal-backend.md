@@ -271,7 +271,7 @@ distinct non-physical identities. The first is an abstract availability slot, th
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
 claim. No mapping among them is implied. ABI 5 and the thirteen native exports remain fixed.
 The route-bearing image is schema 15 and every workload/exact-policy/candidate/compatibility/
-route/codec identity is version 21; schema 14 and identity-20 values fail closed. Tuning remains
+route/codec identity is version 22; identity 21 and every older value fail closed. Tuning remains
 session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,

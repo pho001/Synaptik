@@ -527,13 +527,13 @@ average Pool2d/Pool3d; and canonical FLOAT32 explicit-state dropout. Existing al
 matrix products retain MPSGraph; all other admitted MATMUL forms, all six Task-0064 rows, and both
 Task-0065 random rows use the fixed custom program. MSE remains the fixed nested MPSGraph
 composition when a containing partition selects the custom program. Task-0063 through Task-0065
-production rows are custom-only. A partition containing an exact custom node materializes each
-required logical value in a declared run-owned physical storage span and invokes one fixed shared
-custom-program native executable per hot run.
-Schema 15 carries type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, route wire
-`2` or `3`, and complete storage-layout geometry; exactly 101 operation kinds are structurally
-executable and 83 are production-capable. Workload, policy, candidate, compatibility, route, and
-codec identities are version twenty-one; candidate wires and complete-plan wrapper remain stable.
+production rows and every selected Task-0066 occurrence are custom-only. A partition containing an
+exact custom node materializes each required logical value in a declared run-owned physical storage
+span and invokes one fixed shared custom-program native executable per hot run. Schema 15 carries
+type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, route wire `2` or `3`, and
+complete storage-layout geometry; exactly 101 operation kinds are structurally executable and 83
+are production-capable. Workload, policy, candidate, compatibility, route, and codec identities
+are version twenty-two; candidate wires and complete-plan wrapper remain stable.
 
 Metal 0025 remains Complete at reviewed revision `f88066e3`; its schema-11/version-twelve facts are
 historical. Blocked 0026–0027/0030–0037/0039–0040 changed no executable capability. Complete 0041
@@ -680,7 +680,10 @@ remediation `ed7a3369`.
   execution is `101/14`, catalogs are `75/35/5` MPSGraph and `60/55/0` custom, schema is 15,
   identity is 21, ABI is 5, and thirteen exports remain fixed.
 - Metal 0066 is Complete as the exact dtype/layout/gradient occurrence closure from approved plan
-  `e0ec3d2360b0b7ab1119ce0613a612bf3e18b218`. It broadens only wires
+  `e0ec3d2360b0b7ab1119ce0613a612bf3e18b218`, implementation `0b88f897`, documentation
+  `946fff39`, alias-safety remediations `b7d2616f`/`07641c51`, and scalar/window contract
+  remediations `31eb77c5`/`4b426898`. Independent cumulative quality and security review at
+  `4b426898` returned `APPROVE` with zero P0/P1/P2. The task broadens only wires
   `6..11,16..19,39..45,51,69,71..84`: all 36 casts, all-six-carrier exact movement, scalar and
   authenticated affine composition, INT64 index parity, floating classification and promoted
   WHERE, and bounded generated-gradient/saved-role closure. Compiler adds only fully-static
@@ -828,8 +831,8 @@ loop or complete TANH/EXP/SIGMOID proof exists and Compiler still rejects BPTT. 
 three recurrent rows fail-closed rather than advertising a no-work or selected-value special case.
 
 Schema 15, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
-version-twenty-one identities remain current after Complete Task 0065. Complete Tasks 0055–0065
-remain historical foundation/catalog/route/domain prerequisites; blocked Metal 0053 remains
+version-twenty-two identities remain current after Complete Task 0066. Complete Tasks 0055–0066
+provide the current foundation/catalog/route/domain prerequisites; blocked Metal 0053 remains
 fail-closed without production capability. Metal 0026/0027 remain separately finalized Blocked.
 Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model
 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit gate. Metal 0041 is

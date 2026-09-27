@@ -577,11 +577,14 @@ another.
   `9ceee2b53c88a8c87ca4b8a42cdd2c92682074c9`, implementation `05d83074`, and correctness
   remediation `ed7a3369`; independent cumulative code/evidence/documentation and
   security/determinism review returned `APPROVE` with zero unresolved P0/P1/P2. Task 0066 is
-  Complete through approved plan `e0ec3d2360b0b7ab1119ce0613a612bf3e18b218` and implementation
-  `0b88f897`; it owns only the approved backend-neutral static-crop/layout accommodations plus the
-  exact Metal occurrence cutover. No Metal task is Ready. Model 0028 owns the reduction semantic
-  contract, Complete Model 0029 owns the MATMUL final-publication semantic contract, and Complete
-  Metal 0021–0025 retain reviewed implementations.
+  Complete through approved plan `e0ec3d2360b0b7ab1119ce0613a612bf3e18b218`, implementation
+  `0b88f897`, documentation `946fff39`, alias-safety remediations `b7d2616f`/`07641c51`, and
+  scalar/window contract remediations `31eb77c5`/`4b426898`; independent cumulative quality and
+  security review at `4b426898` returned `APPROVE` with zero P0/P1/P2. It owns only the approved
+  backend-neutral static-crop/layout accommodations plus the exact Metal occurrence cutover. No
+  Metal task is Ready. Model 0028 owns the reduction semantic contract, Complete Model 0029 owns the
+  MATMUL final-publication semantic contract, and Complete Metal 0021–0025 retain reviewed
+  implementations.
 
 ## Milestones and current frontier
 
@@ -664,10 +667,9 @@ probe: recurrent arithmetic is recursively reachable for `ACCELERATOR`, but dire
 runtime INT64 valid lengths, atomic validation, skipped padded work, positive-zero padding, and
 `finalHidden`; no complete recurrence, state-publication, GRU/LSTM, or gradient route proof exists.
 Schema 15, type wires `1..6`, operation wires `1..115`, attribute wires `0..41`,
-version-twenty-one identities, ABI 5, variable cardinality, and canonical or
-supported-storage-layout all-six
-rank-`0..16` cross-owner transfer are landed. The schema registry is not capability: BOOL
-consumption includes the exact positive-rank ordering/top-K and logic/WHERE domains, integral
+version-twenty-two identities, ABI 5, variable cardinality, and canonical or supported-storage-
+layout all-six rank-`0..16` cross-owner transfer are landed. The schema registry is not capability:
+BOOL consumption includes the exact positive-rank ordering/top-K and logic/WHERE domains, integral
 MATMUL remains the only general INT arithmetic consumer, loss ownership is the bounded accelerator
 MSE forward domain only, and the six Task-0064 convolution/pooling rows use their fixed custom
 program rather than the historically blocked opaque direct/composed assumptions.
@@ -721,10 +723,13 @@ branching/chaining, saved-mask backward, evaluation bypass, prepared reuse, and
 session/concurrency isolation. Generic eager distributions add no graph row, and all recurrent
 rows remain blocked.
 
-Task 0066 is Complete through approved plan `e0ec3d2360b0b7ab1119ce0613a612bf3e18b218` and
-implementation `0b88f897`. Its exact existing-wire cutover implements all 36 casts, all-carrier
-movement, FLOAT64/FLOAT32/BFLOAT16 classification and promoted WHERE, scalar/affine logical versus
-physical layout handling, INT64 indexing parity, and bounded generated gradients with saved roles.
+Task 0066 is Complete through approved plan `e0ec3d2360b0b7ab1119ce0613a612bf3e18b218`,
+implementation `0b88f897`, documentation `946fff39`, alias-safety remediations
+`b7d2616f`/`07641c51`, and scalar/window contract remediations `31eb77c5`/`4b426898`.
+Independent cumulative quality and security review returned `APPROVE` at `4b426898` with zero
+P0/P1/P2. Its exact existing-wire cutover implements all 36 casts, all-carrier movement,
+FLOAT64/FLOAT32/BFLOAT16 classification and promoted WHERE, scalar/affine logical versus physical
+layout handling, INT64 indexing parity, and bounded generated gradients with saved roles.
 Every selected occurrence uses `CUSTOM_PROGRAM`; dynamic/empty/signed-stride/overlap,
 additive/reduction, transcendental, attention, and recurrent blockers remain fail-closed. Current
 capability is `83/32`, structural execution is `101/14`, catalogs are `75/35/5` MPSGraph and

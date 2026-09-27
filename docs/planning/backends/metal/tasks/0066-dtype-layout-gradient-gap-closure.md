@@ -2,10 +2,13 @@
 
 ## Status
 
-Complete — independently approved plan
-`e0ec3d2360b0b7ab1119ce0613a612bf3e18b218` was implemented at `0b88f897`. The cutover preserves
-all named blockers and fixed schema/ABI/export boundaries while completing the exact selected
-occurrence, route, physical-layout, generated-gradient, package, and documentation scope.
+Complete — independently approved implementation
+Approved plan `e0ec3d2360b0b7ab1119ce0613a612bf3e18b218` landed through implementation
+`0b88f897`, documentation `946fff39`, alias-safety remediations `b7d2616f`/`07641c51`, and
+scalar/window contract remediations `31eb77c5`/`4b426898`. The cutover preserves all named blockers
+and fixed schema/ABI/export boundaries while completing the exact selected occurrence, route,
+physical-layout, generated-gradient, package, and documentation scope. Independent cumulative
+quality and security review at `4b426898` returned `APPROVE` with zero P0/P1/P2.
 
 ## Change class
 
@@ -606,10 +609,11 @@ Independent plan review verified the exact 115-row partition, 33-wire selection,
 catalog arithmetic, 36-pair cast matrix, Model gradient relations, Compiler-generated operations,
 saved roles, scalar/empty distinction, physical-layout safety, transfer boundary, fixed-route
 policy, and non-overlap with the future full registry audit, then returned `APPROVE` with zero
-P0/P1/P2 findings. Independent final review must inspect the full plan-to-source proof, integer
-conversion arithmetic, exhaustive BFLOAT16 evidence, layout address checks, validation-before-
-write, saved-role liveness, route exclusivity, identity invalidation, public Engine behavior,
-documentation, and changed-path scope.
+P0/P1/P2 findings. Independent cumulative quality review rechecked the full capability-to-kernel
+path, including rank-zero TARGET_SHAPE/PERMUTATION, scalar GATHER/ONE_HOT, and size-17
+UNFOLD_AXIS. Independent security review rechecked integer arithmetic, index bounds,
+validation-before-write, dispatch geometry, and resource aliasing. Both returned `APPROVE` at
+`4b426898` with zero P0/P1/P2.
 
 ## Planning result
 
@@ -626,7 +630,7 @@ exports; and advance every backend-local identity from 21 to 22.
 
 ## Implementation result
 
-Implementation `0b88f897` completes exactly wires
+Implementation `0b88f897` and its reviewed remediations complete exactly wires
 `6..11,16..19,39..45,51,69,71..84` through one selected-occurrence `CUSTOM_PROGRAM` route. Java
 preparation and native preflight independently derive and authenticate logical versus physical
 layout geometry; native kernels implement raw movement, validated replacement/indexing, all 36
@@ -640,3 +644,9 @@ The resulting boundary is capability `83/32`, structural execution `101/14`, MPS
 22. Identity 21 and every older identity reject. Task 0040's historical direct BFLOAT16 GATHER
 failure remains unchanged; only its future-route conclusion is superseded by the exact custom raw
 movement route.
+
+Security remediation rejects input/output and output/output buffer aliasing before mutation and
+proves rejected targets retain sentinel bytes. Contract remediation aligns Java and native
+validation for rank-zero target/permutation shapes, scalar GATHER/ONE_HOT, and arbitrary positive
+UNFOLD_AXIS windows that fit the selected extent; focused real-native regressions exercise each
+boundary.
