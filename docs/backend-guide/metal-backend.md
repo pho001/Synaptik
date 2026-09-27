@@ -72,12 +72,13 @@ least one FLOAT32 operand, no-gradient mixed operands, and exact all-FLOAT32 gra
 matching input/output gradient metadata. `AVERAGE_POOL2D` and `AVERAGE_POOL3D` are
 ACCELERATOR-only FLOAT32 with matching gradient metadata. Exact symmetric padding, stride,
 dilation, groups, output geometry, and unsigned-32-bit bounds are validated before resource
-creation. Canonical values are required except exact local singleton-height affine views
-authenticated from Conv1d/Pool1d composition. Maximum pooling selects a raw word by NaN-first,
-positive-zero-over-negative-zero, first-logical-winner order with negative-infinity padding.
-Average pooling includes conceptual positive-zero padding in the fixed full-kernel divisor.
-Convolution preserves each grouped contributor and optional bias placement. Direct/composed
-MPSGraph family metadata remains structural only.
+creation. Pooling also caps the product of kernel extents at 65,536 positions, independently of
+tensor byte sizes, to bound padding-dominated work per output. Canonical values are required except
+exact local singleton-height affine views authenticated from Conv1d/Pool1d composition. Maximum
+pooling selects a raw word by NaN-first, positive-zero-over-negative-zero, first-logical-winner
+order with negative-infinity padding. Average pooling includes conceptual positive-zero padding
+in the fixed full-kernel divisor. Convolution preserves each grouped contributor and optional bias
+placement. Direct/composed MPSGraph family metadata remains structural only.
 
 Wires `111..115` (`LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, `L1_NORM`, and `L2_NORM`)
 now have package-private forceable MPSGraph recipes. The log-sum-exp composition is stable, and
@@ -342,13 +343,13 @@ relationships, symmetric nonnegative padding, positive stride/dilation/groups/di
 floor output geometry, FLOAT32 result, FLOAT32/BFLOAT16 inputs with at least one FLOAT32 role, and
 canonical output. All-FLOAT32 gradient metadata is the exact role OR; every mixed occurrence is
 no-gradient. Maximum and average pooling require exact rank-four/rank-five geometry, one canonical
-output, literal floor/ceil output geometry, and matching input/output gradient metadata. Maximum
-admits FLOAT64/FLOAT32/BFLOAT16 under both profiles; average admits only accelerator FLOAT32.
-Every dimension, element count, byte count, stride, effective kernel, coordinate, and dispatch
-width is checked against its declared unsigned-32-bit or size boundary before native resource
-creation. The exact singleton-height input/weight forms are accepted only when complete analysis
-authenticates their local `EXPAND_DIMS(axis=2)` producer and physical source. Availability and hard
-backend requirements remain separate Planning facts.
+output, literal floor/ceil output geometry, matching input/output gradient metadata, and at most
+65,536 kernel positions. Maximum admits FLOAT64/FLOAT32/BFLOAT16 under both profiles; average
+admits only accelerator FLOAT32. Every dimension, element count, byte count, stride, effective
+kernel, coordinate, and dispatch width is checked against its declared unsigned-32-bit or size
+boundary before native resource creation. The exact singleton-height input/weight forms are
+accepted only when complete analysis authenticates their local `EXPAND_DIMS(axis=2)` producer and
+physical source. Availability and hard backend requirements remain separate Planning facts.
 Exact `SELECT` and positive-step `SLICE` accept all six carriers without gradients. Their fully
 static positive-rank input and output descriptors must carry resolved, strictly positive,
 non-overlapping storage layouts. Capability recomputes the exact output strides and offset from the

@@ -143,9 +143,11 @@
  * BFLOAT16 and preserves exact input/output gradient metadata; average pooling is
  * ACCELERATOR-only FLOAT32. All six rows require fully static positive geometry bounded to
  * unsigned 32 bits, exact symmetric padding and fixed layouts, and checked result geometry.
- * Conv1d and Pool1d enter only through authenticated local singleton-height affine views.
- * Maximum pooling fixes NaN-first, positive-zero-over-negative-zero, first-logical-winner, raw-bit
- * publication; average pooling fixes a full-kernel divisor and conceptual positive-zero padding.
+ * Pooling additionally caps the product of kernel extents at 65,536 positions so padding-heavy
+ * metadata cannot create unbounded per-output work with tiny tensors. Conv1d and Pool1d enter only
+ * through authenticated local singleton-height affine views. Maximum pooling fixes NaN-first,
+ * positive-zero-over-negative-zero, first-logical-winner, raw-bit publication; average pooling
+ * fixes a full-kernel divisor and conceptual positive-zero padding.
  * Strict convolution/average pooling, generated maximum-pool or Conv3d gradients, mixed
  * convolution gradients, overlap-accumulating generated folds, attention, and convolution
  * transpose remain fail-closed.</p>

@@ -39,12 +39,14 @@ no-gradient mixed operands, and exact all-FLOAT32 gradient metadata. Maximum poo
 profile-common for FLOAT64/FLOAT32/BFLOAT16; average pooling is ACCELERATOR-only FLOAT32.
 All dimensions, counts, strides, dilations, paddings, spans, logical coordinates, and
 one-dimensional grid widths are positive or nonnegative as appropriate, fit unsigned 32 bits, and
-are validated before resource creation. Exact local singleton-height affine inputs authenticate
-Conv1d and Pool1d compositions without admitting external or general affine layouts. Convolution
-preserves every grouped term and bias placement. Maximum pooling publishes the raw word selected by
-NaN-first, positive-zero-over-negative-zero, first-logical-winner order with negative-infinity
-padding. Average pooling uses the full kernel-position divisor and conceptual positive-zero
-padding, including ceil-mode all-padding windows.
+are validated before resource creation. Pooling additionally limits the product of kernel extents
+to 65,536 positions, independently of tensor byte sizes, to bound padding-dominated per-output
+work. Exact local singleton-height affine inputs authenticate Conv1d and Pool1d compositions
+without admitting external or general affine layouts. Convolution preserves every grouped term
+and bias placement. Maximum pooling publishes the raw word selected by NaN-first, positive-zero-
+over-negative-zero, first-logical-winner order with negative-infinity padding. Average pooling
+uses the full kernel-position divisor and conceptual positive-zero padding, including ceil-mode
+all-padding windows.
 
 The remaining 34 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
