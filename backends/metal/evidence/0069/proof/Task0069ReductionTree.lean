@@ -133,8 +133,8 @@ theorem source_result_is_model_result
   · exact fold
 
 /-- Every L1 result is either NaN or has a nonnegative binary32 sign. -/
-def L1ClassInvariant (word : Word) : Prop :=
-  rawClass word = .nan ∨ word.sign = false
+abbrev L1ClassInvariant (word : Word) : Prop :=
+  L1Reachable word
 
 def ValidNonNan (word : Word) : Prop :=
   word.sign = false ∧ rawClass word ≠ .nan
@@ -170,9 +170,9 @@ theorem addSite_l1_class_invariant
     (rightInvariant : L1ClassInvariant right) :
     L1ClassInvariant published := by
   by_cases leftNan : rawClass left = .nan
-  · exact Or.inl (addSite_nan_left contract site leftNan)
+  · exact Or.inl (addSite_nan_left contract site leftNan rightInvariant)
   by_cases rightNan : rawClass right = .nan
-  · exact Or.inl (addSite_nan_right contract site rightNan)
+  · exact Or.inl (addSite_nan_right contract site rightNan leftInvariant)
   exact Or.inr (addSite_nonnegative contract site
     (leftInvariant.resolve_left leftNan)
     (rightInvariant.resolve_left rightNan)
@@ -211,29 +211,36 @@ theorem source_result_l1_class_contract
     (absWord_l1_class_invariant first)
     (labelFrom_l1_class_invariant 1 rest)
 
-/-- A NaN at any current-or-later contributor position is absorbing through the source fold. -/
+/-- A NaN at any reachable current-or-later contributor position is absorbing. -/
 theorem sourceFold_nan_of_contains
     {rne : Word → Word → Word}
     (contract : RneSpecialClassContract rne)
     {current result : Word} {rest : List Leaf}
     (fold : SourceFold (addSite rne) current rest result) :
+    L1ClassInvariant current →
+    AllLeaves (fun leaf => L1ClassInvariant leaf.word) rest →
     rawClass current = .nan ∨ AnyLeaf (fun leaf => rawClass leaf.word = .nan) rest →
     rawClass result = .nan := by
   induction fold with
   | nil current =>
-      intro contains
+      intro _ _ contains
       simpa [AnyLeaf] using contains
   | @cons current intermediate result next rest step tail induction =>
-      intro contains
+      intro currentInvariant restInvariant contains
+      rcases restInvariant with ⟨nextInvariant, remainingInvariant⟩
+      have intermediateInvariant : L1ClassInvariant intermediate :=
+        addSite_l1_class_invariant contract step currentInvariant nextInvariant
       have split :
           rawClass current = .nan ∨
             rawClass next.word = .nan ∨
               AnyLeaf (fun leaf => rawClass leaf.word = .nan) rest := by
         simpa [AnyLeaf] using contains
       rcases split with currentNan | nextNan | laterNan
-      · exact induction (Or.inl (addSite_nan_left contract step currentNan))
-      · exact induction (Or.inl (addSite_nan_right contract step nextNan))
-      · exact induction (Or.inr laterNan)
+      · exact induction intermediateInvariant remainingInvariant
+          (Or.inl (addSite_nan_left contract step currentNan nextInvariant))
+      · exact induction intermediateInvariant remainingInvariant
+          (Or.inl (addSite_nan_right contract step nextNan currentInvariant))
+      · exact induction intermediateInvariant remainingInvariant (Or.inr laterNan)
 
 theorem sourceFold_positive_infinity_of_contains
     {rne : Word → Word → Word}

@@ -275,7 +275,7 @@ from their independently authenticated physical spans and rejects dynamic/empty 
 negative external strides, overlap, additive scatter, reduction-dependent adjoints, and every
 other unlisted occurrence before route selection.
 
-ABI 5 retains the thirteen export names and consumes one bounded schema-15 route-bearing program
+ABI 5 retains the thirteen export names and consumes one bounded schema-16 route-bearing program
 image. Operation wires `1..115`, attribute wires `0..41`, route wires `1..3`, and type wires
 `1..6` are structural vocabulary only. Version-twenty-three workload, policy, candidate,
 compatibility, route, and codec identities authenticate that meaning without adding capability;

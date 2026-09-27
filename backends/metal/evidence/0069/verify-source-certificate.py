@@ -82,6 +82,13 @@ def main() -> None:
     assert "sourceFold_nan_of_contains" in proof_text
     assert "sourceFold_positive_infinity_of_contains" in proof_text
     assert "absWord_class_contract" in proof_text
+    assert "def L1Reachable (word : Word) : Prop :=" in proof_text
+    assert "rawClass word = .nan ∨ word.sign = false" in proof_text
+    assert "rawClass left = .nan → L1Reachable right" in proof_text
+    assert "rawClass right = .nan → L1Reachable left" in proof_text
+    assert "daz_preserves_l1_reachable" in proof_text
+    assert "L1ClassInvariant current →" in proof_text
+    assert "AllLeaves (fun leaf => L1ClassInvariant leaf.word) rest →" in proof_text
 
     inventory = certificate["siteInventory"]
     assert [site["id"] for site in inventory] == [

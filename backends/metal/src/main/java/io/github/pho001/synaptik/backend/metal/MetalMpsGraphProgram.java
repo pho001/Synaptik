@@ -1,4 +1,5 @@
 package io.github.pho001.synaptik.backend.metal;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -17,20 +18,22 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Immutable schema-fifteen Metal program and its canonical bounded image encoder.
+ * Immutable schema-sixteen Metal program and its canonical bounded image encoder.
  *
- * <p>The image supports zero-input nodes and ordered multi-output nodes. Task 0066 retains schema
- * version fifteen while carrying complete logical layout geometry and gradient flags for the
- * native/JVM-authenticated all-carrier custom-program closure. No public ABI or wire changes.
+ * <p>The image supports zero-input nodes and ordered multi-output nodes. Schema sixteen binds the
+ * exact compile-time numerical profile in every fixed header while carrying complete logical
+ * layout geometry and gradient flags for the native/JVM-authenticated custom-program closure.
  */
 final class MetalMpsGraphProgram {
-    static final int SCHEMA_VERSION = 15;
+    static final int SCHEMA_VERSION = 16;
     static final int MAX_RANK = 16;
     static final int MAX_SELECTOR_EXPANSION = 16;
     static final int HEADER_BYTES = 64;
     static final int VALUE_DESCRIPTOR_BYTES = 40;
     static final int NODE_DESCRIPTOR_BYTES = 32;
-    static final int MAGIC = 0x35314d53; // little-endian bytes "SM15"
+    static final int MAGIC = 0x36314d53; // little-endian bytes "SM16"
+    static final int STRICT_IEEE_PROFILE_WIRE = 0x53545249; // little-endian bytes "IRTS"
+    static final int ACCELERATOR_PROFILE_WIRE = 0x41434345; // little-endian bytes "ECCA"
     static final int NO_SECOND_INPUT = -1;
     static final int NO_AXIS = -1;
 
@@ -1020,6 +1023,7 @@ final class MetalMpsGraphProgram {
 
     MemorySegment encodeNative(
             Arena arena,
+            NumericalProfile numericalProfile,
             List<ValueDescriptor> values,
             int[] feeds,
             int[] targets,
@@ -1028,33 +1032,41 @@ final class MetalMpsGraphProgram {
         Layout layout = layout(values, feeds, targets);
         MemorySegment segment = arena.allocate(layout.totalBytes, Long.BYTES);
         write(segment.asByteBuffer().order(ByteOrder.LITTLE_ENDIAN),
-                values, feeds, targets, layout, route);
+                numericalProfile, values, feeds, targets, layout, route);
         return segment;
     }
 
-    byte[] encodedProgramImage(List<ValueDescriptor> values, int[] feeds, int[] targets) {
-        return encodedProgramImage(values, feeds, targets, MetalPreparedRoute.MPSGRAPH);
+    byte[] encodedProgramImage(
+            NumericalProfile numericalProfile,
+            List<ValueDescriptor> values,
+            int[] feeds,
+            int[] targets) {
+        return encodedProgramImage(
+                numericalProfile, values, feeds, targets, MetalPreparedRoute.MPSGRAPH);
     }
 
     byte[] encodedProgramImage(
+            NumericalProfile numericalProfile,
             List<ValueDescriptor> values,
             int[] feeds,
             int[] targets,
             MetalPreparedRoute route) {
         Layout layout = layout(values, feeds, targets);
         ByteBuffer buffer = ByteBuffer.allocate(layout.totalBytes).order(ByteOrder.LITTLE_ENDIAN);
-        write(buffer, values, feeds, targets, layout, route);
+        write(buffer, numericalProfile, values, feeds, targets, layout, route);
         return buffer.array();
     }
 
     void updateDigest(
             MessageDigest digest,
+            NumericalProfile numericalProfile,
             List<ValueDescriptor> values,
             int[] feeds,
             int[] targets,
             MetalPreparedRoute route) {
         Objects.requireNonNull(digest, "digest");
-        digest.update(encodedProgramImage(values, feeds, targets, route));
+        digest.update(encodedProgramImage(
+                numericalProfile, values, feeds, targets, route));
         for (Node node : nodes) {
             switch (node.kind()) {
                 case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV -> {
@@ -1199,8 +1211,15 @@ final class MetalMpsGraphProgram {
         }
     }
 
-    private void write(ByteBuffer out, List<ValueDescriptor> values, int[] feeds, int[] targets,
-            Layout layout, MetalPreparedRoute route) {
+    private void write(
+            ByteBuffer out,
+            NumericalProfile numericalProfile,
+            List<ValueDescriptor> values,
+            int[] feeds,
+            int[] targets,
+            Layout layout,
+            MetalPreparedRoute route) {
+        Objects.requireNonNull(numericalProfile, "numericalProfile");
         Objects.requireNonNull(route, "route");
         if (route == MetalPreparedRoute.CUSTOM_SINGLE_NEG) {
             throw new IllegalArgumentException("singleton custom NEG does not use a program image");
@@ -1208,8 +1227,9 @@ final class MetalMpsGraphProgram {
         out.putInt(MAGIC).putInt(SCHEMA_VERSION).putInt(layout.totalBytes)
                 .putInt(values.size()).putInt(nodes.size()).putInt(feeds.length).putInt(targets.length)
                 .putInt(layout.dimensionCount).putInt(layout.referenceCount).putInt(layout.attributeCount)
-                .putInt(route.wireIdentity()).putInt(layout.strideCount);
-        for (int i = 0; i < 4; i++) out.putInt(0);
+                .putInt(route.wireIdentity()).putInt(layout.strideCount)
+                .putInt(numericalProfileWireValue(numericalProfile))
+                .putInt(0).putInt(0).putInt(0);
         int dimensionOffset = 0;
         int strideOffset = 0;
         for (ValueDescriptor value : values) {
@@ -1319,4 +1339,10 @@ final class MetalMpsGraphProgram {
             int strideCount,
             int referenceCount,
             int attributeCount) {}
+    private static int numericalProfileWireValue(NumericalProfile numericalProfile) {
+        return switch (numericalProfile) {
+            case STRICT_IEEE -> STRICT_IEEE_PROFILE_WIRE;
+            case ACCELERATOR -> ACCELERATOR_PROFILE_WIRE;
+        };
+    }
 }

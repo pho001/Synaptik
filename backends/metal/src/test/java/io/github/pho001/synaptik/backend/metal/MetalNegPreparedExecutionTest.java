@@ -1567,6 +1567,7 @@ class MetalNegPreparedExecutionTest {
                 assertEquals(1, api.executableCreates.get());
                 assertArrayEquals(
                         plan.graphProgram().encodedProgramImage(
+                                plan.numericalProfile(),
                                 plan.programValueDescriptors(),
                                 plan.feedValueIndices(),
                                 plan.targetValueIndices()),
@@ -1651,10 +1652,11 @@ class MetalNegPreparedExecutionTest {
                 assertEquals(2, api.runCalls.get());
                 assertArrayEquals(
                         plan.graphProgram().encodedProgramImage(
+                                plan.numericalProfile(),
                                 plan.programValueDescriptors(),
                                 plan.feedValueIndices(),
                                 plan.targetValueIndices(),
-                    plan.route()),
+                                plan.route()),
                         api.createdProgramImage);
             }
             assertEquals(1, api.executableReleases.get());
@@ -1761,6 +1763,7 @@ class MetalNegPreparedExecutionTest {
                 assertEquals(2, api.runCalls.get());
                 assertArrayEquals(
                         plan.graphProgram().encodedProgramImage(
+                                plan.numericalProfile(),
                                 plan.programValueDescriptors(),
                                 plan.feedValueIndices(),
                                 plan.targetValueIndices()),
@@ -2851,10 +2854,11 @@ class MetalNegPreparedExecutionTest {
             assertEquals(1, api.executableCreates.get());
             assertArrayEquals(
                     plan.graphProgram().encodedProgramImage(
+                            plan.numericalProfile(),
                             plan.programValueDescriptors(),
                             plan.feedValueIndices(),
                             plan.targetValueIndices(),
-                  plan.route()),
+                            plan.route()),
                     api.createdProgramImage);
 
             context.close();

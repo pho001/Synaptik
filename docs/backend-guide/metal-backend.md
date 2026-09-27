@@ -278,9 +278,9 @@ refresh.
 distinct non-physical identities. The first is an abstract availability slot, the second a Metal
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
 claim. No mapping among them is implied. ABI 5 and the thirteen native exports remain fixed.
-The route-bearing image is schema 15 and every workload/exact-policy/candidate/compatibility/
-route/codec identity is version 23; identity 22 and every older value fail closed. Tuning remains
-session-scoped and non-persistent.
+The route-bearing image is schema 16 and every workload/exact-policy/candidate/compatibility/
+route/codec identity is version 23; schema 15, identity 22, and every older value fail closed.
+Tuning remains session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
 cancellation/timeout, input borrowing, result/workspace ownership, prepared leases through device
@@ -374,7 +374,7 @@ singleton-height Conv1d/Pool1d forms remain authenticated local compositions. Av
 backend requirements remain separate Planning facts.
 
 The package-private `MetalOperationRouteCatalog` separately describes every one of the 115
-schema-fifteen `NodeKind` values. Exhaustive enum switching yields shared immutable entries with
+schema-sixteen `NodeKind` values. Exhaustive enum switching yields shared immutable entries with
 closed MPSGraph state/reason and custom-kernel state/reason values: MPSGraph totals are
 `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`; custom totals are
 `71 AVAILABLE / 44 PENDING / 0 UNAVAILABLE_WITH_PROOF`. Task 0066 moves exactly wires `6..11` and
@@ -428,7 +428,7 @@ whole-program route. Package-private structural forcing remains available only f
 present in the fresh authenticated batch.
 
 The version-twenty-three canonical workload fingerprint covers the explicit numerical-profile wire,
-the schema-fifteen route-bearing program image, ordered input and output references, all typed
+the schema-sixteen route-bearing program image, ordered input and output references, all typed
 attributes, logical and physical value states, authenticated local provenance, complete tensor
 descriptors and storage layouts, target and internal-value sets, exact scalar/splat bits, logical-
 boundary roles, policy/candidate/route schemas, and ABI version. It encodes structural positions
@@ -479,8 +479,8 @@ or hit a persistent workload-cache entry, and its complete-plan phase never touc
 model-plan path. Cross-session Metal reuse still requires a separately authorized stable
 device/library fingerprint.
 
-Schema-fifteen workload bytes and workload compatibility include the fixed route. Candidate and
-decision bytes retain route wires `1..3`, route-policy version twenty-three, and the target session.
+Schema-sixteen workload bytes and workload compatibility include the fixed route and exact profile.
+Candidate and decision bytes retain route wires `1..3`, route-policy version twenty-three, and the target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
 session)` rather than a workload digest alone. The repository has no persistent Metal executable
@@ -498,7 +498,7 @@ For the singleton-NEG custom route, native creation compiles the fixed branch-fr
 `synaptik_neg_f32` source and creates one pipeline. Shared custom-program creation compiles the
 fixed reviewed safe-math/raw-word/integer/movement kernels and any interleaved existing-node
 MPSGraph executables before publication. For the ordinary MPSGraph route, native creation validates
-one canonical bounded schema-15 route-bearing program image and compiles one fixed-shape
+one canonical bounded schema-16 route-bearing program image and compiles one fixed-shape
 whole-partition executable. MATMUL compilation requires reduced-precision-fast-math read-back
 `None`. All compilation happens during finalization, never invocation.
 
@@ -693,7 +693,7 @@ publish c, t
 ```
 
 Preparation lowers the normalized axis and binding-resolved sum-to-Shape target into the bounded
-schema-fifteen route-bearing program image. `m`, `a`, `s`, and `c` remain positive-rank
+schema-sixteen route-bearing program image. `m`, `a`, `s`, and `c` remain positive-rank
 canonical, so they may compose inside the partition. The scalar `t` is a direct target only.
 One run publishes `c = [[71, 78, 85, 92], [83, 90, 97, 104]]` plus `t = 300`; local materialization of
 `t` copies exactly four bytes. Strict ownership rejects the same reduction graph before native
@@ -851,17 +851,19 @@ variant or automatic Metal selection outside the explicitly registered inventory
 Private ABI version `5` exports exactly thirteen symbols: the version/context/buffer foundation,
 `synaptik_metal_mpsgraph_executable_create`, executable release/run, and the three typed custom
 singleton-NEG pipeline operations. The create function accepts a pointer plus unsigned byte count
-for one schema-15 program image. The old `synaptik_metal_mpsgraph_neg_executable_create` symbol is
+for one schema-16 program image. The old `synaptik_metal_mpsgraph_neg_executable_create` symbol is
 absent. Statuses `0..12` retain their documented meanings, status `13` reports a structurally valid
 registered operation without a current native route, and unknown integers fail closed with the raw
 value retained.
 
-The schema-15 image is little-endian, at least 64 bytes, at most `Integer.MAX_VALUE` bytes on both
+The schema-16 image is little-endian, at least 64 bytes, at most `Integer.MAX_VALUE` bytes on both
 sides, and consists of a 64-byte header, 40-byte value descriptors, 32-byte node descriptors,
 64-bit dimensions, 64-bit element strides, 32-bit value references, canonical alignment padding,
 and 64-bit attribute words. Each value descriptor carries layout presence, kind, view and dense-
 physical flags, stride-pool offset, storage offset, and referenced span. The header embeds fixed
-route wire `2` or `3`; schema 14, route zero, and every other schema or route fail closed.
+route wire `2` or `3` followed by the exact numerical-profile wire
+`0x53545249=STRICT_IEEE` or `0x41434345=ACCELERATOR`; schema 15, unknown profile wires, route zero,
+and every other schema or route fail closed.
 Production capability admits exactly 84 operation kinds while 31 remain false; structural native
 execution covers 101 kinds and leaves 14 nonexecutable. Attribute wires `0..41` and type wires
 `1..6` cover all current Model signatures and carriers.
@@ -870,10 +872,11 @@ Java and native code independently require exact operation/attribute/type/cardin
 ordered feeds, targets, node inputs and outputs, exact Shapes, checked physical byte geometry,
 validated layout kind/offset/positive-stride/span relationships, explicit
 unavailable/canonical/affine-view/materialized-layout state transitions, topological availability,
-fresh outputs, unique produced targets, canonical packed sections, zero reserved/padding bytes,
-and signed-32-bit image bounds. Java additionally rejects profile-incompatible programs before
-native entry and owns typed handle liveness and pointer-region preconditions that a raw C boundary
-cannot prove.
+fresh outputs, unique produced targets, canonical packed sections, zero padding bytes, three zero
+reserved header words, and signed-32-bit image bounds. Java and native both reject unknown profile
+wires, and native independently rejects L1_NORM unless the encoded profile is ACCELERATOR. Java
+also rejects every other profile-incompatible program before native entry and owns typed handle
+liveness and pointer-region preconditions that a raw C boundary cannot prove.
 Index-domain and buffer-copy bounds map to status `5`; input/output aliasing and wrong device or
 insufficient extent map to status `10`; grid representability maps to status `8`; unusable
 threadgroup geometry and custom command failures map to status `11`; Objective-C exceptions map to
@@ -979,7 +982,7 @@ repetition matrix ran.
 
 Current validation composes:
 
-- focused capability, schema-fifteen/native-preflight, raw-bit native execution, route-identity,
+- focused capability, schema-sixteen/native-preflight, raw-bit native execution, route-identity,
   backend-conformance, and CPU-free public Engine tests proving the exact bounded two-profile
   UNFOLD_AXIS domain, wire `19`, typed `WINDOW_AXIS=6`, schema rejection, overlap/tail mapping,
   input preservation, and same-partition composition;
@@ -1184,7 +1187,7 @@ SCATTER_ADD and VARIANCE remain outside production capability.
 
 The profile is retained in partition plans and every route/tuning/codec/workload identity. Java
 enforces the boundary before native entry. ABI version `5` retains thirteen export names and
-accepts one bounded schema-15 route-bearing image; operation wires `1..115`, attribute wires
+accepts one bounded schema-16 route-bearing image; operation wires `1..115`, attribute wires
 `0..41`, route wires `1..3`, and type wires `1..6` cover the current structural registry without
 widening capability. Route, candidate, compatibility, workload, exact-policy, and codec identities
 are version `23`; version `22` and every older identity fail closed. Catalogs are exactly

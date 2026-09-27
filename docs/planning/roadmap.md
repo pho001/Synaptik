@@ -173,7 +173,7 @@ obligations and remains historical. Task 0053 retained its integer-only candidat
 certificate, but is now Blocked on an unavailable pinned no-axiom constructive-real exponential
 bridge; its checkpoint review granted no `DOMAIN-PASS`. Tasks 0057 and 0058 are Complete without
 Task-0053 scope. Task 0051 reserved no production vocabulary; Task 0052 later
-consumed wires `20..34`, and current schema 15 still registers `EXP=55`/`SIGMOID=64` without making
+consumed wires `20..34`, and current schema 16 still registers `EXP=55`/`SIGMOID=64` without making
 them executable.
 CPU requires no migration because its exact realizations remain valid members of the widened result
 set.
@@ -514,8 +514,8 @@ no production, native, test, or probe changes remain.
 is `Complete` at `42c4cfbf` plus `fb102a46` after the operation-by-operation DAZ/FTZ oracle, focused
 validation, combined serial checkpoint, and independent Class C approval all passed.
 
-Current Metal uses ABI 5, exactly thirteen exports, and one bounded schema-15 route-bearing program
-image. Its common exact domain includes the documented unary, affine, canonicalization, indexing,
+Current Metal uses ABI 5, exactly thirteen exports, and one bounded schema-16 route-bearing program
+image with the exact numerical-profile wire. Its common exact domain includes the documented unary,
 BOOL, Task-0059 movement, Task-0060 replacement/fold/aggregate, promoted integral MATMUL,
 Task-0063 ordering/top-K/arg-extrema, exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d, and
 Task-0065 raw zero-input INITIAL_STATE rows. Accelerator additionally admits the documented
@@ -530,8 +530,9 @@ Task-0069 L1 use the fixed custom program. MSE remains the fixed nested MPSGraph
 a containing partition selects the custom program. Task-0063 through Task-0065 production rows,
 every selected Task-0066 occurrence, and Task-0069 L1 are custom-only. A partition containing an
 exact custom node materializes each required logical value in a declared run-owned physical storage
-span and invokes one fixed shared custom-program native executable per hot run. Schema 15 carries
-type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, route wire `2` or `3`, and
+span and invokes one fixed shared custom-program native executable per hot run. Schema 16 carries
+type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, route wire `2` or `3`, the
+exact numerical-profile wire, and
 complete storage-layout geometry; exactly 101 operation kinds are structurally executable and 84
 are production-capable. Workload, policy, candidate, compatibility, route, and codec identities
 are version twenty-three; identity 22 and every older identity fail closed while candidate wires
@@ -746,10 +747,11 @@ binary32 additions in increasing ordinal order, and publishes one logical result
 no addition. The Lean proof, source certificate, pinned exact
 runtime-source extraction, and Xcode 27.0 build 27A266a/Metal 32023.921/macOS SDK 27.0
 compiled-MSL/AIR audit pass. The current ledger is capability `84/31`, structural `101/14`,
-MPSGraph `75/35/5`, custom `71/44/0`, schema 15, ABI 5, thirteen exports, and identity 23.
-Final independent cumulative code, numerical-evidence, and security review each return `APPROVE`
-with zero remaining P0/P1/P2. `SCATTER_ADD` and `VARIANCE` remain production-false; Slice 2 is not
-authorized before a fresh checkpoint and approval.
+MPSGraph `75/35/5`, custom `71/44/0`, schema 16, ABI 5, thirteen exports, and identity 23.
+Schema 16 rejects schema 15 and every other schema, binds the exact supported profile wire, and
+makes native L1 creation require ACCELERATOR. External design findings on schema/profile binding and
+formal reachable-NaN premises are addressed. `SCATTER_ADD` and `VARIANCE` remain production-false;
+Slice 2 is not authorized before a fresh checkpoint and approval.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -858,14 +860,15 @@ canonical positive static FLOAT32 no-grad bias-free FORWARD RNN_TANH over the co
 valid-length domain. Complete Model 0030 now recursively reaches `ACCELERATOR` contractions,
 additions, tanh/sigmoid sites, and state arithmetic. The macOS-12.3 direct selector nevertheless
 has no INT64 valid-length input, atomic validation, skipped padded work, positive-zero padding
-contract, or `finalHidden`; its optional training output has the wrong role. Schema 15 now carries
-the complete variable-cardinality, multi-output, and INT64 vocabulary, but no custom recurrent
-loop or complete TANH/EXP/SIGMOID proof exists and Compiler still rejects BPTT. Task 0065 keeps all
+contract, or `finalHidden`; its optional training output has the wrong role. Schema 16 now carries
+the complete variable-cardinality, multi-output, INT64, and numerical-profile vocabulary, but no
+custom recurrent loop or complete TANH/EXP/SIGMOID proof exists and Compiler still rejects BPTT.
+Task 0065 keeps all
 three recurrent rows fail-closed rather than advertising a no-work or selected-value special case.
 
-Schema 15, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
-version-twenty-three identities are current after Task 0069 Slice 1; identity 22 and every older
-identity fail closed. Complete Tasks 0055–0068 provide the current foundation/catalog/route/domain
+Schema 16, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
+version-twenty-three identities are current after Task 0069 Slice 1; schema 15, identity 22, and
+every older value fail closed. Complete Tasks 0055–0068 provide the current
 prerequisites, while Task 0069 advances only the authorized L1 boundary. Blocked Metal 0053
 remains fail-closed without production capability. Metal 0026/0027 remain separately finalized
 Blocked.

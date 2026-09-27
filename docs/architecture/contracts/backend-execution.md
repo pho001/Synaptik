@@ -374,10 +374,11 @@ resolved positive-stride non-overlapping storage layouts; BOOL validation visits
 only. Local selected publication gathers logical elements from authenticated physical storage and
 preserves exact target-relative offsets and holes without exposing aliases.
 
-The package uses ABI 5 with the same thirteen exports. Node schema 15 is one bounded
+The package uses ABI 5 with the same thirteen exports. Node schema 16 is one bounded
 self-describing, route-bearing image over type wires `1..6`, operation wires `1..115`, attribute
-wires `0..41`, route wires `1..3`, and complete optional storage-layout geometry. Structural
-execution covers exactly 101 kinds with 14 remaining nonexecutable; production capability is
+wires `0..41`, route wires `1..3`, an exact numerical-profile wire, and complete optional
+storage-layout geometry. Structural execution covers exactly 101 kinds with 14 remaining
+nonexecutable; production capability is
 exactly 84 kinds with 31 remaining false. Catalog counts are exactly `75/35/5` MPSGraph and
 `71/44/0` custom. Workload, exact-policy, candidate, compatibility, route-policy, and codec
 identities are version twenty-three; identity twenty-two and every older identity fail closed. The

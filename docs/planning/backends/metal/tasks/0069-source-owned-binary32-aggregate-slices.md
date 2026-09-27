@@ -124,21 +124,27 @@ carrier, attribute, or gradient combination remain false.
 | Accepted checkpoint | Structural | Capability | MPSGraph | Custom | Schema / ABI / exports | Identity |
 |---|---:|---:|---:|---:|---|---:|
 | Baseline | `101/14` | `83/32` | `75/35/5` | `70/45/0` | `15 / 5 / 13` | 22 |
-| Slice 1 only | unchanged | `84/31` | unchanged | `71/44/0` | unchanged | 23 |
-| Slices 1–2 | unchanged | `85/30` | unchanged | `72/43/0` | unchanged | 24 |
-| Slices 1–3 | unchanged | `86/29` | unchanged | `73/42/0` | unchanged | 25 |
+| Slice 1 only | unchanged | `84/31` | unchanged | `71/44/0` | `16 / 5 / 13` | 23 |
+| Slices 1–2 | unchanged | `85/30` | unchanged | `72/43/0` | `16 / 5 / 13` | 24 |
+| Slices 1–3 | unchanged | `86/29` | unchanged | `73/42/0` | `16 / 5 / 13` | 25 |
 
 Each checkpoint advances all six backend-local workload/policy/candidate/compatibility/route/codec
-identities together and rejects the prior identity and all older values. Operation, attribute,
-type, and route wires do not change. At each checkpoint every other false row remains false.
+identities together and rejects the prior identity and all older values. Slice 1 cleanly advances
+the image from schema 15 to schema 16 so the first formerly reserved header word carries the exact
+existing numerical-profile wire; schema 15 and every other schema reject. Identity remains 23
+because its compatibility and codec already bind the profile and its workload digest already binds
+the schema version and complete encoded image, so no schema-15 decision can match a schema-16
+workload. Operation, attribute, type, and route wires do not change. At each checkpoint every other
+false row remains false.
 
 ## Non-goals
 
-No Model/API/Compiler-formula change, new wire, schema or ABI/export change, broad aggregate helper,
-strict-profile capability, noncanonical or empty geometry, positive variance correction, L2 norm,
-mean expansion, additive Scatter-ND/Elements, timing, autotuning, fallback, retry, atomics, host
-repair, opaque-selector inference, source-unbound corpus proof, approximate acceptance, or final
-output epsilon.
+No Model/API/Compiler-formula change, new operation/attribute/type/route wire, ABI/export change,
+broad aggregate helper, strict-profile capability, noncanonical or empty geometry, positive
+variance correction, L2 norm, mean expansion, additive Scatter-ND/Elements, timing, autotuning,
+fallback, retry, atomics, host repair, opaque-selector inference, source-unbound corpus proof,
+approximate acceptance, or final output epsilon. The schema-16 profile cell is the sole image
+grammar revision.
 
 ## Contracts
 
@@ -210,10 +216,11 @@ thread raw-clears every contributor sign bit, initializes from ordinal zero, per
 The two Lean files prove total raw classes; exact binary32 `+1`; exact ABS; complete set-valued
 DAZ/FTZ alternatives; an explicit finite nonnegative nearest-even relation in `2^-149` units with
 overflow-midpoint and even-significand tie rules; NaN, positive-infinity, and nonnegative non-NaN
-class behavior; the aggregate L1 nonnegative-or-NaN invariant; NaN absorption; positive-infinity
-persistence without NaN; labelled contributor multiplicity; the source left tree's `N-1` add nodes;
-direct singleton ABS; and source-fold membership constrained by `Binary32RneContract` rather than
-an arbitrary binary function. Both compile without `sorry` or axioms. The source certificate pins
+class behavior; the aggregate L1 nonnegative-or-NaN invariant; reachable-source NaN absorption with
+signed NaN allowed and every non-NaN operand sign-clear; positive-infinity persistence without NaN;
+labelled contributor multiplicity; the source left tree's `N-1` add nodes; direct singleton ABS;
+and source-fold membership constrained by `Binary32RneContract` rather than an arbitrary binary
+function. Both compile without `sorry` or axioms. The source certificate pins
 the exact kernel/foundation/proof inputs. The required compiled-MSL audit extracts
 the exact assembled runtime source and compiles it with `DEVELOPER_DIR` fixed to signed Xcode 27.0
 build 27A266a, Metal 32023.921, macOS SDK 27.0, `metal3.2`, no-fast-math, warnings as errors, and
@@ -227,25 +234,27 @@ floating arithmetic, and only the final raw serialization path.
 Native warnings-as-errors build, fixed-identifier signing, canonical package verification, Gradle
 package ingestion/ZIP creation, fresh extraction, extracted-package verification, and byte
 comparison passed. The packaged dylib is `484944` bytes with SHA-256
-`234cf6fa592d5e3242e618f6abbb0566d7617a7dd9abddb1e52e544833e5f487` and ad-hoc CDHash
-`3084202223ad92cb3c064bace1ec1a6ee6cd7023`; the local ZIP is `141274` bytes with SHA-256
-`e36b49e90db66de5d70989e64d3634f7a479b48069bd255be0b34ab71bb76c54`.
+`c036c78259b0d30db14e96ddf7ae205ae92f99901d7afc0be192f46b59a0e529` and ad-hoc CDHash
+`6b64ae9f178b4b12b4d0f53dfd525b37f9758a0e`; the local ZIP is `141328` bytes with SHA-256
+`4bb2822ac35f3a70ac76dbca72bb1a628efc3f9eefbadb1e05080f9c883cc235`.
 
 The initial implementation checkpoint passed complete Metal, Compiler, conformance, public Engine
 Metal integration, architecture, Javadoc, repository test, and serialized full build, totaling
-`3718` tests with zero failure/error. After cumulative remediation, the rebuilt freshly extracted
-package passed the proof/AIR runner, complete Metal `253`, Compiler `282`, conformance `22`,
-integration `70`, and architecture `9` tests with zero failure/error; integration retains one
-unrelated skip, and Metal, Compiler, and conformance retain none. Javadoc and the direct public L1
-Engine scenario also pass. The current serialized full-build attempt stopped only at the unchanged
-CPU timing-evidence gate (`no accepted sample for fork 1`), the same pre-existing nondeterministic
-gate recorded at the initial checkpoint; without rerunning that known gate, the remaining
-`84` build tasks pass serially against the freshly extracted package. Current ledgers are
-capability `84/31`, structural `101/14`, MPSGraph `75/35/5`, custom `71/44/0`, and identity 23;
-schema 15, ABI 5, thirteen exports, and all other false rows are unchanged.
-Initial independent security review approved with zero P0/P1/P2. Initial code and numerical-
-evidence findings required the explicit nearest-even/class contract, raw native malformed-image
-coverage, direct identity-22 rejection, and current ledger documentation. Cumulative review also
-identified and closed the forceable direct-MPSGraph L1 seam. Final independent code, numerical-
-evidence, and security re-review each approve the remediated checkpoint with zero remaining
-P0/P1/P2. Slice 2 remains outside this checkpoint.
+`3718` tests with zero failure/error. Initial independent security review approved with zero
+P0/P1/P2. Initial code and numerical-evidence findings required the explicit nearest-even/class
+contract, raw native malformed-image coverage, direct identity-22 rejection, and current ledger
+documentation; cumulative review also identified and closed the forceable direct-MPSGraph L1 seam.
+External design review then required the clean schema-16 profile cutover and narrowed the RNE NaN
+premises to signed NaN or sign-clear non-NaN reachable operands; the generic source fold carries
+the same invariant.
+
+After that remediation, the proof/source-certificate/compiled-MSL runner, focused raw native schema
+and L1 tests, identity tests, affine schema fixture, and direct public L1 Engine scenario all pass.
+The rebuilt signed package, Gradle ingestion/ZIP, fresh extraction, extracted-package verifier, and
+byte comparison pass. The final unfiltered serialized `./gradlew test --rerun-tasks
+--max-workers=1` passes all 76 actionable tasks in 3m02s. The subsequent unfiltered serialized
+`./gradlew build --rerun-tasks --max-workers=1` passes all 87 actionable tasks in 2m57s, including
+the unchanged `CpuPartitionDagGeneratedEvidenceTest`; no timing policy, exclusion, suppression, or
+waiver is used. Current ledgers are capability `84/31`, structural `101/14`, MPSGraph `75/35/5`,
+custom `71/44/0`, and identity 23; schema 16 binds the exact supported profile wire, while ABI 5,
+thirteen exports, and all other false rows are unchanged. Slice 2 remains outside this checkpoint.

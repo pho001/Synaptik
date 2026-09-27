@@ -73,7 +73,7 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
         private final byte[] bytes;
 
         /**
-         * Snapshots canonical schema-fifteen workload-fingerprint bytes.
+         * Snapshots canonical schema-sixteen workload-fingerprint bytes.
          *
          * <p>The bytes include the stable explicit numerical-profile wire identity, so otherwise equal
          * workloads under different profiles cannot share workload identity.

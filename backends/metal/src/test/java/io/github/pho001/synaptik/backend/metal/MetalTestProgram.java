@@ -4,7 +4,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Test-only conversion of legacy shape fixtures into explicit schema-fifteen descriptors. */
+/** Test-only conversion of legacy shape fixtures into explicit schema-sixteen descriptors. */
 final class MetalTestProgram {
     private MetalTestProgram() {}
 

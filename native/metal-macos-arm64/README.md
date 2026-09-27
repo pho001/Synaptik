@@ -5,9 +5,10 @@
 This directory builds the local application binary interface (ABI) used by the Synaptik Metal
 backend on Apple-silicon macOS. ABI version 5 retains the same thirteen context, shared-storage
 buffer, executable, and bounded custom singleton-`NEG` exports. Its graph creator accepts one
-bounded schema-15 program image. The image carries an explicit fixed route plus value types and
-complete variable-cardinality operation, attribute, reference, dimension, gradient, and optional
-storage-layout metadata; no native type, shape, or layout inference is part of the boundary.
+bounded schema-16 program image. The image carries an explicit fixed route and exact numerical-
+profile wire plus value types and complete variable-cardinality operation, attribute, reference,
+dimension, gradient, and optional storage-layout metadata; no native type, shape, or layout
+inference is part of the boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
 can structurally execute exactly 101 operation kinds; production capability is exactly 84 kinds.
@@ -76,15 +77,17 @@ The remaining 31 production rows fail closed before native creation. A structura
 registered operation without a native recipe returns the dedicated unsupported-operation status
 rather than masquerading as malformed input. Candidate and route identity are version 23. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
-shared custom-program wire 3. Schema 15 embeds wire 2 or 3 in each graph image; schema 14 and every
-other schema or route value fail closed. The exhaustive Java structural catalog adds no native
+shared custom-program wire 3. Schema 16 embeds wire 2 or 3 and the exact numerical profile in each
+graph image; schema 15 and every other schema, profile, or route value fail closed. The exhaustive
+Java structural catalog adds no native
 route selection, capability, autotuning, fallback, telemetry, or performance authority.
 
 For admitted nodes, the version-23 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, complete encoded logical storage-layout
-geometry, and its independently safe physical materialization. The schema-15 and identity-23
-cutover has no compatibility reader or migration alias; identity 22 and earlier fail closed.
+geometry, and its independently safe physical materialization. The schema-16 and identity-23
+cutover has no compatibility reader or migration alias; schema 15, identity 22, and earlier values
+fail closed.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
@@ -127,7 +130,7 @@ package and independently verify the final signed bytes:
 The ignored `build/package-v1/macos-arm64/` directory contains exactly the signed dylib,
 `manifest.json`, and `SHA256SUMS`. The canonical schema-1 manifest records the final dylib's
 relative name, size, SHA-256, platform, architecture, macOS 26.0 minimum, install name, empty
-rpath set, ABI 5, node schema 15, required frameworks, and fixed ad-hoc identifier. It contains no
+rpath set, ABI 5, node schema 16, required frameworks, and fixed ad-hoc identifier. It contains no
 time, host, absolute path, source revision, product version, SDK version, Team ID, notarization,
 provenance, or release field. Packaging the same exact signed input produces byte-identical
 manifest and checksum files.
@@ -222,7 +225,7 @@ int32_t synaptik_metal_mpsgraph_executable_create(
     void **out_executable);
 ```
 
-`program` is one canonical little-endian schema-15 image of at most `INT32_MAX` bytes:
+`program` is one canonical little-endian schema-16 image of at most `INT32_MAX` bytes:
 
 ```text
 64-byte header
@@ -235,9 +238,10 @@ zero u32 alignment word when required
 attribute_word_count × u64 attribute words
 ```
 
-The 16 header words are magic `SM15` (`0x35314d53`), schema `15`, total byte count, value count,
+The 16 header words are magic `SM16` (`0x36314d53`), schema `16`, total byte count, value count,
 node count, feed count, target count, dimension count, reference count, attribute-word count, fixed
-route (`2=MPSGRAPH` or `3=CUSTOM_PROGRAM`), stride count, and four reserved zero words. A value
+route (`2=MPSGRAPH` or `3=CUSTOM_PROGRAM`), stride count, exact numerical-profile wire
+(`0x53545249=STRICT_IEEE` or `0x41434345=ACCELERATOR`), and three reserved zero words. A value
 descriptor is `{type, rank, dimension_offset, stride_offset, flags, layout_kind, storage_offset,
 referenced_span}`; the final two fields are unsigned 64-bit element counts. Stable type wires are
 `1=FLOAT32`, `2=INT32`, `3=BOOL`, `4=FLOAT64`, `5=BFLOAT16`, and `6=INT64`; rank is `0..16`.
@@ -257,11 +261,12 @@ remain ordinary nonempty image data. Execution binds the produced value buffer n
 Native validation checks all arithmetic, section bounds, reserved bits, layout kind/span
 reconstruction, registered operation cardinality, attribute pairing and word count,
 type/rank/dimension rules, topological availability, feed and target uniqueness, and executable
-operations' exact Shape and state contracts before graph construction. Unknown wires, malformed
-sections, unavailable values, incompatible Shapes, and wrong schema versions fail closed as
-invalid arguments. A well-formed registered operation outside current execution capability returns
-status 13. Java separately authenticates numerical-profile compatibility and rejects every
-profile-incompatible program before native creation.
+operations' exact Shape and state contracts before graph construction. Unknown wires, including
+numerical-profile wires, malformed sections, unavailable values, incompatible Shapes, and wrong
+schema versions fail closed as invalid arguments. Native validation additionally requires the
+ACCELERATOR profile for every L1_NORM node. A well-formed registered operation outside current
+execution capability returns status 13. Java independently authenticates the same encoded profile
+and rejects every other profile-incompatible program before native creation.
 
 Task 0066 broadens the selected existing wires without changing schema, ABI, or operation counts.
 All 36 ordered CAST pairs use integer-defined Model conversion, including direct ties-to-even
@@ -442,7 +447,7 @@ capability narrowing, tuning, fallback, or a performance claim.
 
 ## Shared exact custom whole-program execution
 
-Any schema-15 program containing an exact custom node or a MATMUL outside the retained
+Any schema-16 program containing an exact custom node or a MATMUL outside the retained
 all-FLOAT32 rank-two MPSGraph slice uses one retained custom-program handle. Creation compiles only
 fixed reviewed Metal kernels with `MTLMathModeSafe`, creates one immutable pipeline and metadata
 buffer per custom node, and cold-compiles each interleaved existing node as a typed one-node

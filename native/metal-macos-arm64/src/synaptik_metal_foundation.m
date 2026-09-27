@@ -150,6 +150,11 @@ typedef enum : uint32_t {
     SYNAPTIK_METAL_ROUTE_MPSGRAPH = 2U,
     SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM = 3U
 } SynaptikMetalPreparedRoute;
+typedef enum : uint32_t {
+    SYNAPTIK_METAL_PROFILE_STRICT_IEEE = UINT32_C(0x53545249),
+    SYNAPTIK_METAL_PROFILE_ACCELERATOR = UINT32_C(0x41434345)
+} SynaptikMetalNumericalProfile;
+
 
 typedef enum : uint32_t {
     SYNAPTIK_METAL_MPSGRAPH_ATTR_NONE = 0U,
@@ -6346,8 +6351,8 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
             || program_bytes > (uint32_t)INT32_MAX)
         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
     @try { @autoreleasepool {
-        if (synaptik_read_le32(program) != UINT32_C(0x35314d53)
-                || synaptik_read_le32(program + 4U) != 15U
+        if (synaptik_read_le32(program) != UINT32_C(0x36314d53)
+                || synaptik_read_le32(program + 4U) != 16U
                 || synaptik_read_le32(program + 8U) != program_bytes)
             return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
         uint32_t route = synaptik_read_le32(program + 40U);
@@ -6355,7 +6360,11 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                 && route != SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM)
             return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
         uint32_t stride_count = synaptik_read_le32(program + 44U);
-        for (uint32_t offset = 48U; offset < 64U; offset += 4U)
+        uint32_t numerical_profile = synaptik_read_le32(program + 48U);
+        if (numerical_profile != SYNAPTIK_METAL_PROFILE_STRICT_IEEE
+                && numerical_profile != SYNAPTIK_METAL_PROFILE_ACCELERATOR)
+            return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+        for (uint32_t offset = 52U; offset < 64U; offset += 4U)
             if (synaptik_read_le32(program + offset) != 0U)
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
 
@@ -6765,6 +6774,8 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             }
             if (operation == SYNAPTIK_METAL_MPSGRAPH_L1_NORM) {
+                if (numerical_profile != SYNAPTIK_METAL_PROFILE_ACCELERATOR)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                 uint32_t input_value = synaptik_read_le32(
                         program + references_offset + (uint64_t)input_offset * 4U);
                 uint32_t output_value = synaptik_read_le32(

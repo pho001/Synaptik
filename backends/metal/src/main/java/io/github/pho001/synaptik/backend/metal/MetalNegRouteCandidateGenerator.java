@@ -20,7 +20,7 @@ import java.util.Optional;
  * Generates complete, stable, budget-bounded Metal supported-operation route candidates.
  *
  * <p>The workload fingerprint uses only versioned semantics and structural positions, including the
- * cold numerical profile, schema-fifteen program image, exact logical descriptors, ordered edges,
+ * cold numerical profile, schema-sixteen program image, exact logical descriptors, ordered edges,
  * explicit value states, target sets, dense represented-order geometry, ABI identity, typed splats,
  * and the scalar-composition source wire, exact raw constant, rank-one {@code [1]} shape, operand
  * order, and primitive opcode. Graph-local identities, partition object identity, native handles,
@@ -178,7 +178,7 @@ final class MetalNegRouteCandidateGenerator {
                 ? MetalPreparedRoute.MPSGRAPH
                 : plan.route();
         plan.graphProgram().updateDigest(
-                digest, plan.programValueDescriptors(),
+                digest, plan.numericalProfile(), plan.programValueDescriptors(),
                 plan.feedValueIndices(), plan.targetValueIndices(), imageRoute);
         updateInt(digest, plan.valueStates().size());
         for (MetalMpsGraphProgram.ValueState state : plan.valueStates()) {

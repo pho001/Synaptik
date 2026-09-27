@@ -1616,7 +1616,8 @@ class MetalRemainingElementwiseNativeTest {
             int[] targets) throws NoSuchAlgorithmException {
         try (Arena arena = Arena.ofConfined()) {
             byte[] image = program.encodeNative(
-                    arena, values, feeds, targets, MetalPreparedRoute.MPSGRAPH).toArray(JAVA_BYTE);
+                    arena, NumericalProfile.STRICT_IEEE,
+                    values, feeds, targets, MetalPreparedRoute.MPSGRAPH).toArray(JAVA_BYTE);
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(image));
         }
     }

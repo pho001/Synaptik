@@ -7,16 +7,16 @@
   },
   "foundationSource": {
     "path": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
-    "sha256": "f1b10a8e2c68b86cb3167a4114823c1ec6ec1e75c04a4943a4d0f713c2474bfd"
+    "sha256": "dbc6f31eedf9e850229cd8ad5d3f5e6b533efedd6d919150a930bf79b4bb056a"
   },
   "leanProofs": [
     {
       "path": "backends/metal/evidence/0069/proof/Task0069Binary32.lean",
-      "sha256": "b011ba941218830785d6e4b75cc9adb6ea42df02625ca65ccd3a3ec2cdc05e91"
+      "sha256": "8aa0d92aae3b841b32c199a2774ae9f05862dcc190f388e70287ffb56e7a2200"
     },
     {
       "path": "backends/metal/evidence/0069/proof/Task0069ReductionTree.lean",
-      "sha256": "2db1c49a6b38c46461486d6207ce2e8fbd7ef5d5f669465691cca78b8ae62e82"
+      "sha256": "e7d55d7bb428ac0e86641ba672ec89861421897cef4a0990c3af8df357bbc08c"
     }
   ],
   "compiledMslAudit": {
@@ -80,14 +80,14 @@
     "subnormal": "A raw ABS leaf remains exact. At an addition site each subnormal operand is exact or same-sign zero under DAZ, and each subnormal rounded result is exact or same-sign zero under FTZ; the Lean relation admits no third choice.",
     "normal": "Every finite normal contributor enters exactly one ordinal addition, and no source branch filters, rescales, or truncates it.",
     "infinity": "ABS maps either infinity sign to positive infinity. Safe binary32 addition with non-NaN nonnegative contributors retains positive-infinity class; finite overflow may also publish positive infinity.",
-    "nan": "ABS preserves exponent and payload fields while clearing only sign. N=1 stores those raw bits directly; an N>1 safe addition publishes NaN class without a finite fallback.",
+    "nan": "ABS preserves exponent and payload fields while clearing only sign. N=1 stores those raw bits directly. For N>1, the signed NaN premise is constrained to L1-reachable operands: a NaN may carry either sign, while every non-NaN source or intermediate operand is sign-clear; safe addition then publishes NaN class without a finite fallback.",
     "daz": "The formal primitive relation enumerates exact input or same-sign zero only for a subnormal input.",
     "ftz": "The formal primitive relation enumerates exact rounded output or same-sign zero only for a subnormal rounded output."
   },
   "formalProofBoundary": {
-    "proved": "Total raw classes; exact binary32 +1 word and class; exact ABS class/sign behavior; complete set-valued DAZ/FTZ alternatives; an explicit finite nonnegative nearest-even relation in 2^-149 units including the overflow midpoint and even-retained-significand ties; the special NaN/positive-infinity/non-NaN/nonnegative class contract; labelled contributor multiplicity; permitted left tree; N-1 add nodes; N=1 direct ABS; source-fold membership constrained by Binary32RneContract; the aggregate L1 nonnegative-or-NaN class invariant; NaN absorption; and positive-infinity persistence in a no-NaN fold.",
-    "primitivePremise": "The single audited hardware addition instantiates Binary32RneContract on the L1-reachable nonnegative domain: finite operands obey exactRneNonnegative, the explicit bit-level RNE relation; NaN is absorbing by class; positive infinity plus a non-NaN nonnegative operand remains positive infinity; and nonnegative non-NaN closure holds, with only the enumerated DAZ/FTZ alternatives. The audited MTLMathModeSafe/MTLLanguageVersion3_2 runtime site and compiled unflagged AIR fadd supply the compiler-site evidence for that premise.",
-    "forbiddenAssumptions": "Both Lean files compile without sorry or axiom declarations, and the source-result theorem is stated over binary32AddSite carrying Binary32RneContract rather than an arbitrary Word-to-Word function."
+    "proved": "Total raw classes; exact binary32 +1 word and class; exact ABS class/sign behavior; complete set-valued DAZ/FTZ alternatives; an explicit finite nonnegative nearest-even relation in 2^-149 units including the overflow midpoint and even-retained-significand ties; the reachable-operand special NaN/positive-infinity/non-NaN/nonnegative class contract; labelled contributor multiplicity; permitted left tree; N-1 add nodes; N=1 direct ABS; source-fold membership constrained by Binary32RneContract; the aggregate L1 nonnegative-or-NaN class invariant; reachable-source NaN absorption; and positive-infinity persistence in a no-NaN fold.",
+    "primitivePremise": "The single audited hardware addition instantiates Binary32RneContract on the L1-reachable domain: a signed NaN is allowed, every reachable non-NaN operand is sign-clear, finite operands obey exactRneNonnegative, the explicit bit-level RNE relation; NaN is absorbing by class under those exact premises; positive infinity plus a non-NaN nonnegative operand remains positive infinity; and nonnegative non-NaN closure holds, with only the enumerated DAZ/FTZ alternatives. The audited MTLMathModeSafe/MTLLanguageVersion3_2 runtime site and compiled unflagged AIR fadd supply the compiler-site evidence for that premise.",
+    "forbiddenAssumptions": "Both Lean files compile without sorry or axiom declarations, the generic NaN source-fold theorem requires a reachable current operand plus reachable remaining leaves, and the source-result theorem is stated over binary32AddSite carrying Binary32RneContract rather than an arbitrary Word-to-Word function."
   },
   "proof": {
     "lean": "Task0069Binary32.lean and Task0069ReductionTree.lean compiled with Lean 4.34.1",

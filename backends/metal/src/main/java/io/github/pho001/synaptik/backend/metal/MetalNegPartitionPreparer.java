@@ -116,7 +116,7 @@ import java.util.Optional;
  * {@code L1_NORM} occurrence. Random lowering preserves initializer key/counter words, dropout's
  * raw binary64 probability, and all ordered value, mask, and state edges; recurrent nodes remain
  * rejected. An affine MATMUL operand is authenticated to the exact earlier local identity-prefix,
- * last-two-axis {@code PERMUTE} on that consuming edge. Schema-fifteen lowering emits one bounded
+ * last-two-axis {@code PERMUTE} on that consuming edge. Schema-sixteen lowering emits one bounded
  * self-describing image over stable type wires 1..6, complete operation registry 1..115, attribute
  * registry 0..41, and the explicit prepared route. Production capability is exactly 84 operation
  * kinds; additional structural recipes remain inaccessible to this analysis. Every selected

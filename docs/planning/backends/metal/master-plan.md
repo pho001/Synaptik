@@ -525,8 +525,8 @@ selector or finite composition and current Model semantic/signature source for e
 115 rows. The current catalogs are MPSGraph
 `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE` and custom
 `71 AVAILABLE / 44 PENDING / 0 UNAVAILABLE-WITH-PROOF`. The closed route identity retains wires
-`1..3`; schema 15 embeds the fixed route, identities are version 23, and capability is
-`84 true / 31 false`. Package-private forcing remains result-set-only after fresh handoff
+`1..3`; schema 16 embeds the fixed route and exact numerical profile, identities are version 23,
+and capability is `84 true / 31 false`. Package-private forcing remains result-set-only after fresh
 authentication; every Task-0066 selected occurrence rejects MPSGraph. There is no device, oracle,
 timing, benchmark, public API, hot fallback, retry, cache, or autotune behavior. Every other Metal
 task retains its recorded status.
@@ -612,15 +612,17 @@ zero findings passed. Metal 0021 landed at implementation `ef2c6a1a`, worker-evi
 oracle, ABI/export, focused suites, real Engine forward/seeded-gradient proof, full build,
 documentation/diff evidence, and independent Class C final `APPROVE` with zero findings passed.
 
-Current ABI 5 retains exactly thirteen exports and accepts one bounded schema-15 route-bearing
-program image. Type wires are `1..6`, operation wires are `1..115`, attribute wires are `0..41`,
-route wires are `1..3`, and workload/exact-policy/candidate/compatibility/route/codec identities
-are version twenty-three. Task 0055's schema-13/identity-14 foundation, Task 0056's structural
-catalog, Task 0057's schema-14/identity-15 route cutover, Task 0059's schema-15/identity-16 cutover,
-Tasks 0061–0065's identity-17 through identity-21 cutovers, and Task 0066/0067/0068 identity 22
-checkpoint remain historical prerequisites. Task 0069 Slice 1 rejects identity 22 and every older
-identity while admitting exactly 84 production kinds and retaining 101 structurally executable
-kinds.
+Current ABI 5 retains exactly thirteen exports and accepts one bounded schema-16 route-bearing
+program image with the exact numerical-profile wire. Type wires are `1..6`, operation wires are
+`1..115`, attribute wires are `0..41`, route wires are `1..3`, and workload/exact-policy/candidate/
+compatibility/route/codec identities are version twenty-three. Task 0055's schema-13/identity-14
+foundation, Task 0056's structural catalog, Task 0057's schema-14/identity-15 route cutover, Task
+0059's schema-15/identity-16 cutover, Tasks 0061–0065's identity-17 through identity-21 cutovers,
+and Task 0066/0067/0068 identity 22 checkpoint remain historical prerequisites. Task 0069 Slice 1
+rejects schema 15 and every other schema plus identity 22 and every older identity while admitting
+exactly 84 production kinds and retaining 101 structurally executable kinds. Identity 23 remains
+monotonic because workload compatibility already binds the profile, schema version, and complete
+encoded image; a schema-15 decision cannot match the schema-16 workload.
 Complete Model 0028 owns the root-only exact-zero reduction rule. Complete Model 0029 owns the
 MATMUL-only final-publication exact-zero sign rule. Metal 0018 remains Blocked without production
 changes. Complete Metal 0022
@@ -749,13 +751,14 @@ capability was `83/32`, structural execution `101/14`, catalogs `75/35/5` MPSGra
 `70/45/0` custom, schema 15, backend-local identity 22, ABI 5, and thirteen exports at the
 Task-0066 checkpoint. Tasks 0067 and 0068 preserved and verified that ledger.
 
-Task 0069 remains Review needed at its serial checkpoint; Slice 1 is independently approved and
-Slice 2 is not authorized. The shared minimal proof substrate and exact rank-one accelerator
-L1 source-owned custom route advance current capability to `84/31`, custom catalog to `71/44/0`,
-and backend-local identity to 23; Java and native creation reject the opaque direct MPSGraph route.
-Structural `101/14`, MPSGraph `75/35/5`, schema 15, ABI 5, and thirteen exports remain fixed. The
-pinned Xcode-27 compiled-MSL/AIR audit confirms one unflagged L1 `fadd` and no other floating
-arithmetic in that kernel. SCATTER_ADD and VARIANCE remain false.
+Task 0069 remains Review needed at its serial checkpoint; Slice 1 is implemented and Slice 2 is
+not authorized. The shared minimal proof substrate and exact rank-one accelerator L1 source-owned
+custom route advance current capability to `84/31`, custom catalog to `71/44/0`, and backend-local
+identity to 23; Java and native creation reject the opaque direct MPSGraph route. Structural
+`101/14`, MPSGraph `75/35/5`, schema 16, ABI 5, and thirteen exports remain fixed. Schema 16 binds
+the exact profile in every image, rejects schema 15, and makes native L1 creation require
+ACCELERATOR. The pinned Xcode-27 compiled-MSL/AIR audit confirms one unflagged L1 `fadd` and no
+other floating arithmetic in that kernel. SCATTER_ADD and VARIANCE remain false.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030

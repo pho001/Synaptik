@@ -62,7 +62,7 @@
  * geometry. Metal lowers one complete profile-homogeneous partition as a typed whole-partition
  * program during preparation.
  *
- * <p>A package-private exhaustive catalog describes all 115 schema-fifteen operation kinds as
+ * <p>A package-private exhaustive catalog describes all 115 schema-sixteen operation kinds as
  * MPSGraph {@code DIRECT}, {@code COMPOSED}, or {@code UNAVAILABLE} and custom-kernel {@code
  * AVAILABLE}, {@code PENDING}, or {@code UNAVAILABLE_WITH_PROOF}, with closed source reasons. It is
  * cold descriptive metadata only: capability remains authoritative and the catalog is never
@@ -182,12 +182,13 @@
  *
  * <p>The selected numerical profile participates in partition-plan, route, tuning, decision-codec,
  * and workload identity. Java rejects profile/schema mismatches before native entry. ABI version
- * five retains thirteen exports. Node schema version fifteen is one bounded self-describing
+ * five retains thirteen exports. Node schema version sixteen is one bounded self-describing
  * route-bearing image over stable type wires {@code 1..6}, operation wires {@code 1..115},
- * attribute wires {@code 0..41}, and complete optional storage-layout geometry. Native structural
- * execution covers exactly 101 wires and leaves 14 nonexecutable. Production capability is exactly
- * 84 operation kinds and 31 remain false. Backend-local workload, exact-policy, candidate,
- * compatibility, route-policy, and codec identities are version twenty-three; schema fourteen and
- * identity version twenty-two and earlier fail closed.
+ * attribute wires {@code 0..41}, and complete optional storage-layout geometry; its fixed header
+ * binds the exact numerical-profile wire. Native structural execution covers exactly 101 wires and
+ * leaves 14 nonexecutable. Production capability is exactly 84 operation kinds and 31 remain false.
+ * Backend-local workload, exact-policy, candidate, compatibility, route-policy, and codec
+ * identities are version twenty-three; schema version fifteen and every other schema, and identity
+ * version twenty-two and earlier, fail closed.
  */
 package io.github.pho001.synaptik.backend.metal;

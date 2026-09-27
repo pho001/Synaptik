@@ -270,7 +270,7 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
-    void schemaFifteenProgramImageIsExactCarriesRouteAndAllSixDataTypeWires() {
+    void schemaSixteenProgramImageIsExactCarriesProfileRouteAndAllSixDataTypeWires() {
         var program = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.generic(
                 MetalMpsGraphProgram.NodeKind.CONCAT,
                 new int[] {0, 1, 2, 3, 4, 5},
@@ -286,6 +286,7 @@ class MetalMpsGraphAffineSchemaTest {
                 new MetalMpsGraphProgram.ValueDescriptor(DataType.INT64, new long[0], false),
                 new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {2, 3}, true));
         byte[] actual = program.encodedProgramImage(
+                NumericalProfile.STRICT_IEEE,
                 values, new int[] {0, 1, 2, 3, 4, 5}, new int[] {6});
 
         ByteBuffer expected = ByteBuffer.allocate(504).order(ByteOrder.LITTLE_ENDIAN);
@@ -301,7 +302,8 @@ class MetalMpsGraphAffineSchemaTest {
         expected.putInt(1);
         expected.putInt(MetalPreparedRoute.MPSGRAPH.wireIdentity());
         expected.putInt(4);
-        for (int reserved = 0; reserved < 4; reserved++) expected.putInt(0);
+        expected.putInt(MetalMpsGraphProgram.STRICT_IEEE_PROFILE_WIRE);
+        for (int reserved = 0; reserved < 3; reserved++) expected.putInt(0);
         putValue(expected, 1, 2, 0, 0, 2, 1, 0L, 6L);
         putValue(expected, 2, 0, 2, 2, 2, 1, 0L, 1L);
         putValue(expected, 3, 0, 2, 2, 2, 1, 0L, 1L);

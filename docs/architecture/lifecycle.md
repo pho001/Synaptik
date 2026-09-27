@@ -413,7 +413,7 @@ documented FLOAT32 arithmetic, extrema, scalar, reduction, scan, MSE, general MA
 average-pooling, convolution, explicit-state dropout, and the exact rank-one FLOAT32 L1 occurrence.
 Every Task-0066 selected occurrence and the exact Task-0069 L1 occurrence use one fixed custom
 whole-program route; every other unlisted occurrence fails closed before route selection. ABI 5
-retains thirteen exports and accepts one bounded schema-15 route-bearing program image over type
+retains thirteen exports and accepts one bounded schema-16 route-bearing program image over type
 wires `1..6`, operation wires `1..115`, attribute wires `0..41`, and route wires `1..3`; backend
 identities are version twenty-three. Structural coverage is `101 / 14`, production capability is
 `84 / 31`, and the MPSGraph/custom catalogs are `75 / 35 / 5` and `71 / 44 / 0`. Identity

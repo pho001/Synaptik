@@ -52,11 +52,20 @@ def addSite (rne : Word → Word → Word) (left right published : Word) : Prop 
     daz right presentedRight ∧
     rounded = rne presentedLeft presentedRight ∧
     ftz rounded published
+/--
+An operand reachable at an L1 addition site: NaNs may carry either sign, while every non-NaN
+operand is sign-clear.
+-/
+def L1Reachable (word : Word) : Prop :=
+  rawClass word = .nan ∨ word.sign = false
 
-/-- Explicit class obligations for the primitive RNE addition function. -/
+
+/-- Explicit class obligations for primitive RNE addition on reachable L1 operands. -/
 structure RneSpecialClassContract (rne : Word → Word → Word) : Prop where
-  nanLeft : ∀ left right, rawClass left = .nan → rawClass (rne left right) = .nan
-  nanRight : ∀ left right, rawClass right = .nan → rawClass (rne left right) = .nan
+  nanLeft : ∀ left right,
+    rawClass left = .nan → L1Reachable right → rawClass (rne left right) = .nan
+  nanRight : ∀ left right,
+    rawClass right = .nan → L1Reachable left → rawClass (rne left right) = .nan
   positiveInfinityLeft : ∀ left right,
     left.sign = false → rawClass left = .infinity →
     right.sign = false → rawClass right ≠ .nan →
@@ -221,16 +230,34 @@ theorem ftz_preserves_not_nan
   rcases site with retained | ⟨_, zero⟩
   · simpa [retained] using roundedNotNan
   · simp [zero]
+theorem daz_preserves_l1_reachable
+    {source presented : Word}
+    (site : daz source presented)
+    (sourceReachable : L1Reachable source) :
+    L1Reachable presented := by
+  rcases site with retained | ⟨sourceSubnormal, zero⟩
+  · simpa [retained] using sourceReachable
+  · apply Or.inr
+    have sourceNotNan : rawClass source ≠ .nan := by
+      intro sourceNan
+      have impossible : RawClass.subnormal = RawClass.nan :=
+        sourceSubnormal.symm.trans sourceNan
+      cases impossible
+    have sourceSign : source.sign = false :=
+      sourceReachable.resolve_left sourceNotNan
+    simpa [zero, signedZero] using sourceSign
+
 
 theorem addSite_nan_left
     {rne : Word → Word → Word}
     (contract : RneSpecialClassContract rne)
     {left right published : Word}
     (site : addSite rne left right published)
-    (leftNan : rawClass left = .nan) :
+    (leftNan : rawClass left = .nan)
+    (rightReachable : L1Reachable right) :
     rawClass published = .nan := by
   rcases site with ⟨presentedLeft, presentedRight, rounded,
-    leftDaz, _, roundedEq, publishedFtz⟩
+    leftDaz, rightDaz, roundedEq, publishedFtz⟩
   have leftExact : presentedLeft = left := daz_exact_of_not_subnormal leftDaz (by
     intro subnormal
     have impossible : RawClass.nan = RawClass.subnormal := leftNan.symm.trans subnormal
@@ -239,6 +266,7 @@ theorem addSite_nan_left
   have roundedNan : rawClass rounded = .nan := by
     rw [roundedEq]
     exact contract.nanLeft left presentedRight leftNan
+      (daz_preserves_l1_reachable rightDaz rightReachable)
   have publishedExact : published = rounded := ftz_exact_of_not_subnormal publishedFtz (by
     intro subnormal
     have impossible : RawClass.nan = RawClass.subnormal := roundedNan.symm.trans subnormal
@@ -250,10 +278,11 @@ theorem addSite_nan_right
     (contract : RneSpecialClassContract rne)
     {left right published : Word}
     (site : addSite rne left right published)
-    (rightNan : rawClass right = .nan) :
+    (rightNan : rawClass right = .nan)
+    (leftReachable : L1Reachable left) :
     rawClass published = .nan := by
   rcases site with ⟨presentedLeft, presentedRight, rounded,
-    _, rightDaz, roundedEq, publishedFtz⟩
+    leftDaz, rightDaz, roundedEq, publishedFtz⟩
   have rightExact : presentedRight = right := daz_exact_of_not_subnormal rightDaz (by
     intro subnormal
     have impossible : RawClass.nan = RawClass.subnormal := rightNan.symm.trans subnormal
@@ -262,6 +291,7 @@ theorem addSite_nan_right
   have roundedNan : rawClass rounded = .nan := by
     rw [roundedEq]
     exact contract.nanRight presentedLeft right rightNan
+      (daz_preserves_l1_reachable leftDaz leftReachable)
   have publishedExact : published = rounded := ftz_exact_of_not_subnormal publishedFtz (by
     intro subnormal
     have impossible : RawClass.nan = RawClass.subnormal := roundedNan.symm.trans subnormal
