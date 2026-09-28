@@ -5216,7 +5216,7 @@ remain package-private forcing only. These choices add no fallback, retry, timin
 partition change.
 
 Finalization compiles one persistent route resource and transfers it to `PreparedExecution`.
-Shared custom-program creation authenticates each frozen component and the ordered 77,411-byte
+Shared custom-program creation authenticates each frozen component and the ordered 77,444-byte
 fixed source. Java supplies typed records and integer byte counts only. Native owns the sole
 structured pointwise emitter and all source hashes: it performs a no-allocation count traversal,
 validates all caps before exact allocation, emits once for compiler input, authenticates the

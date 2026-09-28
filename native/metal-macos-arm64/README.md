@@ -488,7 +488,7 @@ capability narrowing, tuning, fallback, or a performance claim.
 Any schema-17 program containing an exact custom node or a MATMUL outside the retained
 all-FLOAT32 rank-two MPSGraph slice uses one retained custom-program handle. Creation authenticates
 the frozen SHA-256 values of all nine reviewed fixed-kernel components and their ordered
-77,411-byte total. The sole production pointwise emitter first traverses a structured
+77,444-byte total. The sole production pointwise emitter first traverses a structured
 no-allocation count sink, validates unit, instruction, per-function, generated, and total caps,
 allocates the exact byte count, traverses the same emitter once for compiler input, independently
 authenticates the assembled source, and only then compiles with `MTLMathModeSafe` and
