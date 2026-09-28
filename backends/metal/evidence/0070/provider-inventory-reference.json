@@ -1,0 +1,93 @@
+{
+  "bootstrap": {
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild",
+      "-downloadComponent",
+      "MetalToolchain"
+    ],
+    "exitCode": 0,
+    "stderr": "",
+    "stdout": "Beginning asset download...\nDownloaded asset to: /System/Library/AssetsV2/com_apple_MobileAsset_MetalToolchain/389a215aea89fda945178f9fb8bcdc6aa0e20570.asset/AssetData/Restore/022-20184-410.dmg\nDone downloading: Metal Toolchain 27A266a.\n"
+  },
+  "developerDir": "/Applications/Xcode.app/Contents/Developer",
+  "schema": "synaptik.metal.audit-provider.v1",
+  "sdk": {
+    "build": "26A425",
+    "path": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk",
+    "toolchainPath": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain",
+    "version": "27.0"
+  },
+  "tools": [
+    {
+      "bytes": 124676976,
+      "name": "clang",
+      "path": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang",
+      "resolvedPath": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang",
+      "sha256": "1590ac950a3d627817d09ade5cb60b2115f17a72182a3141e010b4bcc482a0c9",
+      "version": {
+        "stderr": "",
+        "stdout": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin\n"
+      }
+    },
+    {
+      "bytes": 238464,
+      "name": "metal",
+      "path": "/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.PAvLeN/Metal.xctoolchain/usr/bin/metal",
+      "resolvedPath": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.PAvLeN/Metal.xctoolchain/usr/bin/metal",
+      "sha256": "ac3dcce4f331e301def076a2280c973c978f72e6622f8576eb3f7c34d1486dd6",
+      "version": {
+        "stderr": "",
+        "stdout": "Apple metal version 32023.921 (metalfe-32023.921.6)\nTarget: air64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /private/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.PAvLeN/Metal.xctoolchain/usr/metal/current/bin\n"
+      }
+    },
+    {
+      "bytes": 238480,
+      "name": "metallib",
+      "path": "/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.PAvLeN/Metal.xctoolchain/usr/bin/metallib",
+      "resolvedPath": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.PAvLeN/Metal.xctoolchain/usr/bin/air-lld",
+      "sha256": "08555936a88a025585ae6415ebe8b27e6092670868d92f9677cdcfa9730c340d",
+      "version": {
+        "stderr": "",
+        "stdout": "AIR-LLD 32023.921 (metalfe-32023.921.6) (compatible with legacy metallib linker)\n"
+      }
+    },
+    {
+      "bytes": 238480,
+      "name": "metal-objdump",
+      "path": "/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.PAvLeN/Metal.xctoolchain/usr/bin/metal-objdump",
+      "resolvedPath": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.PAvLeN/Metal.xctoolchain/usr/bin/air-objdump",
+      "sha256": "4e140e176ac6a86b76df83c9f27ff64d8d2c9bbba1a428be50e19c1d1ca266d5",
+      "version": {
+        "stderr": "",
+        "stdout": "Apple LLVM version 32023.921.6\n  Optimized build.\n  Default target: x86_64-apple-darwin25.6.0\n  Host CPU: apple-m1\n\n  Registered Targets:\n    agx1 - AGX1\n    agx2 - AGX2\n    agx3 - AGX3\n  Virtual Targets:\n    air32 - 32-bit AIR\n    air64 - 64-bit AIR\n"
+      }
+    },
+    {
+      "bytes": 238464,
+      "name": "metal-nm",
+      "path": "/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.PAvLeN/Metal.xctoolchain/usr/bin/metal-nm",
+      "resolvedPath": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.PAvLeN/Metal.xctoolchain/usr/bin/air-nm",
+      "sha256": "acbb4ff689063da707b3f33948b2b8af856d3fae58e80f594420d722a6a8fab3",
+      "version": {
+        "stderr": "",
+        "stdout": "Apple LLVM version 32023.921.6\n  Optimized build.\n  Default target: x86_64-apple-darwin25.6.0\n  Host CPU: apple-m1\n"
+      }
+    }
+  ],
+  "xcode": {
+    "path": "/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild",
+    "version": {
+      "stderr": "",
+      "stdout": "Xcode 27.0\nBuild version 27A266a\n"
+    }
+  },
+  "xcrun": {
+    "bytes": 117104,
+    "path": "/usr/bin/xcrun",
+    "sha256": "178e19cfe796ce33815195c42d34562c20ec4d5131534fb7e6a55b91f14371d5",
+    "version": {
+      "stderr": "",
+      "stdout": "xcrun version 72.\n"
+    }
+  }
+}

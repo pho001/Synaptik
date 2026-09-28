@@ -13,9 +13,6 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def read_stripped(path: Path) -> str:
-    return path.read_text(encoding="utf-8").strip()
-
 
 def require(condition: bool, message: str) -> None:
     if not condition:
@@ -25,13 +22,51 @@ def require(condition: bool, message: str) -> None:
 def main() -> None:
     require(len(sys.argv) == 2, "usage: verify-compiled-generated-msl-audit.py WORK")
     work = Path(sys.argv[1]).resolve()
-    require(MANIFEST["developerDir"] == "/Applications/Xcode.app/Contents/Developer", "unapproved developer directory")
-    require(read_stripped(work / "sdk-path.txt") == MANIFEST["sdkPath"], "SDK path drift")
-    require(read_stripped(work / "sdk-version.txt") == MANIFEST["sdkVersion"], "SDK version drift")
-    require(read_stripped(work / "sdk-build.txt") == MANIFEST["sdkBuild"], "SDK build drift")
-    require(read_stripped(work / "xcode-version.txt") == MANIFEST["xcode"], "Xcode version drift")
-    require(read_stripped(work / "metal-version.txt") == MANIFEST["metal"], "Metal compiler version drift")
-    require(read_stripped(work / "metallib-version.txt") == MANIFEST["metallib"], "metallib version drift")
+    require(MANIFEST["schema"] == "synaptik.metal.generated-msl-audit.v2",
+            "compiled-audit schema drift")
+    require(MANIFEST["developerDir"] == "/Applications/Xcode.app/Contents/Developer",
+            "unapproved developer directory")
+    require(
+        MANIFEST["compilerFlags"]
+        == ["-std=metal3.2", "-fno-fast-math", "-Wall", "-Wextra", "-Werror",
+            "-isysroot", "<absolute SDKROOT>"],
+        "compiler flag policy drift",
+    )
+    provider_reference_policy = MANIFEST["providerReference"]
+    provider_reference = EVIDENCE / provider_reference_policy["path"]
+    require(provider_reference.stat().st_size == provider_reference_policy["bytes"],
+            "provider reference byte count drift")
+    require(digest(provider_reference) == provider_reference_policy["sha256"],
+            "provider reference SHA-256 drift")
+    provider = json.loads((work / "provider-inventory.json").read_text(encoding="utf-8"))
+    reference_provider = json.loads(provider_reference.read_text(encoding="utf-8"))
+    require(provider == reference_provider, "Xcode audit-provider inventory drift")
+    require(provider["schema"] == "synaptik.metal.audit-provider.v1",
+            "audit-provider inventory schema drift")
+    require(provider["developerDir"] == MANIFEST["developerDir"],
+            "provider developer directory drift")
+    require(
+        provider["bootstrap"]["command"]
+        == [MANIFEST["developerDir"] + "/usr/bin/xcodebuild",
+            "-downloadComponent", "MetalToolchain"]
+        and provider["bootstrap"]["exitCode"] == 0
+        and provider["bootstrap"]["stderr"] == ""
+        and provider["bootstrap"]["stdout"] != "",
+        "Metal toolchain bootstrap result drift",
+    )
+    require(
+        [tool["name"] for tool in provider["tools"]]
+        == ["clang", "metal", "metallib", "metal-objdump", "metal-nm"],
+        "available Xcode tool inventory drift",
+    )
+    for tool in provider["tools"]:
+        require(
+            set(tool) == {"name", "path", "resolvedPath", "bytes", "sha256", "version"}
+            and tool["bytes"] > 0
+            and len(tool["sha256"]) == 64
+            and tool["version"]["stdout"] != "",
+            f"incomplete provider identity: {tool['name']}",
+        )
     expected_runtime_reflection = {
         "pipelineOptions": ["MTLPipelineOptionBindingInfo", "MTLPipelineOptionBufferTypeInfo"],
         "input": {
@@ -75,16 +110,41 @@ def main() -> None:
         "runtime reflection evidence drift",
     )
 
+    observation = json.loads(
+        (work / "artifact-observation.json").read_text(encoding="utf-8")
+    )
+    require(observation["schema"] == "synaptik.metal.audit-artifacts.v1",
+            "artifact observation schema drift")
+    observed = {artifact["name"]: artifact for artifact in observation["artifacts"]}
+    require(len(observed) == len(observation["artifacts"]),
+            "duplicate artifact observations")
+    require(set(observed) == set(MANIFEST["artifacts"]),
+            "artifact observation set drift")
     for name, expected in MANIFEST["artifacts"].items():
-        path = work / name
+        path = EVIDENCE / name if name == "forbidden-floating-fixtures.metal" else work / name
         require(path.is_file(), f"missing audit artifact: {name}")
+        actual = {
+            "name": name,
+            "bytes": path.stat().st_size,
+            "sha256": digest(path),
+        }
+        require(observed[name] == actual, f"actual artifact hash ledger drift: {name}")
         if expected.get("nondeterministicContainer"):
-            require(expected == {"required": True, "nondeterministicContainer": True},
-                    f"unapproved compiled-container policy: {name}")
-            require(path.stat().st_size > 0, f"empty compiled container: {name}")
+            require(
+                set(expected)
+                == {"referenceBytes", "referenceSha256", "nondeterministicContainer",
+                    "actualHashLedger", "semanticAuthority"}
+                and expected["referenceBytes"] > 0
+                and len(expected["referenceSha256"]) == 64
+                and expected["actualHashLedger"] == "artifact-observation.json"
+                and expected["semanticAuthority"]
+                    in {"generated-fixtures.air.instructions.json",
+                        "forbidden-floating-fixtures.rejections.json"},
+                f"unapproved compiled-container policy: {name}",
+            )
             continue
-        require(path.stat().st_size == expected["bytes"], f"byte count drift: {name}")
-        require(digest(path) == expected["sha256"], f"SHA-256 drift: {name}")
+        require(actual["bytes"] == expected["bytes"], f"byte count drift: {name}")
+        require(actual["sha256"] == expected["sha256"], f"SHA-256 drift: {name}")
 
     metadata = json.loads((work / "fixtures.json").read_text(encoding="utf-8"))
     fixed_facts = MANIFEST["fixedCorpus"]
@@ -150,10 +210,35 @@ def main() -> None:
             f"generated source opcode ledger drift: {symbol}",
         )
 
+    instruction_ledger = json.loads(
+        (work / "generated-fixtures.air.instructions.json").read_text(encoding="utf-8")
+    )
+    require(
+        MANIFEST["semanticReproducibilityAuthority"]
+        == "generated-fixtures.air.instructions.json"
+        and instruction_ledger["schema"]
+        == "synaptik.metal.air-instruction-ledger.v1"
+        and instruction_ledger["authority"] == "structured-llvm-instruction-parser",
+        "semantic AIR authority drift",
+    )
+    require(
+        instruction_ledger["forbiddenFmaCallees"] == ["air.fma.*", "llvm.fma.*"],
+        "FMA callee policy drift",
+    )
+    instruction_functions = {
+        function["symbol"]: function for function in instruction_ledger["functions"]
+    }
+    require(
+        len(instruction_functions) == len(instruction_ledger["functions"]),
+        "duplicate structured AIR function ledger",
+    )
+
     ir = (work / "generated-fixtures.air.ll.canonical").read_text(encoding="utf-8")
     nm = (work / "generated-fixtures.air.nm.canonical").read_text(encoding="utf-8")
     facts = MANIFEST["requiredAirFacts"]
     require(facts["pointMetaType"] in ir, "PointMeta AIR layout drift")
+    require(set(instruction_functions) == set(facts["generatedSymbols"]),
+            "structured AIR symbol ledger drift")
     for symbol in facts["generatedSymbols"]:
         nm_lines = [line for line in nm.splitlines() if line.endswith(" T " + symbol)]
         require(len(nm_lines) == 1, f"generated AIR symbol missing or duplicated: {symbol}")
@@ -167,15 +252,52 @@ def main() -> None:
         require(f'dereferenceable({facts["pointMetaBytes"]})' in signature and 'align 8' in signature, f"PointMeta binding drift: {symbol}")
         require(body.count("load i32, i32 addrspace(1)*") == 1, f"generated unit must load one boundary input: {symbol}")
         require(body.count("store i32") == 1, f"generated unit must store one boundary output: {symbol}")
-        require(not re.search(r"\b(fast|contract|reassoc|afn)\b", body), f"fast-math flag present: {symbol}")
-        require("call void @exact_" not in body, f"generated unit retained an unfused helper call: {symbol}")
+        structured = instruction_functions[symbol]
         require(
-            not re.search(
-                r"\b(fadd|fsub|fmul|fdiv|frem|fcmp|sitofp|uitofp|fptosi|fptoui)\b",
-                body,
-            ),
-            f"floating AIR operation present in raw helper site: {symbol}",
+            structured["accepted"] is True and structured["forbidden"] == []
+            and structured["instructionCount"] == sum(structured["opcodeCounts"].values()),
+            f"structured AIR instruction rejection: {symbol}",
         )
+        require(structured["opcodeCounts"].get("store") == 1,
+                f"structured AIR output-store ledger drift: {symbol}")
+        require("call void @exact_" not in body,
+                f"generated unit retained an unfused helper call: {symbol}")
+    negative = json.loads(
+        (work / "forbidden-floating-fixtures.rejections.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    require(
+        negative["schema"] == "synaptik.metal.air-negative-ledger.v1"
+        and negative["authority"] == "structured-llvm-instruction-parser",
+        "negative AIR ledger schema drift",
+    )
+    require(
+        [
+            {
+                "symbol": result["symbol"],
+                "forbiddenClass": result["expectedClass"],
+            }
+            for result in negative["results"]
+        ]
+        == MANIFEST["negativeFixtures"],
+        "negative fixture expectation drift",
+    )
+    for result in negative["results"]:
+        require(result["rejected"] is True and len(result["detected"]) == 1,
+                f"negative fixture was not rejected: {result['symbol']}")
+        detected = result["detected"][0]
+        require(
+            detected["forbiddenClass"] == result["expectedClass"],
+            f"negative fixture class drift: {result['symbol']}",
+        )
+        if result["expectedClass"] == "fma":
+            require(
+                detected["opcode"] == "call"
+                and (detected["callee"].startswith("air.fma.")
+                     or detected["callee"].startswith("llvm.fma.")),
+                "FMA negative fixture callee drift",
+            )
 
     print("Task 0070 compiled generated-MSL audit passed")
 

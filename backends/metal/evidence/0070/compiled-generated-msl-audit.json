@@ -1,26 +1,27 @@
 {
-  "schema": "synaptik.metal.generated-msl-audit.v1",
+  "schema": "synaptik.metal.generated-msl-audit.v2",
   "developerDir": "/Applications/Xcode.app/Contents/Developer",
-  "sdkPath": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk",
-  "sdkVersion": "27.0",
-  "sdkBuild": "26A425",
-  "xcode": "Xcode 27.0\nBuild version 27A266a",
-  "metal": "Apple metal version 32023.921 (metalfe-32023.921.6)\nTarget: air64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /private/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.PAvLeN/Metal.xctoolchain/usr/metal/current/bin",
-  "metallib": "AIR-LLD 32023.921 (metalfe-32023.921.6) (compatible with legacy metallib linker)",
-  "compilerFlags": ["-std=metal3.2", "-fno-fast-math", "-Wall", "-Werror", "-isysroot", "<absolute SDKROOT>"],
+  "retainedDirectory": "backends/metal/evidence/0070/build/generated-msl-audit",
+  "providerReference": {
+    "path": "provider-inventory-reference.json",
+    "bytes": 4798,
+    "sha256": "3bd7ea954c5dfc7f49f61eb857c24ee9f6239c4911fcd52dd5cff8a977ab556a"
+  },
+  "compilerFlags": ["-std=metal3.2", "-fno-fast-math", "-Wall", "-Wextra", "-Werror", "-isysroot", "<absolute SDKROOT>"],
+  "semanticReproducibilityAuthority": "generated-fixtures.air.instructions.json",
   "fixedCorpus": {
-    "bytes": 77411,
-    "sha256": "9c705744636d8a8e34a3e049c8044acf1d5811da929bf20df39928600cd61c0d",
+    "bytes": 77444,
+    "sha256": "1e793c44e47ebc5c0afdb4bc28c232ad60f173cc40c246505133416fdadfd024",
     "components": [
       {"symbol": "SynaptikExactKernelSource", "bytes": 16912, "sha256": "f79d5b3fa13d0cd9a704f326196703aa41305bb62f7957d8413e697c9319e58e"},
       {"symbol": "SynaptikTask0059DataKernelSource", "bytes": 11492, "sha256": "4316a3ff46d640ca8813afd070c1d3746bd832b28afc847f556925e5d3bf44ac"},
-      {"symbol": "SynaptikTask0060ReductionKernelSource", "bytes": 6094, "sha256": "668b43e4837c38bae95a6af0b848f34bc7546c34eaf8a3eb84a5409a496efd66"},
+      {"symbol": "SynaptikTask0060ReductionKernelSource", "bytes": 6105, "sha256": "aa5e6b524926b64058aecc90c0b93f5e571ccd81e1e362459252d8a2b5b65c7f"},
       {"symbol": "SynaptikTask0061MatmulKernelSource", "bytes": 6042, "sha256": "4cd012516868ca5c8eead1ebdf4b63de13f702d9526894ef5da00548dbd0732c"},
       {"symbol": "SynaptikTask0063OrderingKernelSource", "bytes": 5683, "sha256": "a54fa5431ed23e88ea7b2a118c631492218e14fe1ce932de9ca8652f2b2bf65e"},
       {"symbol": "SynaptikTask0064ConvolutionPoolingKernelSource", "bytes": 9567, "sha256": "282cb823f95499e63f66674221c44bfbf77c9fa51230995eb3518ea130537cbe"},
       {"symbol": "SynaptikTask0069AggregateKernelSource", "bytes": 2886, "sha256": "6791792854f011172b98c9998fe67717c83ab13eb771d8b967cc64cf6f9548ca"},
       {"symbol": "SynaptikTask0065RngDropoutKernelSource", "bytes": 1301, "sha256": "8217948f0c28d3df56c5f2edb5408306b588bf2c5e0b1f90a23463e295ac6b99"},
-      {"symbol": "SynaptikTask0066DtypeLayoutKernelSource", "bytes": 17434, "sha256": "c4ff761377e6ae9d8bbba8e66b999d4832693e60cff440270d9712320943ffa5"}
+      {"symbol": "SynaptikTask0066DtypeLayoutKernelSource", "bytes": 17456, "sha256": "630b6401079438a773aca080e0ee039d33006ef861264bb3f14549e69a50960c"}
     ]
   },
   "fixtures": [
@@ -37,13 +38,43 @@
     {"name": "synaptik_pw_g1_s10", "step": 10, "siteKind": "chain-8", "instructions": ["FLOOR", "CEIL", "SIGN", "RELU", "FLOOR", "CEIL", "SIGN", "RELU"], "bytes": 566}
   ],
   "artifacts": {
-    "generated-fixtures.metal": {"bytes": 82342, "sha256": "5f95e1ed84b9cc4f3afc9f9618d5ba21f0841cab783c775fbb6425c53762f6d8"},
-    "fixtures.json": {"bytes": 3827, "sha256": "e046745673abb628a802e2543a46622e661aa754e3075e01089d2da2a9b2344b"},
-    "generated-fixtures.air": {"required": true, "nondeterministicContainer": true},
-    "generated-fixtures.metallib": {"required": true, "nondeterministicContainer": true},
-    "generated-fixtures.air.ll.canonical": {"bytes": 757070, "sha256": "fdaa385c381e4f817f63306a365d2ee08caa26f5d654d718e3c09976b5318d25"},
-    "generated-fixtures.air.nm.canonical": {"bytes": 3770, "sha256": "a223e01d92a4213badb5093bf0c454b9550c8e81bcfe8860b4feddf2b7b0aa8a"}
+    "provider-inventory.json": {"bytes": 4798, "sha256": "3bd7ea954c5dfc7f49f61eb857c24ee9f6239c4911fcd52dd5cff8a977ab556a"},
+    "generated-fixtures.metal": {"bytes": 82375, "sha256": "f66c18b5bf3142907a19e20590141ff24c72af74c631ec171354ad0f68773f47"},
+    "fixtures.json": {"bytes": 3827, "sha256": "20a811da8efb3b016f8f014e0f9eaaacf7bec52c9be0a84d87464cd03f68b6b8"},
+    "generated-fixtures.air": {
+      "referenceBytes": 103296,
+      "referenceSha256": "15e51415ea60a1ae6ff4ad6599a91b101cf1492bf0c902a2b35603fe0ed6dea9",
+      "nondeterministicContainer": true,
+      "actualHashLedger": "artifact-observation.json",
+      "semanticAuthority": "generated-fixtures.air.instructions.json"
+    },
+    "generated-fixtures.metallib": {
+      "referenceBytes": 465104,
+      "referenceSha256": "d48c8ca0660216075bf2dc14804ee4ac7a941c305f34fb72a29bae3681015d8c",
+      "nondeterministicContainer": true,
+      "actualHashLedger": "artifact-observation.json",
+      "semanticAuthority": "generated-fixtures.air.instructions.json"
+    },
+    "generated-fixtures.air.ll.canonical": {"bytes": 757060, "sha256": "5fb4122860a46df0b7a730fdf751d4760e02ce6a13836f31f3df0efd0ea83956"},
+    "generated-fixtures.air.nm.canonical": {"bytes": 3770, "sha256": "a223e01d92a4213badb5093bf0c454b9550c8e81bcfe8860b4feddf2b7b0aa8a"},
+    "generated-fixtures.air.instructions.json": {"bytes": 5780, "sha256": "36edcd3fed5621d0d07fb0a900c34e4ea06d9b81252a8381e89200e83e4f8333"},
+    "forbidden-floating-fixtures.metal": {"bytes": 1219, "sha256": "365d7db19c28ca0e1cefb190948be7ce8db90222d284f547b42f9da232d5196d"},
+    "forbidden-floating-fixtures.air": {
+      "referenceBytes": 4976,
+      "referenceSha256": "ce9071b036119f692acda02223990900770a732ed0df9c27ad04cee327e18b35",
+      "nondeterministicContainer": true,
+      "actualHashLedger": "artifact-observation.json",
+      "semanticAuthority": "forbidden-floating-fixtures.rejections.json"
+    },
+    "forbidden-floating-fixtures.air.ll.canonical": {"bytes": 9738, "sha256": "2b1bdb07973bb83423f8ac4563d56441bbaf800d915373716a9bcd6750f952c1"},
+    "forbidden-floating-fixtures.rejections.json": {"bytes": 1124, "sha256": "217b002616734997b054caf4f6095a6980d2264ed2a3761a1c1f2d06e26602cb"}
   },
+  "negativeFixtures": [
+    {"symbol": "audit_forbidden_fadd", "forbiddenClass": "fadd"},
+    {"symbol": "audit_forbidden_fmul", "forbiddenClass": "fmul"},
+    {"symbol": "audit_forbidden_fdiv", "forbiddenClass": "fdiv"},
+    {"symbol": "audit_forbidden_fma", "forbiddenClass": "fma"}
+  ],
   "runtimeReflection": {
     "pipelineOptions": ["MTLPipelineOptionBindingInfo", "MTLPipelineOptionBufferTypeInfo"],
     "input": {

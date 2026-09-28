@@ -1,10 +1,10 @@
 {
   "compiledMslAudit": {
     "path": "backends/metal/evidence/0070/compiled-generated-msl-audit.json",
-    "sha256": "5c3f57bb6a3cd0f606a90fdbcc584eeb46232c9a816ca1a0b4ef22eed95b3b5d"
+    "sha256": "30cf759c4508201eb4addc8092e0dbdd07100f11e99e52950724f5b2ccc39aaf"
   },
   "fixedCorpus": {
-    "bytes": 77411,
+    "bytes": 77444,
     "components": [
       {
         "bytes": 16912,
@@ -17,8 +17,8 @@
         "symbol": "SynaptikTask0059DataKernelSource"
       },
       {
-        "bytes": 6094,
-        "sha256": "668b43e4837c38bae95a6af0b848f34bc7546c34eaf8a3eb84a5409a496efd66",
+        "bytes": 6105,
+        "sha256": "aa5e6b524926b64058aecc90c0b93f5e571ccd81e1e362459252d8a2b5b65c7f",
         "symbol": "SynaptikTask0060ReductionKernelSource"
       },
       {
@@ -47,15 +47,15 @@
         "symbol": "SynaptikTask0065RngDropoutKernelSource"
       },
       {
-        "bytes": 17434,
-        "sha256": "c4ff761377e6ae9d8bbba8e66b999d4832693e60cff440270d9712320943ffa5",
+        "bytes": 17456,
+        "sha256": "630b6401079438a773aca080e0ee039d33006ef861264bb3f14549e69a50960c",
         "symbol": "SynaptikTask0066DtypeLayoutKernelSource"
       }
     ],
-    "sha256": "9c705744636d8a8e34a3e049c8044acf1d5811da929bf20df39928600cd61c0d"
+    "sha256": "1e793c44e47ebc5c0afdb4bc28c232ad60f173cc40c246505133416fdadfd024"
   },
   "generatorSchema": 1,
-  "identityCount": 26,
+  "identityCount": 30,
   "magic": "0x37314d53",
   "programSchema": 17,
   "proof": {
@@ -74,22 +74,22 @@
     {
       "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalPointwiseFusionPlan.java",
       "role": "java-fusion-plan",
-      "sha256": "e179a5f173c7ddf29d39ff20d938bc403ab391883b507d7d1e7ecadb5049b6a7"
+      "sha256": "7c8ec60d5ea3716eaec1811e076e2c84be2ffcf2741800a31dc0eb52590ea608"
     },
     {
       "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalPointwiseFusionPlanner.java",
       "role": "java-planner",
-      "sha256": "12cb80e37016ecbf7d3a95ef1cd05b8ab6f0fc04c8afd4a370e655be94a13a4d"
+      "sha256": "f64324f7759e225a76c9165cfce7724889e6c74967bb276280db0c02ed8d9d2c"
     },
     {
       "path": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
       "role": "native-parser-runtime",
-      "sha256": "36eb7a951cdef410a306b2127615c2a5ad9a7c7ca0ef248fc9318d66320cafc6"
+      "sha256": "da46fe28df72a1060cee6172c93d234179c08f9f20f74d065244eb0e7a566e8b"
     },
     {
       "path": "native/metal-macos-arm64/src/SynaptikPointwiseFusionKernelSource.h",
       "role": "native-generator",
-      "sha256": "80ae6b426ec05ac769becaeab9fc703fdd9499e0c7ffe46f382026cef938f0fc"
+      "sha256": "d1b7fb3a40a5db8292264e0d3bb6a14edbe0db206239b6fc0b0197ca04173739"
     },
     {
       "path": "native/metal-macos-arm64/build.sh",
@@ -114,22 +114,32 @@
     {
       "path": "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalPointwiseFusionPlannerTest.java",
       "role": "planner-test",
-      "sha256": "b6cdf061f2897472c97f714ebac60470c282b1f63d228a0a77029a174da8f974"
+      "sha256": "e75894728ce63fc29c55d7ccef901999b6007a6c3dc37ce2b2972a9f4f5fbc84"
     },
     {
       "path": "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphRawAbiNativeTest.java",
       "role": "raw-abi-test",
-      "sha256": "80bdfdafd92cb21e38054a48d852748980e2ddadd21c24ca49acf1ce8d404883"
+      "sha256": "6dd266fffa14063f44a1558701f8448e9a9a84d22dfdbb8b70fbea2f693be9de"
     },
     {
       "path": "backends/metal/evidence/0070/extract-generated-fixtures.py",
       "role": "audit-extractor",
-      "sha256": "985be170dda0d07b78fba7f05c62f93f04e31b56985ee481de7188817d9eb8f0"
+      "sha256": "8226b9036b83d84400a08553b44c1c3d1f8a9421c679bfbfbe7db985337f5e95"
     },
     {
       "path": "backends/metal/evidence/0070/verify-compiled-generated-msl-audit.py",
       "role": "audit-verifier",
-      "sha256": "9e79e5a5fe7a831555ff4112477d1821c1818fcf47879f420e4236265a9bd88a"
+      "sha256": "e173b344dcd672275f9345bf9e8627590c37b3cf8ecc83c72665bd6df34bf07f"
+    },
+    {
+      "path": "backends/metal/evidence/0070/canonicalize-air.py",
+      "role": "audit-canonicalizer",
+      "sha256": "424a7ad79aa0d6e1e3757907eb61403adf5515f9e55119f643926f691409ae35"
+    },
+    {
+      "path": "backends/metal/evidence/0070/audit-provider.py",
+      "role": "audit-provider",
+      "sha256": "bb6a613e1c6c61b2c87f2355c1f10d50eca1b2b7e3df5f67958f11860f1c082f"
     },
     {
       "path": "backends/metal/evidence/0070/generated-source-fixture.m",
@@ -137,19 +147,29 @@
       "sha256": "3af8db2c96abda814c01dadecf7e6688cd5cdda8f4489f825b1699de411cf9f0"
     },
     {
+      "path": "backends/metal/evidence/0070/forbidden-floating-fixtures.metal",
+      "role": "negative-air-fixture",
+      "sha256": "365d7db19c28ca0e1cefb190948be7ce8db90222d284f547b42f9da232d5196d"
+    },
+    {
       "path": "backends/metal/evidence/0070/pointwise-cap-fixture.m",
       "role": "cap-fixture",
       "sha256": "c565d27b46a4ec8a1827e2b5be1db6fa044a32cd69d46a1f8af07437330bc0c5"
     },
     {
+      "path": "backends/metal/evidence/0070/pointwise-count-fixture.m",
+      "role": "count-fixture",
+      "sha256": "1acd4dd42563a08ce6bb1e6922bb26e20412d385cb388b0111f9d6262119a441"
+    },
+    {
       "path": "backends/metal/evidence/0070/run-compiled-generated-msl-audit.sh",
       "role": "audit-runner",
-      "sha256": "325c828646c76f8df213740cffdd50ccba62d7a134bcf782a60afb9da7936ddd"
+      "sha256": "2e61d693e86d0fd6a6e7a2fa4248fea0135c022bcfb506ff722452841bc41d72"
     },
     {
       "path": "backends/metal/evidence/0070/run-proof.sh",
       "role": "proof-runner",
-      "sha256": "18264348ff085673f1365704e929853be3752d196e0f5cedd1378867ba821219"
+      "sha256": "2fce3ab5ce87ec4618ff369b488881eba6dcb27924bf4a0940ec2a2927d24c56"
     },
     {
       "path": "backends/metal/evidence/0070/run-dispatch-observer.sh",

@@ -375,7 +375,7 @@ static NSString *synaptik_authenticated_fixed_source(void) {
                 "4316a3ff46d640ca8813afd070c1d3746bd832b28afc847f556925e5d3bf44ac")
             || !synaptik_source_digest_matches(
                 SynaptikTask0060ReductionKernelSource,
-                "668b43e4837c38bae95a6af0b848f34bc7546c34eaf8a3eb84a5409a496efd66")
+                "aa5e6b524926b64058aecc90c0b93f5e571ccd81e1e362459252d8a2b5b65c7f")
             || !synaptik_source_digest_matches(
                 SynaptikTask0061MatmulKernelSource,
                 "4cd012516868ca5c8eead1ebdf4b63de13f702d9526894ef5da00548dbd0732c")
@@ -393,7 +393,7 @@ static NSString *synaptik_authenticated_fixed_source(void) {
                 "8217948f0c28d3df56c5f2edb5408306b588bf2c5e0b1f90a23463e295ac6b99")
             || !synaptik_source_digest_matches(
                 SynaptikTask0066DtypeLayoutKernelSource,
-                "c4ff761377e6ae9d8bbba8e66b999d4832693e60cff440270d9712320943ffa5"))
+                "630b6401079438a773aca080e0ee039d33006ef861264bb3f14549e69a50960c"))
         return nil;
     NSString *fixed = [[[[[[SynaptikExactKernelSource
             stringByAppendingString:SynaptikTask0059DataKernelSource]
@@ -404,10 +404,10 @@ static NSString *synaptik_authenticated_fixed_source(void) {
             stringByAppendingString:SynaptikTask0069AggregateKernelSource];
     fixed = [[fixed stringByAppendingString:SynaptikTask0065RngDropoutKernelSource]
             stringByAppendingString:SynaptikTask0066DtypeLayoutKernelSource];
-    return [fixed lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 77411U
+    return [fixed lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 77444U
             && synaptik_source_digest_matches(
                     fixed,
-                    "9c705744636d8a8e34a3e049c8044acf1d5811da929bf20df39928600cd61c0d")
+                    "1e793c44e47ebc5c0afdb4bc28c232ad60f173cc40c246505133416fdadfd024")
             ? fixed : nil;
 }
 
@@ -7230,11 +7230,11 @@ static NSData *synaptik_pointwise_manifest(
             fusion->step_count, fusion->member_count, fusion->binding_count,
             fusion->materialized_count, fusion->instruction_count];
     [text appendFormat:@"stop %u %u\n", rejected_node, cap_reason];
-    [text appendFormat:@"source %u 77411 %u\n",
+    [text appendFormat:@"source %u 77444 %u\n",
             fusion->expected_generated_bytes, fusion->expected_total_bytes];
     [text appendString:@"caps 32 256 16384 262144 1048576\n"];
     [text appendString:@"source-size-table 1\n"];
-    [text appendString:@"fixed-corpus-bytes 77411\n"];
+    [text appendString:@"fixed-corpus-bytes 77444\n"];
     [text appendString:@"opcodes floor=1 ceil=2 sign=3 relu=4\n"];
     [text appendString:@"pointmeta-abi size=32 align=8 elementCount=u64@0 gridWidth=u64@8 gridHeight=u64@16 scalar=u32@24 reserved=u32@28\n"];
     for (uint32_t value = 0U; value < value_count; value++) {

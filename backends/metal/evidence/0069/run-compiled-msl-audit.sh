@@ -20,7 +20,7 @@ DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx --show-sdk-version >"$WORK/sdk
 DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx --show-sdk-build-version >"$WORK/sdk-build.txt"
 DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx --show-sdk-path >"$WORK/sdk-path.txt"
 DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx metal \
-  -std=metal3.2 -fno-fast-math -Wall -Werror -isysroot "$SDK" \
+  -std=metal3.2 -fno-fast-math -Wall -Wextra -Werror -isysroot "$SDK" \
   -c .task0069-msl-audit/runtime-source.metal \
   -o .task0069-msl-audit/runtime-source.air
 DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx metallib \

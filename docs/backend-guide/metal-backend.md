@@ -1022,15 +1022,27 @@ count traversal and the exact byte traversal: production validates all five caps
 the counted byte size and emits once for compile. A standalone native fixture includes that exact
 production header, enables audit-only singleton generation, repeats generation and compares count,
 bytes, and hash, and is the sole writer of the compiled audit source; Python only parses that
-source and writes metadata. A pinned Xcode 27 compiled-MSL audit builds the exact 77,411-byte fixed
-corpus plus audit-only singleton sites for `FLOOR`, `CEIL`, `SIGN`, and `RELU` and valid
-runtime-grammar chain sites at every length `2..8`, using `metal3.2`, no fast math, warnings as
-errors, and an absolute SDK isysroot. Real `metal-objdump` and `metal-nm` evidence verifies every
-generated function, absence of floating AIR operations at those raw-helper sites, and the
-three-buffer 32-byte `PointMeta` ABI. AIR and metallib must both be produced and nonempty, while
-their compiler-generated container identifiers are deliberately not hashed; the canonical
-disassembly and symbol ledgers are byte-counted and SHA-256-pinned and reproduce across runs. A
-separately linked test-only observer records the manifest digest and metadata immediately before
+source and writes metadata. A second native fixture and the Java formula cover every decimal-width
+boundary from `9/10` through `999999999/1000000000` plus `UINT32_MAX` without constructing large
+programs. Schema-17 hostile images place otherwise valid NEG and ABS nodes in generated-member
+ranges, independently of the malformed generated-opcode `0` and `5` cases.
+
+A pinned Xcode 27 audit first bootstraps the Metal toolchain and records the exact available
+`clang`, `metal`, `metallib`, `metal-objdump`, and `metal-nm` paths, resolved identities, versions,
+byte counts, and SHA-256 values. It compiles the exact 77,444-byte fixed corpus plus audit-only
+singleton sites for `FLOOR`, `CEIL`, `SIGN`, and `RELU` and valid runtime-grammar chain sites at
+every length `2..8`, using `metal3.2`, no fast math, exact `-Wall -Wextra -Werror`, and an absolute
+SDK isysroot. An authenticated structured LLVM/AIR instruction parser, rather than text opcode
+matching, produces the semantic reproducibility ledger for every generated function. Separately
+compiled `fadd`, `fmul`, `fdiv`, and `air.fma`/`llvm.fma` negative sites prove that provider rejects
+each forbidden class. The generated source, AIR, metallib, canonical disassembly, symbol table,
+provider inventory, semantic ledger, and negative ledger remain in the ignored evidence build
+directory, with every actual byte count and hash recorded. AIR and metallib also retain observed
+reference hashes; their compiler-generated container identifiers may vary, so the pinned canonical
+structured instruction ledger is the reproducibility authority. Real `metal-objdump`, `metal-nm`,
+and runtime reflection evidence verify every generated function and the three-buffer 32-byte
+`PointMeta` ABI.
+A separately linked test-only observer records the manifest digest and metadata immediately before
 each real custom dispatch. It proves generated `7+2` and three-instruction plans and one mixed
 generated/MPSGraph/fixed plan containing L1_NORM, singleton VARIANCE, and SCATTER_ADD; both public
 and observer proof runners force Gradle task reruns rather than accepting cached test results.

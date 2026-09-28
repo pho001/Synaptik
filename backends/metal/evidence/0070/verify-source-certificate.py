@@ -21,10 +21,12 @@ def main() -> None:
     assert certificate["programSchema"] == 17
     assert certificate["generatorSchema"] == 1
     assert certificate["magic"] == "0x37314d53"
+    assert certificate["identityCount"] == len(certificate["sources"]) + 2
 
     texts: dict[str, str] = {}
     for entry in certificate["sources"]:
         path = ROOT / entry["path"]
+        assert entry["role"] not in texts
         assert digest(path) == entry["sha256"], entry["path"]
         texts[entry["role"]] = path.read_text(encoding="utf-8")
 
@@ -41,8 +43,12 @@ def main() -> None:
     raw_abi_test = texts["raw-abi-test"]
     audit_extractor = texts["audit-extractor"]
     audit_verifier = texts["audit-verifier"]
+    audit_canonicalizer = texts["audit-canonicalizer"]
+    audit_provider = texts["audit-provider"]
     native_audit_fixture = texts["native-audit-fixture"]
+    negative_air_fixture = texts["negative-air-fixture"]
     cap_fixture = texts["cap-fixture"]
+    count_fixture = texts["count-fixture"]
     audit_runner = texts["audit-runner"]
     proof_runner = texts["proof-runner"]
     observer_runner = texts["observer-runner"]
@@ -69,7 +75,7 @@ def main() -> None:
         "static final int MAX_FUNCTION_SOURCE_UTF8_BYTES = 16_384;",
         "static final int MAX_GENERATED_SOURCE_UTF8_BYTES = 262_144;",
         "static final int MAX_TOTAL_SOURCE_UTF8_BYTES = 1_048_576;",
-        "static final int FIXED_CORPUS_UTF8_BYTES = 77_411;",
+        "static final int FIXED_CORPUS_UTF8_BYTES = 77_444;",
         "FLOOR(1, 10), CEIL(2, 9), SIGN(3, 9), RELU(4, 9)",
     ):
         require(java_plan, fragment)
@@ -77,7 +83,7 @@ def main() -> None:
         "if (length < 2) break;",
         "opcodes.size() < 2 || opcodes.size() > 8",
         "source-size-table 1",
-        "fixed-corpus-bytes 77411",
+        "fixed-corpus-bytes 77444",
         "pointmeta-abi size=32 align=8 elementCount=u64@0 gridWidth=u64@8 gridHeight=u64@16 scalar=u32@24 reserved=u32@28",
         "text.append(\"materialized \"",
         ".append(elements).append(' ').append(elements).append(\" 1 0 0\\n\")",
@@ -92,6 +98,7 @@ def main() -> None:
         "elements > 0xffff_ffffL / dimension",
     ):
         require(java_planner, fragment)
+    require(java_planner, "unsignedDigits(stepOrdinal)")
     for forbidden in (
         "kernel void",
         "floor_bits",
@@ -169,7 +176,7 @@ def main() -> None:
     require(native, "stringByAppendingString:generated_source")
 
     for fragment in (
-        "#define SYNAPTIK_POINTWISE_FIXED_CORPUS_BYTES 77411U",
+        "#define SYNAPTIK_POINTWISE_FIXED_CORPUS_BYTES 77444U",
         "#define SYNAPTIK_POINTWISE_MAX_UNITS 32U",
         "#define SYNAPTIK_POINTWISE_MAX_INSTRUCTIONS 256U",
         "#define SYNAPTIK_POINTWISE_MAX_FUNCTION_BYTES 16384U",
@@ -197,6 +204,7 @@ def main() -> None:
         "schemaSeventeenPacksOddReferencePoolDirectlyBeforeAttributes",
         "pointwiseGeometryRequiresRankOneThroughSixteenAndUnsignedElementCount",
         "thirtyThirdGeneratedUnitStopsAtTheAuthenticatedUnitCap",
+        "sourceCountCoversEveryUnsignedStepOrdinalDecimalWidthBoundary",
     ):
         require(planner_test, fragment)
     for fragment in (
@@ -206,7 +214,9 @@ def main() -> None:
         "nativeParsesUnpaddedOddReferencePoolBeforeAttributes",
         "nativePointwiseEligibilityUsesExplicitRankAndUnsignedElementBounds",
         "appendOutOfRangeMemberStep",
-        "fixed-corpus-bytes 77412",
+        "fixed-corpus-bytes 77445",
+        "generatedNegMember",
+        "generatedAbsMember",
     ):
         require(raw_abi_test, fragment)
     assert "fixed-corpus-sha256" not in raw_abi_test
@@ -236,11 +246,54 @@ def main() -> None:
         require(cap_fixture, f"projection, {reason}U")
     require(cap_fixture, "SynaptikPointwiseCapReason")
     require(cap_fixture, "projection, 0U")
-    require(audit_runner, 'generated-source-fixture.m -o "$WORK/generated-source-fixture"')
-    require(audit_runner, '"$WORK/generated-source-fixture" "$WORK/generated-fixtures.metal"')
+    for fragment in (
+        "UINT32_MAX",
+        "999999999U, 1000000000U",
+        "SynaptikPointwiseFunctionBytes(",
+        "SynaptikPointwiseEmitFunction(",
+        "sink.count != counted",
+    ):
+        require(count_fixture, fragment)
+    for fragment in (
+        'audit-provider.py" inventory',
+        'audit-provider.py" generated-ledger',
+        'audit-provider.py" negative-ledger',
+        'audit-provider.py" artifacts',
+        "-std=metal3.2 -fno-fast-math -Wall -Wextra -Werror",
+        'WORK="$EVIDENCE/build/generated-msl-audit"',
+        'generated-source-fixture.m -o "$WORK/generated-source-fixture"',
+        '"$WORK/generated-source-fixture" "$WORK/generated-fixtures.metal"',
+    ):
+        require(audit_runner, fragment)
     assert audit_runner.index("generated-source-fixture.m -o") < audit_runner.index(
         "./extract-generated-fixtures.py"
     )
+    for fragment in (
+        "canonicalize_ir",
+        "canonicalize_nm",
+        "[EXTRA_AIR_LL ...]",
+    ):
+        require(audit_canonicalizer, fragment)
+    for fragment in (
+        'TOOLS = ("clang", "metal", "metallib", "metal-objdump", "metal-nm")',
+        '"-downloadComponent", "MetalToolchain"',
+        "parse_instruction",
+        "LLVM_OPCODES",
+        'self.callee.startswith("air.fma.")',
+        'self.callee.startswith("llvm.fma.")',
+        "ForbiddenAirInstruction",
+        "negative_ledger",
+        "artifact_observation",
+    ):
+        require(audit_provider, fragment)
+    for fragment in (
+        "audit_forbidden_fadd",
+        "audit_forbidden_fmul",
+        "audit_forbidden_fdiv",
+        "audit_forbidden_fma",
+        "fma(left[index], right[index], addend[index])",
+    ):
+        require(negative_air_fixture, fragment)
     require(proof_runner, "--rerun-tasks")
     require(observer_runner, "--rerun-tasks")
     require(runtime_matrix_test, "generatedChainsExecuteAllFourRawOperationsUnderBothProfiles")
@@ -249,7 +302,10 @@ def main() -> None:
         "singleton operation ledger drift",
         "2..8 chain ledger drift",
         "runtime reflection evidence drift",
-        "floating AIR operation present in raw helper site",
+        "structured AIR instruction rejection",
+        "negative fixture was not rejected",
+        "actual artifact hash ledger drift",
+        "Xcode audit-provider inventory drift",
     ):
         require(audit_verifier, fragment)
 
@@ -300,10 +356,11 @@ def main() -> None:
     assert digest(ROOT / certificate["compiledMslAudit"]["path"]) == certificate["compiledMslAudit"]["sha256"]
     assert compiled["developerDir"] == "/Applications/Xcode.app/Contents/Developer"
     assert compiled["compilerFlags"] == [
-        "-std=metal3.2", "-fno-fast-math", "-Wall", "-Werror", "-isysroot", "<absolute SDKROOT>"
+        "-std=metal3.2", "-fno-fast-math", "-Wall", "-Wextra", "-Werror",
+        "-isysroot", "<absolute SDKROOT>"
     ]
     fixed = compiled["fixedCorpus"]
-    assert fixed["bytes"] == certificate["fixedCorpus"]["bytes"] == 77411
+    assert fixed["bytes"] == certificate["fixedCorpus"]["bytes"] == 77444
     assert fixed["sha256"] == certificate["fixedCorpus"]["sha256"]
     assert fixed["components"] == certificate["fixedCorpus"]["components"]
     assert compiled["requiredAirFacts"]["bufferCount"] == 3
@@ -315,6 +372,13 @@ def main() -> None:
         ["FLOOR"], ["CEIL"], ["SIGN"], ["RELU"]
     ]
     assert [len(fixture["instructions"]) for fixture in compiled["fixtures"][4:]] == list(range(2, 9))
+    assert compiled["semanticReproducibilityAuthority"] == (
+        "generated-fixtures.air.instructions.json"
+    )
+    assert [fixture["forbiddenClass"] for fixture in compiled["negativeFixtures"]] == [
+        "fadd", "fmul", "fdiv", "fma"
+    ]
+    assert compiled["providerReference"]["path"] == "provider-inventory-reference.json"
     reflection = compiled["runtimeReflection"]
     assert reflection["pipelineOptions"] == [
         "MTLPipelineOptionBindingInfo", "MTLPipelineOptionBufferTypeInfo"

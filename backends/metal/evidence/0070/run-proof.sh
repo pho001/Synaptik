@@ -19,6 +19,11 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
     -I "$ROOT/native/metal-macos-arm64/src" -framework Foundation \
     "$EVIDENCE/pointwise-cap-fixture.m" -o "$TMP/pointwise-cap-fixture"
 "$TMP/pointwise-cap-fixture"
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+  xcrun --sdk macosx clang -fobjc-arc -Wall -Wextra -Werror \
+    -I "$ROOT/native/metal-macos-arm64/src" -framework Foundation \
+    "$EVIDENCE/pointwise-count-fixture.m" -o "$TMP/pointwise-count-fixture"
+"$TMP/pointwise-count-fixture"
 "$EVIDENCE/run-compiled-generated-msl-audit.sh"
 "$EVIDENCE/run-dispatch-observer.sh"
 "$ROOT/native/metal-macos-arm64/build.sh"

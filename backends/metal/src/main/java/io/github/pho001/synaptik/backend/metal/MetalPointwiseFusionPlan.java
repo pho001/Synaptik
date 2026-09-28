@@ -21,7 +21,7 @@ final class MetalPointwiseFusionPlan {
     static final int MAX_FUNCTION_SOURCE_UTF8_BYTES = 16_384;
     static final int MAX_GENERATED_SOURCE_UTF8_BYTES = 262_144;
     static final int MAX_TOTAL_SOURCE_UTF8_BYTES = 1_048_576;
-    static final int FIXED_CORPUS_UTF8_BYTES = 77_411;
+    static final int FIXED_CORPUS_UTF8_BYTES = 77_444;
     static final int NO_POSITION = -1;
 
     enum StepKind {

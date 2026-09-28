@@ -132,11 +132,28 @@ class MetalMpsGraphRawAbiNativeTest {
         malformed.add(digestForgery);
         malformed.add(rewriteManifest(
                 valid,
-                "fixed-corpus-bytes 77411\n",
-                "fixed-corpus-bytes 77412\n"));
+                "fixed-corpus-bytes 77444\n",
+                "fixed-corpus-bytes 77445\n"));
 
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(0, abi.create(valid, valid.length));
+            int secondNodeOffset = nodeOffset(3) + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES;
+            byte[] generatedNegMember = rewriteInt(
+                    valid,
+                    secondNodeOffset,
+                    MetalMpsGraphProgram.NodeKind.NEG.wireIdentity());
+            byte[] generatedAbsMember = rewriteInt(
+                    valid,
+                    secondNodeOffset,
+                    MetalMpsGraphProgram.NodeKind.ABS.wireIdentity());
+            assertEquals(
+                    1,
+                    abi.create(generatedNegMember, generatedNegMember.length),
+                    "valid NEG node cannot inhabit a generated member range");
+            assertEquals(
+                    1,
+                    abi.create(generatedAbsMember, generatedAbsMember.length),
+                    "valid ABS node cannot inhabit a generated member range");
             for (byte[] image : malformed)
                 assertEquals(1, abi.create(image, image.length));
         }

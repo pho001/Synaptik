@@ -17,6 +17,7 @@
     "-std=metal3.2",
     "-fno-fast-math",
     "-Wall",
+    "-Wextra",
     "-Werror",
     "-isysroot",
     "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk",
@@ -31,7 +32,7 @@
   "artifacts": {
     "source": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.metal",
-      "sha256": "9c705744636d8a8e34a3e049c8044acf1d5811da929bf20df39928600cd61c0d"
+      "sha256": "1e793c44e47ebc5c0afdb4bc28c232ad60f173cc40c246505133416fdadfd024"
     },
     "air": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.air",

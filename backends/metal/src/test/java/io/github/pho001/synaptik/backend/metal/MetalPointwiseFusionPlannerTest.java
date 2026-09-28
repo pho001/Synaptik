@@ -34,6 +34,43 @@ class MetalPointwiseFusionPlannerTest {
     }
 
     @Test
+    void sourceCountCoversEveryUnsignedStepOrdinalDecimalWidthBoundary() {
+        int[] ordinals = {
+            9, 10,
+            99, 100,
+            999, 1_000,
+            9_999, 10_000,
+            99_999, 100_000,
+            999_999, 1_000_000,
+            9_999_999, 10_000_000,
+            99_999_999, 100_000_000,
+            999_999_999, 1_000_000_000,
+            -1
+        };
+        int[] expected = {
+            402, 403,
+            403, 404,
+            404, 405,
+            405, 406,
+            406, 407,
+            407, 408,
+            408, 409,
+            409, 410,
+            410, 411,
+            411
+        };
+        List<MetalPointwiseFusionPlan.Opcode> opcodes =
+                List.of(MetalPointwiseFusionPlan.Opcode.FLOOR,
+                        MetalPointwiseFusionPlan.Opcode.CEIL);
+        for (int index = 0; index < ordinals.length; index++) {
+            assertEquals(
+                    expected[index],
+                    MetalPointwiseFusionPlanner.functionUtf8Bytes(ordinals[index], opcodes),
+                    Integer.toUnsignedString(ordinals[index]));
+        }
+    }
+
+    @Test
     void task0069VarianceIsAnExactFixedBarrierAndOtherVarianceIsMpsGraph() {
         var nodes = List.of(
                 unary(MetalMpsGraphProgram.NodeKind.FLOOR, 0, 1),

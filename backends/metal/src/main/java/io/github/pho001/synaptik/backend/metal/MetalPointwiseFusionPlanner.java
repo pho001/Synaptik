@@ -416,7 +416,7 @@ final class MetalPointwiseFusionPlanner {
         if (opcodes.size() < 2 || opcodes.size() > 8) {
             throw new IllegalArgumentException("generated chain length must be in 2..8");
         }
-        int bytes = 345 + digits(stepOrdinal) + digits(opcodes.size());
+        int bytes = 345 + unsignedDigits(stepOrdinal) + digits(opcodes.size());
         for (int index = 0; index < opcodes.size(); index++) {
             bytes = Math.addExact(bytes,
                     16 + digits(index) + digits(index + 1) + opcodes.get(index).helperUtf8Bytes());
@@ -435,6 +435,20 @@ final class MetalPointwiseFusionPlanner {
         if (value < 10_000_000) return 7;
         if (value < 100_000_000) return 8;
         if (value < 1_000_000_000) return 9;
+        return 10;
+    }
+
+    private static int unsignedDigits(int value) {
+        long unsigned = Integer.toUnsignedLong(value);
+        if (unsigned < 10L) return 1;
+        if (unsigned < 100L) return 2;
+        if (unsigned < 1_000L) return 3;
+        if (unsigned < 10_000L) return 4;
+        if (unsigned < 100_000L) return 5;
+        if (unsigned < 1_000_000L) return 6;
+        if (unsigned < 10_000_000L) return 7;
+        if (unsigned < 100_000_000L) return 8;
+        if (unsigned < 1_000_000_000L) return 9;
         return 10;
     }
 
@@ -487,7 +501,7 @@ final class MetalPointwiseFusionPlanner {
                 .append('\n')
                 .append("caps 32 256 16384 262144 1048576\n")
                 .append("source-size-table 1\n")
-                .append("fixed-corpus-bytes 77411\n")
+                .append("fixed-corpus-bytes 77444\n")
                 .append("opcodes floor=1 ceil=2 sign=3 relu=4\n")
                 .append("pointmeta-abi size=32 align=8 elementCount=u64@0 gridWidth=u64@8 gridHeight=u64@16 scalar=u32@24 reserved=u32@28\n");
         for (int value = 0; value < values.size(); value++) {
