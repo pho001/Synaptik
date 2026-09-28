@@ -236,10 +236,15 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                         "Metal source splat requires an exact scalar value");
             }
         }
-        boolean containsCustomOperation = this.graphProgram.nodes().stream()
+        boolean containsAnchorEpilogue = !MetalAnchorEpilogueRecognizer.recognize(
+                this.numericalProfile,
+                this.graphProgram,
+                this.programValueDescriptors,
+                this.targetValueIndices).isEmpty();
+        boolean containsCustomOperation = containsAnchorEpilogue || this.graphProgram.nodes().stream()
                 .anyMatch(node -> node.kind().isCustomProgramOperation()
                         || usesCustomMatmul(node, this.descriptors));
-        boolean containsCustomOnlyOperation = this.graphProgram.nodes().stream()
+        boolean containsCustomOnlyOperation = containsAnchorEpilogue || this.graphProgram.nodes().stream()
                 .anyMatch(node ->
                     node.kind().isTask0066Selected()
                         || ( node.kind().wireIdentity() >= 20 && node.kind().wireIdentity() <= 34)

@@ -7,7 +7,7 @@
   },
   "foundationSource": {
     "path": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
-    "sha256": "da46fe28df72a1060cee6172c93d234179c08f9f20f74d065244eb0e7a566e8b"
+    "sha256": "eabda1122ff4b942859d2f4b7595545d05e3fca37f084a2507624dcb18339540"
   },
   "leanProofs": [
     {
@@ -21,7 +21,7 @@
   ],
   "compiledMslAudit": {
     "path": "backends/metal/evidence/0069/compiled-msl-audit.json",
-    "sha256": "61828fe3bb850ad14438f89f071a348f8dcbe15e1e389daa54a3b1faa1d8bbaf"
+    "sha256": "d60457e99ee4a412e917aeea30c192160fe4e9ae89eccd7199cc540dce773471"
   },
   "compilerSite": {
     "runtimeCompiler": "MTLDevice.newLibraryWithSource",

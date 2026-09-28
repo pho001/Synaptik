@@ -133,7 +133,7 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
                 try (var session = engine.session(compiled)) {
-                    assertEquals(1, events.size(), "one whole-program preparation");
+                    assertEquals(2, events.size(), "structural and outcome preparation events");
                     ObservedTrace preparation = events.getFirst();
                     assertEquals("PREPARE", preparation.phase());
                     assertEquals(

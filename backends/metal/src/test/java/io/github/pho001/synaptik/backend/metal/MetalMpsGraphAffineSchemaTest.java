@@ -270,7 +270,7 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
-    void schemaSeventeenProgramImageIsExactCarriesProfileRouteAndAllSixDataTypeWires() {
+    void schemaEighteenProgramImageIsExactCarriesProfileRouteAndAllSixDataTypeWires() {
         var program = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.generic(
                 MetalMpsGraphProgram.NodeKind.CONCAT,
                 new int[] {0, 1, 2, 3, 4, 5},

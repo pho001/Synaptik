@@ -40,8 +40,19 @@ final class MetalPointwiseFusionPlanner {
         }
         boolean[] target = new boolean[descriptors.size()];
         for (int value : targetValues) target[value] = true;
+        List<MetalAnchorEpilogue> anchors = MetalAnchorEpilogueRecognizer.recognize(
+                numericalProfile, program, descriptors, targetValues);
+        MetalAnchorEpilogue[] anchorAt = new MetalAnchorEpilogue[nodes.size()];
+        boolean[] anchorMember = new boolean[nodes.size()];
+        for (MetalAnchorEpilogue anchor : anchors) {
+            anchorAt[anchor.anchorNodePosition()] = anchor;
+            for (int relative = 0; relative < anchor.memberCount(); relative++) {
+                anchorMember[anchor.anchorNodePosition() + relative] = true;
+            }
+        }
 
-        List<Candidate> candidates = discoverCandidates(nodes, descriptors, consumers, target);
+        List<Candidate> candidates = discoverCandidates(
+                nodes, descriptors, consumers, target, anchorMember);
         Candidate[] candidateAt = new Candidate[nodes.size()];
         int generatedUnits = 0;
         int generatedInstructions = 0;
@@ -53,7 +64,7 @@ final class MetalPointwiseFusionPlanner {
         int projectedStep = 0;
         for (Candidate candidate : candidates) {
             if (stopped) continue;
-            projectedStep += candidate.start() - projectedNode;
+            projectedStep += stepDistance(projectedNode, candidate.start(), anchorAt);
             int functionBytes = functionUtf8Bytes(projectedStep, candidate.opcodes());
             MetalPointwiseFusionPlan.CapReason rejection = capRejection(
                     generatedUnits, generatedInstructions, generatedBytes,
@@ -77,8 +88,12 @@ final class MetalPointwiseFusionPlanner {
         boolean[] localTranspose = new boolean[descriptors.size()];
         int nodePosition = 0;
         while (nodePosition < nodes.size()) {
+            MetalAnchorEpilogue anchor = anchorAt[nodePosition];
             Candidate generated = candidateAt[nodePosition];
-            if (generated != null) {
+            if (anchor != null) {
+                stepBuilders.add(StepBuilder.anchor(anchor));
+                nodePosition += anchor.memberCount();
+            } else if (generated != null) {
                 stepBuilders.add(StepBuilder.generated(generated));
                 nodePosition = generated.end();
             } else {
@@ -110,6 +125,12 @@ final class MetalPointwiseFusionPlanner {
                 MetalMpsGraphProgram.Node last = nodes.get(builder.members[builder.members.length - 1]);
                 materialized[first.firstInputIndex()] = true;
                 materialized[last.outputIndex()] = true;
+            } else if (builder.kind == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE) {
+                MetalMpsGraphProgram.Node anchor = nodes.get(builder.members[0]);
+                for (int input : anchor.inputs()) materialized[input] = true;
+                int externalAdd = builder.anchor.externalAddValue();
+                if (externalAdd >= 0) materialized[externalAdd] = true;
+                materialized[builder.anchor.finalOutputValue()] = true;
             } else {
                 MetalMpsGraphProgram.Node node = nodes.get(builder.members[0]);
                 for (int input : node.inputs()) materialized[input] = true;
@@ -135,7 +156,7 @@ final class MetalPointwiseFusionPlanner {
 
         var members = new ArrayList<Integer>();
         var bindings = new ArrayList<MetalPointwiseFusionPlan.Binding>();
-        var instructions = new ArrayList<MetalPointwiseFusionPlan.Instruction>();
+        var instructions = new ArrayList<MetalPointwiseFusionPlan.ExecutionInstruction>();
         var steps = new ArrayList<MetalPointwiseFusionPlan.Step>();
         for (int stepOrdinal = 0; stepOrdinal < stepBuilders.size(); stepOrdinal++) {
             StepBuilder builder = stepBuilders.get(stepOrdinal);
@@ -149,6 +170,20 @@ final class MetalPointwiseFusionPlanner {
                         first.firstInputIndex(), programToSlot);
                 addBinding(bindings, stepOrdinal, 1, MetalPointwiseFusionPlan.Access.WRITE,
                         last.outputIndex(), programToSlot);
+            } else if (builder.kind == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE) {
+                MetalMpsGraphProgram.Node anchor = nodes.get(builder.members[0]);
+                int argument = 0;
+                for (int input : anchor.inputs()) {
+                    addBinding(bindings, stepOrdinal, argument++, MetalPointwiseFusionPlan.Access.READ,
+                            input, programToSlot);
+                }
+                int externalAdd = builder.anchor.externalAddValue();
+                if (externalAdd >= 0) {
+                    addBinding(bindings, stepOrdinal, argument++, MetalPointwiseFusionPlan.Access.READ,
+                            externalAdd, programToSlot);
+                }
+                addBinding(bindings, stepOrdinal, argument, MetalPointwiseFusionPlan.Access.WRITE,
+                        builder.anchor.finalOutputValue(), programToSlot);
             } else {
                 MetalMpsGraphProgram.Node node = nodes.get(builder.members[0]);
                 int argument = 0;
@@ -172,6 +207,10 @@ final class MetalPointwiseFusionPlanner {
                             relative,
                             relative + 1));
                 }
+            } else if (builder.kind == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE) {
+                for (MetalAnchorEpilogue.Operation operation : builder.anchor.operations()) {
+                    instructions.add(anchorInstruction(stepOrdinal, builder.anchor, operation));
+                }
             }
             int functionBytes = builder.kind == MetalPointwiseFusionPlan.StepKind.GENERATED_POINTWISE
                     ? functionUtf8Bytes(stepOrdinal, builder.opcodes(nodes)) : 0;
@@ -183,7 +222,8 @@ final class MetalPointwiseFusionPlanner {
                     bindings.size() - bindingStart,
                     instructionStart,
                     instructions.size() - instructionStart,
-                    functionBytes));
+                    functionBytes,
+                    builder.anchor == null ? 0 : builder.anchor.anchorKind().wire()));
         }
 
         int[] memberArray = members.stream().mapToInt(Integer::intValue).toArray();
@@ -222,16 +262,18 @@ final class MetalPointwiseFusionPlanner {
             List<MetalMpsGraphProgram.Node> nodes,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] consumers,
-            boolean[] targets) {
+            boolean[] targets,
+            boolean[] anchorMembers) {
         var result = new ArrayList<Candidate>();
         int position = 0;
         while (position < nodes.size()) {
-            if (!eligible(nodes.get(position), values)) {
+            if (anchorMembers[position] || !eligible(nodes.get(position), values)) {
                 position++;
                 continue;
             }
             int end = position + 1;
             while (end < nodes.size()
+                    && !anchorMembers[end]
                     && eligible(nodes.get(end), values)
                     && nodes.get(end - 1).outputIndex() == nodes.get(end).firstInputIndex()
                     && consumers[nodes.get(end - 1).outputIndex()] == 1
@@ -452,6 +494,75 @@ final class MetalPointwiseFusionPlanner {
         return 10;
     }
 
+    private static int stepDistance(
+            int start,
+            int end,
+            MetalAnchorEpilogue[] anchorAt) {
+        int distance = 0;
+        int position = start;
+        while (position < end) {
+            MetalAnchorEpilogue anchor = anchorAt[position];
+            position += anchor == null ? 1 : anchor.memberCount();
+            distance++;
+        }
+        if (position != end) {
+            throw new IllegalStateException("Metal execution candidates overlap");
+        }
+        return distance;
+    }
+
+    private static MetalPointwiseFusionPlan.AnchorInstruction anchorInstruction(
+            int stepOrdinal,
+            MetalAnchorEpilogue anchor,
+            MetalAnchorEpilogue.Operation operation) {
+        int relative = operation.nodePosition() - anchor.anchorNodePosition();
+        if (operation instanceof MetalAnchorEpilogue.ScalarMultiply scalar) {
+            return new MetalPointwiseFusionPlan.AnchorInstruction(
+                    stepOrdinal,
+                    relative,
+                    scalar.opcode(),
+                    scalar.inputValue(),
+                    -1,
+                    scalar.outputValue(),
+                    scalar.rawBits(),
+                    0);
+        }
+        if (operation instanceof MetalAnchorEpilogue.Add add) {
+            return new MetalPointwiseFusionPlan.AnchorInstruction(
+                    stepOrdinal,
+                    relative,
+                    add.opcode(),
+                    add.leftValue(),
+                    add.rightValue(),
+                    add.outputValue(),
+                    add.externalOnLeft() ? 1 : 0,
+                    add.externalValue());
+        }
+        if (operation instanceof MetalAnchorEpilogue.Relu relu) {
+            return new MetalPointwiseFusionPlan.AnchorInstruction(
+                    stepOrdinal,
+                    relative,
+                    relu.opcode(),
+                    relu.inputValue(),
+                    -1,
+                    relu.outputValue(),
+                    0,
+                    0);
+        }
+        if (operation instanceof MetalAnchorEpilogue.Clamp clamp) {
+            return new MetalPointwiseFusionPlan.AnchorInstruction(
+                    stepOrdinal,
+                    relative,
+                    clamp.opcode(),
+                    clamp.inputValue(),
+                    -1,
+                    clamp.outputValue(),
+                    clamp.lowerRawBits(),
+                    clamp.upperRawBits());
+        }
+        throw new AssertionError("unknown Metal anchor operation");
+    }
+
     private static void addBinding(
             List<MetalPointwiseFusionPlan.Binding> bindings,
             int step,
@@ -476,15 +587,15 @@ final class MetalPointwiseFusionPlanner {
             List<MetalPointwiseFusionPlan.Binding> bindings,
             int[] materialized,
             int[] targetSlots,
-            List<MetalPointwiseFusionPlan.Instruction> instructions,
+            List<MetalPointwiseFusionPlan.ExecutionInstruction> instructions,
             int generatedUnits,
             int generatedBytes,
             int rejected,
             MetalPointwiseFusionPlan.CapReason reason) {
         StringBuilder text = new StringBuilder(4096);
-        text.append("format 1\n")
-                .append("schema 17\n")
-                .append("generator 1\n")
+        text.append("format 2\n")
+                .append("schema 18\n")
+                .append("generator 2\n")
                 .append("route 3\n")
                 .append("profile ").append(Integer.toUnsignedString(
                         MetalMpsGraphProgram.numericalProfileWireValue(profile))).append('\n')
@@ -500,9 +611,12 @@ final class MetalPointwiseFusionPlanner {
                 .append(MetalPointwiseFusionPlan.FIXED_CORPUS_UTF8_BYTES + generatedBytes)
                 .append('\n')
                 .append("caps 32 256 16384 262144 1048576\n")
+                .append("execution-caps 64 512\n")
                 .append("source-size-table 1\n")
-                .append("fixed-corpus-bytes 77444\n")
+                .append("fixed-corpus-bytes ")
+                .append(MetalPointwiseFusionPlan.FIXED_CORPUS_UTF8_BYTES).append('\n')
                 .append("opcodes floor=1 ceil=2 sign=3 relu=4\n")
+                .append("anchor-opcodes scalar-mul=1 add=2 relu=3 clamp=4\n")
                 .append("pointmeta-abi size=32 align=8 elementCount=u64@0 gridWidth=u64@8 gridHeight=u64@16 scalar=u32@24 reserved=u32@28\n");
         for (int value = 0; value < values.size(); value++) {
             MetalMpsGraphProgram.ValueDescriptor descriptor = values.get(value);
@@ -528,7 +642,8 @@ final class MetalPointwiseFusionPlanner {
                     .append(step.memberStart()).append(' ').append(step.memberCount()).append(' ')
                     .append(step.bindingStart()).append(' ').append(step.bindingCount()).append(' ')
                     .append(step.instructionStart()).append(' ').append(step.instructionCount()).append(' ')
-                    .append(step.expectedFunctionUtf8Bytes()).append('\n');
+                    .append(step.expectedFunctionUtf8Bytes()).append(' ')
+                    .append(step.anchorKindWire()).append('\n');
             if (step.kind() == MetalPointwiseFusionPlan.StepKind.GENERATED_POINTWISE) {
                 int terminalNode = members[step.memberStart() + step.memberCount() - 1];
                 long elements = values.get(nodes.get(terminalNode).outputIndex()).elementCount();
@@ -547,13 +662,31 @@ final class MetalPointwiseFusionPlanner {
                     .append(binding.programValueIndex()).append('\n');
         }
         for (int ordinal = 0; ordinal < instructions.size(); ordinal++) {
-            MetalPointwiseFusionPlan.Instruction instruction = instructions.get(ordinal);
-            text.append("instruction ").append(ordinal).append(' ')
-                    .append(instruction.stepOrdinal()).append(' ')
-                    .append(instruction.relativeNodePosition()).append(' ')
-                    .append(instruction.opcode().wire()).append(" 1 ")
-                    .append(instruction.inputSsa()).append(" 4294967295 4294967295 ")
-                    .append(instruction.outputSsa()).append(" 0 0 0 0000000000000000 0000000000000000\n");
+            MetalPointwiseFusionPlan.ExecutionInstruction instruction = instructions.get(ordinal);
+            text.append("instruction ").append(ordinal).append(' ');
+            if (instruction instanceof MetalPointwiseFusionPlan.Instruction pointwise) {
+                text.append(pointwise.stepOrdinal()).append(' ')
+                        .append(pointwise.relativeNodePosition()).append(' ')
+                        .append(pointwise.opcode().wire()).append(" 1 1 ")
+                        .append(pointwise.inputSsa()).append(" 4294967295 4294967295 ")
+                        .append(pointwise.outputSsa())
+                        .append(" 0 0 0 0000000000000000 0000000000000000\n");
+            } else if (instruction instanceof MetalPointwiseFusionPlan.AnchorInstruction anchor) {
+                text.append(anchor.stepOrdinal()).append(' ')
+                        .append(anchor.relativeNodePosition()).append(' ')
+                        .append(anchor.opcode().wire()).append(" 2 ")
+                        .append(anchor.inputCount()).append(' ')
+                        .append(Integer.toUnsignedString(anchor.input0())).append(' ')
+                        .append(Integer.toUnsignedString(anchor.input1())).append(" 4294967295 ")
+                        .append(Integer.toUnsignedString(anchor.output())).append(' ')
+                        .append(anchor.immediateCount()).append(' ')
+                        .append(anchor.immediateCount() >= 1 ? 1 : 0).append(' ')
+                        .append(anchor.immediateCount() >= 2 ? 1 : 0).append(' ')
+                        .append(String.format("%016x", Integer.toUnsignedLong(anchor.raw0()))).append(' ')
+                        .append(String.format("%016x", Integer.toUnsignedLong(anchor.raw1()))).append('\n');
+            } else {
+                throw new AssertionError("unknown Metal execution instruction");
+            }
         }
         text.append("generated-units ").append(generatedUnits).append('\n').append("end\n");
         return text.toString().getBytes(StandardCharsets.US_ASCII);
@@ -575,14 +708,19 @@ final class MetalPointwiseFusionPlanner {
     private static final class StepBuilder {
         private final MetalPointwiseFusionPlan.StepKind kind;
         private final int[] members;
+        private final MetalAnchorEpilogue anchor;
 
-        private StepBuilder(MetalPointwiseFusionPlan.StepKind kind, int[] members) {
+        private StepBuilder(
+                MetalPointwiseFusionPlan.StepKind kind,
+                int[] members,
+                MetalAnchorEpilogue anchor) {
             this.kind = kind;
             this.members = members;
+            this.anchor = anchor;
         }
 
         static StepBuilder single(MetalPointwiseFusionPlan.StepKind kind, int member) {
-            return new StepBuilder(kind, new int[] {member});
+            return new StepBuilder(kind, new int[] {member}, null);
         }
 
         static StepBuilder generated(Candidate candidate) {
@@ -590,7 +728,17 @@ final class MetalPointwiseFusionPlanner {
             for (int index = 0; index < members.length; index++) {
                 members[index] = candidate.start() + index;
             }
-            return new StepBuilder(MetalPointwiseFusionPlan.StepKind.GENERATED_POINTWISE, members);
+            return new StepBuilder(
+                    MetalPointwiseFusionPlan.StepKind.GENERATED_POINTWISE, members, null);
+        }
+
+        static StepBuilder anchor(MetalAnchorEpilogue anchor) {
+            int[] members = new int[anchor.memberCount()];
+            for (int index = 0; index < members.length; index++) {
+                members[index] = anchor.anchorNodePosition() + index;
+            }
+            return new StepBuilder(
+                    MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE, members, anchor);
         }
 
         List<MetalPointwiseFusionPlan.Opcode> opcodes(List<MetalMpsGraphProgram.Node> nodes) {

@@ -18,7 +18,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Immutable schema-seventeen Metal program and its canonical bounded image encoder.
+ * Immutable schema-eighteen Metal program and its canonical bounded image encoder.
  *
  * <p>The fixed 128-byte header binds the complete core-image and execution-extension counts.
  * {@code CUSTOM_PROGRAM} images carry authoritative step, binding, materialization, instruction,
@@ -26,7 +26,7 @@ import java.util.Optional;
  * every extension section.</p>
  */
 final class MetalMpsGraphProgram {
-    static final int SCHEMA_VERSION = 17;
+    static final int SCHEMA_VERSION = 18;
     static final int MAX_RANK = 16;
     static final int MAX_SELECTOR_EXPANSION = 16;
     static final int HEADER_BYTES = 128;
@@ -35,7 +35,7 @@ final class MetalMpsGraphProgram {
     static final int STEP_DESCRIPTOR_BYTES = 40;
     static final int BINDING_DESCRIPTOR_BYTES = 24;
     static final int INSTRUCTION_DESCRIPTOR_BYTES = 64;
-    static final int MAGIC = 0x37314d53; // little-endian bytes "SM17"
+    static final int MAGIC = 0x38314d53; // little-endian bytes "SM18"
     static final int STRICT_IEEE_PROFILE_WIRE = 0x53545249; // little-endian bytes "IRTS"
     private static final int EXECUTION_EXTENSION_PRESENT = 1;
     static final int ACCELERATOR_PROFILE_WIRE = 0x41434345; // little-endian bytes "ECCA"
@@ -1133,7 +1133,7 @@ final class MetalMpsGraphProgram {
         }
     }
 
-    private MetalPointwiseFusionPlan resolvePlan(
+    MetalPointwiseFusionPlan resolvePlan(
             NumericalProfile numericalProfile,
             List<ValueDescriptor> values,
             int[] feeds,
@@ -1380,7 +1380,8 @@ final class MetalMpsGraphProgram {
                         .putInt(step.memberStart()).putInt(step.memberCount())
                         .putInt(step.bindingStart()).putInt(step.bindingCount())
                         .putInt(step.instructionStart()).putInt(step.instructionCount())
-                        .putInt(step.expectedFunctionUtf8Bytes()).putInt(0).putInt(0);
+                        .putInt(step.expectedFunctionUtf8Bytes())
+                        .putInt(step.anchorKindWire()).putInt(0);
             }
             for (int member : members) out.putInt(member);
             for (MetalPointwiseFusionPlan.Binding binding : plan.bindings()) {
@@ -1389,21 +1390,40 @@ final class MetalMpsGraphProgram {
                         .putInt(binding.programValueIndex()).putInt(0);
             }
             for (int value : plan.materializedProgramValueIndices()) out.putInt(value);
-            for (MetalPointwiseFusionPlan.Instruction instruction : plan.instructions()) {
-                out.putInt(instruction.stepOrdinal())
-                        .putInt(instruction.relativeNodePosition())
-                        .putInt(instruction.opcode().wire())
-                        .putInt(1)
-                        .putInt(1)
-                        .putInt(instruction.inputSsa())
-                        .putInt(-1)
-                        .putInt(-1)
-                        .putInt(instruction.outputSsa())
-                        .putInt(0)
-                        .putInt(0)
-                        .putInt(0)
-                        .putLong(0L)
-                        .putLong(0L);
+            for (MetalPointwiseFusionPlan.ExecutionInstruction instruction : plan.instructions()) {
+                if (instruction instanceof MetalPointwiseFusionPlan.Instruction pointwise) {
+                    out.putInt(pointwise.stepOrdinal())
+                            .putInt(pointwise.relativeNodePosition())
+                            .putInt(pointwise.opcode().wire())
+                            .putInt(1)
+                            .putInt(1)
+                            .putInt(pointwise.inputSsa())
+                            .putInt(-1)
+                            .putInt(-1)
+                            .putInt(pointwise.outputSsa())
+                            .putInt(0)
+                            .putInt(0)
+                            .putInt(0)
+                            .putLong(0L)
+                            .putLong(0L);
+                } else if (instruction instanceof MetalPointwiseFusionPlan.AnchorInstruction anchor) {
+                    out.putInt(anchor.stepOrdinal())
+                            .putInt(anchor.relativeNodePosition())
+                            .putInt(anchor.opcode().wire())
+                            .putInt(2)
+                            .putInt(anchor.inputCount())
+                            .putInt(anchor.input0())
+                            .putInt(anchor.input1())
+                            .putInt(-1)
+                            .putInt(anchor.output())
+                            .putInt(anchor.immediateCount())
+                            .putInt(anchor.immediateCount() >= 1 ? 1 : 0)
+                            .putInt(anchor.immediateCount() >= 2 ? 1 : 0)
+                            .putLong(Integer.toUnsignedLong(anchor.raw0()))
+                            .putLong(Integer.toUnsignedLong(anchor.raw1()));
+                } else {
+                    throw new AssertionError("unknown Metal execution instruction");
+                }
             }
             out.put(manifest).put(manifestDigest);
         }

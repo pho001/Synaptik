@@ -1,0 +1,141 @@
+{
+  "artifacts": {
+    "air": {
+      "bytes": 109776,
+      "sha256": "6465300b3d1ebc9e5736c9bc6b6c317628e50d9c89a41cef4f25f89e5ecefbec"
+    },
+    "ir": {
+      "bytes": 811150,
+      "sha256": "6666dcbb5ee85c1974c842920a9fdf0bb5d2925a25fe32d049b841f9bef61840"
+    },
+    "kernelHeader": {
+      "bytes": 7348,
+      "sha256": "233fa3685f073585324f25eb9b10bbdaa89ac79479c80290ce2e4fbef46b900d"
+    },
+    "metallib": {
+      "bytes": 486686,
+      "sha256": "b09ead23c20e4b9c1de200e4176914aa08642e4f68edf218ef79bb97659b8d1e"
+    },
+    "source": {
+      "bytes": 84541,
+      "sha256": "5e7d65bfc46f52532781a3730aeda2202b798022b61fb60ea5beeb95307e77bb"
+    },
+    "symbols": {
+      "bytes": 3861,
+      "sha256": "6a12a9f4325f41788d2c788a6662c198cdfca4af686218481089db0e7e2b896e"
+    }
+  },
+  "compilerFlags": [
+    "-std=metal3.2",
+    "-fno-fast-math",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-isysroot",
+    "<MacOSX27.0.sdk>"
+  ],
+  "kernelBodies": [
+    {
+      "fadd": 0,
+      "fdiv": 0,
+      "floatingInstructionCount": 2,
+      "fma": 1,
+      "fmul": 1,
+      "fsub": 0,
+      "staticByteStores": 1,
+      "symbol": "matmul_f32_f32_f32_epilogue_0071",
+      "unsafeFlags": []
+    },
+    {
+      "fadd": 0,
+      "fdiv": 0,
+      "floatingInstructionCount": 2,
+      "fma": 1,
+      "fmul": 1,
+      "fsub": 0,
+      "staticByteStores": 1,
+      "symbol": "matmul_f32_bf16_f32_epilogue_0071",
+      "unsafeFlags": []
+    },
+    {
+      "fadd": 0,
+      "fdiv": 0,
+      "floatingInstructionCount": 2,
+      "fma": 1,
+      "fmul": 1,
+      "fsub": 0,
+      "staticByteStores": 1,
+      "symbol": "matmul_bf16_f32_f32_epilogue_0071",
+      "unsafeFlags": []
+    },
+    {
+      "fadd": 1,
+      "fdiv": 0,
+      "floatingInstructionCount": 3,
+      "fma": 1,
+      "fmul": 1,
+      "fsub": 0,
+      "staticByteStores": 1,
+      "symbol": "matmul_f32_f32_f32_add_epilogue_0071",
+      "unsafeFlags": []
+    },
+    {
+      "fadd": 1,
+      "fdiv": 0,
+      "floatingInstructionCount": 3,
+      "fma": 1,
+      "fmul": 1,
+      "fsub": 0,
+      "staticByteStores": 1,
+      "symbol": "matmul_f32_bf16_f32_add_epilogue_0071",
+      "unsafeFlags": []
+    },
+    {
+      "fadd": 1,
+      "fdiv": 0,
+      "floatingInstructionCount": 3,
+      "fma": 1,
+      "fmul": 1,
+      "fsub": 0,
+      "staticByteStores": 1,
+      "symbol": "matmul_bf16_f32_f32_add_epilogue_0071",
+      "unsafeFlags": []
+    },
+    {
+      "fadd": 0,
+      "fdiv": 0,
+      "floatingInstructionCount": 0,
+      "fma": 0,
+      "fmul": 0,
+      "fsub": 0,
+      "staticByteStores": 1,
+      "symbol": "conv2d_epilogue_0071",
+      "unsafeFlags": []
+    },
+    {
+      "fadd": 1,
+      "fdiv": 0,
+      "floatingInstructionCount": 1,
+      "fma": 0,
+      "fmul": 0,
+      "fsub": 0,
+      "staticByteStores": 1,
+      "symbol": "conv2d_add_epilogue_0071",
+      "unsafeFlags": []
+    },
+    {
+      "fadd": 0,
+      "fdiv": 0,
+      "floatingInstructionCount": 1,
+      "fma": 1,
+      "fmul": 0,
+      "fsub": 0,
+      "staticByteStores": 0,
+      "symbol": "conv2d_value_0071.helper",
+      "unsafeFlags": []
+    }
+  ],
+  "runtimeMathMode": "MTLMathModeSafe",
+  "schema": "synaptik.metal.anchor-epilogue-air-audit.v1",
+  "targetTriple": "air64_v28-apple-macosx26.0.0"
+}

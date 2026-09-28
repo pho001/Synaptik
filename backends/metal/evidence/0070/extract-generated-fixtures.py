@@ -17,6 +17,7 @@ COMPONENTS = (
     ("native/metal-macos-arm64/src/synaptik_task0069_aggregate_kernels.h", "SynaptikTask0069AggregateKernelSource"),
     ("native/metal-macos-arm64/src/synaptik_task0065_rng_dropout_kernels.h", "SynaptikTask0065RngDropoutKernelSource"),
     ("native/metal-macos-arm64/src/synaptik_task0066_dtype_layout_kernels.h", "SynaptikTask0066DtypeLayoutKernelSource"),
+    ("native/metal-macos-arm64/src/synaptik_task0071_anchor_epilogue_kernels.h", "SynaptikTask0071AnchorEpilogueKernelSource"),
 )
 HELPERS = {
     b"floor_bits": "floor",
@@ -24,7 +25,7 @@ HELPERS = {
     b"sign_bits": "sign",
     b"relu_bits": "relu",
 }
-FIXED_BYTES = 77_444
+FIXED_BYTES = 84_541
 
 
 def extract_component(relative_path: str, symbol: str) -> bytes:

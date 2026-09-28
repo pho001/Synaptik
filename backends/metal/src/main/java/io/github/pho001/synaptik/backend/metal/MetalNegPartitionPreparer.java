@@ -120,7 +120,7 @@ import java.util.Optional;
  * a materialized partition feed. Random lowering preserves initializer key/counter words, dropout's
  * raw binary64 probability, and all ordered value, mask, and state edges; recurrent nodes remain
  * rejected. An affine MATMUL operand is authenticated to the exact earlier local identity-prefix,
- * last-two-axis {@code PERMUTE} on that consuming edge. Schema-seventeen lowering emits one
+ * last-two-axis {@code PERMUTE} on that consuming edge. Schema-eighteen lowering emits one
  * bounded self-describing image over stable type wires 1..6, complete operation registry 1..115,
  * attribute registry 0..41, the explicit prepared route, and its authenticated execution plan.
  * Production capability is exactly 86 operation kinds; additional structural recipes remain
@@ -411,10 +411,21 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         int[] targetIndices = indices(targets, valueIndexes);
         long[] feedBytes = requiredBytes(feeds, graphValues, physicalLayouts);
         long[] targetBytes = requiredBytes(targets, graphValues, physicalLayouts);
+        var programValueDescriptors =
+                new ArrayList<MetalMpsGraphProgram.ValueDescriptor>(descriptors.size());
+        for (int value = 0; value < descriptors.size(); value++) {
+            programValueDescriptors.add(MetalMpsGraphProgram.ValueDescriptor.from(
+                    descriptors.get(value), valueStates.get(value)));
+        }
+        boolean containsAnchorEpilogue = !MetalAnchorEpilogueRecognizer.recognize(
+                context.numericalProfile(),
+                graphProgram,
+                programValueDescriptors,
+                targetIndices).isEmpty();
         boolean containsCustomProgram = graphProgram.nodes().stream()
                 .anyMatch(node -> usesCustomProgram(node, descriptors));
         long singletonElements = feedBytes.length == 1 ? feedBytes[0] / Float.BYTES : 0L;
-        MetalPreparedRoute route = containsCustomProgram
+        MetalPreparedRoute route = containsCustomProgram || containsAnchorEpilogue
                 ? MetalPreparedRoute.CUSTOM_PROGRAM
                 : nodeCount == 1
                         && graphProgram.nodes().getFirst().kind()
@@ -425,12 +436,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         && singletonElements <= UINT32_MAX
                         ? MetalPreparedRoute.CUSTOM_SINGLE_NEG
                         : MetalPreparedRoute.MPSGRAPH;
-        var programValueDescriptors =
-                new ArrayList<MetalMpsGraphProgram.ValueDescriptor>(descriptors.size());
-        for (int value = 0; value < descriptors.size(); value++) {
-            programValueDescriptors.add(MetalMpsGraphProgram.ValueDescriptor.from(
-                    descriptors.get(value), valueStates.get(value)));
-        }
         MetalPointwiseFusionPlan fusionPlan = route == MetalPreparedRoute.CUSTOM_PROGRAM
                 ? MetalPointwiseFusionPlanner.plan(
                         context.numericalProfile(),
@@ -525,7 +530,14 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalTraceProducer traceProducer = context.backendInputs().traceProducer();
         MetalTraceProducer.PreparedUnit traceUnit = traceProducer == null
                 ? null
-                : traceProducer.prepareUnit(context.numericalProfile(), route);
+                : traceProducer.prepareUnit(
+                        context.numericalProfile(),
+                        route,
+                        graphProgram,
+                        programValueDescriptors,
+                        feedIndices,
+                        targetIndices,
+                        internalValues.size());
         var plan = traceProducer == null && route == heuristicPlan.route()
                 ? heuristicPlan
                 : new MetalNegPreparationPlan(

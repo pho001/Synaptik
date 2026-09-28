@@ -46,6 +46,9 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
     private final int targetCount;
     private final int internalCount;
     private final long[] requiredBytes;
+    private final InvocationByteTotals byteTotals;
+    private final int splatCount;
+    private final int workspaceCount;
 
     /**
      * Creates the immutable recipe from assigned feed and target plan positions.
@@ -123,6 +126,25 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             throw new IllegalArgumentException("Metal NEG selection geometry disagrees");
         }
         validateSplatResources();
+        if (preparationPlan.traceUnit() == null) {
+            this.byteTotals = null;
+        } else {
+            long pointerCount = preparationPlan.route() == MetalPreparedRoute.CUSTOM_PROGRAM
+                    ? Math.addExact(
+                            (long) preparationPlan.pointwiseFusionPlan()
+                                    .materializedProgramValueIndices().length,
+                            targetCount)
+                    : requiredBytes.length;
+            long workspaceBytes = Math.multiplyExact(pointerCount, ADDRESS.byteSize());
+            this.byteTotals = byteTotals(
+                    feedRequiredBytes,
+                    targetRequiredBytes,
+                    internalRequiredBytes,
+                    this.splatResources,
+                    workspaceBytes);
+        }
+        this.splatCount = presentCount(this.splatResources);
+        this.workspaceCount = 1;
     }
 
     /**
@@ -167,6 +189,16 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             throw new IllegalArgumentException("Metal custom splat-resource cardinality disagrees");
         }
         validateSplatResources();
+        this.byteTotals = preparationPlan.traceUnit() == null
+                ? null
+                : byteTotals(
+                        new long[] {resource.requiredBytes()},
+                        new long[] {resource.requiredBytes()},
+                        new long[0],
+                        this.splatResources,
+                        0L);
+        this.splatCount = presentCount(this.splatResources);
+        this.workspaceCount = 0;
     }
 
     /** @return the exact immutable backend plan retained for cold schedule assembly */
@@ -251,7 +283,14 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                         "Metal NEG input and output buffers must not alias");
             }
             return new CustomBoundInvocation(
-                    runState, preparationPlan, customResource, input, output);
+                    runState,
+                    preparationPlan,
+                    customResource,
+                    input,
+                    output,
+                    byteTotals,
+                    splatCount,
+                    workspaceCount);
         }
         if (preparationPlan.route() == MetalPreparedRoute.CUSTOM_PROGRAM) {
             return bindCustomProgram(runState, bufferRepresentations, workspaceRepresentations);
@@ -295,7 +334,8 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         }
         return new MpsGraphBoundInvocation(
                 runState, preparationPlan, mpsGraphResource, replayBuffers,
-                inputCount, inputs, outputCount, outputs);
+                inputCount, inputs, outputCount, outputs,
+                byteTotals, splatCount, workspaceCount);
     }
 
     private BoundInvocation bindCustomProgram(
@@ -361,7 +401,10 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                 materializedCount,
                 values,
                 targetCount,
-                outputs);
+                outputs,
+                byteTotals,
+                splatCount,
+                workspaceCount);
 
     }
 
@@ -377,6 +420,48 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                 preparationPlan.feedSplats().get(index).orElseThrow());
     }
 
+    private static InvocationByteTotals byteTotals(
+            long[] inputBytes,
+            long[] outputBytes,
+            long[] internalBytes,
+            List<? extends Optional<?>> splats,
+            long workspaceBytes) {
+        if (splats.size() != inputBytes.length || workspaceBytes < 0L) {
+            throw new IllegalArgumentException("Metal invocation byte facts disagree");
+        }
+        long aggregateInput = aggregateBytes(inputBytes);
+        long aggregateOutput = aggregateBytes(outputBytes);
+        long aggregateInternal = aggregateBytes(internalBytes);
+        long aggregateSplat = 0L;
+        for (int index = 0; index < inputBytes.length; index++) {
+            if (splats.get(index).isPresent()) {
+                aggregateSplat = Math.addExact(aggregateSplat, inputBytes[index]);
+            }
+        }
+        long aggregateRequired = Math.addExact(
+                Math.addExact(aggregateInput, aggregateOutput),
+                Math.addExact(aggregateInternal, workspaceBytes));
+        return new InvocationByteTotals(
+                aggregateInput,
+                aggregateOutput,
+                aggregateInternal,
+                aggregateSplat,
+                workspaceBytes,
+                aggregateRequired);
+    }
+
+    private static long aggregateBytes(long[] requiredBytes) {
+        long total = 0L;
+        for (long bytes : requiredBytes) total = Math.addExact(total, bytes);
+        return total;
+    }
+
+    private static int presentCount(List<? extends Optional<?>> values) {
+        int count = 0;
+        for (Optional<?> value : values) if (value.isPresent()) count++;
+        return count;
+    }
+
     private void validateSplatResources() {
         boolean[] sources = preparationPlan.feedSplatSources();
         if (sources.length != splatResources.size()) {
@@ -390,6 +475,24 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         }
     }
 
+    private record InvocationByteTotals(
+            long input,
+            long output,
+            long internal,
+            long splat,
+            long workspace,
+            long required) {
+        private InvocationByteTotals {
+            if (input < 0L || output < 0L || internal < 0L || splat < 0L
+                    || workspace < 0L || required < 0L || splat > input
+                    || required != Math.addExact(
+                            Math.addExact(input, output),
+                            Math.addExact(internal, workspace))) {
+                throw new IllegalArgumentException("Metal invocation byte totals disagree");
+            }
+        }
+    }
+
     private static final class MpsGraphBoundInvocation extends BoundInvocation {
         private final MetalNegPreparationPlan preparationPlan;
         private final MetalMpsGraphExecutableResource resource;
@@ -398,6 +501,9 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         private final MemorySegment inputs;
         private final int outputCount;
         private final MemorySegment outputs;
+        private final InvocationByteTotals byteTotals;
+        private final int splatCount;
+        private final int workspaceCount;
 
         private MpsGraphBoundInvocation(
                 RunState runState,
@@ -407,7 +513,10 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                 int inputCount,
                 MemorySegment inputs,
                 int outputCount,
-                MemorySegment outputs) {
+                MemorySegment outputs,
+                InvocationByteTotals byteTotals,
+                int splatCount,
+                int workspaceCount) {
             super(runState);
             this.preparationPlan = preparationPlan;
             this.resource = resource;
@@ -416,6 +525,9 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             this.inputs = inputs;
             this.outputCount = outputCount;
             this.outputs = outputs;
+            this.byteTotals = byteTotals;
+            this.splatCount = splatCount;
+            this.workspaceCount = workspaceCount;
         }
 
         @Override
@@ -423,6 +535,21 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             MetalTraceProducer.PreparedUnit traceUnit = preparationPlan.traceUnit();
             TraceInvocationId invocationId =
                     traceUnit == null ? null : traceUnit.beginInvocation();
+            if (traceUnit != null) {
+                traceUnit.invocationPlanned(
+                        invocationId,
+                        preparationPlan.feedValueIds().size(),
+                        preparationPlan.targetValueIds().size(),
+                        preparationPlan.internalValueIds().size(),
+                        byteTotals.input(),
+                        byteTotals.output(),
+                        byteTotals.internal(),
+                        byteTotals.splat(),
+                        byteTotals.workspace(),
+                        byteTotals.required(),
+                        splatCount,
+                        workspaceCount);
+            }
             try {
                 resource.run(inputCount, inputs, outputCount, outputs);
             } catch (MetalNativeApi.NativeFailure failure) {
@@ -592,12 +719,18 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         private final MetalNativeApi.Handle inputHandle;
         private final MetalNativeApi.Handle outputHandle;
 
+        private final InvocationByteTotals byteTotals;
+        private final int splatCount;
+        private final int workspaceCount;
         private CustomBoundInvocation(
                 RunState runState,
                 MetalNegPreparationPlan preparationPlan,
                 MetalNegKernelPipelineResource resource,
                 MetalBufferRepresentation input,
-                MetalBufferRepresentation output) {
+                MetalBufferRepresentation output,
+                InvocationByteTotals byteTotals,
+                int splatCount,
+                int workspaceCount) {
             super(runState);
             this.preparationPlan =
                     Objects.requireNonNull(preparationPlan, "preparationPlan");
@@ -606,13 +739,30 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             this.output = output;
             this.inputHandle = input.executionHandle();
             this.outputHandle = output.executionHandle();
+            this.byteTotals = byteTotals;
+            this.splatCount = splatCount;
+            this.workspaceCount = workspaceCount;
         }
-
         @Override
         protected void executeBound() {
             MetalTraceProducer.PreparedUnit traceUnit = preparationPlan.traceUnit();
             TraceInvocationId invocationId =
                     traceUnit == null ? null : traceUnit.beginInvocation();
+            if (traceUnit != null) {
+                traceUnit.invocationPlanned(
+                        invocationId,
+                        1,
+                        1,
+                        0,
+                        byteTotals.input(),
+                        byteTotals.output(),
+                        byteTotals.internal(),
+                        byteTotals.splat(),
+                        byteTotals.workspace(),
+                        byteTotals.required(),
+                        splatCount,
+                        workspaceCount);
+            }
             try {
                 resource.run(inputHandle, outputHandle);
             } catch (RuntimeException | Error failure) {

@@ -228,9 +228,9 @@ class MetalNegPreparedExecutionTest {
             assertEquals(1, api.pipelineCreates.get());
             assertEquals(1, api.executableCreates.get());
             assertEquals(TraceRouteKind.CUSTOM_KERNEL,
-                    ((BackendPreparationOutcome) customEvents.getFirst().payload()).route());
+                    ((BackendPreparationOutcome) customEvents.getLast().payload()).route());
             assertEquals(TraceRouteKind.GRAPH_EXECUTABLE,
-                    ((BackendPreparationOutcome) graphEvents.getFirst().payload()).route());
+                    ((BackendPreparationOutcome) graphEvents.getLast().payload()).route());
 
             input = context.createBuffer(6L * Float.BYTES);
             uploadBits(input, 0x3f800000, 0xc0000000, 0x00000000,
@@ -256,6 +256,37 @@ class MetalNegPreparedExecutionTest {
             } finally {
                 graphResult.close();
             }
+
+            MetalInvocationPlan customInvocation = customEvents.stream()
+                    .map(TraceEvent::payload)
+                    .filter(MetalInvocationPlan.class::isInstance)
+                    .map(MetalInvocationPlan.class::cast)
+                    .findFirst()
+                    .orElseThrow();
+            MetalInvocationPlan graphInvocation = graphEvents.stream()
+                    .map(TraceEvent::payload)
+                    .filter(MetalInvocationPlan.class::isInstance)
+                    .map(MetalInvocationPlan.class::cast)
+                    .findFirst()
+                    .orElseThrow();
+            long tensorBytes = 6L * Float.BYTES;
+            assertEquals(tensorBytes, customInvocation.aggregateInputBytes());
+            assertEquals(tensorBytes, customInvocation.aggregateOutputBytes());
+            assertEquals(0L, customInvocation.aggregateInternalBytes());
+            assertEquals(0L, customInvocation.aggregateSplatBytes());
+            assertEquals(0L, customInvocation.aggregateWorkspaceBytes());
+            assertEquals(2L * tensorBytes, customInvocation.aggregateRequiredBytes());
+            assertEquals(0, customInvocation.workspaceCount());
+            long workspaceBytes = 2L * ADDRESS.byteSize();
+            assertEquals(tensorBytes, graphInvocation.aggregateInputBytes());
+            assertEquals(tensorBytes, graphInvocation.aggregateOutputBytes());
+            assertEquals(0L, graphInvocation.aggregateInternalBytes());
+            assertEquals(0L, graphInvocation.aggregateSplatBytes());
+            assertEquals(workspaceBytes, graphInvocation.aggregateWorkspaceBytes());
+            assertEquals(
+                    2L * tensorBytes + workspaceBytes,
+                    graphInvocation.aggregateRequiredBytes());
+            assertEquals(1, graphInvocation.workspaceCount());
 
             assertSame(MetalPreparedRoute.CUSTOM_SINGLE_NEG,
                     customRoute.analysis().plan().route());
@@ -467,7 +498,9 @@ class MetalNegPreparedExecutionTest {
         AssertionError observerFailure = new AssertionError("prepare observer");
         MetalTraceProducer producer = new MetalTraceProducer(event -> {
             events.add(event);
-            throw observerFailure;
+            if (event.payload() instanceof BackendPreparationOutcome) {
+                throw observerFailure;
+            }
         });
         SingleNegRoute route =
                 singleNegRoute(context, Shape.of(2), Optional.empty(), producer);
@@ -503,8 +536,8 @@ class MetalNegPreparedExecutionTest {
                             + " INTERNAL_ERROR (7)",
                     rollbackFailure.getMessage());
             assertSame(observerFailure, failure.getSuppressed()[1]);
-            assertEquals(1, events.size());
-            TraceEvent<? extends TracePayload> event = events.getFirst();
+            assertEquals(2, events.size());
+            TraceEvent<? extends TracePayload> event = events.getLast();
             BackendPreparationOutcome outcome =
                     (BackendPreparationOutcome) event.payload();
             assertEquals(TracePhase.PREPARE, event.phase());
@@ -539,8 +572,8 @@ class MetalNegPreparedExecutionTest {
                     () -> new MetalNegPartitionFinalizer(context)
                             .finalizePartition(assignment.finalization()));
             assertSame(uploadFailure, actual);
-            assertEquals(1, events.size());
-            TraceEvent<? extends TracePayload> event = events.getFirst();
+            assertEquals(2, events.size());
+            TraceEvent<? extends TracePayload> event = events.getLast();
             BackendPreparationOutcome outcome =
                     (BackendPreparationOutcome) event.payload();
             assertEquals(TracePhase.PREPARE, event.phase());
@@ -563,7 +596,7 @@ class MetalNegPreparedExecutionTest {
         MetalDeviceContext context = MetalDeviceContext.open(api);
         AssertionError observerFailure = new AssertionError("custom run observer");
         MetalTraceProducer producer = new MetalTraceProducer(event -> {
-            if (event.phase() == TracePhase.RUN) {
+            if (event.payload() instanceof BackendInvocationOutcome) {
                 throw observerFailure;
             }
         });
@@ -1294,7 +1327,7 @@ class MetalNegPreparedExecutionTest {
         MetalDeviceContext context = MetalDeviceContext.open(api);
         AssertionError observerFailure = new AssertionError("MPSGraph run observer");
         MetalTraceProducer producer = new MetalTraceProducer(event -> {
-            if (event.phase() == TracePhase.RUN) {
+            if (event.payload() instanceof BackendInvocationOutcome) {
                 throw observerFailure;
             }
         });
@@ -1350,7 +1383,7 @@ class MetalNegPreparedExecutionTest {
         List<AssertionError> observerFailures = new CopyOnWriteArrayList<>();
         MetalTraceProducer producer = new MetalTraceProducer(event -> {
             events.add(event);
-            if (event.phase() == TracePhase.RUN) {
+            if (event.payload() instanceof BackendInvocationOutcome) {
                 AssertionError failure = new AssertionError("range observer");
                 observerFailures.add(failure);
                 throw failure;
@@ -1382,12 +1415,12 @@ class MetalNegPreparedExecutionTest {
         BackendPartitionFinalizationResult finalized =
                 new MetalNegPartitionFinalizer(context)
                         .finalizePartition(finalization.finalization());
-        assertEquals(1, events.size());
-        assertEquals(TracePhase.PREPARE, events.getFirst().phase());
-        assertEquals(TraceLevel.INFO, events.getFirst().level());
+        assertEquals(2, events.size());
+        assertEquals(TracePhase.PREPARE, events.getLast().phase());
+        assertEquals(TraceLevel.INFO, events.getLast().level());
         assertEquals(
                 TraceOutcomeStatus.SUCCEEDED,
-                ((BackendPreparationOutcome) events.getFirst().payload()).status());
+                ((BackendPreparationOutcome) events.getLast().payload()).status());
         var executable = (MetalNegPreparedExecutable) finalized.executable();
         var buffers = new ArrayList<MetalBufferRepresentation>();
         RunState state = null;
@@ -1426,18 +1459,22 @@ class MetalNegPreparedExecutionTest {
             assertArrayEquals(
                     new Throwable[] {observerFailures.get(1)}, gather.getSuppressed());
             assertEquals(2, api.runCalls.get());
-            assertEquals(3, events.size());
-            assertEquals(List.of(0L, 1L, 2L), events.stream()
+            assertEquals(6, events.size());
+            assertEquals(List.of(0L, 1L, 2L, 3L, 4L, 5L), events.stream()
                     .map(event -> event.id().value())
                     .toList());
-            for (int index = 1; index < events.size(); index++) {
-                TraceEvent<? extends TracePayload> event = events.get(index);
+            List<TraceEvent<? extends TracePayload>> outcomes = events.stream()
+                    .filter(event -> event.payload() instanceof BackendInvocationOutcome)
+                    .toList();
+            assertEquals(2, outcomes.size());
+            for (int index = 0; index < outcomes.size(); index++) {
+                TraceEvent<? extends TracePayload> event = outcomes.get(index);
                 BackendInvocationOutcome outcome =
                         (BackendInvocationOutcome) event.payload();
                 assertEquals(TracePhase.RUN, event.phase());
                 assertEquals(TraceLevel.ERROR, event.level());
                 assertEquals(TraceOutcomeStatus.FAILED, outcome.status());
-                assertEquals(index - 1L, outcome.invocationId().value());
+                assertEquals(index, outcome.invocationId().value());
                 assertEquals(
                         TraceNativeStatusKind.RANGE_OUT_OF_BOUNDS,
                         outcome.nativeStatus().orElseThrow().kind());

@@ -280,8 +280,8 @@ refresh.
 distinct non-physical identities. The first is an abstract availability slot, the second a Metal
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
 claim. No mapping among them is implied. ABI 5 and the thirteen native exports remain fixed.
-The route-bearing image is schema 17 and every workload/exact-policy/candidate/compatibility/
-route/codec identity is version 26; every other schema or identity fails closed. Tuning remains
+The route-bearing image is schema 18 and every workload/exact-policy/candidate/compatibility/
+route/codec identity is version 27; every other schema or identity fails closed. Tuning remains
 session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
@@ -305,11 +305,15 @@ clock, and makes no callback.
 
 One traced integration is one producer-defined stream. Backend and device correlations are fixed
 to zero; event, prepared-unit, and invocation IDs use independent thread-safe non-negative
-sequences beginning at zero. Each event uses `System.nanoTime()`. After analysis fixes a route and
-before finalization, Metal retains the prepared-unit ID, requested profile, and neutral route.
-Successful or failed executable/resource finalization emits one `PREPARE` event while tracing is
-enabled. Each custom-kernel or MPSGraph native invocation similarly emits one `RUN` event. There
-are no start, transfer, allocation, binding, materialization, publication, or close events.
+sequences beginning at zero. Each event uses `System.nanoTime()`. After final route and anchor
+recognition, but before native creation, Metal emits one bounded `MetalPreparationStructure`
+`PREPARE` event with profile, neutral route, fused/composed anchor family and suffix order,
+schema/generator identities, bounded counts, canonical digest, and bounded custom-step summaries.
+Resource finalization then emits the existing preparation outcome. Immediately before each native
+run call Metal emits one `MetalInvocationPlan` `RUN` event with invocation identity, route, slot
+counts, aggregate input/output/internal/splat/workspace bytes, splat/workspace counts, and the same
+bounded step summaries; the
+existing invocation outcome follows native completion or failure.
 
 Preparation always reports `NOT_QUERIED`: Metal authenticates an optional outer tuning decision
 but performs no cache lookup and cannot claim an outer hit or miss. Native codes `0..12` map to
@@ -325,11 +329,13 @@ disables later tracing without changing backend work, failure, rollback, suppres
 exception. An observer `Error` from success reporting propagates normally. During failure
 reporting, the existing finalization or route-specific run failure remains primary; a distinct
 observer `Error` is attached as an acyclic suppressed failure after any rollback suppression,
-without disabling tracing. Payloads include only Trace-owned IDs and closed facts; they never
-include the library path, device/session token, address, handle, Tensor/storage value, scalar,
-shape, byte extent, workload/candidate fingerprint, thread identity, exception, free-form string,
-or generic map. Tracing changes no capability, route, native call, native ABI/schema/export,
-result, lifecycle, or Engine production behavior.
+without disabling tracing. Payloads include only Trace-owned IDs and bounded closed structural or
+aggregate facts. They never include source text, tensor data, scalar bits, per-buffer byte
+geometry, pointers, native handles, paths, names, secrets, exceptions, free-form strings, or
+generic maps. Close tracing remains deliberately deferred: prepared units are logical plans while
+native executables are shared reference-counted resources, so a per-unit close event would
+misstate native lifetime and add noise. Tracing changes no capability, route, native call, native
+ABI/schema/export, result, lifecycle, or Engine production behavior.
 
 ### Capability, whole-partition analysis, and route selection
 
@@ -375,8 +381,21 @@ FLOAT64/FLOAT32/BFLOAT16 under both profiles; average admits only accelerator FL
 singleton-height Conv1d/Pool1d forms remain authenticated local compositions. Availability and hard
 backend requirements remain separate Planning facts.
 
+`ACCELERATOR` recognizes a bounded anchor epilogue only when every suffix intermediate is private,
+single-consumer, non-target, canonical, and shape/type/gradient compatible. MATMUL admits optional
+literal `SCALAR_MUL`, at most one source-ordered tensor `ADD`, and optional terminal `RELU` or
+no-gradient `CLAMP`. Conv2d admits its intrinsic optional rank-one channel bias, at most one
+external tensor `ADD`, and optional `RELU` or no-gradient `CLAMP`; it never absorbs scalar
+multiplication. External ADD is a distinct canonical FLOAT32 value and follows ordinary
+right-aligned broadcasting. Consequently Conv2d rank-one `[W]` broadcasts over width, never
+channels; channel broadcasting uses `[1,C,1,1]`, while intrinsic `[C]` remains only the third
+Conv2d input. Any publication, fanout, unsupported order, aliasing role, type/layout/gradient
+mismatch, strict profile, or instruction/cap mismatch preserves the original composition.
+An admitted suffix becomes one custom step, one physical dispatch, and one final store with no
+intermediate materialized slot and no native retry or fallback.
+
 The package-private `MetalOperationRouteCatalog` separately describes every one of the 115
-schema-seventeen `NodeKind` values. Exhaustive enum switching yields shared immutable entries with
+schema-eighteen `NodeKind` values. Exhaustive enum switching yields shared immutable entries with
 closed MPSGraph state/reason and custom-kernel state/reason values: MPSGraph totals are
 `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`; custom totals are
 `73 AVAILABLE / 42 PENDING / 0 UNAVAILABLE_WITH_PROOF`. Task 0066 moves exactly wires `6..11` and
@@ -425,7 +444,7 @@ consuming a caller position. Existing shared `GraphPreparation` tests independen
 chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, typed node records, and the
-canonical execution plan are known, analysis creates a version-twenty-six candidate batch and
+canonical execution plan are known, analysis creates a version-twenty-seven candidate batch and
 workload fingerprint. Every selected Task-0066 or Task-0069 occurrence forces the fixed
 `CUSTOM_PROGRAM` production candidate; the batch rejects a selected-node MPSGraph route before
 native allocation. Other partitions retain their established candidate sets, including the bounded
@@ -433,14 +452,14 @@ singleton-NEG dual-route case and direct rank-two FLOAT32 MATMUL where no select
 requires the whole-program route. Package-private structural forcing remains available only for a
 route already present in the fresh authenticated batch.
 
-The version-twenty-six canonical workload fingerprint covers the explicit numerical-profile wire,
-the schema-seventeen route-bearing program image and authenticated execution extension, ordered
+The version-twenty-seven canonical workload fingerprint covers the explicit numerical-profile wire,
+the schema-eighteen route-bearing program image and authenticated execution extension, ordered
 input and output references, all typed attributes, logical and physical value states,
 authenticated local provenance, complete tensor descriptors and storage layouts, compact
 materialized and target sets, exact scalar/splat bits, logical-boundary roles,
 policy/candidate/route schemas, and ABI version. It encodes structural positions rather than graph
 object identity. Target compatibility also contains a fresh private nonce from the exact
-`MetalDeviceContext`; only identity 26 is accepted, while every other decision fails closed.
+`MetalDeviceContext`; only identity 27 is accepted, while every other decision fails closed.
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. Every supplied handoff is accepted only when the exact
 partition, candidate schema, workload fingerprint, and context session match. An absent decision
@@ -465,15 +484,15 @@ exposes this test seam.
 
 ### Session decision codec and limitations
 
-The package-private version-twenty-six Metal codec produces bounded canonical compatibility,
+The package-private version-twenty-seven Metal codec produces bounded canonical compatibility,
 candidate, and checksummed decision bytes. Decode rejects wrong magic, schema, session scope,
 numerical profile, malformed or truncated content, trailing or corrupt bytes, changed workload or
 context, and unknown or pruned candidates. The bytes contain no native handle or executable. Only
-identity 26 is accepted; every other codec or cross-profile decision fails closed even when its
+identity 27 is accepted; every other codec or cross-profile decision fails closed even when its
 trailing checksum is otherwise valid.
 
 The public `MetalLocalWorkloadTuning` retained by `MetalBackendIntegration` wraps this codec and
-candidate generator without changing their version-twenty-six bytes. It returns a handoff only
+candidate generator without changing their version-twenty-seven bytes. It returns a handoff only
 for an exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
 `MetalCompletePlanTuning` authenticates the exact Phase-1 association and exposes one complete-plan
 candidate fixed to that selected route. Both collaborations use opaque exact-owner/batch values,
@@ -486,9 +505,9 @@ or hit a persistent workload-cache entry, and its complete-plan phase never touc
 model-plan path. Cross-session Metal reuse still requires a separately authorized stable
 device/library fingerprint.
 
-Schema-seventeen workload bytes and workload compatibility include the fixed route, exact profile,
+Schema-eighteen workload bytes and workload compatibility include the fixed route, exact profile,
 canonical execution extension, and manifest digest. Candidate and decision bytes retain route
-wires `1..3`, route-policy version twenty-six, and the target session.
+wires `1..3`, route-policy version twenty-seven, and the target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
 session)` rather than a workload digest alone. The repository has no persistent Metal executable
@@ -514,7 +533,7 @@ AIR proves it write-only, so runtime validation requires the actual read-write r
 rather than fabricating a stronger access value. `PointMeta` must expose exactly five ordered
 members with types/offsets `ulong@0`, `ulong@8`, `ulong@16`, `uint@24`, and `uint@28`, size 32,
 and alignment eight. For the
-ordinary MPSGraph route, native creation validates one canonical bounded schema-17 route-bearing
+ordinary MPSGraph route, native creation validates one canonical bounded schema-18 route-bearing
 program image with no extension and compiles one fixed-shape whole-partition executable. MATMUL
 compilation requires reduced-precision-fast-math read-back `None`. All compilation happens during
 finalization, never invocation.
@@ -710,7 +729,7 @@ publish c, t
 ```
 
 Preparation lowers the normalized axis and binding-resolved sum-to-Shape target into the bounded
-schema-seventeen route-bearing program image. `m`, `a`, `s`, and `c` remain positive-rank
+schema-eighteen route-bearing program image. `m`, `a`, `s`, and `c` remain positive-rank
 canonical, so they may compose inside the partition. The scalar `t` is a direct target only.
 One run publishes `c = [[71, 78, 85, 92], [83, 90, 97, 104]]` plus `t = 300`; local materialization of
 `t` copies exactly four bytes. Strict ownership rejects the same reduction graph before native
@@ -868,28 +887,30 @@ variant or automatic Metal selection outside the explicitly registered inventory
 Private ABI version `5` exports exactly thirteen symbols: the version/context/buffer foundation,
 `synaptik_metal_mpsgraph_executable_create`, executable release/run, and the three typed custom
 singleton-NEG pipeline operations. The create function accepts a pointer plus unsigned byte count
-for one schema-17 program image. The old `synaptik_metal_mpsgraph_neg_executable_create` symbol is
+for one schema-18 program image. The old `synaptik_metal_mpsgraph_neg_executable_create` symbol is
 absent. Statuses `0..12` retain their documented meanings, status `13` reports a structurally valid
 registered operation without a current native route, and unknown integers fail closed with the raw
 value retained.
 
-The schema-17 image is little-endian, at least 128 bytes, and at most `Integer.MAX_VALUE` bytes on
+The schema-18 image is little-endian, at least 128 bytes, and at most `Integer.MAX_VALUE` bytes on
 both sides. Its core contains a 128-byte/32-word header, 40-byte value descriptors, 32-byte node
 descriptors, 64-bit dimensions, 64-bit element strides, 32-bit value references, and 64-bit
 attribute words. Every section follows its predecessor immediately; in particular, the reference
-pool is never padded before attributes. The header begins with `SM17=0x37314d53`, schema `17`,
+pool is never padded before attributes. The header begins with `SM18=0x38314d53`, schema `18`,
 header bytes `128`, total bytes, fixed route, and the exact numerical-profile wire
 `0x53545249=STRICT_IEEE` or `0x41434345=ACCELERATOR`. Each value descriptor carries layout
 presence, kind, view and dense-physical flags, stride-pool offset, storage offset, and referenced
 span.
 
 A `CUSTOM_PROGRAM` image additionally carries authoritative 40-byte step records, 32-bit member
-positions, 24-byte bindings, the sorted 32-bit materialized-value set, 64-byte generated
-instructions, the canonical ASCII manifest, and its 32-byte SHA-256 digest. The manifest binds
-typed plan agreement and integer source byte counts only; Java neither emits Metal source nor owns
-fixed, generated, or assembled source hashes. Header counts, source sizes, rejection/cap fields,
-record ranges, materialized slot mappings, manifest text, and the manifest digest must recompute
-exactly. An MPSGraph image clears its extension flag, generator schema, counts, sizes, and caps and
+positions, 24-byte bindings, the sorted 32-bit materialized-value set, 64-byte typed execution
+instructions, the canonical ASCII manifest, and its 32-byte SHA-256 digest. Generator schema 2
+admits fixed, graph-boundary, generated-pointwise, and anchor-epilogue steps; anchor instructions
+bind source order, ADD side and external role, and raw scalar/clamp bits. The manifest binds typed
+plan agreement and integer source byte counts only; Java neither emits Metal source nor owns fixed,
+generated, or assembled source hashes. Header counts, source sizes, rejection/cap fields, record
+ranges, materialized slot mappings, manifest text, and the manifest digest must recompute exactly.
+An MPSGraph image clears its extension flag, generator schema, counts, sizes, and caps and
 physically omits every extension section. Unknown profile wires, route zero, and every other schema
 or route fail closed.
 
@@ -1016,20 +1037,21 @@ the shared binary32 `Word`/`RawClass` substrate. A checked two-sided codec cover
 relation, whose permitted set is proved unique. The source certificate authenticates the Java
 integer-size planner/image writer, native parser and sole source emitter, compact slot mapping,
 strongest available reflection, and test-only dispatch observation site. Native validates frozen
-SHA-256 values for all nine fixed components and their ordered total, then validates the assembled
-total independently before compiler entry. One structured sink implements both a no-allocation
-count traversal and the exact byte traversal: production validates all five caps before allocating
-the counted byte size and emits once for compile. A standalone native fixture includes that exact
+SHA-256 values for all ten fixed components and their ordered 84,541-byte total, then validates the
+assembled total independently before compiler entry. One structured sink implements both a
+no-allocation count traversal and the exact byte traversal: production validates all five caps
+before allocating the counted byte size and emits once for compile. A standalone native fixture includes that exact
 production header, enables audit-only singleton generation, repeats generation and compares count,
 bytes, and hash, and is the sole writer of the compiled audit source; Python only parses that
 source and writes metadata. A second native fixture and the Java formula cover every decimal-width
 boundary from `9/10` through `999999999/1000000000` plus `UINT32_MAX` without constructing large
-programs. Schema-17 hostile images place otherwise valid NEG and ABS nodes in generated-member
-ranges, independently of the malformed generated-opcode `0` and `5` cases.
+programs. Schema-18 hostile images place otherwise valid NEG and ABS nodes in generated-member
+ranges, independently of malformed generated or anchor instruction records and predecessor-schema
+images.
 
 A pinned Xcode 27 audit first bootstraps the Metal toolchain and records the exact available
 `clang`, `metal`, `metallib`, `metal-objdump`, and `metal-nm` paths, resolved identities, versions,
-byte counts, and SHA-256 values. It compiles the exact 77,444-byte fixed corpus plus audit-only
+byte counts, and SHA-256 values. It compiles the exact 84,541-byte fixed corpus plus audit-only
 singleton sites for `FLOOR`, `CEIL`, `SIGN`, and `RELU` and valid runtime-grammar chain sites at
 every length `2..8`, using `metal3.2`, no fast math, exact `-Wall -Wextra -Werror`, and an absolute
 SDK isysroot. An authenticated structured LLVM/AIR instruction parser, rather than text opcode
@@ -1047,9 +1069,20 @@ each real custom dispatch. It proves generated `7+2` and three-instruction plans
 generated/MPSGraph/fixed plan containing L1_NORM, singleton VARIANCE, and SCATTER_ADD; both public
 and observer proof runners force Gradle task reruns rather than accepting cached test results.
 
+Task 0071 adds a separate source/compiler-site certificate and a checked Lean model of literal
+scalar/add/terminal order, one physical dispatch, zero intermediate stores, one final store,
+right-aligned rank-one indexing, and exhaustive DAZ/FTZ boundary alternatives. The pinned
+`metal3.2 -fno-fast-math` audit compiles the exact ten-component runtime source and inspects all
+eight anchor kernels plus the retained Conv2d helper. It records seven unflagged FMA sites, six
+unflagged `fmul` sites, four unflagged `fadd` sites, no unsafe flags, and exactly one static final
+byte store in each kernel. Real-device observer coverage proves one dispatch for fused MATMUL and
+Conv2d, exact width broadcasting for a rank-one Conv2d addend, and NaN, signed-zero, infinity,
+subnormal FTZ, and clamp-endpoint behavior. A public `Engine` smoke exercises both fused families
+and observes the new structural PREPARE and planned RUN payloads.
+
 Current validation composes:
 
-- focused capability, schema-seventeen/native-preflight, raw-bit native execution, route-identity,
+- focused capability, schema-eighteen/native-preflight, raw-bit native execution, route-identity,
   backend-conformance, and CPU-free public Engine tests proving the exact bounded two-profile
   UNFOLD_AXIS domain, wire `19`, typed `WINDOW_AXIS=6`, schema rejection, overlap/tail mapping,
   input preservation, and same-partition composition;
@@ -1267,9 +1300,9 @@ also retains its ordinal-zero filter, raw-base unaddressed select, one static st
 
 The profile is retained in partition plans and every route/tuning/codec/workload identity. Java
 enforces the boundary before native entry. ABI version `5` retains thirteen export names and
-accepts one bounded schema-17 route-bearing image; operation wires `1..115`, attribute wires
+accepts one bounded schema-18 route-bearing image; operation wires `1..115`, attribute wires
 `0..41`, route wires `1..3`, and type wires `1..6` cover the current structural registry without
 widening capability. Route, candidate, compatibility, workload, exact-policy, and codec identities
-are version `26`; every other identity fails closed. Catalogs are exactly `75/35/5` MPSGraph and
+are version `27`; every other identity fails closed. Catalogs are exactly `75/35/5` MPSGraph and
 `73/42/0` custom; capability/structural counts remain `86/29` and `101/14`.
 The complete-plan wrapper remains version `1`.

@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphRawAbiNativeTest {
     @Test
-    void nativeAbiFiveAcceptsCanonicalSchemaSeventeenAndRejectsMalformedImages() throws Throwable {
+    void nativeAbiFiveAcceptsCanonicalSchemaEighteenAndRejectsMalformedImages() throws Throwable {
         Path library = configuredLibrary();
         try (RawAbi abi = new RawAbi(library)) {
             byte[] valid = validNegImage();
@@ -45,10 +45,10 @@ class MetalMpsGraphRawAbiNativeTest {
                             valid.length));
 
             assertEquals(1, abi.create(rewriteInt(valid, 0, 0), valid.length));
-            assertEquals(1, abi.create(rewriteInt(valid, 0, 0x35314d53), valid.length));
-            for (int schema = 12; schema <= 16; schema++)
+            assertEquals(1, abi.create(rewriteInt(valid, 0, 0x37314d53), valid.length));
+            for (int schema = 12; schema <= 17; schema++)
                 assertEquals(1, abi.create(rewriteInt(valid, 4, schema), valid.length));
-            assertEquals(1, abi.create(rewriteInt(valid, 4, 18), valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, 4, 19), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 8, 0), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 8, 64), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 8, 132), valid.length));
@@ -76,7 +76,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void schemaSeventeenRejectsCorruptFusionRecordsManifestAndDigest() throws Throwable {
+    void schemaEighteenRejectsCorruptFusionRecordsManifestAndDigest() throws Throwable {
         Path library = configuredLibrary();
         var program = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.generic(
@@ -132,8 +132,8 @@ class MetalMpsGraphRawAbiNativeTest {
         malformed.add(digestForgery);
         malformed.add(rewriteManifest(
                 valid,
-                "fixed-corpus-bytes 77444\n",
-                "fixed-corpus-bytes 77445\n"));
+                "fixed-corpus-bytes 84541\n",
+                "fixed-corpus-bytes 84542\n"));
 
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(0, abi.create(valid, valid.length));
@@ -160,7 +160,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void schemaSeventeenAuthenticatesCapStopPrecedenceAndFirstRejectedNode() throws Throwable {
+    void schemaEighteenAuthenticatesCapStopPrecedenceAndFirstRejectedNode() throws Throwable {
         Path library = configuredLibrary();
         var nodes = new ArrayList<MetalMpsGraphProgram.Node>();
         MetalMpsGraphProgram.NodeKind[] kinds = {
@@ -205,7 +205,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void schemaSeventeenRejectsFunctionCapAndCompactVirtualValueForgeries() throws Throwable {
+    void schemaEighteenRejectsFunctionCapAndCompactVirtualValueForgeries() throws Throwable {
         Path library = configuredLibrary();
         var program = new MetalMpsGraphProgram(List.of(
                 unaryNode(MetalMpsGraphProgram.NodeKind.FLOOR, 0, 1),
@@ -227,8 +227,8 @@ class MetalMpsGraphRawAbiNativeTest {
                 valid, coreBytes + 7 * Integer.BYTES, 16_385);
         overFunctionCap = rewriteManifest(
                 overFunctionCap,
-                "step 0 3 0 2 0 2 0 2 402\n",
-                "step 0 3 0 2 0 2 0 2 16385\n");
+                "step 0 3 0 2 0 2 0 2 402 0\n",
+                "step 0 3 0 2 0 2 0 2 16385 0\n");
 
         byte[] virtualInsteadOfTarget = rewriteInt(
                 valid, materializedOffset + Integer.BYTES, 1);

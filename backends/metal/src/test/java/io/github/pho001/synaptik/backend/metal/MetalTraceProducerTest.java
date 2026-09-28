@@ -4,11 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
+import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.trace.TraceEvent;
 import io.github.pho001.synaptik.trace.TraceLevel;
 import io.github.pho001.synaptik.trace.TracePayload;
@@ -23,6 +26,7 @@ import io.github.pho001.synaptik.trace.payload.TraceRouteKind;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.WildcardType;
+import java.util.ArrayList;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -305,6 +309,165 @@ class MetalTraceProducerTest {
         assertEquals(1, eventEvents.size());
         assertEquals(Long.MAX_VALUE, eventEvents.getFirst().id().value());
         assertFalse(event.enabled());
+    }
+
+    @Test
+    void structuralEventsDistinguishFusedAndComposedPlansAndPrecedeOutcomes() {
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.matmul(0, 1, 2),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.RELU,
+                        new int[] {2},
+                        new int[] {3},
+                        MetalMpsGraphProgram.AttributeKind.NONE,
+                        new long[0])));
+        List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                traceValue(2, 3), traceValue(3, 4), traceValue(2, 4), traceValue(2, 4));
+        List<TraceEvent<? extends TracePayload>> fusedEvents = new ArrayList<>();
+        var fusedProducer = new MetalTraceProducer(fusedEvents::add);
+        MetalTraceProducer.PreparedUnit fused = fusedProducer.prepareUnit(
+                NumericalProfile.ACCELERATOR,
+                MetalPreparedRoute.CUSTOM_PROGRAM,
+                program,
+                values,
+                new int[] {0, 1},
+                new int[] {3},
+                0);
+        assertNotNull(fused);
+        fused.preparationSucceeded();
+        var invocationId = fused.beginInvocation();
+        fused.invocationPlanned(
+                invocationId, 2, 1, 0, 64L, 64L, 0L, 16L, 24L, 152L, 1, 1);
+        fused.invocationSucceeded(invocationId);
+
+        assertEquals(List.of(
+                        MetalPreparationStructure.class,
+                        BackendPreparationOutcome.class,
+                        MetalInvocationPlan.class,
+                        BackendInvocationOutcome.class),
+                fusedEvents.stream().map(event -> event.payload().getClass()).toList());
+        MetalPreparationStructure fusedStructure =
+                (MetalPreparationStructure) fusedEvents.getFirst().payload();
+        assertEquals(MetalPreparationStructure.AnchorFamily.MATMUL,
+                fusedStructure.anchorFamily());
+        assertEquals(MetalPreparationStructure.AnchorDisposition.FUSED,
+                fusedStructure.anchorDisposition());
+        assertEquals(MetalPreparationStructure.EpilogueOrder.RELU,
+                fusedStructure.epilogueOrder());
+        assertEquals(MetalPreparationStructure.EpilogueTerminal.RELU,
+                fusedStructure.terminal());
+        assertEquals(18, fusedStructure.schemaVersion());
+        assertEquals(2, fusedStructure.generatorVersion());
+        assertEquals(1, fusedStructure.anchorCount());
+        assertEquals(2, fusedStructure.anchorMemberCount());
+        assertEquals(64, fusedStructure.canonicalDigest().length());
+        MetalInvocationPlan invocation = (MetalInvocationPlan) fusedEvents.get(2).payload();
+        assertEquals(2, invocation.feedSlotCount());
+        assertEquals(1, invocation.targetSlotCount());
+        assertEquals(0, invocation.internalSlotCount());
+        assertEquals(64L, invocation.aggregateInputBytes());
+        assertEquals(64L, invocation.aggregateOutputBytes());
+        assertEquals(0L, invocation.aggregateInternalBytes());
+        assertEquals(16L, invocation.aggregateSplatBytes());
+        assertEquals(24L, invocation.aggregateWorkspaceBytes());
+        assertEquals(152L, invocation.aggregateRequiredBytes());
+        assertEquals(1, invocation.splatCount());
+        assertEquals(1, invocation.workspaceCount());
+
+        List<TraceEvent<? extends TracePayload>> composedEvents = new ArrayList<>();
+        var composedProducer = new MetalTraceProducer(composedEvents::add);
+        MetalTraceProducer.PreparedUnit composed = composedProducer.prepareUnit(
+                NumericalProfile.STRICT_IEEE,
+                MetalPreparedRoute.CUSTOM_PROGRAM,
+                program,
+                values,
+                new int[] {0, 1},
+                new int[] {3},
+                1);
+        MetalPreparationStructure composedStructure =
+                (MetalPreparationStructure) composedEvents.getFirst().payload();
+        assertEquals(MetalPreparationStructure.AnchorDisposition.COMPOSED,
+                composedStructure.anchorDisposition());
+        assertEquals(MetalPreparationStructure.EpilogueOrder.RELU,
+                composedStructure.epilogueOrder());
+        assertNotEquals(fusedStructure.canonicalDigest(), composedStructure.canonicalDigest());
+
+        List<TraceEvent<? extends TracePayload>> repeatedEvents = new ArrayList<>();
+        var repeatedProducer = new MetalTraceProducer(repeatedEvents::add);
+        repeatedProducer.prepareUnit(
+                NumericalProfile.ACCELERATOR,
+                MetalPreparedRoute.CUSTOM_PROGRAM,
+                program,
+                values,
+                new int[] {0, 1},
+                new int[] {3},
+                0);
+        assertEquals(
+                fusedStructure.canonicalDigest(),
+                ((MetalPreparationStructure) repeatedEvents.getFirst().payload())
+                        .canonicalDigest());
+        assertNotNull(composed);
+    }
+
+    @Test
+    void structuralCallbackFailuresKeepExistingContainmentAndErrorSemantics() {
+        AtomicInteger runtimeCallbacks = new AtomicInteger();
+        var runtimeProducer = new MetalTraceProducer(event -> {
+            runtimeCallbacks.incrementAndGet();
+            throw new IllegalStateException("observer-runtime");
+        });
+        MetalTraceProducer.PreparedUnit contained = runtimeProducer.prepareUnit(
+                NumericalProfile.ACCELERATOR,
+                MetalPreparedRoute.MPSGRAPH,
+                traceNegProgram(),
+                List.of(traceValue(1), traceValue(1)),
+                new int[] {0},
+                new int[] {1},
+                0);
+        assertNotNull(contained);
+        assertFalse(runtimeProducer.enabled());
+        contained.preparationSucceeded();
+        assertEquals(1, runtimeCallbacks.get());
+
+        AssertionError observerError = new AssertionError("observer-error");
+        var errorProducer = new MetalTraceProducer(event -> {
+            throw observerError;
+        });
+        assertSame(observerError, assertThrows(AssertionError.class, () ->
+                errorProducer.prepareUnit(
+                        NumericalProfile.ACCELERATOR,
+                        MetalPreparedRoute.MPSGRAPH,
+                        traceNegProgram(),
+                        List.of(traceValue(1), traceValue(1)),
+                        new int[] {0},
+                        new int[] {1},
+                        0)));
+        assertTrue(errorProducer.enabled());
+    }
+
+    @Test
+    void structuralPayloadsExposeNoSensitiveOrResourceIdentityFields() {
+        Set<String> forbidden = Set.of(
+                "source", "data", "scalarBits", "pointer", "handle", "path", "name", "secret");
+        for (Class<?> type : List.of(
+                MetalPreparationStructure.class,
+                MetalInvocationPlan.class,
+                MetalPreparationStructure.CustomStepSummary.class)) {
+            for (var component : type.getRecordComponents()) {
+                assertFalse(forbidden.stream().anyMatch(
+                                token -> component.getName().toLowerCase().contains(
+                                        token.toLowerCase())),
+                        type.getSimpleName() + "." + component.getName());
+            }
+        }
+    }
+
+    private static MetalMpsGraphProgram traceNegProgram() {
+        return new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.neg(0, 1)));
+    }
+
+    private static MetalMpsGraphProgram.ValueDescriptor traceValue(long... dimensions) {
+        return new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, dimensions, false);
     }
 
     @Test

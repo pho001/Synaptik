@@ -27,7 +27,7 @@ final class MetalNegTuningCodec {
     private static final int COMPATIBILITY_MAGIC = 0x4d4e434d; // MNCM
     private static final int CANDIDATE_MAGIC = 0x4d4e4341; // MNCA
     private static final int DECISION_MAGIC = 0x4d4e4443; // MNDC
-    private static final int CODEC_VERSION = 26;
+    private static final int CODEC_VERSION = 27;
     private static final int SESSION_SCOPE = 1;
 
     /**

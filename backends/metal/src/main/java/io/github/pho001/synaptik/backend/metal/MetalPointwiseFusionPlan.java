@@ -6,26 +6,29 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable schema-17 execution extension for one {@code CUSTOM_PROGRAM} image.
+ * Immutable schema-18 execution extension for one {@code CUSTOM_PROGRAM} image.
  *
- * <p>The typed records are authoritative. The canonical manifest is a redundant cross-language
+ * <p>The pointwise generator schema and the anchor-epilogue schema remain distinct typed records
+ * inside one canonical execution plan. The canonical manifest is a redundant cross-language
  * plan-agreement certificate. Generated Metal source bytes and hashes remain exclusively
  * native-owned; Java carries only the frozen integer byte-count table required for bounded
  * planning.</p>
  */
 final class MetalPointwiseFusionPlan {
-    static final int GENERATOR_SCHEMA = 1;
+    static final int GENERATOR_SCHEMA = 2;
     static final int SOURCE_SIZE_TABLE_VERSION = 1;
     static final int MAX_GENERATED_UNITS = 32;
+    static final int MAX_ANCHOR_UNITS = 64;
     static final int MAX_GENERATED_INSTRUCTIONS = 256;
+    static final int MAX_EXECUTION_INSTRUCTIONS = 512;
     static final int MAX_FUNCTION_SOURCE_UTF8_BYTES = 16_384;
     static final int MAX_GENERATED_SOURCE_UTF8_BYTES = 262_144;
     static final int MAX_TOTAL_SOURCE_UTF8_BYTES = 1_048_576;
-    static final int FIXED_CORPUS_UTF8_BYTES = 77_444;
+    static final int FIXED_CORPUS_UTF8_BYTES = 84_541;
     static final int NO_POSITION = -1;
 
     enum StepKind {
-        FIXED_CUSTOM(1), MPSGRAPH_BOUNDARY(2), GENERATED_POINTWISE(3);
+        FIXED_CUSTOM(1), MPSGRAPH_BOUNDARY(2), GENERATED_POINTWISE(3), ANCHOR_EPILOGUE(4);
 
         private final int wire;
 
@@ -105,15 +108,25 @@ final class MetalPointwiseFusionPlan {
             int bindingCount,
             int instructionStart,
             int instructionCount,
-            int expectedFunctionUtf8Bytes) {
+            int expectedFunctionUtf8Bytes,
+            int anchorKindWire) {
         Step {
             Objects.requireNonNull(kind, "kind");
+            boolean generated = kind == StepKind.GENERATED_POINTWISE;
+            boolean anchor = kind == StepKind.ANCHOR_EPILOGUE;
             if (memberStart < 0 || memberCount <= 0 || bindingStart < 0 || bindingCount <= 0
                     || instructionStart < 0 || instructionCount < 0
                     || expectedFunctionUtf8Bytes < 0
-                    || (kind == StepKind.GENERATED_POINTWISE
+                    || (generated
                             ? instructionCount != memberCount || expectedFunctionUtf8Bytes == 0
-                            : instructionCount != 0 || expectedFunctionUtf8Bytes != 0)) {
+                                    || anchorKindWire != 0
+                            : anchor
+                                    ? instructionCount != memberCount - 1
+                                            || instructionCount < 1
+                                            || expectedFunctionUtf8Bytes != 0
+                                            || anchorKindWire < 1 || anchorKindWire > 2
+                                    : instructionCount != 0 || expectedFunctionUtf8Bytes != 0
+                                            || anchorKindWire != 0)) {
                 throw new IllegalArgumentException("malformed Metal fusion step");
             }
         }
@@ -134,12 +147,17 @@ final class MetalPointwiseFusionPlan {
         }
     }
 
+    sealed interface ExecutionInstruction permits Instruction, AnchorInstruction {
+        int stepOrdinal();
+        int relativeNodePosition();
+    }
+
     record Instruction(
             int stepOrdinal,
             int relativeNodePosition,
             Opcode opcode,
             int inputSsa,
-            int outputSsa) {
+            int outputSsa) implements ExecutionInstruction {
         Instruction {
             Objects.requireNonNull(opcode, "opcode");
             if (stepOrdinal < 0 || relativeNodePosition < 0 || inputSsa < 0
@@ -149,13 +167,44 @@ final class MetalPointwiseFusionPlan {
         }
     }
 
+    record AnchorInstruction(
+            int stepOrdinal,
+            int relativeNodePosition,
+            MetalAnchorEpilogue.Opcode opcode,
+            int input0,
+            int input1,
+            int output,
+            int raw0,
+            int raw1) implements ExecutionInstruction {
+        AnchorInstruction {
+            Objects.requireNonNull(opcode, "opcode");
+            boolean add = opcode == MetalAnchorEpilogue.Opcode.ADD;
+            if (stepOrdinal < 0 || relativeNodePosition < 1 || input0 < 0 || output < 0
+                    || (add ? input1 < 0 : input1 != -1)) {
+                throw new IllegalArgumentException("malformed Metal anchor instruction");
+            }
+        }
+
+        int inputCount() {
+            return opcode == MetalAnchorEpilogue.Opcode.ADD ? 2 : 1;
+        }
+
+        int immediateCount() {
+            return switch (opcode) {
+                case SCALAR_MUL -> 1;
+                case CLAMP -> 2;
+                case ADD, RELU -> 0;
+            };
+        }
+    }
+
     private final List<Step> steps;
     private final int[] memberNodePositions;
     private final List<Binding> bindings;
     private final int[] materializedProgramValueIndices;
     private final int[] programToMaterializedSlot;
     private final int[] targetMaterializedSlots;
-    private final List<Instruction> instructions;
+    private final List<ExecutionInstruction> instructions;
     private final byte[] canonicalManifest;
     private final byte[] canonicalManifestDigest;
     private final int generatedUnitCount;
@@ -171,7 +220,7 @@ final class MetalPointwiseFusionPlan {
             int[] materializedProgramValueIndices,
             int[] programToMaterializedSlot,
             int[] targetMaterializedSlots,
-            List<Instruction> instructions,
+            List<? extends ExecutionInstruction> instructions,
             byte[] canonicalManifest,
             int generatedUnitCount,
             int expectedGeneratedSourceUtf8Bytes,
@@ -199,7 +248,7 @@ final class MetalPointwiseFusionPlan {
         if (steps.isEmpty() || bindings.isEmpty() || materializedProgramValueIndices.length == 0
                 || canonicalManifest.length == 0 || targetMaterializedSlots.length == 0
                 || generatedUnitCount < 0 || generatedUnitCount > MAX_GENERATED_UNITS
-                || instructions.size() > MAX_GENERATED_INSTRUCTIONS
+                || instructions.size() > MAX_EXECUTION_INSTRUCTIONS
                 || expectedGeneratedSourceUtf8Bytes < 0
                 || expectedGeneratedSourceUtf8Bytes > MAX_GENERATED_SOURCE_UTF8_BYTES
                 || expectedTotalSourceUtf8Bytes > MAX_TOTAL_SOURCE_UTF8_BYTES
@@ -207,6 +256,8 @@ final class MetalPointwiseFusionPlan {
             throw new IllegalArgumentException("malformed Metal fusion plan");
         }
         int generated = 0;
+        int anchors = 0;
+        int generatedInstructions = 0;
         int memberCursor = 0;
         int bindingCursor = 0;
         int instructionCursor = 0;
@@ -219,13 +270,20 @@ final class MetalPointwiseFusionPlan {
                     || step.expectedFunctionUtf8Bytes() > MAX_FUNCTION_SOURCE_UTF8_BYTES) {
                 throw new IllegalArgumentException("noncanonical Metal fusion step ranges");
             }
-            if (step.kind() == StepKind.GENERATED_POINTWISE) generated++;
+            if (step.kind() == StepKind.GENERATED_POINTWISE) {
+                generated++;
+                generatedInstructions += step.instructionCount();
+            } else if (step.kind() == StepKind.ANCHOR_EPILOGUE) {
+                anchors++;
+            }
             memberCursor += step.memberCount();
             bindingCursor += step.bindingCount();
             instructionCursor += step.instructionCount();
         }
         if (memberCursor != memberNodePositions.length || bindingCursor != bindings.size()
-                || instructionCursor != instructions.size() || generated != generatedUnitCount) {
+                || instructionCursor != instructions.size() || generated != generatedUnitCount
+                || generatedInstructions > MAX_GENERATED_INSTRUCTIONS
+                || anchors > MAX_ANCHOR_UNITS) {
             throw new IllegalArgumentException("incomplete Metal fusion step coverage");
         }
         int priorValue = -1;
@@ -275,7 +333,7 @@ final class MetalPointwiseFusionPlan {
         return targetMaterializedSlots.clone();
     }
 
-    List<Instruction> instructions() {
+    List<ExecutionInstruction> instructions() {
         return instructions;
     }
 

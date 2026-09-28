@@ -47,9 +47,12 @@ convolution transpose, and every other unlisted occurrence fail closed. Eligible
 negation retains its custom alternative. Exact custom nodes fix their whole partition to one
 custom program with compact run-owned materialized slots and direct targets; top-K publishes paired
 values and INT64 indices from one step. Deterministic generated Metal units fuse eligible linear
-canonical FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains while preserving every barrier. ABI 5 and
-thirteen exports remain fixed; the route-bearing program image is schema 17 and backend-local
-route, workload, policy, and codec identities are version 26.
+canonical FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains while preserving every barrier.
+`ACCELERATOR` additionally fuses exact private MATMUL or Conv2d suffixes into one safe-math
+dispatch and final store: MATMUL admits ordered scalar-multiply, one ordinary-broadcast ADD, then
+RELU or CLAMP; Conv2d admits one ordinary-broadcast ADD, then RELU or CLAMP. ABI 5 and thirteen
+exports remain fixed; the route-bearing program image is schema 18 and backend-local route,
+workload, policy, and codec identities are version 27.
 Standard-Metal convenience, generic plugin registration/discovery, CUDA, broader optimizers,
 durable persistence, and generic graph/plan tuning remain planned.
 Focused documentation identifies the exact current boundary for each area.

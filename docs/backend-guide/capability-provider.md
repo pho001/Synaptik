@@ -279,11 +279,11 @@ logical affine layouts from their independently authenticated physical spans and
 dynamic/empty geometry, zero or negative external strides, overlap, every other additive scatter,
 reduction-dependent adjoints, and every other unlisted occurrence before route selection.
 
-ABI 5 retains the thirteen export names and consumes one bounded schema-17 route-bearing program
+ABI 5 retains the thirteen export names and consumes one bounded schema-18 route-bearing program
 image. Operation wires `1..115`, attribute wires `0..41`, route wires `1..3`, and type wires
 `1..6` are structural vocabulary only. The custom-program extension authenticates compact
-materialized slots and deterministic generated pointwise units without widening capability.
-Version-twenty-six workload, policy, candidate, compatibility, route, and codec identities
-authenticate that meaning; every other identity fails closed. Production capability is `86/29`,
-structural execution remains `101/14`, and the MPSGraph/custom catalogs are
+materialized slots, deterministic generated pointwise units, and exact ACCELERATOR MATMUL/Conv2d
+anchor epilogues without widening capability. Version-twenty-seven workload, policy, candidate,
+compatibility, route, and codec identities authenticate that meaning; every other identity fails closed.
+Production capability is `86/29`, structural execution remains `101/14`, and the MPSGraph/custom catalogs are
 `75/35/5` and `73/42/0`.

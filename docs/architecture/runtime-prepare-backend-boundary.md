@@ -659,11 +659,13 @@ The singleton variance requires input `[1]`, axis `[0]`, correction zero, and sc
 `[1]` output; other variance geometry retains its descriptive direct structural recipe but is not
 production-capable. Every other unsupported occurrence fails closed before route selection.
 Eligible linear canonical FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use bounded generated
-custom units with compact materialized slots. ABI 5 retains thirteen exports and consumes one
-bounded schema-17 route-bearing image over type wires `1..6`, operation wires `1..115`, attribute
-wires `0..41`, and route wires `1..3`; backend identities are version twenty-six. Structural
-coverage is `101 / 14`, production capability is `86 / 29`, and the MPSGraph/custom catalogs are
-`75 / 35 / 5` and `73 / 42 / 0`. Every identity other than version twenty-six fails closed.
+custom units with compact materialized slots. Eligible ACCELERATOR MATMUL/Conv2d suffixes instead
+use one typed anchor dispatch and final store without a materialized suffix slot. ABI 5 retains
+thirteen exports and consumes one bounded schema-18 route-bearing image over type wires `1..6`,
+operation wires `1..115`, attribute wires `0..41`, and route wires `1..3`; backend identities are
+version twenty-seven. Structural coverage is `101 / 14`, production capability is `86 / 29`, and
+the MPSGraph/custom catalogs are `75 / 35 / 5` and `73 / 42 / 0`. Every identity other than
+version twenty-seven fails closed.
 CPU/Metal transfer accepts canonical or resolved
 positive-stride non-overlapping all-carrier storage layouts without widening operation
 capability.

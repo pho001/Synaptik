@@ -38,6 +38,10 @@ COMPONENTS = (
         "native/metal-macos-arm64/src/synaptik_task0066_dtype_layout_kernels.h",
         "SynaptikTask0066DtypeLayoutKernelSource",
     ),
+    (
+        "native/metal-macos-arm64/src/synaptik_task0071_anchor_epilogue_kernels.h",
+        "SynaptikTask0071AnchorEpilogueKernelSource",
+    ),
 )
 
 

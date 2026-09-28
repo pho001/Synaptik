@@ -10,8 +10,8 @@
   "compilerFlags": ["-std=metal3.2", "-fno-fast-math", "-Wall", "-Wextra", "-Werror", "-isysroot", "<absolute SDKROOT>"],
   "semanticReproducibilityAuthority": "generated-fixtures.air.instructions.json",
   "fixedCorpus": {
-    "bytes": 77444,
-    "sha256": "1e793c44e47ebc5c0afdb4bc28c232ad60f173cc40c246505133416fdadfd024",
+    "bytes": 84541,
+    "sha256": "5e7d65bfc46f52532781a3730aeda2202b798022b61fb60ea5beeb95307e77bb",
     "components": [
       {"symbol": "SynaptikExactKernelSource", "bytes": 16912, "sha256": "f79d5b3fa13d0cd9a704f326196703aa41305bb62f7957d8413e697c9319e58e"},
       {"symbol": "SynaptikTask0059DataKernelSource", "bytes": 11492, "sha256": "4316a3ff46d640ca8813afd070c1d3746bd832b28afc847f556925e5d3bf44ac"},
@@ -21,7 +21,8 @@
       {"symbol": "SynaptikTask0064ConvolutionPoolingKernelSource", "bytes": 9567, "sha256": "282cb823f95499e63f66674221c44bfbf77c9fa51230995eb3518ea130537cbe"},
       {"symbol": "SynaptikTask0069AggregateKernelSource", "bytes": 2886, "sha256": "6791792854f011172b98c9998fe67717c83ab13eb771d8b967cc64cf6f9548ca"},
       {"symbol": "SynaptikTask0065RngDropoutKernelSource", "bytes": 1301, "sha256": "8217948f0c28d3df56c5f2edb5408306b588bf2c5e0b1f90a23463e295ac6b99"},
-      {"symbol": "SynaptikTask0066DtypeLayoutKernelSource", "bytes": 17456, "sha256": "630b6401079438a773aca080e0ee039d33006ef861264bb3f14549e69a50960c"}
+      {"symbol": "SynaptikTask0066DtypeLayoutKernelSource", "bytes": 17456, "sha256": "630b6401079438a773aca080e0ee039d33006ef861264bb3f14549e69a50960c"},
+      {"symbol": "SynaptikTask0071AnchorEpilogueKernelSource", "bytes": 7097, "sha256": "e165612540f551ce547c145dde4fa48e46ff06e652b4729272b8bfabc75f0663"}
     ]
   },
   "fixtures": [
@@ -39,24 +40,24 @@
   ],
   "artifacts": {
     "provider-inventory.json": {"bytes": 4798, "sha256": "3bd7ea954c5dfc7f49f61eb857c24ee9f6239c4911fcd52dd5cff8a977ab556a"},
-    "generated-fixtures.metal": {"bytes": 82375, "sha256": "f66c18b5bf3142907a19e20590141ff24c72af74c631ec171354ad0f68773f47"},
-    "fixtures.json": {"bytes": 3827, "sha256": "20a811da8efb3b016f8f014e0f9eaaacf7bec52c9be0a84d87464cd03f68b6b8"},
+    "generated-fixtures.metal": {"bytes": 89472, "sha256": "f9ecfaa71793b5c03ba00e586f8fac49a55494458258dd7d51a110a9aa2a796f"},
+    "fixtures.json": {"bytes": 4006, "sha256": "291a58f4c25668f9b6c450215aa22d74eeb881d2d997ebd24d58eb0cfbe79eea"},
     "generated-fixtures.air": {
-      "referenceBytes": 103296,
-      "referenceSha256": "15e51415ea60a1ae6ff4ad6599a91b101cf1492bf0c902a2b35603fe0ed6dea9",
+      "referenceBytes": 117520,
+      "referenceSha256": "9a7c64e6139065f4a69608123376fac071af5a3ac3a7e88b6843cb22a06dd7ab",
       "nondeterministicContainer": true,
       "actualHashLedger": "artifact-observation.json",
       "semanticAuthority": "generated-fixtures.air.instructions.json"
     },
     "generated-fixtures.metallib": {
-      "referenceBytes": 465104,
-      "referenceSha256": "d48c8ca0660216075bf2dc14804ee4ac7a941c305f34fb72a29bae3681015d8c",
+      "referenceBytes": 533996,
+      "referenceSha256": "4fb2e9bad6ffb407fadc3124823438e93e65bf035fd2c454483d5c1a9a63912e",
       "nondeterministicContainer": true,
       "actualHashLedger": "artifact-observation.json",
       "semanticAuthority": "generated-fixtures.air.instructions.json"
     },
-    "generated-fixtures.air.ll.canonical": {"bytes": 757060, "sha256": "5fb4122860a46df0b7a730fdf751d4760e02ce6a13836f31f3df0efd0ea83956"},
-    "generated-fixtures.air.nm.canonical": {"bytes": 3770, "sha256": "a223e01d92a4213badb5093bf0c454b9550c8e81bcfe8860b4feddf2b7b0aa8a"},
+    "generated-fixtures.air.ll.canonical": {"bytes": 868505, "sha256": "03322555ac83af08a50c6b054fe798ab443cbe67de485732016c16f877849104"},
+    "generated-fixtures.air.nm.canonical": {"bytes": 4269, "sha256": "02fc1e0dd9a1e84d4a98560d7ad25f5cda2046d0a76efb1aa21e7c868f49a368"},
     "generated-fixtures.air.instructions.json": {"bytes": 5780, "sha256": "36edcd3fed5621d0d07fb0a900c34e4ea06d9b81252a8381e89200e83e4f8333"},
     "forbidden-floating-fixtures.metal": {"bytes": 1219, "sha256": "365d7db19c28ca0e1cefb190948be7ce8db90222d284f547b42f9da232d5196d"},
     "forbidden-floating-fixtures.air": {

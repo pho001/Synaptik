@@ -26,6 +26,7 @@ import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
@@ -81,7 +82,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 assertTrue(events.isEmpty(), "compile emits no Metal preparation or run event");
 
                 try (InferenceSession session = engine.session(compiled)) {
-                    assertEquals(1, events.size());
+                    assertEquals(2, events.size());
                     try (var first = session.run(List.of(input))) {
                         assertRawBits(
                                 first.materialize(
@@ -104,13 +105,18 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             }
         }
 
-        assertEquals(3, events.size());
-        assertEquals(List.of(0L, 1L, 2L), events.stream()
+        assertEquals(6, events.size());
+        assertEquals(List.of(0L, 1L, 2L, 3L, 4L, 5L), events.stream()
                 .map(ObservedTrace::eventId)
                 .toList());
-        Object preparation = events.get(0).payload();
+        Object structure = events.get(0).payload();
+        assertEquals("MetalPreparationStructure", structure.getClass().getSimpleName());
         assertEquals("PREPARE", events.get(0).phase());
-        assertEquals("INFO", events.get(0).level());
+        assertEquals("STRICT_IEEE", enumName(component(structure, "profile")));
+        assertEquals("CUSTOM_KERNEL", enumName(component(structure, "route")));
+        Object preparation = events.get(1).payload();
+        assertEquals("PREPARE", events.get(1).phase());
+        assertEquals("INFO", events.get(1).level());
         assertEquals(0L, idValue(component(preparation, "backendId")));
         assertEquals(0L, idValue(component(preparation, "deviceId")));
         assertEquals(0L, idValue(component(preparation, "preparedUnitId")));
@@ -121,12 +127,19 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         assertEquals("SUCCESS", nativeStatusKind(preparation));
         assertEquals(0, nativeStatusCode(preparation));
 
-        for (int index = 1; index < events.size(); index++) {
-            Object invocation = events.get(index).payload();
-            assertEquals("RUN", events.get(index).phase());
-            assertEquals("INFO", events.get(index).level());
+        for (int invocationIndex = 0; invocationIndex < 2; invocationIndex++) {
+            int planIndex = 2 + invocationIndex * 2;
+            Object plan = events.get(planIndex).payload();
+            assertEquals("MetalInvocationPlan", plan.getClass().getSimpleName());
+            assertEquals("RUN", events.get(planIndex).phase());
+            assertEquals(invocationIndex,
+                    idValue(component(plan, "invocationId")));
+            Object invocation = events.get(planIndex + 1).payload();
+            assertEquals("RUN", events.get(planIndex + 1).phase());
+            assertEquals("INFO", events.get(planIndex + 1).level());
             assertEquals(0L, idValue(component(invocation, "preparedUnitId")));
-            assertEquals(index - 1L, idValue(component(invocation, "invocationId")));
+            assertEquals(invocationIndex,
+                    idValue(component(invocation, "invocationId")));
             assertEquals("SUCCEEDED", enumName(component(invocation, "status")));
             assertEquals("STRICT_IEEE", enumName(component(invocation, "profile")));
             assertEquals("CUSTOM_KERNEL", enumName(component(invocation, "route")));
@@ -454,7 +467,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             List.of(prediction, target, noGradPrediction, noGradTarget);
                     try (InferenceSession reused = engine.session(compiled);
                             InferenceSession independent = engine.session(compiled)) {
-                        assertEquals(2, events.size());
+                        assertEquals(4, events.size());
                         for (ObservedTrace event : events) {
                             assertEquals("PREPARE", event.phase());
                             assertEquals(
@@ -509,7 +522,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             EngineMixedOwnerTestAccess.partitionOwners(nestedCompiled));
                     int nestedPreparationIndex = events.size();
                     try (InferenceSession nested = engine.session(nestedCompiled)) {
-                        assertEquals(nestedPreparationIndex + 1, events.size());
+                        assertEquals(nestedPreparationIndex + 2, events.size());
                         ObservedTrace preparation = events.get(nestedPreparationIndex);
                         assertEquals("PREPARE", preparation.phase());
                         assertEquals(
@@ -815,7 +828,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
                     InferenceSession first = engine.session(compiled);
                     try (InferenceSession second = engine.session(compiled)) {
-                        assertEquals(2, events.size());
+                        assertEquals(4, events.size());
                         for (ObservedTrace event : events) {
                             assertEquals("PREPARE", event.phase());
                             assertEquals(
@@ -889,7 +902,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                         (long) expectedBits.length * Integer.BYTES).bytes(),
                                         expectedBits.length));
                     }
-                    assertEquals(2, events.size());
+                    assertEquals(4, events.size());
                     assertEquals("PREPARE", events.getFirst().phase());
                     assertEquals("RUN", events.getLast().phase());
                 }
@@ -897,6 +910,93 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         }
     }
 
+
+    @Test
+    void acceleratorMetalEngineRunsFusedMatmulAndConv2dEpiloguesWithStructuralTrace() {
+        Path library = configuredMetalLibrary();
+        List<ObservedTrace> matmulEvents = new CopyOnWriteArrayList<>();
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.numericalProfile(NumericalProfile.ACCELERATOR);
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library), traceCollector(matmulEvents)));
+            try (Engine engine = builder.build()) {
+                Tensor left = nativeTensor(
+                        descriptor(Shape.of(2, 2)), arena, 1, 2, 3, 4);
+                Tensor right = nativeTensor(
+                        descriptor(Shape.of(2, 2)), arena, 1, 0, 0, 1);
+                Tensor addend = nativeTensor(
+                        descriptor(Shape.of(2, 2)), arena, 10, 20, 30, 40);
+                Tensor output = left.matmul(right)
+                        .mul(ScalarValue.float32(2.0f))
+                        .add(addend)
+                        .relu();
+                var compiled = engine.compile(List.of(output));
+                assertEquals(List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                try (InferenceSession session = engine.session(compiled);
+                        var result = session.run(List.of(left, right, addend))) {
+                    assertArrayEquals(
+                            new int[] {
+                                0x4140_0000, 0x41c0_0000, 0x4210_0000, 0x4240_0000
+                            },
+                            rawBits(result.materialize(
+                                    result.publications().getFirst(), 4L * Float.BYTES).bytes(), 4));
+                }
+            }
+        }
+        assertEquals(4, matmulEvents.size());
+        assertEquals("MetalPreparationStructure",
+                matmulEvents.get(0).payload().getClass().getSimpleName());
+        assertEquals("MATMUL", enumName(component(matmulEvents.get(0).payload(), "anchorFamily")));
+        assertEquals("FUSED", enumName(component(
+                matmulEvents.get(0).payload(), "anchorDisposition")));
+        assertEquals("SCALAR_ADD_RELU", enumName(component(
+                matmulEvents.get(0).payload(), "epilogueOrder")));
+        assertEquals("MetalInvocationPlan",
+                matmulEvents.get(2).payload().getClass().getSimpleName());
+
+        List<ObservedTrace> convEvents = new CopyOnWriteArrayList<>();
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.numericalProfile(NumericalProfile.ACCELERATOR);
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library), traceCollector(convEvents)));
+            try (Engine engine = builder.build()) {
+                Tensor input = nativeTensor(
+                        descriptor(Shape.of(1, 1, 1, 3)), arena, 1, 2, 3);
+                Tensor weight = nativeTensor(
+                        descriptor(Shape.of(2, 1, 1, 1)), arena, 1, 10);
+                Tensor addend = nativeTensor(
+                        descriptor(Shape.of(3)), arena, 100, 200, 300);
+                Tensor output = input.conv2d(weight, Conv2dAttrs.defaults())
+                        .add(addend)
+                        .relu();
+                var compiled = engine.compile(List.of(output));
+                assertEquals(List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                try (InferenceSession session = engine.session(compiled);
+                        var result = session.run(List.of(input, weight, addend))) {
+                    assertArrayEquals(
+                            new int[] {
+                                0x42ca_0000, 0x434a_0000, 0x4397_8000,
+                                0x42dc_0000, 0x435c_0000, 0x43a5_0000
+                            },
+                            rawBits(result.materialize(
+                                    result.publications().getFirst(), 6L * Float.BYTES).bytes(), 6));
+                }
+            }
+        }
+        assertEquals(4, convEvents.size());
+        assertEquals("CONV2D", enumName(component(
+                convEvents.get(0).payload(), "anchorFamily")));
+        assertEquals("FUSED", enumName(component(
+                convEvents.get(0).payload(), "anchorDisposition")));
+        assertEquals("ADD_RELU", enumName(component(
+                convEvents.get(0).payload(), "epilogueOrder")));
+        assertEquals("MetalInvocationPlan",
+                convEvents.get(2).payload().getClass().getSimpleName());
+    }
 
     @Test
     void acceleratorMetalEngineRunsNoGradScalarArithmeticAndReciprocal() {
@@ -938,7 +1038,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
                 try (InferenceSession session = engine.session(compiled)) {
-                    assertEquals(1, events.size());
+                    assertEquals(2, events.size());
                     assertEquals("PREPARE", events.getFirst().phase());
                     assertEquals(
                             "GRAPH_EXECUTABLE",
@@ -2906,7 +3006,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 assertTrue(events.isEmpty(), "compile neither prepares nor probes a fallback");
 
                 try (InferenceSession session = engine.session(compiled)) {
-                    assertEquals(1, events.size());
+                    assertEquals(2, events.size());
                     assertEquals("PREPARE", events.getFirst().phase());
                     assertEquals("CUSTOM_KERNEL",
                             enumName(component(events.getFirst().payload(), "route")));

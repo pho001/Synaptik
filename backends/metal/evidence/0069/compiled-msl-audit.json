@@ -27,20 +27,20 @@
     "api": "MTLDevice.newLibraryWithSource",
     "mathMode": "MTLMathModeSafe",
     "languageVersion": "MTLLanguageVersion3_2",
-    "sourceAssembly": "exact ordered concatenation extracted from the nine production NSString constants with the Task0053 source gate false"
+    "sourceAssembly": "exact ordered concatenation extracted from the ten production NSString constants with the Task0053 source gate false"
   },
   "artifacts": {
     "source": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.metal",
-      "sha256": "1e793c44e47ebc5c0afdb4bc28c232ad60f173cc40c246505133416fdadfd024"
+      "sha256": "5e7d65bfc46f52532781a3730aeda2202b798022b61fb60ea5beeb95307e77bb"
     },
     "air": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.air",
-      "sha256": "495ad4bda7b4d70b06aa76a6155aa49ea2927fd5fdd6d1de6acc0d0b1bacb99b"
+      "sha256": "e4c43bb7d5de93a97d555e4cbacaaebd514b948978815072180417794793f6e3"
     },
     "metallib": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.metallib",
-      "sha256": "380b24f3ad09177f67565bc43a17b334cc9b7187378255c5dff29cdc919f9ba2"
+      "sha256": "b09ead23c20e4b9c1de200e4176914aa08642e4f68edf218ef79bb97659b8d1e"
     }
   },
   "compiledAirAudit": {

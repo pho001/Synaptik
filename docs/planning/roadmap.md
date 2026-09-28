@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Review needed for Task 0069 Slice 3; Slices 1–2 approved; 0053 Blocked | [Metal 0069](backends/metal/tasks/0069-source-owned-binary32-aggregate-slices.md) now includes exact accelerator FLOAT32 no-gradient source-owned `L1_NORM`, `SCATTER_ADD`, and singleton `VARIANCE`; ScatterAdd validates before mutation and closes the rank-one Gather data cotangent, while VARIANCE uses the certified DIV-SUB-MUL-DIV custom source. Slice 3 was implemented under fresh checkpoint authorization and awaits independent review. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0071; 0053 Blocked | [Metal 0071](backends/metal/tasks/0071-anchor-epilogue-fusion.md) adds authenticated ACCELERATOR MATMUL/Conv2d anchor epilogues and bounded structural PREPARE/planned RUN tracing. Task 0069 Slices 1–3 and Task 0070 are complete with their retained proof, source, compiled-AIR, and device evidence. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -173,7 +173,7 @@ obligations and remains historical. Task 0053 retained its integer-only candidat
 certificate, but is now Blocked on an unavailable pinned no-axiom constructive-real exponential
 bridge; its checkpoint review granted no `DOMAIN-PASS`. Tasks 0057 and 0058 are Complete without
 Task-0053 scope. Task 0051 reserved no production vocabulary; Task 0052 later
-consumed wires `20..34`, and current schema 17 still registers `EXP=55`/`SIGMOID=64` without making
+consumed wires `20..34`, and current schema 18 still registers `EXP=55`/`SIGMOID=64` without making
 them executable or importing their evidence-only candidate source.
 CPU requires no migration because its exact realizations remain valid members of the widened result
 set.
@@ -514,7 +514,7 @@ no production, native, test, or probe changes remain.
 is `Complete` at `42c4cfbf` plus `fb102a46` after the operation-by-operation DAZ/FTZ oracle, focused
 validation, combined serial checkpoint, and independent Class C approval all passed.
 
-Current Metal uses ABI 5, exactly thirteen exports, and one bounded schema-17 route-bearing program
+Current Metal uses ABI 5, exactly thirteen exports, and one bounded schema-18 route-bearing program
 image with the exact numerical-profile wire. Its common exact domain includes the documented unary,
 BOOL, Task-0059 movement, Task-0060 replacement/fold/aggregate, promoted integral MATMUL,
 Task-0063 ordering/top-K/arg-extrema, exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d, and
@@ -536,13 +536,15 @@ three exact Task-0069 occurrences are custom-only.
 
 A custom program declares only its compact authenticated materialized set. Eligible linear
 canonical no-gradient FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use deterministic bounded
-generated units of length `2..8`, with no intermediate slot; all barriers retain fixed custom or
-MPSGraph steps. Schema 17 carries type wires `1..6`, operation wires `1..115`, attribute wires
-`0..41`, route wire `2` or `3`, the exact numerical-profile wire, complete storage-layout geometry,
-and only for the custom route its canonical execution extension and manifest digest. Exactly 101
-operation kinds are structurally executable and 86 are production-capable. Workload, policy,
-candidate, compatibility, route, and codec identities are version twenty-six; every other identity
-fails closed while candidate wires and the complete-plan wrapper remain stable.
+generated units of length `2..8`, with no intermediate slot. Eligible ACCELERATOR MATMUL/Conv2d
+suffixes use one typed anchor dispatch and final store without a suffix slot; all barriers retain
+fixed custom or MPSGraph steps. Schema 18 carries type wires `1..6`, operation wires `1..115`,
+attribute wires `0..41`, route wire `2` or `3`, the exact numerical-profile wire, complete
+storage-layout geometry, and only for the custom route its canonical execution extension and
+manifest digest. Exactly 101 operation kinds are structurally executable and 86 are
+production-capable. Workload, policy, candidate, compatibility, route, and codec identities are
+version twenty-seven; every other identity fails closed while candidate wires and the complete-plan
+wrapper remain stable.
 
 Metal 0025 remains Complete at reviewed revision `f88066e3`; its schema-11/version-twelve facts are
 historical. Blocked 0026–0027/0030–0037/0039–0040 changed no executable capability. Complete 0041
@@ -758,10 +760,13 @@ rank-one Gather data cotangent.
 
 The Task-0069 Lean proof, source certificate, pinned runtime-source extraction, and Xcode 27.0 build
 27A266a/Metal 32023.921/macOS SDK 27.0 compiled-MSL/AIR audit cover all three aggregate slices.
-Task 0070 adds four universal raw-word proofs, an authenticated schema-1 pointwise generator,
+Task 0070 adds four universal raw-word proofs, an authenticated pointwise generator,
 real-reflection and dispatch-observer evidence, and a separate compiled generated-MSL/AIR audit.
+Task 0071 adds authenticated accelerator MATMUL/Conv2d anchor-epilogue steps, structural
+PREPARE and planned RUN trace payloads, a Lean order/store/broadcast/DAZ-FTZ proof, compiled AIR
+instruction/site evidence, real-device one-dispatch coverage, and public Engine smoke coverage.
 The current ledger is capability `86/29`, structural `101/14`, MPSGraph `75/35/5`, custom
-`73/42/0`, schema 17, ABI 5, thirteen exports, and identity 26. Every other identity fails closed.
+`73/42/0`, schema 18, ABI 5, thirteen exports, and identity 27. Every other identity fails closed.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -870,17 +875,18 @@ canonical positive static FLOAT32 no-grad bias-free FORWARD RNN_TANH over the co
 valid-length domain. Complete Model 0030 now recursively reaches `ACCELERATOR` contractions,
 additions, tanh/sigmoid sites, and state arithmetic. The macOS-12.3 direct selector nevertheless
 has no INT64 valid-length input, atomic validation, skipped padded work, positive-zero padding
-contract, or `finalHidden`; its optional training output has the wrong role. Schema 17 now carries
+contract, or `finalHidden`; its optional training output has the wrong role. Schema 18 now carries
 the complete variable-cardinality, multi-output, INT64, numerical-profile, and custom execution-plan
 vocabulary, but no custom recurrent loop or complete TANH/EXP/SIGMOID proof exists and Compiler
 still rejects BPTT.
 Task 0065 keeps all
 three recurrent rows fail-closed rather than advertising a no-work or selected-value special case.
 
-Schema 17, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
-version-twenty-six identities are current after Task 0070; every other schema or identity fails
-closed. Complete Tasks 0055–0068 provide the prerequisites, while Task 0069 advances only the
-authorized L1, ScatterAdd, and singleton VARIANCE boundaries. Blocked Metal 0053 remains
+Schema 18, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
+version-twenty-seven identities are current after Task 0071; every other schema or identity fails
+closed. Complete Tasks 0055–0068 provide the prerequisites, Task 0069 advances only the authorized
+L1, ScatterAdd, and singleton VARIANCE boundaries, Task 0070 owns pointwise generation, and Task
+0071 owns only authenticated anchor epilogues and bounded structural tracing. Blocked Metal 0053 remains
 fail-closed without production capability. Metal 0026/0027 remain separately finalized Blocked.
 Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model
 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit gate. Metal 0041 is

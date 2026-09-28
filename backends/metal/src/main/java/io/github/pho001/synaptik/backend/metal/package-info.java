@@ -63,6 +63,16 @@
  * source hash. Native authenticates all frozen fixed-source components and the assembled source
  * before compile, and requires exact strongest available binding/type reflection for all three
  * buffers and every {@code PointMeta} member.
+ * <p>Anchor-epilogue fusion is ACCELERATOR-only and preserves exact source order. MATMUL accepts
+ * optional literal {@code SCALAR_MUL}, at most one ordinary right-aligned tensor {@code ADD}, and
+ * optional terminal {@code RELU} or no-gradient {@code CLAMP}. Conv2d accepts at most one external
+ * ADD followed by the same terminal pair and never scalar multiplication. Its intrinsic rank-one
+ * {@code [C]} bias remains only the third Conv2d input; an external rank-one addend is {@code [W]},
+ * while {@code [1,C,1,1]} is the ordinary channel-broadcast form. Every absorbed intermediate is
+ * private, single-consumer, non-target, canonical, and absent from the materialized set. An
+ * admitted anchor uses one safe-math dispatch and one final store with no intermediate slot,
+ * native retry, or fallback.
+ *
  * SELECT/SLICE may consume exact supported storage-layout feeds and produce materialized-layout
  * values. Other affine inputs may be exact resolved zero-offset views produced earlier in the same
  * maximal partition; nested MPSGraph steps materialize those views into dense assigned buffers
@@ -70,7 +80,7 @@
  * retain exact Model view geometry. {@code CONTIGUOUS} produces canonical geometry. Metal lowers
  * one complete profile-homogeneous partition as a typed whole-partition program during preparation.
  *
- * <p>A package-private exhaustive catalog describes all 115 schema-seventeen operation kinds as
+ * <p>A package-private exhaustive catalog describes all 115 schema-eighteen operation kinds as
  * MPSGraph {@code DIRECT}, {@code COMPOSED}, or {@code UNAVAILABLE} and custom-kernel {@code
  * AVAILABLE}, {@code PENDING}, or {@code UNAVAILABLE_WITH_PROOF}, with closed source reasons. It is
  * cold descriptive metadata only: capability remains authoritative and the catalog is never
@@ -103,12 +113,18 @@
  * <p>The optional {@link MetalBackendIntegration#open(MetalBackendConfiguration,
  * MetalTraceObserver) traced open} overload retains but never closes one caller-owned thread-safe
  * observer. The same trace producer is retained by ordinary, local-trial, complete-plan-trial, and
- * selected preparations. It reports only final preparation and native-invocation outcomes with
- * stream-local correlations; tuning eligibility validation creates no ghost trace unit. Observer
- * runtime failures disable later tracing without changing backend outcomes. An observer error
- * propagates from success reporting; during failure reporting, the backend failure remains primary
- * and receives a distinct acyclic observer error as a suppressed failure. The ordinary open
- * overload creates no trace producer or trace work.
+ * selected preparations. After final route and anchor recognition, PREPARE reports a bounded typed
+ * structural payload with family, exact epilogue order, member/count facts, schema/generator
+ * versions, and canonical digest. Immediately before native execution, RUN reports one bounded
+ * invocation plan with route counts, aggregate input/output/internal/splat/workspace bytes,
+ * splat/workspace counts, and bounded custom-step
+ * summaries. Payloads contain no source/data/scalar bits, pointers, handles, paths, names, or
+ * per-buffer records. Observer runtime failures disable later tracing without changing backend
+ * outcomes. An observer error propagates from success reporting; during failure reporting, the
+ * backend failure remains primary and receives a distinct acyclic observer error as a suppressed
+ * failure. The ordinary open overload creates no trace producer or trace work. Per-unit close
+ * payloads remain deferred because logical units share/refcount native resources and would be
+ * misleading lifecycle noise.
  *
  * <p>Task 0060 adds exact profile-common no-gradient replacement SCATTER_ND and signed
  * SLICE_UPDATE, non-overlapping FLOAT64/FLOAT32/BFLOAT16 FOLD_AXIS/FOLD2D/FOLD3D, modular
@@ -193,16 +209,23 @@
  * production-false. The shared proof and source/compiler/AIR certificates are pinned under
  * {@code evidence/0069}.
  *
+ * <p>Task 0071 adds schema-eighteen typed anchor instructions, generator schema two, and the
+ * anchor-epilogue/trace contracts above. Schema and digest bind anchor family, suffix order, ADD
+ * side and role, raw scalar/clamp words, profile, types, Shapes, layouts, and gradient facts. Native
+ * independently validates the records before one dispatch. The checked Lean model, authenticated
+ * source certificate, pinned compiled-MSL/AIR audit, real-device dispatch observer, special-value
+ * cases, and public Engine smoke are retained under {@code evidence/0071}.
+ *
  * <p>The selected numerical profile participates in partition-plan, route, tuning, decision-codec,
  * and workload identity. Java rejects profile/schema mismatches before native entry. ABI version
- * five retains thirteen exports. Node schema version seventeen is one bounded self-describing
+ * five retains thirteen exports. Node schema version eighteen is one bounded self-describing
  * route-bearing image over stable type wires {@code 1..6}, operation wires {@code 1..115},
  * attribute wires {@code 0..41}, and complete optional storage-layout geometry. Its fixed
  * 128-byte header binds the exact numerical-profile wire and, only for the custom-program route,
  * the canonical execution-plan extension and manifest digest. Native structural execution covers
  * exactly 101 wires and leaves 14 nonexecutable. Production capability is exactly 86 operation
  * kinds and 29 remain false. Backend-local workload, exact-policy, candidate, compatibility,
- * route-policy, and codec identities are version twenty-six. Only schema seventeen and identity
- * twenty-six are accepted; every other schema or identity value fails closed.
+ * route-policy, and codec identities are version twenty-seven. Only schema eighteen and identity
+ * twenty-seven are accepted; every other schema or identity value fails closed.
  */
 package io.github.pho001.synaptik.backend.metal;

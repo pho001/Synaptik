@@ -94,12 +94,14 @@ any encoding or mutation, keeps duplicates in source order, raw-copies unaddress
 closes the existing rank-one Gather data cotangent. Singleton VARIANCE dispatches one writer
 through exactly `DIV`, `SUB`, `MUL`, `DIV`, yielding positive zero for every finite input and NaN
 class for NaN or infinity. Eligible linear canonical FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains
-use bounded deterministic generated units without intermediate materialization. Current Metal uses
-ABI 5 with the same thirteen exports and one bounded schema-17 route-bearing program image over
-type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, and route wires `1..3`.
-Structural coverage is `101 / 14`; production capability is exactly `86 / 29`; route catalogs are
-`75 / 35 / 5` MPSGraph and `73 / 42 / 0` custom. Backend-local identities are version twenty-six,
-and every other identity fails closed.
+use bounded deterministic generated units without intermediate materialization. Eligible
+ACCELERATOR MATMUL/Conv2d suffixes use one ordered typed anchor step, one dispatch, and one final
+store without a materialized suffix intermediate. Current Metal uses ABI 5 with the same thirteen
+exports and one bounded schema-18 route-bearing program image over type wires `1..6`, operation
+wires `1..115`, attribute wires `0..41`, and route wires `1..3`. Structural coverage is `101 / 14`;
+production capability is exactly `86 / 29`; route catalogs are `75 / 35 / 5` MPSGraph and
+`73 / 42 / 0` custom. Backend-local identities are version twenty-seven, and every other identity
+fails closed.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over

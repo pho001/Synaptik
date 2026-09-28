@@ -2474,8 +2474,8 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The profile-qualified Metal instance is also implemented internally. Its version-twenty-six
-fingerprint covers the exact `NumericalProfile`, bounded route-bearing node schema 17 and
+The profile-qualified Metal instance is also implemented internally. Its version-twenty-seven
+fingerprint covers the exact `NumericalProfile`, bounded route-bearing node schema 18 and
 authenticated execution extension, operation wires `1..115`, attribute wires `0..41`, type wires
 `1..6`, ordered variable-cardinality inputs/outputs, ordered feed/target/value structure,
 descriptors, complete storage layouts, value states, compact materialized slots, exact attribute
@@ -2522,7 +2522,7 @@ batch as a plan batch would incorrectly repeat local route search.
 
 The profile-qualified Metal batch is session-scoped. It contains only the complete
 `CUSTOM_SINGLE_NEG`, `CUSTOM_PROGRAM`, and `MPSGRAPH` configurations valid for the exact partition
-and profile. Compatibility, candidate, and route-policy identities are version twenty-six; every
+and profile. Compatibility, candidate, and route-policy identities are version twenty-seven; every
 other identity fails closed, and no private field crosses the marker-role boundary.
 
 ### Complete-plan candidate
@@ -2562,10 +2562,10 @@ decision contains no measurement, cache representation, executable, provider, na
 physical resource, or Runtime state.
 
 The profile-qualified Metal decision follows the same owner-defined pattern with a bounded
-checksummed version-twenty-six session codec. Fresh Metal analysis regenerates current profile/
+checksummed version-twenty-seven session codec. Fresh Metal analysis regenerates current profile/
 topology facts and accepts a selection only when schema, workload, exact context session, and
 candidate identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session,
-version-twenty-five and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a
+version-twenty-six and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a
 workload-cache artifact and have no current `tools/tuning` adapter.
 
 The generic Phase-2 tool may persist a decision only when its producer declares persistent reuse,
@@ -5204,10 +5204,10 @@ requires input `[1]`, axis `[0]`, correction zero, and scalar or retained `[1]` 
 typed transfer can move all six current carriers at ranks `0..16` through canonical or supported
 storage layouts; BOOL validation visits logical elements only.
 
-Metal analysis fixes stable value/node/feed/target order, lowers one bounded schema-17 route-bearing
-program image, generates a complete version-26 route batch, authenticates any supplied session
+Metal analysis fixes stable value/node/feed/target order, lowers one bounded schema-18 route-bearing
+program image, generates a complete version-27 route batch, authenticates any supplied session
 decision, and fixes one private route before declaring resources. Every identity other than
-version 26 fails closed. An eligible singleton NEG may use the dedicated custom pipeline. A
+version 27 fails closed. An eligible singleton NEG may use the dedicated custom pipeline. A
 partition containing any exact custom node or MATMUL outside the retained all-FLOAT32 rank-two
 MPSGraph slice
 selects the fixed shared custom whole-program route; an MSE node remains the same fixed nested
@@ -5216,7 +5216,7 @@ remain package-private forcing only. These choices add no fallback, retry, timin
 partition change.
 
 Finalization compiles one persistent route resource and transfers it to `PreparedExecution`.
-Shared custom-program creation authenticates each frozen component and the ordered 77,444-byte
+Shared custom-program creation authenticates each frozen component and the ordered 84,541-byte
 fixed source. Java supplies typed records and integer byte counts only. Native owns the sole
 structured pointwise emitter and all source hashes: it performs a no-allocation count traversal,
 validates all caps before exact allocation, emits once for compiler input, authenticates the
@@ -5230,6 +5230,14 @@ assigned run-owned Metal buffers; targets are direct assigned buffers; one addre
 carries the compact slot table and target aliases. Hot Java execution makes one synchronous native
 invocation with no source text, host staging, hidden materialization, per-node downcall, retry,
 fallback, or compilation.
+
+Under `ACCELERATOR`, eligible private MATMUL or Conv2d epilogues may instead become one typed
+anchor step. MATMUL preserves optional literal scalar multiplication, at most one ordinary
+right-aligned tensor ADD, and optional terminal RELU or no-gradient CLAMP in source order. Conv2d
+admits ADD then the same terminal pair but never scalar multiplication. Intrinsic rank-one `[C]`
+bias remains the third convolution input; an external rank-one addend broadcasts over `[W]`, while
+`[1,C,1,1]` is the ordinary channel form. One anchor step has one physical dispatch, no materialized
+suffix intermediate, and one final store.
 
 SELECT/SLICE publications gather logical elements from their authenticated physical storage using
 the exact offset and positive strides while ignoring untouched prefix/gap bytes. Other affine

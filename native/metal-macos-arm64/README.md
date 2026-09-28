@@ -5,7 +5,7 @@
 This directory builds the local application binary interface (ABI) used by the Synaptik Metal
 backend on Apple-silicon macOS. ABI version 5 retains the same thirteen context, shared-storage
 buffer, executable, and bounded custom singleton-`NEG` exports. Its graph creator accepts one
-bounded schema-17 program image. The image carries an explicit fixed route and exact numerical-
+bounded schema-18 program image. The image carries an explicit fixed route and exact numerical-
 profile wire plus value types and complete variable-cardinality operation, attribute, reference,
 dimension, gradient, optional storage-layout metadata, and a route-specific authenticated execution
 extension; no native type, shape, layout, or plan inference is part of the boundary.
@@ -91,20 +91,31 @@ one unflagged `fadd` in each L1/ScatterAdd kernel; the VARIANCE kernel contains 
 unflagged `fdiv`, one `fsub`, one `fmul`, no `fadd` or FMA, and one static store. Scatter contains
 no atomics.
 
+Task 0071 adds ACCELERATOR-only anchor-epilogue steps without changing ABI 5 or the thirteen
+exports. An eligible MATMUL suffix is optional literal scalar multiplication, at most one ordinary
+right-aligned tensor ADD, and optional terminal RELU or no-gradient CLAMP. An eligible Conv2d
+suffix is at most one external ADD followed by optional RELU or no-gradient CLAMP; Conv2d never
+absorbs scalar multiplication. Intrinsic rank-one `[C]` bias remains only the third Conv2d input.
+An external rank-one addend is `[W]`, while `[1,C,1,1]` expresses channel broadcasting. Every
+suffix intermediate is private, single-consumer, non-target, canonical, and absent from the
+materialized slot table. Each admitted anchor executes as one safe-math kernel dispatch and one
+final store, with no native retry or fallback. The pinned AIR audit covers all new FMA, multiply,
+add, and final-store sites plus NaN, signed-zero, infinity, subnormal DAZ/FTZ, and clamp boundaries.
+
 The remaining 29 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 26. Java
+rather than masquerading as malformed input. Candidate and route identity are version 27. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
-shared custom-program wire 3. Schema 17 embeds wire 2 or 3 and the exact numerical profile in each
+shared custom-program wire 3. Schema 18 embeds wire 2 or 3 and the exact numerical profile in each
 graph image; every other schema, profile, or route value fails closed. The exhaustive Java
 structural catalog adds no native route selection, capability, autotuning, fallback,
 telemetry, or performance authority.
 
-For admitted nodes, the version-26 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-27 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, complete encoded logical storage-layout
-geometry, independently safe physical materialization, and the canonical schema-17 execution
-extension. The schema-17 and identity-26 cutover has no compatibility reader or migration alias;
+geometry, independently safe physical materialization, and the canonical schema-18 execution
+extension. The schema-18 and identity-27 cutover has no compatibility reader or migration alias;
 every other schema or identity fails closed.
 
 ```text
@@ -148,7 +159,7 @@ package and independently verify the final signed bytes:
 The ignored `build/package-v1/macos-arm64/` directory contains exactly the signed dylib,
 `manifest.json`, and `SHA256SUMS`. The canonical schema-1 manifest records the final dylib's
 relative name, size, SHA-256, platform, architecture, macOS 26.0 minimum, install name, empty
-rpath set, ABI 5, node schema 17, required frameworks, and fixed ad-hoc identifier. It contains no
+rpath set, ABI 5, node schema 18, required frameworks, and fixed ad-hoc identifier. It contains no
 time, host, absolute path, source revision, product version, SDK version, Team ID, notarization,
 provenance, or release field. Packaging the same exact signed input produces byte-identical
 manifest and checksum files.
@@ -243,7 +254,7 @@ int32_t synaptik_metal_mpsgraph_executable_create(
     void **out_executable);
 ```
 
-`program` is one canonical little-endian schema-17 image of at most `INT32_MAX` bytes:
+`program` is one canonical little-endian schema-18 image of at most `INT32_MAX` bytes:
 
 ```text
 128-byte header
@@ -258,18 +269,18 @@ CUSTOM_PROGRAM only:
   member_count × u32 node positions
   binding_count × 24-byte binding records
   materialized_count × u32 program-value indices
-  instruction_count × 64-byte generated instruction records
+  instruction_count × 64-byte typed execution instruction records
   canonical ASCII manifest
   32-byte SHA-256 manifest digest
 ```
 
-The 32 header words are magic `SM17` (`0x37314d53`), schema `17`, header bytes `128`, total
+The 32 header words are magic `SM18` (`0x38314d53`), schema `18`, header bytes `128`, total
 bytes, fixed route, exact numerical-profile wire, generator schema/extension flag, the eight core
 counts, the five execution-record counts, manifest/digest byte counts, generated-unit count,
 generated/fixed/total source byte counts, first rejected node, cap reason, and the per-function,
 generated-source, and total-source caps. Route `2=MPSGRAPH` requires generator schema, extension
 flag, all extension counts, source sizes, and caps to be zero and physically omits every extension
-section. Route `3=CUSTOM_PROGRAM` requires generator schema `1`, extension flag `1`, a nonempty
+section. Route `3=CUSTOM_PROGRAM` requires generator schema `2`, extension flag `1`, a nonempty
 canonical manifest with a 32-byte digest, and parser-recomputed records, source sizes, and caps.
 The exact numerical-profile wires remain `0x53545249=STRICT_IEEE` and
 `0x41434345=ACCELERATOR`.
@@ -485,10 +496,10 @@ capability narrowing, tuning, fallback, or a performance claim.
 
 ## Shared exact custom whole-program execution
 
-Any schema-17 program containing an exact custom node or a MATMUL outside the retained
+Any schema-18 program containing an exact custom node or a MATMUL outside the retained
 all-FLOAT32 rank-two MPSGraph slice uses one retained custom-program handle. Creation authenticates
-the frozen SHA-256 values of all nine reviewed fixed-kernel components and their ordered
-77,444-byte total. The sole production pointwise emitter first traverses a structured
+the frozen SHA-256 values of all ten reviewed fixed-kernel components and their ordered
+84,541-byte total. The sole production pointwise emitter first traverses a structured
 no-allocation count sink, validates unit, instruction, per-function, generated, and total caps,
 allocates the exact byte count, traverses the same emitter once for compiler input, independently
 authenticates the assembled source, and only then compiles with `MTLMathModeSafe` and
@@ -521,6 +532,15 @@ size 32/alignment eight, and expose exactly the five ordered members and offsets
 caps are 32 generated units, 256 instructions, 16,384 UTF-8 bytes per function, 262,144 generated
 bytes, and 1,048,576 total bytes. Barriers never fuse, and all non-generated fixed custom and
 MPSGraph steps retain their established behavior.
+
+Anchor-epilogue steps use generator-schema-2 typed instructions and bind suffix source order, ADD
+side and external role, raw scalar/clamp words, anchor family, types, Shapes, layouts, profile, and
+gradient metadata in the authenticated manifest/image digest. Native independently reconstructs
+the same grammar and broadcasts. The 6,096-byte/eight-aligned `AnchorEpilogueMeta` embeds the
+existing `DataMeta`, right-aligned add strides/offset, raw scalar and clamp words, and flags. The
+fixed source contains six MATMUL type/add variants and two Conv2d add/no-add variants. A test-only
+observer immediately before `dispatchThreads` proves each fused step issues one physical dispatch;
+no suffix logical intermediate owns a native slot or store.
 
 One Java/native run call authenticates the complete compact materialized-slot table and exact
 direct targets, rejects one physical buffer reused by distinct live slots, and preserves each

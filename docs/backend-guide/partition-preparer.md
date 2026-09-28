@@ -551,10 +551,11 @@ authenticated compact materialized set for a shared custom-program route. It low
 typed MPSGraph node whose native recipe is fixed subtraction, self-multiplication, and optional full
 SUM or MEAN. It lowers Task-0060 scatter preflight, signed slice placement, single-writer non-overlap
 folds, exact modular/logical reductions, every Task-0063 row, and selected Task-0066/Task-0069
-occurrences to their fixed custom programs without atomics or fallback. It preserves typed ingress,
-target and internal physical byte geometry, window/index obligations, unsigned-32-bit geometry, and
-the profile in the schema-seventeen/version-twenty-six route identity without widening capability.
-Every other identity fails closed.
+occurrences to their fixed custom programs without atomics or fallback. It may replace only an
+exact private ACCELERATOR MATMUL/Conv2d suffix with one typed anchor instruction. It preserves typed
+ingress, target and internal physical byte geometry, window/index obligations, unsigned-32-bit
+geometry, and the profile in the schema-eighteen/version-twenty-seven route identity without
+widening capability. Every other identity fails closed.
 
 Metal's one closed prepared-route identity owns the existing candidate wires `1..3` and the
 MPSGraph/custom-kernel family. Candidate serialization delegates to it. A returned plan retains one

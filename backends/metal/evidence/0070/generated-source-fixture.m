@@ -10,6 +10,7 @@
 #import "synaptik_task0069_aggregate_kernels.h"
 #import "synaptik_task0065_rng_dropout_kernels.h"
 #import "synaptik_task0066_dtype_layout_kernels.h"
+#import "synaptik_task0071_anchor_epilogue_kernels.h"
 #include <stdint.h>
 #include <string.h>
 
@@ -32,6 +33,7 @@ static NSString *fixed_source(void) {
     [source appendString:SynaptikTask0069AggregateKernelSource];
     [source appendString:SynaptikTask0065RngDropoutKernelSource];
     [source appendString:SynaptikTask0066DtypeLayoutKernelSource];
+    [source appendString:SynaptikTask0071AnchorEpilogueKernelSource];
     return [source lengthOfBytesUsingEncoding:NSUTF8StringEncoding]
             == SYNAPTIK_POINTWISE_FIXED_CORPUS_BYTES ? source : nil;
 }

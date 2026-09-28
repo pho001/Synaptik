@@ -525,8 +525,8 @@ selector or finite composition and current Model semantic/signature source for e
 115 rows. The current catalogs are MPSGraph
 `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE` and custom
 `73 AVAILABLE / 42 PENDING / 0 UNAVAILABLE-WITH-PROOF`. The closed route identity retains wires
-`1..3`; schema 17 embeds the fixed route, exact numerical profile, and custom execution extension,
-identities are version 26, and capability is `86 true / 29 false`. Package-private forcing remains
+`1..3`; schema 18 embeds the fixed route, exact numerical profile, and custom execution extension,
+identities are version 27, and capability is `86 true / 29 false`. Package-private forcing remains
 result-set-only after fresh authentication; every selected Task-0066 occurrence and exact Task-0069
 occurrence rejects MPSGraph, while non-domain VARIANCE retains its prior direct structural recipe.
 There is no device, oracle, timing, benchmark, public API, hot fallback, retry, cache, or autotune
@@ -564,8 +564,8 @@ another.
   prepared-route identity. Task 0057 advanced its candidate/codec identities to 15 and fixed the
   shared route name to `CUSTOM_PROGRAM`; Task 0059 advanced all backend-local identities to 16,
   Complete Tasks 0061–0066 advanced them through 17–22, Tasks 0067–0068 retained 22, Task-0069
-  Slice 1 advanced them to 23, Slice 2 to 24, and Slice 3 to 25. Identity 24 and every older
-  identity fail closed. Catalog states still are not correctness approval; local timing is never
+  Slices 1 through 3 advanced them through 23–25, Task 0070 to 26, and Task 0071 to 27. Identity 26
+  and every older identity fail closed. Catalog states still are not correctness approval; local timing is never
   authority, and only the existing cold authenticated handoff remains a seam for separately
   approved controlled autotuning.
 - Complete Metal 0044 owns its documentation/audit no-change record; no active owner may reinterpret
@@ -594,10 +594,11 @@ another.
   security, and evidence review returned `APPROVE` with zero remaining P0/P1/P2 and no Task-0067
   blocker. Task 0068 is Complete after its fresh native/package/extracted-dylib matrix and evidence
   correction `1775081a`; independent code, security, and evidence review returned `APPROVE` with
-  zero remaining P0/P1/P2. Task 0069 Slices 1 and 2 are Complete after cumulative proof,
+  zero remaining P0/P1/P2. Task 0069 Slices 1 through 3 are Complete after cumulative proof,
   code/evidence/security review, raw-native boundary remediation, and active-document
-  reconciliation. Slice 3 is implemented under fresh checkpoint authorization with its independent
-  review pending. Model 0028 owns the reduction semantic contract, Complete
+  reconciliation. Task 0070's authenticated pointwise generation and Task 0071's anchor-epilogue
+  and structural-trace cutovers are Complete with retained task-local source, proof, AIR, and
+  runtime evidence. Model 0028 owns the reduction semantic contract, Complete
   Model 0029 owns the MATMUL final-publication semantic
   contract, and Complete Metal 0021–0025 retain reviewed implementations.
 
@@ -615,16 +616,16 @@ zero findings passed. Metal 0021 landed at implementation `ef2c6a1a`, worker-evi
 oracle, ABI/export, focused suites, real Engine forward/seeded-gradient proof, full build,
 documentation/diff evidence, and independent Class C final `APPROVE` with zero findings passed.
 
-Current ABI 5 retains exactly thirteen exports and accepts one bounded schema-17 route-bearing
+Current ABI 5 retains exactly thirteen exports and accepts one bounded schema-18 route-bearing
 program image with the exact numerical-profile wire. Type wires are `1..6`, operation wires are
 `1..115`, attribute wires are `0..41`, route wires are `1..3`, and
-workload/exact-policy/candidate/compatibility/route/codec identities are version twenty-six. Task
-0055's schema-13/identity-14 foundation, Task 0056's structural catalog, Task 0057's
+workload/exact-policy/candidate/compatibility/route/codec identities are version twenty-seven.
+Task 0055's schema-13/identity-14 foundation, Task 0056's structural catalog, Task 0057's
 schema-14/identity-15 route cutover, Task 0059's schema-15/identity-16 cutover, Tasks 0061–0065's
-identity-17 through identity-21 cutovers, Task 0066/0067/0068 identity 22, and Task-0069 identities
-23 through 25 remain historical prerequisites. Task 0070 accepts only identity 26 while retaining
-exactly 86 production kinds and 101 structurally executable kinds. Identity 26 remains monotonic
-because workload compatibility binds the profile, schema version,
+identity-17 through identity-21 cutovers, Task 0066/0067/0068 identity 22, Task-0069 identities
+23 through 25, and Task-0070 identity 26 remain historical prerequisites. Task 0071 accepts only
+identity 27 while retaining exactly 86 production kinds and 101 structurally executable kinds.
+Identity 27 remains monotonic because workload compatibility binds the profile, schema version,
 complete encoded image and execution extension, and route policy; a prior-checkpoint decision
 cannot match the current workload.
 Complete Model 0028 owns the root-only exact-zero reduction rule. Complete Model 0029 owns the
@@ -685,8 +686,8 @@ UNFOLD3D/FOLD3D remain separate custom movement/overlap work. Metal 0037 remains
 probe: recurrent arithmetic is recursively reachable for `ACCELERATOR`, but direct RNN lacks
 runtime INT64 valid lengths, atomic validation, skipped padded work, positive-zero padding, and
 `finalHidden`; no complete recurrence, state-publication, GRU/LSTM, or gradient route proof exists.
-Schema 17, type wires `1..6`, operation wires `1..115`, attribute wires `0..41`,
-version-twenty-six identities, ABI 5, variable cardinality, custom execution plans, and canonical
+Schema 18, type wires `1..6`, operation wires `1..115`, attribute wires `0..41`,
+version-twenty-seven identities, ABI 5, variable cardinality, custom execution plans, and canonical
 or supported-storage-layout all-six rank-`0..16` cross-owner transfer are landed; every other
 identity fails closed. The schema registry is not capability:
 BOOL consumption includes the exact positive-rank ordering/top-K and logic/WHERE domains, integral
@@ -766,13 +767,21 @@ source order, raw-copies unaddressed cells, and closes the compiler-generated ra
 cotangent. Singleton VARIANCE requires input `[1]`, axis `[0]`, correction zero, scalar or retained
 `[1]` output, and uses the literal DIV-SUB-MUL-DIV custom kernel.
 
-Task 0070 adds schema-17 authenticated execution records, compact materialized slots, and bounded
+Task 0070 added authenticated execution records, compact materialized slots, and bounded
 deterministic generated units for eligible linear canonical FLOAT32
 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains. Four universal raw-word Lean certificates, a source
 certificate, real Metal reflection, an immediately-before-dispatch test observer, and the pinned
-compiled generated-MSL/AIR audit cover the cutover. Structural `101/14`, capability `86/29`,
-MPSGraph `75/35/5`, custom `73/42/0`, ABI 5, and thirteen exports remain fixed; only schema 17 and
-identity 26 are accepted.
+compiled generated-MSL/AIR audit cover that cutover.
+
+[Task 0071](tasks/0071-anchor-epilogue-fusion.md) adds schema-18 typed anchor instructions for exact
+ACCELERATOR MATMUL/Conv2d epilogues.
+Its source and compiled-AIR certificates, Lean order/store/broadcast/DAZ-FTZ model, real-device
+observer suite, and public Engine smoke cover one physical dispatch and one final store with no
+materialized suffix intermediate. Structural PREPARE and planned RUN payloads expose only bounded
+typed facts and aggregates; lifecycle-close tracing remains deferred because logical prepared
+units share/refcount native resources. Structural `101/14`, capability `86/29`, MPSGraph
+`75/35/5`, custom `73/42/0`, ABI 5, and thirteen exports remain fixed; only schema 18 and identity
+27 are accepted.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030
