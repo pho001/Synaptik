@@ -60,7 +60,7 @@
     {
       "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalTraceProducer.java",
       "role": "trace-producer",
-      "sha256": "100becee66754a71241db97571132c06cd68e27309ad89d178986a089217b27b"
+      "sha256": "e35af46ea06396966d69726ff744a445df67cab655f565ef5f6d537675709efa"
     },
     {
       "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalPreparationStructure.java",
@@ -75,7 +75,7 @@
     {
       "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparedExecutable.java",
       "role": "prepared-executable",
-      "sha256": "7f03e2e935d4176631b6dce6f89f965ddc2fe57de2d9de66b0fe455b5421f44a"
+      "sha256": "c23e10af0027120a3b890393db0a3a52e9cdb4b0801d14e6f64f2502d0ecbaaa"
     },
     {
       "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegRouteCandidateGenerator.java",
@@ -130,7 +130,12 @@
     {
       "path": "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalTraceProducerTest.java",
       "role": "trace-test",
-      "sha256": "93225b31f38da719fef2f521cc10682fde926a9ec4c3fa86f1c020bf50d92a67"
+      "sha256": "f5a2c819133d5b79b7bdc2f05301209f1c9c96a487d7169b20ca2fc00ef2f3b0"
+    },
+    {
+      "path": "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparedExecutionTest.java",
+      "role": "execution-trace-test",
+      "sha256": "e9468d18931d807061f1c9f9886be2f5c5d55cc10bd9de95deb6c5d5b54d9690"
     },
     {
       "path": "backends/metal/evidence/0071/proof/Task0071AnchorEpilogue.lean",

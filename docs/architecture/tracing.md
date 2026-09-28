@@ -201,22 +201,26 @@ zero, and `System.nanoTime()` timestamps. The caller owns the `MetalTraceObserve
 be concurrent and Metal never closes it. The existing one-argument `open(configuration)` path
 creates no producer, payload, ID, clock read, or callback.
 
-After Metal fixes a profile and route, finalization emits one `PREPARE` outcome while tracing
-remains enabled. Each route-specific native invocation emits one `RUN` outcome. Preparation always
-reports `NOT_QUERIED` because Metal performs no cache lookup, including when an outer owner supplied
-a decision. A returned native status is translated to the closed trace vocabulary while retaining
-its exact signed code; a Java-side failure before native status return leaves native status empty.
+After Metal fixes a profile and route, it emits one structural `PREPARE` event before native
+finalization and then one `PREPARE` outcome while tracing remains enabled. Each route-specific
+native invocation emits one bounded invocation-plan `RUN` event before native execution and one
+`RUN` outcome afterward. Preparation always reports `NOT_QUERIED` because Metal performs no cache
+lookup, including when an outer owner supplied a decision. A returned native status is translated
+to the closed trace vocabulary while retaining its exact signed code; a Java-side failure before
+native status return leaves native status empty.
 
-ID exhaustion, event/DTO construction failure, or an observer `RuntimeException` permanently
-disables later events for that integration without changing backend work, results, rollback, or
-outward exceptions. An observer `Error` from success reporting propagates normally. During failure
-reporting, the existing backend/finalization/run failure remains primary; a distinct observer
-`Error` is attached as an acyclic suppressed failure without disabling tracing or disturbing prior
-rollback suppression. Events expose no library path, session/device token, address or handle,
-Tensor/storage value, scalar, shape, byte extent, cache or workload fingerprint, thread identity,
-exception, free-form string, or generic map. The producer
-adds no Engine production behavior, native ABI/schema/export, capability, route, or lifecycle
-change.
+A structural PREPARE or invocation-plan callback failure, including observer `Error`, permanently
+disables tracing and is contained without aborting native finalization or execution. ID exhaustion,
+event/DTO construction
+failure, or an observer `RuntimeException` from outcome reporting likewise disables later events
+without changing backend work, results, rollback, or outward exceptions. An observer `Error`
+propagates only from successful outcome reporting. During failure outcome reporting, the existing
+backend/finalization/run failure remains primary; a distinct observer `Error` is attached as an
+acyclic suppressed failure without disabling tracing or disturbing prior rollback suppression.
+Events expose no library path, session/device token, address or handle, Tensor/storage value,
+scalar, per-buffer byte extent, cache or workload fingerprint, thread identity, exception,
+free-form string, or generic map. The producer adds no Engine production behavior, native
+ABI/schema/export, capability, route, or lifecycle change.
 
 ## Why trace stays a dependency leaf
 

@@ -410,7 +410,7 @@ class MetalTraceProducerTest {
     }
 
     @Test
-    void structuralCallbackFailuresKeepExistingContainmentAndErrorSemantics() {
+    void structuralCallbackRuntimeAndErrorFailuresDisableWithoutEscaping() {
         AtomicInteger runtimeCallbacks = new AtomicInteger();
         var runtimeProducer = new MetalTraceProducer(event -> {
             runtimeCallbacks.incrementAndGet();
@@ -429,20 +429,46 @@ class MetalTraceProducerTest {
         contained.preparationSucceeded();
         assertEquals(1, runtimeCallbacks.get());
 
-        AssertionError observerError = new AssertionError("observer-error");
+        AtomicInteger errorCallbacks = new AtomicInteger();
         var errorProducer = new MetalTraceProducer(event -> {
-            throw observerError;
+            errorCallbacks.incrementAndGet();
+            throw new AssertionError("observer-error");
         });
-        assertSame(observerError, assertThrows(AssertionError.class, () ->
-                errorProducer.prepareUnit(
-                        NumericalProfile.ACCELERATOR,
-                        MetalPreparedRoute.MPSGRAPH,
-                        traceNegProgram(),
-                        List.of(traceValue(1), traceValue(1)),
-                        new int[] {0},
-                        new int[] {1},
-                        0)));
-        assertTrue(errorProducer.enabled());
+        MetalTraceProducer.PreparedUnit errorContained = errorProducer.prepareUnit(
+                NumericalProfile.ACCELERATOR,
+                MetalPreparedRoute.MPSGRAPH,
+                traceNegProgram(),
+                List.of(traceValue(1), traceValue(1)),
+                new int[] {0},
+                new int[] {1},
+                0);
+        assertNotNull(errorContained);
+        assertFalse(errorProducer.enabled());
+        errorContained.preparationSucceeded();
+        assertEquals(1, errorCallbacks.get());
+
+        AtomicInteger planningCallbacks = new AtomicInteger();
+        var planningProducer = new MetalTraceProducer(event -> {
+            planningCallbacks.incrementAndGet();
+            if (event.payload() instanceof MetalInvocationPlan) {
+                throw new AssertionError("planning-error");
+            }
+        });
+        MetalTraceProducer.PreparedUnit planningContained = planningProducer.prepareUnit(
+                NumericalProfile.ACCELERATOR,
+                MetalPreparedRoute.MPSGRAPH,
+                traceNegProgram(),
+                List.of(traceValue(1), traceValue(1)),
+                new int[] {0},
+                new int[] {1},
+                0);
+        planningContained.preparationSucceeded();
+        var invocationId = planningContained.beginInvocation();
+        planningContained.invocationPlanned(
+                invocationId, 1, 1, 0, 4L, 4L, 0L, 0L, 16L, 24L, 0, 1);
+        assertFalse(planningProducer.enabled());
+        planningContained.invocationSucceeded(invocationId);
+        assertEquals(3, planningCallbacks.get());
     }
 
     @Test

@@ -55,10 +55,13 @@ public final class MetalBackendIntegration implements AutoCloseable {
      * Opens one native Metal integration with a caller-owned typed diagnostic observer.
      *
      * <p>The observer is retained but never closed. Its callback may be invoked concurrently.
-     * Callback {@link RuntimeException RuntimeExceptions} disable later tracing without changing
-     * backend work or outcomes. Callback {@link Error Errors} propagate from success reporting;
-     * during failure reporting, the backend failure remains primary and receives a distinct acyclic
-     * callback error as a suppressed failure.
+     * Structural PREPARE and pre-run planning callback failures disable tracing and are contained
+     * without aborting native finalization or execution. Callback
+     * {@link RuntimeException RuntimeExceptions} from outcome
+     * reporting also disable tracing without changing backend work or outcomes. Callback
+     * {@link Error Errors} propagate only from successful outcome reporting; during failure
+     * reporting, the backend failure remains primary and receives a distinct acyclic callback error
+     * as a suppressed failure.
      *
      * @param configuration non-null validated configuration; its immutable value is snapshotted
      * @param observer non-null caller-owned thread-safe observer retained for this integration

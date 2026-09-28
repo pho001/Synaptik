@@ -324,12 +324,15 @@ but performs no cache lookup and cannot claim an outer hit or miss. Native codes
 a Java-side failure before a native return has no native status. MPSGraph range status is captured
 before the existing Java indexing rescan translates the outward exception.
 
-ID exhaustion, trace-object construction failure, or an observer `RuntimeException` atomically
-disables later tracing without changing backend work, failure, rollback, suppression, or outward
-exception. An observer `Error` from success reporting propagates normally. During failure
-reporting, the existing finalization or route-specific run failure remains primary; a distinct
-observer `Error` is attached as an acyclic suppressed failure after any rollback suppression,
-without disabling tracing. Payloads include only Trace-owned IDs and bounded closed structural or
+Structural PREPARE and pre-run planning callback failures, including observer `Error`, atomically
+disable tracing and are contained before native finalization or execution. ID exhaustion,
+trace-object construction failure, and observer `RuntimeException` from outcome reporting also
+disable later tracing without changing backend work, failure, rollback, suppression, or outward
+exception. An observer `Error` propagates only from successful outcome reporting. During failure
+outcome reporting, the existing finalization or route-specific run failure remains primary; a
+distinct observer `Error` is attached as an acyclic suppressed failure after any rollback
+suppression, without disabling tracing. Payloads include only Trace-owned IDs and bounded closed
+structural or
 aggregate facts. They never include source text, tensor data, scalar bits, per-buffer byte
 geometry, pointers, native handles, paths, names, secrets, exceptions, free-form strings, or
 generic maps. Close tracing remains deliberately deferred: prepared units are logical plans while

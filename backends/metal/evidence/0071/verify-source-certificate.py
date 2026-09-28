@@ -46,6 +46,7 @@ def main() -> None:
     observer_test = texts["dispatch-observer-test"]
     raw_test = texts["raw-abi-test"]
     trace_test = texts["trace-test"]
+    execution_trace_test = texts["execution-trace-test"]
     preparation_payload = texts["preparation-payload"]
     invocation_payload = texts["invocation-payload"]
     public_smoke = texts["public-smoke"]
@@ -138,11 +139,16 @@ def main() -> None:
         require(raw_test, fragment)
     for fragment in (
         "structuralEventsDistinguishFusedAndComposedPlansAndPrecedeOutcomes",
-        "structuralCallbackFailuresKeepExistingContainmentAndErrorSemantics",
+        "structuralCallbackRuntimeAndErrorFailuresDisableWithoutEscaping",
         "structuralPayloadsExposeNoSensitiveOrResourceIdentityFields",
         "MetalInvocationPlan.class",
     ):
         require(trace_test, fragment)
+    for fragment in (
+        "MetalStructuralPrepareErrorDisablesBeforeFinalizationAndSkipsByteAggregation",
+        "MetalInvocationPlanErrorDisablesWithoutAbortingNativeRun",
+    ):
+        require(execution_trace_test, fragment)
     for fragment in (
         "aggregateInputBytes",
         "aggregateOutputBytes",

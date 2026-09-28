@@ -488,6 +488,124 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
+    void MetalStructuralPrepareErrorDisablesBeforeFinalizationAndSkipsByteAggregation() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        api.emulateSingletonMpsGraphNeg = true;
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        AtomicInteger callbacks = new AtomicInteger();
+        MetalTraceProducer producer = new MetalTraceProducer(event -> {
+            callbacks.incrementAndGet();
+            throw new AssertionError("structural prepare observer");
+        });
+        SingleNegRoute route = singleNegRoute(
+                context,
+                Shape.of(2),
+                Optional.empty(),
+                producer,
+                MetalPreparedRoute.MPSGRAPH);
+        assertFalse(producer.enabled());
+        assertEquals(1, callbacks.get());
+        FinalizationFixture assignment = finalization(route.analysis());
+        BackendPartitionFinalizationResult finalized =
+                new MetalNegPartitionFinalizer(context)
+                        .finalizePartition(assignment.finalization());
+        PreparedExecution execution = null;
+        MetalBufferRepresentation input = null;
+        try {
+            MetalNegPreparationPlan plan = route.analysis().plan();
+            List<ValueId> declarationIds = plan.declarations().stream()
+                    .map(PreparationResourceRequirement.Buffer::valueId)
+                    .toList();
+            int feedPlanIndex = declarationIds.indexOf(route.feed());
+            int targetPlanIndex = declarationIds.indexOf(route.target());
+            var resource = (MetalMpsGraphExecutableResource)
+                    finalized.resources().getFirst();
+            // These extents overflow if disabled tracing still attempts byte aggregation.
+            new MetalNegPreparedExecutable(
+                    plan,
+                    assignment.memoryPlan(),
+                    new int[] {feedPlanIndex},
+                    new int[] {0},
+                    new int[] {targetPlanIndex},
+                    new int[] {0},
+                    new int[0],
+                    new int[0],
+                    resource,
+                    List.of(Optional.empty()),
+                    new long[] {Long.MAX_VALUE},
+                    new long[] {1L},
+                    new long[0],
+                    0);
+
+            var schedule = new MetalNegPreparedScheduleAssembler(
+                    context, plan, List.of(route.target()))
+                    .assembleRoute(
+                            assignment.memoryPlan(),
+                            new PreparedPartition(route.partition(), finalized.executable()),
+                            assignment.preparedAssignments());
+            execution = new PreparedExecution(
+                    assignment.memoryPlan(), schedule, finalized.resources());
+            input = context.createBuffer(2L * Float.BYTES);
+            uploadBits(input, 0x3f800000, 0xc0000000);
+            try (var result = new PreparedExecutionRunner().run(execution, List.of(input));
+                    Arena arena = Arena.ofConfined()) {
+                assertNegated(
+                        (MetalBufferRepresentation) result.publicationRepresentation(0),
+                        new float[] {-1.0f, 2.0f},
+                        arena);
+            }
+            assertEquals(1, api.executableCreates.get());
+            assertEquals(1, api.runCalls.get());
+            assertEquals(1, callbacks.get());
+        } finally {
+            close(input);
+            close(execution);
+            if (execution == null) {
+                finalized.resources().forEach(resource -> resource.close());
+            }
+            context.close();
+        }
+    }
+
+    @Test
+    void MetalInvocationPlanErrorDisablesWithoutAbortingNativeRun() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        List<Class<?>> payloadTypes = new CopyOnWriteArrayList<>();
+        MetalTraceProducer producer = new MetalTraceProducer(event -> {
+            payloadTypes.add(event.payload().getClass());
+            if (event.payload() instanceof MetalInvocationPlan) {
+                throw new AssertionError("invocation plan observer");
+            }
+        });
+        SingleNegRoute route =
+                singleNegRoute(context, Shape.of(2), Optional.empty(), producer);
+        PreparedExecution execution = prepareSingleExecution(context, route);
+        MetalBufferRepresentation input = context.createBuffer(2L * Float.BYTES);
+        try {
+            uploadBits(input, 0x3f800000, 0xc0000000);
+            try (var result = new PreparedExecutionRunner().run(execution, List.of(input));
+                    Arena arena = Arena.ofConfined()) {
+                assertNegated(
+                        (MetalBufferRepresentation) result.publicationRepresentation(0),
+                        new float[] {-1.0f, 2.0f},
+                        arena);
+            }
+            assertEquals(List.of(
+                            MetalPreparationStructure.class,
+                            BackendPreparationOutcome.class,
+                            MetalInvocationPlan.class),
+                    payloadTypes);
+            assertFalse(producer.enabled());
+            assertEquals(1, api.customRunCalls.get());
+        } finally {
+            execution.close();
+            input.close();
+            context.close();
+        }
+    }
+
+    @Test
     void MetalTracePreparationObserverErrorPreservesMalformedNativeRollbackFailure() {
         RecordingNativeApi api = new RecordingNativeApi();
         api.pipelineCreateStatus = 12;

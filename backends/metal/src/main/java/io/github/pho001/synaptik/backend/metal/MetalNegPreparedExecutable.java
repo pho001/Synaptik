@@ -126,7 +126,8 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             throw new IllegalArgumentException("Metal NEG selection geometry disagrees");
         }
         validateSplatResources();
-        if (preparationPlan.traceUnit() == null) {
+        if (preparationPlan.traceUnit() == null
+                || !preparationPlan.traceUnit().enabled()) {
             this.byteTotals = null;
         } else {
             long pointerCount = preparationPlan.route() == MetalPreparedRoute.CUSTOM_PROGRAM
@@ -190,6 +191,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         }
         validateSplatResources();
         this.byteTotals = preparationPlan.traceUnit() == null
+                        || !preparationPlan.traceUnit().enabled()
                 ? null
                 : byteTotals(
                         new long[] {resource.requiredBytes()},
@@ -533,9 +535,9 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         @Override
         protected void executeBound() {
             MetalTraceProducer.PreparedUnit traceUnit = preparationPlan.traceUnit();
-            TraceInvocationId invocationId =
-                    traceUnit == null ? null : traceUnit.beginInvocation();
-            if (traceUnit != null) {
+            TraceInvocationId invocationId = traceUnit == null || !traceUnit.enabled()
+                    ? null : traceUnit.beginInvocation();
+            if (invocationId != null && traceUnit.enabled()) {
                 traceUnit.invocationPlanned(
                         invocationId,
                         preparationPlan.feedValueIds().size(),
@@ -746,9 +748,9 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         @Override
         protected void executeBound() {
             MetalTraceProducer.PreparedUnit traceUnit = preparationPlan.traceUnit();
-            TraceInvocationId invocationId =
-                    traceUnit == null ? null : traceUnit.beginInvocation();
-            if (traceUnit != null) {
+            TraceInvocationId invocationId = traceUnit == null || !traceUnit.enabled()
+                    ? null : traceUnit.beginInvocation();
+            if (invocationId != null && traceUnit.enabled()) {
                 traceUnit.invocationPlanned(
                         invocationId,
                         1,

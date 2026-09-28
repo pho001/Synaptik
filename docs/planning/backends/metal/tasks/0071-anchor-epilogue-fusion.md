@@ -69,7 +69,7 @@ Immediately before `resource.run`, RUN emits an invocation-plan payload containi
 - aggregate input/output/splat/workspace bytes; and
 - bounded typed custom-step summaries.
 
-Tracing contains no source text, tensor data, scalar/clamp bits, pointers, handles, paths, names, secrets, or graph-wide/per-buffer inventory. Disabled tracing performs no payload construction. Observer runtime failures disable later tracing without changing backend results. Observer errors retain the established success/failure propagation and suppression semantics. Native failures retain native outcome authority.
+Tracing contains no source text, tensor data, scalar/clamp bits, pointers, handles, paths, names, secrets, or graph-wide/per-buffer inventory. Disabled tracing performs no payload construction. Structural PREPARE and pre-run planning callback failures, including observer errors, disable tracing and are contained without aborting native finalization or execution. Outcome callback runtime failures disable later tracing without changing backend results; observer errors propagate only from successful outcome reporting and remain suppressed behind backend failure during failure reporting. Native failures retain native outcome authority.
 
 Per-unit lifecycle-close payloads are intentionally deferred. Logical `PreparedUnit` instances can share and reference-count native resources, so a close record at that boundary would imply false physical lifetime and add high-volume noise. Existing outcome events already close the preparation and invocation diagnostic correlations.
 

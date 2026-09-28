@@ -119,10 +119,13 @@
  * invocation plan with route counts, aggregate input/output/internal/splat/workspace bytes,
  * splat/workspace counts, and bounded custom-step
  * summaries. Payloads contain no source/data/scalar bits, pointers, handles, paths, names, or
- * per-buffer records. Observer runtime failures disable later tracing without changing backend
- * outcomes. An observer error propagates from success reporting; during failure reporting, the
- * backend failure remains primary and receives a distinct acyclic observer error as a suppressed
- * failure. The ordinary open overload creates no trace producer or trace work. Per-unit close
+ * per-buffer records. Structural PREPARE and pre-run planning callback failures disable tracing
+ * and are contained without aborting native finalization or execution. Observer runtime failures
+ * from outcome reporting also
+ * disable later tracing without changing backend outcomes. An observer error propagates only from
+ * successful outcome reporting; during failure reporting, the backend failure remains primary and
+ * receives a distinct acyclic observer error as a suppressed failure. The ordinary open overload
+ * creates no trace producer or trace work. Per-unit close
  * payloads remain deferred because logical units share/refcount native resources and would be
  * misleading lifecycle noise.
  *

@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongFunction;
 
-/** Concurrent, failure-contained producer for one explicitly traced Metal integration. */
+/** Concurrent Metal trace producer with advisory structure and contract-preserving outcomes. */
 final class MetalTraceProducer {
     private static final TraceBackendId BACKEND_ID = new TraceBackendId(0L);
     private static final TraceDeviceId DEVICE_ID = new TraceDeviceId(0L);
@@ -130,6 +130,7 @@ final class MetalTraceProducer {
             return null;
         }
     }
+    /** Emits advisory pre-run structure; observer failures disable tracing and never escape. */
     void invocationPlanned(
             PreparedUnit unit,
             TraceInvocationId invocationId,
@@ -148,7 +149,7 @@ final class MetalTraceProducer {
             return;
         }
         try {
-            emit(
+            emitStructural(
                     TracePhase.RUN,
                     TraceLevel.INFO,
                     new MetalInvocationPlan(
@@ -173,8 +174,9 @@ final class MetalTraceProducer {
         }
     }
 
+    /** Emits advisory PREPARE structure without letting observer failures reach finalization. */
     private void emitPreparationStructure(PreparedUnit unit, PlanFacts facts) {
-        emit(
+        emitStructural(
                 TracePhase.PREPARE,
                 TraceLevel.INFO,
                 new MetalPreparationStructure(
@@ -251,7 +253,7 @@ final class MetalTraceProducer {
             return;
         }
         try {
-            emit(
+            emitOutcome(
                     TracePhase.PREPARE,
                     status == TraceOutcomeStatus.SUCCEEDED ? TraceLevel.INFO : TraceLevel.ERROR,
                     new BackendPreparationOutcome(
@@ -277,7 +279,7 @@ final class MetalTraceProducer {
             return;
         }
         try {
-            emit(
+            emitOutcome(
                     TracePhase.RUN,
                     status == TraceOutcomeStatus.SUCCEEDED ? TraceLevel.INFO : TraceLevel.ERROR,
                     new BackendInvocationOutcome(
@@ -294,20 +296,32 @@ final class MetalTraceProducer {
         }
     }
 
-    private void emit(TracePhase phase, TraceLevel level, TracePayload payload) {
+    private void emitStructural(TracePhase phase, TraceLevel level, TracePayload payload) {
+        try {
+            emitEvent(phase, level, payload);
+        } catch (RuntimeException | Error observerFailure) {
+            disable();
+        }
+    }
+
+    private void emitOutcome(TracePhase phase, TraceLevel level, TracePayload payload) {
+        try {
+            emitEvent(phase, level, payload);
+        } catch (RuntimeException observerFailure) {
+            disable();
+        }
+    }
+
+    private void emitEvent(TracePhase phase, TraceLevel level, TracePayload payload) {
         if (!enabled.get()) {
             return;
         }
-        try {
-            TraceEventId eventId = next(nextEventId, TraceEventId::new);
-            if (eventId == null) {
-                return;
-            }
-            observer.onEvent(new TraceEvent<>(
-                    eventId, phase, level, System.nanoTime(), payload));
-        } catch (RuntimeException failure) {
-            disable();
+        TraceEventId eventId = next(nextEventId, TraceEventId::new);
+        if (eventId == null) {
+            return;
         }
+        observer.onEvent(new TraceEvent<>(
+                eventId, phase, level, System.nanoTime(), payload));
     }
 
     private <T> T next(AtomicLong sequence, LongFunction<T> factory) {
