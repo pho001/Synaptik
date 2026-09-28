@@ -23,15 +23,14 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 /**
  * Immutable Runtime recipe for one selected shape-specialized Metal supported-operation route.
  *
- * <p>Selections are feeds, targets, and declared internal logical values in stable order. Cold
+ * <p>Selections are the authenticated compact materialized values in stable slot order. Cold
  * binding validates context-local buffer representations and byte extents, then creates one
  * route-specific bound invocation. Ordinary MPSGraph and the shared exact custom whole-program
  * route retain direct slices of a run-owned native-address workspace and write direct assigned
- * targets. The custom-program workspace carries the stable complete value table plus target
- * aliases; every
- * intermediate is a declared run-owned output selection. The dedicated singleton-NEG resource
- * retains direct typed input/output references and has no workspace. Hot Java execution makes
- * exactly one matching native call and performs no lookup, graph inspection, route selection,
+ * targets. The custom-program workspace carries the stable compact materialized-slot table plus
+ * target aliases; generated pointwise interiors have no declared selection. The dedicated
+ * singleton-NEG resource retains direct typed input/output references and has no workspace. Hot
+ * Java execution makes exactly one matching native call and performs no lookup, graph inspection,
  * address marshalling, collection allocation, retry, or fallback.</p>
  */
 final class MetalNegPreparedExecutable extends PreparedExecutable {
@@ -226,9 +225,11 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
     @Override
     protected boolean acceptsWorkspaceRepresentation(
             int selectionIndex, WorkspaceRepresentation representation) {
-        int pointerCount = preparationPlan.route()
-                == MetalPreparedRoute.CUSTOM_PROGRAM
-                ? Math.addExact(requiredBytes.length, targetCount)
+        int pointerCount = preparationPlan.route() == MetalPreparedRoute.CUSTOM_PROGRAM
+                ? Math.addExact(
+                        preparationPlan.pointwiseFusionPlan()
+                                .materializedProgramValueIndices().length,
+                        targetCount)
                 : requiredBytes.length;
         return mpsGraphResource != null
                 && representation instanceof AddressWorkspace workspace
@@ -302,53 +303,66 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             BufferRepresentation[] bufferRepresentations,
             WorkspaceRepresentation[] workspaceRepresentations) {
         var workspace = (AddressWorkspace) workspaceRepresentations[0];
-        int valueCount = preparationPlan.valueIds().size();
-        var valueBuffers = new MetalBufferRepresentation[valueCount];
+        int[] programToSlot = preparationPlan.pointwiseFusionPlan().programToMaterializedSlot();
+        int materializedCount =
+                preparationPlan.pointwiseFusionPlan().materializedProgramValueIndices().length;
+        var materializedBuffers = new MetalBufferRepresentation[materializedCount];
+        var replayBuffers =
+                new MetalBufferRepresentation[preparationPlan.valueIds().size()];
         int[] feedValues = preparationPlan.feedValueIndices();
         for (int index = 0; index < inputCount; index++) {
             MetalBufferRepresentation input = readInput(index, bufferRepresentations[index]);
-            valueBuffers[feedValues[index]] = input;
+            int programValue = feedValues[index];
+            materializedBuffers[programToSlot[programValue]] = input;
+            replayBuffers[programValue] = input;
         }
         int[] targetValues = preparationPlan.targetValueIndices();
         for (int index = 0; index < targetCount; index++) {
-            valueBuffers[targetValues[index]] = (MetalBufferRepresentation)
+            int programValue = targetValues[index];
+            MetalBufferRepresentation output = (MetalBufferRepresentation)
                     bufferRepresentations[inputCount + index];
+            materializedBuffers[programToSlot[programValue]] = output;
+            replayBuffers[programValue] = output;
         }
         int[] internalValues = preparationPlan.internalValueIndices();
         for (int index = 0; index < internalCount; index++) {
-            valueBuffers[internalValues[index]] = (MetalBufferRepresentation)
+            int programValue = internalValues[index];
+            MetalBufferRepresentation internal = (MetalBufferRepresentation)
                     bufferRepresentations[inputCount + targetCount + index];
+            materializedBuffers[programToSlot[programValue]] = internal;
+            replayBuffers[programValue] = internal;
         }
-        for (int value = 0; value < valueBuffers.length; value++) {
+        for (int slot = 0; slot < materializedBuffers.length; slot++) {
             MetalBufferRepresentation buffer = Objects.requireNonNull(
-                    valueBuffers[value], "materialized value buffer");
+                    materializedBuffers[slot], "materialized value buffer");
             long handle = buffer.executionHandle().carrier().address();
-            for (int previous = 0; previous < value; previous++) {
-                if (valueBuffers[previous].executionHandle().carrier().address() == handle) {
+            for (int previous = 0; previous < slot; previous++) {
+                if (materializedBuffers[previous].executionHandle().carrier().address() == handle) {
                     throw new IllegalArgumentException(
                             "Metal custom-program materialized value buffers must not alias");
                 }
             }
-            workspace.set(value, buffer.executionHandle());
+            workspace.set(slot, buffer.executionHandle());
         }
         for (int target = 0; target < targetCount; target++) {
-            workspace.set(valueCount + target,
-                    valueBuffers[targetValues[target]].executionHandle());
+            workspace.set(materializedCount + target,
+                    materializedBuffers[programToSlot[targetValues[target]]].executionHandle());
         }
         MemorySegment values = workspace.segment().asSlice(
-                0L, (long) valueCount * ADDRESS.byteSize());
+                0L, (long) materializedCount * ADDRESS.byteSize());
         MemorySegment outputs = workspace.segment().asSlice(
-                (long) valueCount * ADDRESS.byteSize(),
+                (long) materializedCount * ADDRESS.byteSize(),
                 (long) targetCount * ADDRESS.byteSize());
         return new MpsGraphBoundInvocation(
                 runState,
                 preparationPlan,
                 mpsGraphResource,
-                valueBuffers,
-                valueCount,
+                replayBuffers,
+                materializedCount,
                 values,
                 targetCount,
                 outputs);
+
     }
 
     private MetalBufferRepresentation readInput(

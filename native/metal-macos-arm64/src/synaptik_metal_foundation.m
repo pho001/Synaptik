@@ -2,7 +2,7 @@
 #import <Metal/Metal.h>
 #import <MetalPerformanceShadersGraph/MetalPerformanceShadersGraph.h>
 #import "synaptik_exact_kernels.h"
-#import "synaptik_task0053_candidate_kernels.h"
+#import "SynaptikPointwiseFusionKernelSource.h"
 #import "synaptik_task0059_data_kernels.h"
 #import "synaptik_task0060_reduction_kernels.h"
 #import "synaptik_task0061_matmul_kernels.h"
@@ -11,6 +11,7 @@
 #import "synaptik_task0065_rng_dropout_kernels.h"
 #import "synaptik_task0066_dtype_layout_kernels.h"
 #import "synaptik_task0069_aggregate_kernels.h"
+#import <CommonCrypto/CommonDigest.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -23,6 +24,39 @@
 #define SYNAPTIK_MAX_NODE_OUTPUTS 5U
 #define SYNAPTIK_MAX_ATTRIBUTE_WORDS 65U
 #define SYNAPTIK_TASK0064_MAX_POOL_KERNEL_POSITIONS 65536U
+
+#if defined(SYNAPTIK_METAL_TEST_DISPATCH_OBSERVER)
+typedef void (*SynaptikMetalTestDispatchObserver)(
+        uint32_t step_ordinal,
+        uint32_t step_kind,
+        const uint8_t manifest_digest[CC_SHA256_DIGEST_LENGTH],
+        uint64_t grid_width,
+        uint64_t grid_height,
+        uint64_t grid_depth,
+        uint64_t threadgroup_width,
+        uint64_t metadata_bytes,
+        uint64_t element_count,
+        uint64_t point_grid_width,
+        uint64_t point_grid_height,
+        uint32_t scalar,
+        uint32_t reserved);
+extern void synaptik_metal_test_observe_dispatch(
+        uint32_t step_ordinal,
+        uint32_t step_kind,
+        const uint8_t manifest_digest[CC_SHA256_DIGEST_LENGTH],
+        uint64_t grid_width,
+        uint64_t grid_height,
+        uint64_t grid_depth,
+        uint64_t threadgroup_width,
+        uint64_t metadata_bytes,
+        uint64_t element_count,
+        uint64_t point_grid_width,
+        uint64_t point_grid_height,
+        uint32_t scalar,
+        uint32_t reserved);
+static SynaptikMetalTestDispatchObserver synaptik_metal_test_dispatch_observer =
+        synaptik_metal_test_observe_dispatch;
+#endif
 
 enum {
     SYNAPTIK_METAL_STATUS_OK = 0,
@@ -293,6 +327,352 @@ static uint32_t synaptik_read_le32(const uint8_t *bytes) {
 static uint64_t synaptik_read_le64(const uint8_t *bytes) {
     return (uint64_t)synaptik_read_le32(bytes)
             | ((uint64_t)synaptik_read_le32(bytes + 4U) << 32U);
+}
+
+static BOOL synaptik_sha256_string(NSString *source, uint8_t digest[CC_SHA256_DIGEST_LENGTH]) {
+    if (source == nil || digest == NULL) return NO;
+    NSData *bytes = [source dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:NO];
+    if (bytes == nil || bytes.length > UINT32_MAX) return NO;
+    CC_SHA256(bytes.bytes, (CC_LONG)bytes.length, digest);
+    return YES;
+}
+
+static uint8_t synaptik_hex_nibble(char digit) {
+    if (digit >= '0' && digit <= '9') return (uint8_t)(digit - '0');
+    if (digit >= 'a' && digit <= 'f') return (uint8_t)(digit - 'a' + 10);
+    return UINT8_MAX;
+}
+
+static BOOL synaptik_digest_matches_hex(
+        const uint8_t digest[CC_SHA256_DIGEST_LENGTH],
+        const char expected[CC_SHA256_DIGEST_LENGTH * 2U + 1U]) {
+    if (digest == NULL || expected == NULL
+            || strlen(expected) != CC_SHA256_DIGEST_LENGTH * 2U)
+        return NO;
+    for (uint32_t index = 0U; index < CC_SHA256_DIGEST_LENGTH; index++) {
+        uint8_t high = synaptik_hex_nibble(expected[index * 2U]);
+        uint8_t low = synaptik_hex_nibble(expected[index * 2U + 1U]);
+        if (high == UINT8_MAX || low == UINT8_MAX
+                || digest[index] != (uint8_t)((high << 4U) | low))
+            return NO;
+    }
+    return YES;
+}
+
+static NSString *synaptik_digest_hex(
+        const uint8_t digest[CC_SHA256_DIGEST_LENGTH]) {
+    if (digest == NULL) return nil;
+    static const char digits[] = "0123456789abcdef";
+    char text[CC_SHA256_DIGEST_LENGTH * 2U + 1U];
+    for (uint32_t index = 0U; index < CC_SHA256_DIGEST_LENGTH; index++) {
+        text[index * 2U] = digits[digest[index] >> 4U];
+        text[index * 2U + 1U] = digits[digest[index] & 0x0fU];
+    }
+    text[CC_SHA256_DIGEST_LENGTH * 2U] = '\0';
+    return [NSString stringWithUTF8String:text];
+}
+
+static BOOL synaptik_source_digest_matches(NSString *source, const char *expected) {
+    uint8_t digest[CC_SHA256_DIGEST_LENGTH];
+    return synaptik_sha256_string(source, digest)
+            && synaptik_digest_matches_hex(digest, expected);
+}
+
+static NSString *synaptik_authenticated_fixed_source(void) {
+    if (!synaptik_source_digest_matches(
+                SynaptikExactKernelSource,
+                "f79d5b3fa13d0cd9a704f326196703aa41305bb62f7957d8413e697c9319e58e")
+            || !synaptik_source_digest_matches(
+                SynaptikTask0059DataKernelSource,
+                "4316a3ff46d640ca8813afd070c1d3746bd832b28afc847f556925e5d3bf44ac")
+            || !synaptik_source_digest_matches(
+                SynaptikTask0060ReductionKernelSource,
+                "668b43e4837c38bae95a6af0b848f34bc7546c34eaf8a3eb84a5409a496efd66")
+            || !synaptik_source_digest_matches(
+                SynaptikTask0061MatmulKernelSource,
+                "4cd012516868ca5c8eead1ebdf4b63de13f702d9526894ef5da00548dbd0732c")
+            || !synaptik_source_digest_matches(
+                SynaptikTask0063OrderingKernelSource,
+                "a54fa5431ed23e88ea7b2a118c631492218e14fe1ce932de9ca8652f2b2bf65e")
+            || !synaptik_source_digest_matches(
+                SynaptikTask0064ConvolutionPoolingKernelSource,
+                "282cb823f95499e63f66674221c44bfbf77c9fa51230995eb3518ea130537cbe")
+            || !synaptik_source_digest_matches(
+                SynaptikTask0069AggregateKernelSource,
+                "6791792854f011172b98c9998fe67717c83ab13eb771d8b967cc64cf6f9548ca")
+            || !synaptik_source_digest_matches(
+                SynaptikTask0065RngDropoutKernelSource,
+                "8217948f0c28d3df56c5f2edb5408306b588bf2c5e0b1f90a23463e295ac6b99")
+            || !synaptik_source_digest_matches(
+                SynaptikTask0066DtypeLayoutKernelSource,
+                "c4ff761377e6ae9d8bbba8e66b999d4832693e60cff440270d9712320943ffa5"))
+        return nil;
+    NSString *fixed = [[[[[[SynaptikExactKernelSource
+            stringByAppendingString:SynaptikTask0059DataKernelSource]
+            stringByAppendingString:SynaptikTask0060ReductionKernelSource]
+            stringByAppendingString:SynaptikTask0061MatmulKernelSource]
+            stringByAppendingString:SynaptikTask0063OrderingKernelSource]
+            stringByAppendingString:SynaptikTask0064ConvolutionPoolingKernelSource]
+            stringByAppendingString:SynaptikTask0069AggregateKernelSource];
+    fixed = [[fixed stringByAppendingString:SynaptikTask0065RngDropoutKernelSource]
+            stringByAppendingString:SynaptikTask0066DtypeLayoutKernelSource];
+    return [fixed lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 77411U
+            && synaptik_source_digest_matches(
+                    fixed,
+                    "9c705744636d8a8e34a3e049c8044acf1d5811da929bf20df39928600cd61c0d")
+            ? fixed : nil;
+}
+
+static BOOL synaptik_assembled_source_is_authentic(
+        NSString *fixed,
+        NSString *generated,
+        NSString *assembled,
+        const uint8_t expected_generated[CC_SHA256_DIGEST_LENGTH]) {
+    if (fixed == nil || generated == nil || assembled == nil
+            || expected_generated == NULL)
+        return NO;
+    uint8_t generated_digest[CC_SHA256_DIGEST_LENGTH];
+    uint8_t assembled_digest[CC_SHA256_DIGEST_LENGTH];
+    if (!synaptik_sha256_string(generated, generated_digest)
+            || memcmp(
+                    generated_digest,
+                    expected_generated,
+                    CC_SHA256_DIGEST_LENGTH) != 0
+            || !synaptik_sha256_string(assembled, assembled_digest))
+        return NO;
+    NSData *fixed_bytes =
+            [fixed dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:NO];
+    NSData *generated_bytes =
+            [generated dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:NO];
+    if (fixed_bytes == nil || generated_bytes == nil
+            || fixed_bytes.length > NSUIntegerMax - generated_bytes.length)
+        return NO;
+    NSMutableData *independent =
+            [NSMutableData dataWithCapacity:fixed_bytes.length + generated_bytes.length];
+    if (independent == nil) return NO;
+    [independent appendData:fixed_bytes];
+    [independent appendData:generated_bytes];
+    uint8_t independent_digest[CC_SHA256_DIGEST_LENGTH];
+    if (independent.length > UINT32_MAX) return NO;
+    CC_SHA256(independent.bytes, (CC_LONG)independent.length, independent_digest);
+    return memcmp(
+            assembled_digest,
+            independent_digest,
+            CC_SHA256_DIGEST_LENGTH) == 0;
+}
+
+typedef struct {
+    uint32_t step;
+    uint32_t argument;
+    uint32_t access;
+    uint32_t slot;
+    uint32_t value;
+    uint32_t reserved;
+} SynaptikPointwiseBindingRecord;
+
+typedef struct {
+    uint32_t step_count;
+    const SynaptikPointwiseStepRecord *steps;
+    uint32_t member_count;
+    const uint32_t *members;
+    uint32_t binding_count;
+    const SynaptikPointwiseBindingRecord *bindings;
+    uint32_t materialized_count;
+    const uint32_t *materialized_values;
+    const uint32_t *program_to_slot;
+    uint32_t instruction_count;
+    const SynaptikPointwiseInstructionRecord *instructions;
+    uint32_t generated_unit_count;
+    uint32_t expected_generated_bytes;
+    uint32_t expected_total_bytes;
+    const uint8_t *generated_source_digest;
+#if defined(SYNAPTIK_METAL_TEST_DISPATCH_OBSERVER)
+    const uint8_t *manifest_digest;
+#endif
+} SynaptikPointwisePlan;
+
+static BOOL synaptik_pointwise_node_is_eligible(
+        const uint8_t *program,
+        uint64_t values_offset,
+        const SynaptikMetalDecodedNode *nodes,
+        uint32_t node,
+        const uint32_t *ranks,
+        const uint64_t *dimensions,
+        const uint8_t *states,
+        const uint8_t *types) {
+    SynaptikMetalDecodedNode record = nodes[node];
+    if (record.operation < SYNAPTIK_METAL_CUSTOM_FLOOR
+            || record.operation > SYNAPTIK_METAL_CUSTOM_RELU
+            || record.input_count != 1U || record.output_count != 1U
+            || record.attribute_kind != 0U || record.attribute_count != 0U)
+        return NO;
+    uint32_t input = record.first_input;
+    uint32_t output = record.output;
+    if (ranks[input] < 1U || ranks[input] > SYNAPTIK_MAX_RANK
+            || ranks[output] < 1U || ranks[output] > SYNAPTIK_MAX_RANK)
+        return NO;
+    uint64_t element_count = 1U;
+    for (uint32_t axis = 0U; axis < ranks[input]; axis++) {
+        uint64_t dimension =
+                dimensions[(size_t)input * SYNAPTIK_MAX_RANK + axis];
+        if (dimension == 0U || element_count > UINT32_MAX / dimension) return NO;
+        element_count *= dimension;
+    }
+    if (element_count < 1U || element_count > UINT32_MAX) return NO;
+    uint32_t input_flags =
+            synaptik_read_le32(program + values_offset + (uint64_t)input * 40U + 16U);
+    uint32_t output_flags =
+            synaptik_read_le32(program + values_offset + (uint64_t)output * 40U + 16U);
+    return types[input] == SYNAPTIK_METAL_TYPE_FLOAT32
+            && types[output] == SYNAPTIK_METAL_TYPE_FLOAT32
+            && states[input] == SYNAPTIK_METAL_VALUE_CANONICAL
+            && states[output] == SYNAPTIK_METAL_VALUE_CANONICAL
+            && (input_flags & 1U) == (output_flags & 1U)
+            && ranks[input] == ranks[output]
+            && memcmp(
+                    dimensions + (size_t)input * SYNAPTIK_MAX_RANK,
+                    dimensions + (size_t)output * SYNAPTIK_MAX_RANK,
+                    (size_t)ranks[input] * sizeof(uint64_t)) == 0;
+}
+
+static BOOL synaptik_validate_pointwise_cap_stop(
+        const uint8_t *program,
+        uint64_t values_offset,
+        uint32_t value_count,
+        uint32_t node_count,
+        const SynaptikMetalDecodedNode *nodes,
+        const uint32_t *ranks,
+        const uint64_t *dimensions,
+        const uint8_t *states,
+        const uint8_t *types,
+        uint32_t target_count,
+        const uint32_t *targets,
+        const SynaptikPointwisePlan *fusion,
+        uint32_t rejected_node,
+        uint32_t cap_reason) {
+    if (program == NULL || nodes == NULL || ranks == NULL || dimensions == NULL
+            || states == NULL || types == NULL || targets == NULL || fusion == NULL)
+        return NO;
+    NSMutableData *consumer_data =
+            [NSMutableData dataWithLength:(NSUInteger)value_count * sizeof(uint32_t)];
+    NSMutableData *target_data = [NSMutableData dataWithLength:value_count];
+    NSMutableData *node_step_data =
+            [NSMutableData dataWithLength:(NSUInteger)node_count * sizeof(uint32_t)];
+    if (consumer_data == nil || target_data == nil || node_step_data == nil) return NO;
+    uint32_t *consumers = consumer_data.mutableBytes;
+    uint8_t *is_target = target_data.mutableBytes;
+    uint32_t *node_step = node_step_data.mutableBytes;
+    memset(node_step, 0xff, (size_t)node_count * sizeof(uint32_t));
+    for (uint32_t node = 0U; node < node_count; node++) {
+        SynaptikMetalDecodedNode record = nodes[node];
+        for (uint32_t input = 0U; input < record.input_count; input++) {
+            uint32_t value = record.inputs[input];
+            if (consumers[value] == UINT32_MAX) return NO;
+            consumers[value]++;
+        }
+    }
+    for (uint32_t target = 0U; target < target_count; target++)
+        is_target[targets[target]] = 1U;
+    for (uint32_t step = 0U; step < fusion->step_count; step++) {
+        SynaptikPointwiseStepRecord record = fusion->steps[step];
+        for (uint32_t relative = 0U; relative < record.member_count; relative++) {
+            uint32_t member = fusion->members[record.member_start + relative];
+            if (member >= node_count || node_step[member] != UINT32_MAX) return NO;
+            node_step[member] = step;
+        }
+    }
+
+    uint32_t expected_units = 0U;
+    uint32_t expected_instructions = 0U;
+    uint32_t expected_generated_bytes = 0U;
+    uint32_t expected_rejected = UINT32_MAX;
+    uint32_t expected_reason = 0U;
+    uint32_t projected_node = 0U;
+    uint32_t projected_step = 0U;
+    BOOL stopped = NO;
+    uint32_t position = 0U;
+    while (position < node_count) {
+        if (!synaptik_pointwise_node_is_eligible(
+                    program, values_offset, nodes, position, ranks, dimensions, states, types)) {
+            position++;
+            continue;
+        }
+        uint32_t end = position + 1U;
+        while (end < node_count
+                && synaptik_pointwise_node_is_eligible(
+                        program, values_offset, nodes, end, ranks, dimensions, states, types)
+                && nodes[end - 1U].output == nodes[end].first_input
+                && consumers[nodes[end - 1U].output] == 1U
+                && is_target[nodes[end - 1U].output] == 0U)
+            end++;
+        uint32_t cursor = position;
+        while (end - cursor >= 2U) {
+            uint32_t remaining = end - cursor;
+            uint32_t length = remaining == 9U ? 7U : remaining > 8U ? 8U : remaining;
+            projected_step += cursor - projected_node;
+            SynaptikPointwiseInstructionRecord candidate[8] = {0};
+            for (uint32_t relative = 0U; relative < length; relative++)
+                candidate[relative].opcode = nodes[cursor + relative].operation - 59U;
+            uint32_t function_bytes =
+                    SynaptikPointwiseFunctionBytes(projected_step, candidate, length);
+            uint32_t reason = 0U;
+            uint32_t separator = expected_units == 0U ? 49U : 0U;
+            if (!stopped) {
+                if (expected_units == SYNAPTIK_POINTWISE_MAX_UNITS)
+                    reason = 1U;
+                else if (expected_instructions
+                        > SYNAPTIK_POINTWISE_MAX_INSTRUCTIONS - length)
+                    reason = 2U;
+                else if (function_bytes == 0U
+                        || function_bytes > SYNAPTIK_POINTWISE_MAX_FUNCTION_BYTES)
+                    reason = 3U;
+                else if (expected_generated_bytes
+                        > SYNAPTIK_POINTWISE_MAX_GENERATED_BYTES
+                                - separator - function_bytes)
+                    reason = 4U;
+                else if (SYNAPTIK_POINTWISE_FIXED_CORPUS_BYTES
+                                + expected_generated_bytes
+                        > SYNAPTIK_POINTWISE_MAX_TOTAL_BYTES
+                                - separator - function_bytes)
+                    reason = 5U;
+                if (reason != 0U) {
+                    stopped = YES;
+                    expected_rejected = cursor;
+                    expected_reason = reason;
+                }
+            }
+            if (!stopped) {
+                uint32_t step = node_step[cursor];
+                if (step != projected_step || step >= fusion->step_count)
+                    return NO;
+                SynaptikPointwiseStepRecord actual = fusion->steps[step];
+                if (actual.kind != SYNAPTIK_POINTWISE_GENERATED_STEP
+                        || actual.member_count != length
+                        || actual.function_bytes != function_bytes)
+                    return NO;
+                expected_units++;
+                expected_instructions += length;
+                expected_generated_bytes += separator + function_bytes;
+                projected_node = cursor + length;
+                projected_step++;
+            } else {
+                for (uint32_t relative = 0U; relative < length; relative++) {
+                    uint32_t step = node_step[cursor + relative];
+                    if (step >= fusion->step_count
+                            || fusion->steps[step].kind
+                                    == SYNAPTIK_POINTWISE_GENERATED_STEP)
+                        return NO;
+                }
+            }
+            cursor += length;
+        }
+        position = end;
+    }
+    return expected_units == fusion->generated_unit_count
+            && expected_instructions == fusion->instruction_count
+            && expected_generated_bytes == fusion->expected_generated_bytes
+            && expected_rejected == rejected_node
+            && expected_reason == cap_reason;
 }
 
 static BOOL synaptik_node_signature_is_valid(
@@ -655,6 +1035,13 @@ typedef struct {
     uint32_t scalar;
     uint32_t reserved;
 } SynaptikMetalPointMeta;
+_Static_assert(sizeof(SynaptikMetalPointMeta) == 32U, "PointMeta size");
+_Static_assert(_Alignof(SynaptikMetalPointMeta) == 8U, "PointMeta alignment");
+_Static_assert(offsetof(SynaptikMetalPointMeta, elementCount) == 0U, "PointMeta elementCount");
+_Static_assert(offsetof(SynaptikMetalPointMeta, gridWidth) == 8U, "PointMeta gridWidth");
+_Static_assert(offsetof(SynaptikMetalPointMeta, gridHeight) == 16U, "PointMeta gridHeight");
+_Static_assert(offsetof(SynaptikMetalPointMeta, scalar) == 24U, "PointMeta scalar");
+_Static_assert(offsetof(SynaptikMetalPointMeta, reserved) == 28U, "PointMeta reserved");
 
 typedef struct {
     uint64_t dims[16];
@@ -779,6 +1166,10 @@ typedef struct {
 @property(nonatomic) MPSDataType targetDataType;
 @property(nonatomic, copy, nullable) NSArray<NSNumber *> *inputValues;
 @property(nonatomic, strong, nullable) SynaptikMetalIndexValidation *indexValidation;
+#if defined(SYNAPTIK_METAL_TEST_DISPATCH_OBSERVER)
+@property(nonatomic) uint32_t planOrdinal;
+@property(nonatomic) uint32_t planKind;
+#endif
 @end
 @implementation SynaptikMetalProgramStep @end
 
@@ -803,6 +1194,9 @@ typedef struct {
 @property(nonatomic, copy, nullable) NSArray<NSNumber *> *valueBytes;
 @property(nonatomic, copy, nullable) NSArray<NSNumber *> *targetValueIndices;
 @property(nonatomic, copy, nullable) NSArray<SynaptikMetalProgramStep *> *programSteps;
+#if defined(SYNAPTIK_METAL_TEST_DISPATCH_OBSERVER)
+@property(nonatomic, copy, nullable) NSData *manifestDigest;
+#endif
 @end
 @implementation SynaptikMetalExecutableBox @end
 
@@ -2372,8 +2766,7 @@ static BOOL operation_uses_custom_kernel(uint32_t operation) {
             || (operation >= SYNAPTIK_METAL_CUSTOM_ARG_MAX
                     && operation <= SYNAPTIK_METAL_CUSTOM_ARG_MIN)
             || operation == SYNAPTIK_METAL_CUSTOM_SCATTER_ADD
-            || operation == SYNAPTIK_METAL_MPSGRAPH_L1_NORM
-            || operation == SYNAPTIK_METAL_MPSGRAPH_VARIANCE;
+            || operation == SYNAPTIK_METAL_MPSGRAPH_L1_NORM;
 }
 static BOOL matmul_uses_custom_kernel(
         SynaptikMetalDecodedNode node,
@@ -2420,7 +2813,9 @@ static BOOL node_uses_custom_kernel(
         SynaptikMetalDecodedNode node,
         NSArray<MPSShape *> *shapes,
         const uint8_t *value_types) {
-    return operation_uses_custom_kernel(node.operation)
+    return (node.operation == SYNAPTIK_METAL_MPSGRAPH_VARIANCE
+                    ? variance_uses_task0069_custom_kernel(node, shapes, value_types)
+                    : operation_uses_custom_kernel(node.operation))
             || matmul_uses_custom_kernel(node, shapes, value_types);
 }
 static BOOL matmul_shapes_match(
@@ -2609,8 +3004,6 @@ static NSString *custom_function(
         case SYNAPTIK_METAL_BOOL_AND:
         case SYNAPTIK_METAL_BOOL_OR: return @"exact_logical_binary_0066";
         case SYNAPTIK_METAL_BOOL_WHERE: return @"exact_where_0066";
-        case SYNAPTIK_METAL_CUSTOM_EXP: return @"task0053_candidate_exp";
-        case SYNAPTIK_METAL_CUSTOM_SIGMOID: return @"task0053_candidate_sigmoid";
         case SYNAPTIK_METAL_CUSTOM_FLOOR: return @"exact_floor";
         case SYNAPTIK_METAL_CUSTOM_CEIL: return @"exact_ceil";
         case SYNAPTIK_METAL_CUSTOM_SIGN: return @"exact_sign";
@@ -3294,6 +3687,178 @@ static SynaptikMetalProgramStep *make_custom_step(
     return step;
 }
 
+static BOOL synaptik_pointmeta_reflection_is_exact(id<MTLBufferBinding> buffer) {
+    if (buffer == nil
+            || buffer.bufferDataType != MTLDataTypeStruct
+            || buffer.bufferDataSize != sizeof(SynaptikMetalPointMeta)
+            || buffer.bufferAlignment != _Alignof(SynaptikMetalPointMeta)
+            || buffer.bufferStructType == nil
+            || buffer.bufferPointerType == nil
+            || buffer.bufferPointerType.elementType != MTLDataTypeStruct
+            || buffer.bufferPointerType.access != MTLBindingAccessReadOnly
+            || buffer.bufferPointerType.alignment != _Alignof(SynaptikMetalPointMeta)
+            || buffer.bufferPointerType.dataSize != sizeof(SynaptikMetalPointMeta)
+            || buffer.bufferPointerType.elementStructType != buffer.bufferStructType)
+        return NO;
+    NSArray<MTLStructMember *> *members = buffer.bufferStructType.members;
+    if (members.count != 5U) return NO;
+    NSString *names[5] = {
+        @"elementCount", @"gridWidth", @"gridHeight", @"scalar", @"reserved"
+    };
+    NSUInteger offsets[5] = {
+        offsetof(SynaptikMetalPointMeta, elementCount),
+        offsetof(SynaptikMetalPointMeta, gridWidth),
+        offsetof(SynaptikMetalPointMeta, gridHeight),
+        offsetof(SynaptikMetalPointMeta, scalar),
+        offsetof(SynaptikMetalPointMeta, reserved),
+    };
+    MTLDataType types[5] = {
+        MTLDataTypeULong,
+        MTLDataTypeULong,
+        MTLDataTypeULong,
+        MTLDataTypeUInt,
+        MTLDataTypeUInt,
+    };
+    for (NSUInteger index = 0U; index < 5U; index++) {
+        MTLStructMember *member = members[index];
+        if (![member.name isEqualToString:names[index]]
+                || member.offset != offsets[index]
+                || member.dataType != types[index]
+                || [buffer.bufferStructType memberByName:names[index]] != member)
+            return NO;
+    }
+    return YES;
+}
+
+static SynaptikMetalProgramStep *make_generated_pointwise_step(
+        uint32_t step_ordinal,
+        uint32_t input_value,
+        uint32_t output_value,
+        NSArray<MPSShape *> *shapes,
+        id<MTLDevice> device,
+        id<MTLLibrary> library) {
+    if (input_value >= shapes.count || output_value >= shapes.count
+            || ![shapes[input_value] isEqualToArray:shapes[output_value]])
+        return nil;
+    NSString *name = [NSString stringWithFormat:@"synaptik_pw_g1_s%u", step_ordinal];
+    id<MTLFunction> function = [library newFunctionWithName:name];
+    if (function == nil) return nil;
+    NSError *error = nil;
+    MTLAutoreleasedComputePipelineReflection reflection = nil;
+    id<MTLComputePipelineState> pipeline = [device
+            newComputePipelineStateWithFunction:function
+            options:MTLPipelineOptionBindingInfo | MTLPipelineOptionBufferTypeInfo
+            reflection:&reflection
+            error:&error];
+    if (pipeline == nil || error != nil || reflection == nil
+            || reflection.bindings.count != 3U)
+        return nil;
+    BOOL seen[3] = {NO, NO, NO};
+    for (id<MTLBinding> binding in reflection.bindings) {
+        if (binding.type != MTLBindingTypeBuffer || binding.index >= 3U
+                || seen[binding.index] || !binding.isUsed || !binding.isArgument)
+            return nil;
+        seen[binding.index] = YES;
+        id<MTLBufferBinding> buffer = (id<MTLBufferBinding>)binding;
+        NSString *expected_name =
+                binding.index == 0U ? @"input" : binding.index == 1U ? @"output" : @"meta";
+        if (![binding.name isEqualToString:expected_name]) return nil;
+        if (binding.index == 0U) {
+            if (binding.access != MTLBindingAccessReadOnly
+                    || buffer.bufferAlignment != _Alignof(uint32_t)
+                    || buffer.bufferPointerType == nil
+                    || buffer.bufferPointerType.elementType != MTLDataTypeUInt
+                    || buffer.bufferPointerType.access != MTLBindingAccessReadOnly
+                    || buffer.bufferPointerType.alignment != _Alignof(uint32_t)
+                    || buffer.bufferPointerType.dataSize != sizeof(uint32_t))
+                return nil;
+        } else if (binding.index == 1U) {
+            if (binding.access != MTLBindingAccessReadWrite
+                    || buffer.bufferAlignment != _Alignof(uint32_t)
+                    || buffer.bufferPointerType == nil
+                    || buffer.bufferPointerType.elementType != MTLDataTypeUInt
+                    || buffer.bufferPointerType.access != MTLBindingAccessReadWrite
+                    || buffer.bufferPointerType.alignment != _Alignof(uint32_t)
+                    || buffer.bufferPointerType.dataSize != sizeof(uint32_t))
+                return nil;
+        } else if (binding.access != MTLBindingAccessReadOnly
+                || !synaptik_pointmeta_reflection_is_exact(buffer)) {
+            return nil;
+        }
+    }
+    if (!seen[0] || !seen[1] || !seen[2]) return nil;
+    SynaptikMetalPointMeta meta = {0};
+    meta.elementCount = shape_element_count(shapes[output_value]);
+    MTLSize grid = MTLSizeMake(0U, 0U, 0U);
+    if (!custom_grid(meta.elementCount, &grid, &meta.gridWidth, &meta.gridHeight))
+        return nil;
+    SynaptikMetalProgramStep *step = [SynaptikMetalProgramStep new];
+    if (step == nil) return nil;
+    step.custom = YES;
+    step.operation = 0U;
+    step.stage = 0U;
+    step.firstInput = input_value;
+    step.secondInput = UINT32_MAX;
+    step.auxiliaryInput = 0U;
+    step.output = output_value;
+    step.outputValues = @[@(output_value)];
+    step.pipeline = pipeline;
+    step.threadsPerThreadgroup = MAX(
+            (NSUInteger)1U,
+            MIN(pipeline.maxTotalThreadsPerThreadgroup, pipeline.threadExecutionWidth));
+    step.grid = grid;
+    step.metadata = custom_metadata(device, &meta, sizeof(meta));
+    return step.metadata == nil ? nil : step;
+}
+
+static NSArray<NSNumber *> *translate_program_values(
+        NSArray<NSNumber *> *values,
+        const uint32_t *program_to_slot,
+        uint32_t value_count) {
+    if (values == nil) return nil;
+    NSMutableArray<NSNumber *> *translated =
+            [NSMutableArray arrayWithCapacity:values.count];
+    if (translated == nil) return nil;
+    for (NSNumber *encoded in values) {
+        NSUInteger value = encoded.unsignedIntegerValue;
+        if (value >= value_count || program_to_slot[value] == UINT32_MAX) return nil;
+        [translated addObject:@(program_to_slot[value])];
+    }
+    return [translated copy];
+}
+
+static BOOL translate_program_step(
+        SynaptikMetalProgramStep *step,
+        const uint32_t *program_to_slot,
+        uint32_t value_count) {
+    if (step == nil || step.firstInput >= value_count || step.output >= value_count
+            || program_to_slot[step.firstInput] == UINT32_MAX
+            || program_to_slot[step.output] == UINT32_MAX)
+        return NO;
+    step.firstInput = program_to_slot[step.firstInput];
+    step.output = program_to_slot[step.output];
+    if (step.secondInput < value_count)
+        step.secondInput = program_to_slot[step.secondInput];
+    if (step.auxiliaryInput < value_count)
+        step.auxiliaryInput = program_to_slot[step.auxiliaryInput];
+    if (step.outputValues != nil) {
+        step.outputValues = translate_program_values(
+                step.outputValues, program_to_slot, value_count);
+        if (step.outputValues == nil) return NO;
+    }
+    if (step.inputValues != nil) {
+        step.inputValues = translate_program_values(
+                step.inputValues, program_to_slot, value_count);
+        if (step.inputValues == nil) return NO;
+    }
+    if (step.feedValues != nil) {
+        step.feedValues = translate_program_values(
+                step.feedValues, program_to_slot, value_count);
+        if (step.feedValues == nil) return NO;
+    }
+    return YES;
+}
+
 SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_run(
         void *executable, uint32_t input_count, void *const *input_buffers,
         uint32_t output_count, void *const *output_buffers);
@@ -3552,7 +4117,6 @@ static BOOL task0064_validate_node(
     return YES;
 }
 
-
 static int32_t synaptik_metal_create_decoded(
         void *context, uint32_t route, uint32_t value_count,
         const uint32_t *value_ranks, const uint64_t *value_dimensions,
@@ -3561,7 +4125,8 @@ static int32_t synaptik_metal_create_decoded(
         const uint8_t *declared_types,
         uint32_t node_count, const SynaptikMetalDecodedNode *nodes,
         uint32_t feed_count, const uint32_t *feed_indices,
-        uint32_t target_count, const uint32_t *target_indices, void **out_executable) {
+        uint32_t target_count, const uint32_t *target_indices,
+        const SynaptikPointwisePlan *fusion, void **out_executable) {
     if (out_executable == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
     *out_executable = NULL;
     BOOL has_layouts = value_strides != NULL && layout_offsets != NULL
@@ -3575,7 +4140,19 @@ static int32_t synaptik_metal_create_decoded(
             || value_ranks == NULL || value_dimensions == NULL || declared_types == NULL
             || (!has_layouts && !lacks_layouts)
             || nodes == NULL || target_indices == NULL
-            || (feed_count == 0U ? feed_indices != NULL : feed_indices == NULL))
+            || (feed_count == 0U ? feed_indices != NULL : feed_indices == NULL)
+            || (route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM
+                    ? fusion == NULL
+                            || fusion->step_count == 0U
+                            || fusion->materialized_count == 0U
+                            || fusion->steps == NULL
+                            || fusion->members == NULL
+                            || fusion->bindings == NULL
+                            || fusion->materialized_values == NULL
+                            || fusion->program_to_slot == NULL
+                            || (fusion->instruction_count != 0U
+                                    && fusion->instructions == NULL)
+                    : fusion != NULL))
         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
     if ((uint64_t)value_count > SIZE_MAX / SYNAPTIK_MAX_RANK)
         return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
@@ -3645,6 +4222,7 @@ static int32_t synaptik_metal_create_decoded(
         memcpy(value_types, declared_types, value_count);
         BOOL contains_matmul = NO;
         BOOL contains_custom = NO;
+        uint32_t fusion_step_cursor = 0U;
         for (uint32_t feed = 0; feed < feed_count; feed++) {
             uint32_t value = feed_indices[feed];
             if (value >= value_count
@@ -3699,6 +4277,22 @@ static int32_t synaptik_metal_create_decoded(
                             && node.operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL
                             && (local_transpose[node.first_input] != 0U
                                     || local_transpose[node.second_input] != 0U));
+            if (fusion != NULL) {
+                while (fusion_step_cursor < fusion->step_count
+                        && node_index >= fusion->steps[fusion_step_cursor].member_start
+                                + fusion->steps[fusion_step_cursor].member_count)
+                    fusion_step_cursor++;
+                if (fusion_step_cursor >= fusion->step_count)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                uint32_t kind = fusion->steps[fusion_step_cursor].kind;
+                if ((kind == 1U && !custom_node)
+                        || (kind == 2U && custom_node)
+                        || (kind == SYNAPTIK_POINTWISE_GENERATED_STEP
+                                && (!custom_node
+                                    || node.operation < SYNAPTIK_METAL_CUSTOM_FLOOR
+                                    || node.operation > SYNAPTIK_METAL_CUSTOM_RELU)))
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            }
             if (route == SYNAPTIK_METAL_ROUTE_MPSGRAPH
                     && (!operation_has_direct_mpsgraph(node.operation)
                             || operation_is_task0066_selected(node.operation)
@@ -5138,30 +5732,89 @@ static int32_t synaptik_metal_create_decoded(
             options.mathMode = MTLMathModeSafe;
             options.languageVersion = MTLLanguageVersion3_2;
             NSError *library_error = nil;
-            BOOL task0053_domain_approved = NO;
-            NSString *kernel_source = [[[[[[SynaptikExactKernelSource
-                    stringByAppendingString:SynaptikTask0059DataKernelSource]
-                    stringByAppendingString:SynaptikTask0060ReductionKernelSource]
-                    stringByAppendingString:SynaptikTask0061MatmulKernelSource]
-                    stringByAppendingString:SynaptikTask0063OrderingKernelSource]
-                    stringByAppendingString:SynaptikTask0064ConvolutionPoolingKernelSource]
-                    stringByAppendingString:SynaptikTask0069AggregateKernelSource];
-            kernel_source = [[kernel_source
-                    stringByAppendingString:SynaptikTask0065RngDropoutKernelSource]
-                    stringByAppendingString:SynaptikTask0066DtypeLayoutKernelSource];
-            if (task0053_domain_approved) {
-                kernel_source = [kernel_source
-                        stringByAppendingString:SynaptikTask0053CandidateKernelSource];
-            }
+            NSString *fixed_source = synaptik_authenticated_fixed_source();
+            if (fixed_source == nil)
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            NSString *kernel_source = fixed_source;
+            NSString *generated_source = SynaptikPointwiseGeneratedSource(
+                    fusion->steps,
+                    fusion->step_count,
+                    fusion->instructions,
+                    fusion->instruction_count,
+                    fusion->expected_generated_bytes);
+            if (generated_source == nil)
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            kernel_source = [kernel_source stringByAppendingString:generated_source];
+            if ([kernel_source lengthOfBytesUsingEncoding:NSUTF8StringEncoding]
+                            != fusion->expected_total_bytes
+                    || !synaptik_assembled_source_is_authentic(
+                            fixed_source,
+                            generated_source,
+                            kernel_source,
+                            fusion->generated_source_digest))
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             id<MTLLibrary> library = [ctx.device
                     newLibraryWithSource:kernel_source options:options error:&library_error];
             if (library == nil || library_error != nil)
                 return SYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;
             NSMutableArray<SynaptikMetalProgramStep *> *steps =
-                    [NSMutableArray arrayWithCapacity:node_count];
-            if (steps == nil) return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
+                    [NSMutableArray arrayWithCapacity:fusion->step_count];
+            NSMutableData *generated_mark_data = [NSMutableData
+                    dataWithLength:(NSUInteger)node_count * sizeof(uint32_t)];
+            if (steps == nil || generated_mark_data == nil)
+                return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
+            uint32_t *generated_marks = generated_mark_data.mutableBytes;
+            memset(generated_marks, 0xff, (size_t)node_count * sizeof(uint32_t));
+            for (uint32_t ordinal = 0U; ordinal < fusion->step_count; ordinal++) {
+                SynaptikPointwiseStepRecord record = fusion->steps[ordinal];
+                if (record.kind != SYNAPTIK_POINTWISE_GENERATED_STEP) continue;
+                if (record.member_start > fusion->member_count
+                        || record.member_count > fusion->member_count - record.member_start)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                for (uint32_t member = 0U; member < record.member_count; member++) {
+                    uint32_t node = fusion->members[record.member_start + member];
+                    if (node >= node_count || generated_marks[node] != UINT32_MAX)
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    generated_marks[node] = member == 0U ? ordinal : UINT32_MAX - 1U;
+                }
+            }
+#if defined(SYNAPTIK_METAL_TEST_DISPATCH_OBSERVER)
+            uint32_t plan_ordinal = 0U;
+#endif
             for (uint32_t node_index = 0U; node_index < node_count; node_index++) {
+#if defined(SYNAPTIK_METAL_TEST_DISPATCH_OBSERVER)
+                while (plan_ordinal < fusion->step_count
+                        && node_index >= fusion->steps[plan_ordinal].member_start
+                                + fusion->steps[plan_ordinal].member_count)
+                    plan_ordinal++;
+                if (plan_ordinal >= fusion->step_count)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+#endif
                 SynaptikMetalDecodedNode node = nodes[node_index];
+                uint32_t generated = generated_marks[node_index];
+                if (generated == UINT32_MAX - 1U) continue;
+                if (generated != UINT32_MAX) {
+                    SynaptikPointwiseStepRecord record = fusion->steps[generated];
+                    if (record.binding_count != 2U
+                            || record.binding_start > fusion->binding_count
+                            || record.binding_count
+                                    > fusion->binding_count - record.binding_start)
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    SynaptikPointwiseBindingRecord input =
+                            fusion->bindings[record.binding_start];
+                    SynaptikPointwiseBindingRecord output =
+                            fusion->bindings[record.binding_start + 1U];
+                    SynaptikMetalProgramStep *step = make_generated_pointwise_step(
+                            generated, input.value, output.value, shapes, ctx.device, library);
+                    if (step == nil)
+                        return SYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;
+#if defined(SYNAPTIK_METAL_TEST_DISPATCH_OBSERVER)
+                    step.planOrdinal = generated;
+                    step.planKind = SYNAPTIK_POINTWISE_GENERATED_STEP;
+#endif
+                    [steps addObject:step];
+                    continue;
+                }
                 if (local_transpose[node.output] == 2U
                         || local_singleton_height[node.output] == 2U) continue;
                 BOOL custom_step = node_uses_custom_kernel(node, shapes, value_types)
@@ -5192,6 +5845,10 @@ static int32_t synaptik_metal_create_decoded(
                                 }
                             }
                         }
+#if defined(SYNAPTIK_METAL_TEST_DISPATCH_OBSERVER)
+                        step.planOrdinal = plan_ordinal;
+                        step.planKind = 1U;
+#endif
                         [steps addObject:step];
                     }
                     continue;
@@ -5382,6 +6039,7 @@ static int32_t synaptik_metal_create_decoded(
                         compact_feeds,
                         1U,
                         &compact_target,
+                        NULL,
                         &nested_handle);
                 if (nested_status != SYNAPTIK_METAL_STATUS_OK || nested_handle == NULL) {
                     if (nested_handle != NULL) {
@@ -5406,26 +6064,71 @@ static int32_t synaptik_metal_create_decoded(
                 }
                 step.feedValues = [step_feeds copy];
                 step.nestedExecutable = (__bridge_transfer id)nested_handle;
+#if defined(SYNAPTIK_METAL_TEST_DISPATCH_OBSERVER)
+                step.planOrdinal = plan_ordinal;
+                step.planKind = 2U;
+#endif
                 [steps addObject:step];
             }
+            NSMutableArray<NSNumber *> *materialized_bytes =
+                    [NSMutableArray arrayWithCapacity:fusion->materialized_count];
+            NSMutableArray<MPSShape *> *materialized_shapes =
+                    [NSMutableArray arrayWithCapacity:fusion->materialized_count];
+            NSMutableArray<NSArray<NSNumber *> *> *materialized_strides =
+                    [NSMutableArray arrayWithCapacity:fusion->materialized_count];
+            NSMutableArray<NSNumber *> *materialized_offsets =
+                    [NSMutableArray arrayWithCapacity:fusion->materialized_count];
             NSMutableArray<NSNumber *> *target_bytes =
                     [NSMutableArray arrayWithCapacity:target_count];
             NSMutableArray<NSNumber *> *target_values =
                     [NSMutableArray arrayWithCapacity:target_count];
+            if (materialized_bytes == nil || materialized_shapes == nil
+                    || materialized_strides == nil || materialized_offsets == nil
+                    || target_bytes == nil || target_values == nil)
+                return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
+            for (uint32_t slot = 0U; slot < fusion->materialized_count; slot++) {
+                uint32_t value = fusion->materialized_values[slot];
+                if (value >= value_count || fusion->program_to_slot[value] != slot)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                [materialized_bytes addObject:bytes[value]];
+                [materialized_shapes addObject:shapes[value]];
+                [materialized_strides addObject:physical_strides[value]];
+                [materialized_offsets addObject:physical_offsets[value]];
+            }
             for (uint32_t target = 0U; target < target_count; target++) {
-                [target_bytes addObject:bytes[target_indices[target]]];
-                [target_values addObject:@(target_indices[target])];
+                uint32_t value = target_indices[target];
+                uint32_t slot = fusion->program_to_slot[value];
+                if (slot == UINT32_MAX) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                [target_bytes addObject:bytes[value]];
+                [target_values addObject:@(slot)];
+            }
+            for (SynaptikMetalProgramStep *step in steps)
+                if (!translate_program_step(step, fusion->program_to_slot, value_count))
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            for (SynaptikMetalIndexValidation *validation in index_validations) {
+                NSUInteger value = validation.feedPosition;
+                if (value >= value_count || fusion->program_to_slot[value] == UINT32_MAX)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                validation.feedPosition = fusion->program_to_slot[value];
             }
             SynaptikMetalExecutableBox *box = [SynaptikMetalExecutableBox new];
-            if (box == nil || target_bytes == nil || target_values == nil)
-                return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
+            if (box == nil) return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
             box.customProgram = YES;
-            box.valueCount = value_count;
-            box.valueBytes = [bytes copy];
+            box.valueCount = fusion->materialized_count;
+            box.valueBytes = [materialized_bytes copy];
             box.targetBytes = [target_bytes copy];
             box.targetValueIndices = [target_values copy];
             box.programSteps = [steps copy];
             box.indexValidations = [index_validations copy];
+#if defined(SYNAPTIK_METAL_TEST_DISPATCH_OBSERVER)
+            if (fusion->manifest_digest == NULL)
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            box.manifestDigest = [NSData
+                    dataWithBytes:fusion->manifest_digest
+                    length:CC_SHA256_DIGEST_LENGTH];
+            if (box.manifestDigest == nil)
+                return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
+#endif
             NSMutableArray<NSNumber *> *canonical_bool_inputs =
                     [NSMutableArray array];
             if (canonical_bool_inputs == nil)
@@ -5433,12 +6136,12 @@ static int32_t synaptik_metal_create_decoded(
             for (uint32_t feed = 0U; feed < feed_count; feed++) {
                 uint32_t value = feed_indices[feed];
                 if (declared_types[value] == SYNAPTIK_METAL_TYPE_BOOL)
-                    [canonical_bool_inputs addObject:@(value)];
+                    [canonical_bool_inputs addObject:@(fusion->program_to_slot[value])];
             }
             box.canonicalBoolInputIndices = [canonical_bool_inputs copy];
-            box.inputShapes = [shapes copy];
-            box.inputStrides = [physical_strides copy];
-            box.inputOffsets = [physical_offsets copy];
+            box.inputShapes = [materialized_shapes copy];
+            box.inputStrides = [materialized_strides copy];
+            box.inputOffsets = [materialized_offsets copy];
             box.context = ctx;
             *out_executable = (__bridge_retained void *)box;
             return SYNAPTIK_METAL_STATUS_OK;
@@ -6532,43 +7235,201 @@ static int32_t synaptik_metal_create_decoded(
     }
 }
 
+static NSData *synaptik_pointwise_manifest(
+        uint32_t numerical_profile,
+        const uint8_t *program,
+        uint64_t values_offset,
+        uint32_t value_count,
+        const uint32_t *value_ranks,
+        const uint64_t *value_dimensions,
+        uint32_t node_count,
+        uint32_t feed_count,
+        uint32_t target_count,
+        const uint32_t *target_indices,
+        const SynaptikPointwisePlan *fusion,
+        uint32_t rejected_node,
+        uint32_t cap_reason) {
+    if (program == NULL || value_ranks == NULL || value_dimensions == NULL
+            || target_indices == NULL || fusion == NULL
+            || fusion->generated_source_digest == NULL)
+        return nil;
+    NSMutableString *text = [NSMutableString stringWithCapacity:4096U];
+    if (text == nil) return nil;
+    [text appendString:@"format 1\nschema 17\ngenerator 1\nroute 3\n"];
+    [text appendFormat:@"profile %u\n", numerical_profile];
+    [text appendFormat:@"counts %u %u %u %u %u %u %u %u %u\n",
+            value_count, node_count, feed_count, target_count,
+            fusion->step_count, fusion->member_count, fusion->binding_count,
+            fusion->materialized_count, fusion->instruction_count];
+    [text appendFormat:@"stop %u %u\n", rejected_node, cap_reason];
+    [text appendFormat:@"source %u 77411 %u\n",
+            fusion->expected_generated_bytes, fusion->expected_total_bytes];
+    [text appendString:@"caps 32 256 16384 262144 1048576\n"];
+    [text appendString:@"source-size-table 1\n"];
+    [text appendString:@"fixed-corpus-bytes 77411\n"];
+    [text appendString:@"fixed-corpus-sha256 9c705744636d8a8e34a3e049c8044acf1d5811da929bf20df39928600cd61c0d\n"];
+    NSString *generated_digest = synaptik_digest_hex(fusion->generated_source_digest);
+    if (generated_digest == nil) return nil;
+    [text appendFormat:@"generated-source-sha256 %@\n", generated_digest];
+    [text appendString:@"opcodes floor=1 ceil=2 sign=3 relu=4\n"];
+    [text appendString:@"pointmeta-abi size=32 align=8 elementCount=u64@0 gridWidth=u64@8 gridHeight=u64@16 scalar=u32@24 reserved=u32@28\n"];
+    for (uint32_t value = 0U; value < value_count; value++) {
+        const uint8_t *descriptor = program + values_offset + (uint64_t)value * 40U;
+        uint32_t flags = synaptik_read_le32(descriptor + 16U);
+        [text appendFormat:@"value %u %u %u %u %u",
+                value,
+                synaptik_read_le32(descriptor),
+                value_ranks[value],
+                (flags & 1U) != 0U ? 1U : 0U,
+                (flags & 8U) != 0U ? 1U : 0U];
+        for (uint32_t axis = 0U; axis < value_ranks[value]; axis++) {
+            [text appendFormat:@" %llu",
+                    (unsigned long long)value_dimensions[
+                            (size_t)value * SYNAPTIK_MAX_RANK + axis]];
+        }
+        [text appendString:@"\n"];
+    }
+    for (uint32_t slot = 0U; slot < fusion->materialized_count; slot++)
+        [text appendFormat:@"materialized %u %u\n",
+                slot, fusion->materialized_values[slot]];
+    for (uint32_t target = 0U; target < target_count; target++) {
+        uint32_t value = target_indices[target];
+        [text appendFormat:@"target %u %u %u\n",
+                target, value, fusion->program_to_slot[value]];
+    }
+    for (uint32_t ordinal = 0U; ordinal < fusion->step_count; ordinal++) {
+        SynaptikPointwiseStepRecord step = fusion->steps[ordinal];
+        [text appendFormat:@"step %u %u %u %u %u %u %u %u %u\n",
+                ordinal, step.kind, step.member_start, step.member_count,
+                step.binding_start, step.binding_count,
+                step.instruction_start, step.instruction_count, step.function_bytes];
+        if (step.kind == SYNAPTIK_POINTWISE_GENERATED_STEP) {
+            if (step.binding_count != 2U
+                    || step.binding_start > fusion->binding_count - step.binding_count)
+                return nil;
+            SynaptikPointwiseBindingRecord output_binding =
+                    fusion->bindings[step.binding_start + 1U];
+            if (output_binding.access != 2U || output_binding.value >= value_count)
+                return nil;
+            uint32_t value = output_binding.value;
+            uint64_t elements = 1U;
+            for (uint32_t axis = 0U; axis < value_ranks[value]; axis++) {
+                uint64_t dimension = value_dimensions[
+                        (size_t)value * SYNAPTIK_MAX_RANK + axis];
+                if (dimension == 0U || elements > UINT64_MAX / dimension)
+                    return nil;
+                elements *= dimension;
+            }
+            [text appendFormat:@"pointmeta %u %llu %llu 1 0 0\n",
+                    ordinal, (unsigned long long)elements, (unsigned long long)elements];
+        }
+    }
+    for (uint32_t ordinal = 0U; ordinal < fusion->member_count; ordinal++)
+        [text appendFormat:@"member %u %u\n", ordinal, fusion->members[ordinal]];
+    for (uint32_t ordinal = 0U; ordinal < fusion->binding_count; ordinal++) {
+        SynaptikPointwiseBindingRecord binding = fusion->bindings[ordinal];
+        [text appendFormat:@"binding %u %u %u %u %u %u\n",
+                ordinal, binding.step, binding.argument, binding.access,
+                binding.slot, binding.value];
+    }
+    for (uint32_t ordinal = 0U; ordinal < fusion->instruction_count; ordinal++) {
+        SynaptikPointwiseInstructionRecord instruction = fusion->instructions[ordinal];
+        [text appendFormat:
+                @"instruction %u %u %u %u %u %u %u %u %u %u %u %u %016llx %016llx\n",
+                ordinal, instruction.step, instruction.relative_node,
+                instruction.opcode, instruction.input_count, instruction.input0,
+                instruction.input1, instruction.input2, instruction.output,
+                instruction.immediate_count, instruction.immediate_type0,
+                instruction.immediate_type1,
+                (unsigned long long)instruction.raw0,
+                (unsigned long long)instruction.raw1];
+    }
+    [text appendFormat:@"generated-units %u\nend\n", fusion->generated_unit_count];
+    return [text dataUsingEncoding:NSASCIIStringEncoding allowLossyConversion:NO];
+}
+
 SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
         void *context, const uint8_t *program, uint32_t program_bytes,
         void **out_executable) {
     if (out_executable == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
     *out_executable = NULL;
-    if (context == NULL || program == NULL || program_bytes < 64U
+    if (context == NULL || program == NULL || program_bytes < 128U
             || program_bytes > (uint32_t)INT32_MAX)
         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
     @try { @autoreleasepool {
-        if (synaptik_read_le32(program) != UINT32_C(0x36314d53)
-                || synaptik_read_le32(program + 4U) != 16U
-                || synaptik_read_le32(program + 8U) != program_bytes)
+        if (synaptik_read_le32(program) != UINT32_C(0x37314d53)
+                || synaptik_read_le32(program + 4U) != 17U
+                || synaptik_read_le32(program + 8U) != 128U
+                || synaptik_read_le32(program + 12U) != program_bytes)
             return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-        uint32_t route = synaptik_read_le32(program + 40U);
-        if (route != SYNAPTIK_METAL_ROUTE_MPSGRAPH
-                && route != SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM)
+        uint32_t route = synaptik_read_le32(program + 16U);
+        uint32_t numerical_profile = synaptik_read_le32(program + 20U);
+        uint32_t generator_schema = synaptik_read_le32(program + 24U);
+        uint32_t flags = synaptik_read_le32(program + 28U);
+        if ((route != SYNAPTIK_METAL_ROUTE_MPSGRAPH
+                    && route != SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM)
+                || (numerical_profile != SYNAPTIK_METAL_PROFILE_STRICT_IEEE
+                    && numerical_profile != SYNAPTIK_METAL_PROFILE_ACCELERATOR))
             return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-        uint32_t stride_count = synaptik_read_le32(program + 44U);
-        uint32_t numerical_profile = synaptik_read_le32(program + 48U);
-        if (numerical_profile != SYNAPTIK_METAL_PROFILE_STRICT_IEEE
-                && numerical_profile != SYNAPTIK_METAL_PROFILE_ACCELERATOR)
-            return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-        for (uint32_t offset = 52U; offset < 64U; offset += 4U)
-            if (synaptik_read_le32(program + offset) != 0U)
-                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
 
-        uint32_t value_count = synaptik_read_le32(program + 12U);
-        uint32_t node_count = synaptik_read_le32(program + 16U);
-        uint32_t feed_count = synaptik_read_le32(program + 20U);
-        uint32_t target_count = synaptik_read_le32(program + 24U);
-        uint32_t dimension_count = synaptik_read_le32(program + 28U);
-        uint32_t reference_count = synaptik_read_le32(program + 32U);
-        uint32_t attribute_count = synaptik_read_le32(program + 36U);
+        uint32_t value_count = synaptik_read_le32(program + 32U);
+        uint32_t node_count = synaptik_read_le32(program + 36U);
+        uint32_t feed_count = synaptik_read_le32(program + 40U);
+        uint32_t target_count = synaptik_read_le32(program + 44U);
+        uint32_t dimension_count = synaptik_read_le32(program + 48U);
+        uint32_t stride_count = synaptik_read_le32(program + 52U);
+        uint32_t reference_count = synaptik_read_le32(program + 56U);
+        uint32_t attribute_count = synaptik_read_le32(program + 60U);
+        uint32_t step_count = synaptik_read_le32(program + 64U);
+        uint32_t member_count = synaptik_read_le32(program + 68U);
+        uint32_t binding_count = synaptik_read_le32(program + 72U);
+        uint32_t materialized_count = synaptik_read_le32(program + 76U);
+        uint32_t instruction_count = synaptik_read_le32(program + 80U);
+        uint32_t manifest_bytes = synaptik_read_le32(program + 84U);
+        uint32_t manifest_digest_bytes = synaptik_read_le32(program + 88U);
+        uint32_t generated_unit_count = synaptik_read_le32(program + 92U);
+        uint32_t expected_generated_bytes = synaptik_read_le32(program + 96U);
+        uint32_t expected_fixed_bytes = synaptik_read_le32(program + 100U);
+        uint32_t expected_total_bytes = synaptik_read_le32(program + 104U);
+        uint32_t rejected_node = synaptik_read_le32(program + 108U);
+        uint32_t cap_reason = synaptik_read_le32(program + 112U);
+        uint32_t function_cap = synaptik_read_le32(program + 116U);
+        uint32_t generated_cap = synaptik_read_le32(program + 120U);
+        uint32_t total_cap = synaptik_read_le32(program + 124U);
         if (value_count == 0U || node_count == 0U || target_count == 0U)
             return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+        BOOL extension = route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM;
+        if (extension) {
+            if (generator_schema != SYNAPTIK_POINTWISE_GENERATOR_SCHEMA || flags != 1U
+                    || step_count == 0U || member_count == 0U
+                    || member_count != node_count || binding_count == 0U
+                    || materialized_count == 0U || materialized_count > value_count
+                    || manifest_bytes == 0U || manifest_digest_bytes != CC_SHA256_DIGEST_LENGTH
+                    || generated_unit_count > SYNAPTIK_POINTWISE_MAX_UNITS
+                    || instruction_count > SYNAPTIK_POINTWISE_MAX_INSTRUCTIONS
+                    || expected_fixed_bytes != SYNAPTIK_POINTWISE_FIXED_CORPUS_BYTES
+                    || expected_generated_bytes > SYNAPTIK_POINTWISE_MAX_GENERATED_BYTES
+                    || expected_total_bytes
+                            != expected_fixed_bytes + expected_generated_bytes
+                    || expected_total_bytes > SYNAPTIK_POINTWISE_MAX_TOTAL_BYTES
+                    || function_cap != SYNAPTIK_POINTWISE_MAX_FUNCTION_BYTES
+                    || generated_cap != SYNAPTIK_POINTWISE_MAX_GENERATED_BYTES
+                    || total_cap != SYNAPTIK_POINTWISE_MAX_TOTAL_BYTES
+                    || cap_reason > 5U
+                    || (cap_reason == 0U) != (rejected_node == UINT32_MAX))
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+        } else if (generator_schema != 0U || flags != 0U || step_count != 0U
+                || member_count != 0U || binding_count != 0U || materialized_count != 0U
+                || instruction_count != 0U || manifest_bytes != 0U
+                || manifest_digest_bytes != 0U || generated_unit_count != 0U
+                || expected_generated_bytes != 0U || expected_fixed_bytes != 0U
+                || expected_total_bytes != 0U || rejected_node != UINT32_MAX
+                || cap_reason != 0U || function_cap != 0U || generated_cap != 0U
+                || total_cap != 0U) {
+            return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+        }
 
-        uint64_t values_offset = 64U;
+        uint64_t values_offset = 128U;
         uint64_t nodes_offset = values_offset + (uint64_t)value_count * 40U;
         uint64_t dimensions_offset = nodes_offset + (uint64_t)node_count * 32U;
         uint64_t strides_offset =
@@ -6577,15 +7438,20 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                 strides_offset + (uint64_t)stride_count * 8U;
         uint64_t references_end =
                 references_offset + (uint64_t)reference_count * 4U;
-        uint64_t attributes_offset = (references_end + 7U) & ~UINT64_C(7);
-        uint64_t image_end = attributes_offset + (uint64_t)attribute_count * 8U;
-        if (image_end != program_bytes
-                || references_end > attributes_offset
-                || attributes_offset - references_end > 4U)
+        uint64_t attributes_offset = references_end;
+        uint64_t steps_offset = attributes_offset + (uint64_t)attribute_count * 8U;
+        uint64_t members_offset = steps_offset + (uint64_t)step_count * 40U;
+        uint64_t bindings_offset = members_offset + (uint64_t)member_count * 4U;
+        uint64_t materialized_offset =
+                bindings_offset + (uint64_t)binding_count * 24U;
+        uint64_t instructions_offset =
+                materialized_offset + (uint64_t)materialized_count * 4U;
+        uint64_t manifest_offset =
+                instructions_offset + (uint64_t)instruction_count * 64U;
+        uint64_t digest_offset = manifest_offset + manifest_bytes;
+        uint64_t image_end = digest_offset + manifest_digest_bytes;
+        if (image_end != program_bytes)
             return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-        for (uint64_t offset = references_end; offset < attributes_offset; offset++)
-            if (program[offset] != 0U)
-                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
 
         NSMutableData *rank_data =
                 [NSMutableData dataWithLength:(NSUInteger)value_count * sizeof(uint32_t)];
@@ -7298,13 +8164,343 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
         for (uint32_t value = 0U; value < value_count; value++)
             if (!available[value] || !consumed[value])
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+        NSMutableData *step_data = nil;
+        NSMutableData *member_data = nil;
+        NSMutableData *binding_data = nil;
+        NSMutableData *materialized_data = nil;
+        NSMutableData *program_to_slot_data = nil;
+        NSMutableData *instruction_data = nil;
+        SynaptikPointwisePlan fusion_plan = {0};
+        const SynaptikPointwisePlan *fusion = NULL;
+        uint8_t generated_source_digest[CC_SHA256_DIGEST_LENGTH] = {0U};
+        if (extension) {
+            step_data = [NSMutableData dataWithLength:
+                    (NSUInteger)step_count * sizeof(SynaptikPointwiseStepRecord)];
+            member_data = [NSMutableData dataWithLength:
+                    (NSUInteger)member_count * sizeof(uint32_t)];
+            binding_data = [NSMutableData dataWithLength:
+                    (NSUInteger)binding_count * sizeof(SynaptikPointwiseBindingRecord)];
+            materialized_data = [NSMutableData dataWithLength:
+                    (NSUInteger)materialized_count * sizeof(uint32_t)];
+            program_to_slot_data = [NSMutableData dataWithLength:
+                    (NSUInteger)value_count * sizeof(uint32_t)];
+            instruction_data = [NSMutableData dataWithLength:
+                    (NSUInteger)instruction_count * sizeof(SynaptikPointwiseInstructionRecord)];
+            if (step_data == nil || member_data == nil || binding_data == nil
+                    || materialized_data == nil || program_to_slot_data == nil
+                    || instruction_data == nil)
+                return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
+            SynaptikPointwiseStepRecord *steps = step_data.mutableBytes;
+            uint32_t *members = member_data.mutableBytes;
+            SynaptikPointwiseBindingRecord *bindings = binding_data.mutableBytes;
+            uint32_t *materialized_values = materialized_data.mutableBytes;
+            uint32_t *program_to_slot = program_to_slot_data.mutableBytes;
+            SynaptikPointwiseInstructionRecord *instructions =
+                    instruction_data.mutableBytes;
+            memset(program_to_slot, 0xff, (size_t)value_count * sizeof(uint32_t));
+            uint32_t prior_value = UINT32_MAX;
+            for (uint32_t slot = 0U; slot < materialized_count; slot++) {
+                uint32_t value = synaptik_read_le32(
+                        program + materialized_offset + (uint64_t)slot * 4U);
+                if (value >= value_count
+                        || (slot != 0U && value <= prior_value)
+                        || program_to_slot[value] != UINT32_MAX)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                materialized_values[slot] = value;
+                program_to_slot[value] = slot;
+                prior_value = value;
+            }
+            for (uint32_t feed = 0U; feed < feed_count; feed++)
+                if (program_to_slot[feed_indices[feed]] == UINT32_MAX)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            for (uint32_t target = 0U; target < target_count; target++)
+                if (program_to_slot[target_indices[target]] == UINT32_MAX)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            for (uint32_t member = 0U; member < member_count; member++) {
+                members[member] = synaptik_read_le32(
+                        program + members_offset + (uint64_t)member * 4U);
+            }
+            for (uint32_t binding = 0U; binding < binding_count; binding++) {
+                const uint8_t *record =
+                        program + bindings_offset + (uint64_t)binding * 24U;
+                bindings[binding] = (SynaptikPointwiseBindingRecord) {
+                    .step = synaptik_read_le32(record),
+                    .argument = synaptik_read_le32(record + 4U),
+                    .access = synaptik_read_le32(record + 8U),
+                    .slot = synaptik_read_le32(record + 12U),
+                    .value = synaptik_read_le32(record + 16U),
+                    .reserved = synaptik_read_le32(record + 20U),
+                };
+                if (bindings[binding].reserved != 0U
+                        || bindings[binding].step >= step_count
+                        || bindings[binding].access < 1U
+                        || bindings[binding].access > 2U
+                        || bindings[binding].slot >= materialized_count
+                        || bindings[binding].value >= value_count
+                        || materialized_values[bindings[binding].slot]
+                                != bindings[binding].value)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            }
+            for (uint32_t instruction = 0U;
+                    instruction < instruction_count;
+                    instruction++) {
+                const uint8_t *record =
+                        program + instructions_offset + (uint64_t)instruction * 64U;
+                instructions[instruction] = (SynaptikPointwiseInstructionRecord) {
+                    .step = synaptik_read_le32(record),
+                    .relative_node = synaptik_read_le32(record + 4U),
+                    .opcode = synaptik_read_le32(record + 8U),
+                    .semantic_site = synaptik_read_le32(record + 12U),
+                    .input_count = synaptik_read_le32(record + 16U),
+                    .input0 = synaptik_read_le32(record + 20U),
+                    .input1 = synaptik_read_le32(record + 24U),
+                    .input2 = synaptik_read_le32(record + 28U),
+                    .output = synaptik_read_le32(record + 32U),
+                    .immediate_count = synaptik_read_le32(record + 36U),
+                    .immediate_type0 = synaptik_read_le32(record + 40U),
+                    .immediate_type1 = synaptik_read_le32(record + 44U),
+                    .raw0 = synaptik_read_le64(record + 48U),
+                    .raw1 = synaptik_read_le64(record + 56U),
+                };
+            }
+            uint32_t member_cursor = 0U;
+            uint32_t binding_cursor = 0U;
+            uint32_t instruction_cursor = 0U;
+            uint32_t generated_units = 0U;
+            uint64_t generated_bytes = 0U;
+            for (uint32_t ordinal = 0U; ordinal < step_count; ordinal++) {
+                const uint8_t *record =
+                        program + steps_offset + (uint64_t)ordinal * 40U;
+                steps[ordinal] = (SynaptikPointwiseStepRecord) {
+                    .kind = synaptik_read_le32(record),
+                    .member_start = synaptik_read_le32(record + 4U),
+                    .member_count = synaptik_read_le32(record + 8U),
+                    .binding_start = synaptik_read_le32(record + 12U),
+                    .binding_count = synaptik_read_le32(record + 16U),
+                    .instruction_start = synaptik_read_le32(record + 20U),
+                    .instruction_count = synaptik_read_le32(record + 24U),
+                    .function_bytes = synaptik_read_le32(record + 28U),
+                    .flags = synaptik_read_le32(record + 32U),
+                    .reserved = synaptik_read_le32(record + 36U),
+                };
+                SynaptikPointwiseStepRecord step = steps[ordinal];
+                if (step.kind < 1U || step.kind > 3U || step.member_count == 0U
+                        || step.member_start != member_cursor
+                        || step.binding_start != binding_cursor
+                        || step.instruction_start != instruction_cursor
+                        || step.member_count > member_count - member_cursor
+                        || step.binding_count > binding_count - binding_cursor
+                        || step.instruction_count
+                                > instruction_count - instruction_cursor
+                        || step.flags != 0U || step.reserved != 0U)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                for (uint32_t relative = 0U; relative < step.member_count; relative++)
+                    if (members[member_cursor + relative] != member_cursor + relative)
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                uint32_t first_member = members[member_cursor];
+                if (first_member >= node_count)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                SynaptikMetalDecodedNode first = nodes[first_member];
+                uint32_t expected_bindings = first.input_count + first.output_count;
+                if (step.kind == SYNAPTIK_POINTWISE_GENERATED_STEP) {
+                    if (step.member_count < 2U || step.member_count > 8U
+                            || step.instruction_count != step.member_count
+                            || step.binding_count != 2U
+                            || first.input_count != 1U || first.output_count != 1U
+                            || first.attribute_kind != 0U || first.attribute_count != 0U)
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    expected_bindings = 2U;
+                    generated_units++;
+                    uint32_t computed = SynaptikPointwiseFunctionBytes(
+                            ordinal, instructions + step.instruction_start,
+                            step.instruction_count);
+                    if (step.function_bytes > SYNAPTIK_POINTWISE_MAX_FUNCTION_BYTES
+                            || computed == 0U || computed != step.function_bytes
+                            || computed > SYNAPTIK_POINTWISE_MAX_FUNCTION_BYTES
+                            || generated_bytes > UINT32_MAX - computed)
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    generated_bytes += computed;
+                    if (rejected_node != UINT32_MAX && first_member >= rejected_node)
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    for (uint32_t relative = 0U;
+                            relative < step.member_count;
+                            relative++) {
+                        uint32_t member = members[step.member_start + relative];
+                        SynaptikMetalDecodedNode node = nodes[member];
+                        SynaptikPointwiseInstructionRecord instruction =
+                                instructions[step.instruction_start + relative];
+                        if (node.operation < SYNAPTIK_METAL_CUSTOM_FLOOR
+                                || node.operation > SYNAPTIK_METAL_CUSTOM_RELU
+                                || node.input_count != 1U || node.output_count != 1U
+                                || node.attribute_kind != 0U || node.attribute_count != 0U
+                                || declared_types[node.first_input]
+                                        != SYNAPTIK_METAL_TYPE_FLOAT32
+                                || declared_types[node.output]
+                                        != SYNAPTIK_METAL_TYPE_FLOAT32
+                                || declared_states[node.first_input]
+                                        != SYNAPTIK_METAL_VALUE_CANONICAL
+                                || declared_states[node.output]
+                                        != SYNAPTIK_METAL_VALUE_CANONICAL
+                                || value_ranks[node.first_input] != value_ranks[node.output]
+                                || memcmp(
+                                        &value_dimensions[
+                                                (size_t)node.first_input * SYNAPTIK_MAX_RANK],
+                                        &value_dimensions[
+                                                (size_t)node.output * SYNAPTIK_MAX_RANK],
+                                        SYNAPTIK_MAX_RANK * sizeof(uint64_t)) != 0
+                                || (synaptik_read_le32(
+                                        program + values_offset
+                                                + (uint64_t)node.first_input * 40U + 16U) & 1U)
+                                        != (synaptik_read_le32(
+                                                program + values_offset
+                                                        + (uint64_t)node.output * 40U + 16U)
+                                                & 1U)
+                                || instruction.step != ordinal
+                                || instruction.relative_node != relative
+                                || instruction.opcode != node.operation - 59U
+                                || instruction.semantic_site != 1U
+                                || instruction.input_count != 1U
+                                || instruction.input0 != relative
+                                || instruction.input1 != UINT32_MAX
+                                || instruction.input2 != UINT32_MAX
+                                || instruction.output != relative + 1U
+                                || instruction.immediate_count != 0U
+                                || instruction.immediate_type0 != 0U
+                                || instruction.immediate_type1 != 0U
+                                || instruction.raw0 != 0U || instruction.raw1 != 0U)
+                            return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                        if (relative != 0U
+                                && nodes[member - 1U].output != node.first_input)
+                            return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                        if (relative + 1U < step.member_count
+                                && program_to_slot[node.output] != UINT32_MAX)
+                            return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    }
+                    SynaptikMetalDecodedNode last =
+                            nodes[members[step.member_start + step.member_count - 1U]];
+                    if (program_to_slot[first.first_input] == UINT32_MAX
+                            || program_to_slot[last.output] == UINT32_MAX)
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                } else if (step.member_count != 1U || step.instruction_count != 0U
+                        || step.function_bytes != 0U
+                        || step.binding_count != expected_bindings) {
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                }
+                if (step.binding_count != expected_bindings)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                for (uint32_t argument = 0U; argument < step.binding_count; argument++) {
+                    SynaptikPointwiseBindingRecord binding =
+                            bindings[step.binding_start + argument];
+                    uint32_t expected_value;
+                    uint32_t expected_access;
+                    if (step.kind == SYNAPTIK_POINTWISE_GENERATED_STEP) {
+                        SynaptikMetalDecodedNode last =
+                                nodes[members[step.member_start + step.member_count - 1U]];
+                        expected_value = argument == 0U ? first.first_input : last.output;
+                        expected_access = argument == 0U ? 1U : 2U;
+                    } else if (argument < first.input_count) {
+                        expected_value = first.inputs[argument];
+                        expected_access = 1U;
+                    } else {
+                        expected_value = first.outputs[argument - first.input_count];
+                        expected_access = 2U;
+                    }
+                    if (binding.step != ordinal || binding.argument != argument
+                            || binding.access != expected_access
+                            || binding.value != expected_value)
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                }
+                member_cursor += step.member_count;
+                binding_cursor += step.binding_count;
+                instruction_cursor += step.instruction_count;
+            }
+            if (member_cursor != member_count || binding_cursor != binding_count
+                    || instruction_cursor != instruction_count
+                    || generated_units != generated_unit_count)
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            if (generated_units != 0U) generated_bytes += 49U;
+            if (generated_bytes != expected_generated_bytes
+                    || (rejected_node != UINT32_MAX && rejected_node >= node_count))
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            NSString *authenticated_generated = SynaptikPointwiseGeneratedSource(
+                    steps,
+                    step_count,
+                    instructions,
+                    instruction_count,
+                    expected_generated_bytes);
+            if (authenticated_generated == nil
+                    || !synaptik_sha256_string(
+                            authenticated_generated,
+                            generated_source_digest))
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            fusion_plan = (SynaptikPointwisePlan) {
+                .step_count = step_count,
+                .steps = steps,
+                .member_count = member_count,
+                .members = members,
+                .binding_count = binding_count,
+                .bindings = bindings,
+                .materialized_count = materialized_count,
+                .materialized_values = materialized_values,
+                .program_to_slot = program_to_slot,
+                .instruction_count = instruction_count,
+                .instructions = instructions,
+                .generated_unit_count = generated_unit_count,
+                .expected_generated_bytes = expected_generated_bytes,
+                .expected_total_bytes = expected_total_bytes,
+                .generated_source_digest = generated_source_digest,
+            };
+            if (!synaptik_validate_pointwise_cap_stop(
+                        program,
+                        values_offset,
+                        value_count,
+                        node_count,
+                        nodes,
+                        value_ranks,
+                        value_dimensions,
+                        declared_states,
+                        declared_types,
+                        target_count,
+                        target_indices,
+                        &fusion_plan,
+                        rejected_node,
+                        cap_reason))
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+#if defined(SYNAPTIK_METAL_TEST_DISPATCH_OBSERVER)
+            fusion_plan.manifest_digest = program + digest_offset;
+#endif
+            fusion = &fusion_plan;
+            unsigned char computed_digest[CC_SHA256_DIGEST_LENGTH];
+            CC_SHA256(program + manifest_offset, (CC_LONG)manifest_bytes, computed_digest);
+            if (memcmp(computed_digest, program + digest_offset, CC_SHA256_DIGEST_LENGTH) != 0)
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            NSData *canonical = synaptik_pointwise_manifest(
+                    numerical_profile,
+                    program,
+                    values_offset,
+                    value_count,
+                    value_ranks,
+                    value_dimensions,
+                    node_count,
+                    feed_count,
+                    target_count,
+                    target_indices,
+                    fusion,
+                    rejected_node,
+                    cap_reason);
+            if (canonical == nil || canonical.length != manifest_bytes
+                    || memcmp(canonical.bytes, program + manifest_offset, manifest_bytes) != 0)
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            if (synaptik_authenticated_fixed_source() == nil)
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+        }
         if (contains_unsupported) return SYNAPTIK_METAL_STATUS_UNSUPPORTED_OPERATION;
         return synaptik_metal_create_decoded(
                 context, route, value_count, value_ranks, value_dimensions,
                 value_strides, layout_offsets, layout_spans, declared_states,
                 declared_types, node_count, nodes, feed_count,
                 feed_count == 0U ? NULL : feed_indices,
-                target_count, target_indices, out_executable);
+                target_count, target_indices, fusion, out_executable);
     } } @catch (__unused NSException *exception) {
         return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
     }
@@ -7595,6 +8791,28 @@ static int32_t run_custom_program_box(
                 [encoder setBuffer:output.buffer offset:0U atIndex:1U];
                 [encoder setBuffer:step.metadata offset:0U atIndex:2U];
             }
+#if defined(SYNAPTIK_METAL_TEST_DISPATCH_OBSERVER)
+            if (synaptik_metal_test_dispatch_observer != NULL) {
+                SynaptikMetalPointMeta point_meta = {0};
+                if (step.planKind == SYNAPTIK_POINTWISE_GENERATED_STEP
+                        && step.metadata.length == sizeof(point_meta))
+                    memcpy(&point_meta, step.metadata.contents, sizeof(point_meta));
+                synaptik_metal_test_dispatch_observer(
+                        step.planOrdinal,
+                        step.planKind,
+                        box.manifestDigest.bytes,
+                        step.grid.width,
+                        step.grid.height,
+                        step.grid.depth,
+                        step.threadsPerThreadgroup,
+                        step.metadata.length,
+                        point_meta.elementCount,
+                        point_meta.gridWidth,
+                        point_meta.gridHeight,
+                        point_meta.scalar,
+                        point_meta.reserved);
+            }
+#endif
             [encoder dispatchThreads:step.grid threadsPerThreadgroup:
                     MTLSizeMake(step.threadsPerThreadgroup, 1U, 1U)];
             cursor++;

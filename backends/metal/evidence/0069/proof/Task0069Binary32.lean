@@ -7,6 +7,72 @@ structure Word where
   fraction : Fin 8388608
   deriving DecidableEq, Repr
 
+/-- A checked two-sided correspondence, kept independent of library-specific finite-set APIs. -/
+structure Bijection (α β : Type) where
+  toFun : α → β
+  invFun : β → α
+  leftInverse : ∀ value, invFun (toFun value) = value
+  rightInverse : ∀ value, toFun (invFun value) = value
+
+/-- The carrier of every unsigned 32-bit raw bit pattern. -/
+abbrev Raw32 := Fin (2 ^ 32)
+
+/-- Encode sign/exponent/fraction into the corresponding IEEE-754 raw bit pattern. -/
+def rawWord (word : Word) : Raw32 :=
+  ⟨(if word.sign then 2147483648 else 0) +
+      word.exponent.val * 8388608 + word.fraction.val, by
+    have exponentBound := word.exponent.isLt
+    have fractionBound := word.fraction.isLt
+    cases word.sign <;> simp <;> omega⟩
+
+/-- Decode every unsigned 32-bit raw bit pattern into sign/exponent/fraction. -/
+def wordOfRaw (raw : Raw32) : Word :=
+  { sign := if raw.val < 2147483648 then false else true
+    exponent := ⟨(raw.val / 8388608) % 256, Nat.mod_lt _ (by decide)⟩
+    fraction := ⟨raw.val % 8388608, Nat.mod_lt _ (by decide)⟩ }
+
+theorem wordOfRaw_rawWord (word : Word) : wordOfRaw (rawWord word) = word := by
+  cases word with
+  | mk sign exponent fraction =>
+    have exponentBound := exponent.isLt
+    have fractionBound := fraction.isLt
+    cases sign
+    case false =>
+      have packed :
+          exponent.val * 8388608 + fraction.val =
+            8388608 * exponent.val + fraction.val := by omega
+      have belowSignBit :
+          8388608 * exponent.val + fraction.val < 2147483648 := by omega
+      simp [wordOfRaw, rawWord, packed, belowSignBit, Nat.mul_add_div,
+        Nat.div_eq_of_lt fractionBound, Nat.mod_eq_of_lt fractionBound,
+        Nat.mod_eq_of_lt exponentBound]
+    case true =>
+      have packed :
+          2147483648 + exponent.val * 8388608 + fraction.val =
+            8388608 * (256 + exponent.val) + fraction.val := by omega
+      have atOrAboveSignBit :
+          2147483648 ≤ 8388608 * (256 + exponent.val) + fraction.val := by omega
+      simp [wordOfRaw, rawWord, packed, atOrAboveSignBit, Nat.mul_add_div,
+        Nat.div_eq_of_lt fractionBound, Nat.mod_eq_of_lt fractionBound,
+        Nat.mod_eq_of_lt exponentBound]
+
+theorem rawWord_wordOfRaw (raw : Raw32) : rawWord (wordOfRaw raw) = raw := by
+  apply Fin.ext
+  have rawBound := raw.isLt
+  have lowDecomposition := Nat.div_add_mod raw.val 8388608
+  have highDecomposition := Nat.div_add_mod (raw.val / 8388608) 256
+  simp only [rawWord, wordOfRaw]
+  split <;> simp_all <;> omega
+
+/-- Checked bijection between structured words and all 2^32 unsigned raw words. -/
+def wordRawBijection : Bijection Word Raw32 :=
+  { toFun := rawWord
+    invFun := wordOfRaw
+    leftInverse := wordOfRaw_rawWord
+    rightInverse := rawWord_wordOfRaw }
+
+theorem raw_word_count : 2 * 256 * 8388608 = 2 ^ 32 := by decide
+
 inductive RawClass where
   | zero
   | subnormal

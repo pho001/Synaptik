@@ -7,12 +7,12 @@
   },
   "foundationSource": {
     "path": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
-    "sha256": "a1d065b7cfad8558837bfd931e0b241d47f013ac5052972947277b0809528ff8"
+    "sha256": "f5012467a4db43e0344ddaadd7d55059d1fc9f7dac1eb317a1e33e0c008d0add"
   },
   "leanProofs": [
     {
       "path": "backends/metal/evidence/0069/proof/Task0069Binary32.lean",
-      "sha256": "f96af02d1b14f7deda44201659233e0044e8154cbabe83855b0aa1471e034349"
+      "sha256": "fcd5e2e91b661e1e6446d5b7c04e132159ad213337dd461a1b2c5e98d99eac35"
     },
     {
       "path": "backends/metal/evidence/0069/proof/Task0069ReductionTree.lean",

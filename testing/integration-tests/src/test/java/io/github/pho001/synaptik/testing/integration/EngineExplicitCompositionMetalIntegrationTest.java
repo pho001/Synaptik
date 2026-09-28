@@ -860,6 +860,43 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         }
     }
 
+    @Test
+    void cpuFreeMetalEngineRunsGeneratedPointwiseChainThroughOnePartition() {
+        Path library = configuredMetalLibrary();
+        int[] inputBits = {0xc020_0000, 0x8000_0000, 0x3e80_0000, 0x7fc1_2345};
+        int[] expectedBits = {0xbf80_0000, 0x8000_0000, 0x0000_0000, 0x7fc1_2345};
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            List<ObservedTrace> events = new CopyOnWriteArrayList<>();
+            try (Arena arena = Arena.ofShared();
+                    Engine.Builder builder = Engine.builder()) {
+                builder.numericalProfile(profile);
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library), traceCollector(events)));
+                try (Engine engine = builder.build()) {
+                    Tensor input = nativeTensorBits(
+                            descriptor(Shape.of(inputBits.length)), arena, inputBits);
+                    var compiled = engine.compile(
+                            List.of(input.floor().ceil().sign()));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                    try (InferenceSession session = engine.session(compiled);
+                            var result = session.run(List.of(input))) {
+                        assertArrayEquals(
+                                expectedBits,
+                                rawBits(result.materialize(
+                                        result.publications().getFirst(),
+                                        (long) expectedBits.length * Integer.BYTES).bytes(),
+                                        expectedBits.length));
+                    }
+                    assertEquals(2, events.size());
+                    assertEquals("PREPARE", events.getFirst().phase());
+                    assertEquals("RUN", events.getLast().phase());
+                }
+            }
+        }
+    }
+
 
     @Test
     void acceleratorMetalEngineRunsNoGradScalarArithmeticAndReciprocal() {

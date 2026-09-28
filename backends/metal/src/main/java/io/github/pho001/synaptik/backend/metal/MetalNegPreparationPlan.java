@@ -46,6 +46,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     private final List<MetalMpsGraphProgram.ValueDescriptor> programValueDescriptors;
     private final List<MetalMpsGraphProgram.ValueState> valueStates;
     private final MetalMpsGraphProgram graphProgram;
+    private final MetalPointwiseFusionPlan pointwiseFusionPlan;
     private final List<ValueId> feedValueIds;
     private final int[] feedValueIndices;
     private final List<ValueId> targetValueIds;
@@ -195,6 +196,15 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         this.feedValueIndices = feedValueIndices.clone();
         this.targetValueIds = List.copyOf(targetValueIds);
         this.targetValueIndices = targetValueIndices.clone();
+        this.pointwiseFusionPlan = this.route == MetalPreparedRoute.CUSTOM_PROGRAM
+                ? MetalPointwiseFusionPlanner.plan(
+                        this.numericalProfile,
+                        this.graphProgram,
+                        this.programValueDescriptors,
+                        this.feedValueIndices,
+                        this.targetValueIndices,
+                        this.route)
+                : null;
         this.internalValueIds = List.copyOf(internalValueIds);
         this.internalValueIndices = internalValueIndices.clone();
         this.internalRequiredBytes = internalRequiredBytes.clone();
@@ -255,11 +265,13 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             cover(covered, this.feedValueIndices);
             cover(covered, this.targetValueIndices);
             cover(covered, this.internalValueIndices);
-            for (boolean present : covered) {
-                if (!present) {
-                    throw new IllegalArgumentException(
-                            "Metal custom program must materialize every stable value");
-                }
+            boolean[] expected = new boolean[this.valueIds.size()];
+            for (int value : this.pointwiseFusionPlan.materializedProgramValueIndices()) {
+                expected[value] = true;
+            }
+            if (!java.util.Arrays.equals(covered, expected)) {
+                throw new IllegalArgumentException(
+                        "Metal custom program declarations disagree with compact materialization");
             }
         }
     }
@@ -300,6 +312,12 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
   List<LayoutDescriptor> physicalLayouts() {
     return physicalLayouts; }
     MetalMpsGraphProgram graphProgram() { return graphProgram; }
+    MetalPointwiseFusionPlan pointwiseFusionPlan() {
+        if (pointwiseFusionPlan == null) {
+            throw new IllegalStateException("Metal plan has no pointwise execution extension");
+        }
+        return pointwiseFusionPlan;
+    }
     List<ValueId> feedValueIds() { return feedValueIds; }
     int[] feedValueIndices() { return feedValueIndices.clone(); }
     List<ValueId> targetValueIds() { return targetValueIds; }
@@ -311,10 +329,11 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         if (route != MetalPreparedRoute.CUSTOM_PROGRAM) {
             throw new IllegalStateException("Metal plan is not a custom program");
         }
-        long[] bytes = new long[valueIds.size()];
-        place(bytes, feedValueIndices, feedRequiredBytes);
-        place(bytes, targetValueIndices, targetRequiredBytes);
-        place(bytes, internalValueIndices, internalRequiredBytes);
+        int[] materialized = pointwiseFusionPlan.materializedProgramValueIndices();
+        long[] bytes = new long[materialized.length];
+        for (int slot = 0; slot < materialized.length; slot++) {
+            bytes[slot] = programValueDescriptors.get(materialized[slot]).byteCount();
+        }
         return bytes;
     }
     List<PreparationResourceRequirement.Buffer> declarations() { return declarations; }

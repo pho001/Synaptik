@@ -2,6 +2,7 @@
 set -euo pipefail
 
 export LC_ALL=C
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 
 fail() {
     printf 'build: %s\n' "$*" >&2
@@ -29,7 +30,6 @@ require_replaceable_output() {
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "${SCRIPT_DIR}/generate-task0053-header.py" --check
 BUILD_DIR="${SCRIPT_DIR}/build"
 OUTPUT="${BUILD_DIR}/libsynaptik_metal_foundation.dylib"
 STAGING_DIR=""

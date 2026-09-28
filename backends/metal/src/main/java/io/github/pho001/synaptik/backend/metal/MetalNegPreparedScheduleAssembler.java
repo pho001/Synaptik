@@ -185,7 +185,8 @@ final class MetalNegPreparedScheduleAssembler
             int pointerCount = executablePlan.route()
                     == MetalPreparedRoute.CUSTOM_PROGRAM
                     ? Math.addExact(
-                            executablePlan.valueIds().size(),
+                            executablePlan.pointwiseFusionPlan()
+                                    .materializedProgramValueIndices().length,
                             executablePlan.targetValueIds().size())
                     : Math.addExact(
                             executablePlan.feedValueIds().size(),
@@ -341,7 +342,9 @@ final class MetalNegPreparedScheduleAssembler
                 || plan.route() == MetalPreparedRoute.CUSTOM_PROGRAM) {
             int pointerCount = plan.route()
                     == MetalPreparedRoute.CUSTOM_PROGRAM
-                    ? Math.addExact(plan.valueIds().size(), plan.targetValueIds().size())
+                    ? Math.addExact(
+                            plan.pointwiseFusionPlan().materializedProgramValueIndices().length,
+                            plan.targetValueIds().size())
                     : Math.addExact(
                             plan.feedValueIds().size(), plan.targetValueIds().size());
             workspaceCreators = List.of(() ->

@@ -5,13 +5,13 @@
 This directory builds the local application binary interface (ABI) used by the Synaptik Metal
 backend on Apple-silicon macOS. ABI version 5 retains the same thirteen context, shared-storage
 buffer, executable, and bounded custom singleton-`NEG` exports. Its graph creator accepts one
-bounded schema-16 program image. The image carries an explicit fixed route and exact numerical-
+bounded schema-17 program image. The image carries an explicit fixed route and exact numerical-
 profile wire plus value types and complete variable-cardinality operation, attribute, reference,
-dimension, gradient, and optional storage-layout metadata; no native type, shape, or layout
-inference is part of the boundary.
+dimension, gradient, optional storage-layout metadata, and a route-specific authenticated execution
+extension; no native type, shape, layout, or plan inference is part of the boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
-can structurally execute exactly 101 operation kinds; production capability is exactly 85 kinds.
+can structurally execute exactly 101 operation kinds; production capability is exactly 86 kinds.
 Task 0059 adds exact movement/indexing rows and complete positive-stride storage geometry.
 Task 0060 adds replacement/fold rows `72`, `76`, `80`, `82`, and `84` plus exact aggregate rows
 `106..108`. Task 0061 widens existing `MATMUL=15` without adding a wire: both profiles admit
@@ -93,19 +93,19 @@ no atomics.
 
 The remaining 29 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 25. Java
+rather than masquerading as malformed input. Candidate and route identity are version 26. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
-shared custom-program wire 3. Schema 16 embeds wire 2 or 3 and the exact numerical profile in each
-graph image; schema 15 and every other schema, profile, or route value fail closed. The exhaustive
-Java structural catalog adds no native
-route selection, capability, autotuning, fallback, telemetry, or performance authority.
+shared custom-program wire 3. Schema 17 embeds wire 2 or 3 and the exact numerical profile in each
+graph image; every other schema, profile, or route value fails closed. The exhaustive Java
+structural catalog adds no native route selection, capability, autotuning, fallback,
+telemetry, or performance authority.
 
-For admitted nodes, the version-25 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-26 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, complete encoded logical storage-layout
-geometry, and its independently safe physical materialization. The schema-16 and identity-25
-cutover has no compatibility reader or migration alias; schema 15, identity 24, and earlier values
-fail closed.
+geometry, independently safe physical materialization, and the canonical schema-17 execution
+extension. The schema-17 and identity-26 cutover has no compatibility reader or migration alias;
+every other schema or identity fails closed.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
@@ -148,7 +148,7 @@ package and independently verify the final signed bytes:
 The ignored `build/package-v1/macos-arm64/` directory contains exactly the signed dylib,
 `manifest.json`, and `SHA256SUMS`. The canonical schema-1 manifest records the final dylib's
 relative name, size, SHA-256, platform, architecture, macOS 26.0 minimum, install name, empty
-rpath set, ABI 5, node schema 16, required frameworks, and fixed ad-hoc identifier. It contains no
+rpath set, ABI 5, node schema 17, required frameworks, and fixed ad-hoc identifier. It contains no
 time, host, absolute path, source revision, product version, SDK version, Team ID, notarization,
 provenance, or release field. Packaging the same exact signed input produces byte-identical
 manifest and checksum files.
@@ -243,35 +243,51 @@ int32_t synaptik_metal_mpsgraph_executable_create(
     void **out_executable);
 ```
 
-`program` is one canonical little-endian schema-16 image of at most `INT32_MAX` bytes:
+`program` is one canonical little-endian schema-17 image of at most `INT32_MAX` bytes:
 
 ```text
-64-byte header
+128-byte header
 value_count × 40-byte value descriptors
 node_count × 32-byte node descriptors
 dimension_count × u64 dimensions
 stride_count × u64 element strides
-reference_count × u32 value references
-zero u32 alignment word when required
+reference_count × u32 value references (immediately followed by attributes; no padding)
 attribute_word_count × u64 attribute words
+CUSTOM_PROGRAM only:
+  step_count × 40-byte step records
+  member_count × u32 node positions
+  binding_count × 24-byte binding records
+  materialized_count × u32 program-value indices
+  instruction_count × 64-byte generated instruction records
+  canonical ASCII manifest
+  32-byte SHA-256 manifest digest
 ```
 
-The 16 header words are magic `SM16` (`0x36314d53`), schema `16`, total byte count, value count,
-node count, feed count, target count, dimension count, reference count, attribute-word count, fixed
-route (`2=MPSGRAPH` or `3=CUSTOM_PROGRAM`), stride count, exact numerical-profile wire
-(`0x53545249=STRICT_IEEE` or `0x41434345=ACCELERATOR`), and three reserved zero words. A value
-descriptor is `{type, rank, dimension_offset, stride_offset, flags, layout_kind, storage_offset,
-referenced_span}`; the final two fields are unsigned 64-bit element counts. Stable type wires are
-`1=FLOAT32`, `2=INT32`, `3=BOOL`, `4=FLOAT64`, `5=BFLOAT16`, and `6=INT64`; rank is `0..16`.
-Flag bits are `requiresGrad`, layout-present, view, and dense-physical. A missing layout uses stride
-offset `UINT32_MAX`, kind/offset/span zero, and no layout flags. A present layout names one
-rank-sized contiguous stride-pool range and kind `1=DENSE_CONTIGUOUS`, `2=DENSE_WITH_OFFSET`,
-`3=STRIDED`, or `4=BROADCAST_ZERO_STRIDE`. A node descriptor is `{operation, attribute_kind,
-input_offset, input_count, output_offset, output_count, attribute_offset, attribute_word_count}`.
+The 32 header words are magic `SM17` (`0x37314d53`), schema `17`, header bytes `128`, total
+bytes, fixed route, exact numerical-profile wire, generator schema/extension flag, the eight core
+counts, the five execution-record counts, manifest/digest byte counts, generated-unit count,
+generated/fixed/total source byte counts, first rejected node, cap reason, and the per-function,
+generated-source, and total-source caps. Route `2=MPSGRAPH` requires generator schema, extension
+flag, all extension counts, source sizes, and caps to be zero and physically omits every extension
+section. Route `3=CUSTOM_PROGRAM` requires generator schema `1`, extension flag `1`, a nonempty
+canonical manifest with a 32-byte digest, and parser-recomputed records, source sizes, and caps.
+The exact numerical-profile wires remain `0x53545249=STRICT_IEEE` and
+`0x41434345=ACCELERATOR`.
+
+A value descriptor is `{type, rank, dimension_offset, stride_offset, flags, layout_kind,
+storage_offset, referenced_span}`; the final two fields are unsigned 64-bit element counts. Stable
+type wires are `1=FLOAT32`, `2=INT32`, `3=BOOL`, `4=FLOAT64`, `5=BFLOAT16`, and `6=INT64`; rank
+is `0..16`. Flag bits are `requiresGrad`, layout-present, view, and dense-physical. A missing layout
+uses stride offset `UINT32_MAX`, kind/offset/span zero, and no layout flags. A present layout names
+one rank-sized contiguous stride-pool range and kind `1=DENSE_CONTIGUOUS`,
+`2=DENSE_WITH_OFFSET`, `3=STRIDED`, or `4=BROADCAST_ZERO_STRIDE`. A node descriptor is
+`{operation, attribute_kind, input_offset, input_count, output_offset, output_count,
+attribute_offset, attribute_word_count}`.
 
 References are ordered feeds, targets, then each node's inputs and outputs. Descriptor offsets must
-name exactly those contiguous subranges. Dimensions, strides, references, and attributes are
-contiguous with no gaps, overlap, or trailing data. The optional alignment word must be zero.
+name exactly those contiguous subranges. Dimensions, strides, references, attributes, and any
+extension sections are contiguous with no gaps, overlap, or trailing data. The optional alignment
+word must be zero.
 
 Feed count may be zero only when topology produces every value, as in Task-0065 INITIAL_STATE.
 The Java FFM boundary then passes no fabricated feed pointer; target and node reference sections
@@ -469,20 +485,44 @@ capability narrowing, tuning, fallback, or a performance claim.
 
 ## Shared exact custom whole-program execution
 
-Any schema-16 program containing an exact custom node or a MATMUL outside the retained
-all-FLOAT32 rank-two MPSGraph slice uses one retained custom-program handle. Creation compiles only
-fixed reviewed Metal kernels with `MTLMathModeSafe`, creates one immutable pipeline and metadata
-buffer per custom node, and cold-compiles each interleaved existing node as a typed one-node
+Any schema-17 program containing an exact custom node or a MATMUL outside the retained
+all-FLOAT32 rank-two MPSGraph slice uses one retained custom-program handle. Creation authenticates
+the frozen SHA-256 values of all nine reviewed fixed-kernel components and their ordered
+77,411-byte total, appends only independently regenerated and SHA-256-authenticated schema-1
+pointwise source, independently authenticates the assembled total, and only then compiles with
+`MTLMathModeSafe` and `MTLLanguageVersion3_2`. It creates one immutable pipeline and metadata
+buffer per custom step and cold-compiles each interleaved existing node as a typed one-node
 MPSGraph executable. Task-0061 contributes seven typed MATMUL kernels: four modular INT32/INT64
-signatures, FLOAT32/FLOAT32, and both ordered BFLOAT16/FLOAT32 mixed signatures. Java declares and
-assigns a run-owned buffer for every logical intermediate and a native-address workspace for the
-stable value table plus direct target aliases. The fixed route crosses in the authenticated schema
-image; no source text, function name, hidden intermediate, or input-dependent choice crosses the
-ABI.
+signatures, FLOAT32/FLOAT32, and both ordered BFLOAT16/FLOAT32 mixed signatures.
 
-One Java/native run call authenticates the complete value table and exact direct targets, rejects
-one physical buffer reused by distinct live value entries, and preserves each target's required
-output alias to its own table entry. Before any dispatch or write, it scans every caller BOOL feed
+Java declares and assigns buffers only for the sorted compact materialized-value set. Every step
+binding names both its compact slot and authenticated program value; direct targets resolve through
+the same map. The per-run native-address workspace therefore has one entry per materialized value,
+not one per logical value. The fixed route, ordered steps/members/bindings, generated instructions,
+materialized set, canonical manifest, fixed/generated source digests, and manifest SHA-256 cross
+in the authenticated schema image; no source text, function name, hidden intermediate, or
+input-dependent choice crosses the ABI.
+
+An eligible maximal linear chain of canonical no-gradient FLOAT32 `FLOOR`, `CEIL`, `SIGN`, or
+`RELU` nodes has fully static positive rank `1..16` and element count `1..UINT32_MAX`, and is
+divided deterministically into generated units of length `2..8`; when an eight-node take would
+leave one node, the preceding unit takes seven. Each generated kernel loads one raw word, applies
+the frozen helpers in order, stores one raw word, and uses a 32-byte, eight-aligned `PointMeta`
+`{u64 elementCount, u64 gridWidth, u64 gridHeight, u32 scalar, u32 reserved}`. Native reconstructs
+exact cap precedence and first-rejected-node state. Creation uses
+`MTLPipelineOptionBindingInfo | MTLPipelineOptionBufferTypeInfo` and accepts exactly named
+`input`, `output`, and `meta` bindings. Xcode reflects `input` and `meta` read-only but the output
+device pointer read-write (compiled AIR independently proves the store-only use), so validation
+requires that actual strongest runtime contract. The `PointMeta` pointer and struct are read-only,
+size 32/alignment eight, and expose exactly the five ordered members and offsets above. The plan
+caps are 32 generated units, 256 instructions, 16,384 UTF-8 bytes per function, 262,144 generated
+bytes, and 1,048,576 total bytes. Barriers never fuse, and all non-generated fixed custom and
+MPSGraph steps retain their established behavior.
+
+One Java/native run call authenticates the complete compact materialized-slot table and exact
+direct targets, rejects one physical buffer reused by distinct live slots, and preserves each
+target's required output alias to its own slot. Before any dispatch or write, it scans every caller
+BOOL feed
 consumed by a BOOL-domain node and rejects every byte other than zero or one. SCATTER_ND likewise
 preflights the complete index tensor for bounds and duplicate destinations before its copy stage.
 The hot native route consumes supplied handles directly without allocating a mirror collection,
@@ -498,17 +538,15 @@ producers cannot enter the recipe. Direct candidates for custom-domain nodes rem
 package-private structural regressions and never replace the production custom route. There is no
 host staging, retry, fallback, hot compilation, atomic update, or multi-writer output cell.
 
-## Task-0053 proof-gated source
+## Task-0053 evidence-only source
 
-`src/task0053_candidate.metal` and `src/task0053_integer_core.h` retain the proposed raw-word
-integer/fixed-point `EXP` and stable `SIGMOID` kernels. The latter is the single algorithm source
-included directly by the C checker model and deterministically expanded by
-`generate-task0053-header.py --check` into the embedded NSString. The host has the corresponding
-private wire/function/dispatch metadata, but it keeps
-`task0053_domain_approved` false and returns status `13` for either structurally valid operation.
-The unapproved source is therefore not appended to the active shared exact custom library, no Java capability
-or route identity includes it, and ordinary preparation cannot compile or execute it. This dormant
-integration is evidence for Task 0053, not current execution capability.
+`src/task0053_candidate.metal`, `src/task0053_integer_core.h`, and the deterministic header
+generator remain evidence artifacts for the proposed raw-word integer/fixed-point `EXP` and stable
+`SIGMOID` algorithms. Production does not import the candidate header, carry a Task-0053 gate,
+append that source to the runtime library, or expose Task-0053 function/dispatch metadata. Java
+capability and route availability remain false, so ordinary preparation cannot compile or execute
+the candidate. Reintroducing it requires a separately approved production cutover rather than a
+runtime boolean gate.
 
 ## Ownership and concurrency
 
@@ -518,8 +556,9 @@ failure that publishes a non-null handle releases that handle once and preserves
 as suppressed evidence. Buffer wrappers and the selected persistent resource retain context child
 leases, so context owner close rejects new work but defers physical context release until the
 final child closes. `PreparedExecution` owns the selected resource exactly once; each run
-separately owns its initialized constant buffers and outputs. MPSGraph runs additionally own one
-native-address workspace; custom runs own none. Caller input buffers are borrowed.
+separately owns its initialized constant buffers and outputs. MPSGraph and custom-program runs
+additionally own one native-address workspace; singleton custom runs own none. Caller input buffers
+are borrowed.
 
 The prepared recipe and selected resource are reusable. Concurrent admitted logical runs have
 isolated mutable buffers and any route-specific workspace. Closing the context or prepared owner

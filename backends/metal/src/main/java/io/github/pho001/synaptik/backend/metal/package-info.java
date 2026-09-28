@@ -51,19 +51,25 @@
  * FLOAT32 output gradient metadata is the operand OR; integral and mixed-carrier rows are no-grad.
  * A partition containing any shared exact custom node or a MATMUL outside the retained direct
  * rank-two FLOAT32 MPSGraph slice selects one fixed custom whole-program resource: fixed custom
- * kernels and cold-compiled nested existing-node executables consume the stable declared value
- * table in program order behind one Java/native run call. Every logical intermediate is an assigned
- * run-owned buffer; targets remain the direct assigned buffers. Direct {@code NEG}, {@code ABS},
- * {@code FLOOR}, {@code CEIL}, {@code SIGN}, and {@code RELU} operands/outputs and their graph
- * feeds are canonical. SELECT/SLICE may consume exact supported storage-layout feeds and produce
- * materialized-layout values. Other affine inputs may be exact resolved zero-offset views produced
- * earlier in the same maximal partition; nested MPSGraph steps materialize those views into dense
- * assigned buffers before downstream custom steps index their physical representation. Their
- * published outputs retain exact Model view geometry. {@code CONTIGUOUS} produces canonical
- * geometry. Metal lowers one complete profile-homogeneous partition as a typed whole-partition
- * program during preparation.
+ * kernels and cold-compiled nested existing-node executables consume the stable compact
+ * materialized-slot table in program order behind one Java/native run call. Only the authenticated
+ * materialized-value set receives run-owned buffers; targets remain their direct assigned buffers.
+ * Direct {@code NEG}, {@code ABS}, {@code FLOOR}, {@code CEIL}, {@code SIGN}, and {@code RELU}
+ * operands/outputs and their graph feeds are canonical. Eligible maximal linear canonical
+ * FLOAT32 chains of the latter four operations require positive static rank one through sixteen
+ * and an unsigned-32-bit positive element count, then deterministically fuse into generated units
+ * of length two through eight with one boundary load, one boundary store, and no intermediate
+ * slot. Native authenticates all frozen fixed-source components, the independently emitted
+ * generated source, and the assembled source before compile, and requires exact strongest
+ * available binding/type reflection for all three buffers and every {@code PointMeta} member.
+ * SELECT/SLICE may consume exact supported storage-layout feeds and produce materialized-layout
+ * values. Other affine inputs may be exact resolved zero-offset views produced earlier in the same
+ * maximal partition; nested MPSGraph steps materialize those views into dense assigned buffers
+ * before downstream custom steps index their physical representation. Their published outputs
+ * retain exact Model view geometry. {@code CONTIGUOUS} produces canonical geometry. Metal lowers
+ * one complete profile-homogeneous partition as a typed whole-partition program during preparation.
  *
- * <p>A package-private exhaustive catalog describes all 115 schema-sixteen operation kinds as
+ * <p>A package-private exhaustive catalog describes all 115 schema-seventeen operation kinds as
  * MPSGraph {@code DIRECT}, {@code COMPOSED}, or {@code UNAVAILABLE} and custom-kernel {@code
  * AVAILABLE}, {@code PENDING}, or {@code UNAVAILABLE_WITH_PROOF}, with closed source reasons. It is
  * cold descriptive metadata only: capability remains authoritative and the catalog is never
@@ -188,13 +194,14 @@
  *
  * <p>The selected numerical profile participates in partition-plan, route, tuning, decision-codec,
  * and workload identity. Java rejects profile/schema mismatches before native entry. ABI version
- * five retains thirteen exports. Node schema version sixteen is one bounded self-describing
+ * five retains thirteen exports. Node schema version seventeen is one bounded self-describing
  * route-bearing image over stable type wires {@code 1..6}, operation wires {@code 1..115},
- * attribute wires {@code 0..41}, and complete optional storage-layout geometry; its fixed header
- * binds the exact numerical-profile wire. Native structural execution covers exactly 101 wires and
- * leaves 14 nonexecutable. Production capability is exactly 86 operation kinds and 29 remain false.
- * Backend-local workload, exact-policy, candidate, compatibility, route-policy, and codec
- * identities are version twenty-five; schema version fifteen and every other schema, and identity
- * version twenty-four and earlier, fail closed.
+ * attribute wires {@code 0..41}, and complete optional storage-layout geometry. Its fixed
+ * 128-byte header binds the exact numerical-profile wire and, only for the custom-program route,
+ * the canonical execution-plan extension and manifest digest. Native structural execution covers
+ * exactly 101 wires and leaves 14 nonexecutable. Production capability is exactly 86 operation
+ * kinds and 29 remain false. Backend-local workload, exact-policy, candidate, compatibility,
+ * route-policy, and codec identities are version twenty-six. Only schema seventeen and identity
+ * twenty-six are accepted; every other schema or identity value fails closed.
  */
 package io.github.pho001.synaptik.backend.metal;

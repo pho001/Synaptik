@@ -270,7 +270,7 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
-    void schemaSixteenProgramImageIsExactCarriesProfileRouteAndAllSixDataTypeWires() {
+    void schemaSeventeenProgramImageIsExactCarriesProfileRouteAndAllSixDataTypeWires() {
         var program = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.generic(
                 MetalMpsGraphProgram.NodeKind.CONCAT,
                 new int[] {0, 1, 2, 3, 4, 5},
@@ -289,21 +289,26 @@ class MetalMpsGraphAffineSchemaTest {
                 NumericalProfile.STRICT_IEEE,
                 values, new int[] {0, 1, 2, 3, 4, 5}, new int[] {6});
 
-        ByteBuffer expected = ByteBuffer.allocate(504).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer expected = ByteBuffer.allocate(568).order(ByteOrder.LITTLE_ENDIAN);
         expected.putInt(MetalMpsGraphProgram.MAGIC);
         expected.putInt(MetalMpsGraphProgram.SCHEMA_VERSION);
-        expected.putInt(504);
+        expected.putInt(MetalMpsGraphProgram.HEADER_BYTES);
+        expected.putInt(568);
+        expected.putInt(MetalPreparedRoute.MPSGRAPH.wireIdentity());
+        expected.putInt(MetalMpsGraphProgram.STRICT_IEEE_PROFILE_WIRE);
+        expected.putInt(0);
+        expected.putInt(0);
         expected.putInt(7);
         expected.putInt(1);
         expected.putInt(6);
         expected.putInt(1);
         expected.putInt(4);
+        expected.putInt(4);
         expected.putInt(14);
         expected.putInt(1);
-        expected.putInt(MetalPreparedRoute.MPSGRAPH.wireIdentity());
-        expected.putInt(4);
-        expected.putInt(MetalMpsGraphProgram.STRICT_IEEE_PROFILE_WIRE);
-        for (int reserved = 0; reserved < 3; reserved++) expected.putInt(0);
+        for (int extensionField = 0; extensionField < 11; extensionField++) expected.putInt(0);
+        expected.putInt(-1);
+        for (int capField = 0; capField < 4; capField++) expected.putInt(0);
         putValue(expected, 1, 2, 0, 0, 2, 1, 0L, 6L);
         putValue(expected, 2, 0, 2, 2, 2, 1, 0L, 1L);
         putValue(expected, 3, 0, 2, 2, 2, 1, 0L, 1L);

@@ -2474,14 +2474,15 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The profile-qualified Metal instance is also implemented internally. Its version-twenty-five
-fingerprint covers the exact `NumericalProfile`, bounded route-bearing node schema 16, operation
-wires `1..115`, attribute wires `0..41`, type wires `1..6`, ordered variable-cardinality
-inputs/outputs, ordered feed/target/value structure, descriptors, complete storage layouts, value
-states, exact attribute and splat bits, logical-boundary facts, candidate/route schemas, and native
-ABI. Target compatibility includes the exact live `MetalDeviceContext` session nonce; ABI version
-`5` is not a stable cross-session device fingerprint. It currently supports only backend-local
-construction and authentication, not the tools-owned workload cache.
+The profile-qualified Metal instance is also implemented internally. Its version-twenty-six
+fingerprint covers the exact `NumericalProfile`, bounded route-bearing node schema 17 and
+authenticated execution extension, operation wires `1..115`, attribute wires `0..41`, type wires
+`1..6`, ordered variable-cardinality inputs/outputs, ordered feed/target/value structure,
+descriptors, complete storage layouts, value states, compact materialized slots, exact attribute
+and splat bits, logical-boundary facts, candidate/route schemas, and native ABI. Target
+compatibility includes the exact live `MetalDeviceContext` session nonce; ABI version `5` is not a
+stable cross-session device fingerprint. It currently supports only backend-local construction and
+authentication, not the tools-owned workload cache.
 
 ### Candidate generator
 
@@ -2521,9 +2522,8 @@ batch as a plan batch would incorrectly repeat local route search.
 
 The profile-qualified Metal batch is session-scoped. It contains only the complete
 `CUSTOM_SINGLE_NEG`, `CUSTOM_PROGRAM`, and `MPSGRAPH` configurations valid for the exact partition
-and profile. Compatibility, candidate, and route-policy identities are version twenty-five;
-version twenty-four and every older identity fail closed, and no private field crosses the
-marker-role boundary.
+and profile. Compatibility, candidate, and route-policy identities are version twenty-six; every
+other identity fails closed, and no private field crosses the marker-role boundary.
 
 ### Complete-plan candidate
 
@@ -2562,10 +2562,10 @@ decision contains no measurement, cache representation, executable, provider, na
 physical resource, or Runtime state.
 
 The profile-qualified Metal decision follows the same owner-defined pattern with a bounded
-checksummed version-twenty-five session codec. Fresh Metal analysis regenerates current profile/
+checksummed version-twenty-six session codec. Fresh Metal analysis regenerates current profile/
 topology facts and accepts a selection only when schema, workload, exact context session, and
 candidate identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session,
-version-twenty-four and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a
+version-twenty-five and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a
 workload-cache artifact and have no current `tools/tuning` adapter.
 
 The generic Phase-2 tool may persist a decision only when its producer declares persistent reuse,
@@ -5204,23 +5204,28 @@ requires input `[1]`, axis `[0]`, correction zero, and scalar or retained `[1]` 
 typed transfer can move all six current carriers at ranks `0..16` through canonical or supported
 storage layouts; BOOL validation visits logical elements only.
 
-Metal analysis fixes stable value/node/feed/target order, lowers one bounded schema-16 route-bearing
-program image, generates a complete version-25 route batch, authenticates any supplied session
-decision, and fixes one private route before declaring resources. Identity 24 and every older
-value fail closed. An eligible singleton NEG may use the dedicated custom pipeline. A partition
-containing any exact custom node or MATMUL outside the retained all-FLOAT32 rank-two MPSGraph slice
+Metal analysis fixes stable value/node/feed/target order, lowers one bounded schema-17 route-bearing
+program image, generates a complete version-26 route batch, authenticates any supplied session
+decision, and fixes one private route before declaring resources. Every identity other than
+version 26 fails closed. An eligible singleton NEG may use the dedicated custom pipeline. A
+partition containing any exact custom node or MATMUL outside the retained all-FLOAT32 rank-two
+MPSGraph slice
 selects the fixed shared custom whole-program route; an MSE node remains the same fixed nested
-MPSGraph composition there. Other supported partitions use MPSGraph. Exact structural
-alternatives remain package-private forcing only. These choices add no fallback, retry, timing
-selection, or partition change.
+MPSGraph composition there. Other supported partitions use MPSGraph. Exact structural alternatives
+remain package-private forcing only. These choices add no fallback, retry, timing selection, or
+partition change.
 
 Finalization compiles one persistent route resource and transfers it to `PreparedExecution`.
-Shared custom-program creation compiles the fixed reviewed safe-math/raw-word/integer/movement
-kernels plus cold nested existing-node executables. Every logical intermediate has a declared
-assigned run-owned Metal buffer; targets are direct assigned buffers; one address workspace carries
-the stable value table and target aliases. Hot Java execution makes one synchronous native
-invocation with no source text, host staging, hidden materialization, per-node downcall, retry,
-fallback, or compilation.
+Shared custom-program creation authenticates each frozen component and the ordered 77,411-byte
+fixed source, independently emits and authenticates bounded pointwise source, authenticates the
+assembled total, and only then compiles. Eligible linear canonical FLOAT32
+`FLOOR`/`CEIL`/`SIGN`/`RELU` chains require positive static rank `1..16`, element count
+`1..UINT32_MAX`, and deterministic units of length `2..8`. Generated pipelines validate exact
+`BindingInfo | BufferTypeInfo` names, access, types, sizes, alignments, and all five `PointMeta`
+members. Only the authenticated compact materialized set has declared assigned run-owned Metal
+buffers; targets are direct assigned buffers; one address workspace carries the compact slot table
+and target aliases. Hot Java execution makes one synchronous native invocation with no source text,
+host staging, hidden materialization, per-node downcall, retry, fallback, or compilation.
 
 SELECT/SLICE publications gather logical elements from their authenticated physical storage using
 the exact offset and positive strides while ignoring untouched prefix/gap bytes. Other affine

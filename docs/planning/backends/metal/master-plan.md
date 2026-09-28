@@ -525,11 +525,12 @@ selector or finite composition and current Model semantic/signature source for e
 115 rows. The current catalogs are MPSGraph
 `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE` and custom
 `73 AVAILABLE / 42 PENDING / 0 UNAVAILABLE-WITH-PROOF`. The closed route identity retains wires
-`1..3`; schema 16 embeds the fixed route and exact numerical profile, identities are version 25,
-and capability is `86 true / 29 false`. Package-private forcing remains result-set-only after fresh
-authentication; every selected Task-0066 occurrence and exact Task-0069 occurrence rejects
-MPSGraph, while non-domain VARIANCE retains its prior direct structural recipe. There is no device,
-oracle, timing, benchmark, public API, hot fallback, retry, cache, or autotune behavior.
+`1..3`; schema 17 embeds the fixed route, exact numerical profile, and custom execution extension,
+identities are version 26, and capability is `86 true / 29 false`. Package-private forcing remains
+result-set-only after fresh authentication; every selected Task-0066 occurrence and exact Task-0069
+occurrence rejects MPSGraph, while non-domain VARIANCE retains its prior direct structural recipe.
+There is no device, oracle, timing, benchmark, public API, hot fallback, retry, cache, or autotune
+behavior.
 Every other Metal
 task retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
@@ -614,17 +615,18 @@ zero findings passed. Metal 0021 landed at implementation `ef2c6a1a`, worker-evi
 oracle, ABI/export, focused suites, real Engine forward/seeded-gradient proof, full build,
 documentation/diff evidence, and independent Class C final `APPROVE` with zero findings passed.
 
-Current ABI 5 retains exactly thirteen exports and accepts one bounded schema-16 route-bearing
+Current ABI 5 retains exactly thirteen exports and accepts one bounded schema-17 route-bearing
 program image with the exact numerical-profile wire. Type wires are `1..6`, operation wires are
-`1..115`, attribute wires are `0..41`, route wires are `1..3`, and workload/exact-policy/candidate/
-compatibility/route/codec identities are version twenty-five. Task 0055's schema-13/identity-14
-foundation, Task 0056's structural catalog, Task 0057's schema-14/identity-15 route cutover, Task
-0059's schema-15/identity-16 cutover, Tasks 0061–0065's identity-17 through identity-21 cutovers,
-Task 0066/0067/0068 identity 22, Task-0069 Slice-1 identity 23, and Slice-2 identity 24 remain
-historical prerequisites. Task 0069 Slice 3 rejects identity 24 and every older identity while
-admitting exactly 86 production kinds and retaining 101 structurally executable kinds. Identity 25
-remains monotonic because workload compatibility binds the profile, schema version, complete
-encoded image, and route policy; a prior-checkpoint decision cannot match the current workload.
+`1..115`, attribute wires are `0..41`, route wires are `1..3`, and
+workload/exact-policy/candidate/compatibility/route/codec identities are version twenty-six. Task
+0055's schema-13/identity-14 foundation, Task 0056's structural catalog, Task 0057's
+schema-14/identity-15 route cutover, Task 0059's schema-15/identity-16 cutover, Tasks 0061–0065's
+identity-17 through identity-21 cutovers, Task 0066/0067/0068 identity 22, and Task-0069 identities
+23 through 25 remain historical prerequisites. Task 0070 accepts only identity 26 while retaining
+exactly 86 production kinds and 101 structurally executable kinds. Identity 26 remains monotonic
+because workload compatibility binds the profile, schema version,
+complete encoded image and execution extension, and route policy; a prior-checkpoint decision
+cannot match the current workload.
 Complete Model 0028 owns the root-only exact-zero reduction rule. Complete Model 0029 owns the
 MATMUL-only final-publication exact-zero sign rule. Metal 0018 remains Blocked without production
 changes. Complete Metal 0022
@@ -683,10 +685,10 @@ UNFOLD3D/FOLD3D remain separate custom movement/overlap work. Metal 0037 remains
 probe: recurrent arithmetic is recursively reachable for `ACCELERATOR`, but direct RNN lacks
 runtime INT64 valid lengths, atomic validation, skipped padded work, positive-zero padding, and
 `finalHidden`; no complete recurrence, state-publication, GRU/LSTM, or gradient route proof exists.
-Schema 16, type wires `1..6`, operation wires `1..115`, attribute wires `0..41`,
-version-twenty-five identities, ABI 5, variable cardinality, and canonical or supported-storage-
-layout all-six rank-`0..16` cross-owner transfer are landed; identity 24 and every older value fail
-closed. The schema registry is not capability:
+Schema 17, type wires `1..6`, operation wires `1..115`, attribute wires `0..41`,
+version-twenty-six identities, ABI 5, variable cardinality, custom execution plans, and canonical
+or supported-storage-layout all-six rank-`0..16` cross-owner transfer are landed; every other
+identity fails closed. The schema registry is not capability:
 BOOL consumption includes the exact positive-rank ordering/top-K and logic/WHERE domains, integral
 MATMUL remains the only general INT arithmetic consumer, loss ownership is the bounded accelerator
 MSE forward domain only, and the six Task-0064 convolution/pooling rows use their fixed custom
@@ -754,19 +756,23 @@ capability was `83/32`, structural execution `101/14`, catalogs `75/35/5` MPSGra
 `70/45/0` custom, schema 15, backend-local identity 22, ABI 5, and thirteen exports at the
 Task-0066 checkpoint. Tasks 0067 and 0068 preserved and verified that ledger.
 
-Task 0069 Slices 1 and 2 are Complete and independently approved; Slice 3 is implemented under
-fresh checkpoint authorization and awaits independent review. The shared proof substrate and exact
-rank-one accelerator L1/ScatterAdd plus singleton VARIANCE source-owned custom routes advance
-current capability to `86/29`, custom catalog to `73/42/0`, and backend-local identity to 25.
-Java and native creation reject direct MPSGraph only for those exact custom occurrences; the
-existing non-domain VARIANCE structural fixture remains direct. Structural `101/14`, MPSGraph
-`75/35/5`, schema 16, ABI 5, and thirteen exports remain fixed. ScatterAdd completely validates
-INT32/INT64 indices before encoding or mutation, retains duplicate updates in source order,
-raw-copies unaddressed cells, and closes the compiler-generated rank-one Gather data cotangent.
-Singleton VARIANCE requires input `[1]`, axis `[0]`, correction zero, scalar or retained `[1]`
-output, and uses the literal DIV-SUB-MUL-DIV custom kernel. The pinned Xcode-27 compiled-MSL/AIR
-audit confirms L1/Scatter additions and VARIANCE's exact two divisions, subtraction,
-multiplication, and sole store without fast-math or atomics.
+Task 0069 Slices 1 through 3 are Complete and independently approved. Their shared proof substrate
+and exact rank-one accelerator L1/ScatterAdd plus singleton VARIANCE source-owned custom routes
+retain current capability `86/29`, custom catalog `73/42/0`, and the exact Task-0069 compiled
+source/AIR evidence. Java and native creation reject direct MPSGraph only for those exact custom
+occurrences; the existing non-domain VARIANCE structural fixture remains direct. ScatterAdd
+completely validates INT32/INT64 indices before encoding or mutation, retains duplicate updates in
+source order, raw-copies unaddressed cells, and closes the compiler-generated rank-one Gather data
+cotangent. Singleton VARIANCE requires input `[1]`, axis `[0]`, correction zero, scalar or retained
+`[1]` output, and uses the literal DIV-SUB-MUL-DIV custom kernel.
+
+Task 0070 adds schema-17 authenticated execution records, compact materialized slots, and bounded
+deterministic generated units for eligible linear canonical FLOAT32
+`FLOOR`/`CEIL`/`SIGN`/`RELU` chains. Four universal raw-word Lean certificates, a source
+certificate, real Metal reflection, an immediately-before-dispatch test observer, and the pinned
+compiled generated-MSL/AIR audit cover the cutover. Structural `101/14`, capability `86/29`,
+MPSGraph `75/35/5`, custom `73/42/0`, ABI 5, and thirteen exports remain fixed; only schema 17 and
+identity 26 are accepted.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030

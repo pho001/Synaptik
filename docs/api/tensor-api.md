@@ -135,11 +135,13 @@ exactly 86 admitted kinds and 29 remaining false, with 101 structurally executab
 remaining nonexecutable. These are shape-restricted production domains, not whole-kind admission;
 every unlisted occurrence fails closed before route selection.
 
-Metal uses ABI 5 with the same thirteen exports and one bounded schema-16 route-bearing program
+Metal uses ABI 5 with the same thirteen exports and one bounded schema-17 route-bearing program
 image. Operation wires `1..115`, attribute wires `0..41`, and type wires `1..6` cover current
-structural vocabulary. Metal-local workload, exact-policy, candidate, compatibility, route-policy,
-and session codec identities are version 25; identity 24 and every older identity fail closed
-rather than falling back. Model remains the sole semantic owner of profile meaning.
+structural vocabulary. The custom-program image authenticates compact materialized slots and its
+deterministic pointwise execution plan; MPSGraph images omit that extension. Metal-local workload,
+exact-policy, candidate, compatibility, route-policy, and session codec identities are version 26;
+every other identity fails closed rather than falling back. Model remains the sole semantic owner
+of profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 

@@ -45,9 +45,11 @@ self-multiplication, and optional full reduction and grants no generated backwar
 Strict convolution/average pooling, generated Conv3d and maximum-pool gradients, attention,
 convolution transpose, and every other unlisted occurrence fail closed. Eligible singleton
 negation retains its custom alternative. Exact custom nodes fix their whole partition to one
-custom program with declared run-owned intermediates and direct targets; top-K publishes paired
-values and INT64 indices from one step. ABI 5, thirteen exports, and the schema-16 operation and
-attribute registries remain fixed; backend-local route and workload identities are version 23.
+custom program with compact run-owned materialized slots and direct targets; top-K publishes paired
+values and INT64 indices from one step. Deterministic generated Metal units fuse eligible linear
+canonical FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains while preserving every barrier. ABI 5 and
+thirteen exports remain fixed; the route-bearing program image is schema 17 and backend-local
+route, workload, policy, and codec identities are version 26.
 Standard-Metal convenience, generic plugin registration/discovery, CUDA, broader optimizers,
 durable persistence, and generic graph/plan tuning remain planned.
 Focused documentation identifies the exact current boundary for each area.

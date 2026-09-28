@@ -109,6 +109,44 @@ class MetalRemainingElementwiseNativeTest {
     }
 
     @Test
+    void generatedThreeInstructionChainUsesCompactBoundarySlotsAndPreservesRawBits() {
+        Path library = configuredLibrary();
+        var program = new MetalMpsGraphProgram(List.of(
+                unary(MetalMpsGraphProgram.NodeKind.FLOOR, 0, 1),
+                unary(MetalMpsGraphProgram.NodeKind.CEIL, 1, 2),
+                unary(MetalMpsGraphProgram.NodeKind.SIGN, 2, 3)));
+        List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                value(INPUT.length), value(INPUT.length), value(INPUT.length), value(INPUT.length));
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
+                    profile,
+                    program,
+                    values,
+                    new int[] {0},
+                    new int[] {3},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            assertEquals(1, fusion.generatedUnitCount());
+            assertEquals(3, fusion.instructions().size());
+            assertArrayEquals(new int[] {0, 3}, fusion.materializedProgramValueIndices());
+            int[] expected = new int[INPUT.length];
+            for (int index = 0; index < INPUT.length; index++) {
+                int word = FLOOR[index];
+                if (isNaN(word) || (word & 0x7fff_ffff) == 0) expected[index] = word;
+                else expected[index] = word < 0 ? 0xbf80_0000 : 0x3f80_0000;
+            }
+            List<int[]> actual = executeCustom(
+                    library,
+                    profile,
+                    program,
+                    values,
+                    new int[] {0},
+                    new int[] {3},
+                    List.of(INPUT));
+            assertModelWords(expected, actual.getFirst());
+        }
+    }
+
+    @Test
     void task0059CustomProgramExecutesEveryExactRawMovementRecipe() {
         Path library = configuredLibrary();
         int[] data = {
@@ -1623,12 +1661,19 @@ class MetalRemainingElementwiseNativeTest {
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
+            MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
+                    profile, program, values, feeds, targets, MetalPreparedRoute.CUSTOM_PROGRAM);
             executable = api.createMpsGraphExecutable(
                     context, profile, values, program, feeds, targets,
-                    MetalPreparedRoute.CUSTOM_PROGRAM);
-            for (var value : values) buffers.add(api.createBuffer(context, value.byteCount()));
-            for (int index = 0; index < feeds.length; index++)
-                upload(api, buffers.get(feeds[index]), feedWords.get(index));
+                    MetalPreparedRoute.CUSTOM_PROGRAM, fusion);
+            int[] materialized = fusion.materializedProgramValueIndices();
+            int[] programToSlot = fusion.programToMaterializedSlot();
+            for (int value : materialized) {
+                buffers.add(api.createBuffer(context, values.get(value).byteCount()));
+            }
+            for (int index = 0; index < feeds.length; index++) {
+                upload(api, buffers.get(programToSlot[feeds[index]]), feedWords.get(index));
+            }
             try (Arena arena = Arena.ofConfined()) {
                 MemorySegment inputAddresses = arena.allocate(ADDRESS, buffers.size());
                 for (int index = 0; index < buffers.size(); index++)
@@ -1636,14 +1681,18 @@ class MetalRemainingElementwiseNativeTest {
                 MemorySegment outputAddresses = arena.allocate(ADDRESS, targets.length);
                 for (int index = 0; index < targets.length; index++)
                     outputAddresses.setAtIndex(
-                            ADDRESS, index, buffers.get(targets[index]).carrier());
+                            ADDRESS, index,
+                            buffers.get(programToSlot[targets[index]]).carrier());
                 api.runExecutable(
                         executable, buffers.size(), inputAddresses,
                         targets.length, outputAddresses);
             }
             List<int[]> output = new ArrayList<>(targets.length);
             for (int target : targets)
-                output.add(download(api, buffers.get(target), values.get(target).byteCount()));
+                output.add(download(
+                        api,
+                        buffers.get(programToSlot[target]),
+                        values.get(target).byteCount()));
             return List.copyOf(output);
         } finally {
             for (int index = buffers.size(); index-- > 0;) api.releaseBuffer(buffers.get(index));
@@ -1687,12 +1736,29 @@ class MetalRemainingElementwiseNativeTest {
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
+            MetalPointwiseFusionPlan fusion = route == MetalPreparedRoute.CUSTOM_PROGRAM
+                    ? MetalPointwiseFusionPlanner.plan(profile, program, values, feeds, targets, route)
+                    : null;
             executable = api.createMpsGraphExecutable(
-                    context, profile, values, program, feeds, targets, route);
-            for (var value : values) buffers.add(api.createBuffer(context, value.byteCount()));
+                    context, profile, values, program, feeds, targets, route, fusion);
+            int[] materialized;
+            int[] programToSlot;
+            if (fusion != null) {
+                materialized = fusion.materializedProgramValueIndices();
+                programToSlot = fusion.programToMaterializedSlot();
+            } else {
+                materialized = new int[values.size()];
+                programToSlot = new int[values.size()];
+                for (int index = 0; index < values.size(); index++) {
+                    materialized[index] = index;
+                    programToSlot[index] = index;
+                }
+            }
+            for (int value : materialized)
+                buffers.add(api.createBuffer(context, values.get(value).byteCount()));
             for (int index = 0; index < feeds.length; index++) {
                 assertEquals(values.get(feeds[index]).byteCount(), feedBytes.get(index).length);
-                uploadBytes(api, buffers.get(feeds[index]), feedBytes.get(index));
+                uploadBytes(api, buffers.get(programToSlot[feeds[index]]), feedBytes.get(index));
             }
             try (Arena arena = Arena.ofConfined()) {
                 MemorySegment addresses = arena.allocate(ADDRESS, buffers.size());
@@ -1700,13 +1766,18 @@ class MetalRemainingElementwiseNativeTest {
                     addresses.setAtIndex(ADDRESS, index, buffers.get(index).carrier());
                 MemorySegment outputs = arena.allocate(ADDRESS, targets.length);
                 for (int index = 0; index < targets.length; index++)
-                    outputs.setAtIndex(ADDRESS, index, buffers.get(targets[index]).carrier());
+                    outputs.setAtIndex(
+                            ADDRESS, index,
+                            buffers.get(programToSlot[targets[index]]).carrier());
                 api.runExecutable(
                         executable, buffers.size(), addresses, targets.length, outputs);
             }
             var result = new ArrayList<byte[]>(targets.length);
             for (int target : targets)
-                result.add(downloadBytes(api, buffers.get(target), values.get(target).byteCount()));
+                result.add(downloadBytes(
+                        api,
+                        buffers.get(programToSlot[target]),
+                        values.get(target).byteCount()));
             return List.copyOf(result);
         } finally {
             for (int index = buffers.size(); index-- > 0;) api.releaseBuffer(buffers.get(index));

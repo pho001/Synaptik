@@ -120,10 +120,11 @@ import java.util.Optional;
  * a materialized partition feed. Random lowering preserves initializer key/counter words, dropout's
  * raw binary64 probability, and all ordered value, mask, and state edges; recurrent nodes remain
  * rejected. An affine MATMUL operand is authenticated to the exact earlier local identity-prefix,
- * last-two-axis {@code PERMUTE} on that consuming edge. Schema-sixteen lowering emits one bounded
- * self-describing image over stable type wires 1..6, complete operation registry 1..115, attribute
- * registry 0..41, and the explicit prepared route. Production capability is exactly 86 operation
- * kinds; additional structural recipes remain inaccessible to this analysis. Every selected
+ * last-two-axis {@code PERMUTE} on that consuming edge. Schema-seventeen lowering emits one
+ * bounded self-describing image over stable type wires 1..6, complete operation registry 1..115,
+ * attribute registry 0..41, the explicit prepared route, and its authenticated execution plan.
+ * Production capability is exactly 86 operation kinds; additional structural recipes remain
+ * inaccessible to this analysis. Every selected
  * Task-0066 or Task-0069 occurrence fixes the whole partition to {@code CUSTOM_PROGRAM}, with no
  * MPSGraph candidate, retry, fallback, timing, or autotuning.
  * Rank-zero values participate only where exact capability permits them. Analysis freshly
@@ -131,7 +132,7 @@ import java.util.Optional;
  * partition, schema, workload, profile, and session target; an absent decision preserves the
  * singleton-NEG heuristic, while a present decision must additionally authenticate its candidate
  * identity. Any shared custom-program node fixes the whole partition to its custom program route
- * before exact declarations, including a declared run-owned buffer for every internal logical
+ * before exact declarations, including a declared run-owned buffer for every compact materialized
  * value. Package-private tests may force only another candidate already approved by that freshly
  * validated batch; production has no corresponding input or switch. Published SELECT/SLICE values
  * retain logical storage layouts and declarations cover their full physical referenced spans; other
@@ -424,9 +425,25 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         && singletonElements <= UINT32_MAX
                         ? MetalPreparedRoute.CUSTOM_SINGLE_NEG
                         : MetalPreparedRoute.MPSGRAPH;
+        var programValueDescriptors =
+                new ArrayList<MetalMpsGraphProgram.ValueDescriptor>(descriptors.size());
+        for (int value = 0; value < descriptors.size(); value++) {
+            programValueDescriptors.add(MetalMpsGraphProgram.ValueDescriptor.from(
+                    descriptors.get(value), valueStates.get(value)));
+        }
+        MetalPointwiseFusionPlan fusionPlan = route == MetalPreparedRoute.CUSTOM_PROGRAM
+                ? MetalPointwiseFusionPlanner.plan(
+                        context.numericalProfile(),
+                        graphProgram,
+                        programValueDescriptors,
+                        feedIndices,
+                        targetIndices,
+                        route)
+                : null;
         var internalValues = new ArrayList<ValueId>();
-        if (route == MetalPreparedRoute.CUSTOM_PROGRAM) {
-            for (ValueId valueId : valueIds) {
+        if (fusionPlan != null) {
+            for (int value : fusionPlan.materializedProgramValueIndices()) {
+                ValueId valueId = valueIds.get(value);
                 if (!feeds.contains(valueId) && !targets.contains(valueId)) {
                     internalValues.add(valueId);
                 }
@@ -452,14 +469,15 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             declarations.add(new PreparationResourceRequirement.Buffer(
                     internalValues.get(index), internalBytes[index], alignment));
         }
+        int materializedCount = fusionPlan == null
+                ? valueIds.size() : fusionPlan.materializedProgramValueIndices().length;
         Optional<PreparationResourceRequirement.Workspace> heuristicWorkspace = workspace(
-                route, feeds.size(), targets.size(), valueIds.size());
-    List<LayoutDescriptor> physicalValueLayouts =
-        valueIds.stream()
-            .map(
-                value ->
-                    Objects.requireNonNull(physicalLayouts.get(value), "physical value layout"))
-            .toList();
+                route, feeds.size(), targets.size(), materializedCount);
+        List<LayoutDescriptor> physicalValueLayouts =
+                valueIds.stream()
+                        .map(value -> Objects.requireNonNull(
+                                physicalLayouts.get(value), "physical value layout"))
+                        .toList();
         var heuristicPlan = new MetalNegPreparationPlan(
                 context.numericalProfile(),
                 context.partition(), context.partitionDag(), deviceContext,
@@ -503,7 +521,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         }
 
         Optional<PreparationResourceRequirement.Workspace> selectedWorkspace = workspace(
-                route, feeds.size(), targets.size(), valueIds.size());
+                route, feeds.size(), targets.size(), materializedCount);
         MetalTraceProducer traceProducer = context.backendInputs().traceProducer();
         MetalTraceProducer.PreparedUnit traceUnit = traceProducer == null
                 ? null
@@ -676,25 +694,42 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     }
     return physical;
   }
-
-  private static long[] requiredBytes(
+    private static long[] requiredBytes(
             List<ValueId> ids,
             Map<ValueId, GraphValue> values,
             Map<ValueId, LayoutDescriptor> physicalLayouts) {
         long[] result = new long[ids.size()];
         for (int index = 0; index < result.length; index++) {
             ValueId id = ids.get(index);
-      LayoutDescriptor physical =
-          Objects.requireNonNull(physicalLayouts.get(id), "physicalLayouts[" + id + "]");
-            result[index] =
-          Math.multiplyExact(
-              physical.referencedElementSpan(),values.get(id).descriptor().dataType().byteWidth());
+            LayoutDescriptor physical = Objects.requireNonNull(
+                    physicalLayouts.get(id), "physicalLayouts[" + id + "]");
+            result[index] = Math.multiplyExact(
+                    physical.referencedElementSpan(),
+                    values.get(id).descriptor().dataType().byteWidth());
         }
         return result;
     }
 
     private static boolean usesCustomProgram(
             MetalMpsGraphProgram.Node node, List<TensorDescriptor> descriptors) {
+        if (node.kind() == MetalMpsGraphProgram.NodeKind.VARIANCE) {
+            long[] words = node.attributeWords();
+            TensorDescriptor input = descriptors.get(node.firstInputIndex());
+            TensorDescriptor output = descriptors.get(node.outputIndex());
+            return words.length == 4
+                    && words[0] == 1L
+                    && words[1] == 0L
+                    && (words[2] == 0L || words[2] == 1L)
+                    && words[3] == 0L
+                    && input.dataType() == DataType.FLOAT32
+                    && output.dataType() == DataType.FLOAT32
+                    && !input.requiresGrad()
+                    && !output.requiresGrad()
+                    && input.shape().rank() == 1
+                    && input.shape().knownElementCount().orElseThrow() == 1L
+                    && output.shape().rank() == (int) words[2]
+                    && output.shape().knownElementCount().orElseThrow() == 1L;
+        }
         if (node.kind().isCustomProgramOperation()) return true;
         if (node.kind() != MetalMpsGraphProgram.NodeKind.MATMUL) return false;
         TensorDescriptor left = descriptors.get(node.firstInputIndex());

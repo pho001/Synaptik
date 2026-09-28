@@ -1,0 +1,160 @@
+{
+  "compiledMslAudit": {
+    "path": "backends/metal/evidence/0070/compiled-generated-msl-audit.json",
+    "sha256": "5c3f57bb6a3cd0f606a90fdbcc584eeb46232c9a816ca1a0b4ef22eed95b3b5d"
+  },
+  "fixedCorpus": {
+    "bytes": 77411,
+    "components": [
+      {
+        "bytes": 16912,
+        "sha256": "f79d5b3fa13d0cd9a704f326196703aa41305bb62f7957d8413e697c9319e58e",
+        "symbol": "SynaptikExactKernelSource"
+      },
+      {
+        "bytes": 11492,
+        "sha256": "4316a3ff46d640ca8813afd070c1d3746bd832b28afc847f556925e5d3bf44ac",
+        "symbol": "SynaptikTask0059DataKernelSource"
+      },
+      {
+        "bytes": 6094,
+        "sha256": "668b43e4837c38bae95a6af0b848f34bc7546c34eaf8a3eb84a5409a496efd66",
+        "symbol": "SynaptikTask0060ReductionKernelSource"
+      },
+      {
+        "bytes": 6042,
+        "sha256": "4cd012516868ca5c8eead1ebdf4b63de13f702d9526894ef5da00548dbd0732c",
+        "symbol": "SynaptikTask0061MatmulKernelSource"
+      },
+      {
+        "bytes": 5683,
+        "sha256": "a54fa5431ed23e88ea7b2a118c631492218e14fe1ce932de9ca8652f2b2bf65e",
+        "symbol": "SynaptikTask0063OrderingKernelSource"
+      },
+      {
+        "bytes": 9567,
+        "sha256": "282cb823f95499e63f66674221c44bfbf77c9fa51230995eb3518ea130537cbe",
+        "symbol": "SynaptikTask0064ConvolutionPoolingKernelSource"
+      },
+      {
+        "bytes": 2886,
+        "sha256": "6791792854f011172b98c9998fe67717c83ab13eb771d8b967cc64cf6f9548ca",
+        "symbol": "SynaptikTask0069AggregateKernelSource"
+      },
+      {
+        "bytes": 1301,
+        "sha256": "8217948f0c28d3df56c5f2edb5408306b588bf2c5e0b1f90a23463e295ac6b99",
+        "symbol": "SynaptikTask0065RngDropoutKernelSource"
+      },
+      {
+        "bytes": 17434,
+        "sha256": "c4ff761377e6ae9d8bbba8e66b999d4832693e60cff440270d9712320943ffa5",
+        "symbol": "SynaptikTask0066DtypeLayoutKernelSource"
+      }
+    ],
+    "sha256": "9c705744636d8a8e34a3e049c8044acf1d5811da929bf20df39928600cd61c0d"
+  },
+  "generatorSchema": 1,
+  "identityCount": 26,
+  "magic": "0x37314d53",
+  "programSchema": 17,
+  "proof": {
+    "allRawWords": 4294967296,
+    "dispatchObserverRequired": true,
+    "pointMetaBytes": 32,
+    "realReflectionRequired": true
+  },
+  "schema": "synaptik.metal.pointwise-fusion-certificate.v1",
+  "sources": [
+    {
+      "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphProgram.java",
+      "role": "java-program-image",
+      "sha256": "5b018e8d4585c2cc1e29346a591926ff83f626fa46c4eaddc5be289026dcdde3"
+    },
+    {
+      "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalPointwiseFusionPlan.java",
+      "role": "java-fusion-plan",
+      "sha256": "3f2d89f0f068a3b4b057b0b074f00423878f9adc855ddc817d4beb510e3624e7"
+    },
+    {
+      "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalPointwiseFusionPlanner.java",
+      "role": "java-planner",
+      "sha256": "64c4c2a202cbebc099d79837497198b9be38dff85b8bd93f80d6a90172824daf"
+    },
+    {
+      "path": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
+      "role": "native-parser-runtime",
+      "sha256": "f5012467a4db43e0344ddaadd7d55059d1fc9f7dac1eb317a1e33e0c008d0add"
+    },
+    {
+      "path": "native/metal-macos-arm64/src/SynaptikPointwiseFusionKernelSource.h",
+      "role": "native-generator",
+      "sha256": "e00a9df292105f1910868a8876c6221ba5adc0f5b21b3a95e4bf11c9e76b381a"
+    },
+    {
+      "path": "native/metal-macos-arm64/build.sh",
+      "role": "native-build",
+      "sha256": "a39454942938169570205119f09117f3661216cdefb424746045cc60af0b4a5d"
+    },
+    {
+      "path": "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalPointwiseDispatchObserverNativeTest.java",
+      "role": "observer-test",
+      "sha256": "dd5f2722c444ec8328f947176abc780311ac92e5995de39dcb64ce7a0ae5d821"
+    },
+    {
+      "path": "backends/metal/evidence/0070/dispatch-observer.c",
+      "role": "observer-library",
+      "sha256": "8dea70a383145cd15b6c3a518c3d2526d9c246014fdd0ee81010eaac545d0b74"
+    },
+    {
+      "path": "testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineExplicitCompositionMetalIntegrationTest.java",
+      "role": "public-smoke",
+      "sha256": "d1c22d82ccaeaf81f65f2531a334ad529a7df30c57dcf73db43f53cbeea6d997"
+    },
+    {
+      "path": "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalPointwiseFusionPlannerTest.java",
+      "role": "planner-test",
+      "sha256": "b6cdf061f2897472c97f714ebac60470c282b1f63d228a0a77029a174da8f974"
+    },
+    {
+      "path": "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphRawAbiNativeTest.java",
+      "role": "raw-abi-test",
+      "sha256": "035c870bba777473a6bb929075f8e543781d57c226cd1cca88b6d3c188d779dd"
+    },
+    {
+      "path": "backends/metal/evidence/0070/extract-generated-fixtures.py",
+      "role": "audit-extractor",
+      "sha256": "0f28c41d47cf9929087f04430456340b31465dad180d47bcee7d554679048981"
+    },
+    {
+      "path": "backends/metal/evidence/0070/verify-compiled-generated-msl-audit.py",
+      "role": "audit-verifier",
+      "sha256": "9e79e5a5fe7a831555ff4112477d1821c1818fcf47879f420e4236265a9bd88a"
+    },
+    {
+      "path": "backends/metal/evidence/0069/proof/Task0069Binary32.lean",
+      "role": "binary32-model",
+      "sha256": "fcd5e2e91b661e1e6446d5b7c04e132159ad213337dd461a1b2c5e98d99eac35"
+    },
+    {
+      "path": "backends/metal/evidence/0070/proof/Task0070Floor.lean",
+      "role": "floor-proof",
+      "sha256": "11dde44874cbdd01e5cd547d5708b759ab1fe56523288ad39e52d22a176184af"
+    },
+    {
+      "path": "backends/metal/evidence/0070/proof/Task0070Ceil.lean",
+      "role": "ceil-proof",
+      "sha256": "0bc4a7b1da011f1c492d7f18e5f2cf27ecfe43c6e2c15d42fd4a167f840db54f"
+    },
+    {
+      "path": "backends/metal/evidence/0070/proof/Task0070Sign.lean",
+      "role": "sign-proof",
+      "sha256": "63d5097dfc8b152b312e10846dbf8c63b01e49bfdc20ae9ab50a4191f8652bab"
+    },
+    {
+      "path": "backends/metal/evidence/0070/proof/Task0070Relu.lean",
+      "role": "relu-proof",
+      "sha256": "43ea778362479a3b2ebc4eb73e574227ef95e4c4600d8523c9174c8825699b46"
+    }
+  ]
+}

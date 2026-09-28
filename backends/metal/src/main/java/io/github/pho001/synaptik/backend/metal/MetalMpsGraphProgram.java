@@ -18,21 +18,26 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Immutable schema-sixteen Metal program and its canonical bounded image encoder.
+ * Immutable schema-seventeen Metal program and its canonical bounded image encoder.
  *
- * <p>The image supports zero-input nodes and ordered multi-output nodes. Schema sixteen binds the
- * exact compile-time numerical profile in every fixed header while carrying complete logical
- * layout geometry and gradient flags for the native/JVM-authenticated custom-program closure.
+ * <p>The fixed 128-byte header binds the complete core-image and execution-extension counts.
+ * {@code CUSTOM_PROGRAM} images carry authoritative step, binding, materialization, instruction,
+ * and canonical-manifest records. MPSGraph images clear the extension flag and physically omit
+ * every extension section.</p>
  */
 final class MetalMpsGraphProgram {
-    static final int SCHEMA_VERSION = 16;
+    static final int SCHEMA_VERSION = 17;
     static final int MAX_RANK = 16;
     static final int MAX_SELECTOR_EXPANSION = 16;
-    static final int HEADER_BYTES = 64;
+    static final int HEADER_BYTES = 128;
     static final int VALUE_DESCRIPTOR_BYTES = 40;
     static final int NODE_DESCRIPTOR_BYTES = 32;
-    static final int MAGIC = 0x36314d53; // little-endian bytes "SM16"
+    static final int STEP_DESCRIPTOR_BYTES = 40;
+    static final int BINDING_DESCRIPTOR_BYTES = 24;
+    static final int INSTRUCTION_DESCRIPTOR_BYTES = 64;
+    static final int MAGIC = 0x37314d53; // little-endian bytes "SM17"
     static final int STRICT_IEEE_PROFILE_WIRE = 0x53545249; // little-endian bytes "IRTS"
+    private static final int EXECUTION_EXTENSION_PRESENT = 1;
     static final int ACCELERATOR_PROFILE_WIRE = 0x41434345; // little-endian bytes "ECCA"
     static final int NO_SECOND_INPUT = -1;
     static final int NO_AXIS = -1;
@@ -1033,11 +1038,24 @@ final class MetalMpsGraphProgram {
             int[] feeds,
             int[] targets,
             MetalPreparedRoute route) {
+        return encodeNative(arena, numericalProfile, values, feeds, targets, route, null);
+    }
+
+    MemorySegment encodeNative(
+            Arena arena,
+            NumericalProfile numericalProfile,
+            List<ValueDescriptor> values,
+            int[] feeds,
+            int[] targets,
+            MetalPreparedRoute route,
+            MetalPointwiseFusionPlan suppliedPlan) {
         Objects.requireNonNull(arena, "arena");
-        Layout layout = layout(values, feeds, targets);
+        MetalPointwiseFusionPlan plan = resolvePlan(
+                numericalProfile, values, feeds, targets, route, suppliedPlan);
+        Layout layout = layout(values, feeds, targets, plan);
         MemorySegment segment = arena.allocate(layout.totalBytes, Long.BYTES);
         write(segment.asByteBuffer().order(ByteOrder.LITTLE_ENDIAN),
-                numericalProfile, values, feeds, targets, layout, route);
+                numericalProfile, values, feeds, targets, layout, route, plan);
         return segment;
     }
 
@@ -1056,9 +1074,21 @@ final class MetalMpsGraphProgram {
             int[] feeds,
             int[] targets,
             MetalPreparedRoute route) {
-        Layout layout = layout(values, feeds, targets);
+        return encodedProgramImage(numericalProfile, values, feeds, targets, route, null);
+    }
+
+    byte[] encodedProgramImage(
+            NumericalProfile numericalProfile,
+            List<ValueDescriptor> values,
+            int[] feeds,
+            int[] targets,
+            MetalPreparedRoute route,
+            MetalPointwiseFusionPlan suppliedPlan) {
+        MetalPointwiseFusionPlan plan = resolvePlan(
+                numericalProfile, values, feeds, targets, route, suppliedPlan);
+        Layout layout = layout(values, feeds, targets, plan);
         ByteBuffer buffer = ByteBuffer.allocate(layout.totalBytes).order(ByteOrder.LITTLE_ENDIAN);
-        write(buffer, numericalProfile, values, feeds, targets, layout, route);
+        write(buffer, numericalProfile, values, feeds, targets, layout, route, plan);
         return buffer.array();
     }
 
@@ -1103,6 +1133,28 @@ final class MetalMpsGraphProgram {
         }
     }
 
+    private MetalPointwiseFusionPlan resolvePlan(
+            NumericalProfile numericalProfile,
+            List<ValueDescriptor> values,
+            int[] feeds,
+            int[] targets,
+            MetalPreparedRoute route,
+            MetalPointwiseFusionPlan suppliedPlan) {
+        Objects.requireNonNull(numericalProfile, "numericalProfile");
+        Objects.requireNonNull(route, "route");
+        if (route == MetalPreparedRoute.CUSTOM_SINGLE_NEG) {
+            throw new IllegalArgumentException("singleton custom NEG does not use a program image");
+        }
+        if (route == MetalPreparedRoute.MPSGRAPH) {
+            if (suppliedPlan != null) {
+                throw new IllegalArgumentException("MPSGraph image cannot carry an extension");
+            }
+            return null;
+        }
+        return suppliedPlan != null ? suppliedPlan : MetalPointwiseFusionPlanner.plan(
+                numericalProfile, this, values, feeds, targets, route);
+    }
+
     private static NodeKind scalarPrimitive(NodeKind kind) {
         return switch (kind) {
             case SCALAR_ADD -> NodeKind.ADD;
@@ -1120,13 +1172,18 @@ final class MetalMpsGraphProgram {
         digest.update((byte) value);
     }
 
-    private Layout layout(List<ValueDescriptor> values, int[] feeds, int[] targets) {
+    private Layout layout(
+            List<ValueDescriptor> values,
+            int[] feeds,
+            int[] targets,
+            MetalPointwiseFusionPlan plan) {
         Objects.requireNonNull(values, "values");
         Objects.requireNonNull(feeds, "feeds");
         Objects.requireNonNull(targets, "targets");
         validateTopology(values.size(), feeds, targets);
-    if (values.isEmpty() || targets.length == 0)
-      throw new IllegalArgumentException("program values and targets must be non-empty");
+        if (values.isEmpty() || targets.length == 0) {
+            throw new IllegalArgumentException("program values and targets must be non-empty");
+        }
         long dimensions = 0L;
         long strides = 0L;
         long references = (long) feeds.length + targets.length;
@@ -1134,12 +1191,11 @@ final class MetalMpsGraphProgram {
         for (ValueDescriptor value : values) {
             ValueDescriptor checked = Objects.requireNonNull(value, "value");
             dimensions = Math.addExact(dimensions, checked.rank());
-            if (checked.layout().isPresent()) {
-                strides = Math.addExact(strides, checked.rank());
-            }
+            if (checked.layout().isPresent()) strides = Math.addExact(strides, checked.rank());
         }
         for (Node node : nodes) {
-            references = Math.addExact(references, Math.addExact(node.inputs.length, node.outputs.length));
+            references = Math.addExact(
+                    references, Math.addExact(node.inputs.length, node.outputs.length));
             attributes = Math.addExact(attributes, node.attributeWords.length);
         }
         long bytes = HEADER_BYTES;
@@ -1148,8 +1204,21 @@ final class MetalMpsGraphProgram {
         bytes = Math.addExact(bytes, Math.multiplyExact(dimensions, Long.BYTES));
         bytes = Math.addExact(bytes, Math.multiplyExact(strides, Long.BYTES));
         bytes = Math.addExact(bytes, Math.multiplyExact(references, Integer.BYTES));
-        if ((bytes & 7L) != 0L) bytes = Math.addExact(bytes, Integer.BYTES);
         bytes = Math.addExact(bytes, Math.multiplyExact(attributes, Long.BYTES));
+        if (plan != null) {
+            bytes = Math.addExact(bytes, Math.multiplyExact(
+                    (long) plan.steps().size(), STEP_DESCRIPTOR_BYTES));
+            bytes = Math.addExact(bytes, Math.multiplyExact(
+                    (long) plan.memberNodePositions().length, Integer.BYTES));
+            bytes = Math.addExact(bytes, Math.multiplyExact(
+                    (long) plan.bindings().size(), BINDING_DESCRIPTOR_BYTES));
+            bytes = Math.addExact(bytes, Math.multiplyExact(
+                    (long) plan.materializedProgramValueIndices().length, Integer.BYTES));
+            bytes = Math.addExact(bytes, Math.multiplyExact(
+                    (long) plan.instructions().size(), INSTRUCTION_DESCRIPTOR_BYTES));
+            bytes = Math.addExact(bytes, plan.canonicalManifest().length);
+            bytes = Math.addExact(bytes, plan.canonicalManifestDigest().length);
+        }
         if (bytes > Integer.MAX_VALUE || dimensions > Integer.MAX_VALUE
                 || strides > Integer.MAX_VALUE || references > Integer.MAX_VALUE
                 || attributes > Integer.MAX_VALUE) {
@@ -1223,18 +1292,35 @@ final class MetalMpsGraphProgram {
             int[] feeds,
             int[] targets,
             Layout layout,
-            MetalPreparedRoute route) {
+            MetalPreparedRoute route,
+            MetalPointwiseFusionPlan plan) {
         Objects.requireNonNull(numericalProfile, "numericalProfile");
         Objects.requireNonNull(route, "route");
-        if (route == MetalPreparedRoute.CUSTOM_SINGLE_NEG) {
-            throw new IllegalArgumentException("singleton custom NEG does not use a program image");
-        }
-        out.putInt(MAGIC).putInt(SCHEMA_VERSION).putInt(layout.totalBytes)
+        boolean extension = plan != null;
+        int[] members = extension ? plan.memberNodePositions() : new int[0];
+        byte[] manifest = extension ? plan.canonicalManifest() : new byte[0];
+        byte[] manifestDigest = extension ? plan.canonicalManifestDigest() : new byte[0];
+        out.putInt(MAGIC).putInt(SCHEMA_VERSION).putInt(HEADER_BYTES).putInt(layout.totalBytes)
+                .putInt(route.wireIdentity()).putInt(numericalProfileWireValue(numericalProfile))
+                .putInt(extension ? MetalPointwiseFusionPlan.GENERATOR_SCHEMA : 0)
+                .putInt(extension ? EXECUTION_EXTENSION_PRESENT : 0)
                 .putInt(values.size()).putInt(nodes.size()).putInt(feeds.length).putInt(targets.length)
-                .putInt(layout.dimensionCount).putInt(layout.referenceCount).putInt(layout.attributeCount)
-                .putInt(route.wireIdentity()).putInt(layout.strideCount)
-                .putInt(numericalProfileWireValue(numericalProfile))
-                .putInt(0).putInt(0).putInt(0);
+                .putInt(layout.dimensionCount).putInt(layout.strideCount)
+                .putInt(layout.referenceCount).putInt(layout.attributeCount)
+                .putInt(extension ? plan.steps().size() : 0).putInt(members.length)
+                .putInt(extension ? plan.bindings().size() : 0)
+                .putInt(extension ? plan.materializedProgramValueIndices().length : 0)
+                .putInt(extension ? plan.instructions().size() : 0)
+                .putInt(manifest.length).putInt(manifestDigest.length)
+                .putInt(extension ? plan.generatedUnitCount() : 0)
+                .putInt(extension ? plan.expectedGeneratedSourceUtf8Bytes() : 0)
+                .putInt(extension ? MetalPointwiseFusionPlan.FIXED_CORPUS_UTF8_BYTES : 0)
+                .putInt(extension ? plan.expectedTotalSourceUtf8Bytes() : 0)
+                .putInt(extension ? plan.firstRejectedNodePosition() : -1)
+                .putInt(extension ? plan.capReason().wire() : 0)
+                .putInt(extension ? MetalPointwiseFusionPlan.MAX_FUNCTION_SOURCE_UTF8_BYTES : 0)
+                .putInt(extension ? MetalPointwiseFusionPlan.MAX_GENERATED_SOURCE_UTF8_BYTES : 0)
+                .putInt(extension ? MetalPointwiseFusionPlan.MAX_TOTAL_SOURCE_UTF8_BYTES : 0);
         int dimensionOffset = 0;
         int strideOffset = 0;
         for (ValueDescriptor value : values) {
@@ -1287,10 +1373,43 @@ final class MetalMpsGraphProgram {
             for (int input : node.inputs) out.putInt(input);
             for (int output : node.outputs) out.putInt(output);
         }
-        if ((out.position() & 7) != 0) out.putInt(0);
         for (Node node : nodes) for (long word : node.attributeWords) out.putLong(word);
-    if (out.position() != layout.totalBytes)
-      throw new AssertionError("program image size mismatch");
+        if (extension) {
+            for (MetalPointwiseFusionPlan.Step step : plan.steps()) {
+                out.putInt(step.kind().wire())
+                        .putInt(step.memberStart()).putInt(step.memberCount())
+                        .putInt(step.bindingStart()).putInt(step.bindingCount())
+                        .putInt(step.instructionStart()).putInt(step.instructionCount())
+                        .putInt(step.expectedFunctionUtf8Bytes()).putInt(0).putInt(0);
+            }
+            for (int member : members) out.putInt(member);
+            for (MetalPointwiseFusionPlan.Binding binding : plan.bindings()) {
+                out.putInt(binding.stepOrdinal()).putInt(binding.argumentOrdinal())
+                        .putInt(binding.access().wire()).putInt(binding.materializedSlot())
+                        .putInt(binding.programValueIndex()).putInt(0);
+            }
+            for (int value : plan.materializedProgramValueIndices()) out.putInt(value);
+            for (MetalPointwiseFusionPlan.Instruction instruction : plan.instructions()) {
+                out.putInt(instruction.stepOrdinal())
+                        .putInt(instruction.relativeNodePosition())
+                        .putInt(instruction.opcode().wire())
+                        .putInt(1)
+                        .putInt(1)
+                        .putInt(instruction.inputSsa())
+                        .putInt(-1)
+                        .putInt(-1)
+                        .putInt(instruction.outputSsa())
+                        .putInt(0)
+                        .putInt(0)
+                        .putInt(0)
+                        .putLong(0L)
+                        .putLong(0L);
+            }
+            out.put(manifest).put(manifestDigest);
+        }
+        if (out.position() != layout.totalBytes) {
+            throw new AssertionError("program image size mismatch");
+        }
     }
 
     static long dropoutThreshold(long probabilityBits) {
@@ -1344,7 +1463,7 @@ final class MetalMpsGraphProgram {
             int strideCount,
             int referenceCount,
             int attributeCount) {}
-    private static int numericalProfileWireValue(NumericalProfile numericalProfile) {
+    static int numericalProfileWireValue(NumericalProfile numericalProfile) {
         return switch (numericalProfile) {
             case STRICT_IEEE -> STRICT_IEEE_PROFILE_WIRE;
             case ACCELERATOR -> ACCELERATOR_PROFILE_WIRE;

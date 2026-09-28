@@ -27,8 +27,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <p>Handles remain opaque carrier segments inside this package. Implementations consume each
  * successful context or buffer handle exactly once through its matching release call. The
- * schema-sixteen creator accepts zero feeds, while execution still binds every ordered live value
- * buffer. Java preflight independently authenticates the Task-0066 all-carrier affine/index
+ * schema-seventeen creator accepts zero feeds and compact materialized slots, while execution
+ * still binds every ordered live slot buffer. Java preflight independently authenticates the
+ * Task-0066 all-carrier affine/index
  * domains, all 36 casts, logical-versus-physical layouts, saved gradient roles, exact replacement
  * safety, fixed custom routing, and profile constraints before native entry. Native status failures
  * are unchecked and retain both the operation name and raw status value.
@@ -131,8 +132,8 @@ abstract class MetalNativeApi implements AutoCloseable {
      *
      * @param context non-null live context whose ownership remains with the caller
      * @param numericalProfile non-null cold plan profile used by Java fail-closed preflight
-     * @param values non-null explicit schema-sixteen value descriptors
-     * @param graphProgram non-null schema-sixteen typed node program
+     * @param values non-null explicit schema-seventeen value descriptors
+     * @param graphProgram non-null schema-seventeen typed node program
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
@@ -145,12 +146,38 @@ abstract class MetalNativeApi implements AutoCloseable {
             int[] feedValueIndices,
             int[] targetValueIndices,
             MetalPreparedRoute route) {
+        return createMpsGraphExecutable(
+                context,
+                numericalProfile,
+                values,
+                graphProgram,
+                feedValueIndices,
+                targetValueIndices,
+                route,
+                null);
+    }
+
+    final Handle createMpsGraphExecutable(
+            Handle context,
+            NumericalProfile numericalProfile,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            MetalMpsGraphProgram graphProgram,
+            int[] feedValueIndices,
+            int[] targetValueIndices,
+            MetalPreparedRoute route,
+            MetalPointwiseFusionPlan fusionPlan) {
         Objects.requireNonNull(context, "context");
         MpsGraphExecutableAbi.validateCreate(
                 numericalProfile, values, graphProgram, feedValueIndices, targetValueIndices, route);
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment image = graphProgram.encodeNative(
-                    arena, numericalProfile, values, feedValueIndices, targetValueIndices, route);
+                    arena,
+                    numericalProfile,
+                    values,
+                    feedValueIndices,
+                    targetValueIndices,
+                    route,
+                    fusionPlan);
             NativeCreateResult result = Objects.requireNonNull(
                     createMpsGraphExecutableNative(context, image),
                     "native executable create result");
@@ -162,7 +189,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * Performs one already validated ABI-v5 program-image create invocation synchronously.
      *
      * @param context non-null live context whose ownership remains with the caller
-     * @param programImage exact readable schema-sixteen image, valid only for this call
+     * @param programImage exact readable schema-seventeen image, valid only for this call
      * @return non-null raw status/output-cell result for checked interpretation
      */
     abstract NativeCreateResult createMpsGraphExecutableNative(
@@ -484,7 +511,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the schema-sixteen typed Metal program create contract. */
+    /** Exact Java preflight for the schema-seventeen typed Metal program create contract. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
         private static final long UINT32_MAX = 0xffff_ffffL;

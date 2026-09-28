@@ -88,17 +88,18 @@ validate the physical storage span before any write; selected materializing resu
 An eligible singleton NEG retains its dedicated custom route. Every occurrence selected by Task
 0066 wires `6..11,16..19,39..45,51,69,71..84` and the exact Task-0069 rank-one FLOAT32
 L1/ScatterAdd/VARIANCE occurrences at wires `114`, `70`, and `112` use the fixed shared
-`CUSTOM_PROGRAM` route with declared run-owned value buffers and one Java/native invocation; there
-is no selected-node MPSGraph fallback. ScatterAdd completes its INT32/INT64 index scan before any
-encoding or mutation, keeps duplicates in source order, raw-copies unaddressed cells, and closes
-the existing rank-one Gather data cotangent. Singleton VARIANCE dispatches one writer through
-exactly `DIV`, `SUB`, `MUL`, `DIV`, yielding positive zero for every finite input and NaN class for
-NaN or infinity. Current Metal uses ABI 5 with the same thirteen exports and one bounded schema-16
-route-bearing program image over type wires `1..6`, operation wires `1..115`, attribute wires
-`0..41`, and route wires `1..3`. Structural coverage is `101 / 14`; production capability is
-exactly `86 / 29`; route catalogs are `75 / 35 / 5` MPSGraph and `73 / 42 / 0` custom.
-Backend-local identities are version twenty-five, and identity twenty-four and every older
-identity fail closed.
+`CUSTOM_PROGRAM` route with compact run-owned materialized slots and one Java/native invocation;
+there is no selected-node MPSGraph fallback. ScatterAdd completes its INT32/INT64 index scan before
+any encoding or mutation, keeps duplicates in source order, raw-copies unaddressed cells, and
+closes the existing rank-one Gather data cotangent. Singleton VARIANCE dispatches one writer
+through exactly `DIV`, `SUB`, `MUL`, `DIV`, yielding positive zero for every finite input and NaN
+class for NaN or infinity. Eligible linear canonical FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains
+use bounded deterministic generated units without intermediate materialization. Current Metal uses
+ABI 5 with the same thirteen exports and one bounded schema-17 route-bearing program image over
+type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, and route wires `1..3`.
+Structural coverage is `101 / 14`; production capability is exactly `86 / 29`; route catalogs are
+`75 / 35 / 5` MPSGraph and `73 / 42 / 0` custom. Backend-local identities are version twenty-six,
+and every other identity fails closed.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over

@@ -68,7 +68,8 @@ def runtime_source() -> str:
             position = foundation.find(symbol)
         assert position > cursor
         cursor = position
-    assert "BOOL task0053_domain_approved = NO;" in foundation
+    assert "SynaptikTask0053CandidateKernelSource" not in foundation
+    assert "task0053_domain_approved" not in foundation
     return "".join(extract_component(path, symbol) for path, symbol in COMPONENTS)
 
 

@@ -173,8 +173,8 @@ obligations and remains historical. Task 0053 retained its integer-only candidat
 certificate, but is now Blocked on an unavailable pinned no-axiom constructive-real exponential
 bridge; its checkpoint review granted no `DOMAIN-PASS`. Tasks 0057 and 0058 are Complete without
 Task-0053 scope. Task 0051 reserved no production vocabulary; Task 0052 later
-consumed wires `20..34`, and current schema 16 still registers `EXP=55`/`SIGMOID=64` without making
-them executable.
+consumed wires `20..34`, and current schema 17 still registers `EXP=55`/`SIGMOID=64` without making
+them executable or importing their evidence-only candidate source.
 CPU requires no migration because its exact realizations remain valid members of the widened result
 set.
 
@@ -514,7 +514,7 @@ no production, native, test, or probe changes remain.
 is `Complete` at `42c4cfbf` plus `fb102a46` after the operation-by-operation DAZ/FTZ oracle, focused
 validation, combined serial checkpoint, and independent Class C approval all passed.
 
-Current Metal uses ABI 5, exactly thirteen exports, and one bounded schema-16 route-bearing program
+Current Metal uses ABI 5, exactly thirteen exports, and one bounded schema-17 route-bearing program
 image with the exact numerical-profile wire. Its common exact domain includes the documented unary,
 BOOL, Task-0059 movement, Task-0060 replacement/fold/aggregate, promoted integral MATMUL,
 Task-0063 ordering/top-K/arg-extrema, exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d, and
@@ -532,14 +532,17 @@ both Task-0065 random rows, and all three Task-0069 occurrences use the fixed cu
 Non-domain VARIANCE retains its existing direct structural recipe but remains production-false.
 MSE remains the fixed nested MPSGraph composition when a containing partition selects the custom
 program. Task-0063 through Task-0065 production rows, every selected Task-0066 occurrence, and all
-three exact Task-0069 occurrences are custom-only. A partition containing an exact custom node
-materializes each required logical value in a declared run-owned physical storage span and invokes
-one fixed shared custom-program native executable per hot run. Schema 16 carries type wires
-`1..6`, operation wires `1..115`, attribute wires `0..41`, route wire `2` or `3`, the exact
-numerical-profile wire, and complete storage-layout geometry; exactly 101 operation kinds are
-structurally executable and 86 are production-capable. Workload, policy, candidate, compatibility,
-route, and codec identities are version twenty-five; identity 24 and every older identity fail
-closed while candidate wires and the complete-plan wrapper remain stable.
+three exact Task-0069 occurrences are custom-only.
+
+A custom program declares only its compact authenticated materialized set. Eligible linear
+canonical no-gradient FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use deterministic bounded
+generated units of length `2..8`, with no intermediate slot; all barriers retain fixed custom or
+MPSGraph steps. Schema 17 carries type wires `1..6`, operation wires `1..115`, attribute wires
+`0..41`, route wire `2` or `3`, the exact numerical-profile wire, complete storage-layout geometry,
+and only for the custom route its canonical execution extension and manifest digest. Exactly 101
+operation kinds are structurally executable and 86 are production-capable. Workload, policy,
+candidate, compatibility, route, and codec identities are version twenty-six; every other identity
+fails closed while candidate wires and the complete-plan wrapper remain stable.
 
 Metal 0025 remains Complete at reviewed revision `f88066e3`; its schema-11/version-twelve facts are
 historical. Blocked 0026–0027/0030–0037/0039–0040 changed no executable capability. Complete 0041
@@ -753,10 +756,12 @@ mutation. One target thread retains duplicate updates in source order, raw-copie
 cells, and stores once without atomics. The same occurrence closes the existing compiler-generated
 rank-one Gather data cotangent.
 
-The Lean proof, source certificate, pinned runtime-source extraction, and Xcode 27.0 build
-27A266a/Metal 32023.921/macOS SDK 27.0 compiled-MSL/AIR audit cover all three slices. The current
-ledger is capability `86/29`, structural `101/14`, MPSGraph `75/35/5`, custom `73/42/0`, schema 16,
-ABI 5, thirteen exports, and identity 25. Identity 24 and every older identity fail closed.
+The Task-0069 Lean proof, source certificate, pinned runtime-source extraction, and Xcode 27.0 build
+27A266a/Metal 32023.921/macOS SDK 27.0 compiled-MSL/AIR audit cover all three aggregate slices.
+Task 0070 adds four universal raw-word proofs, an authenticated schema-1 pointwise generator,
+real-reflection and dispatch-observer evidence, and a separate compiled generated-MSL/AIR audit.
+The current ledger is capability `86/29`, structural `101/14`, MPSGraph `75/35/5`, custom
+`73/42/0`, schema 17, ABI 5, thirteen exports, and identity 26. Every other identity fails closed.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -865,16 +870,17 @@ canonical positive static FLOAT32 no-grad bias-free FORWARD RNN_TANH over the co
 valid-length domain. Complete Model 0030 now recursively reaches `ACCELERATOR` contractions,
 additions, tanh/sigmoid sites, and state arithmetic. The macOS-12.3 direct selector nevertheless
 has no INT64 valid-length input, atomic validation, skipped padded work, positive-zero padding
-contract, or `finalHidden`; its optional training output has the wrong role. Schema 16 now carries
-the complete variable-cardinality, multi-output, INT64, and numerical-profile vocabulary, but no
-custom recurrent loop or complete TANH/EXP/SIGMOID proof exists and Compiler still rejects BPTT.
+contract, or `finalHidden`; its optional training output has the wrong role. Schema 17 now carries
+the complete variable-cardinality, multi-output, INT64, numerical-profile, and custom execution-plan
+vocabulary, but no custom recurrent loop or complete TANH/EXP/SIGMOID proof exists and Compiler
+still rejects BPTT.
 Task 0065 keeps all
 three recurrent rows fail-closed rather than advertising a no-work or selected-value special case.
 
-Schema 16, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
-version-twenty-five identities are current after Task 0069 Slice 3; identity 24 and every older
-value fail closed. Complete Tasks 0055–0068 provide the prerequisites, while Task 0069 advances
-only the authorized L1, ScatterAdd, and singleton VARIANCE boundaries. Blocked Metal 0053 remains
+Schema 17, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
+version-twenty-six identities are current after Task 0070; every other schema or identity fails
+closed. Complete Tasks 0055–0068 provide the prerequisites, while Task 0069 advances only the
+authorized L1, ScatterAdd, and singleton VARIANCE boundaries. Blocked Metal 0053 remains
 fail-closed without production capability. Metal 0026/0027 remain separately finalized Blocked.
 Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model
 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit gate. Metal 0041 is

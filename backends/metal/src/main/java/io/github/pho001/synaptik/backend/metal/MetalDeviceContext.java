@@ -247,7 +247,9 @@ final class MetalDeviceContext implements AutoCloseable {
                     plan.graphProgram(),
                     plan.feedValueIndices(),
                     plan.targetValueIndices(),
-                    plan.route());
+                    plan.route(),
+                    plan.route() == MetalPreparedRoute.CUSTOM_PROGRAM
+                            ? plan.pointwiseFusionPlan() : null);
             long[] runInputBytes = plan.route()
                     == MetalPreparedRoute.CUSTOM_PROGRAM
                     ? plan.materializedValueRequiredBytes()
