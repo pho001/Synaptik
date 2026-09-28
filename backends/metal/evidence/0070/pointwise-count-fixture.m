@@ -59,6 +59,21 @@ int main(void) {
                 || strstr((const char *)bytes, expected_name) == NULL)
             return 3;
     }
+    SynaptikPointwiseStepRecord step = {
+        .kind = SYNAPTIK_POINTWISE_GENERATED_STEP,
+        .instruction_count = 2U,
+        .function_bytes = SynaptikPointwiseFunctionBytes(0U, instructions, 2U),
+    };
+    uint32_t generated_bytes =
+            SynaptikPointwiseGeneratedBytes(&step, 1U, instructions, 2U);
+    NSString *generated = SynaptikPointwiseGeneratedSource(
+            &step, 1U, instructions, 2U, generated_bytes);
+    if (generated == nil
+            || [generated rangeOfString:
+                    @"// synaptik pointwise fusion generator schema 2\n"].location
+                    == NSNotFound
+            || [generated rangeOfString:@"generator schema 1"].location != NSNotFound)
+        return 4;
     puts("Task 0070 pointwise source-count fixture passed");
     return 0;
 }

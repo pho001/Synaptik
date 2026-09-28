@@ -61,6 +61,22 @@ class MetalAnchorEpiloguePlannerTest {
     }
 
     @Test
+    void generalMatmulGeometryUsesOneAnchorAndMalformedShapesFailClosed() {
+        assertTrue(hasSingleMatmulAnchor(f32(3), f32(3, 2), f32(2), f32(2)));
+        assertTrue(hasSingleMatmulAnchor(f32(2, 3), f32(3), f32(2), f32(2)));
+        assertTrue(hasSingleMatmulAnchor(
+                f32(2, 2, 3), f32(3, 2), f32(2, 2, 2), f32(2)));
+        assertTrue(hasSingleDotScalarAnchor());
+        assertTrue(hasSingleMatmulAnchor(f32(3), f32(3), f32(), f32()));
+
+        assertFalse(hasSingleMatmulAnchor(f32(3), f32(4, 2), f32(2), f32(2)));
+        assertFalse(hasSingleMatmulAnchor(f32(2, 3), f32(3), f32(2, 1), f32(1)));
+        assertFalse(hasSingleMatmulAnchor(
+                f32(2, 2, 3), f32(4, 3, 2), f32(4, 2, 2), f32(2)));
+        assertFalse(hasSingleMatmulAnchor(f32(3), f32(3), f32(1), f32(1)));
+    }
+
+    @Test
     void convExternalAddUsesOrdinaryRightAlignedBroadcasting() {
         assertTrue(hasSingleConvAnchor(f32(3)));
         assertTrue(hasSingleConvAnchor(f32(1, 2, 1, 1)));
@@ -129,6 +145,42 @@ class MetalAnchorEpiloguePlannerTest {
 
         assertTrue(plan.steps().stream()
                 .noneMatch(step -> step.kind() == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE));
+    }
+
+    private static boolean hasSingleDotScalarAnchor() {
+        var values = List.of(f32(3), f32(3), f32(), f32(), f32());
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.matmul(0, 1, 2),
+                MetalMpsGraphProgram.Node.scalarValue(
+                        MetalMpsGraphProgram.NodeKind.SCALAR_MUL,
+                        2,
+                        3,
+                        0x4000_0000),
+                unary(MetalMpsGraphProgram.NodeKind.RELU, 3, 4)));
+        MetalPointwiseFusionPlan plan =
+                plan(program, values, new int[] {0, 1}, new int[] {4});
+        return plan.steps().size() == 1
+                && plan.steps().getFirst().kind()
+                        == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE
+                && plan.steps().getFirst().anchorKindWire() == 1;
+    }
+
+    private static boolean hasSingleMatmulAnchor(
+            MetalMpsGraphProgram.ValueDescriptor left,
+            MetalMpsGraphProgram.ValueDescriptor right,
+            MetalMpsGraphProgram.ValueDescriptor output,
+            MetalMpsGraphProgram.ValueDescriptor addend) {
+        var values = List.of(left, right, output, addend, output);
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.matmul(0, 1, 2),
+                MetalMpsGraphProgram.Node.binary(
+                        MetalMpsGraphProgram.NodeKind.ADD, 2, 3, 4)));
+        MetalPointwiseFusionPlan plan =
+                plan(program, values, new int[] {0, 1, 3}, new int[] {4});
+        return plan.steps().size() == 1
+                && plan.steps().getFirst().kind()
+                        == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE
+                && plan.steps().getFirst().anchorKindWire() == 1;
     }
 
     private static boolean hasSingleConvAnchor(MetalMpsGraphProgram.ValueDescriptor addend) {

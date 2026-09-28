@@ -30,5 +30,11 @@ xcrun --sdk macosx clang \
 cd "$ROOT"
 SYNAPTIK_METAL_TEST_LIBRARY="$FOUNDATION" \
 SYNAPTIK_METAL_TEST_OBSERVER="$OBSERVER" \
-  "$ROOT/gradlew" :backends:metal:test --rerun-tasks \
+  "$ROOT/gradlew" :backends:metal:test --rerun-tasks --no-build-cache \
+    --no-configuration-cache \
     --tests io.github.pho001.synaptik.backend.metal.MetalPointwiseDispatchObserverNativeTest
+
+TEST_CLASS="$ROOT/backends/metal/build/classes/java/test/io/github/pho001/synaptik/backend/metal/MetalPointwiseDispatchObserverNativeTest.class"
+TEST_SOURCE="$ROOT/backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalPointwiseDispatchObserverNativeTest.java"
+[ -f "$TEST_CLASS" ] || { printf '%s\n' "checkout-local observer class is absent: $TEST_CLASS" >&2; exit 1; }
+[ "$TEST_CLASS" -nt "$TEST_SOURCE" ] || { printf '%s\n' "observer class is not current for this checkout: $TEST_CLASS" >&2; exit 1; }

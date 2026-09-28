@@ -19,15 +19,17 @@ DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx metallib --version >"$WORK/met
 DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx --show-sdk-version >"$WORK/sdk-version.txt"
 DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx --show-sdk-build-version >"$WORK/sdk-build.txt"
 DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx --show-sdk-path >"$WORK/sdk-path.txt"
-DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx metal \
-  -std=metal3.2 -fno-fast-math -Wall -Wextra -Werror -isysroot "$SDK" \
-  -c .task0069-msl-audit/runtime-source.metal \
-  -o .task0069-msl-audit/runtime-source.air
-DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx metallib \
-  .task0069-msl-audit/runtime-source.air \
-  -o .task0069-msl-audit/runtime-source.metallib
-DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx metal-objdump \
-  -d .task0069-msl-audit/runtime-source.air >"$WORK/runtime-source.air.ll"
-DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx metal-nm \
-  .task0069-msl-audit/runtime-source.air >"$WORK/runtime-source.air.nm"
-python3 verify-compiled-msl-audit.py "$WORK"
+cat "$WORK/runtime-source.metal" | \
+  DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx metal \
+    -x metal -std=metal3.2 -fno-fast-math -Wall -Wextra -Werror -isysroot "$SDK" \
+    -c - -o "$WORK/runtime-source.air"
+(
+  cd "$WORK"
+  DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx metallib \
+    runtime-source.air -o runtime-source.metallib
+  DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx metal-objdump \
+    -d runtime-source.air >runtime-source.air.ll
+  DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx metal-nm \
+    runtime-source.air >runtime-source.air.nm
+)
+python3 "$EVIDENCE/verify-compiled-msl-audit.py" "$WORK"

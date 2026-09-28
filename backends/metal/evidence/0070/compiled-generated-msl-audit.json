@@ -40,8 +40,8 @@
   ],
   "artifacts": {
     "provider-inventory.json": {"bytes": 4798, "sha256": "3bd7ea954c5dfc7f49f61eb857c24ee9f6239c4911fcd52dd5cff8a977ab556a"},
-    "generated-fixtures.metal": {"bytes": 89472, "sha256": "f9ecfaa71793b5c03ba00e586f8fac49a55494458258dd7d51a110a9aa2a796f"},
-    "fixtures.json": {"bytes": 4006, "sha256": "291a58f4c25668f9b6c450215aa22d74eeb881d2d997ebd24d58eb0cfbe79eea"},
+    "generated-fixtures.metal": {"bytes": 89472, "sha256": "8b911dd671194ce11fdf01515793100855dbf54f0f906cb1fa089cd32297f877"},
+    "fixtures.json": {"bytes": 4006, "sha256": "19c51b5d0f385606b93ef610971c657524c99ad7a7bca4f762b90fc111e6b90e"},
     "generated-fixtures.air": {
       "referenceBytes": 117520,
       "referenceSha256": "9a7c64e6139065f4a69608123376fac071af5a3ac3a7e88b6843cb22a06dd7ab",

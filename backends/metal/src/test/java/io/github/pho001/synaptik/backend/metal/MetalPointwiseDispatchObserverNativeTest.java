@@ -317,6 +317,141 @@ class MetalPointwiseDispatchObserverNativeTest {
     }
 
     @Test
+    void generalMatmulAnchorsAreNumericalAndOnePhysicalDispatch() throws Throwable {
+        String libraryValue = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
+        String observerValue = System.getenv("SYNAPTIK_METAL_TEST_OBSERVER");
+        assumeTrue(libraryValue != null && !libraryValue.isBlank(),
+                "SYNAPTIK_METAL_TEST_LIBRARY is not set");
+        assumeTrue(observerValue != null && !observerValue.isBlank(),
+                "SYNAPTIK_METAL_TEST_OBSERVER is not set");
+        Path library = Path.of(libraryValue).toAbsolutePath().normalize();
+        Path observerLibrary = Path.of(observerValue).toAbsolutePath().normalize();
+        record MatmulCase(
+                long[] leftShape,
+                long[] rightShape,
+                long[] outputShape,
+                long[] addendShape,
+                int[] left,
+                int[] right,
+                int[] addend,
+                int[] expected) {}
+        List<MatmulCase> cases = List.of(
+                new MatmulCase(
+                        new long[] {3}, new long[] {3, 2}, new long[] {2}, new long[] {2},
+                        words(1, 2, 3), words(1, 2, 3, 4, 5, 6), words(10, -30),
+                        words(32, 0)),
+                new MatmulCase(
+                        new long[] {2, 3}, new long[] {3}, new long[] {2}, new long[] {2},
+                        words(1, 2, 3, 4, 5, 6), words(1, 2, 3), words(1, -40),
+                        words(15, 0)),
+                new MatmulCase(
+                        new long[] {2, 2, 3}, new long[] {3, 2},
+                        new long[] {2, 2, 2}, new long[] {2},
+                        words(1, 2, 3, 4, 5, 6, 2, 0, 1, 1, 3, 2),
+                        words(1, 0, 0, 1, 1, 1), words(10, -10),
+                        words(14, 0, 20, 1, 13, 0, 13, 0)),
+                new MatmulCase(
+                        new long[] {3}, new long[] {3}, new long[0], new long[0],
+                        words(1, 2, 3), words(4, 5, 6), words(-40), words(0)));
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.matmul(0, 1, 3),
+                MetalMpsGraphProgram.Node.binary(
+                        MetalMpsGraphProgram.NodeKind.ADD, 3, 2, 4),
+                unary(MetalMpsGraphProgram.NodeKind.RELU, 4, 5)));
+        int[] feeds = {0, 1, 2};
+        int[] targets = {5};
+        try (Observer observer = new Observer(observerLibrary)) {
+            for (MatmulCase testCase : cases) {
+                List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                        value(DataType.FLOAT32, testCase.leftShape()),
+                        value(DataType.FLOAT32, testCase.rightShape()),
+                        value(DataType.FLOAT32, testCase.addendShape()),
+                        value(DataType.FLOAT32, testCase.outputShape()),
+                        value(DataType.FLOAT32, testCase.outputShape()),
+                        value(DataType.FLOAT32, testCase.outputShape()));
+                MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
+                        NumericalProfile.ACCELERATOR,
+                        program,
+                        values,
+                        feeds,
+                        targets,
+                        MetalPreparedRoute.CUSTOM_PROGRAM);
+                assertEquals(
+                        MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE,
+                        fusion.steps().getFirst().kind());
+                observer.reset();
+                int[] actual = execute(
+                        library,
+                        NumericalProfile.ACCELERATOR,
+                        program,
+                        values,
+                        feeds,
+                        targets,
+                        fusion,
+                        List.of(testCase.left(), testCase.right(), testCase.addend()));
+                assertArrayEquals(testCase.expected(), actual);
+                assertEquals(1, observer.count());
+                assertEquals(
+                        MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE.wire(),
+                        observer.field(0, 1));
+            }
+        }
+    }
+
+    @Test
+    void scalarDotEpilogueIsNumericalAndOnePhysicalDispatch() throws Throwable {
+        String libraryValue = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
+        String observerValue = System.getenv("SYNAPTIK_METAL_TEST_OBSERVER");
+        assumeTrue(libraryValue != null && !libraryValue.isBlank(),
+                "SYNAPTIK_METAL_TEST_LIBRARY is not set");
+        assumeTrue(observerValue != null && !observerValue.isBlank(),
+                "SYNAPTIK_METAL_TEST_OBSERVER is not set");
+        Path library = Path.of(libraryValue).toAbsolutePath().normalize();
+        Path observerLibrary = Path.of(observerValue).toAbsolutePath().normalize();
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.matmul(0, 1, 2),
+                MetalMpsGraphProgram.Node.scalarValue(
+                        MetalMpsGraphProgram.NodeKind.SCALAR_MUL,
+                        2,
+                        3,
+                        0x4000_0000),
+                unary(MetalMpsGraphProgram.NodeKind.RELU, 3, 4)));
+        List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                value(DataType.FLOAT32, 3),
+                value(DataType.FLOAT32, 3),
+                value(DataType.FLOAT32),
+                value(DataType.FLOAT32),
+                value(DataType.FLOAT32));
+        int[] feeds = {0, 1};
+        int[] targets = {4};
+        MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
+                NumericalProfile.ACCELERATOR,
+                program,
+                values,
+                feeds,
+                targets,
+                MetalPreparedRoute.CUSTOM_PROGRAM);
+
+        try (Observer observer = new Observer(observerLibrary)) {
+            observer.reset();
+            int[] actual = execute(
+                    library,
+                    NumericalProfile.ACCELERATOR,
+                    program,
+                    values,
+                    feeds,
+                    targets,
+                    fusion,
+                    List.of(words(1, 2, 3), words(4, 5, 6)));
+            assertArrayEquals(words(64), actual);
+            assertEquals(1, observer.count());
+            assertEquals(
+                    MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE.wire(),
+                    observer.field(0, 1));
+        }
+    }
+
+    @Test
     void matmulAddOnlyAnchorMakesCustomRouteExecutable() throws Throwable {
         String libraryValue = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
         String observerValue = System.getenv("SYNAPTIK_METAL_TEST_OBSERVER");
@@ -568,6 +703,14 @@ class MetalPointwiseDispatchObserverNativeTest {
                     actual);
             assertEquals(1, observer.count());
         }
+    }
+
+    private static int[] words(float... values) {
+        int[] result = new int[values.length];
+        for (int index = 0; index < values.length; index++) {
+            result[index] = Float.floatToRawIntBits(values[index]);
+        }
+        return result;
     }
 
     private static MetalMpsGraphProgram.Node unary(

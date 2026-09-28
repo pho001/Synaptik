@@ -1341,8 +1341,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         TensorDescriptor input = inputs.getFirst();
-        return canonical(input)
-                && canonical(output)
+        boolean allowScalar = operation.kind() == UnaryElementwiseKind.RELU;
+        return input.dataType() == DataType.FLOAT32
+                && output.dataType() == DataType.FLOAT32
+                && canonicalAny(input, allowScalar)
+                && canonicalAny(output, allowScalar)
                 && input.shape().equals(output.shape())
                 && input.requiresGrad() == output.requiresGrad();
     }
@@ -1440,6 +1443,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         }
         TensorDescriptor left = inputs.get(0);
         TensorDescriptor right = inputs.get(1);
+        boolean scalarAdd = binary == BinaryArithmeticKind.ADD
+                && left.shape().rank() == 0
+                && right.shape().rank() == 0
+                && output.shape().rank() == 0;
         boolean scalarVectorMultiply = binary == BinaryArithmeticKind.MUL
                 && output.shape().rank() == 1
                 && ((left.shape().rank() == 0 && right.shape().rank() == 1)
@@ -1458,15 +1465,22 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                         : tensorScalarDivide
                                 || left.requiresGrad() == right.requiresGrad()
                                         && left.requiresGrad() == output.requiresGrad();
-        boolean storageValid = scalarVectorMultiply
-                ? canonicalReductionOutput(left)
-                        && canonicalReductionOutput(right)
-                        && canonical(output)
-                : tensorScalarDivide
-                        ? canonical(left)
+        boolean storageValid = scalarAdd
+                ? left.dataType() == DataType.FLOAT32
+                        && right.dataType() == DataType.FLOAT32
+                        && output.dataType() == DataType.FLOAT32
+                        && canonicalAny(left, true)
+                        && canonicalAny(right, true)
+                        && canonicalAny(output, true)
+                : scalarVectorMultiply
+                        ? canonicalReductionOutput(left)
                                 && canonicalReductionOutput(right)
                                 && canonical(output)
-                        : canonical(left) && canonical(right) && canonical(output);
+                        : tensorScalarDivide
+                                ? canonical(left)
+                                        && canonicalReductionOutput(right)
+                                        && canonical(output)
+                                : canonical(left) && canonical(right) && canonical(output);
         return storageValid
                 && gradientsValid
                 && ShapeBroadcast.broadcast(left.shape(), right.shape()).equals(output.shape());
@@ -1519,8 +1533,12 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         TensorDescriptor input = inputs.getFirst();
-        return canonical(input)
-                && canonical(output)
+        boolean allowScalar =
+                kind == ScalarElementwiseKind.MUL || kind == ScalarElementwiseKind.CLAMP;
+        return input.dataType() == DataType.FLOAT32
+                && output.dataType() == DataType.FLOAT32
+                && canonicalAny(input, allowScalar)
+                && canonicalAny(output, allowScalar)
                 && !input.requiresGrad()
                 && !output.requiresGrad()
                 && input.shape().equals(output.shape());
@@ -1860,6 +1878,12 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         long[] leftShape = left.shape().toLongArray();
         long[] rightShape = right.shape().toLongArray();
         long[] outputShape = output.shape().toLongArray();
+        return matmulShapeMatches(leftShape, rightShape, outputShape);
+    }
+
+    static boolean matmulShapeMatches(
+            long[] leftShape, long[] rightShape, long[] outputShape) {
+        if (leftShape.length == 0 || rightShape.length == 0) return false;
         int leftBatch = Math.max(0, leftShape.length - 2);
         int rightBatch = Math.max(0, rightShape.length - 2);
         int batchRank = Math.max(leftBatch, rightBatch);

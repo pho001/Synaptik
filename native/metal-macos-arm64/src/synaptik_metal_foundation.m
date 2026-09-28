@@ -548,6 +548,50 @@ static BOOL synaptik_anchor_broadcasts_to(
     }
     return YES;
 }
+static BOOL synaptik_matmul_dimensions_match(
+        uint32_t left_rank,
+        const uint64_t *left,
+        uint32_t right_rank,
+        const uint64_t *right,
+        uint32_t output_rank,
+        const uint64_t *output) {
+    if (left == NULL || right == NULL || output == NULL
+            || left_rank == 0U || right_rank == 0U
+            || left_rank > SYNAPTIK_MAX_RANK || right_rank > SYNAPTIK_MAX_RANK
+            || output_rank > SYNAPTIK_MAX_RANK)
+        return NO;
+    uint32_t left_batch = left_rank > 1U ? left_rank - 2U : 0U;
+    uint32_t right_batch = right_rank > 1U ? right_rank - 2U : 0U;
+    uint32_t batch_rank = MAX(left_batch, right_batch);
+    uint32_t expected_rank = batch_rank
+            + (left_rank > 1U ? 1U : 0U)
+            + (right_rank > 1U ? 1U : 0U);
+    if (output_rank != expected_rank
+            || left[left_rank - 1U]
+                    != right[right_rank == 1U ? 0U : right_rank - 2U])
+        return NO;
+    for (uint32_t axis = 0U; axis < batch_rank; axis++) {
+        int32_t left_axis =
+                (int32_t)axis - (int32_t)(batch_rank - left_batch);
+        int32_t right_axis =
+                (int32_t)axis - (int32_t)(batch_rank - right_batch);
+        uint64_t left_extent =
+                left_axis < 0 ? 1U : left[(uint32_t)left_axis];
+        uint64_t right_extent =
+                right_axis < 0 ? 1U : right[(uint32_t)right_axis];
+        if ((left_extent != right_extent
+                        && left_extent != 1U && right_extent != 1U)
+                || output[axis] != MAX(left_extent, right_extent))
+            return NO;
+    }
+    uint32_t output_axis = batch_rank;
+    if (left_rank > 1U
+            && output[output_axis++] != left[left_rank - 2U])
+        return NO;
+    return right_rank == 1U
+            || output[output_axis] == right[right_rank - 1U];
+}
+
 
 static uint32_t synaptik_anchor_consumer_count(
         uint32_t value,
@@ -624,13 +668,13 @@ static BOOL synaptik_validate_anchor_step(
         if (!carrier_types
                 || states[left] != SYNAPTIK_METAL_VALUE_CANONICAL
                 || states[right] != SYNAPTIK_METAL_VALUE_CANONICAL
-                || ranks[left] != 2U || ranks[right] != 2U || ranks[carrier] != 2U
-                || dimensions[(size_t)left * SYNAPTIK_MAX_RANK + 1U]
-                        != dimensions[(size_t)right * SYNAPTIK_MAX_RANK]
-                || dimensions[(size_t)carrier * SYNAPTIK_MAX_RANK]
-                        != dimensions[(size_t)left * SYNAPTIK_MAX_RANK]
-                || dimensions[(size_t)carrier * SYNAPTIK_MAX_RANK + 1U]
-                        != dimensions[(size_t)right * SYNAPTIK_MAX_RANK + 1U]
+                || !synaptik_matmul_dimensions_match(
+                        ranks[left],
+                        &dimensions[(size_t)left * SYNAPTIK_MAX_RANK],
+                        ranks[right],
+                        &dimensions[(size_t)right * SYNAPTIK_MAX_RANK],
+                        ranks[carrier],
+                        &dimensions[(size_t)carrier * SYNAPTIK_MAX_RANK])
                 || (mixed
                         ? left_gradient || right_gradient || anchor_gradient
                         : anchor_gradient != (left_gradient || right_gradient)))
@@ -3142,38 +3186,26 @@ static BOOL node_uses_custom_kernel(
 static BOOL matmul_shapes_match(
         MPSShape *left, MPSShape *right, MPSShape *output) {
     if (left == nil || right == nil || output == nil
-            || left.count == 0U || right.count == 0U)
+            || left.count > SYNAPTIK_MAX_RANK
+            || right.count > SYNAPTIK_MAX_RANK
+            || output.count > SYNAPTIK_MAX_RANK)
         return NO;
-    NSUInteger left_batch = left.count > 1U ? left.count - 2U : 0U;
-    NSUInteger right_batch = right.count > 1U ? right.count - 2U : 0U;
-    NSUInteger batch_rank = MAX(left_batch, right_batch);
-    NSUInteger expected_rank = batch_rank
-            + (left.count > 1U ? 1U : 0U)
-            + (right.count > 1U ? 1U : 0U);
-    if (output.count != expected_rank
-            || left[left.count - 1U].unsignedLongLongValue
-                    != right[right.count == 1U ? 0U : right.count - 2U]
-                            .unsignedLongLongValue)
-        return NO;
-    for (NSUInteger axis = 0U; axis < batch_rank; axis++) {
-        NSInteger left_axis = (NSInteger)axis - (NSInteger)(batch_rank - left_batch);
-        NSInteger right_axis = (NSInteger)axis - (NSInteger)(batch_rank - right_batch);
-        uint64_t left_extent = left_axis < 0
-                ? 1U : left[(NSUInteger)left_axis].unsignedLongLongValue;
-        uint64_t right_extent = right_axis < 0
-                ? 1U : right[(NSUInteger)right_axis].unsignedLongLongValue;
-        if ((left_extent != right_extent && left_extent != 1U && right_extent != 1U)
-                || output[axis].unsignedLongLongValue != MAX(left_extent, right_extent))
-            return NO;
-    }
-    NSUInteger output_axis = batch_rank;
-    if (left.count > 1U
-            && output[output_axis++].unsignedLongLongValue
-                    != left[left.count - 2U].unsignedLongLongValue)
-        return NO;
-    return right.count == 1U
-            || output[output_axis].unsignedLongLongValue
-                    == right[right.count - 1U].unsignedLongLongValue;
+    uint64_t left_dimensions[SYNAPTIK_MAX_RANK] = {0};
+    uint64_t right_dimensions[SYNAPTIK_MAX_RANK] = {0};
+    uint64_t output_dimensions[SYNAPTIK_MAX_RANK] = {0};
+    for (NSUInteger axis = 0U; axis < left.count; axis++)
+        left_dimensions[axis] = left[axis].unsignedLongLongValue;
+    for (NSUInteger axis = 0U; axis < right.count; axis++)
+        right_dimensions[axis] = right[axis].unsignedLongLongValue;
+    for (NSUInteger axis = 0U; axis < output.count; axis++)
+        output_dimensions[axis] = output[axis].unsignedLongLongValue;
+    return synaptik_matmul_dimensions_match(
+            (uint32_t)left.count,
+            left_dimensions,
+            (uint32_t)right.count,
+            right_dimensions,
+            (uint32_t)output.count,
+            output_dimensions);
 }
 
 static BOOL node_is_last_two_transpose(
@@ -4851,12 +4883,18 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_CUSTOM_FLOOR:
                 case SYNAPTIK_METAL_CUSTOM_CEIL:
                 case SYNAPTIK_METAL_CUSTOM_SIGN:
-                case SYNAPTIK_METAL_CUSTOM_RELU:
                     if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
                             || node.second_input != UINT32_MAX
                             || !node_has_no_attributes(node)
                             || shapes[node.first_input].count == 0U
                             || shapes[node.output].count == 0U
+                            || ![shapes[node.first_input] isEqualToArray:shapes[node.output]])
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    break;
+                case SYNAPTIK_METAL_CUSTOM_RELU:
+                    if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                            || node.second_input != UINT32_MAX
+                            || !node_has_no_attributes(node)
                             || ![shapes[node.first_input] isEqualToArray:shapes[node.output]])
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     break;
@@ -8154,7 +8192,10 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                         program + values_offset + (uint64_t)output_value * 40U + 16U);
                 if ((input_flags & 1U) != 0U || (output_flags & 1U) != 0U)
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-                if (value_ranks[input_value] == 0U || value_ranks[output_value] == 0U)
+                if ((operation != SYNAPTIK_METAL_MPSGRAPH_SCALAR_MUL
+                                || route == SYNAPTIK_METAL_ROUTE_MPSGRAPH)
+                        && (value_ranks[input_value] == 0U
+                                || value_ranks[output_value] == 0U))
                     return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
             }
             if (operation == SYNAPTIK_METAL_MPSGRAPH_MSE) {

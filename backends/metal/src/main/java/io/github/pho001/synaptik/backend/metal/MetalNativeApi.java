@@ -772,23 +772,36 @@ abstract class MetalNativeApi implements AutoCloseable {
                             requireShape(
                                     sameShape(left, output, valueRanks, valueDimensions),
                                     node.kind() + " input/output shapes must match exactly");
-          case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV, RECIPROCAL ->
-              requireShape(
-                  valueRanks[left] >= 1
-                      && valueRanks[output] >= 1
-                      && sameShape(left, output, valueRanks, valueDimensions),
-                  node.kind() + " input/output must be no-grad matching positive ranks");
-                    case FLOOR, CEIL, SIGN, RELU ->
+                    case SCALAR_ADD, SCALAR_SUB, SCALAR_DIV, RECIPROCAL ->
                             requireShape(
                                     valueRanks[left] >= 1
                                             && valueRanks[output] >= 1
                                             && sameShape(
-                                                    left,
-                                                    output,
-                                                    valueRanks,
-                                                    valueDimensions),
+                                                    left, output, valueRanks, valueDimensions),
+                                    node.kind()
+                                            + " input/output must be no-grad matching positive ranks");
+                    case SCALAR_MUL ->
+                            requireShape(
+                                    sameShape(left, output, valueRanks, valueDimensions)
+                                            && (route != MetalPreparedRoute.MPSGRAPH
+                                                    || valueRanks[left] >= 1
+                                                            && valueRanks[output] >= 1),
+                                    "SCALAR_MUL input/output shape is unsupported");
+                    case FLOOR, CEIL, SIGN ->
+                            requireShape(
+                                    valueRanks[left] >= 1
+                                            && valueRanks[output] >= 1
+                                            && sameShape(
+                                                    left, output, valueRanks, valueDimensions),
                                     node.kind()
                                             + " input/output must have matching positive ranks");
+                    case RELU ->
+                            requireShape(
+                                    sameShape(left, output, valueRanks, valueDimensions)
+                                            && (route != MetalPreparedRoute.MPSGRAPH
+                                                    || valueRanks[left] >= 1
+                                                            && valueRanks[output] >= 1),
+                                    "RELU input/output shape is unsupported");
                     case IS_FINITE, IS_NAN, IS_INF, LOGICAL_NOT ->
                             requireShape( sameShape(left, output, valueRanks, valueDimensions),
                                     node.kind()

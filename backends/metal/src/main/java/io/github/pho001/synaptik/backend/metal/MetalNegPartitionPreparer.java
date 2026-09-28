@@ -528,9 +528,10 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         Optional<PreparationResourceRequirement.Workspace> selectedWorkspace = workspace(
                 route, feeds.size(), targets.size(), materializedCount);
         MetalTraceProducer traceProducer = context.backendInputs().traceProducer();
-        MetalTraceProducer.PreparedUnit traceUnit = traceProducer == null
-                ? null
-                : traceProducer.prepareUnit(
+        MetalTraceProducer.PreparedUnit traceUnit =
+                traceProducer == null || !traceProducer.enabled()
+                        ? null
+                        : traceProducer.prepareUnit(
                         context.numericalProfile(),
                         route,
                         graphProgram,
@@ -538,7 +539,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         feedIndices,
                         targetIndices,
                         internalValues.size());
-        var plan = traceProducer == null && route == heuristicPlan.route()
+        var plan = traceUnit == null && route == heuristicPlan.route()
                 ? heuristicPlan
                 : new MetalNegPreparationPlan(
                         context.numericalProfile(),

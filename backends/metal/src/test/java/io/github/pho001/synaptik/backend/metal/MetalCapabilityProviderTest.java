@@ -1115,11 +1115,13 @@ class MetalCapabilityProviderTest {
                 assertFalse(provider.supports(unaryQuery(profile, kind, offset, offset)));
                 assertFalse(provider.supports(unaryQuery(profile, kind, view, valid)));
                 assertFalse(provider.supports(unaryQuery(profile, kind, strided, strided)));
-                assertFalse(provider.supports(unaryQuery(
-                        profile,
-                        kind,
-                        descriptor(Shape.of(), false),
-                        descriptor(Shape.of(), false))));
+                assertEquals(
+                        kind == UnaryElementwiseKind.RELU,
+                        provider.supports(unaryQuery(
+                                profile,
+                                kind,
+                                descriptor(Shape.of(), false),
+                                descriptor(Shape.of(), false))));
                 assertFalse(provider.supports(unaryQuery(
                         profile, kind, descriptor(rank17, false), descriptor(rank17, false))));
             }
@@ -1165,7 +1167,7 @@ class MetalCapabilityProviderTest {
                 float64,
                 float64)));
         TensorDescriptor scalarRank = descriptor(Shape.of(), false);
-        assertFalse(provider.supports(binaryQuery(
+        assertTrue(provider.supports(binaryQuery(
                 NumericalProfile.ACCELERATOR,
                 BinaryArithmeticKind.ADD,
                 scalarRank,

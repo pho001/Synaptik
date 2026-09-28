@@ -410,6 +410,61 @@ class MetalTraceProducerTest {
     }
 
     @Test
+    void anchorCapOverflowReportsBoundedComposedSourceFacts() {
+        var nodes = new ArrayList<MetalMpsGraphProgram.Node>();
+        var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+        int[] feeds = new int[MetalPointwiseFusionPlan.MAX_ANCHOR_UNITS * 2 + 2];
+        int[] targets = new int[MetalPointwiseFusionPlan.MAX_ANCHOR_UNITS + 1];
+        for (int anchor = 0; anchor <= MetalPointwiseFusionPlan.MAX_ANCHOR_UNITS; anchor++) {
+            int value = anchor * 4;
+            values.add(traceValue(1, 1));
+            values.add(traceValue(1, 1));
+            values.add(traceValue(1, 1));
+            values.add(traceValue(1, 1));
+            feeds[anchor * 2] = value;
+            feeds[anchor * 2 + 1] = value + 1;
+            targets[anchor] = value + 3;
+            nodes.add(MetalMpsGraphProgram.Node.matmul(value, value + 1, value + 2));
+            nodes.add(MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.RELU,
+                    new int[] {value + 2},
+                    new int[] {value + 3},
+                    MetalMpsGraphProgram.AttributeKind.NONE,
+                    new long[0]));
+        }
+        List<TraceEvent<? extends TracePayload>> events = new ArrayList<>();
+        var producer = new MetalTraceProducer(events::add);
+
+        MetalTraceProducer.PreparedUnit unit = producer.prepareUnit(
+                NumericalProfile.ACCELERATOR,
+                MetalPreparedRoute.CUSTOM_PROGRAM,
+                new MetalMpsGraphProgram(nodes),
+                values,
+                feeds,
+                targets,
+                0);
+
+        assertNotNull(unit);
+        MetalPreparationStructure structure =
+                (MetalPreparationStructure) events.getFirst().payload();
+        assertEquals(MetalPreparationStructure.AnchorFamily.MATMUL, structure.anchorFamily());
+        assertEquals(
+                MetalPreparationStructure.AnchorDisposition.COMPOSED,
+                structure.anchorDisposition());
+        assertEquals(MetalPointwiseFusionPlan.MAX_ANCHOR_UNITS + 1, structure.anchorCount());
+        assertEquals(
+                (MetalPointwiseFusionPlan.MAX_ANCHOR_UNITS + 1) * 2,
+                structure.anchorMemberCount());
+        assertEquals(
+                MetalPreparationStructure.EpilogueOrder.MULTIPLE,
+                structure.epilogueOrder());
+        assertEquals(
+                MetalPreparationStructure.EpilogueTerminal.MULTIPLE,
+                structure.terminal());
+        assertTrue(structure.plannedCustomStepsTruncated());
+    }
+
+    @Test
     void structuralCallbackRuntimeAndErrorFailuresDisableWithoutEscaping() {
         AtomicInteger runtimeCallbacks = new AtomicInteger();
         var runtimeProducer = new MetalTraceProducer(event -> {

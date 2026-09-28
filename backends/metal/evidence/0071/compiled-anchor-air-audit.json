@@ -1,12 +1,12 @@
 {
   "artifacts": {
     "air": {
-      "bytes": 109776,
-      "sha256": "6465300b3d1ebc9e5736c9bc6b6c317628e50d9c89a41cef4f25f89e5ecefbec"
+      "bytes": 109424,
+      "sha256": "0910cf65f5205bcbd8016abd3a252d81b751b88dd681b65f8b73c374bd91da67"
     },
     "ir": {
-      "bytes": 811150,
-      "sha256": "6666dcbb5ee85c1974c842920a9fdf0bb5d2925a25fe32d049b841f9bef61840"
+      "bytes": 810710,
+      "sha256": "1c46f000888ed7bafaf0490fde1e957a594320521474f6ead32f4ccb9a4c6a6f"
     },
     "kernelHeader": {
       "bytes": 7348,
@@ -26,13 +26,17 @@
     }
   },
   "compilerFlags": [
+    "-x",
+    "metal",
     "-std=metal3.2",
     "-fno-fast-math",
     "-Wall",
     "-Wextra",
     "-Werror",
     "-isysroot",
-    "<MacOSX27.0.sdk>"
+    "<MacOSX27.0.sdk>",
+    "-c",
+    "<stdin>"
   ],
   "kernelBodies": [
     {

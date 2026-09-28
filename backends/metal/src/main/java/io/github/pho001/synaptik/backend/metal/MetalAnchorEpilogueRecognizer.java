@@ -17,6 +17,25 @@ final class MetalAnchorEpilogueRecognizer {
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] targets) {
+        List<MetalAnchorEpilogue> result =
+                recognizeBounded(numericalProfile, program, values, targets);
+        return result.size() <= MetalPointwiseFusionPlan.MAX_ANCHOR_UNITS
+                ? result : List.of();
+    }
+
+    static List<MetalAnchorEpilogue> recognizeForDiagnostics(
+            NumericalProfile numericalProfile,
+            MetalMpsGraphProgram program,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            int[] targets) {
+        return recognizeBounded(numericalProfile, program, values, targets);
+    }
+
+    private static List<MetalAnchorEpilogue> recognizeBounded(
+            NumericalProfile numericalProfile,
+            MetalMpsGraphProgram program,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            int[] targets) {
         Objects.requireNonNull(numericalProfile, "numericalProfile");
         Objects.requireNonNull(program, "program");
         List<MetalMpsGraphProgram.ValueDescriptor> descriptors = List.copyOf(values);
@@ -35,7 +54,8 @@ final class MetalAnchorEpilogueRecognizer {
             target[value] = true;
         }
 
-        var result = new ArrayList<MetalAnchorEpilogue>();
+        var result = new ArrayList<MetalAnchorEpilogue>(
+                Math.min(nodes.size(), MetalPointwiseFusionPlan.MAX_ANCHOR_UNITS + 1));
         int position = 0;
         while (position < nodes.size()) {
             MetalMpsGraphProgram.Node anchor = nodes.get(position);
@@ -47,10 +67,10 @@ final class MetalAnchorEpilogueRecognizer {
             } else {
                 result.add(candidate);
                 position += candidate.memberCount();
+                if (result.size() > MetalPointwiseFusionPlan.MAX_ANCHOR_UNITS) break;
             }
         }
-        return result.size() <= MetalPointwiseFusionPlan.MAX_ANCHOR_UNITS
-                ? List.copyOf(result) : List.of();
+        return List.copyOf(result);
     }
 
     private static MetalAnchorEpilogue recognizeAt(
@@ -151,7 +171,8 @@ final class MetalAnchorEpilogueRecognizer {
                             && right.dataType() == DataType.FLOAT32;
             boolean mixed = left.dataType() != right.dataType();
             if (carriers
-                    && matmulShapes(left, right, output)
+                    && MetalCapabilityProvider.matmulShapeMatches(
+                            left.dimensions(), right.dimensions(), output.dimensions())
                     && canonical(left)
                     && canonical(right)
                     && canonicalFloat32(output)
@@ -175,20 +196,6 @@ final class MetalAnchorEpilogueRecognizer {
         return null;
     }
 
-    private static boolean matmulShapes(
-            MetalMpsGraphProgram.ValueDescriptor left,
-            MetalMpsGraphProgram.ValueDescriptor right,
-            MetalMpsGraphProgram.ValueDescriptor output) {
-        long[] leftShape = left.dimensions();
-        long[] rightShape = right.dimensions();
-        long[] outputShape = output.dimensions();
-        return leftShape.length == 2
-                && rightShape.length == 2
-                && outputShape.length == 2
-                && leftShape[1] == rightShape[0]
-                && outputShape[0] == leftShape[0]
-                && outputShape[1] == rightShape[1];
-    }
 
     private static boolean convolutionCarriers(
             MetalMpsGraphProgram.Node node,

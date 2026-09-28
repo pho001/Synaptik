@@ -14,6 +14,8 @@
     "sdkPath": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk"
   },
   "options": [
+    "-x",
+    "metal",
     "-std=metal3.2",
     "-fno-fast-math",
     "-Wall",
@@ -21,7 +23,8 @@
     "-Werror",
     "-isysroot",
     "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk",
-    "-c"
+    "-c",
+    "<stdin>"
   ],
   "runtimeCompilerSite": {
     "api": "MTLDevice.newLibraryWithSource",
@@ -32,15 +35,28 @@
   "artifacts": {
     "source": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.metal",
+      "bytes": 84541,
       "sha256": "5e7d65bfc46f52532781a3730aeda2202b798022b61fb60ea5beeb95307e77bb"
     },
     "air": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.air",
-      "sha256": "e4c43bb7d5de93a97d555e4cbacaaebd514b948978815072180417794793f6e3"
+      "bytes": 109424,
+      "sha256": "0910cf65f5205bcbd8016abd3a252d81b751b88dd681b65f8b73c374bd91da67"
     },
     "metallib": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.metallib",
+      "bytes": 486686,
       "sha256": "b09ead23c20e4b9c1de200e4176914aa08642e4f68edf218ef79bb97659b8d1e"
+    },
+    "ir": {
+      "path": "ephemeral/.task0069-msl-audit/runtime-source.air.ll",
+      "bytes": 810710,
+      "sha256": "22f73e62f6643bff79becdca57266286e326b252adcbe298a58523ddae26c33d"
+    },
+    "symbols": {
+      "path": "ephemeral/.task0069-msl-audit/runtime-source.air.nm",
+      "bytes": 3861,
+      "sha256": "6a12a9f4325f41788d2c788a6662c198cdfca4af686218481089db0e7e2b896e"
     }
   },
   "compiledAirAudit": {

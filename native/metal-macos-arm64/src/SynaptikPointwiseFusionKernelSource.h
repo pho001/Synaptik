@@ -226,7 +226,7 @@ static inline BOOL SynaptikPointwiseEmitGeneratedSource(
     if (generated_units != 0U
             && !SynaptikPointwiseSinkWrite(
                 sink,
-                "\n// synaptik pointwise fusion generator schema 1\n",
+                "\n// synaptik pointwise fusion generator schema 2\n",
                 SYNAPTIK_POINTWISE_GENERATED_PREAMBLE_BYTES))
         return NO;
     for (uint32_t step = 0U; step < step_count; step++) {

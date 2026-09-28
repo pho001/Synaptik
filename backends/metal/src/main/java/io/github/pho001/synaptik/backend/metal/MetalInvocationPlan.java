@@ -7,7 +7,12 @@ import io.github.pho001.synaptik.trace.payload.TraceRouteKind;
 import java.util.List;
 import java.util.Objects;
 
-/** Bounded binding and plan facts emitted immediately before one Metal native run call. */
+/**
+ * Bounded binding and plan facts emitted immediately before one Metal native run call.
+ *
+ * <p>Splat count and bytes describe the representations actually bound by this invocation, not
+ * which executable first owns a shared prepared splat resource.
+ */
 public record MetalInvocationPlan(
         TracePreparedUnitId preparedUnitId,
         TraceInvocationId invocationId,

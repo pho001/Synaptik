@@ -184,6 +184,11 @@ def main() -> None:
     require(hashlib.sha256(fixed).hexdigest() == MANIFEST["fixedCorpus"]["sha256"], "fixed corpus hash drift")
     require(source.count("kernel void synaptik_pw_g1_s") == len(MANIFEST["fixtures"]), "generated function count drift")
     require("#include <metal_stdlib>\nusing namespace metal;\n" in source, "generated source prefix absent")
+    require(
+        "// synaptik pointwise fusion generator schema 2\n" in source
+        and "generator schema 1" not in source,
+        "generated source schema marker drift",
+    )
     generated = source[MANIFEST["fixedCorpus"]["bytes"]:]
     require(
         hashlib.sha256(generated.encode("utf-8")).hexdigest()

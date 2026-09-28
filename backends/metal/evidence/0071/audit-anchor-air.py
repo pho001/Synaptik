@@ -127,6 +127,8 @@ def observation(work: Path) -> dict:
     return {
         "schema": "synaptik.metal.anchor-epilogue-air-audit.v1",
         "compilerFlags": [
+            "-x",
+            "metal",
             "-std=metal3.2",
             "-fno-fast-math",
             "-Wall",
@@ -134,6 +136,8 @@ def observation(work: Path) -> dict:
             "-Werror",
             "-isysroot",
             "<MacOSX27.0.sdk>",
+            "-c",
+            "<stdin>",
         ],
         "runtimeMathMode": "MTLMathModeSafe",
         "targetTriple": triple.group(1),

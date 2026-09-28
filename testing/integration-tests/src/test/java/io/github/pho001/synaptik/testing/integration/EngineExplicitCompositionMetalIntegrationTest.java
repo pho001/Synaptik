@@ -999,6 +999,118 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
+    void acceleratorMetalEngineRunsGeneralFusedMatmulGeometryAsOnePlannedDispatch() {
+        Path library = configuredMetalLibrary();
+        List<ObservedTrace> events = new CopyOnWriteArrayList<>();
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.numericalProfile(NumericalProfile.ACCELERATOR);
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library), traceCollector(events)));
+            try (Engine engine = builder.build()) {
+                assertFusedMatmulCase(
+                        engine,
+                        events,
+                        nativeTensor(descriptor(Shape.of(3)), arena, 1, 2, 3),
+                        nativeTensor(descriptor(Shape.of(3, 2)), arena, 1, 2, 3, 4, 5, 6),
+                        nativeTensor(descriptor(Shape.of(2)), arena, 10, -30),
+                        new float[] {32, 0});
+                assertFusedMatmulCase(
+                        engine,
+                        events,
+                        nativeTensor(descriptor(Shape.of(2, 3)), arena, 1, 2, 3, 4, 5, 6),
+                        nativeTensor(descriptor(Shape.of(3)), arena, 1, 2, 3),
+                        nativeTensor(descriptor(Shape.of(2)), arena, 1, -40),
+                        new float[] {15, 0});
+                assertFusedMatmulCase(
+                        engine,
+                        events,
+                        nativeTensor(
+                                descriptor(Shape.of(2, 2, 3)),
+                                arena,
+                                1, 2, 3, 4, 5, 6, 2, 0, 1, 1, 3, 2),
+                        nativeTensor(descriptor(Shape.of(3, 2)), arena, 1, 0, 0, 1, 1, 1),
+                        nativeTensor(descriptor(Shape.of(2)), arena, 10, -10),
+                        new float[] {14, 0, 20, 1, 13, 0, 13, 0});
+                assertFusedMatmulCase(
+                        engine,
+                        events,
+                        nativeTensor(descriptor(Shape.of(3)), arena, 1, 2, 3),
+                        nativeTensor(descriptor(Shape.of(3)), arena, 4, 5, 6),
+                        nativeTensor(descriptor(Shape.scalar()), arena, -40),
+                        new float[] {0});
+                assertFusedScalarDotCase(
+                        engine,
+                        events,
+                        nativeTensor(descriptor(Shape.of(3)), arena, 1, 2, 3),
+                        nativeTensor(descriptor(Shape.of(3)), arena, 4, 5, 6));
+            }
+        }
+    }
+
+    private static void assertFusedMatmulCase(
+            Engine engine,
+            List<ObservedTrace> events,
+            Tensor left,
+            Tensor right,
+            Tensor addend,
+            float[] expected) {
+        events.clear();
+        Tensor output = left.matmul(right).add(addend).relu();
+        var compiled = engine.compile(List.of(output));
+        assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled));
+        try (InferenceSession session = engine.session(compiled);
+                var result = session.run(List.of(left, right, addend))) {
+            int[] expectedBits = new int[expected.length];
+            for (int index = 0; index < expected.length; index++) {
+                expectedBits[index] = Float.floatToRawIntBits(expected[index]);
+            }
+            assertArrayEquals(
+                    expectedBits,
+                    rawBits(result.materialize(
+                            result.publications().getFirst(),
+                            (long) expected.length * Float.BYTES).bytes(), expected.length));
+        }
+        assertEquals(4, events.size());
+        assertEquals("MATMUL", enumName(component(events.get(0).payload(), "anchorFamily")));
+        assertEquals("FUSED", enumName(component(
+                events.get(0).payload(), "anchorDisposition")));
+        @SuppressWarnings("unchecked")
+        List<Object> steps =
+                (List<Object>) component(events.get(2).payload(), "plannedCustomSteps");
+        assertEquals(1, steps.size());
+        assertEquals("ANCHOR_EPILOGUE", enumName(component(steps.getFirst(), "kind")));
+    }
+
+    private static void assertFusedScalarDotCase(
+            Engine engine,
+            List<ObservedTrace> events,
+            Tensor left,
+            Tensor right) {
+        events.clear();
+        Tensor output = left.matmul(right)
+                .mul(ScalarValue.float32(2.0f))
+                .relu();
+        var compiled = engine.compile(List.of(output));
+        assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled));
+        try (InferenceSession session = engine.session(compiled);
+                var result = session.run(List.of(left, right))) {
+            assertArrayEquals(
+                    new int[] {Float.floatToRawIntBits(64.0f)},
+                    rawBits(result.materialize(
+                            result.publications().getFirst(), Float.BYTES).bytes(), 1));
+        }
+        assertEquals(4, events.size());
+        assertEquals("SCALAR_RELU", enumName(component(
+                events.get(0).payload(), "epilogueOrder")));
+        @SuppressWarnings("unchecked")
+        List<Object> steps =
+                (List<Object>) component(events.get(2).payload(), "plannedCustomSteps");
+        assertEquals(1, steps.size());
+        assertEquals("ANCHOR_EPILOGUE", enumName(component(steps.getFirst(), "kind")));
+    }
+
+    @Test
     void acceleratorMetalEngineRunsNoGradScalarArithmeticAndReciprocal() {
         Path library = configuredMetalLibrary();
         int[] inputBits = {

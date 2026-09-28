@@ -7,7 +7,14 @@ import io.github.pho001.synaptik.trace.payload.TraceRouteKind;
 import java.util.List;
 import java.util.Objects;
 
-/** Bounded, data-free structural facts for one finalized Metal preparation plan. */
+/**
+ * Bounded, data-free structural facts for one finalized Metal preparation plan.
+ *
+ * <p>{@link #anchorCount()} is bounded by the fusion cap plus one. The value
+ * {@code MAX_ANCHOR_UNITS + 1} is the exceeded-cap sentinel and means at least that many eligible
+ * source anchors were observed; {@link #anchorMemberCount()} then covers exactly those bounded
+ * diagnostic anchors. Fusion admission remains all-or-none at the lower cap.
+ */
 public record MetalPreparationStructure(
         TracePreparedUnitId preparedUnitId,
         TraceNumericalProfile profile,

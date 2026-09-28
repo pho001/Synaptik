@@ -137,6 +137,10 @@ class MetalMpsGraphRawAbiNativeTest {
 
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(0, abi.create(valid, valid.length));
+            assertEquals(
+                    1,
+                    abi.create(rewriteInt(valid, 24, 1), valid.length),
+                    "predecessor generator schema must remain rejected");
             int secondNodeOffset = nodeOffset(3) + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES;
             byte[] generatedNegMember = rewriteInt(
                     valid,
@@ -156,6 +160,52 @@ class MetalMpsGraphRawAbiNativeTest {
                     "valid ABS node cannot inhabit a generated member range");
             for (byte[] image : malformed)
                 assertEquals(1, abi.create(image, image.length));
+        }
+    }
+
+    @Test
+    void nativeGeneralMatmulAnchorRejectsMalformedContractionGeometry() throws Throwable {
+        Path library = configuredLibrary();
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.matmul(0, 1, 2),
+                MetalMpsGraphProgram.Node.binary(
+                        MetalMpsGraphProgram.NodeKind.ADD, 2, 3, 4)));
+        List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                descriptor(3),
+                descriptor(3, 2),
+                descriptor(2),
+                descriptor(2),
+                descriptor(2));
+        int[] feeds = {0, 1, 3};
+        int[] targets = {4};
+        MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
+                NumericalProfile.ACCELERATOR,
+                program,
+                values,
+                feeds,
+                targets,
+                MetalPreparedRoute.CUSTOM_PROGRAM);
+        byte[] valid = program.encodedProgramImage(
+                NumericalProfile.ACCELERATOR,
+                values,
+                feeds,
+                targets,
+                MetalPreparedRoute.CUSTOM_PROGRAM,
+                fusion);
+        int dimensionsOffset = MetalMpsGraphProgram.HEADER_BYTES
+                + values.size() * MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES
+                + program.nodes().size() * MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES;
+        byte[] malformed = rewriteLong(valid, dimensionsOffset + Long.BYTES, 4L);
+        malformed = rewriteLong(
+                malformed,
+                MetalMpsGraphProgram.HEADER_BYTES
+                        + MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES
+                        + 32,
+                8L);
+
+        try (RawAbi abi = new RawAbi(library)) {
+            assertEquals(0, abi.create(valid, valid.length));
+            assertEquals(1, abi.create(malformed, malformed.length));
         }
     }
 
@@ -435,8 +485,7 @@ class MetalMpsGraphRawAbiNativeTest {
             for (MetalMpsGraphProgram.NodeKind kind : List.of(
                     MetalMpsGraphProgram.NodeKind.FLOOR,
                     MetalMpsGraphProgram.NodeKind.CEIL,
-                    MetalMpsGraphProgram.NodeKind.SIGN,
-                    MetalMpsGraphProgram.NodeKind.RELU)) {
+                    MetalMpsGraphProgram.NodeKind.SIGN)) {
                 var node = MetalMpsGraphProgram.Node.generic(
                         kind,
                         new int[] {0},
@@ -711,7 +760,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void javaAndNativeRejectGradOrScalarShapeForAdmittedScalarRecipes() throws Throwable {
+    void javaAndNativeRejectGradAndDisallowedScalarShapesForScalarRecipes() throws Throwable {
         Path library = configuredLibrary();
         try (RawAbi abi = new RawAbi(library)) {
             for (MetalMpsGraphProgram.NodeKind kind : List.of(

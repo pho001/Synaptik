@@ -22,7 +22,9 @@ def main() -> None:
     source = generated / "runtime-source.metal"
     air = generated / "runtime-source.air"
     metallib = generated / "runtime-source.metallib"
-    ir = (generated / "runtime-source.air.ll").read_text(encoding="utf-8")
+    ir_path = generated / "runtime-source.air.ll"
+    symbols_path = generated / "runtime-source.air.nm"
+    ir = ir_path.read_text(encoding="utf-8")
     toolchain = manifest["toolchain"]
     assert (generated / "xcode-version.txt").read_text(encoding="utf-8").splitlines() == [
         f'Xcode {toolchain["xcodeVersion"]}',
@@ -44,11 +46,19 @@ def main() -> None:
         toolchain["sdkPath"]
     )
 
-    symbols = (generated / "runtime-source.air.nm").read_text(encoding="utf-8")
+    symbols = symbols_path.read_text(encoding="utf-8")
 
-    assert digest(source) == artifacts["source"]["sha256"], digest(source)
-    assert digest(air) == artifacts["air"]["sha256"], digest(air)
-    assert digest(metallib) == artifacts["metallib"]["sha256"], digest(metallib)
+    for name, path in (
+        ("source", source),
+        ("air", air),
+        ("metallib", metallib),
+        ("ir", ir_path),
+        ("symbols", symbols_path),
+    ):
+        assert path.stat().st_size == artifacts[name]["bytes"], (
+            name, path.stat().st_size
+        )
+        assert digest(path) == artifacts[name]["sha256"], (name, digest(path))
     assert symbols.count(" T l1_norm_f32_0069") == 1
     assert symbols.count(" T variance_f32_0069") == 1
     assert symbols.count(" T scatter_add_f32_0069") == 1

@@ -448,7 +448,7 @@ final class MetalTraceProducer {
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] targets) {
         List<MetalAnchorEpilogue> recognized =
-                MetalAnchorEpilogueRecognizer.recognize(
+                MetalAnchorEpilogueRecognizer.recognizeForDiagnostics(
                         NumericalProfile.ACCELERATOR, program, values, targets);
         var result = new ArrayList<AnchorFacts>(recognized.size());
         for (MetalAnchorEpilogue anchor : recognized) {

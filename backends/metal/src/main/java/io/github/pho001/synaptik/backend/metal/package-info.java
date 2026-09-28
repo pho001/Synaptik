@@ -60,18 +60,23 @@
  * and an unsigned-32-bit positive element count, then deterministically fuse into generated units
  * of length two through eight with one boundary load, one boundary store, and no intermediate
  * slot. Java carries only integer source byte counts; native owns generated source and every
- * source hash. Native authenticates all frozen fixed-source components and the assembled source
+ * source hash. The emitted source identifies generator schema 2; predecessor schema 1 remains
+ * incompatible. Native authenticates all frozen fixed-source components and the assembled source
  * before compile, and requires exact strongest available binding/type reflection for all three
  * buffers and every {@code PointMeta} member.
- * <p>Anchor-epilogue fusion is ACCELERATOR-only and preserves exact source order. MATMUL accepts
- * optional literal {@code SCALAR_MUL}, at most one ordinary right-aligned tensor {@code ADD}, and
- * optional terminal {@code RELU} or no-gradient {@code CLAMP}. Conv2d accepts at most one external
+ * <p>Anchor-epilogue fusion is ACCELERATOR-only and preserves exact source order. MATMUL covers
+ * the already-admitted positive-static vector, matrix, dot, batched, and right-broadcast batch
+ * geometries. It accepts optional literal {@code SCALAR_MUL}, at most one ordinary right-aligned
+ * tensor {@code ADD}, and optional terminal {@code RELU} or no-gradient {@code CLAMP}. Conv2d
+ * accepts at most one external
  * ADD followed by the same terminal pair and never scalar multiplication. Its intrinsic rank-one
  * {@code [C]} bias remains only the third Conv2d input; an external rank-one addend is {@code [W]},
  * while {@code [1,C,1,1]} is the ordinary channel-broadcast form. Every absorbed intermediate is
  * private, single-consumer, non-target, canonical, and absent from the materialized set. An
  * admitted anchor uses one safe-math dispatch and one final store with no intermediate slot,
- * native retry, or fallback.
+ * native retry, or fallback. Fusion is all-or-none at 64 anchors. Structural trace scans at most
+ * 65 eligible source anchors; count 65 is the exceeded-cap sentinel and reports the bounded member
+ * facts as composed without allocating an unbounded diagnostic list.
  *
  * SELECT/SLICE may consume exact supported storage-layout feeds and produce materialized-layout
  * values. Other affine inputs may be exact resolved zero-offset views produced earlier in the same
@@ -117,12 +122,15 @@
  * structural payload with family, exact epilogue order, member/count facts, schema/generator
  * versions, and canonical digest. Immediately before native execution, RUN reports one bounded
  * invocation plan with route counts, aggregate input/output/internal/splat/workspace bytes,
- * splat/workspace counts, and bounded custom-step
- * summaries. Payloads contain no source/data/scalar bits, pointers, handles, paths, names, or
- * per-buffer records. Structural PREPARE and pre-run planning callback failures disable tracing
- * and are contained without aborting native finalization or execution. Observer runtime failures
- * from outcome reporting also
- * disable later tracing without changing backend outcomes. An observer error propagates only from
+ * splat/workspace counts, and bounded custom-step summaries. Splat facts describe the exact
+ * validated invocation bindings, including a shared splat prepared by an earlier owner and
+ * excluding any source-owned resource not bound by that invocation. Payloads contain no
+ * source/data/scalar bits, pointers, handles, paths, names, or per-buffer records. Structural
+ * PREPARE and pre-run planning callback failures disable tracing and are contained without
+ * aborting native finalization or execution. A disabled producer skips structural trace planning
+ * and digest construction on later preparations. Observer runtime failures from outcome reporting
+ * also disable later tracing without changing backend outcomes. An observer error propagates only
+ * from
  * successful outcome reporting; during failure reporting, the backend failure remains primary and
  * receives a distinct acyclic observer error as a suppressed failure. The ordinary open overload
  * creates no trace producer or trace work. Per-unit close

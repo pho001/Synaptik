@@ -29,5 +29,11 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 "$ROOT/native/metal-macos-arm64/build.sh"
 cd "$ROOT"
 env SYNAPTIK_METAL_TEST_LIBRARY="$ROOT/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" \
-  "$ROOT/gradlew" :testing:integration-tests:test --rerun-tasks \
+  "$ROOT/gradlew" :testing:integration-tests:test --rerun-tasks --no-build-cache \
+    --no-configuration-cache \
     --tests io.github.pho001.synaptik.testing.integration.EngineExplicitCompositionMetalIntegrationTest.cpuFreeMetalEngineRunsGeneratedPointwiseChainThroughOnePartition
+
+TEST_CLASS="$ROOT/testing/integration-tests/build/classes/java/test/io/github/pho001/synaptik/testing/integration/EngineExplicitCompositionMetalIntegrationTest.class"
+TEST_SOURCE="$ROOT/testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineExplicitCompositionMetalIntegrationTest.java"
+[ -f "$TEST_CLASS" ] || { printf '%s\n' "checkout-local public proof class is absent: $TEST_CLASS" >&2; exit 1; }
+[ "$TEST_CLASS" -nt "$TEST_SOURCE" ] || { printf '%s\n' "public proof class is not current for this checkout: $TEST_CLASS" >&2; exit 1; }

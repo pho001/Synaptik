@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -504,6 +505,14 @@ class MetalNegPreparedExecutionTest {
                 producer,
                 MetalPreparedRoute.MPSGRAPH);
         assertFalse(producer.enabled());
+        assertEquals(1, callbacks.get());
+        SingleNegRoute laterRoute = singleNegRoute(
+                context,
+                Shape.of(2),
+                Optional.empty(),
+                producer,
+                MetalPreparedRoute.MPSGRAPH);
+        assertNull(laterRoute.analysis().plan().traceUnit());
         assertEquals(1, callbacks.get());
         FinalizationFixture assignment = finalization(route.analysis());
         BackendPartitionFinalizationResult finalized =
@@ -1007,7 +1016,7 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
-    void firstMetalConsumerOwnsOnePreparedSplatAndCpuSourceOwnsNone() {
+    void firstMetalConsumerOwnsOnePreparedSplatAndLaterBindingTracesTruthfully() {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
         BackendPartitionFinalizationResult firstFinalized = null;
@@ -1025,10 +1034,14 @@ class MetalNegPreparedExecutionTest {
             PlannedPartition secondPartition = new PlannedPartition(
                     MetalCapabilityProvider.METAL_BACKEND_ID, List.of(secondNode.id()));
             List<PlannedPartition> consumers = List.of(firstPartition, secondPartition);
+            List<TraceEvent<? extends TracePayload>> secondEvents =
+                    new CopyOnWriteArrayList<>();
+            MetalTraceProducer secondTrace = new MetalTraceProducer(secondEvents::add);
             BackendPartitionAnalysis<MetalNegPreparationPlan> first = splatConsumerAnalysis(
                     context, firstPartition, firstNode, shared, firstTarget, descriptor, consumers);
             BackendPartitionAnalysis<MetalNegPreparationPlan> second = splatConsumerAnalysis(
-                    context, secondPartition, secondNode, shared, secondTarget, descriptor, consumers);
+                    context, secondPartition, secondNode, shared, secondTarget, descriptor, consumers,
+                    secondTrace);
             assertArrayEquals(new boolean[] {true}, first.plan().feedSplatSources());
             assertArrayEquals(new boolean[] {false}, second.plan().feedSplatSources());
 
@@ -1044,6 +1057,45 @@ class MetalNegPreparedExecutionTest {
             assertEquals(2, firstFinalized.resources().size());
             assertEquals(1, secondFinalized.resources().size());
 
+            var firstExecutable =
+                    (MetalNegPreparedExecutable) firstFinalized.executable();
+            var secondExecutable =
+                    (MetalNegPreparedExecutable) secondFinalized.executable();
+            var sharedBinding = firstExecutable.splatResource(shared)
+                    .orElseThrow()
+                    .newRunBinding();
+            MetalBufferRepresentation secondOutput = context.createBuffer(8L);
+            RunState secondState = null;
+            try {
+                var secondBindings = secondFixture.preparedAssignments().stream()
+                        .map(assignment -> List.of(new BufferRepresentationBinding(
+                                assignment.valueId().equals(shared)
+                                        ? sharedBinding : secondOutput,
+                                assignment.valueId().equals(shared)
+                                        ? RunResourceOwnership.RUN_OWNED
+                                        : RunResourceOwnership.BORROWED)))
+                        .toList();
+                secondState = new RunState(
+                        secondFixture.memoryPlan(), secondBindings, List.of());
+                secondExecutable.bind(secondState).execute();
+                MetalInvocationPlan invocationPlan = secondEvents.stream()
+                        .map(TraceEvent::payload)
+                        .filter(MetalInvocationPlan.class::isInstance)
+                        .map(MetalInvocationPlan.class::cast)
+                        .findFirst()
+                        .orElseThrow();
+                assertEquals(8L, invocationPlan.aggregateSplatBytes());
+                assertEquals(1, invocationPlan.splatCount());
+            } finally {
+                if (secondState != null) {
+                    secondState.close();
+                } else {
+                    sharedBinding.close();
+                }
+                secondOutput.close();
+            }
+
+            int bufferCreatesBeforeCpuSource = api.bufferCreates.get();
             ValueId cpuOwned = new ValueId(71_000);
             ValueId metalTarget = new ValueId(71_001);
             CompiledNode metalNode = negNode(71_001, cpuOwned, metalTarget);
@@ -1064,7 +1116,7 @@ class MetalNegPreparedExecutionTest {
             FinalizationFixture cpuSourceFixture = finalization(cpuSource);
             cpuSourceFinalized = new MetalNegPartitionFinalizer(context)
                     .finalizePartition(cpuSourceFixture.finalization());
-            assertEquals(1, api.bufferCreates.get(),
+            assertEquals(bufferCreatesBeforeCpuSource, api.bufferCreates.get(),
                     "a CPU source keeps Metal on the ordinary transfer destination path");
             assertEquals(1, cpuSourceFinalized.resources().size());
         } finally {
@@ -4480,6 +4532,19 @@ class MetalNegPreparedExecutionTest {
             ValueId target,
             TensorDescriptor descriptor,
             List<PlannedPartition> consumers) {
+        return splatConsumerAnalysis(
+                context, partition, node, feed, target, descriptor, consumers, null);
+    }
+
+    private static BackendPartitionAnalysis<MetalNegPreparationPlan> splatConsumerAnalysis(
+            MetalDeviceContext context,
+            PlannedPartition partition,
+            CompiledNode node,
+            ValueId feed,
+            ValueId target,
+            TensorDescriptor descriptor,
+            List<PlannedPartition> consumers,
+            MetalTraceProducer traceProducer) {
         return new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
                 NumericalProfile.STRICT_IEEE,
                 new PartitionDag(partition, List.of(node)),
@@ -4488,7 +4553,7 @@ class MetalNegPreparedExecutionTest {
                         requirement(feed, descriptor, Optional.empty(), consumers, false),
                         requirement(target, descriptor, Optional.of(partition), List.of(), true)),
                 Map.of(feed, ScalarValue.float32(4.0f)),
-                new MetalNegAnalysisInputs(context)));
+                new MetalNegAnalysisInputs(context, traceProducer)));
     }
 
     private static void closeResources(BackendPartitionFinalizationResult finalized) {

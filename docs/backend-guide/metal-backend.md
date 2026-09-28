@@ -314,6 +314,10 @@ run call Metal emits one `MetalInvocationPlan` `RUN` event with invocation ident
 counts, aggregate input/output/internal/splat/workspace bytes, splat/workspace counts, and the same
 bounded step summaries; the
 existing invocation outcome follows native completion or failure.
+Splat count and bytes are derived from the exact validated invocation bindings: a shared splat
+prepared by an earlier source owner is counted when bound, while a source-owned resource not bound
+by that invocation is not. After an observer failure disables its producer, later preparations
+skip trace anchor diagnostics, step summarization, and digest construction entirely.
 
 Preparation always reports `NOT_QUERIED`: Metal authenticates an optional outer tuning decision
 but performs no cache lookup and cannot claim an outer hit or miss. Native codes `0..12` map to
@@ -908,14 +912,15 @@ span.
 A `CUSTOM_PROGRAM` image additionally carries authoritative 40-byte step records, 32-bit member
 positions, 24-byte bindings, the sorted 32-bit materialized-value set, 64-byte typed execution
 instructions, the canonical ASCII manifest, and its 32-byte SHA-256 digest. Generator schema 2
-admits fixed, graph-boundary, generated-pointwise, and anchor-epilogue steps; anchor instructions
-bind source order, ADD side and external role, and raw scalar/clamp bits. The manifest binds typed
-plan agreement and integer source byte counts only; Java neither emits Metal source nor owns fixed,
-generated, or assembled source hashes. Header counts, source sizes, rejection/cap fields, record
-ranges, materialized slot mappings, manifest text, and the manifest digest must recompute exactly.
-An MPSGraph image clears its extension flag, generator schema, counts, sizes, and caps and
-physically omits every extension section. Unknown profile wires, route zero, and every other schema
-or route fail closed.
+admits fixed, graph-boundary, generated-pointwise, and anchor-epilogue steps; the generated Metal
+source carries the matching `synaptik pointwise fusion generator schema 2` marker. Predecessor
+generator schema 1 remains rejected. Anchor instructions bind source order, ADD side and external
+role, and raw scalar/clamp bits. The manifest binds typed plan agreement and integer source byte
+counts only; Java neither emits Metal source nor owns fixed, generated, or assembled source hashes.
+Header counts, source sizes, rejection/cap fields, record ranges, materialized slot mappings,
+manifest text, and the manifest digest must recompute exactly. An MPSGraph image clears its
+extension flag, generator schema, counts, sizes, and caps and physically omits every extension
+section. Unknown profile wires, route zero, and every other schema or route fail closed.
 
 Production capability admits exactly 86 operation kinds while 29 remain false; structural native
 execution covers 101 kinds and leaves 14 nonexecutable. Attribute wires `0..41` and type wires
@@ -1074,14 +1079,23 @@ and observer proof runners force Gradle task reruns rather than accepting cached
 
 Task 0071 adds a separate source/compiler-site certificate and a checked Lean model of literal
 scalar/add/terminal order, one physical dispatch, zero intermediate stores, one final store,
-right-aligned rank-one indexing, and exhaustive DAZ/FTZ boundary alternatives. The pinned
-`metal3.2 -fno-fast-math` audit compiles the exact ten-component runtime source and inspects all
-eight anchor kernels plus the retained Conv2d helper. It records seven unflagged FMA sites, six
-unflagged `fmul` sites, four unflagged `fadd` sites, no unsafe flags, and exactly one static final
-byte store in each kernel. Real-device observer coverage proves one dispatch for fused MATMUL and
-Conv2d, exact width broadcasting for a rank-one Conv2d addend, and NaN, signed-zero, infinity,
-subnormal FTZ, and clamp-endpoint behavior. A public `Engine` smoke exercises both fused families
-and observes the new structural PREPARE and planned RUN payloads.
+right-aligned rank-one indexing, and exhaustive DAZ/FTZ boundary alternatives. MATMUL anchor
+recognition and native authentication reuse the general exact geometry accepted by the existing
+custom kernel: vector/matrix, matrix/vector, vector dot with scalar output, batched geometry, and
+right-aligned batch broadcasting. Exact-output residuals and ordinary right-aligned addends,
+including trailing `[N]` bias, retain their existing semantics. Malformed contractions, output
+shapes, and batch broadcasts fail closed.
+
+The pinned `metal3.2 -fno-fast-math` audit compiles the exact ten-component runtime source through
+a location-independent stdin virtual source and inspects all eight anchor kernels plus the retained
+Conv2d helper. It records seven unflagged FMA sites, six unflagged `fmul` sites, four unflagged
+`fadd` sites, no unsafe flags, and exactly one static final byte store in each kernel. Real-device
+observer coverage proves one dispatch for fused general-geometry MATMUL and Conv2d, exact width
+broadcasting for a rank-one Conv2d addend, and NaN, signed-zero, infinity, subnormal FTZ, and
+clamp-endpoint behavior. A public `Engine` smoke exercises both fused families and the general
+MATMUL cases and observes the new structural PREPARE and planned RUN payloads. Fusion admission is
+all-or-none at 64 anchors; structural trace scans only through cap-plus-one and reports count 65 as
+the exceeded-cap sentinel with bounded composed member facts.
 
 Current validation composes:
 
