@@ -50,7 +50,7 @@
     {
       "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegPartitionPreparer.java",
       "role": "partition-preparer",
-      "sha256": "085389dff8af0b3272c6d563ecbb393da8a9fc04876aa43bd5c75e6e7afd0849"
+      "sha256": "d6ef7417ecb893cc2963d1dc7ba771052b31c877d30b04bdf67d558f8d9cb8dc"
     },
     {
       "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparationPlan.java",
@@ -145,7 +145,7 @@
     {
       "path": "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparedExecutionTest.java",
       "role": "execution-trace-test",
-      "sha256": "a0f6c2e5084829921de7429785c151e0d2574442db61d08db114dda9a6483227"
+      "sha256": "f4867518135755eaeb30c46f7c469d6a74605a0b94c44d4bcb5632e408d4871e"
     },
     {
       "path": "backends/metal/evidence/0071/proof/Task0071AnchorEpilogue.lean",

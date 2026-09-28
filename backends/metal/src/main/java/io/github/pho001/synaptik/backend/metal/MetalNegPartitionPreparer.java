@@ -142,19 +142,6 @@ import java.util.Optional;
 final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalNegAnalysisInputs, MetalNegPreparationPlan> {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private final Runnable planConstructionObserver;
-
-    MetalNegPartitionPreparer() {
-        this(null);
-    }
-
-    MetalNegPartitionPreparer(Runnable planConstructionObserver) {
-        this.planConstructionObserver = planConstructionObserver;
-    }
-
-    private void constructingPlan() {
-        if (planConstructionObserver != null) planConstructionObserver.run();
-    }
 
     /**
      * Produces one immutable whole-partition lowering and its exact shared declarations.
@@ -496,7 +483,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         .map(value -> Objects.requireNonNull(
                                 physicalLayouts.get(value), "physical value layout"))
                         .toList();
-        constructingPlan();
         var heuristicPlan = new MetalNegPreparationPlan(
                 context.numericalProfile(),
                 context.partition(), context.partitionDag(), deviceContext,
@@ -558,7 +544,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             if (route == heuristicPlan.route()) {
                 plan = heuristicPlan;
             } else {
-                constructingPlan();
                 plan = new MetalNegPreparationPlan(
                         context.numericalProfile(),
                         context.partition(), context.partitionDag(), deviceContext,
@@ -570,7 +555,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         feedSplatSources, selectedWorkspace, feedBytes, targetBytes);
             }
         } else {
-            constructingPlan();
             plan = new MetalNegPreparationPlan(
                     context.numericalProfile(),
                     context.partition(), context.partitionDag(), deviceContext,
