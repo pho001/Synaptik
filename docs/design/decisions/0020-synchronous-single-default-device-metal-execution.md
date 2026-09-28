@@ -117,8 +117,8 @@ session-compatibility context and explicitly carries no stable-device claim. The
 no mapping among them or to a physical device is introduced.
 
 Metal uses ABI 5 with the same thirteen export names, bounded route-bearing node schema 16, and
-version-24 workload, exact-policy, candidate, compatibility, route, and codec identities. Identity
-23 and every older value fail closed without changing this decision's device-identity semantics.
+version-25 workload, exact-policy, candidate, compatibility, route, and codec identities. Identity
+24 and every older value fail closed without changing this decision's device-identity semantics.
 Tuning remains session-scoped and non-persistent. No cache key, trace payload, or compatibility
 identity gains a physical-device fingerprint.
 

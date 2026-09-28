@@ -69,6 +69,7 @@ import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKin
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
@@ -1408,6 +1409,90 @@ class MetalCapabilityProviderTest {
                 l1,
                 List.of(tooWide),
                 List.of(scalar))));
+    }
+
+    @Test
+    void task0069VarianceAdmitsOnlyTheExactSingletonAcceleratorDomain() {
+        TensorDescriptor singleton = descriptor(Shape.of(1), false);
+        TensorDescriptor scalar = descriptor(Shape.scalar(), false);
+        Operation variance = new Operation(
+                AggregateReductionKind.VARIANCE,
+                new StatisticalReductionAttrs(List.of(0), false, 0));
+        assertTrue(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                variance,
+                List.of(singleton),
+                List.of(scalar))));
+        assertTrue(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.VARIANCE,
+                new StatisticalReductionAttrs(List.of(0), true, 0),
+                singleton,
+                descriptor(Shape.of(1), false))));
+
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                variance,
+                List.of(singleton),
+                List.of(scalar))));
+        for (StatisticalReductionAttrs attrs : List.of(
+                new StatisticalReductionAttrs(List.of(), false, 0),
+                new StatisticalReductionAttrs(List.of(0), false, 1),
+                new StatisticalReductionAttrs(List.of(1), false, 0))) {
+            assertFalse(provider.supports(reductionQuery(
+                    NumericalProfile.ACCELERATOR,
+                    AggregateReductionKind.VARIANCE,
+                    attrs,
+                    singleton,
+                    scalar)));
+        }
+        assertFalse(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.VARIANCE,
+                new StatisticalReductionAttrs(List.of(0), false, 0),
+                descriptor(Shape.of(2), false),
+                scalar)));
+        assertFalse(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.VARIANCE,
+                new StatisticalReductionAttrs(List.of(0), false, 0),
+                descriptor(Shape.of(1, 1), false),
+                descriptor(Shape.of(1), false))));
+        assertFalse(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.VARIANCE,
+                new StatisticalReductionAttrs(List.of(0), false, 0),
+                descriptor(Shape.of(1), true),
+                scalar)));
+        assertFalse(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.VARIANCE,
+                new StatisticalReductionAttrs(List.of(0), false, 0),
+                singleton,
+                descriptor(Shape.scalar(), true))));
+        assertFalse(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.VARIANCE,
+                new StatisticalReductionAttrs(List.of(0), false, 0),
+                typed(DataType.FLOAT64, Shape.of(1), false),
+                scalar)));
+        assertFalse(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.VARIANCE,
+                new StatisticalReductionAttrs(List.of(0), false, 0),
+                new TensorDescriptor(
+                        DataType.FLOAT32,
+                        Shape.of(1),
+                        Optional.of(LayoutDescriptor.of(
+                                Shape.of(1), new long[] {2L}, 0L, true)),
+                        false),
+                scalar)));
+        assertFalse(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.VARIANCE,
+                new StatisticalReductionAttrs(List.of(0), false, 0),
+                singleton,
+                descriptor(Shape.of(1), false))));
     }
 
     @Test

@@ -123,21 +123,22 @@ INT32/INT64 MATMUL, Task-0064 maximum pooling, and Task-0065 raw INITIAL_STATE r
 additionally admits the documented FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows;
 every positive-static FLOAT32 MATMUL vector, matrix, batched, and broadcast geometry; no-gradient
 BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 output; Task-0064 convolution/average pooling; Task-0065
-FLOAT32 dropout; and two Task-0069 source-owned custom programs. Task 0069 admits no-gradient,
-canonical rank-one FLOAT32 `L1_NORM` with one positive extent and no-gradient, axis-zero, canonical
+FLOAT32 dropout; and three Task-0069 source-owned custom programs. Task 0069 admits no-gradient,
+canonical rank-one FLOAT32 `L1_NORM` with one positive extent; no-gradient, axis-zero, canonical
 rank-one FLOAT32 `SCATTER_ADD` with positive data and update extents, a materialized canonical
-rank-one INT32 or INT64 index feed, and identical base/result and index/update extents.
-Compiler-generated rank-one Gather data cotangents close through an explicit canonical zero
-`EXPAND -> CONTIGUOUS -> SCATTER_ADD`; gradient-bearing Scatter-Add and its own cotangents remain
-unsupported. The resulting Metal capability ledger is exactly 85 admitted kinds and 30 remaining
-false, with 101 structurally executable kinds and 14 remaining nonexecutable. These are
-shape-restricted production domains, not whole-kind admission; every unlisted occurrence fails
-closed before route selection.
+rank-one INT32 or INT64 index feed, and identical base/result and index/update extents; and
+no-gradient FLOAT32 singleton `VARIANCE` over input `[1]`, axis `[0]`, correction zero, with
+canonical scalar or retained `[1]` output. Compiler-generated rank-one Gather data cotangents close
+through an explicit canonical zero `EXPAND -> CONTIGUOUS -> SCATTER_ADD`; gradient-bearing
+Scatter-Add and its own cotangents remain unsupported. The resulting Metal capability ledger is
+exactly 86 admitted kinds and 29 remaining false, with 101 structurally executable kinds and 14
+remaining nonexecutable. These are shape-restricted production domains, not whole-kind admission;
+every unlisted occurrence fails closed before route selection.
 
 Metal uses ABI 5 with the same thirteen exports and one bounded schema-16 route-bearing program
 image. Operation wires `1..115`, attribute wires `0..41`, and type wires `1..6` cover current
 structural vocabulary. Metal-local workload, exact-policy, candidate, compatibility, route-policy,
-and session codec identities are version 24; identity 23 and every older identity fail closed
+and session codec identities are version 25; identity 24 and every older identity fail closed
 rather than falling back. Model remains the sole semantic owner of profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).

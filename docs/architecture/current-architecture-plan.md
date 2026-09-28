@@ -75,9 +75,10 @@ Both profiles additionally admit no-gradient INT32/INT64 MATMUL with INT64-domin
 exact modular result arithmetic. Accelerator additionally admits the documented FLOAT32
 arithmetic, extrema, scalar, reduction, scan, MSE, average-pooling, convolution, and explicit-state
 dropout rows; every positive-static FLOAT32 MATMUL vector, matrix, batched, and right-aligned
-broadcast geometry; and no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 result. Both
-profiles admit exact maximum pooling and raw INT64 initial state. Strict floating MATMUL and every
-other unlisted occurrence fail closed before route selection.
+broadcast geometry; no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 result; and the exact
+singleton no-gradient FLOAT32 VARIANCE over axis `[0]` with correction zero. Both profiles admit
+exact maximum pooling and raw INT64 initial state. Strict floating MATMUL and every other unlisted
+occurrence fail closed before route selection.
 Canonical typed host ingress/publication and direct CPU/Metal transfer support all six data types at
 ranks `0..16`; transfer also accepts resolved positive-stride non-overlapping physical storage
 layouts and rejects unresolved, zero-stride, negative-stride, or overlapping geometry. BOOL
@@ -85,16 +86,18 @@ validation visits logical elements only. Selected affine view results retain aut
 Shape, stride, and offset while Java preparation and native preflight independently derive and
 validate the physical storage span before any write; selected materializing results are canonical.
 An eligible singleton NEG retains its dedicated custom route. Every occurrence selected by Task
-0066 wires `6..11,16..19,39..45,51,69,71..84` and the exact Task-0069 rank-one FLOAT32 L1 and
-ScatterAdd occurrences at wires `114` and `70` use the fixed shared `CUSTOM_PROGRAM` route with
-declared run-owned value buffers and one Java/native invocation; there is no selected-node
-MPSGraph fallback. ScatterAdd completes its INT32/INT64 index scan before any encoding or mutation,
-keeps duplicates in source order, raw-copies unaddressed cells, and closes the existing rank-one
-Gather data cotangent. Current Metal uses ABI 5 with the same thirteen exports and one bounded
-schema-16 route-bearing program image over type wires `1..6`, operation wires `1..115`, attribute
-wires `0..41`, and route wires `1..3`. Structural coverage is `101 / 14`; production capability is
-exactly `85 / 30`; route catalogs are `75 / 35 / 5` MPSGraph and `72 / 43 / 0` custom.
-Backend-local identities are version twenty-four, and identity twenty-three and every older
+0066 wires `6..11,16..19,39..45,51,69,71..84` and the exact Task-0069 rank-one FLOAT32
+L1/ScatterAdd/VARIANCE occurrences at wires `114`, `70`, and `112` use the fixed shared
+`CUSTOM_PROGRAM` route with declared run-owned value buffers and one Java/native invocation; there
+is no selected-node MPSGraph fallback. ScatterAdd completes its INT32/INT64 index scan before any
+encoding or mutation, keeps duplicates in source order, raw-copies unaddressed cells, and closes
+the existing rank-one Gather data cotangent. Singleton VARIANCE dispatches one writer through
+exactly `DIV`, `SUB`, `MUL`, `DIV`, yielding positive zero for every finite input and NaN class for
+NaN or infinity. Current Metal uses ABI 5 with the same thirteen exports and one bounded schema-16
+route-bearing program image over type wires `1..6`, operation wires `1..115`, attribute wires
+`0..41`, and route wires `1..3`. Structural coverage is `101 / 14`; production capability is
+exactly `86 / 29`; route catalogs are `75 / 35 / 5` MPSGraph and `73 / 42 / 0` custom.
+Backend-local identities are version twenty-five, and identity twenty-four and every older
 identity fail closed.
 
 The Training extension now owns a public reusable

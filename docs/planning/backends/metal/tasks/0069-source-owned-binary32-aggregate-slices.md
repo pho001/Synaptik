@@ -2,10 +2,10 @@
 
 ## Status
 
-Review needed. The authorized shared proof substrate plus Slices 1 and 2 are implemented and
-independently approved at their current serial checkpoint with zero remaining code,
-numerical-evidence, security, or determinism P0/P1/P2. Slice 3 is not authorized and requires the
-Slice-2 checkpoint plus fresh approval.
+Review needed. The authorized shared proof substrate plus Slices 1 and 2 are independently
+approved. Slice 3 was freshly authorized at the current checkpoint and is implemented with its
+proof, native/custom route, identity cutover, package, and validation evidence; independent
+Slice-3 review remains pending.
 
 ## Change class
 
@@ -354,3 +354,51 @@ remaining P0/P1/P2 blockers. No production behavior changed in either documentat
 Current ledgers are capability `85/30`, structural `101/14`, MPSGraph `75/35/5`, custom
 `72/43/0`, schema 16, ABI 5, thirteen exports, and identity 24; identity 23 and every older value
 fail closed. `VARIANCE` remains false and Slice 3 is not authorized.
+
+### Slice 3 checkpoint
+
+Fresh checkpoint authorization admitted only accelerator, no-gradient FLOAT32 singleton
+`VARIANCE`: input `[1]`, axis `[0]`, correction zero, and canonical scalar or retained `[1]`
+output. Wire 112 selects the fixed `CUSTOM_PROGRAM` only for that exact occurrence. Java and native
+creation reject its direct route, while the pre-existing non-domain rank-two/correction-one
+MPSGraph structural fixture remains direct. No fallback, retry, timing, selector inference, host
+repair, or additional gradient closure was added.
+
+`Task0069Binary32.lean` now defines typed binary32 DIV, SUB, and MUL primitive-result relations over
+explicit signed exact values, one RNE publication, and per-site DAZ/FTZ alternatives. Both
+divisions carry the exact typed `+1` divisor; signed infinity survives the first division before
+self-subtraction produces NaN; NaN propagates; every finite singleton, including signed zero and
+all subnormal presentation choices, reaches positive zero. The trace instantiates the exact
+literal DIV-SUB-MUL-DIV source rather than an asserted aggregate result. The reduction proof fixes
+one dispatched writer, the shared canonical storage cell for both output forms, and exactly one
+store. The source/compiler certificate and compiled-MSL audit pin the kernel, native preflight,
+proofs, two unflagged divisions, one subtraction, one multiplication, no FMA/addition, and the sole
+store.
+
+The raw-native boundary matrix covers strict and exact direct-route rejection; wrong statistical
+attribute kind, count, axis count/value, keep word, and correction; zero, wrong-rank, and
+wrong-extent inputs; scalar/retained output mismatch; wrong input/output carrier; both gradient
+roles; input and output noncanonical layout/offset/stride cases; and input/output value-role alias.
+Native execution tests cover finite normal, both zeros, positive/negative subnormals, NaN, both
+infinities, both output forms, and alias rejection before mutation. The public Engine scenario
+executes through the packaged artifact. The current ledgers are capability `86/29`, structural
+`101/14`, MPSGraph `75/35/5`, custom `73/42/0`, schema 16, ABI 5, thirteen exports, and identity 25;
+identity 24 and every older value fail closed.
+
+The stabilized native source was rebuilt with warnings as errors, signed with the fixed ad-hoc
+identifier, published through `package-local.sh`, independently verified, ingested by Gradle, and
+archived. A fresh permission-preserving ZIP extraction passed the same verifier and byte-compared
+equal to the canonical package. The packaged dylib is `484992` bytes with SHA-256
+`a281ece41681845476f0eeed24a9da958d1a5beafae258e946a6e2b3944b4e63` and CDHash
+`3467e8f6e751b0af47c88990772647561fed82b0`; the local ZIP is `144293` bytes with SHA-256
+`edd68eebb8d4b66c8b5f13fa44021f070cbdea798e3faccf324867db63d1155e`. Focused native raw-ABI,
+VARIANCE, preserved direct structural VARIANCE, and public Engine scenarios all ran against only
+that fresh extracted dylib.
+
+Final validation passed the Task-0069 Lean/source-certificate/Xcode AIR runner; the focused
+`MetalVarianceNativeTest`, raw malformed-boundary, preserved direct structural VARIANCE, and public
+Engine cases; the complete Metal suite; focused compiler indexing/reduction/gradient suites; Metal
+backend conformance; architecture tests; and Metal Javadoc. Serialized repository-wide
+`./gradlew test --rerun-tasks --no-daemon --max-workers=1` completed all 76 actionable tasks, then
+serialized `./gradlew build --rerun-tasks --no-daemon --max-workers=1` completed all 87 actionable
+tasks against the fresh ZIP-extracted dylib.

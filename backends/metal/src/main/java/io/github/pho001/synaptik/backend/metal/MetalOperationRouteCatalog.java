@@ -119,6 +119,8 @@ final class MetalOperationRouteCatalog {
         MpsGraphReason.MD_SHAPE,
         CustomKernelState.AVAILABLE,
         CustomKernelReason.CA_0066),
+        DIRECT_REDUCE_CUSTOM_0069(MpsGraphState.DIRECT, MpsGraphReason.MD_REDUCE,
+                CustomKernelState.AVAILABLE, CustomKernelReason.CA_0069),
         DIRECT_REDUCE_PENDING_AGGREGATE(MpsGraphState.DIRECT, MpsGraphReason.MD_REDUCE,
                 CustomKernelState.PENDING, CustomKernelReason.CP_AGGREGATE),
         DIRECT_REDUCE_CUSTOM_0060(MpsGraphState.DIRECT, MpsGraphReason.MD_REDUCE,
@@ -307,7 +309,8 @@ final class MetalOperationRouteCatalog {
             case LOG, ERF, SQRT, TANH -> Entry.DIRECT_ARITH_PENDING_ELEMENTARY;
             case RECIPROCAL -> Entry.COMPOSED_UNARY_PENDING_POINT;
             case RSQRT -> Entry.DIRECT_ARITH_PENDING_RECURSIVE;
-            case SUM, MEAN, VARIANCE -> Entry.DIRECT_REDUCE_PENDING_AGGREGATE;
+            case SUM, MEAN -> Entry.DIRECT_REDUCE_PENDING_AGGREGATE;
+            case VARIANCE -> Entry.DIRECT_REDUCE_CUSTOM_0069;
             case PROD, ALL, ANY -> Entry.DIRECT_REDUCE_CUSTOM_0060;
             case MATMUL -> Entry.DIRECT_MATMUL_CUSTOM_0061;
             case GATHER, ONE_HOT, SCATTER_ELEMENTS -> Entry.DIRECT_INDEX_CUSTOM_0066;

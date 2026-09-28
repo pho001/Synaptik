@@ -2474,7 +2474,7 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The profile-qualified Metal instance is also implemented internally. Its version-twenty-four
+The profile-qualified Metal instance is also implemented internally. Its version-twenty-five
 fingerprint covers the exact `NumericalProfile`, bounded route-bearing node schema 16, operation
 wires `1..115`, attribute wires `0..41`, type wires `1..6`, ordered variable-cardinality
 inputs/outputs, ordered feed/target/value structure, descriptors, complete storage layouts, value
@@ -2521,8 +2521,8 @@ batch as a plan batch would incorrectly repeat local route search.
 
 The profile-qualified Metal batch is session-scoped. It contains only the complete
 `CUSTOM_SINGLE_NEG`, `CUSTOM_PROGRAM`, and `MPSGRAPH` configurations valid for the exact partition
-and profile. Compatibility, candidate, and route-policy identities are version twenty-four;
-version twenty-three and every older identity fail closed, and no private field crosses the
+and profile. Compatibility, candidate, and route-policy identities are version twenty-five;
+version twenty-four and every older identity fail closed, and no private field crosses the
 marker-role boundary.
 
 ### Complete-plan candidate
@@ -2562,10 +2562,10 @@ decision contains no measurement, cache representation, executable, provider, na
 physical resource, or Runtime state.
 
 The profile-qualified Metal decision follows the same owner-defined pattern with a bounded
-checksummed version-twenty-four session codec. Fresh Metal analysis regenerates current profile/
+checksummed version-twenty-five session codec. Fresh Metal analysis regenerates current profile/
 topology facts and accepts a selection only when schema, workload, exact context session, and
 candidate identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session,
-version-twenty-three and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a
+version-twenty-four and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a
 workload-cache artifact and have no current `tools/tuning` adapter.
 
 The generic Phase-2 tool may persist a decision only when its producer declares persistent reuse,
@@ -5197,15 +5197,16 @@ Task-0063 ordering/top-K/numeric arg-extrema, promoted integral MATMUL, Task-006
 and Task-0065 raw INITIAL_STATE rows. ACCELERATOR additionally admits the documented FLOAT32
 arithmetic/reduction/scan rows, every positive-static FLOAT32 MATMUL geometry, no-gradient
 BFLOAT16/FLOAT32 mixed MATMUL, Task-0064 convolution/average pooling, Task-0065 FLOAT32 dropout,
-and the Task-0069 rank-one L1_NORM and SCATTER_ADD custom programs. The latter require
-no-gradient canonical FLOAT32 data and output, and SCATTER_ADD additionally requires axis zero,
-positive data/update extents, and one materialized canonical INT32 or INT64 index feed. Direct
+and the Task-0069 rank-one L1_NORM, SCATTER_ADD, and singleton VARIANCE custom programs. These
+require no-gradient canonical FLOAT32 data and output. SCATTER_ADD additionally requires axis zero,
+positive data/update extents, and one materialized canonical INT32 or INT64 index feed; VARIANCE
+requires input `[1]`, axis `[0]`, correction zero, and scalar or retained `[1]` output. Direct
 typed transfer can move all six current carriers at ranks `0..16` through canonical or supported
 storage layouts; BOOL validation visits logical elements only.
 
 Metal analysis fixes stable value/node/feed/target order, lowers one bounded schema-16 route-bearing
-program image, generates a complete version-24 route batch, authenticates any supplied session
-decision, and fixes one private route before declaring resources. Identity 23 and every older
+program image, generates a complete version-25 route batch, authenticates any supplied session
+decision, and fixes one private route before declaring resources. Identity 24 and every older
 value fail closed. An eligible singleton NEG may use the dedicated custom pipeline. A partition
 containing any exact custom node or MATMUL outside the retained all-FLOAT32 rank-two MPSGraph slice
 selects the fixed shared custom whole-program route; an MSE node remains the same fixed nested

@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0069 Slices 1–2; 0053 Blocked; Slice 3 not authorized | [Metal 0069](backends/metal/tasks/0069-source-owned-binary32-aggregate-slices.md) includes exact rank-one accelerator FLOAT32 no-gradient source-owned `L1_NORM` and `SCATTER_ADD`; ScatterAdd completes index validation before mutation and closes the rank-one Gather data cotangent. Final independent rereview approves Slices 1–2 with no remaining P0/P1/P2; `VARIANCE` remains false and Slice 3 is not authorized. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Review needed for Task 0069 Slice 3; Slices 1–2 approved; 0053 Blocked | [Metal 0069](backends/metal/tasks/0069-source-owned-binary32-aggregate-slices.md) now includes exact accelerator FLOAT32 no-gradient source-owned `L1_NORM`, `SCATTER_ADD`, and singleton `VARIANCE`; ScatterAdd validates before mutation and closes the rank-one Gather data cotangent, while VARIANCE uses the certified DIV-SUB-MUL-DIV custom source. Slice 3 was implemented under fresh checkpoint authorization and awaits independent review. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -524,20 +524,22 @@ MATMUL vector, matrix, batched, and broadcast geometry; no-gradient BFLOAT16/FLO
 with FLOAT32 result; same-type canonical positive-rank FLOAT32 MSE forward execution for `NONE`,
 `SUM`, and `MEAN`; exact rank-one no-gradient FLOAT32 `L1_NORM` over ordered axis `[0]`; exact
 rank-one no-gradient FLOAT32 `SCATTER_ADD` over axis zero and materialized INT32/INT64 indices;
-FLOAT32-result grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles; FLOAT32 average Pool2d/Pool3d;
-and canonical FLOAT32 explicit-state dropout. Existing all-FLOAT32 rank-two matrix products retain
-MPSGraph; all other admitted MATMUL forms, all six Task-0064 rows, both Task-0065 random rows, and
-both Task-0069 occurrences use the fixed custom program. MSE remains the fixed nested MPSGraph
-composition when a containing partition selects the custom program. Task-0063 through Task-0065
-production rows, every selected Task-0066 occurrence, and both Task-0069 occurrences are
-custom-only. A partition containing an exact custom node materializes each required logical value
-in a declared run-owned physical storage span and invokes one fixed shared custom-program native
-executable per hot run. Schema 16 carries type wires `1..6`, operation wires `1..115`, attribute
-wires `0..41`, route wire `2` or `3`, the exact numerical-profile wire, and complete storage-layout
-geometry; exactly 101 operation kinds are structurally executable and 85 are production-capable.
-Workload, policy, candidate, compatibility, route, and codec identities are version twenty-four;
-identity 23 and every older identity fail closed while candidate wires
-and the complete-plan wrapper remain stable.
+exact singleton no-gradient FLOAT32 `VARIANCE` over input `[1]`, axis `[0]`, correction zero, and
+scalar or retained `[1]` output; FLOAT32-result grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles;
+FLOAT32 average Pool2d/Pool3d; and canonical FLOAT32 explicit-state dropout. Existing all-FLOAT32
+rank-two matrix products retain MPSGraph; all other admitted MATMUL forms, all six Task-0064 rows,
+both Task-0065 random rows, and all three Task-0069 occurrences use the fixed custom program.
+Non-domain VARIANCE retains its existing direct structural recipe but remains production-false.
+MSE remains the fixed nested MPSGraph composition when a containing partition selects the custom
+program. Task-0063 through Task-0065 production rows, every selected Task-0066 occurrence, and all
+three exact Task-0069 occurrences are custom-only. A partition containing an exact custom node
+materializes each required logical value in a declared run-owned physical storage span and invokes
+one fixed shared custom-program native executable per hot run. Schema 16 carries type wires
+`1..6`, operation wires `1..115`, attribute wires `0..41`, route wire `2` or `3`, the exact
+numerical-profile wire, and complete storage-layout geometry; exactly 101 operation kinds are
+structurally executable and 86 are production-capable. Workload, policy, candidate, compatibility,
+route, and codec identities are version twenty-five; identity 24 and every older identity fail
+closed while candidate wires and the complete-plan wrapper remain stable.
 
 Metal 0025 remains Complete at reviewed revision `f88066e3`; its schema-11/version-twelve facts are
 historical. Blocked 0026–0027/0030–0037/0039–0040 changed no executable capability. Complete 0041
@@ -739,22 +741,22 @@ verification or source.
 Independent cumulative code, security, and evidence review at exact clean `1775081a` returned
 `APPROVE` with zero P0/P1/P2. No Metal task is Ready. Proof-blocked Task 0053 remains separate.
 
-Metal Task 0069 has completed its authorized shared proof substrate and Slices 1 and 2. The exact
-current frontier is accelerator FLOAT32 no-gradient rank-one `L1_NORM` and `SCATTER_ADD`. L1 uses
-raw ABS leaves and exactly `N-1` source-ordered safe additions. ScatterAdd requires axis zero,
-positive data/update extents, a materialized INT32/INT64 index feed, and canonical update/output;
-its generated-zero base may be a local authenticated expand that is materialized before the custom
-kernel. Complete CPU index validation precedes encoding and mutation. One target thread retains
-duplicate updates in source order, raw-copies unaddressed cells, and stores once without atomics.
-The same occurrence closes the existing compiler-generated rank-one Gather data cotangent.
+Metal Task 0069 has completed its shared proof substrate and approved Slices 1 and 2; Slice 3 is
+implemented under fresh checkpoint authorization and awaits independent review. The exact frontier
+adds accelerator FLOAT32 no-gradient singleton `VARIANCE` to rank-one `L1_NORM` and `SCATTER_ADD`.
+Variance requires input `[1]`, axis `[0]`, correction zero, and scalar or retained `[1]` output.
+Its one-writer custom source executes literal DIV-SUB-MUL-DIV; non-domain variance retains the
+existing direct structural recipe. L1 uses raw ABS leaves and exactly `N-1` source-ordered safe
+additions. ScatterAdd requires axis zero, positive data/update extents, a materialized INT32/INT64
+index feed, and canonical update/output; complete CPU index validation precedes encoding and
+mutation. One target thread retains duplicate updates in source order, raw-copies unaddressed
+cells, and stores once without atomics. The same occurrence closes the existing compiler-generated
+rank-one Gather data cotangent.
 
 The Lean proof, source certificate, pinned runtime-source extraction, and Xcode 27.0 build
-27A266a/Metal 32023.921/macOS SDK 27.0 compiled-MSL/AIR audit pass. The current ledger is capability
-`85/30`, structural `101/14`, MPSGraph `75/35/5`, custom `72/43/0`, schema 16, ABI 5, thirteen
-exports, and identity 24. Identity 23 and every older identity fail closed. Slice 2 final-review
-remediation expands its direct raw-native malformed-image matrix and corrects active documentation;
-independent re-review approves with no remaining P0/P1/P2 blockers. `VARIANCE` remains
-production-false and Slice 3 is not authorized.
+27A266a/Metal 32023.921/macOS SDK 27.0 compiled-MSL/AIR audit cover all three slices. The current
+ledger is capability `86/29`, structural `101/14`, MPSGraph `75/35/5`, custom `73/42/0`, schema 16,
+ABI 5, thirteen exports, and identity 25. Identity 24 and every older identity fail closed.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -870,11 +872,10 @@ Task 0065 keeps all
 three recurrent rows fail-closed rather than advertising a no-work or selected-value special case.
 
 Schema 16, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
-version-twenty-four identities are current after Task 0069 Slice 2; identity 23 and every older
+version-twenty-five identities are current after Task 0069 Slice 3; identity 24 and every older
 value fail closed. Complete Tasks 0055–0068 provide the prerequisites, while Task 0069 advances
-only the authorized L1 and ScatterAdd boundaries. Blocked Metal 0053 remains fail-closed without
-production capability. Metal 0026/0027 remain separately finalized
-Blocked.
+only the authorized L1, ScatterAdd, and singleton VARIANCE boundaries. Blocked Metal 0053 remains
+fail-closed without production capability. Metal 0026/0027 remain separately finalized Blocked.
 Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model
 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit gate. Metal 0041 is
 Complete at implementation `ba16d942` plus remediation `386705ca`; Metal 0042 is Complete at
@@ -885,7 +886,7 @@ independently approved implementation `89f9fbb9`; documentation-only Metal 0049 
 remediation `6d4246f7`; Metal 0050 final verification, Task 0052, and historical documentation/
 audit-only Metal 0054 and exact BOOL Task 0057 are Complete. Historical Metal 0051 and successor
 Metal 0053 are Blocked. Task 0054 remains the exact pre-cutover `19+2+15+79=115` record, not a
-current count; current capability is `85 true / 30 false = 115` and current structural execution is
+current count; current capability is `86 true / 29 false = 115` and current structural execution is
 `101 true / 14 false = 115`.
 
 ## History policy

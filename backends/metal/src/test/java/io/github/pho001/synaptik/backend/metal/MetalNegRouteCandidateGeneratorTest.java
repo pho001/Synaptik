@@ -44,6 +44,7 @@ import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -190,6 +191,38 @@ class MetalNegRouteCandidateGeneratorTest {
             assertEquals(
                     List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
                     generated.batch().candidates());
+            assertEquals(0, api.nativeAllocations.get());
+        }
+    }
+
+    @Test
+    void task0069SingletonVarianceFixesTheExactOccurrenceToOneCustomProgramCandidate() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            Workload workload = operationWorkload(
+                    device,
+                    190_070L,
+                    NumericalProfile.ACCELERATOR,
+                    new Operation(
+                            AggregateReductionKind.VARIANCE,
+                            new StatisticalReductionAttrs(List.of(0), false, 0)),
+                    List.of(canonical(DataType.FLOAT32, Shape.of(1))),
+                    canonical(DataType.FLOAT32, Shape.scalar()));
+            Generated generated = generated(workload, 2);
+            assertSame(MetalPreparedRoute.CUSTOM_PROGRAM, generated.analysis().plan().route());
+            assertEquals(
+                    List.of(MetalMpsGraphProgram.NodeKind.VARIANCE),
+                    generated.analysis().plan().graphProgram().nodes().stream()
+                            .map(MetalMpsGraphProgram.Node::kind)
+                            .toList());
+            assertEquals(
+                    List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
+                    generated.batch().candidates());
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> new MetalNegPartitionPreparer()
+                            .analyzeForTesting(
+                                    workload.context(), MetalPreparedRoute.MPSGRAPH));
             assertEquals(0, api.nativeAllocations.get());
         }
     }
@@ -1001,8 +1034,8 @@ class MetalNegRouteCandidateGeneratorTest {
                     route.wireIdentity()).orElseThrow());
             assertArrayEquals(new byte[] {
                     0x4d, 0x4e, 0x43, 0x41,
-                    0x00, 0x00, 0x00, 0x18,
-                    0x00, 0x00, 0x00, 0x18,
+                    0x00, 0x00, 0x00, 0x19,
+                    0x00, 0x00, 0x00, 0x19,
                     0x00, 0x00, 0x00, (byte) route.wireIdentity()
             }, codec.encodeCandidate(candidate));
         }
@@ -1024,14 +1057,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(24, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(24, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(24, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(25, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(25, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(25, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(24, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(24, current.batch().compatibility().schemaVersion());
-            assertEquals(24, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(24, current.batch().compatibility().routePolicyVersion());
+            assertEquals(25, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(25, current.batch().compatibility().schemaVersion());
+            assertEquals(25, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(25, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
@@ -1102,38 +1135,41 @@ class MetalNegRouteCandidateGeneratorTest {
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, 4, 23), current.batch()).isEmpty(),
                     "checksummed codec-v23 decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, 4, 24), current.batch()).isEmpty(),
+                    "checksummed codec-v24 decisions must fail closed");
             int compatibilityOffset = 4 * Integer.BYTES;
             assertTrue(codec.decodeDecision(
-                    rewriteInt(first, compatibilityOffset + Integer.BYTES, 23),
+                    rewriteInt(first, compatibilityOffset + Integer.BYTES, 24),
                     current.batch()).isEmpty(),
-                    "checksummed compatibility-codec-v23 decisions must fail closed");
+                    "checksummed compatibility-codec-v24 decisions must fail closed");
             assertTrue(codec.decodeDecision(
-                    rewriteInt(first, compatibilityOffset + 3 * Integer.BYTES, 23),
+                    rewriteInt(first, compatibilityOffset + 3 * Integer.BYTES, 24),
                     current.batch()).isEmpty(),
-                    "checksummed compatibility-schema-v23 decisions must fail closed");
+                    "checksummed compatibility-schema-v24 decisions must fail closed");
             assertTrue(codec.decodeDecision(
-                    rewriteInt(first, compatibilityOffset + 4 * Integer.BYTES, 23),
+                    rewriteInt(first, compatibilityOffset + 4 * Integer.BYTES, 24),
                     current.batch()).isEmpty(),
-                    "checksummed compatibility candidate-schema-v23 decisions must fail closed");
+                    "checksummed compatibility candidate-schema-v24 decisions must fail closed");
             assertTrue(codec.decodeDecision(
-                    rewriteInt(first, compatibilityOffset + 5 * Integer.BYTES, 23),
+                    rewriteInt(first, compatibilityOffset + 5 * Integer.BYTES, 24),
                     current.batch()).isEmpty(),
-                    "checksummed route-policy-v23 decisions must fail closed");
+                    "checksummed route-policy-v24 decisions must fail closed");
             int compatibilityLength =
                     java.nio.ByteBuffer.wrap(first).getInt(3 * Integer.BYTES);
             int candidateOffset = 5 * Integer.BYTES + compatibilityLength;
             assertTrue(codec.decodeDecision(
-                    rewriteInt(first, candidateOffset + Integer.BYTES, 23),
+                    rewriteInt(first, candidateOffset + Integer.BYTES, 24),
                     current.batch()).isEmpty(),
-                    "checksummed candidate-codec-v23 decisions must fail closed");
+                    "checksummed candidate-codec-v24 decisions must fail closed");
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, candidateOffset + 2 * Integer.BYTES, 21),
                     current.batch()).isEmpty(),
                     "checksummed candidate-schema-v21 decisions must fail closed");
             assertTrue(codec.decodeDecision(
-                    rewriteInt(first, candidateOffset + 2 * Integer.BYTES, 23),
+                    rewriteInt(first, candidateOffset + 2 * Integer.BYTES, 24),
                     current.batch()).isEmpty(),
-                    "checksummed candidate-schema-v23 decisions must fail closed");
+                    "checksummed candidate-schema-v24 decisions must fail closed");
             assertTrue(codec.decodeDecision(rewriteInt(first, 8, 99), current.batch()).isEmpty());
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, first.length - 8, 99), current.batch()).isEmpty());

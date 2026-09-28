@@ -44,8 +44,12 @@ def main() -> None:
 
     floating = certificate["floatingContract"]
     scatter = certificate["scatterAddContract"]
+    variance = certificate["varianceContract"]
     assert floating["sourceAdditionSites"] == 1
     assert scatter["sourceAdditionSites"] == 1
+    assert variance["sourceDivisionSites"] == 2
+    assert variance["sourceSubtractionSites"] == 1
+    assert variance["sourceMultiplicationSites"] == 1
     assert floating["reassociationSites"] == 0
     assert scatter["reassociationSites"] == 0
     assert floating["pretruncationSites"] == 0
@@ -55,7 +59,7 @@ def main() -> None:
     assert kernel_text.count("inline float scatter_add_site_0069(") == 1
     assert kernel_text.count("scatter_add_site_0069(") == 2
     assert kernel_text.count("return accumulator + contributor;") == 2
-    assert kernel_text.count("store_word(output, 0ul, 4u") == 1
+    assert kernel_text.count("store_word(output, 0ul, 4u") == 2
     assert kernel_text.count("store_word(output, target, 4u") == 1
     assert "firstWord = l1_abs_word_0069(uint(load_word(input, 0ul, 4u)))" in kernel_text
     assert "float accumulator = as_type<float>(firstWord)" in kernel_text
@@ -70,6 +74,17 @@ def main() -> None:
     )
     assert "selected == long(target)" in kernel_text
     assert "addressed ? as_type<uint>(accumulator) : baseWord" in kernel_text
+    assert kernel_text.count("inline float variance_div_site_0069(") == 1
+    assert kernel_text.count("variance_div_site_0069(") == 3
+    assert kernel_text.count("inline float variance_sub_site_0069(") == 1
+    assert kernel_text.count("variance_sub_site_0069(") == 2
+    assert kernel_text.count("inline float variance_mul_site_0069(") == 1
+    assert kernel_text.count("variance_mul_site_0069(") == 2
+    assert "float mean = variance_div_site_0069(x, one)" in kernel_text
+    assert "float difference = variance_sub_site_0069(x, mean)" in kernel_text
+    assert "float square = variance_mul_site_0069(difference, difference)" in kernel_text
+    assert "float result = variance_div_site_0069(square, one)" in kernel_text
+    assert "m.elementCount != 1ul || m.inputExtents[0] != 1ul" in kernel_text
     assert "accumulator = 0.0" not in kernel_text
     for forbidden in ("fma(", "fast::", "simdgroup", "atomic_", "epsilon"):
         assert forbidden not in kernel_text
@@ -82,10 +97,16 @@ def main() -> None:
         "BOOL task0069_scatter = node.operation == SYNAPTIK_METAL_CUSTOM_SCATTER_ADD"
         in foundation_text
     )
+    assert (
+        "BOOL task0069_variance = node.operation == SYNAPTIK_METAL_MPSGRAPH_VARIANCE"
+        in foundation_text
+    )
     assert "meta.inputExtents[0] = shape_element_count(input)" in foundation_text
     assert "step.grid = MTLSizeMake(1U, 1U, 1U)" in foundation_text
     assert "return @\"l1_norm_f32_0069\"" in foundation_text
     assert "return @\"scatter_add_f32_0069\"" in foundation_text
+    assert "return @\"variance_f32_0069\"" in foundation_text
+    assert "meta.reserved = UINT32_C(0x3f800000)" in foundation_text
     assert "validation.preflight = YES" in foundation_text
     assert "validate_index_buffer(validation, index_buffer)" in foundation_text
     preflight_scan = foundation_text.index(
@@ -135,6 +156,29 @@ def main() -> None:
     assert "scatter_source_result_is_general_binary32_model_result" in proof_text
     assert "scatter_unaddressed_raw_identity" in proof_text
     assert "scatterWriterThread_injective" in proof_text
+    assert "def binary32PrimitiveSite" in proof_text
+    assert "def exactDivRne" in proof_text
+    assert "def exactSubRne" in proof_text
+    assert "def exactMulRne" in proof_text
+    assert "def task0069ExactSubValue" in proof_text
+    assert "def task0069RneProductBelowHalf" in proof_text
+    assert "exactRneSubValue" not in proof_text
+    assert "exactRneProductNumerator" not in proof_text
+    assert "natSignedDifference_bound" in proof_text
+    assert "smallFinite_difference_bound" in proof_text
+    assert "smallFinite_product_below_half" in proof_text
+    assert "singletonVarianceLiteralSource_exact" in proof_text
+    assert "binary32PrimitiveSite exactDivRne source typedOne mean" in proof_text
+    assert "binary32PrimitiveSite exactSubRne source mean difference" in proof_text
+    assert "binary32PrimitiveSite exactMulRne difference difference square" in proof_text
+    assert "binary32PrimitiveSite exactDivRne square typedOne result" in proof_text
+    assert "DivOneContract" not in proof_text
+    assert "SubtractionContract" not in proof_text
+    assert "MultiplicationContract" not in proof_text
+    assert "singletonVariance_special_is_nan" in proof_text
+    assert "singletonVariance_finite_is_positiveZero" in proof_text
+    assert "singletonVariance_only_thread_zero_dispatched" in proof_text
+    assert "singletonVariance_store_once" in proof_text
 
     inventory = certificate["siteInventory"]
     assert [site["id"] for site in inventory] == [
@@ -144,11 +188,17 @@ def main() -> None:
         "scatter-raw-base",
         "scatter-stable-filtered-add",
         "scatter-single-store",
+        "variance-mean-div",
+        "variance-difference-sub",
+        "variance-square-mul",
+        "variance-final-div",
+        "variance-single-store",
     ]
-    assert sum(site["floatingArithmetic"] for site in inventory) == 2
+    assert sum(site["floatingArithmetic"] for site in inventory) == 6
     assert all(site["proof"] for site in inventory)
     assert all(certificate["specialValueProof"].values())
     assert all(certificate["scatterContributorProof"].values())
+    assert all(certificate["varianceSpecialValueProof"].values())
     assert certificate["proof"]["compiledMslAudit"]
     print("Task0069 source/compiler-site certificate verified")
 

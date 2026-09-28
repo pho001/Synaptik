@@ -101,15 +101,17 @@ dropout constructs no wire 101 and returns the original value and state. `RNN_TA
 approved complete elementary-function/recurrence route, runtime valid-length validation, or BPTT
 ownership.
 
-Wires `111..113` and `115` (`LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, and `L2_NORM`)
-retain package-private forceable MPSGraph recipes. Wire `114` no longer exposes its opaque
-MPSGraph composition through creation. Task-0069 Slice 1 admits only the accelerator no-gradient
-FLOAT32 L1 occurrence with one canonical positive-static rank-one input, ordered multi-axis `[0]`,
-and a canonical scalar or retained `[1]` output. Its fixed custom kernel raw-clears every
-contributor sign, initializes from ordinal zero, performs exactly `N-1` safe
-binary32 additions in increasing ordinal order, and stores one final raw word; `N=1` performs no
-addition. LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, all other L1 occurrences, and L2_NORM remain
-production-false.
+Wires `111`, `113`, and `115` (`LOG_SUM_EXP`, `STANDARD_DEVIATION`, and `L2_NORM`) retain
+package-private forceable MPSGraph recipes. Wires `112` and `114` no longer expose their opaque
+MPSGraph compositions through creation. Task-0069 admits only the accelerator no-gradient FLOAT32
+L1 occurrence with one canonical positive-static rank-one input, ordered multi-axis `[0]`, and a
+canonical scalar or retained `[1]` output, plus singleton VARIANCE with canonical input `[1]`,
+statistical axis `[0]`, correction zero, and either output form. L1 raw-clears every contributor
+sign, initializes from ordinal zero, performs exactly `N-1` safe binary32 additions in increasing
+ordinal order, and stores one final raw word; `N=1` performs no addition. VARIANCE evaluates exactly
+`DIV(x,+1)`, `SUB(x,mean)`, `MUL(difference,difference)`, and `DIV(square,+1)` on one writer and
+stores once. Every finite input yields positive zero; NaN and infinity yield NaN class.
+LOG_SUM_EXP, STANDARD_DEVIATION, every other L1/VARIANCE occurrence, and L2_NORM remain false.
 
 `ACCELERATOR` additionally admits tensor `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, and `MAX`; all six
 binary comparisons; exact FLOAT32 scalar `MIN`, `MAX`, fused `CLAMP`, and no-gradient `ADD`, `SUB`,
@@ -117,7 +119,8 @@ binary comparisons; exact FLOAT32 scalar `MIN`, `MAX`, fused `CLAMP`, and no-gra
 `CUM_PROD`; every positive-static FLOAT32 `MATMUL` vector, matrix, batched, and right-aligned
 broadcast geometry; no-gradient BFLOAT16/FLOAT32 or FLOAT32/BFLOAT16 MATMUL with FLOAT32 result;
 FLOAT32-result grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles; FLOAT32 average Pool2d/Pool3d;
-and the exact Task-0069 L1 slice. Both profiles admit no-gradient INT32/INT64 MATMUL pairs with
+and the exact Task-0069 L1, ScatterAdd, and singleton VARIANCE slices. Both profiles admit
+no-gradient INT32/INT64 MATMUL pairs with
 INT64-dominant promotion and modular result arithmetic and exact FLOAT64/FLOAT32/BFLOAT16 maximum
 Pool2d/Pool3d.
 Comparisons publish canonical one-byte BOOL. Extrema reductions join `SUM` and `MEAN` across full,
@@ -140,9 +143,10 @@ custom logic writes exact zero or one, and FLOAT32 WHERE copies the selected rep
 Every descriptor is fully static and has the operation-specific exact type, layout, Shape, and
 gradient relationship. The common exact operations have the same Model result contract in both
 profiles; Task-0052 operations, the no-gradient scalar/reciprocal subset, floating MATMUL, bounded
-MSE forward execution, convolution, average pooling, dropout, rank-one L1_NORM, and rank-one
-SCATTER_ADD exist only under ACCELERATOR. INITIAL_STATE is common. The complete 115-row capability
-ledger is `85 true / 30 false` under the exact occurrence restrictions above.
+MSE forward execution, convolution, average pooling, dropout, rank-one L1_NORM, rank-one
+SCATTER_ADD, and singleton VARIANCE exist only under ACCELERATOR. INITIAL_STATE is common. The
+complete 115-row capability ledger is `86 true / 29 false` under the exact occurrence restrictions
+above.
 
 ```text
 capability -> Planning ownership -> Metal analysis and typed candidates
@@ -280,7 +284,7 @@ distinct non-physical identities. The first is an abstract availability slot, th
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
 claim. No mapping among them is implied. ABI 5 and the thirteen native exports remain fixed.
 The route-bearing image is schema 16 and every workload/exact-policy/candidate/compatibility/
-route/codec identity is version 24; schema 15, identity 23, and every older value fail closed.
+route/codec identity is version 25; schema 15, identity 24, and every older value fail closed.
 Tuning remains session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
@@ -420,7 +424,7 @@ consuming a caller position. Existing shared `GraphPreparation` tests independen
 chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, and typed node records are known,
-analysis creates a version-twenty-four candidate batch and workload fingerprint. Every selected
+analysis creates a version-twenty-five candidate batch and workload fingerprint. Every selected
 Task-0066 or Task-0069 occurrence forces the fixed `CUSTOM_PROGRAM` production candidate; the batch
 rejects a selected-node MPSGraph route before native allocation.
 Other partitions retain their established candidate sets, including the bounded singleton-NEG
@@ -428,13 +432,13 @@ dual-route case and direct rank-two FLOAT32 MATMUL where no selected custom-only
 whole-program route. Package-private structural forcing remains available only for a route already
 present in the fresh authenticated batch.
 
-The version-twenty-four canonical workload fingerprint covers the explicit numerical-profile wire,
+The version-twenty-five canonical workload fingerprint covers the explicit numerical-profile wire,
 the schema-sixteen route-bearing program image, ordered input and output references, all typed
 attributes, logical and physical value states, authenticated local provenance, complete tensor
 descriptors and storage layouts, target and internal-value sets, exact scalar/splat bits, logical-
 boundary roles, policy/candidate/route schemas, and ABI version. It encodes structural positions
 rather than graph object identity. Target compatibility also contains a fresh private nonce from
-the exact `MetalDeviceContext`; only identity 24 is accepted, while identity 23 and every older
+the exact `MetalDeviceContext`; only identity 25 is accepted, while identity 24 and every older
 decision fail closed.
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. Every supplied handoff is accepted only when the exact
@@ -460,15 +464,15 @@ exposes this test seam.
 
 ### Session decision codec and limitations
 
-The package-private version-twenty-four Metal codec produces bounded canonical compatibility,
+The package-private version-twenty-five Metal codec produces bounded canonical compatibility,
 candidate, and checksummed decision bytes. Decode rejects wrong magic, schema, session scope,
 numerical profile, malformed or truncated content, trailing or corrupt bytes, changed workload or
 context, and unknown or pruned candidates. The bytes contain no native handle or executable.
-Only identity 24 is accepted; identity 23 and every older codec or cross-profile decision fails
+Only identity 25 is accepted; identity 24 and every older codec or cross-profile decision fails
 closed even when its trailing checksum is otherwise valid.
 
 The public `MetalLocalWorkloadTuning` retained by `MetalBackendIntegration` wraps this codec and
-candidate generator without changing their version-twenty-four bytes. It returns a handoff only
+candidate generator without changing their version-twenty-five bytes. It returns a handoff only
 for an exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
 `MetalCompletePlanTuning` authenticates the exact Phase-1 association and exposes one complete-plan
 candidate fixed to that selected route. Both collaborations use opaque exact-owner/batch values,
@@ -482,7 +486,7 @@ model-plan path. Cross-session Metal reuse still requires a separately authorize
 device/library fingerprint.
 
 Schema-sixteen workload bytes and workload compatibility include the fixed route and exact profile.
-Candidate and decision bytes retain route wires `1..3`, route-policy version twenty-four, and the
+Candidate and decision bytes retain route wires `1..3`, route-policy version twenty-five, and the
 target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
@@ -867,7 +871,7 @@ physical flags, stride-pool offset, storage offset, and referenced span. The hea
 route wire `2` or `3` followed by the exact numerical-profile wire
 `0x53545249=STRICT_IEEE` or `0x41434345=ACCELERATOR`; schema 15, unknown profile wires, route zero,
 and every other schema or route fail closed.
-Production capability admits exactly 85 operation kinds while 30 remain false; structural native
+Production capability admits exactly 86 operation kinds while 29 remain false; structural native
 execution covers 101 kinds and leaves 14 nonexecutable. Attribute wires `0..41` and type wires
 `1..6` cover all current Model signatures and carriers.
 
@@ -1073,7 +1077,7 @@ persistent Metal splat binding is accepted only as a Metal read source; it canno
 destination. Runtime executes only the resulting direct prepared references.
 
 For one exact singleton NEG Metal plan, public `prepareTuned(...)` measures the complete two-route
-local batch, authenticates the selected version-twenty-four decision, then correctness-checks and
+local batch, authenticates the selected version-twenty-five decision, then correctness-checks and
 times one complete-plan candidate fixed to that route. The returned production recipe is freshly
 prepared after representative cleanup. Metal policy, producer, and decision-codec identities are
 adapter-owned and distinct from CPU identities; existing CPU bytes and behavior remain unchanged.
@@ -1170,7 +1174,7 @@ fold/window, no-gradient promoted INT32/INT64 MATMUL, ordering/top-K/numeric arg
 pool, and initial-state occurrences common to both profile matrices. `ACCELERATOR` additionally
 admits the documented FLOAT32 tensor/scalar arithmetic, comparisons, reductions, scans, general
 MATMUL, MSE, grouped convolution, average pooling, explicit-state dropout, and the exact Task-0069
-rank-one no-gradient L1 and scatter-add slices.
+rank-one no-gradient L1/ScatterAdd plus singleton VARIANCE slices.
 
 Every Task-0066 selected occurrence is custom-only. Exact authenticated local logical views may
 depart from canonical layout only where their physical descriptors and spans are independently
@@ -1179,28 +1183,33 @@ exact/discrete or recursive primitive/aggregate floors and gain no generic final
 The bounded generated-gradient closure is the exact capable graph, not a new semantic formula or
 general backward promise.
 
-Task-0069 L1 and ScatterAdd always select the fixed custom program. L1 independently authenticates
-unsigned-32-bit element and four-byte span bounds, one-thread dispatch, distinct buffers, raw ABS
-leaves, contributor order, and one logical publication. ScatterAdd admits only axis zero, positive
-canonical rank-one FLOAT32 base/update/output, a materialized canonical rank-one INT32/INT64 index
-feed, and no gradient flags. A complete CPU index scan precedes every command encoding and
-mutation. One output thread raw-loads each base word once, retains duplicate matching updates in
-source order, and stores once; unaddressed cells select the unchanged raw word, and no atomic
-operation exists. The compiler explicitly canonicalizes its generated zero base, so the same
-domain closes the existing Gather data cotangent end to end.
+Task-0069 L1, ScatterAdd, and singleton VARIANCE always select the fixed custom program. L1
+independently authenticates unsigned-32-bit element and four-byte span bounds, one-thread dispatch,
+distinct buffers, raw ABS leaves, contributor order, and one logical publication. ScatterAdd admits
+only axis zero, positive canonical rank-one FLOAT32 base/update/output, a materialized canonical
+rank-one INT32/INT64 index feed, and no gradient flags. A complete CPU index scan precedes every
+command encoding and mutation. One output thread raw-loads each base word once, retains duplicate
+matching updates in source order, and stores once; unaddressed cells select the unchanged raw word,
+and no atomic operation exists. The compiler explicitly canonicalizes its generated zero base, so
+the same domain closes the existing Gather data cotangent end to end. VARIANCE admits only
+canonical FLOAT32 `[1]`, axes `[0]`, correction zero, no gradients, distinct buffers, and scalar or
+retained `[1]` output. One writer evaluates its four literal sites and stores the shared canonical
+cell once, with no fallback, classifier, retry, timing, clamp, reciprocal, FMA, or tolerance.
+Other VARIANCE shapes/corrections remain outside production capability but retain their established
+direct MPSGraph structural recipe; the singleton cutover neither rejects nor diverts them.
 
 The task-local Lean proof and source certificate are paired with a compiled-MSL/AIR audit of the
 exact assembled runtime source under Xcode 27.0 build 27A266a, Metal 32023.921, macOS SDK 27.0,
 `metal3.2`, no-fast-math, warnings as errors, and the explicit SDK isysroot. AIR contains exactly
-one unflagged `fadd` in each Task-0069 kernel and no other floating arithmetic in either kernel;
-the scatter body also proves its ordinal-zero filter loop, raw-base unaddressed select, one static
-store loop, and absence of atomics. VARIANCE remains outside production capability.
+one unflagged `fadd` in each L1/ScatterAdd kernel. The VARIANCE kernel contains exactly two
+unflagged `fdiv`, one `fsub`, one `fmul`, no `fadd` or FMA, and one static store; the scatter body
+also retains its ordinal-zero filter, raw-base unaddressed select, one static store, and no atomics.
 
 The profile is retained in partition plans and every route/tuning/codec/workload identity. Java
 enforces the boundary before native entry. ABI version `5` retains thirteen export names and
 accepts one bounded schema-16 route-bearing image; operation wires `1..115`, attribute wires
 `0..41`, route wires `1..3`, and type wires `1..6` cover the current structural registry without
 widening capability. Route, candidate, compatibility, workload, exact-policy, and codec identities
-are version `24`; version `23` and every older identity fail closed. Catalogs are exactly
-`75/35/5` MPSGraph and `72/43/0` custom; capability/structural counts remain `85/30` and `101/14`.
+are version `25`; version `24` and every older identity fail closed. Catalogs are exactly
+`75/35/5` MPSGraph and `73/42/0` custom; capability/structural counts remain `86/29` and `101/14`.
 The complete-plan wrapper remains version `1`.

@@ -86,11 +86,11 @@ BOOL/movement/replacement/fold/aggregate, ordering/top-K/numeric arg-extrema, no
 INT32/INT64 MATMUL, maximum-pooling, and raw INITIAL_STATE rows. `ACCELERATOR` additionally admits
 the documented FLOAT32 arithmetic/reduction/scan rows; same-type canonical positive-rank FLOAT32
 MSE; every positive-static FLOAT32 MATMUL geometry; no-gradient BFLOAT16/FLOAT32 mixed MATMUL;
-convolution, average pooling, and FLOAT32 dropout; and the no-gradient rank-one FLOAT32 L1_NORM and
-axis-zero SCATTER_ADD custom programs. The current ledger is 85 admitted kinds and 30 remaining
-false. Strict rejects accelerator-only occurrences; every other unlisted occurrence fails before
-route selection. Compilation neither changes the requested profile nor falls back when an
-occurrence has no eligible owner.
+convolution, average pooling, and FLOAT32 dropout; and the no-gradient rank-one FLOAT32 L1_NORM,
+axis-zero SCATTER_ADD, and singleton VARIANCE custom programs. The current ledger is 86 admitted
+kinds and 29 remaining false. Strict rejects accelerator-only occurrences; every other unlisted
+occurrence fails before route selection. Compilation neither changes the requested profile nor
+falls back when an occurrence has no eligible owner.
 
 ## Limitations
 
@@ -102,7 +102,7 @@ outside the retained all-FLOAT32 rank-two MPSGraph slice execute through one fix
 whole-program call with declared run-owned intermediates and direct targets. ABI 5 retains thirteen
 exports and consumes one bounded schema-16 program image with type wires `1..6`, operation wires
 `1..115`, and attributes `0..41`. Workload, exact-policy, candidate, compatibility, route-policy,
-and session-codec identities are version 24; identity 23 and every older identity fail closed.
+and session-codec identities are version 25; identity 24 and every older identity fail closed.
 Registry presence does not widen capability; unsupported operations fail closed.
 
 Model construction leaves Conv2d and Conv3d result layouts unresolved; Compiler closes

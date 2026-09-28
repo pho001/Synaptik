@@ -109,9 +109,9 @@
  * INT32/INT64 FOLD_AXIS; BOOL FOLD_AXIS and integral or BOOL FOLD2D/FOLD3D remain false. Every
  * replacement validates all indices and destination uniqueness before writes; every admitted fold
  * has one output writer and skips conceptual padding. Empty reduction axes are point identities
- * without admitting zero-dimensional extents. LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, and
- * L2_NORM have forceable structural recipes only and remain production-false. The exact bounded
- * L1_NORM occurrence described above instead uses the fixed source-owned custom program.
+ * without admitting zero-dimensional extents. LOG_SUM_EXP, STANDARD_DEVIATION, and L2_NORM have
+ * forceable structural recipes only and remain production-false. The exact bounded L1_NORM and
+ * singleton VARIANCE occurrences described below instead use fixed source-owned custom programs.
  *
  * <p>Task 0062 adds only ACCELERATOR same-type canonical positive-rank FLOAT32 MEAN_SQUARED_ERROR
  * with NONE, SUM, or MEAN reduction. Native lowering fixes the Model formula to one subtraction,
@@ -172,16 +172,19 @@
  * reduction-dependent, additive, transcendental, attention, and recurrent blockers remain
  * fail-closed.
  *
- * <p>Task 0069 Slices 1 and 2 add accelerator-only no-gradient FLOAT32 rank-one L1 norm and
- * scatter-add occurrences at wires 114 and 70. L1 raw-ABS-transforms every contributor and uses
- * exactly {@code N-1} source-ordered safe additions. Scatter requires axis zero, a materialized
- * canonical INT32/INT64 index feed, and canonical base/update/output roles. The compiler places
- * explicit {@code CONTIGUOUS} between its generated zero-base expansion and Scatter. Its complete
- * CPU index scan precedes every dispatch and mutation; one thread per target loads the raw base
- * once, retains every matching duplicate in source order, and stores once, while unaddressed cells
- * are raw copies. The shared proof and
- * source/compiler-site certificate are pinned under {@code evidence/0069}; {@code VARIANCE}
- * remains production-false.
+ * <p>Task 0069 Slices 1 through 3 add accelerator-only no-gradient FLOAT32 rank-one L1 norm,
+ * scatter-add, and singleton variance occurrences at wires 114, 70, and 112. L1
+ * raw-ABS-transforms every contributor and uses exactly {@code N-1} source-ordered safe additions.
+ * Scatter requires axis zero, a materialized canonical INT32/INT64 index feed, and canonical
+ * base/update/output roles. The compiler places explicit {@code CONTIGUOUS} between its generated
+ * zero-base expansion and Scatter. Its complete CPU index scan precedes every dispatch and
+ * mutation; one thread per target loads the raw base once, retains every matching duplicate in
+ * source order, and stores once, while unaddressed cells are raw copies. Variance requires input
+ * {@code [1]}, axis {@code [0]}, correction zero, and canonical scalar or retained {@code [1]}
+ * output. It executes the literal DIV-SUB-MUL-DIV sequence on one custom writer thread. Other
+ * variance occurrences retain the existing descriptive direct-MPSGraph path but remain
+ * production-false. The shared proof and source/compiler/AIR certificates are pinned under
+ * {@code evidence/0069}.
  *
  * <p>The selected numerical profile participates in partition-plan, route, tuning, decision-codec,
  * and workload identity. Java rejects profile/schema mismatches before native entry. ABI version
@@ -189,9 +192,9 @@
  * route-bearing image over stable type wires {@code 1..6}, operation wires {@code 1..115},
  * attribute wires {@code 0..41}, and complete optional storage-layout geometry; its fixed header
  * binds the exact numerical-profile wire. Native structural execution covers exactly 101 wires and
- * leaves 14 nonexecutable. Production capability is exactly 85 operation kinds and 30 remain false.
+ * leaves 14 nonexecutable. Production capability is exactly 86 operation kinds and 29 remain false.
  * Backend-local workload, exact-policy, candidate, compatibility, route-policy, and codec
- * identities are version twenty-four; schema version fifteen and every other schema, and identity
- * version twenty-three and earlier, fail closed.
+ * identities are version twenty-five; schema version fifteen and every other schema, and identity
+ * version twenty-four and earlier, fail closed.
  */
 package io.github.pho001.synaptik.backend.metal;

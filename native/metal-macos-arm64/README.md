@@ -61,8 +61,9 @@ Dropped output is raw positive zero; kept output uses FLOAT32 division then mult
 complement narrowed only after binary64 subtraction. State has one writer, all live outputs use
 ordinary run-local buffers, and direct MPSGraph creation rejects both wires.
 
-Task 0069 Slices 1 and 2 add source-owned custom-only `114=L1_NORM` and `70=SCATTER_ADD` for
-accelerator FLOAT32. L1 accepts one canonical positive-static rank-one no-gradient input, ordered
+Task 0069 Slices 1 through 3 add source-owned custom-only `114=L1_NORM`, `70=SCATTER_ADD`,
+and `112=VARIANCE` for accelerator FLOAT32. L1 accepts one canonical positive-static rank-one
+no-gradient input, ordered
 multi-axis `[0]`, and a canonical scalar or retained `[1]` output. Its one output thread raw-clears
 every contributor sign bit, initializes from ordinal zero, performs exactly `N-1` source-ordered
 safe binary32 additions, and serializes one final raw word; `N=1` performs no addition.
@@ -75,26 +76,35 @@ the base once, applies the sole safe addition to every matching update ordinal i
 and stores once. Duplicate targets are retained, unaddressed cells copy the raw base word, and no
 atomic operation exists.
 
+Variance accepts only a canonical no-gradient rank-one `[1]` input, statistical axis `[0]`,
+correction zero, and a canonical scalar or retained `[1]` output. One dispatched thread evaluates
+exactly `DIV(x,+1)`, `SUB(x,mean)`, `MUL(difference,difference)`, and `DIV(square,+1)` using the
+metadata-owned raw binary32 `+1`, then stores the sole canonical cell once. Every finite input,
+including either zero and every subnormal under all admitted DAZ/FTZ behavior, produces exact
+positive zero; NaN and either infinity sign produce NaN class. There is no classifier, aggregate
+add, reciprocal, FMA, clamp, tolerance, fallback, retry, timing, or alternate publication path.
+
 The runtime compiler fixes `MTLMathModeSafe` and `MTLLanguageVersion3_2`. The exact assembled
 production source passes the pinned Xcode 27.0/Metal 32023.921/macOS SDK 27.0 compiled-MSL/AIR
 audit with `metal3.2`, no-fast-math, warnings as errors, and the explicit SDK isysroot. AIR exposes
-one unflagged `fadd` in each Task-0069 kernel, no other floating arithmetic, and no scatter atomics.
-VARIANCE remains production-false.
+one unflagged `fadd` in each L1/ScatterAdd kernel; the VARIANCE kernel contains exactly two
+unflagged `fdiv`, one `fsub`, one `fmul`, no `fadd` or FMA, and one static store. Scatter contains
+no atomics.
 
-The remaining 30 production rows fail closed before native creation. A structurally valid
+The remaining 29 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 24. Java
+rather than masquerading as malformed input. Candidate and route identity are version 25. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
 shared custom-program wire 3. Schema 16 embeds wire 2 or 3 and the exact numerical profile in each
 graph image; schema 15 and every other schema, profile, or route value fail closed. The exhaustive
 Java structural catalog adds no native
 route selection, capability, autotuning, fallback, telemetry, or performance authority.
 
-For admitted nodes, the version-24 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-25 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, complete encoded logical storage-layout
-geometry, and its independently safe physical materialization. The schema-16 and identity-24
-cutover has no compatibility reader or migration alias; schema 15, identity 23, and earlier values
+geometry, and its independently safe physical materialization. The schema-16 and identity-25
+cutover has no compatibility reader or migration alias; schema 15, identity 24, and earlier values
 fail closed.
 
 ```text
@@ -345,13 +355,14 @@ production-exact convolution/pooling wires `36`, `37`, and `97..100`, Task-0065 
 `101..102`, aggregate wires `106..108`, and structural-only wires `111..113` and `115`. Task-0059
 recipes cover direct cast/index/pad/slice/concat/tile/im2col/col2im selectors and explicit stack,
 fold-axis, and 3D-window compositions. Task-0060 adds stable log-sum-exp, correction-aware
-variance/standard-deviation, and L2-norm structural compositions. Wires `70` and `114` reject
-direct MPSGraph creation; only the exact Task-0069 rank-one FLOAT32 ScatterAdd and L1 occurrences
-use their fixed custom kernels. Task-0061 retains only all-FLOAT32 rank-two MATMUL in the MPSGraph
-recipe; typed custom forms are rejected by that route. Task-0064 direct/composed MPSGraph family
-metadata remains structural only. Its six production rows, both Task-0065 random rows, and both
-Task-0069 occurrences always select the custom program. Structural creation and execution do not
-widen production capability.
+variance/standard-deviation, and L2-norm structural compositions. Wires `70` and `114`, plus the
+exact wire-112 singleton `[1]`/axis-`[0]`/correction-zero occurrence, reject direct MPSGraph
+creation and use their fixed Task-0069 custom kernels. Non-domain VARIANCE retains its existing
+direct MPSGraph structural recipe. Task-0061 retains only all-FLOAT32 rank-two MATMUL in the
+MPSGraph recipe; typed custom forms are rejected by that route. Task-0064 direct/composed MPSGraph
+family metadata remains structural only. Its six production rows, both Task-0065 random rows, and
+all three exact Task-0069 occurrences always select the custom program. Structural creation and
+execution do not widen production capability.
 
 ### Status values
 

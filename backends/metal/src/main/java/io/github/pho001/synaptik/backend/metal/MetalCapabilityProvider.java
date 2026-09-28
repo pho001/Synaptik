@@ -82,6 +82,7 @@ import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
@@ -148,7 +149,8 @@ import java.util.Objects;
  * Task-0069 rank-one Gather data cotangent can close. Broadcast reductions, positive-rank tile
  * adjoints, overlapping windows, multi-path cotangent addition, and every non-floating derivative
  * remain blocked. Integral PROD admits INT32/INT64 modular multiplication; ALL and ANY admit
- * canonical BOOL. LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, and L2_NORM remain production-false.
+ * canonical BOOL. LOG_SUM_EXP, STANDARD_DEVIATION, and L2_NORM remain production-false. VARIANCE
+ * admits only the source-certified singleton domain.
  *
  * <p>Task 0063 admits profile-common canonical dense {@code SORT}, {@code ARGSORT}, and positive-K
  * {@code TOP_K} for all six carriers and {@code ARG_MAX}/{@code ARG_MIN} for the five numeric
@@ -171,12 +173,14 @@ import java.util.Objects;
  * kind and every non-FLOAT32, strict, dynamic, malformed-state, or over-limit dropout occurrence
  * remains unsupported.
  *
- * <p>Task 0069 admits accelerator-only no-gradient FLOAT32 rank-one {@code L1_NORM} and {@code
- * SCATTER_ADD}. Scatter uses axis zero, positive static data/update extents, canonical
- * base/index/update/output roles, and a materialized INT32/INT64 index feed. Complete index
- * validation precedes every dispatch and mutation;
+ * <p>Task 0069 admits accelerator-only no-gradient FLOAT32 rank-one {@code L1_NORM}, axis-zero
+ * {@code SCATTER_ADD}, and the exact singleton {@code VARIANCE} occurrence. Scatter requires
+ * positive static data/update extents, canonical base/index/update/output roles, and a materialized
+ * INT32/INT64 index feed. Complete index validation precedes every dispatch and mutation;
  * duplicates retain source order, unaddressed cells preserve the raw base word, and one output
- * thread owns each target. Gradient-bearing scatter and {@code VARIANCE} remain unsupported.
+ * thread owns each target. Variance requires input {@code [1]}, axis {@code [0]}, correction zero,
+ * and canonical scalar or retained {@code [1]} output; every other variance occurrence remains on
+ * its previously supported direct structural path and remains production-false.
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     private static final long UINT32_MAX = 0xffff_ffffL;
@@ -383,9 +387,13 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                     return supportsScan(operation, inputs, output, scan);
                 }
                 if (operation.kind() instanceof AggregateReductionKind reduction) {
-                    return reduction == AggregateReductionKind.L1_NORM
-                            ? supportsTask0069L1Norm(operation, inputs, output)
-                            : supportsReduction(operation, inputs, output, reduction);
+                    if (reduction == AggregateReductionKind.L1_NORM) {
+                        return supportsTask0069L1Norm(operation, inputs, output);
+                    }
+                    if (reduction == AggregateReductionKind.VARIANCE) {
+                        return supportsTask0069Variance(operation, inputs, output);
+                    }
+                    return supportsReduction(operation, inputs, output, reduction);
                 }
                 return supportsBinary(operation, inputs, output);
             }
@@ -2030,6 +2038,30 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         }
         long extent = input.shape().toLongArray()[0];
         if (extent < 1L || extent > UINT32_MAX / Float.BYTES) {
+            return false;
+        }
+        long[] expected = attrs.keepDimensions() ? new long[] {1L} : new long[0];
+        return Arrays.equals(expected, output.shape().toLongArray())
+                && output.layout().orElseThrow().referencedElementSpan() == 1L;
+    }
+
+    private static boolean supportsTask0069Variance(
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output) {
+        if (!(operation.attrs() instanceof StatisticalReductionAttrs attrs)
+                || !attrs.axes().equals(List.of(0))
+                || attrs.correction() != 0
+                || inputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        if (!canonical(input)
+                || !canonicalReductionOutput(output)
+                || input.requiresGrad()
+                || output.requiresGrad()
+                || input.shape().rank() != 1
+                || input.shape().toLongArray()[0] != 1L) {
             return false;
         }
         long[] expected = attrs.keepDimensions() ? new long[] {1L} : new long[0];

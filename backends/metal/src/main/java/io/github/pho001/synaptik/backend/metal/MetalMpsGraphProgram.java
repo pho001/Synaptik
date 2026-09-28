@@ -297,6 +297,7 @@ final class MetalMpsGraphProgram {
                     || wireIdentity >= 69 && wireIdentity <= 84
                     || wireIdentity >= 94 && wireIdentity <= 96
                     || wireIdentity >= 106 && wireIdentity <= 110
+                    || wireIdentity == 112
                     || wireIdentity == 114;
         }
 

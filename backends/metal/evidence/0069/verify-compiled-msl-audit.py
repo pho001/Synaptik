@@ -50,6 +50,7 @@ def main() -> None:
     assert digest(air) == artifacts["air"]["sha256"], digest(air)
     assert digest(metallib) == artifacts["metallib"]["sha256"], digest(metallib)
     assert symbols.count(" T l1_norm_f32_0069") == 1
+    assert symbols.count(" T variance_f32_0069") == 1
     assert symbols.count(" T scatter_add_f32_0069") == 1
 
     def kernel_body(symbol: str) -> str:
@@ -71,6 +72,32 @@ def main() -> None:
     assert l1_body.count(" bitcast float ") == 1
     assert "phi i64" in l1_body and "[ 1," in l1_body
     assert l1_body.count("store i8") == 1
+
+    variance_body = kernel_body("variance_f32_0069")
+    variance_fdivs = [
+        line.strip() for line in variance_body.splitlines() if " fdiv " in line
+    ]
+    variance_fsubs = [
+        line.strip() for line in variance_body.splitlines() if " fsub " in line
+    ]
+    variance_fmuls = [
+        line.strip() for line in variance_body.splitlines() if " fmul " in line
+    ]
+    assert len(variance_fdivs) == 2
+    assert len(variance_fsubs) == 1
+    assert len(variance_fmuls) == 1
+    variance_instructions = variance_fdivs + variance_fsubs + variance_fmuls
+    assert all(
+        re.search(r"= f(div|sub|mul) float ", instruction)
+        for instruction in variance_instructions
+    )
+    assert all(
+        all(flag not in instruction for flag in ("fast", "contract", "reassoc", "afn"))
+        for instruction in variance_instructions
+    )
+    assert " fadd " not in variance_body
+    assert "air.fma" not in variance_body and "llvm.fma" not in variance_body
+    assert variance_body.count("store i8") == 1
 
     scatter_body = kernel_body("scatter_add_f32_0069")
     scatter_fadds = [
@@ -98,6 +125,12 @@ def main() -> None:
     assert audit["l1Norm"]["kernelSymbol"] == "l1_norm_f32_0069"
     assert audit["l1Norm"]["floatingAddInstructions"] == 1
     assert audit["l1Norm"]["unsafeFloatingFlags"] == []
+    assert audit["variance"]["kernelSymbol"] == "variance_f32_0069"
+    assert audit["variance"]["floatingDivideInstructions"] == 2
+    assert audit["variance"]["floatingSubtractInstructions"] == 1
+    assert audit["variance"]["floatingMultiplyInstructions"] == 1
+    assert audit["variance"]["floatingAddInstructions"] == 0
+    assert audit["variance"]["unsafeFloatingFlags"] == []
     assert audit["scatterAdd"]["kernelSymbol"] == "scatter_add_f32_0069"
     assert audit["scatterAdd"]["floatingAddInstructions"] == 1
     assert audit["scatterAdd"]["unsafeFloatingFlags"] == []

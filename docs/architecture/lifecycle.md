@@ -410,13 +410,16 @@ all-carrier affine/index/replacement/movement, the admitted non-overlapping fold
 unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema, no-gradient promoted INT32/INT64
 MATMUL, exact maximum pooling, and raw initial state. `ACCELERATOR` additionally admits the
 documented FLOAT32 arithmetic, extrema, scalar, reduction, scan, MSE, general MATMUL,
-average-pooling, convolution, explicit-state dropout, and the exact rank-one FLOAT32 L1 and
-ScatterAdd occurrences. Every Task-0066 selected occurrence and both Task-0069 occurrences use one
-fixed custom whole-program route; ScatterAdd completes its index scan before any encoding or
-mutation and closes the existing rank-one Gather data cotangent. Every other unlisted occurrence
-fails closed before route selection. ABI 5 retains thirteen exports and accepts one bounded
-schema-16 route-bearing program image over type wires `1..6`, operation wires `1..115`, attribute
-wires `0..41`, and route wires `1..3`; backend identities are version twenty-four. Structural
-coverage is `101 / 14`, production capability is `85 / 30`, and the MPSGraph/custom catalogs are
-`75 / 35 / 5` and `72 / 43 / 0`. Identity twenty-three and every older identity fail closed.
+average-pooling, convolution, explicit-state dropout, and the exact rank-one FLOAT32 L1,
+ScatterAdd, and singleton VARIANCE occurrences. Every Task-0066 selected occurrence and all three
+Task-0069 occurrences use one fixed custom whole-program route; ScatterAdd completes its index scan
+before any encoding or mutation and closes the existing rank-one Gather data cotangent. The
+singleton variance requires input `[1]`, axis `[0]`, correction zero, and scalar or retained `[1]`
+output; other variance geometry retains its descriptive direct structural recipe but is not
+production-capable. Every other unlisted occurrence fails closed before route selection. ABI 5
+retains thirteen exports and accepts one bounded schema-16 route-bearing program image over type
+wires `1..6`, operation wires `1..115`, attribute wires `0..41`, and route wires `1..3`; backend
+identities are version twenty-five. Structural coverage is `101 / 14`, production capability is
+`86 / 29`, and the MPSGraph/custom catalogs are `75 / 35 / 5` and `73 / 42 / 0`. Identity
+twenty-four and every older identity fail closed.
 Runtime executes the prepared result with no profile branch.

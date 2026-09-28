@@ -1066,6 +1066,180 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
+    void task0069RawNativeRejectsEveryCustomVarianceBoundary() throws Throwable {
+        Path library = configuredLibrary();
+        var validProgram = task0069VarianceProgram(false, List.of(0), 0L);
+        List<MetalMpsGraphProgram.ValueDescriptor> validValues =
+                List.of(descriptor(1), descriptor());
+        try (RawAbi abi = new RawAbi(library)) {
+            byte[] valid = validProgram.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR,
+                    validValues,
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            assertEquals(0, abi.create(valid, valid.length));
+            byte[] retained = task0069VarianceProgram(true, List.of(0), 0L)
+                    .encodedProgramImage(
+                            NumericalProfile.ACCELERATOR,
+                            List.of(descriptor(1), descriptor(1)),
+                            new int[] {0},
+                            new int[] {1},
+                            MetalPreparedRoute.CUSTOM_PROGRAM);
+            assertEquals(0, abi.create(retained, retained.length));
+            byte[] strict = validProgram.encodedProgramImage(
+                    NumericalProfile.STRICT_IEEE,
+                    validValues,
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            assertEquals(1, abi.create(strict, strict.length));
+            byte[] direct = validProgram.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR,
+                    validValues,
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.MPSGRAPH);
+            assertEquals(13, abi.create(direct, direct.length));
+
+            int nodeDescriptor = nodeOffset(validValues.size());
+            int outputDescriptor =
+                    MetalMpsGraphProgram.HEADER_BYTES
+                            + MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES;
+            int dimensionsOffset =
+                    nodeDescriptor + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES;
+            int stridesOffset =
+                    dimensionsOffset + readInt(valid, 7 * Integer.BYTES) * Long.BYTES;
+            int referencesOffset =
+                    stridesOffset + readInt(valid, 11 * Integer.BYTES) * Long.BYTES;
+            int attributesOffset =
+                    referencesOffset + readInt(valid, 8 * Integer.BYTES) * Integer.BYTES;
+            int nodeReferencesOffset = referencesOffset + 2 * Integer.BYTES;
+            int retainedDimensionsOffset =
+                    nodeDescriptor + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES;
+            int retainedStridesOffset =
+                    retainedDimensionsOffset
+                            + readInt(retained, 7 * Integer.BYTES) * Long.BYTES;
+            int retainedOutputStrideIndex = readInt(retained, outputDescriptor + 12);
+
+            var malformed = new ArrayList<byte[]>();
+            malformed.add(rewriteInt(
+                    valid,
+                    nodeDescriptor + Integer.BYTES,
+                    MetalMpsGraphProgram.AttributeKind.NONE.wireIdentity()));
+            malformed.add(rewriteInt(
+                    valid, nodeDescriptor + 7 * Integer.BYTES, 3));
+            malformed.add(rewriteLong(
+                    valid, attributesOffset + 2 * Long.BYTES, 2L));
+            malformed.add(validProgram.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR,
+                    List.of(descriptor(1), descriptor(DataType.FLOAT64)),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(rewriteLong(
+                    retained, outputDescriptor + 3 * Long.BYTES, 1L));
+            malformed.add(rewriteLong(
+                    retained,
+                    retainedStridesOffset + retainedOutputStrideIndex * Long.BYTES,
+                    2L));
+            malformed.add(rewriteInt(retained, outputDescriptor + 5 * Integer.BYTES, 3));
+            malformed.add(rewriteInt(
+                    valid, nodeReferencesOffset + Integer.BYTES, 0));
+            malformed.add(task0069VarianceProgram(false, List.of(), 0L)
+                    .encodedProgramImage(
+                            NumericalProfile.ACCELERATOR,
+                            validValues,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(task0069VarianceProgram(false, List.of(1), 0L)
+                    .encodedProgramImage(
+                            NumericalProfile.ACCELERATOR,
+                            validValues,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(task0069VarianceProgram(false, List.of(0), 1L)
+                    .encodedProgramImage(
+                            NumericalProfile.ACCELERATOR,
+                            validValues,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(validProgram.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR,
+                    List.of(descriptor(2), descriptor()),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(validProgram.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR,
+                    List.of(descriptor(1, 1), descriptor(1)),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(validProgram.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR,
+                    List.of(descriptor(1), descriptor(1)),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(task0069VarianceProgram(true, List.of(0), 0L)
+                    .encodedProgramImage(
+                            NumericalProfile.ACCELERATOR,
+                            validValues,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(validProgram.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR,
+                    List.of(
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.FLOAT32, new long[] {1L}, true),
+                            descriptor()),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(validProgram.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR,
+                    List.of(
+                            descriptor(1),
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.FLOAT32, new long[0], true)),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            malformed.add(validProgram.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR,
+                    List.of(descriptor(DataType.FLOAT64, 1), descriptor()),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            Shape singleton = Shape.of(1);
+            malformed.add(validProgram.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR,
+                    List.of(
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.FLOAT32,
+                                    singleton.toLongArray(),
+                                    java.util.Optional.of(LayoutDescriptor.of(
+                                            singleton, new long[] {2L}, 0L, true)),
+                                    false,
+                                    false),
+                            descriptor()),
+                    new int[] {0},
+                    new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+            for (byte[] image : malformed) {
+                assertEquals(1, abi.create(image, image.length));
+            }
+            byte[] zeroExtent = rewriteLong(valid, dimensionsOffset, 0L);
+            assertEquals(8, abi.create(zeroExtent, zeroExtent.length));
+        }
+    }
+
+    @Test
     void task0069RawNativeRejectsEveryCustomScatterAddBoundary() throws Throwable {
         Path library = configuredLibrary();
         var program = new MetalMpsGraphProgram(List.of(
@@ -1969,6 +2143,18 @@ class MetalMpsGraphRawAbiNativeTest {
                 form,
                 axes,
                 keepDimensions)));
+    }
+
+    private static MetalMpsGraphProgram task0069VarianceProgram(
+            boolean keepDimensions, List<Integer> axes, long correction) {
+        return new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.statisticalReduction(
+                        MetalMpsGraphProgram.NodeKind.VARIANCE,
+                        0,
+                        1,
+                        axes,
+                        keepDimensions,
+                        correction)));
     }
 
     private static void assertTask0063RejectedByJavaAndNative(

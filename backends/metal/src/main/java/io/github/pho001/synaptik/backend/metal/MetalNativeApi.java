@@ -573,7 +573,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                                     || task0064CustomOnly(node.kind())
                                     || task0065CustomOnly(node.kind())
                                     || task0066Selected(node.kind())
-                                    || task0069CustomOnly(node.kind())
+                                    || task0069CustomOnly(
+                                            node, valueRanks, valueDimensions)
                                     || usesCustomMatmul(node, types, valueRanks))) {
                 throw new IllegalArgumentException(
                         "custom-only operations have no approved direct MPSGraph route");
@@ -610,7 +611,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
                 if (task0066Selected(node.kind())) {
                     validateTask0066Gradients(node, values, types);
-                } else if (exactNoGradientProduction(node.kind())) {
+                } else if (exactNoGradientProduction(node.kind())
+                        && (node.kind() != MetalMpsGraphProgram.NodeKind.VARIANCE
+                                || task0069VarianceMatches(
+                                        node, left, output, valueRanks, valueDimensions))) {
                     for (int input : node.inputs()) {
                         if (values.get(input).requiresGrad()) {
                             throw new IllegalArgumentException(
@@ -844,11 +848,27 @@ abstract class MetalNativeApi implements AutoCloseable {
                                             valueRanks,
                                             valueDimensions),
                                     "L1_NORM attributes, storage, and output shape disagree");
-                    case VARIANCE, STANDARD_DEVIATION ->
+                    case VARIANCE ->
+                            requireShape(
+                                    route == MetalPreparedRoute.CUSTOM_PROGRAM
+                                            ? task0069VarianceMatches(
+                                                    node,
+                                                    left,
+                                                    output,
+                                                    valueRanks,
+                                                    valueDimensions)
+                                            : statisticalReductionMatches(
+                                                    node,
+                                                    left,
+                                                    output,
+                                                    valueRanks,
+                                                    valueDimensions),
+                                    "VARIANCE attributes, storage, and output shape disagree");
+                    case STANDARD_DEVIATION ->
                             requireShape(
                                     statisticalReductionMatches(
                                             node, left, output, valueRanks, valueDimensions),
-                                    "statistical reduction attributes and output shape disagree");
+                                    "STANDARD_DEVIATION attributes and output shape disagree");
                     case SORT, ARGSORT, TOP_K, ARG_MAX, ARG_MIN ->
                             requireShape(
                                     task0063ShapeMatches(node, values),
@@ -1751,7 +1771,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                         PROD,
                         ALL,
                         ANY,
-                        L1_NORM ->
+                        L1_NORM,
+                        VARIANCE ->
                         true;
                 default -> false;
             };
@@ -2269,9 +2290,20 @@ abstract class MetalNativeApi implements AutoCloseable {
                     || kind == MetalMpsGraphProgram.NodeKind.INITIAL_STATE;
         }
 
-        private static boolean task0069CustomOnly(MetalMpsGraphProgram.NodeKind kind) {
-            return kind == MetalMpsGraphProgram.NodeKind.L1_NORM
-                    || kind == MetalMpsGraphProgram.NodeKind.SCATTER_ADD;
+        private static boolean task0069CustomOnly(
+                MetalMpsGraphProgram.Node node, int[] ranks, long[] dimensions) {
+            if (node.kind() == MetalMpsGraphProgram.NodeKind.L1_NORM
+                    || node.kind() == MetalMpsGraphProgram.NodeKind.SCATTER_ADD) {
+                return true;
+            }
+            if (node.kind() != MetalMpsGraphProgram.NodeKind.VARIANCE) return false;
+            int input = node.firstInputIndex();
+            int output = node.outputIndex();
+            return input >= 0
+                    && output >= 0
+                    && input < ranks.length
+                    && output < ranks.length
+                    && task0069VarianceMatches(node, input, output, ranks, dimensions);
         }
 
         private static boolean usesCustomMatmul(
@@ -2351,6 +2383,34 @@ abstract class MetalNativeApi implements AutoCloseable {
                     0L,
                     true);
             return descriptor.layout().filter(expected::equals).isPresent();
+        }
+
+        private static boolean task0069VarianceMatches(
+                MetalMpsGraphProgram.Node node,
+                int inputIndex,
+                int outputIndex,
+                int[] ranks,
+                long[] dimensions) {
+            if (node.kind() != MetalMpsGraphProgram.NodeKind.VARIANCE
+                    || node.attributeKind()
+                            != MetalMpsGraphProgram.AttributeKind.STATISTICAL_REDUCTION) {
+                return false;
+            }
+            long[] words = node.attributeWords();
+            if (words.length != 4
+                    || words[0] != 1L
+                    || words[1] != 0L
+                    || (words[2] != 0L && words[2] != 1L)
+                    || words[3] != 0L
+                    || ranks[inputIndex] != 1
+                    || dimensions[inputIndex * MAX_RANK] != 1L) {
+                return false;
+            }
+            if (words[2] == 0L) {
+                return ranks[outputIndex] == 0;
+            }
+            return ranks[outputIndex] == 1
+                    && dimensions[outputIndex * MAX_RANK] == 1L;
         }
 
         private static void validateTask0064ConvolutionTypesAndGradients(

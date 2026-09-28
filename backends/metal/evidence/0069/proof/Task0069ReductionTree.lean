@@ -581,3 +581,49 @@ theorem scatter_only_target_thread_writes
     (thread target : Nat) (owns : thread = scatterWriterThread target) :
     thread = target := by
   exact owns
+
+inductive SingletonVarianceOutputForm where
+  | scalar
+  | retainedSingleton
+  deriving DecidableEq, Repr
+
+/-- Rank-zero and retained `[1]` forms name the same canonical storage cell. -/
+def singletonVarianceCanonicalCell (_ : SingletonVarianceOutputForm) : Nat :=
+  0
+
+theorem singletonVariance_both_forms_target_cell_zero
+    (form : SingletonVarianceOutputForm) :
+    singletonVarianceCanonicalCell form = 0 := rfl
+
+/-- The fixed custom route dispatches exactly the sole writer thread. -/
+def singletonVarianceDispatchedThreads : List Nat :=
+  [0]
+
+theorem singletonVariance_only_thread_zero_dispatched
+    (thread : Nat) :
+    thread ∈ singletonVarianceDispatchedThreads ↔ thread = 0 := by
+  simp [singletonVarianceDispatchedThreads]
+
+theorem singletonVariance_exactly_one_thread :
+    singletonVarianceDispatchedThreads.length = 1 := rfl
+
+/-- One completed singleton trace has exactly one output-store event. -/
+structure SingletonVarianceExecution (source result : Word) where
+  form : SingletonVarianceOutputForm
+  trace : SingletonVarianceTrace source result
+  outputStoreCount : Nat
+  outputStoreCountExact : outputStoreCount = 1
+
+theorem singletonVariance_store_once
+    {source result : Word}
+    (execution : SingletonVarianceExecution source result) :
+    execution.outputStoreCount = 1 :=
+  execution.outputStoreCountExact
+
+theorem singletonVariance_execution_exact
+    {source result : Word}
+    (execution : SingletonVarianceExecution source result) :
+    singletonVarianceCanonicalCell execution.form = 0 ∧
+    singletonVarianceDispatchedThreads.length = 1 ∧
+    execution.outputStoreCount = 1 := by
+  exact ⟨rfl, rfl, execution.outputStoreCountExact⟩

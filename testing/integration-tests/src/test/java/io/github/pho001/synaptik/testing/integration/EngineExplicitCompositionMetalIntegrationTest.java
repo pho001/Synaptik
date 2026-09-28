@@ -725,6 +725,61 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
+    void task0069PublicAcceleratorEngineRunsSingletonVarianceForBothOutputFormsAndSpecials() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared()) {
+            Tensor finite = nativeTensorBits(
+                    descriptor(Shape.of(1)), arena, new int[] {0x3fc00000});
+            Tensor infinity = nativeTensorBits(
+                    descriptor(Shape.of(1)), arena, new int[] {0x7f800000});
+            Tensor nan = nativeTensorBits(
+                    descriptor(Shape.of(1)), arena, new int[] {0x7fc12345});
+            List<Tensor> outputs = List.of(
+                    finite.variance(0),
+                    finite.variance(new int[] {0}, true),
+                    infinity.variance(0),
+                    nan.variance(0));
+
+            try (Engine.Builder strictBuilder = Engine.builder()) {
+                strictBuilder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine strictEngine = strictBuilder.build()) {
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> strictEngine.compile(outputs));
+                }
+            }
+
+            try (Engine.Builder builder = Engine.builder()) {
+                builder.numericalProfile(NumericalProfile.ACCELERATOR);
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine engine = builder.build()) {
+                    var compiled = engine.compile(outputs);
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                    try (InferenceSession session = engine.session(compiled);
+                            var result = session.run(List.of(finite, infinity, nan))) {
+                        assertEquals(4, result.resultCount());
+                        assertEquals(0, rawBits(result.materialize(
+                                result.publications().get(0), Integer.BYTES).bytes(), 1)[0]);
+                        assertEquals(0, rawBits(result.materialize(
+                                result.publications().get(1), Integer.BYTES).bytes(), 1)[0]);
+                        for (int publication = 2; publication < 4; publication++) {
+                            int actual = rawBits(result.materialize(
+                                    result.publications().get(publication),
+                                    Integer.BYTES).bytes(), 1)[0];
+                            assertTrue((actual & 0x7f800000) == 0x7f800000
+                                    && (actual & 0x007fffff) != 0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void cpuFreeMetalEngineRunsAllRemainingExactUnaryOperationsUnderBothProfiles()
             throws Exception {
         Path library = configuredMetalLibrary();
