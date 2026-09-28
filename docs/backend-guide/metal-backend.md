@@ -885,12 +885,13 @@ span.
 
 A `CUSTOM_PROGRAM` image additionally carries authoritative 40-byte step records, 32-bit member
 positions, 24-byte bindings, the sorted 32-bit materialized-value set, 64-byte generated
-instructions, the canonical ASCII manifest, and its 32-byte SHA-256 digest. The manifest binds the
-frozen fixed-corpus digest and Java's independently generated source digest; source bytes do not
-cross the ABI. Header counts, source sizes, rejection/cap fields, record ranges, materialized slot
-mappings, manifest text, and every digest must recompute exactly. An MPSGraph image clears its
-extension flag, generator schema, counts, sizes, and caps and physically omits every extension
-section. Unknown profile wires, route zero, and every other schema or route fail closed.
+instructions, the canonical ASCII manifest, and its 32-byte SHA-256 digest. The manifest binds
+typed plan agreement and integer source byte counts only; Java neither emits Metal source nor owns
+fixed, generated, or assembled source hashes. Header counts, source sizes, rejection/cap fields,
+record ranges, materialized slot mappings, manifest text, and the manifest digest must recompute
+exactly. An MPSGraph image clears its extension flag, generator schema, counts, sizes, and caps and
+physically omits every extension section. Unknown profile wires, route zero, and every other schema
+or route fail closed.
 
 Production capability admits exactly 86 operation kinds while 29 remain false; structural native
 execution covers 101 kinds and leaves 14 nonexecutable. Attribute wires `0..41` and type wires
@@ -1012,22 +1013,27 @@ repetition matrix ran.
 Task 0070 binds generated pointwise execution to four universal Lean result-set certificates over
 the shared binary32 `Word`/`RawClass` substrate. A checked two-sided codec covers every one of the
 `2^32` raw words; each `FLOOR`, `CEIL`, `SIGN`, and `RELU` helper result belongs to its model
-relation, whose permitted set is proved unique. The source certificate authenticates the exact
-Java planner/image writer, native parser/generator, compact slot mapping, source-digest checks,
+relation, whose permitted set is proved unique. The source certificate authenticates the Java
+integer-size planner/image writer, native parser and sole source emitter, compact slot mapping,
 strongest available reflection, and test-only dispatch observation site. Native validates frozen
-SHA-256 values for all nine fixed components and their ordered total, compares the independently
-emitted generated-source digest with the manifest, and compares a separately assembled total
-digest before compiler entry. A pinned Xcode 27 compiled-MSL audit builds the exact 77,411-byte
-fixed corpus plus audit-only singleton sites for `FLOOR`, `CEIL`, `SIGN`, and `RELU` and valid
+SHA-256 values for all nine fixed components and their ordered total, then validates the assembled
+total independently before compiler entry. One structured sink implements both a no-allocation
+count traversal and the exact byte traversal: production validates all five caps before allocating
+the counted byte size and emits once for compile. A standalone native fixture includes that exact
+production header, enables audit-only singleton generation, repeats generation and compares count,
+bytes, and hash, and is the sole writer of the compiled audit source; Python only parses that
+source and writes metadata. A pinned Xcode 27 compiled-MSL audit builds the exact 77,411-byte fixed
+corpus plus audit-only singleton sites for `FLOOR`, `CEIL`, `SIGN`, and `RELU` and valid
 runtime-grammar chain sites at every length `2..8`, using `metal3.2`, no fast math, warnings as
 errors, and an absolute SDK isysroot. Real `metal-objdump` and `metal-nm` evidence verifies every
 generated function, absence of floating AIR operations at those raw-helper sites, and the
 three-buffer 32-byte `PointMeta` ABI. AIR and metallib must both be produced and nonempty, while
 their compiler-generated container identifiers are deliberately not hashed; the canonical
 disassembly and symbol ledgers are byte-counted and SHA-256-pinned and reproduce across runs. A
-separately linked test-only observer records the manifest
-digest and metadata immediately before each real dispatch and proves both a one-unit chain and a
-nine-node `7+2` chain dispatch exactly as planned.
+separately linked test-only observer records the manifest digest and metadata immediately before
+each real custom dispatch. It proves generated `7+2` and three-instruction plans and one mixed
+generated/MPSGraph/fixed plan containing L1_NORM, singleton VARIANCE, and SCATTER_ADD; both public
+and observer proof runners force Gradle task reruns rather than accepting cached test results.
 
 Current validation composes:
 

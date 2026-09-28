@@ -109,6 +109,46 @@ class MetalRemainingElementwiseNativeTest {
     }
 
     @Test
+    void generatedChainsExecuteAllFourRawOperationsUnderBothProfiles() {
+        Path library = configuredLibrary();
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            for (MetalMpsGraphProgram.NodeKind kind : List.of(
+                    MetalMpsGraphProgram.NodeKind.FLOOR,
+                    MetalMpsGraphProgram.NodeKind.CEIL,
+                    MetalMpsGraphProgram.NodeKind.SIGN,
+                    MetalMpsGraphProgram.NodeKind.RELU)) {
+                var program = new MetalMpsGraphProgram(List.of(
+                        unary(kind, 0, 1),
+                        unary(kind, 1, 2)));
+                List<MetalMpsGraphProgram.ValueDescriptor> values =
+                        List.of(value(INPUT.length), value(INPUT.length), value(INPUT.length));
+                MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
+                        profile,
+                        program,
+                        values,
+                        new int[] {0},
+                        new int[] {2},
+                        MetalPreparedRoute.CUSTOM_PROGRAM);
+                assertEquals(1, fusion.generatedUnitCount(), kind + " " + profile);
+                assertEquals(2, fusion.instructions().size(), kind + " " + profile);
+                assertArrayEquals(
+                        new int[] {0, 2},
+                        fusion.materializedProgramValueIndices(),
+                        kind + " " + profile);
+                List<int[]> actual = executeCustom(
+                        library,
+                        profile,
+                        program,
+                        values,
+                        new int[] {0},
+                        new int[] {2},
+                        List.of(INPUT));
+                assertModelWords(exactPointwiseExpected(kind), actual.getFirst());
+            }
+        }
+    }
+
+    @Test
     void generatedThreeInstructionChainUsesCompactBoundarySlotsAndPreservesRawBits() {
         Path library = configuredLibrary();
         var program = new MetalMpsGraphProgram(List.of(
@@ -2185,6 +2225,24 @@ class MetalRemainingElementwiseNativeTest {
         for (int index = 0; index < values.length; index++)
             bits[index] = Float.floatToRawIntBits(values[index]);
         return bits;
+    }
+
+    private static int[] exactPointwiseExpected(MetalMpsGraphProgram.NodeKind kind) {
+        if (kind == MetalMpsGraphProgram.NodeKind.FLOOR) return FLOOR;
+        if (kind == MetalMpsGraphProgram.NodeKind.CEIL) return CEIL;
+        int[] expected = new int[INPUT.length];
+        for (int index = 0; index < INPUT.length; index++) {
+            int word = INPUT[index];
+            if (kind == MetalMpsGraphProgram.NodeKind.SIGN) {
+                if (isNaN(word) || (word & 0x7fff_ffff) == 0) expected[index] = word;
+                else expected[index] = word < 0 ? 0xbf80_0000 : 0x3f80_0000;
+            } else if (kind == MetalMpsGraphProgram.NodeKind.RELU) {
+                expected[index] = isNaN(word) ? word : word < 0 ? 0 : word;
+            } else {
+                throw new IllegalArgumentException("not an exact pointwise operation: " + kind);
+            }
+        }
+        return expected;
     }
 
     private static void assertFloatWord(float expected, int actual, float tolerance) {

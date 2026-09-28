@@ -4,14 +4,12 @@ import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-/** Deterministic schema-1 planner and source-size/digest oracle for raw binary32 pointwise fusion. */
+/** Deterministic schema-1 planner and integer source-size oracle for raw binary32 pointwise fusion. */
 final class MetalPointwiseFusionPlanner {
     private static final int GENERATED_SOURCE_PREAMBLE_UTF8_BYTES = 49;
 
@@ -188,11 +186,6 @@ final class MetalPointwiseFusionPlanner {
                     functionBytes));
         }
 
-        byte[] generatedSource = generatedSource(steps, instructions);
-        if (generatedSource.length != generatedBytes) {
-            throw new IllegalStateException("generated source disagrees with authenticated size");
-        }
-        String generatedSourceDigest = sha256Hex(generatedSource);
         int[] memberArray = members.stream().mapToInt(Integer::intValue).toArray();
         byte[] manifest = manifest(
                 numericalProfile,
@@ -208,7 +201,6 @@ final class MetalPointwiseFusionPlanner {
                 instructions,
                 generatedUnits,
                 generatedBytes,
-                generatedSourceDigest,
                 firstRejected,
                 capReason);
         return new MetalPointwiseFusionPlan(
@@ -432,63 +424,6 @@ final class MetalPointwiseFusionPlanner {
         return bytes;
     }
 
-    private static byte[] generatedSource(
-            List<MetalPointwiseFusionPlan.Step> steps,
-            List<MetalPointwiseFusionPlan.Instruction> instructions) {
-        boolean present = steps.stream().anyMatch(
-                step -> step.kind() == MetalPointwiseFusionPlan.StepKind.GENERATED_POINTWISE);
-        if (!present) return new byte[0];
-        StringBuilder source = new StringBuilder(
-                "\n// synaptik pointwise fusion generator schema 1\n");
-        for (int stepOrdinal = 0; stepOrdinal < steps.size(); stepOrdinal++) {
-            MetalPointwiseFusionPlan.Step step = steps.get(stepOrdinal);
-            if (step.kind() != MetalPointwiseFusionPlan.StepKind.GENERATED_POINTWISE) continue;
-            int before = source.length();
-            source.append("kernel void synaptik_pw_g1_s").append(stepOrdinal)
-                    .append("(device const uint *input [[buffer(0)]], device uint *output [[buffer(1)]], constant PointMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) {\n")
-                    .append("  ulong linear = linear_id(gid, meta.gridWidth, meta.gridHeight);\n")
-                    .append("  if (linear >= meta.elementCount) return;\n")
-                    .append("  uint v0 = input[linear];\n");
-            for (int relative = 0; relative < step.instructionCount(); relative++) {
-                MetalPointwiseFusionPlan.Instruction instruction =
-                        instructions.get(step.instructionStart() + relative);
-                source.append("  uint v").append(relative + 1).append(" = ")
-                        .append(helperName(instruction.opcode())).append("(v")
-                        .append(relative).append(");\n");
-            }
-            source.append("  output[linear] = v").append(step.instructionCount())
-                    .append(";\n}\n");
-            if (source.length() - before != step.expectedFunctionUtf8Bytes()) {
-                throw new IllegalStateException("generated function disagrees with size table");
-            }
-        }
-        return source.toString().getBytes(StandardCharsets.US_ASCII);
-    }
-
-    private static String helperName(MetalPointwiseFusionPlan.Opcode opcode) {
-        return switch (opcode) {
-            case FLOOR -> "floor_bits";
-            case CEIL -> "ceil_bits";
-            case SIGN -> "sign_bits";
-            case RELU -> "relu_bits";
-        };
-    }
-
-    private static String sha256Hex(byte[] bytes) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
-            char[] hex = new char[digest.length * 2];
-            char[] digits = "0123456789abcdef".toCharArray();
-            for (int index = 0; index < digest.length; index++) {
-                hex[index * 2] = digits[(digest[index] >>> 4) & 0xf];
-                hex[index * 2 + 1] = digits[digest[index] & 0xf];
-            }
-            return new String(hex);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 unavailable", exception);
-        }
-    }
-
     private static int digits(int value) {
         if (value < 0) throw new IllegalArgumentException("decimal value must be non-negative");
         if (value < 10) return 1;
@@ -530,7 +465,6 @@ final class MetalPointwiseFusionPlanner {
             List<MetalPointwiseFusionPlan.Instruction> instructions,
             int generatedUnits,
             int generatedBytes,
-            String generatedSourceDigest,
             int rejected,
             MetalPointwiseFusionPlan.CapReason reason) {
         StringBuilder text = new StringBuilder(4096);
@@ -554,8 +488,6 @@ final class MetalPointwiseFusionPlanner {
                 .append("caps 32 256 16384 262144 1048576\n")
                 .append("source-size-table 1\n")
                 .append("fixed-corpus-bytes 77411\n")
-                .append("fixed-corpus-sha256 9c705744636d8a8e34a3e049c8044acf1d5811da929bf20df39928600cd61c0d\n")
-                .append("generated-source-sha256 ").append(generatedSourceDigest).append('\n')
                 .append("opcodes floor=1 ceil=2 sign=3 relu=4\n")
                 .append("pointmeta-abi size=32 align=8 elementCount=u64@0 gridWidth=u64@8 gridHeight=u64@16 scalar=u32@24 reserved=u32@28\n");
         for (int value = 0; value < values.size(); value++) {

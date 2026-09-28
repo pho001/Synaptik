@@ -488,20 +488,23 @@ capability narrowing, tuning, fallback, or a performance claim.
 Any schema-17 program containing an exact custom node or a MATMUL outside the retained
 all-FLOAT32 rank-two MPSGraph slice uses one retained custom-program handle. Creation authenticates
 the frozen SHA-256 values of all nine reviewed fixed-kernel components and their ordered
-77,411-byte total, appends only independently regenerated and SHA-256-authenticated schema-1
-pointwise source, independently authenticates the assembled total, and only then compiles with
-`MTLMathModeSafe` and `MTLLanguageVersion3_2`. It creates one immutable pipeline and metadata
-buffer per custom step and cold-compiles each interleaved existing node as a typed one-node
-MPSGraph executable. Task-0061 contributes seven typed MATMUL kernels: four modular INT32/INT64
-signatures, FLOAT32/FLOAT32, and both ordered BFLOAT16/FLOAT32 mixed signatures.
+77,411-byte total. The sole production pointwise emitter first traverses a structured
+no-allocation count sink, validates unit, instruction, per-function, generated, and total caps,
+allocates the exact byte count, traverses the same emitter once for compiler input, independently
+authenticates the assembled source, and only then compiles with `MTLMathModeSafe` and
+`MTLLanguageVersion3_2`. It creates one immutable pipeline and metadata buffer per custom step and
+cold-compiles each interleaved existing node as a typed one-node MPSGraph executable. Task-0061
+contributes seven typed MATMUL kernels: four modular INT32/INT64 signatures, FLOAT32/FLOAT32, and
+both ordered BFLOAT16/FLOAT32 mixed signatures.
 
 Java declares and assigns buffers only for the sorted compact materialized-value set. Every step
 binding names both its compact slot and authenticated program value; direct targets resolve through
 the same map. The per-run native-address workspace therefore has one entry per materialized value,
 not one per logical value. The fixed route, ordered steps/members/bindings, generated instructions,
-materialized set, canonical manifest, fixed/generated source digests, and manifest SHA-256 cross
-in the authenticated schema image; no source text, function name, hidden intermediate, or
-input-dependent choice crosses the ABI.
+materialized set, canonical manifest, integer source byte counts, and manifest SHA-256 cross in the
+authenticated schema image; no source text, source hash, function name, hidden intermediate, or
+input-dependent choice crosses the ABI. Fixed, generated, and assembled source ownership remains
+native.
 
 An eligible maximal linear chain of canonical no-gradient FLOAT32 `FLOOR`, `CEIL`, `SIGN`, or
 `RELU` nodes has fully static positive rank `1..16` and element count `1..UINT32_MAX`, and is

@@ -59,9 +59,10 @@
  * FLOAT32 chains of the latter four operations require positive static rank one through sixteen
  * and an unsigned-32-bit positive element count, then deterministically fuse into generated units
  * of length two through eight with one boundary load, one boundary store, and no intermediate
- * slot. Native authenticates all frozen fixed-source components, the independently emitted
- * generated source, and the assembled source before compile, and requires exact strongest
- * available binding/type reflection for all three buffers and every {@code PointMeta} member.
+ * slot. Java carries only integer source byte counts; native owns generated source and every
+ * source hash. Native authenticates all frozen fixed-source components and the assembled source
+ * before compile, and requires exact strongest available binding/type reflection for all three
+ * buffers and every {@code PointMeta} member.
  * SELECT/SLICE may consume exact supported storage-layout feeds and produce materialized-layout
  * values. Other affine inputs may be exact resolved zero-offset views produced earlier in the same
  * maximal partition; nested MPSGraph steps materialize those views into dense assigned buffers

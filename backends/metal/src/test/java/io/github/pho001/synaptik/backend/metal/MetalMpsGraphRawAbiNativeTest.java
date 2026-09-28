@@ -132,12 +132,8 @@ class MetalMpsGraphRawAbiNativeTest {
         malformed.add(digestForgery);
         malformed.add(rewriteManifest(
                 valid,
-                "fixed-corpus-sha256 9c705744636d8a8e34a3e049c8044acf1d5811da929bf20df39928600cd61c0d\n",
-                "fixed-corpus-sha256 0c705744636d8a8e34a3e049c8044acf1d5811da929bf20df39928600cd61c0d\n"));
-        malformed.add(rewriteManifest(
-                valid,
-                "generated-source-sha256 b21283cf2640e13d34aecf6b1764dea6e0a12fb274449bb02c39f71232e692d1\n",
-                "generated-source-sha256 021283cf2640e13d34aecf6b1764dea6e0a12fb274449bb02c39f71232e692d1\n"));
+                "fixed-corpus-bytes 77411\n",
+                "fixed-corpus-bytes 77412\n"));
 
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(0, abi.create(valid, valid.length));

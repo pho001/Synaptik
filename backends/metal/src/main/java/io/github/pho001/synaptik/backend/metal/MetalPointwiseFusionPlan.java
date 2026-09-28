@@ -9,9 +9,9 @@ import java.util.Objects;
  * Immutable schema-17 execution extension for one {@code CUSTOM_PROGRAM} image.
  *
  * <p>The typed records are authoritative. The canonical manifest is a redundant cross-language
- * agreement certificate. Generated Metal source bytes remain absent from the image; Java mirrors
- * the frozen grammar only to bind its UTF-8 byte count and SHA-256, while native independently
- * emits the source and verifies both before compilation.</p>
+ * plan-agreement certificate. Generated Metal source bytes and hashes remain exclusively
+ * native-owned; Java carries only the frozen integer byte-count table required for bounded
+ * planning.</p>
  */
 final class MetalPointwiseFusionPlan {
     static final int GENERATOR_SCHEMA = 1;

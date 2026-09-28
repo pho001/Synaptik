@@ -14,10 +14,15 @@ for proof in Floor Ceil Sign Relu; do
   LEAN_PATH="$TMP" "$LEAN" "proof/Task0070${proof}.lean"
 done
 python3 verify-source-certificate.py
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+  xcrun --sdk macosx clang -fobjc-arc -Wall -Wextra -Werror \
+    -I "$ROOT/native/metal-macos-arm64/src" -framework Foundation \
+    "$EVIDENCE/pointwise-cap-fixture.m" -o "$TMP/pointwise-cap-fixture"
+"$TMP/pointwise-cap-fixture"
 "$EVIDENCE/run-compiled-generated-msl-audit.sh"
 "$EVIDENCE/run-dispatch-observer.sh"
 "$ROOT/native/metal-macos-arm64/build.sh"
 cd "$ROOT"
 env SYNAPTIK_METAL_TEST_LIBRARY="$ROOT/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" \
-  "$ROOT/gradlew" :testing:integration-tests:test \
+  "$ROOT/gradlew" :testing:integration-tests:test --rerun-tasks \
     --tests io.github.pho001.synaptik.testing.integration.EngineExplicitCompositionMetalIntegrationTest.cpuFreeMetalEngineRunsGeneratedPointwiseChainThroughOnePartition

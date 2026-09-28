@@ -30,5 +30,5 @@ xcrun --sdk macosx clang \
 cd "$ROOT"
 SYNAPTIK_METAL_TEST_LIBRARY="$FOUNDATION" \
 SYNAPTIK_METAL_TEST_OBSERVER="$OBSERVER" \
-  "$ROOT/gradlew" :backends:metal:test \
+  "$ROOT/gradlew" :backends:metal:test --rerun-tasks \
     --tests io.github.pho001.synaptik.backend.metal.MetalPointwiseDispatchObserverNativeTest

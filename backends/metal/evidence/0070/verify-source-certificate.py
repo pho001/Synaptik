@@ -41,6 +41,12 @@ def main() -> None:
     raw_abi_test = texts["raw-abi-test"]
     audit_extractor = texts["audit-extractor"]
     audit_verifier = texts["audit-verifier"]
+    native_audit_fixture = texts["native-audit-fixture"]
+    cap_fixture = texts["cap-fixture"]
+    audit_runner = texts["audit-runner"]
+    proof_runner = texts["proof-runner"]
+    observer_runner = texts["observer-runner"]
+    runtime_matrix_test = texts["runtime-matrix-test"]
     proof_text = "\n".join(
         texts[role] for role in (
             "binary32-model", "floor-proof", "ceil-proof", "sign-proof", "relu-proof"
@@ -70,6 +76,8 @@ def main() -> None:
     for fragment in (
         "if (length < 2) break;",
         "opcodes.size() < 2 || opcodes.size() > 8",
+        "source-size-table 1",
+        "fixed-corpus-bytes 77411",
         "pointmeta-abi size=32 align=8 elementCount=u64@0 gridWidth=u64@8 gridHeight=u64@16 scalar=u32@24 reserved=u32@28",
         "text.append(\"materialized \"",
         ".append(elements).append(' ').append(elements).append(\" 1 0 0\\n\")",
@@ -79,18 +87,25 @@ def main() -> None:
         "(words[2] == 0L || words[2] == 1L)",
         "words[3] == 0L",
         "input.dimensions()[0] == 1L",
-    ):
-        require(java_planner, fragment)
-    for fragment in (
         "eligiblePointwiseGeometry(input)",
         "value.rank() < 1 || value.rank() > MetalMpsGraphProgram.MAX_RANK",
         "elements > 0xffff_ffffL / dimension",
-        "byte[] generatedSource = generatedSource(steps, instructions);",
-        "String generatedSourceDigest = sha256Hex(generatedSource);",
-        "fixed-corpus-sha256 9c705744636d8a8e34a3e049c8044acf1d5811da929bf20df39928600cd61c0d",
-        "generated-source-sha256 ",
     ):
         require(java_planner, fragment)
+    for forbidden in (
+        "kernel void",
+        "floor_bits",
+        "ceil_bits",
+        "sign_bits",
+        "relu_bits",
+        "MessageDigest",
+        "fixed-corpus-sha256",
+        "generated-source-sha256",
+        "generatedSource(",
+        "generatedSourceDigest",
+    ):
+        assert forbidden not in java_planner
+    assert "source bytes and hashes remain exclusively" in java_plan
 
     for fragment in (
         "synaptik_read_le32(program) != UINT32_C(0x37314d53)",
@@ -110,6 +125,7 @@ def main() -> None:
         "member_count != node_count",
         "first_member >= node_count",
         "step.function_bytes > SYNAPTIK_POINTWISE_MAX_FUNCTION_BYTES",
+        "SynaptikPointwiseGeneratedBytes(",
         "MTLPipelineOptionBindingInfo | MTLPipelineOptionBufferTypeInfo",
         "binding.access != MTLBindingAccessReadWrite",
         "buffer.bufferPointerType.access != MTLBindingAccessReadWrite",
@@ -120,6 +136,10 @@ def main() -> None:
         "pointmeta %u %llu %llu 1 0 0",
     ):
         require(native, fragment)
+    assert native.count("SynaptikPointwiseGeneratedSource(") == 1
+    assert "fixed-corpus-sha256" not in native
+    assert "generated-source-sha256" not in native
+    assert "generated_source_digest" not in native
     assert "task0053" not in native.lower()
     assert "task0053" not in native_build.lower()
 
@@ -155,14 +175,24 @@ def main() -> None:
         "#define SYNAPTIK_POINTWISE_MAX_FUNCTION_BYTES 16384U",
         "#define SYNAPTIK_POINTWISE_MAX_GENERATED_BYTES 262144U",
         "#define SYNAPTIK_POINTWISE_MAX_TOTAL_BYTES 1048576U",
-        "case 1U: return @\"floor_bits\";",
-        "case 2U: return @\"ceil_bits\";",
-        "case 3U: return @\"sign_bits\";",
-        "case 4U: return @\"relu_bits\";",
-        "record.instruction_count < 2U || record.instruction_count > 8U",
+        "typedef struct {\n    uint8_t *bytes;",
+        "SynaptikPointwiseSinkWrite",
+        "SynaptikPointwiseSinkFormat",
+        "SynaptikPointwiseEmitFunction",
+        "SynaptikPointwiseEmitGeneratedSource",
+        "SynaptikPointwiseCapReason",
+        "SynaptikPointwiseGeneratedBytesWithMode",
+        "SynaptikPointwiseGeneratedSourceWithMode",
+        "case 1U: return \"floor_bits\";",
+        "case 2U: return \"ceil_bits\";",
+        "case 3U: return \"sign_bits\";",
+        "case 4U: return \"relu_bits\";",
+        "!allow_audit_singleton && instruction_count < 2U",
         "kernel void synaptik_pw_g1_s%u",
     ):
         require(generator, fragment)
+    assert "[NSMutableString" not in generator
+    assert generator.count("kernel void synaptik_pw_g1_s%u") == 1
     for fragment in (
         "schemaSeventeenPacksOddReferencePoolDirectlyBeforeAttributes",
         "pointwiseGeometryRequiresRankOneThroughSixteenAndUnsignedElementCount",
@@ -176,17 +206,45 @@ def main() -> None:
         "nativeParsesUnpaddedOddReferencePoolBeforeAttributes",
         "nativePointwiseEligibilityUsesExplicitRankAndUnsignedElementBounds",
         "appendOutOfRangeMemberStep",
-        "fixed-corpus-sha256 0c705744",
-        "generated-source-sha256 021283",
+        "fixed-corpus-bytes 77412",
     ):
         require(raw_abi_test, fragment)
+    assert "fixed-corpus-sha256" not in raw_abi_test
+    assert "generated-source-sha256" not in raw_abi_test
     for fragment in (
-        '(0, "singleton", ("floor",))',
-        '(10, "chain-8"',
+        "Path(sys.argv[1]).read_bytes()",
         '"generatedSha256"',
         '"assembledSha256"',
+        "functionBytes",
     ):
         require(audit_extractor, fragment)
+    assert "kernel void" not in audit_extractor
+    assert "Path(sys.argv[1]).write" not in audit_extractor
+    for fragment in (
+        '#import "SynaptikPointwiseFusionKernelSource.h"',
+        "SynaptikPointwiseFunctionBytesWithMode",
+        "SynaptikPointwiseGeneratedBytesWithMode",
+        "SynaptikPointwiseGeneratedSourceWithMode",
+        "[first isEqualToString:second]",
+        "memcmp(first_digest, second_digest",
+        "writeToFile:",
+    ):
+        require(native_audit_fixture, fragment)
+    assert "kernel void" not in native_audit_fixture
+    assert native_audit_fixture.count("writeToFile:") == 1
+    for reason in range(1, 6):
+        require(cap_fixture, f"projection, {reason}U")
+    require(cap_fixture, "SynaptikPointwiseCapReason")
+    require(cap_fixture, "projection, 0U")
+    require(audit_runner, 'generated-source-fixture.m -o "$WORK/generated-source-fixture"')
+    require(audit_runner, '"$WORK/generated-source-fixture" "$WORK/generated-fixtures.metal"')
+    assert audit_runner.index("generated-source-fixture.m -o") < audit_runner.index(
+        "./extract-generated-fixtures.py"
+    )
+    require(proof_runner, "--rerun-tasks")
+    require(observer_runner, "--rerun-tasks")
+    require(runtime_matrix_test, "generatedChainsExecuteAllFourRawOperationsUnderBothProfiles")
+    require(runtime_matrix_test, "MetalMpsGraphProgram.NodeKind.RELU")
     for fragment in (
         "singleton operation ledger drift",
         "2..8 chain ledger drift",
@@ -203,9 +261,12 @@ def main() -> None:
     assert native[observer_end:dispatch].strip() == "#endif"
     require(observer_test, "assertEquals(2, observer.count());")
     require(observer_test, "oneGeneratedUnitProducesOneObservedNativeDispatch")
-    require(observer_test, "assertEquals(1, observer.count());")
+    require(observer_test, "mixedPlanExecutesGeneratedMpsGraphAndEveryRequiredFixedKind")
+    require(observer_test, "assertEquals(4, observer.count());")
+    require(observer_test, "MetalMpsGraphProgram.NodeKind.L1_NORM")
+    require(observer_test, "MetalMpsGraphProgram.NodeKind.VARIANCE")
+    require(observer_test, "MetalMpsGraphProgram.Node.scatterAdd")
     require(observer_test, "assertArrayEquals(fusion.canonicalManifestDigest(), observer.digest(record));")
-    require(observer_test, "assertEquals(32L, observer.field(record, 6));")
     require(observer, "memcpy(record->manifest_digest, manifest_digest, sizeof(record->manifest_digest));")
     require(public_smoke, "cpuFreeMetalEngineRunsGeneratedPointwiseChainThroughOnePartition")
     require(public_smoke, "input.floor().ceil().sign()")

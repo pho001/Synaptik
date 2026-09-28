@@ -5217,15 +5217,19 @@ partition change.
 
 Finalization compiles one persistent route resource and transfers it to `PreparedExecution`.
 Shared custom-program creation authenticates each frozen component and the ordered 77,411-byte
-fixed source, independently emits and authenticates bounded pointwise source, authenticates the
+fixed source. Java supplies typed records and integer byte counts only. Native owns the sole
+structured pointwise emitter and all source hashes: it performs a no-allocation count traversal,
+validates all caps before exact allocation, emits once for compiler input, authenticates the
 assembled total, and only then compiles. Eligible linear canonical FLOAT32
 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains require positive static rank `1..16`, element count
-`1..UINT32_MAX`, and deterministic units of length `2..8`. Generated pipelines validate exact
-`BindingInfo | BufferTypeInfo` names, access, types, sizes, alignments, and all five `PointMeta`
-members. Only the authenticated compact materialized set has declared assigned run-owned Metal
-buffers; targets are direct assigned buffers; one address workspace carries the compact slot table
-and target aliases. Hot Java execution makes one synchronous native invocation with no source text,
-host staging, hidden materialization, per-node downcall, retry, fallback, or compilation.
+`1..UINT32_MAX`, and deterministic units of length `2..8`. Audit-only singleton source is produced
+by a native fixture through the same header, never by the Python metadata parser. Generated
+pipelines validate exact `BindingInfo | BufferTypeInfo` names, access, types, sizes, alignments,
+and all five `PointMeta` members. Only the authenticated compact materialized set has declared
+assigned run-owned Metal buffers; targets are direct assigned buffers; one address workspace
+carries the compact slot table and target aliases. Hot Java execution makes one synchronous native
+invocation with no source text, host staging, hidden materialization, per-node downcall, retry,
+fallback, or compilation.
 
 SELECT/SLICE publications gather logical elements from their authenticated physical storage using
 the exact offset and positive strides while ignoring untouched prefix/gap bytes. Other affine

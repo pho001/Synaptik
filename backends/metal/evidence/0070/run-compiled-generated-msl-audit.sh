@@ -17,6 +17,11 @@ case "$SDKROOT" in
 esac
 
 cd "$EVIDENCE"
+DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx clang \
+  -fobjc-arc -Wall -Wextra -Werror -isysroot "$SDKROOT" \
+  -I "$ROOT/native/metal-macos-arm64/src" -framework Foundation \
+  generated-source-fixture.m -o "$WORK/generated-source-fixture"
+"$WORK/generated-source-fixture" "$WORK/generated-fixtures.metal"
 ./extract-generated-fixtures.py "$WORK/generated-fixtures.metal" "$WORK/fixtures.json"
 DEVELOPER_DIR="$DEVELOPER_DIR" xcodebuild -version >"$WORK/xcode-version.txt"
 DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx metal --version >"$WORK/metal-version.txt"

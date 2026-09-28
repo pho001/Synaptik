@@ -2,6 +2,7 @@
 import ast
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -17,24 +18,16 @@ COMPONENTS = (
     ("native/metal-macos-arm64/src/synaptik_task0065_rng_dropout_kernels.h", "SynaptikTask0065RngDropoutKernelSource"),
     ("native/metal-macos-arm64/src/synaptik_task0066_dtype_layout_kernels.h", "SynaptikTask0066DtypeLayoutKernelSource"),
 )
-HELPERS = {"floor": "floor_bits", "ceil": "ceil_bits", "sign": "sign_bits", "relu": "relu_bits"}
-HELPER_BYTES = {"floor": 10, "ceil": 9, "sign": 9, "relu": 9}
-FIXTURES = (
-    (0, "singleton", ("floor",)),
-    (1, "singleton", ("ceil",)),
-    (2, "singleton", ("sign",)),
-    (3, "singleton", ("relu",)),
-    (4, "chain-2", ("floor", "ceil")),
-    (5, "chain-3", ("ceil", "sign", "relu")),
-    (6, "chain-4", ("floor", "ceil", "sign", "relu")),
-    (7, "chain-5", ("floor", "ceil", "sign", "relu", "floor")),
-    (8, "chain-6", ("floor", "ceil", "sign", "relu", "floor", "ceil")),
-    (9, "chain-7", ("floor", "ceil", "sign", "relu", "floor", "ceil", "sign")),
-    (10, "chain-8", ("floor", "ceil", "sign", "relu", "floor", "ceil", "sign", "relu")),
-)
+HELPERS = {
+    b"floor_bits": "floor",
+    b"ceil_bits": "ceil",
+    b"sign_bits": "sign",
+    b"relu_bits": "relu",
+}
+FIXED_BYTES = 77_411
 
 
-def extract_component(relative_path: str, symbol: str) -> str:
+def extract_component(relative_path: str, symbol: str) -> bytes:
     text = (ROOT / relative_path).read_text(encoding="utf-8")
     marker = f"static NSString *const {symbol} ="
     assert text.count(marker) == 1
@@ -47,56 +40,51 @@ def extract_component(relative_path: str, symbol: str) -> str:
         if literal.startswith('"'):
             fragments.append(ast.literal_eval(literal))
     assert fragments
-    return "".join(fragments)
-
-
-def expected_function_bytes(step: int, opcodes: tuple[str, ...]) -> int:
-    assert 1 <= len(opcodes) <= 8
-    return 345 + len(str(step)) + len(str(len(opcodes))) + sum(
-        16 + len(str(index)) + len(str(index + 1)) + HELPER_BYTES[opcode]
-        for index, opcode in enumerate(opcodes)
-    )
-
-
-def generated_function(step: int, opcodes: tuple[str, ...]) -> str:
-    lines = [
-        f"kernel void synaptik_pw_g1_s{step}(device const uint *input [[buffer(0)]], device uint *output [[buffer(1)]], constant PointMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) {{\n",
-        "  ulong linear = linear_id(gid, meta.gridWidth, meta.gridHeight);\n",
-        "  if (linear >= meta.elementCount) return;\n",
-        "  uint v0 = input[linear];\n",
-    ]
-    lines.extend(
-        f"  uint v{index + 1} = {HELPERS[opcode]}(v{index});\n"
-        for index, opcode in enumerate(opcodes)
-    )
-    lines.extend((f"  output[linear] = v{len(opcodes)};\n", "}\n"))
-    result = "".join(lines)
-    assert len(result.encode("utf-8")) == expected_function_bytes(step, opcodes)
-    return result
+    return "".join(fragments).encode("utf-8")
 
 
 def main() -> None:
     assert len(sys.argv) == 3, "usage: extract-generated-fixtures.py SOURCE METADATA"
+    source = Path(sys.argv[1]).read_bytes()
+    fixed = source[:FIXED_BYTES]
+    generated = source[FIXED_BYTES:]
     component_bytes = [
-        (symbol, extract_component(path, symbol).encode("utf-8"))
-        for path, symbol in COMPONENTS
+        (symbol, extract_component(path, symbol)) for path, symbol in COMPONENTS
     ]
-    fixed = b"".join(content for _, content in component_bytes).decode("utf-8")
-    assert len(fixed.encode("utf-8")) == 77_411
-    generated = "\n// synaptik pointwise fusion generator schema 1\n" + "".join(
-        generated_function(step, opcodes) for step, _, opcodes in FIXTURES
-    )
-    source = fixed + generated
-    Path(sys.argv[1]).write_text(source, encoding="utf-8", newline="\n")
+    assert fixed == b"".join(content for _, content in component_bytes)
+
+    symbols = list(re.finditer(rb"synaptik_pw_g1_s([0-9]+)\(", generated))
+    assert [int(match.group(1)) for match in symbols] == list(range(11))
+    fixtures = []
+    function_start = 49
+    for match in symbols:
+        function_end = generated.find(b"\n}\n", match.end()) + 3
+        assert function_end >= 3
+        function = generated[function_start:function_end]
+        step = int(match.group(1))
+        opcodes = [HELPERS[name] for name in re.findall(
+            rb"= (floor_bits|ceil_bits|sign_bits|relu_bits)\(", function
+        )]
+        expected_count = 1 if step < 4 else step - 2
+        assert len(opcodes) == expected_count
+        fixtures.append({
+            "step": step,
+            "siteKind": "singleton" if step < 4 else f"chain-{expected_count}",
+            "opcodes": opcodes,
+            "functionBytes": len(function),
+        })
+        function_start = function_end
+    assert function_start == len(generated)
+
     Path(sys.argv[2]).write_text(
         json.dumps(
             {
-                "fixedBytes": len(fixed.encode("utf-8")),
-                "generatedBytes": len(generated.encode("utf-8")),
-                "totalBytes": len(source.encode("utf-8")),
-                "fixedSha256": hashlib.sha256(fixed.encode("utf-8")).hexdigest(),
-                "generatedSha256": hashlib.sha256(generated.encode("utf-8")).hexdigest(),
-                "assembledSha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
+                "fixedBytes": len(fixed),
+                "generatedBytes": len(generated),
+                "totalBytes": len(source),
+                "fixedSha256": hashlib.sha256(fixed).hexdigest(),
+                "generatedSha256": hashlib.sha256(generated).hexdigest(),
+                "assembledSha256": hashlib.sha256(source).hexdigest(),
                 "components": [
                     {
                         "symbol": symbol,
@@ -105,15 +93,7 @@ def main() -> None:
                     }
                     for symbol, content in component_bytes
                 ],
-                "fixtures": [
-                    {
-                        "step": step,
-                        "siteKind": site_kind,
-                        "opcodes": list(opcodes),
-                        "functionBytes": expected_function_bytes(step, opcodes),
-                    }
-                    for step, site_kind, opcodes in FIXTURES
-                ],
+                "fixtures": fixtures,
             },
             indent=2,
             sort_keys=True,

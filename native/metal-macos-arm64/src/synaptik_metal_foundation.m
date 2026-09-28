@@ -359,18 +359,6 @@ static BOOL synaptik_digest_matches_hex(
     return YES;
 }
 
-static NSString *synaptik_digest_hex(
-        const uint8_t digest[CC_SHA256_DIGEST_LENGTH]) {
-    if (digest == NULL) return nil;
-    static const char digits[] = "0123456789abcdef";
-    char text[CC_SHA256_DIGEST_LENGTH * 2U + 1U];
-    for (uint32_t index = 0U; index < CC_SHA256_DIGEST_LENGTH; index++) {
-        text[index * 2U] = digits[digest[index] >> 4U];
-        text[index * 2U + 1U] = digits[digest[index] & 0x0fU];
-    }
-    text[CC_SHA256_DIGEST_LENGTH * 2U] = '\0';
-    return [NSString stringWithUTF8String:text];
-}
 
 static BOOL synaptik_source_digest_matches(NSString *source, const char *expected) {
     uint8_t digest[CC_SHA256_DIGEST_LENGTH];
@@ -426,18 +414,11 @@ static NSString *synaptik_authenticated_fixed_source(void) {
 static BOOL synaptik_assembled_source_is_authentic(
         NSString *fixed,
         NSString *generated,
-        NSString *assembled,
-        const uint8_t expected_generated[CC_SHA256_DIGEST_LENGTH]) {
-    if (fixed == nil || generated == nil || assembled == nil
-            || expected_generated == NULL)
-        return NO;
+        NSString *assembled) {
+    if (fixed == nil || generated == nil || assembled == nil) return NO;
     uint8_t generated_digest[CC_SHA256_DIGEST_LENGTH];
     uint8_t assembled_digest[CC_SHA256_DIGEST_LENGTH];
     if (!synaptik_sha256_string(generated, generated_digest)
-            || memcmp(
-                    generated_digest,
-                    expected_generated,
-                    CC_SHA256_DIGEST_LENGTH) != 0
             || !synaptik_sha256_string(assembled, assembled_digest))
         return NO;
     NSData *fixed_bytes =
@@ -485,7 +466,6 @@ typedef struct {
     uint32_t generated_unit_count;
     uint32_t expected_generated_bytes;
     uint32_t expected_total_bytes;
-    const uint8_t *generated_source_digest;
 #if defined(SYNAPTIK_METAL_TEST_DISPATCH_OBSERVER)
     const uint8_t *manifest_digest;
 #endif
@@ -615,31 +595,24 @@ static BOOL synaptik_validate_pointwise_cap_stop(
                 candidate[relative].opcode = nodes[cursor + relative].operation - 59U;
             uint32_t function_bytes =
                     SynaptikPointwiseFunctionBytes(projected_step, candidate, length);
-            uint32_t reason = 0U;
-            uint32_t separator = expected_units == 0U ? 49U : 0U;
-            if (!stopped) {
-                if (expected_units == SYNAPTIK_POINTWISE_MAX_UNITS)
-                    reason = 1U;
-                else if (expected_instructions
-                        > SYNAPTIK_POINTWISE_MAX_INSTRUCTIONS - length)
-                    reason = 2U;
-                else if (function_bytes == 0U
-                        || function_bytes > SYNAPTIK_POINTWISE_MAX_FUNCTION_BYTES)
-                    reason = 3U;
-                else if (expected_generated_bytes
-                        > SYNAPTIK_POINTWISE_MAX_GENERATED_BYTES
-                                - separator - function_bytes)
-                    reason = 4U;
-                else if (SYNAPTIK_POINTWISE_FIXED_CORPUS_BYTES
-                                + expected_generated_bytes
-                        > SYNAPTIK_POINTWISE_MAX_TOTAL_BYTES
-                                - separator - function_bytes)
-                    reason = 5U;
-                if (reason != 0U) {
-                    stopped = YES;
-                    expected_rejected = cursor;
-                    expected_reason = reason;
-                }
+            uint32_t separator = expected_units == 0U
+                    ? SYNAPTIK_POINTWISE_GENERATED_PREAMBLE_BYTES : 0U;
+            SynaptikPointwiseCapProjection projection = {
+                .units = (uint64_t)expected_units + 1U,
+                .instructions = (uint64_t)expected_instructions + length,
+                .function_bytes = function_bytes == 0U
+                        ? UINT64_MAX : function_bytes,
+                .generated_bytes = (uint64_t)expected_generated_bytes
+                        + separator + function_bytes,
+            };
+            uint32_t reason = !stopped
+                    ? SynaptikPointwiseCapReason(
+                            SynaptikPointwiseProductionCapLimits(), projection)
+                    : 0U;
+            if (!stopped && reason != 0U) {
+                stopped = YES;
+                expected_rejected = cursor;
+                expected_reason = reason;
             }
             if (!stopped) {
                 uint32_t step = node_step[cursor];
@@ -5735,7 +5708,6 @@ static int32_t synaptik_metal_create_decoded(
             NSString *fixed_source = synaptik_authenticated_fixed_source();
             if (fixed_source == nil)
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-            NSString *kernel_source = fixed_source;
             NSString *generated_source = SynaptikPointwiseGeneratedSource(
                     fusion->steps,
                     fusion->step_count,
@@ -5744,14 +5716,11 @@ static int32_t synaptik_metal_create_decoded(
                     fusion->expected_generated_bytes);
             if (generated_source == nil)
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-            kernel_source = [kernel_source stringByAppendingString:generated_source];
+            NSString *kernel_source = [fixed_source stringByAppendingString:generated_source];
             if ([kernel_source lengthOfBytesUsingEncoding:NSUTF8StringEncoding]
                             != fusion->expected_total_bytes
                     || !synaptik_assembled_source_is_authentic(
-                            fixed_source,
-                            generated_source,
-                            kernel_source,
-                            fusion->generated_source_digest))
+                            fixed_source, generated_source, kernel_source))
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             id<MTLLibrary> library = [ctx.device
                     newLibraryWithSource:kernel_source options:options error:&library_error];
@@ -7250,8 +7219,7 @@ static NSData *synaptik_pointwise_manifest(
         uint32_t rejected_node,
         uint32_t cap_reason) {
     if (program == NULL || value_ranks == NULL || value_dimensions == NULL
-            || target_indices == NULL || fusion == NULL
-            || fusion->generated_source_digest == NULL)
+            || target_indices == NULL || fusion == NULL)
         return nil;
     NSMutableString *text = [NSMutableString stringWithCapacity:4096U];
     if (text == nil) return nil;
@@ -7267,10 +7235,6 @@ static NSData *synaptik_pointwise_manifest(
     [text appendString:@"caps 32 256 16384 262144 1048576\n"];
     [text appendString:@"source-size-table 1\n"];
     [text appendString:@"fixed-corpus-bytes 77411\n"];
-    [text appendString:@"fixed-corpus-sha256 9c705744636d8a8e34a3e049c8044acf1d5811da929bf20df39928600cd61c0d\n"];
-    NSString *generated_digest = synaptik_digest_hex(fusion->generated_source_digest);
-    if (generated_digest == nil) return nil;
-    [text appendFormat:@"generated-source-sha256 %@\n", generated_digest];
     [text appendString:@"opcodes floor=1 ceil=2 sign=3 relu=4\n"];
     [text appendString:@"pointmeta-abi size=32 align=8 elementCount=u64@0 gridWidth=u64@8 gridHeight=u64@16 scalar=u32@24 reserved=u32@28\n"];
     for (uint32_t value = 0U; value < value_count; value++) {
@@ -8172,7 +8136,6 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
         NSMutableData *instruction_data = nil;
         SynaptikPointwisePlan fusion_plan = {0};
         const SynaptikPointwisePlan *fusion = NULL;
-        uint8_t generated_source_digest[CC_SHA256_DIGEST_LENGTH] = {0U};
         if (extension) {
             step_data = [NSMutableData dataWithLength:
                     (NSUInteger)step_count * sizeof(SynaptikPointwiseStepRecord)];
@@ -8267,7 +8230,6 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
             uint32_t binding_cursor = 0U;
             uint32_t instruction_cursor = 0U;
             uint32_t generated_units = 0U;
-            uint64_t generated_bytes = 0U;
             for (uint32_t ordinal = 0U; ordinal < step_count; ordinal++) {
                 const uint8_t *record =
                         program + steps_offset + (uint64_t)ordinal * 40U;
@@ -8315,11 +8277,8 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                             ordinal, instructions + step.instruction_start,
                             step.instruction_count);
                     if (step.function_bytes > SYNAPTIK_POINTWISE_MAX_FUNCTION_BYTES
-                            || computed == 0U || computed != step.function_bytes
-                            || computed > SYNAPTIK_POINTWISE_MAX_FUNCTION_BYTES
-                            || generated_bytes > UINT32_MAX - computed)
+                            || computed == 0U || computed != step.function_bytes)
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-                    generated_bytes += computed;
                     if (rejected_node != UINT32_MAX && first_member >= rejected_node)
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     for (uint32_t relative = 0U;
@@ -8418,20 +8377,11 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                     || instruction_cursor != instruction_count
                     || generated_units != generated_unit_count)
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-            if (generated_units != 0U) generated_bytes += 49U;
-            if (generated_bytes != expected_generated_bytes
+            uint32_t counted_generated_bytes = SynaptikPointwiseGeneratedBytes(
+                    steps, step_count, instructions, instruction_count);
+            if (counted_generated_bytes == UINT32_MAX
+                    || counted_generated_bytes != expected_generated_bytes
                     || (rejected_node != UINT32_MAX && rejected_node >= node_count))
-                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-            NSString *authenticated_generated = SynaptikPointwiseGeneratedSource(
-                    steps,
-                    step_count,
-                    instructions,
-                    instruction_count,
-                    expected_generated_bytes);
-            if (authenticated_generated == nil
-                    || !synaptik_sha256_string(
-                            authenticated_generated,
-                            generated_source_digest))
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             fusion_plan = (SynaptikPointwisePlan) {
                 .step_count = step_count,
@@ -8448,7 +8398,6 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                 .generated_unit_count = generated_unit_count,
                 .expected_generated_bytes = expected_generated_bytes,
                 .expected_total_bytes = expected_total_bytes,
-                .generated_source_digest = generated_source_digest,
             };
             if (!synaptik_validate_pointwise_cap_stop(
                         program,
