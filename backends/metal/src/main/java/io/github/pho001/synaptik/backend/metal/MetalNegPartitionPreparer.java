@@ -142,6 +142,19 @@ import java.util.Optional;
 final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalNegAnalysisInputs, MetalNegPreparationPlan> {
     private static final long UINT32_MAX = 0xffff_ffffL;
+    private final Runnable planConstructionObserver;
+
+    MetalNegPartitionPreparer() {
+        this(null);
+    }
+
+    MetalNegPartitionPreparer(Runnable planConstructionObserver) {
+        this.planConstructionObserver = planConstructionObserver;
+    }
+
+    private void constructingPlan() {
+        if (planConstructionObserver != null) planConstructionObserver.run();
+    }
 
     /**
      * Produces one immutable whole-partition lowering and its exact shared declarations.
@@ -483,6 +496,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         .map(value -> Objects.requireNonNull(
                                 physicalLayouts.get(value), "physical value layout"))
                         .toList();
+        constructingPlan();
         var heuristicPlan = new MetalNegPreparationPlan(
                 context.numericalProfile(),
                 context.partition(), context.partitionDag(), deviceContext,
@@ -527,17 +541,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
 
         Optional<PreparationResourceRequirement.Workspace> selectedWorkspace = workspace(
                 route, feeds.size(), targets.size(), materializedCount);
-        var selectedPlan = route == heuristicPlan.route()
-                ? heuristicPlan
-                : new MetalNegPreparationPlan(
-                        context.numericalProfile(),
-                        context.partition(), context.partitionDag(), deviceContext,
-                        route,
-                        valueIds, descriptors,
-                physicalValueLayouts, valueStates, graphProgram,
-                        feeds, feedIndices, targets, targetIndices,
-                        internalValues, internalIndices, internalBytes, declarations, feedSplats,
-                        feedSplatSources, selectedWorkspace, feedBytes, targetBytes);
         MetalTraceProducer traceProducer = context.backendInputs().traceProducer();
         MetalTraceProducer.PreparedUnit traceUnit =
                 traceProducer == null || !traceProducer.enabled()
@@ -550,9 +553,13 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         feedIndices,
                         targetIndices,
                         internalValues.size());
-        var plan = traceUnit == null || !traceUnit.enabled()
-                ? selectedPlan
-                : new MetalNegPreparationPlan(
+        MetalNegPreparationPlan plan;
+        if (traceUnit == null || !traceUnit.enabled()) {
+            if (route == heuristicPlan.route()) {
+                plan = heuristicPlan;
+            } else {
+                constructingPlan();
+                plan = new MetalNegPreparationPlan(
                         context.numericalProfile(),
                         context.partition(), context.partitionDag(), deviceContext,
                         route,
@@ -560,7 +567,20 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 physicalValueLayouts, valueStates, graphProgram,
                         feeds, feedIndices, targets, targetIndices,
                         internalValues, internalIndices, internalBytes, declarations, feedSplats,
-                        feedSplatSources, selectedWorkspace, feedBytes, targetBytes, traceUnit);
+                        feedSplatSources, selectedWorkspace, feedBytes, targetBytes);
+            }
+        } else {
+            constructingPlan();
+            plan = new MetalNegPreparationPlan(
+                    context.numericalProfile(),
+                    context.partition(), context.partitionDag(), deviceContext,
+                    route,
+                    valueIds, descriptors,
+            physicalValueLayouts, valueStates, graphProgram,
+                    feeds, feedIndices, targets, targetIndices,
+                    internalValues, internalIndices, internalBytes, declarations, feedSplats,
+                    feedSplatSources, selectedWorkspace, feedBytes, targetBytes, traceUnit);
+        }
         var allDeclarations = new ArrayList<PreparationResourceRequirement>(declarations);
         plan.addressWorkspace().ifPresent(allDeclarations::add);
         return new BackendPartitionAnalysis<>(context.partition(), plan, allDeclarations);

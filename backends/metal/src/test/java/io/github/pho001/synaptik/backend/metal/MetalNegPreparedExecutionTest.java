@@ -8,6 +8,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT_UNALIGNED;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -484,6 +485,43 @@ class MetalNegPreparedExecutionTest {
         } finally {
             execution.close();
             input.close();
+            context.close();
+        }
+    }
+
+    @Test
+    void forcedFallbackBuildsOnlyHeuristicAndSelectedPlansAcrossTraceStates() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        try {
+            AtomicInteger enabledConstructions = new AtomicInteger();
+            MetalTraceProducer enabledProducer = new MetalTraceProducer(event -> {});
+            SingleNegRoute enabled = singleNegRoute(
+                    context,
+                    Shape.of(2),
+                    Optional.empty(),
+                    enabledProducer,
+                    MetalPreparedRoute.MPSGRAPH,
+                    new MetalNegPartitionPreparer(enabledConstructions::incrementAndGet));
+            assertEquals(2, enabledConstructions.get());
+            assertNotNull(enabled.analysis().plan().traceUnit());
+            assertTrue(enabled.analysis().plan().traceUnit().enabled());
+
+            AtomicInteger disabledConstructions = new AtomicInteger();
+            MetalTraceProducer disabledProducer = new MetalTraceProducer(event -> {
+                throw new AssertionError("structural prepare observer");
+            });
+            SingleNegRoute disabled = singleNegRoute(
+                    context,
+                    Shape.of(2),
+                    Optional.empty(),
+                    disabledProducer,
+                    MetalPreparedRoute.MPSGRAPH,
+                    new MetalNegPartitionPreparer(disabledConstructions::incrementAndGet));
+            assertEquals(2, disabledConstructions.get());
+            assertFalse(disabledProducer.enabled());
+            assertNull(disabled.analysis().plan().traceUnit());
+        } finally {
             context.close();
         }
     }
@@ -4487,6 +4525,22 @@ class MetalNegPreparedExecutionTest {
             Optional<ScalarValue> splat,
             MetalTraceProducer traceProducer,
             MetalPreparedRoute forcedRoute) {
+        return singleNegRoute(
+                context,
+                shape,
+                splat,
+                traceProducer,
+                forcedRoute,
+                new MetalNegPartitionPreparer());
+    }
+
+    private static SingleNegRoute singleNegRoute(
+            MetalDeviceContext context,
+            Shape shape,
+            Optional<ScalarValue> splat,
+            MetalTraceProducer traceProducer,
+            MetalPreparedRoute forcedRoute,
+            MetalNegPartitionPreparer preparer) {
         TensorDescriptor descriptor = descriptor(shape);
         ValueId feed = new ValueId(10_000);
         ValueId target = new ValueId(10_001);
@@ -4510,7 +4564,6 @@ class MetalNegPreparedExecutionTest {
                 requirements,
                 constants,
                 new MetalNegAnalysisInputs(context, traceProducer));
-        var preparer = new MetalNegPartitionPreparer();
         BackendPartitionAnalysis<MetalNegPreparationPlan> analysis = forcedRoute == null
                 ? preparer.analyze(prepareContext)
                 : preparer.analyzeForTesting(prepareContext, forcedRoute);

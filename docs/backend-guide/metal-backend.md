@@ -318,8 +318,9 @@ Splat count and bytes are derived from the exact validated invocation bindings: 
 prepared by an earlier source owner is counted when bound, while a source-owned resource not bound
 by that invocation is not. After an observer failure disables its producer, later preparations
 skip trace anchor diagnostics, step summarization, and digest construction entirely.
-If the structural PREPARE callback disables tracing, analysis retains the already-built selected
-route plan rather than constructing it again; subsequent preparations skip trace planning as above.
+If the structural PREPARE callback disables tracing, analysis reuses the heuristic plan when its
+route matches and otherwise builds exactly one selected no-trace plan. An enabled forced fallback
+builds only the heuristic and traced selected plans, never an eager no-trace third copy.
 
 Preparation always reports `NOT_QUERIED`: Metal authenticates an optional outer tuning decision
 but performs no cache lookup and cannot claim an outer hit or miss. Native codes `0..12` map to

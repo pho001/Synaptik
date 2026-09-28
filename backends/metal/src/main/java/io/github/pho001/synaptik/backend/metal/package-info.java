@@ -130,9 +130,10 @@
  * source/data/scalar bits, pointers, handles, paths, names, or per-buffer records. Structural
  * PREPARE and pre-run planning callback failures disable tracing and are contained without
  * aborting native finalization or execution. A disabled producer skips structural trace planning
- * and digest construction on later preparations. A structural PREPARE callback that disables its
- * producer leaves the already-selected route plan in place rather than causing a second
- * construction. Observer runtime failures from outcome reporting also disable later tracing
+ * and digest construction on later preparations. When the structural PREPARE callback disables
+ * tracing, analysis reuses a matching heuristic plan or constructs the selected no-trace plan once.
+ * An enabled forced fallback constructs only the heuristic and traced selected plans, never an
+ * eager third copy. Observer runtime failures from outcome reporting also disable later tracing
  * without changing backend outcomes. An observer error propagates only
  * from
  * successful outcome reporting; during failure reporting, the backend failure remains primary and
