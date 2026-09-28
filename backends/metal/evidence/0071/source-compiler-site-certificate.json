@@ -50,7 +50,7 @@
     {
       "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegPartitionPreparer.java",
       "role": "partition-preparer",
-      "sha256": "059b518b6ee586f64b5ba82c211f8b5141915acf9c323ea8ffd52f3f860a85eb"
+      "sha256": "c589104aae429b06378c320d62d05a041f67af7d6e0fae0340b9fa02a0b56a93"
     },
     {
       "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparationPlan.java",
@@ -60,7 +60,7 @@
     {
       "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNativeApi.java",
       "role": "java-native-contract",
-      "sha256": "b916a1d2229b9aa3409f975dd99cf6252ace27836acc612612214d2094300c69"
+      "sha256": "60e387c78e5f381c2083fd1533f0e34cddef42f56bdcd713aa0286a7d411935b"
     },
     {
       "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalTraceProducer.java",
@@ -100,7 +100,7 @@
     {
       "path": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
       "role": "native-runtime",
-      "sha256": "8dae38c8075d52846ebe81fc7a3794794fbc99723d35981af66700698b803f2f"
+      "sha256": "f14eee9b44674c703cb333ab581a4b768244ff0c26395a6e5758ff5996fa6983"
     },
     {
       "path": "native/metal-macos-arm64/src/synaptik_task0071_anchor_epilogue_kernels.h",
@@ -135,7 +135,7 @@
     {
       "path": "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphRawAbiNativeTest.java",
       "role": "raw-abi-test",
-      "sha256": "0a0f05de2d02b82df86d5e509fbc701762cb3413c335e25a5c9303c31a85a5f1"
+      "sha256": "378b79779875c3704f0d0c80f2097401d93d2adb521da95bab5c0837c7b8b7c3"
     },
     {
       "path": "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalTraceProducerTest.java",
@@ -145,7 +145,7 @@
     {
       "path": "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparedExecutionTest.java",
       "role": "execution-trace-test",
-      "sha256": "5b1ccc631cf7b24962e922cee87ddeafb835e8fb3d76e445afcd6d90bf01d6af"
+      "sha256": "de9761899490b86a4130eeac81eb1c34ff40f85dd23025d06fca1dedc8ad2f3c"
     },
     {
       "path": "backends/metal/evidence/0071/proof/Task0071AnchorEpilogue.lean",

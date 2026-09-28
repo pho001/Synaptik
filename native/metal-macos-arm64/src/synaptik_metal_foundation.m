@@ -7980,6 +7980,8 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                 [NSMutableData dataWithLength:(NSUInteger)value_count];
         NSMutableData *node_data = [NSMutableData dataWithLength:
                 (NSUInteger)node_count * sizeof(SynaptikMetalDecodedNode)];
+        NSMutableData *rank_zero_anchor_role_data =
+                [NSMutableData dataWithLength:(NSUInteger)node_count];
         NSMutableData *feed_data =
                 [NSMutableData dataWithLength:(NSUInteger)feed_count * sizeof(uint32_t)];
         NSMutableData *target_data =
@@ -7989,6 +7991,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
         if (rank_data == nil || dimension_data == nil || stride_data == nil
                 || layout_offset_data == nil || layout_span_data == nil
                 || layout_state_data == nil || type_data == nil || node_data == nil
+                || rank_zero_anchor_role_data == nil
                 || feed_data == nil || target_data == nil || topology_data == nil)
             return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
         uint32_t *value_ranks = rank_data.mutableBytes;
@@ -8001,6 +8004,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
         uint8_t *declared_states = layout_view + value_count;
         uint8_t *declared_types = type_data.mutableBytes;
         SynaptikMetalDecodedNode *nodes = node_data.mutableBytes;
+        uint8_t *rank_zero_anchor_roles = rank_zero_anchor_role_data.mutableBytes;
         uint32_t *feed_indices = feed_data.mutableBytes;
         uint32_t *target_indices = target_data.mutableBytes;
         uint8_t *available = topology_data.mutableBytes;
@@ -8192,11 +8196,27 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                         program + values_offset + (uint64_t)output_value * 40U + 16U);
                 if ((input_flags & 1U) != 0U || (output_flags & 1U) != 0U)
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-                if ((operation != SYNAPTIK_METAL_MPSGRAPH_SCALAR_MUL
-                                || route == SYNAPTIK_METAL_ROUTE_MPSGRAPH)
-                        && (value_ranks[input_value] == 0U
-                                || value_ranks[output_value] == 0U))
-                    return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
+                if (value_ranks[input_value] == 0U
+                        || value_ranks[output_value] == 0U) {
+                    if (operation == SYNAPTIK_METAL_MPSGRAPH_SCALAR_MUL
+                            && route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM)
+                        rank_zero_anchor_roles[node_index] = 1U;
+                    else
+                        return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
+                }
+            }
+            if (operation == SYNAPTIK_METAL_CUSTOM_RELU) {
+                uint32_t input_value = synaptik_read_le32(
+                        program + references_offset + (uint64_t)input_offset * 4U);
+                uint32_t output_value = synaptik_read_le32(
+                        program + references_offset + (uint64_t)output_offset * 4U);
+                if (value_ranks[input_value] == 0U
+                        || value_ranks[output_value] == 0U) {
+                    if (route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM)
+                        rank_zero_anchor_roles[node_index] = 2U;
+                    else
+                        return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
+                }
             }
             if (operation == SYNAPTIK_METAL_MPSGRAPH_MSE) {
                 uint32_t left_value = synaptik_read_le32(
@@ -8915,6 +8935,20 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                                 bindings,
                                 instructions))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    for (uint32_t relative = 1U;
+                            relative < step.member_count;
+                            relative++) {
+                        uint32_t member = members[step.member_start + relative];
+                        uint32_t operation = nodes[member].operation;
+                        if (rank_zero_anchor_roles[member] == 1U
+                                && relative == 1U
+                                && operation == SYNAPTIK_METAL_MPSGRAPH_SCALAR_MUL)
+                            rank_zero_anchor_roles[member] = 0U;
+                        if (rank_zero_anchor_roles[member] == 2U
+                                && relative + 1U == step.member_count
+                                && operation == SYNAPTIK_METAL_CUSTOM_RELU)
+                            rank_zero_anchor_roles[member] = 0U;
+                    }
                 } else if (step.member_count != 1U || step.instruction_count != 0U
                         || step.function_bytes != 0U
                         || step.binding_count != expected_bindings) {
@@ -9022,6 +9056,9 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
             if (synaptik_authenticated_fixed_source() == nil)
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
         }
+        for (uint32_t node = 0U; node < node_count; node++)
+            if (rank_zero_anchor_roles[node] != 0U)
+                return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
         if (contains_unsupported) return SYNAPTIK_METAL_STATUS_UNSUPPORTED_OPERATION;
         return synaptik_metal_create_decoded(
                 context, route, value_count, value_ranks, value_dimensions,

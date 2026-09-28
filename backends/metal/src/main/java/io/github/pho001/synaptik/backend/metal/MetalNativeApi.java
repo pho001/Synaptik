@@ -630,7 +630,17 @@ abstract class MetalNativeApi implements AutoCloseable {
                 throw new IllegalArgumentException(
                         "custom-only operations have no approved direct MPSGraph route");
             }
-            for (MetalMpsGraphProgram.Node node : graphProgram.nodes()) {
+            RankZeroAnchorRoles rankZeroAnchorRoles = authenticatedRankZeroAnchorRoles(
+                    numericalProfile,
+                    route,
+                    graphProgram,
+                    values,
+                    targets,
+                    fusionPlan);
+            for (int nodePosition = 0;
+                    nodePosition < graphProgram.nodes().size();
+                    nodePosition++) {
+                MetalMpsGraphProgram.Node node = graphProgram.nodes().get(nodePosition);
                 int[] nodeInputs = node.inputs();
                 int left = node.firstInputIndex();
                 int right = node.secondInputIndex();
@@ -783,9 +793,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case SCALAR_MUL ->
                             requireShape(
                                     sameShape(left, output, valueRanks, valueDimensions)
-                                            && (route != MetalPreparedRoute.MPSGRAPH
-                                                    || valueRanks[left] >= 1
-                                                            && valueRanks[output] >= 1),
+                                            && (valueRanks[left] >= 1
+                                                    && valueRanks[output] >= 1
+                                                || rankZeroAnchorRoles
+                                                        .scalarMultiply()[nodePosition]),
                                     "SCALAR_MUL input/output shape is unsupported");
                     case FLOOR, CEIL, SIGN ->
                             requireShape(
@@ -798,9 +809,9 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case RELU ->
                             requireShape(
                                     sameShape(left, output, valueRanks, valueDimensions)
-                                            && (route != MetalPreparedRoute.MPSGRAPH
-                                                    || valueRanks[left] >= 1
-                                                            && valueRanks[output] >= 1),
+                                            && (valueRanks[left] >= 1
+                                                    && valueRanks[output] >= 1
+                                                || rankZeroAnchorRoles.relu()[nodePosition]),
                                     "RELU input/output shape is unsupported");
                     case IS_FINITE, IS_NAN, IS_INF, LOGICAL_NOT ->
                             requireShape( sameShape(left, output, valueRanks, valueDimensions),
@@ -1413,6 +1424,64 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
             }
         }
+        private static RankZeroAnchorRoles authenticatedRankZeroAnchorRoles(
+                NumericalProfile numericalProfile,
+                MetalPreparedRoute route,
+                MetalMpsGraphProgram program,
+                List<MetalMpsGraphProgram.ValueDescriptor> values,
+                int[] targets,
+                MetalPointwiseFusionPlan fusionPlan) {
+            boolean[] scalarMultiply = new boolean[program.nodes().size()];
+            boolean[] relu = new boolean[program.nodes().size()];
+            if (route != MetalPreparedRoute.CUSTOM_PROGRAM || fusionPlan == null) {
+                return new RankZeroAnchorRoles(scalarMultiply, relu);
+            }
+            int[] members = fusionPlan.memberNodePositions();
+            List<MetalAnchorEpilogue> recognized =
+                    MetalAnchorEpilogueRecognizer.recognize(
+                            numericalProfile, program, values, targets);
+            for (MetalPointwiseFusionPlan.Step step : fusionPlan.steps()) {
+                if (step.kind() != MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE
+                        || step.memberStart() >= members.length) {
+                    continue;
+                }
+                int anchorPosition = members[step.memberStart()];
+                MetalAnchorEpilogue anchor = recognized.stream()
+                        .filter(candidate ->
+                                candidate.anchorNodePosition() == anchorPosition)
+                        .findFirst()
+                        .orElse(null);
+                if (anchor == null
+                        || step.anchorKindWire() != anchor.anchorKind().wire()
+                        || step.memberCount() != anchor.memberCount()
+                        || step.memberStart() + step.memberCount() > members.length) {
+                    continue;
+                }
+                boolean exactMembers = true;
+                for (int relative = 0; relative < step.memberCount(); relative++) {
+                    exactMembers &= members[step.memberStart() + relative]
+                            == anchorPosition + relative;
+                }
+                if (!exactMembers) continue;
+                List<MetalAnchorEpilogue.Operation> operations = anchor.operations();
+                for (int operationIndex = 0;
+                        operationIndex < operations.size();
+                        operationIndex++) {
+                    MetalAnchorEpilogue.Operation operation = operations.get(operationIndex);
+                    if (operation instanceof MetalAnchorEpilogue.ScalarMultiply
+                            && operationIndex == 0) {
+                        scalarMultiply[operation.nodePosition()] = true;
+                    } else if (operation instanceof MetalAnchorEpilogue.Relu
+                            && operationIndex == operations.size() - 1) {
+                        relu[operation.nodePosition()] = true;
+                    }
+                }
+            }
+            return new RankZeroAnchorRoles(scalarMultiply, relu);
+        }
+
+        private record RankZeroAnchorRoles(boolean[] scalarMultiply, boolean[] relu) {}
+
         private static boolean task0064ShapeMatches(
                 MetalMpsGraphProgram.Node node,
                 List<MetalMpsGraphProgram.ValueDescriptor> values) {

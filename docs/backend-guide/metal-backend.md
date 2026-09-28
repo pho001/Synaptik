@@ -318,6 +318,8 @@ Splat count and bytes are derived from the exact validated invocation bindings: 
 prepared by an earlier source owner is counted when bound, while a source-owned resource not bound
 by that invocation is not. After an observer failure disables its producer, later preparations
 skip trace anchor diagnostics, step summarization, and digest construction entirely.
+If the structural PREPARE callback disables tracing, analysis retains the already-built selected
+route plan rather than constructing it again; subsequent preparations skip trace planning as above.
 
 Preparation always reports `NOT_QUERIED`: Metal authenticates an optional outer tuning decision
 but performs no cache lookup and cannot claim an outer hit or miss. Native codes `0..12` map to
@@ -398,6 +400,8 @@ right-aligned broadcasting. Consequently Conv2d rank-one `[W]` broadcasts over w
 channels; channel broadcasting uses `[1,C,1,1]`, while intrinsic `[C]` remains only the third
 Conv2d input. Any publication, fanout, unsupported order, aliasing role, type/layout/gradient
 mismatch, strict profile, or instruction/cap mismatch preserves the original composition.
+Rank-zero `SCALAR_MUL` and `RELU` are accepted only at their authenticated ordered positions in a
+validated anchor step; the same nodes as standalone or unrelated custom-program steps fail closed.
 An admitted suffix becomes one custom step, one physical dispatch, and one final store with no
 intermediate materialized slot and no native retry or fallback.
 

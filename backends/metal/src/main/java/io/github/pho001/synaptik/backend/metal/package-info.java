@@ -72,8 +72,10 @@
  * ADD followed by the same terminal pair and never scalar multiplication. Its intrinsic rank-one
  * {@code [C]} bias remains only the third Conv2d input; an external rank-one addend is {@code [W]},
  * while {@code [1,C,1,1]} is the ordinary channel-broadcast form. Every absorbed intermediate is
- * private, single-consumer, non-target, canonical, and absent from the materialized set. An
- * admitted anchor uses one safe-math dispatch and one final store with no intermediate slot,
+ * private, single-consumer, non-target, canonical, and absent from the materialized set.
+ * Rank-zero {@code SCALAR_MUL} and {@code RELU} are admitted only in their exact authenticated
+ * ordered anchor-member roles; standalone or unrelated custom-program occurrences fail closed.
+ * An admitted anchor uses one safe-math dispatch and one final store with no intermediate slot,
  * native retry, or fallback. Fusion is all-or-none at 64 anchors. Structural trace scans at most
  * 65 eligible source anchors; count 65 is the exceeded-cap sentinel and reports the bounded member
  * facts as composed without allocating an unbounded diagnostic list.
@@ -128,8 +130,10 @@
  * source/data/scalar bits, pointers, handles, paths, names, or per-buffer records. Structural
  * PREPARE and pre-run planning callback failures disable tracing and are contained without
  * aborting native finalization or execution. A disabled producer skips structural trace planning
- * and digest construction on later preparations. Observer runtime failures from outcome reporting
- * also disable later tracing without changing backend outcomes. An observer error propagates only
+ * and digest construction on later preparations. A structural PREPARE callback that disables its
+ * producer leaves the already-selected route plan in place rather than causing a second
+ * construction. Observer runtime failures from outcome reporting also disable later tracing
+ * without changing backend outcomes. An observer error propagates only
  * from
  * successful outcome reporting; during failure reporting, the backend failure remains primary and
  * receives a distinct acyclic observer error as a suppressed failure. The ordinary open overload

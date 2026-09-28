@@ -506,6 +506,7 @@ class MetalNegPreparedExecutionTest {
                 MetalPreparedRoute.MPSGRAPH);
         assertFalse(producer.enabled());
         assertEquals(1, callbacks.get());
+        assertNull(route.analysis().plan().traceUnit());
         SingleNegRoute laterRoute = singleNegRoute(
                 context,
                 Shape.of(2),

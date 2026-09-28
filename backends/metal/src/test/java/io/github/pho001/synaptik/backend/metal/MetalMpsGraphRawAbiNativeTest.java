@@ -210,6 +210,137 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
+    void rankZeroEpiloguesRequireAuthenticatedAnchorMembership() throws Throwable {
+        Path library = configuredLibrary();
+        var validProgram = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.matmul(0, 1, 2),
+                MetalMpsGraphProgram.Node.scalarValue(
+                        MetalMpsGraphProgram.NodeKind.SCALAR_MUL,
+                        2,
+                        3,
+                        0x4000_0000),
+                unaryNode(MetalMpsGraphProgram.NodeKind.RELU, 3, 4)));
+        List<MetalMpsGraphProgram.ValueDescriptor> validValues = List.of(
+                descriptor(3),
+                descriptor(3),
+                descriptor(),
+                descriptor(),
+                descriptor());
+        int[] validFeeds = {0, 1};
+        int[] validTargets = {4};
+        MetalPointwiseFusionPlan validFusion = MetalPointwiseFusionPlanner.plan(
+                NumericalProfile.ACCELERATOR,
+                validProgram,
+                validValues,
+                validFeeds,
+                validTargets,
+                MetalPreparedRoute.CUSTOM_PROGRAM);
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                NumericalProfile.ACCELERATOR,
+                validValues,
+                validProgram,
+                validFeeds,
+                validTargets,
+                MetalPreparedRoute.CUSTOM_PROGRAM,
+                validFusion);
+        byte[] valid = validProgram.encodedProgramImage(
+                NumericalProfile.ACCELERATOR,
+                validValues,
+                validFeeds,
+                validTargets,
+                MetalPreparedRoute.CUSTOM_PROGRAM,
+                validFusion);
+
+        var standaloneMulProgram = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.matmul(0, 1, 2),
+                unaryNode(MetalMpsGraphProgram.NodeKind.RELU, 2, 3),
+                MetalMpsGraphProgram.Node.scalarValue(
+                        MetalMpsGraphProgram.NodeKind.SCALAR_MUL,
+                        4,
+                        5,
+                        0x4000_0000)));
+        List<MetalMpsGraphProgram.ValueDescriptor> standaloneMulValues = List.of(
+                descriptor(3),
+                descriptor(3),
+                descriptor(),
+                descriptor(),
+                descriptor(),
+                descriptor());
+        int[] standaloneMulFeeds = {0, 1, 4};
+        int[] standaloneMulTargets = {3, 5};
+        MetalPointwiseFusionPlan standaloneMulFusion = MetalPointwiseFusionPlanner.plan(
+                NumericalProfile.ACCELERATOR,
+                standaloneMulProgram,
+                standaloneMulValues,
+                standaloneMulFeeds,
+                standaloneMulTargets,
+                MetalPreparedRoute.CUSTOM_PROGRAM);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        NumericalProfile.ACCELERATOR,
+                        standaloneMulValues,
+                        standaloneMulProgram,
+                        standaloneMulFeeds,
+                        standaloneMulTargets,
+                        MetalPreparedRoute.CUSTOM_PROGRAM,
+                        standaloneMulFusion));
+        byte[] standaloneMul = standaloneMulProgram.encodedProgramImage(
+                NumericalProfile.ACCELERATOR,
+                standaloneMulValues,
+                standaloneMulFeeds,
+                standaloneMulTargets,
+                MetalPreparedRoute.CUSTOM_PROGRAM,
+                standaloneMulFusion);
+
+        var standaloneReluProgram = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.matmul(0, 1, 2),
+                MetalMpsGraphProgram.Node.binary(
+                        MetalMpsGraphProgram.NodeKind.ADD, 2, 3, 4),
+                unaryNode(MetalMpsGraphProgram.NodeKind.RELU, 5, 6)));
+        List<MetalMpsGraphProgram.ValueDescriptor> standaloneReluValues = List.of(
+                descriptor(3),
+                descriptor(3),
+                descriptor(),
+                descriptor(),
+                descriptor(),
+                descriptor(),
+                descriptor());
+        int[] standaloneReluFeeds = {0, 1, 3, 5};
+        int[] standaloneReluTargets = {4, 6};
+        MetalPointwiseFusionPlan standaloneReluFusion = MetalPointwiseFusionPlanner.plan(
+                NumericalProfile.ACCELERATOR,
+                standaloneReluProgram,
+                standaloneReluValues,
+                standaloneReluFeeds,
+                standaloneReluTargets,
+                MetalPreparedRoute.CUSTOM_PROGRAM);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        NumericalProfile.ACCELERATOR,
+                        standaloneReluValues,
+                        standaloneReluProgram,
+                        standaloneReluFeeds,
+                        standaloneReluTargets,
+                        MetalPreparedRoute.CUSTOM_PROGRAM,
+                        standaloneReluFusion));
+        byte[] standaloneRelu = standaloneReluProgram.encodedProgramImage(
+                NumericalProfile.ACCELERATOR,
+                standaloneReluValues,
+                standaloneReluFeeds,
+                standaloneReluTargets,
+                MetalPreparedRoute.CUSTOM_PROGRAM,
+                standaloneReluFusion);
+
+        try (RawAbi abi = new RawAbi(library)) {
+            assertEquals(0, abi.create(valid, valid.length));
+            assertEquals(8, abi.create(standaloneMul, standaloneMul.length));
+            assertEquals(8, abi.create(standaloneRelu, standaloneRelu.length));
+        }
+    }
+
+    @Test
     void schemaEighteenAuthenticatesCapStopPrecedenceAndFirstRejectedNode() throws Throwable {
         Path library = configuredLibrary();
         var nodes = new ArrayList<MetalMpsGraphProgram.Node>();
