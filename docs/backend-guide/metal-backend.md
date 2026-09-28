@@ -382,14 +382,14 @@ The package-private `MetalOperationRouteCatalog` separately describes every one 
 schema-sixteen `NodeKind` values. Exhaustive enum switching yields shared immutable entries with
 closed MPSGraph state/reason and custom-kernel state/reason values: MPSGraph totals are
 `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`; custom totals are
-`71 AVAILABLE / 44 PENDING / 0 UNAVAILABLE_WITH_PROOF`. Task 0066 moves exactly wires `6..11` and
-`16..19` from pending to available under reason `CA_0066`; wire 70 remains pending. Task-0069
-Slice 1 moves wire `114=L1_NORM` from pending to available under reason `CA_0069` without changing
-its composed MPSGraph record. This catalog performs no capability admission and no selection. It
-is never consulted by Runtime; 31 kinds remain capability-false even when the catalog records a
-structurally direct or composed MPSGraph realization. Structural executable status separately
-covers 101 wires with 14 nonexecutable rows
-and never grants production ownership.
+`73 AVAILABLE / 42 PENDING / 0 UNAVAILABLE_WITH_PROOF`. Task 0066 moves exactly wires `6..11` and
+`16..19` from pending to available under reason `CA_0066`. Task-0069 Slices 1 through 3 move wires
+`114=L1_NORM`, `70=SCATTER_ADD`, and `112=VARIANCE` from pending to available under reason
+`CA_0069` without changing their MPSGraph records. This catalog performs no capability admission
+and no selection. It is never consulted by Runtime; 29 kinds remain capability-false even when the
+catalog records a structurally direct or composed MPSGraph realization. Structural executable
+status separately covers 101 wires with 14 nonexecutable rows and never grants production
+ownership.
 
 After Planning creates one maximal Metal partition, analysis walks nodes in partition order with
 explicit unavailable, canonical, affine-view, and materialized-layout states. For selected view
