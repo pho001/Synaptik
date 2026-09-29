@@ -132,14 +132,16 @@ Rules:
   wrapper, Tensor identity, and non-overlapping storage occurrence remains fixed until close;
   callers grant exclusive module/parameter-storage use and must not replace bindings or storage
   associations while the session is open.
-- The initial public session supports a scalar `FLOAT32` or `FLOAT64` objective and connected,
-  non-empty `FLOAT32`/`FLOAT64` parameters with fully static, dense-contiguous, offset-zero,
-  non-view descriptors and exact-capacity writable native host storage accessible to every thread
-  that operates on the session. Every parameter has a strictly positive element count and finite
-  initial values; rejection occurs during capture before cotangent-seed allocation, compilation,
-  or preparation. Parameter storage is updated in place so the compiled Tensor identities remain
-  stable. JVM-heap, read-only, confined-to-another-thread, device-only, empty, and non-finite
-  parameter storage are outside the initial update domain and fail before compile or mutation.
+- The public session supports a scalar `FLOAT32` or `FLOAT64` objective and connected, non-empty
+  `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` parameters with fully static, dense-contiguous,
+  offset-zero, non-view descriptors and exact-capacity writable native host storage accessible to
+  every thread that operates on the session. Every parameter has a strictly positive element count
+  and finite initial values; rejection occurs during capture before cotangent-seed allocation,
+  compilation, or preparation. BFLOAT16 and FLOAT16 parameters retain private FLOAT32 masters and
+  publish one narrowed logical value only after a successful update. Parameter storage is updated
+  in place so compiled Tensor identities remain stable. JVM-heap, read-only,
+  confined-to-another-thread, device-only, empty, integral, BOOL, and non-finite parameter storage
+  are outside the update domain and fail before compile or mutation.
 - Compiler input occurrence order and publication target indices are the only mapping authorities.
   Parameters bind internally by captured Tensor identity; each other bindable input is supplied
   exactly once per run. A missing, duplicate, foreign, descriptor-incompatible, absent, dead,
@@ -152,9 +154,11 @@ Rules:
   momentum step stores `adjusted` without dampening. Later steps store
   `momentum * previous + (1 - dampening) * adjusted`. Ordinary momentum selects that new slot;
   Nesterov selects `adjusted + momentum * updatedMomentum`. The parameter candidate is
-  `parameter - learningRate * selectedGradient`. FLOAT32 sessions validate the same invariants
-  after coefficient narrowing, including rejecting positive Nesterov momentum that narrows to
-  zero; FLOAT64 uses the configured binary64 values.
+  `parameter - learningRate * selectedGradient`. FLOAT32, BFLOAT16, and FLOAT16 parameter sessions
+  validate the same invariants after coefficient narrowing, including rejecting positive
+  Nesterov momentum that narrows to zero, and use FLOAT32 master, momentum, accumulation, and
+  candidate arithmetic. A successful low update narrows the validated master candidate once to
+  the declared logical type. FLOAT64 uses the configured binary64 values.
 - A reset-and-step run uses only that run's gradients and clears older accumulation on success.
   An accumulate run atomically adds the run's gradients without updating parameters or optimizer
   step count. An accumulate-and-step run applies the pending sum plus that run's gradients and
@@ -182,11 +186,15 @@ Rules:
   repeated/concurrent close replay the retained cleanup result. An operation admitted before
   session close begins may finish normally before cleanup.
 - `TrainingStep` and immutable in-memory session-state snapshots own detached canonical bytes and
-  remain readable after session or Engine close. A restore validates the complete optimizer
-  configuration, path/order/schema, counters, and payloads before installing any state.
+  remain readable after session or Engine close. Logical parameter payloads use their declared
+  width; master, momentum, and accumulated-gradient payloads use FLOAT32 width for BFLOAT16,
+  FLOAT16, and FLOAT32 parameters and FLOAT64 width for FLOAT64 parameters. A restore validates the
+  complete optimizer configuration, path/order/schema, counters, payload finiteness, and exact
+  widths before installing any state.
 - CPU, Metal, and supported mixed Engine preparations use this same lifecycle. Training never
-  branches on backend identity. Unsupported compile, prepare, execution, publication, or
-  materialization fails before optimizer mutation.
+  branches on backend identity. This lifecycle does not independently prove or widen low-precision
+  Metal graph capability. Unsupported compile, prepare, execution, publication, or materialization
+  fails before optimizer mutation.
 - `FORWARD_ONLY` performs no autograd. `FORWARD_AND_BACKWARD` and the initial `TRAINING_STEP` use
   the same combined pre-capture forward/backward construction; the initial `TRAINING_STEP` adds no
   optimizer-update graph work.

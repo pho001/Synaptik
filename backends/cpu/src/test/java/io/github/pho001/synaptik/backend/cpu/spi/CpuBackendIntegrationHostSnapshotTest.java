@@ -34,6 +34,32 @@ final class CpuBackendIntegrationHostSnapshotTest {
             assertArrayEquals(new byte[] {0x3f, (byte) 0x80, 0, 0, (byte) 0x80, 0, 0, 0}, second);
         }
     }
+    @Test
+    void borrowsAndPublishesRawFloat16ShortsWithoutConvertingThem() {
+        short[] source = {(short) 0x0000, (short) 0x7e01, (short) 0x8000,
+                (short) 0xfc01, (short) 0x3c00, (short) 0x3555, (short) 0x0001,
+                (short) 0xffff};
+        Shape shape = Shape.of(2, 2);
+        TensorDescriptor descriptor = new TensorDescriptor(DataType.FLOAT16, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {3, 2}, 1, true)), false);
+        try (CpuBackendIntegration integration = CpuBackendIntegration.open()) {
+            BufferRepresentation representation = integration.borrow(new MemorySegmentStorage(
+                    DataType.FLOAT16, source.length, MemorySegment.ofArray(source)));
+            try {
+                assertArrayEquals(new byte[] {0x7e, 0x01, (byte) 0xfc, 0x01,
+                                0x3c, 0x00, 0x00, 0x01},
+                        integration.copyToCanonicalHostBytes(representation, descriptor, 8));
+                TensorDescriptor bfloat = new TensorDescriptor(DataType.BFLOAT16, shape,
+                        Optional.of(LayoutDescriptor.of(shape, new long[] {3, 2}, 1, true)),
+                        false);
+                assertThrows(IllegalArgumentException.class, () ->
+                        integration.copyToCanonicalHostBytes(representation, bfloat, 8));
+            } finally {
+                representation.close();
+            }
+        }
+    }
+
 
     @Test
     void preservesAdapterClosedPrecedenceAndSupportsIndependentConcurrentCalls() throws Exception {

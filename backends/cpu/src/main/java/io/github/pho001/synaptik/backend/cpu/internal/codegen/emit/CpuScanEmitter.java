@@ -254,17 +254,17 @@ public final class CpuScanEmitter {
 
     private static TypeKind localKind(DataType type) { return switch (type) {
         case FLOAT64 -> TypeKind.DOUBLE; case FLOAT32 -> TypeKind.FLOAT;
-        case INT64 -> TypeKind.LONG; case BFLOAT16, INT32 -> TypeKind.INT;
+        case INT64 -> TypeKind.LONG; case BFLOAT16, FLOAT16, INT32 -> TypeKind.INT;
         case BOOL -> throw new AssertionError();
     }; }
     private static void store(CodeBuilder code, DataType type, int local) { switch (type) {
         case FLOAT64 -> code.dstore(local); case FLOAT32 -> code.fstore(local);
-        case INT64 -> code.lstore(local); case BFLOAT16, INT32 -> code.istore(local);
+        case INT64 -> code.lstore(local); case BFLOAT16, FLOAT16, INT32 -> code.istore(local);
         case BOOL -> throw new AssertionError();
     } }
     private static void load(CodeBuilder code, DataType type, int local) { switch (type) {
         case FLOAT64 -> code.dload(local); case FLOAT32 -> code.fload(local);
-        case INT64 -> code.lload(local); case BFLOAT16, INT32 -> code.iload(local);
+        case INT64 -> code.lload(local); case BFLOAT16, FLOAT16, INT32 -> code.iload(local);
         case BOOL -> throw new AssertionError();
     } }
     private static void emitIdentity(CodeBuilder code, DataType type, boolean product) { switch (type) {
@@ -273,6 +273,7 @@ public final class CpuScanEmitter {
         case INT64 -> code.loadConstant(product ? 1L : 0L);
         case INT32 -> code.loadConstant(product ? 1 : 0);
         case BFLOAT16 -> code.loadConstant(product ? 0x3f80 : 0);
+        case FLOAT16 -> code.loadConstant(product ? 0x3c00 : 0);
         case BOOL -> throw new AssertionError();
     } }
     private static void emitApply(CodeBuilder code, DataType type, boolean product,
@@ -284,6 +285,7 @@ public final class CpuScanEmitter {
             case INT64 -> { if (product) code.lmul(); else code.ladd(); }
             case INT32 -> { if (product) code.imul(); else code.iadd(); }
             case BFLOAT16 -> emitBfloatApply(code, product);
+            case FLOAT16 -> emitFloat16Apply(code, product);
             case BOOL -> throw new AssertionError();
         }
         store(code, type, accumulator);
@@ -317,6 +319,19 @@ public final class CpuScanEmitter {
         code.labelBinding(round).iinc(upper, 1);
         code.labelBinding(noRound).iload(upper);
         code.labelBinding(done).loadConstant(0xffff).iand();
+    }
+
+    private static void emitFloat16Apply(CodeBuilder code, boolean product) {
+        int right = code.allocateLocal(TypeKind.INT);
+        int left = code.allocateLocal(TypeKind.INT);
+        code.istore(right).istore(left);
+        code.iload(left).i2s().invokestatic(FLOAT, "float16ToFloat",
+                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
+        code.iload(right).i2s().invokestatic(FLOAT, "float16ToFloat",
+                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
+        if (product) code.fmul(); else code.fadd();
+        code.invokestatic(FLOAT, "floatToFloat16",
+                MethodTypeDesc.of(ConstantDescs.CD_short, ConstantDescs.CD_float));
     }
 
     /**
@@ -395,6 +410,7 @@ public final class CpuScanEmitter {
             case FLOAT64 -> Double.doubleToRawLongBits(1.0d);
             case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(1.0f));
             case BFLOAT16 -> 0x3f80L;
+            case FLOAT16 -> 0x3c00L;
             case INT32, INT64 -> 1;
             case BOOL -> throw new AssertionError("BOOL scan is unsupported");
         };
@@ -412,6 +428,9 @@ public final class CpuScanEmitter {
             case BFLOAT16 -> Short.toUnsignedLong(floatToBfloat(kind == 0
                     ? bfloatToFloat((short) left) + bfloatToFloat((short) right)
                     : bfloatToFloat((short) left) * bfloatToFloat((short) right)));
+            case FLOAT16 -> Short.toUnsignedLong(Float.floatToFloat16(kind == 0
+                    ? Float.float16ToFloat((short) left) + Float.float16ToFloat((short) right)
+                    : Float.float16ToFloat((short) left) * Float.float16ToFloat((short) right)));
             case BOOL -> throw new AssertionError("BOOL scan is unsupported");
         };
     }
@@ -425,7 +444,7 @@ public final class CpuScanEmitter {
         return switch (type) {
             case FLOAT64 -> Double.doubleToRawLongBits(carrier instanceof double[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_DOUBLE, address * 8));
             case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(carrier instanceof float[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_FLOAT, address * 4)));
-            case BFLOAT16 -> Short.toUnsignedLong(carrier instanceof short[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_SHORT, address * 2));
+            case BFLOAT16, FLOAT16 -> Short.toUnsignedLong(carrier instanceof short[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_SHORT, address * 2));
             case INT32 -> carrier instanceof int[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_INT, address * 4);
             case INT64 -> carrier instanceof long[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_LONG, address * 8);
             case BOOL -> throw new AssertionError("BOOL scan is unsupported");
@@ -435,7 +454,7 @@ public final class CpuScanEmitter {
         switch (type) {
             case FLOAT64 -> { double v = Double.longBitsToDouble(bits); if (carrier instanceof double[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_DOUBLE, address * 8, v); }
             case FLOAT32 -> { float v = Float.intBitsToFloat((int) bits); if (carrier instanceof float[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_FLOAT, address * 4, v); }
-            case BFLOAT16 -> { short v = (short) bits; if (carrier instanceof short[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_SHORT, address * 2, v); }
+            case BFLOAT16, FLOAT16 -> { short v = (short) bits; if (carrier instanceof short[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_SHORT, address * 2, v); }
             case INT32 -> { int v = (int) bits; if (carrier instanceof int[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_INT, address * 4, v); }
             case INT64 -> { if (carrier instanceof long[] a) a[Math.toIntExact(address)] = bits; else ((MemorySegment) carrier).set(ValueLayout.JAVA_LONG, address * 8, bits); }
             case BOOL -> throw new AssertionError("BOOL scan is unsupported");

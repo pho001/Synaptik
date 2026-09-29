@@ -18,7 +18,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Immutable schema-eighteen Metal program and its canonical bounded image encoder.
+ * Immutable schema-nineteen Metal program and its canonical bounded image encoder.
  *
  * <p>The fixed 128-byte header binds the complete core-image and execution-extension counts.
  * {@code CUSTOM_PROGRAM} images carry authoritative step, binding, materialization, instruction,
@@ -26,7 +26,7 @@ import java.util.Optional;
  * every extension section.</p>
  */
 final class MetalMpsGraphProgram {
-    static final int SCHEMA_VERSION = 18;
+    static final int SCHEMA_VERSION = 19;
     static final int MAX_RANK = 16;
     static final int MAX_SELECTOR_EXPANSION = 16;
     static final int HEADER_BYTES = 128;
@@ -35,7 +35,7 @@ final class MetalMpsGraphProgram {
     static final int STEP_DESCRIPTOR_BYTES = 40;
     static final int BINDING_DESCRIPTOR_BYTES = 24;
     static final int INSTRUCTION_DESCRIPTOR_BYTES = 64;
-    static final int MAGIC = 0x38314d53; // little-endian bytes "SM18"
+    static final int MAGIC = 0x39314d53; // little-endian bytes "SM19"
     static final int STRICT_IEEE_PROFILE_WIRE = 0x53545249; // little-endian bytes "IRTS"
     private static final int EXECUTION_EXTENSION_PRESENT = 1;
     static final int ACCELERATOR_PROFILE_WIRE = 0x41434345; // little-endian bytes "ECCA"
@@ -86,10 +86,10 @@ final class MetalMpsGraphProgram {
 
     enum NodeKind {
         NEG(1, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        ADD(2, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        SUB(3, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        MUL(4, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        DIV(5, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
+        ADD(2, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
+        SUB(3, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
+        MUL(4, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
+        DIV(5, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
         RESHAPE(6, 1, 1, 1, 1, AttributeKind.TARGET_SHAPE, ValueState.AFFINE_VIEW, true, true),
         EXPAND(7, 1, 1, 1, 1, AttributeKind.TARGET_SHAPE, ValueState.AFFINE_VIEW, true, true),
         PERMUTE(8, 1, 1, 1, 1, AttributeKind.PERMUTATION, ValueState.AFFINE_VIEW, true, true),
@@ -104,12 +104,12 @@ final class MetalMpsGraphProgram {
         ONE_HOT(17, 1, 1, 1, 1, AttributeKind.DEPTH, ValueState.CANONICAL, true, true),
         SCATTER_ELEMENTS(18, 3, 3, 1, 1, AttributeKind.SCATTER_ELEMENTS, ValueState.CANONICAL, true, true),
         UNFOLD_AXIS(19, 1, 1, 1, 1, AttributeKind.WINDOW_AXIS, ValueState.CANONICAL, true, true),
-        GT(20, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        GE(21, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        LT(22, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        LE(23, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        EQ(24, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        NE(25, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
+        GT(20, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
+        GE(21, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
+        LT(22, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
+        LE(23, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
+        EQ(24, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
+        NE(25, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
         TENSOR_MIN(26, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         TENSOR_MAX(27, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         SCALAR_MIN(28, 1, 1, 1, 1, AttributeKind.SCALAR_VALUE, ValueState.CANONICAL, false, true),
@@ -592,12 +592,25 @@ final class MetalMpsGraphProgram {
                     new long[] {Integer.toUnsignedLong(axis), size, step});
         }
         static Node scalarValue(NodeKind kind, int input, int output, int rawBits) {
-            return new Node(kind, new int[] {input}, new int[] {output}, AttributeKind.SCALAR_VALUE,
-                    new long[] {1L, Integer.toUnsignedLong(rawBits)});
+            return scalarValue(kind, input, output, DataType.FLOAT32,
+                    Integer.toUnsignedLong(rawBits));
+        }
+        static Node scalarValue(
+                NodeKind kind, int input, int output, DataType type, long rawBits) {
+            return new Node(kind, new int[] {input}, new int[] {output},
+                    AttributeKind.SCALAR_VALUE,
+                    new long[] {dataTypeWire(type), rawBits});
         }
         static Node clamp(int input, int output, int lower, int upper) {
-            return new Node(NodeKind.CLAMP, new int[] {input}, new int[] {output}, AttributeKind.CLAMP_RANGE,
-                    new long[] {1L, Integer.toUnsignedLong(lower), 1L, Integer.toUnsignedLong(upper)});
+            return clamp(input, output, DataType.FLOAT32,
+                    Integer.toUnsignedLong(lower), Integer.toUnsignedLong(upper));
+        }
+        static Node clamp(
+                int input, int output, DataType type, long lower, long upper) {
+            long wire = dataTypeWire(type);
+            return new Node(NodeKind.CLAMP, new int[] {input}, new int[] {output},
+                    AttributeKind.CLAMP_RANGE,
+                    new long[] {wire, lower, wire, upper});
         }
         static Node scan(NodeKind kind, int input, int output, int axis,
                 boolean exclusive, boolean reverse) {
@@ -643,13 +656,17 @@ final class MetalMpsGraphProgram {
                 case SCALAR_VALUE -> {
                     requireWords(2);
                     validateScalar(attributeWords, 0);
-                    if (kind.executable() && attributeWords[0] != 1L) throw malformed();
+                    if (kind.executable() && !executableScalarType(attributeWords[0])) {
+                        throw malformed();
+                    }
                 }
                 case CLAMP_RANGE -> {
                     requireWords(4);
                     validateScalar(attributeWords, 0);
                     validateScalar(attributeWords, 2);
-                    if (kind.executable() && (attributeWords[0] != 1L || attributeWords[2] != 1L)) {
+                    if (kind.executable()
+                            && (!executableScalarType(attributeWords[0])
+                                    || attributeWords[2] != attributeWords[0])) {
                         throw malformed();
                     }
                 }
@@ -939,7 +956,12 @@ final class MetalMpsGraphProgram {
             requireType(type);
             if ((type == 1L || type == 2L) && (bits & ~0xffff_ffffL) != 0L
                     || type == 3L && bits > 1L
-                    || type == 5L && (bits & ~0xffffL) != 0L) throw malformed();
+                    || (type == 5L || type == 7L) && (bits & ~0xffffL) != 0L) {
+                throw malformed();
+            }
+        }
+        private static boolean executableScalarType(long type) {
+            return type == 1L || type == 5L || type == 7L;
         }
         private static void validateAxes(long[] axes, int bound, boolean complete) {
             boolean[] seen = new boolean[bound];
@@ -969,7 +991,7 @@ final class MetalMpsGraphProgram {
             if (value < minimum || value > maximum) throw malformed();
         }
         private static void requireType(long value) {
-            requireEnum(value, 1L, 6L);
+            requireEnum(value, 1L, 7L);
         }
         private static void requireUnsignedInt(long value) {
             if ((value & ~0xffff_ffffL) != 0L) throw malformed();
@@ -1105,26 +1127,30 @@ final class MetalMpsGraphProgram {
         for (Node node : nodes) {
             switch (node.kind()) {
                 case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV -> {
-                    updateDigestInt(digest, 0x53434c52); // SCLR
-                    updateDigestInt(digest, node.kind().wireIdentity());
-                    updateDigestInt(digest, scalarPrimitive(node.kind()).wireIdentity());
-                    updateDigestInt(digest, 1); // input is primary, scalar is secondary
-                    updateDigestInt(digest, dataTypeWire(DataType.FLOAT32));
-                    updateDigestInt(digest, 1); // rank
-                    updateDigestInt(digest, 1); // sole extent
-                    updateDigestInt(digest, Float.BYTES);
-                    updateDigestInt(digest, (int) node.attributeWords[1]);
+                    if (node.attributeWords[0] == dataTypeWire(DataType.FLOAT32)) {
+                        updateDigestInt(digest, 0x53434c52); // SCLR
+                        updateDigestInt(digest, node.kind().wireIdentity());
+                        updateDigestInt(digest, scalarPrimitive(node.kind()).wireIdentity());
+                        updateDigestInt(digest, 1); // input is primary, scalar is secondary
+                        updateDigestInt(digest, dataTypeWire(DataType.FLOAT32));
+                        updateDigestInt(digest, 1); // rank
+                        updateDigestInt(digest, 1); // sole extent
+                        updateDigestInt(digest, Float.BYTES);
+                        updateDigestInt(digest, (int) node.attributeWords[1]);
+                    }
                 }
                 case RECIPROCAL -> {
-                    updateDigestInt(digest, 0x52435052); // RCPR
-                    updateDigestInt(digest, node.kind().wireIdentity());
-                    updateDigestInt(digest, NodeKind.DIV.wireIdentity());
-                    updateDigestInt(digest, 2); // scalar one is primary, input is secondary
-                    updateDigestInt(digest, dataTypeWire(DataType.FLOAT32));
-                    updateDigestInt(digest, 1); // rank
-                    updateDigestInt(digest, 1); // sole extent
-                    updateDigestInt(digest, Float.BYTES);
-                    updateDigestInt(digest, 0x3f80_0000);
+                    if (values.get(node.inputs()[0]).dataType() == DataType.FLOAT32) {
+                        updateDigestInt(digest, 0x52435052); // RCPR
+                        updateDigestInt(digest, node.kind().wireIdentity());
+                        updateDigestInt(digest, NodeKind.DIV.wireIdentity());
+                        updateDigestInt(digest, 2); // scalar one is primary, input is secondary
+                        updateDigestInt(digest, dataTypeWire(DataType.FLOAT32));
+                        updateDigestInt(digest, 1); // rank
+                        updateDigestInt(digest, 1); // sole extent
+                        updateDigestInt(digest, Float.BYTES);
+                        updateDigestInt(digest, 0x3f80_0000);
+                    }
                 }
                 default -> {
                     // The schema image completely binds every other lowering.
@@ -1465,6 +1491,7 @@ final class MetalMpsGraphProgram {
             case FLOAT64 -> 4;
             case BFLOAT16 -> 5;
             case INT64 -> 6;
+            case FLOAT16 -> 7;
         };
     }
 

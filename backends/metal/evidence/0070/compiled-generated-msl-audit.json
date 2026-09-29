@@ -7,59 +7,244 @@
     "bytes": 4798,
     "sha256": "3bd7ea954c5dfc7f49f61eb857c24ee9f6239c4911fcd52dd5cff8a977ab556a"
   },
-  "compilerFlags": ["-std=metal3.2", "-fno-fast-math", "-Wall", "-Wextra", "-Werror", "-isysroot", "<absolute SDKROOT>"],
+  "compilerFlags": [
+    "-std=metal3.2",
+    "-fno-fast-math",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-isysroot",
+    "<absolute SDKROOT>"
+  ],
   "semanticReproducibilityAuthority": "generated-fixtures.air.instructions.json",
   "fixedCorpus": {
-    "bytes": 84541,
-    "sha256": "5e7d65bfc46f52532781a3730aeda2202b798022b61fb60ea5beeb95307e77bb",
+    "bytes": 84603,
+    "sha256": "eb9a4bc2e9156bd971c59a3f8c1416df61627fe1c8e5655ccff28ecdf28b39f5",
     "components": [
-      {"symbol": "SynaptikExactKernelSource", "bytes": 16912, "sha256": "f79d5b3fa13d0cd9a704f326196703aa41305bb62f7957d8413e697c9319e58e"},
-      {"symbol": "SynaptikTask0059DataKernelSource", "bytes": 11492, "sha256": "4316a3ff46d640ca8813afd070c1d3746bd832b28afc847f556925e5d3bf44ac"},
-      {"symbol": "SynaptikTask0060ReductionKernelSource", "bytes": 6105, "sha256": "aa5e6b524926b64058aecc90c0b93f5e571ccd81e1e362459252d8a2b5b65c7f"},
-      {"symbol": "SynaptikTask0061MatmulKernelSource", "bytes": 6042, "sha256": "4cd012516868ca5c8eead1ebdf4b63de13f702d9526894ef5da00548dbd0732c"},
-      {"symbol": "SynaptikTask0063OrderingKernelSource", "bytes": 5683, "sha256": "a54fa5431ed23e88ea7b2a118c631492218e14fe1ce932de9ca8652f2b2bf65e"},
-      {"symbol": "SynaptikTask0064ConvolutionPoolingKernelSource", "bytes": 9567, "sha256": "282cb823f95499e63f66674221c44bfbf77c9fa51230995eb3518ea130537cbe"},
-      {"symbol": "SynaptikTask0069AggregateKernelSource", "bytes": 2886, "sha256": "6791792854f011172b98c9998fe67717c83ab13eb771d8b967cc64cf6f9548ca"},
-      {"symbol": "SynaptikTask0065RngDropoutKernelSource", "bytes": 1301, "sha256": "8217948f0c28d3df56c5f2edb5408306b588bf2c5e0b1f90a23463e295ac6b99"},
-      {"symbol": "SynaptikTask0066DtypeLayoutKernelSource", "bytes": 17456, "sha256": "630b6401079438a773aca080e0ee039d33006ef861264bb3f14549e69a50960c"},
-      {"symbol": "SynaptikTask0071AnchorEpilogueKernelSource", "bytes": 7097, "sha256": "e165612540f551ce547c145dde4fa48e46ff06e652b4729272b8bfabc75f0663"}
+      {
+        "bytes": 16974,
+        "sha256": "650af9b349f1559250471f2c53c8195aebe2d77e642dfb4d11d89683fb14c1c7",
+        "symbol": "SynaptikExactKernelSource"
+      },
+      {
+        "bytes": 11492,
+        "sha256": "4316a3ff46d640ca8813afd070c1d3746bd832b28afc847f556925e5d3bf44ac",
+        "symbol": "SynaptikTask0059DataKernelSource"
+      },
+      {
+        "bytes": 6105,
+        "sha256": "aa5e6b524926b64058aecc90c0b93f5e571ccd81e1e362459252d8a2b5b65c7f",
+        "symbol": "SynaptikTask0060ReductionKernelSource"
+      },
+      {
+        "bytes": 6042,
+        "sha256": "4cd012516868ca5c8eead1ebdf4b63de13f702d9526894ef5da00548dbd0732c",
+        "symbol": "SynaptikTask0061MatmulKernelSource"
+      },
+      {
+        "bytes": 5683,
+        "sha256": "a54fa5431ed23e88ea7b2a118c631492218e14fe1ce932de9ca8652f2b2bf65e",
+        "symbol": "SynaptikTask0063OrderingKernelSource"
+      },
+      {
+        "bytes": 9567,
+        "sha256": "282cb823f95499e63f66674221c44bfbf77c9fa51230995eb3518ea130537cbe",
+        "symbol": "SynaptikTask0064ConvolutionPoolingKernelSource"
+      },
+      {
+        "bytes": 2886,
+        "sha256": "6791792854f011172b98c9998fe67717c83ab13eb771d8b967cc64cf6f9548ca",
+        "symbol": "SynaptikTask0069AggregateKernelSource"
+      },
+      {
+        "bytes": 1301,
+        "sha256": "8217948f0c28d3df56c5f2edb5408306b588bf2c5e0b1f90a23463e295ac6b99",
+        "symbol": "SynaptikTask0065RngDropoutKernelSource"
+      },
+      {
+        "bytes": 17456,
+        "sha256": "630b6401079438a773aca080e0ee039d33006ef861264bb3f14549e69a50960c",
+        "symbol": "SynaptikTask0066DtypeLayoutKernelSource"
+      },
+      {
+        "bytes": 7097,
+        "sha256": "e165612540f551ce547c145dde4fa48e46ff06e652b4729272b8bfabc75f0663",
+        "symbol": "SynaptikTask0071AnchorEpilogueKernelSource"
+      }
     ]
   },
   "fixtures": [
-    {"name": "synaptik_pw_g1_s0", "step": 0, "siteKind": "singleton", "instructions": ["FLOOR"], "bytes": 375},
-    {"name": "synaptik_pw_g1_s1", "step": 1, "siteKind": "singleton", "instructions": ["CEIL"], "bytes": 374},
-    {"name": "synaptik_pw_g1_s2", "step": 2, "siteKind": "singleton", "instructions": ["SIGN"], "bytes": 374},
-    {"name": "synaptik_pw_g1_s3", "step": 3, "siteKind": "singleton", "instructions": ["RELU"], "bytes": 374},
-    {"name": "synaptik_pw_g1_s4", "step": 4, "siteKind": "chain-2", "instructions": ["FLOOR", "CEIL"], "bytes": 402},
-    {"name": "synaptik_pw_g1_s5", "step": 5, "siteKind": "chain-3", "instructions": ["CEIL", "SIGN", "RELU"], "bytes": 428},
-    {"name": "synaptik_pw_g1_s6", "step": 6, "siteKind": "chain-4", "instructions": ["FLOOR", "CEIL", "SIGN", "RELU"], "bytes": 456},
-    {"name": "synaptik_pw_g1_s7", "step": 7, "siteKind": "chain-5", "instructions": ["FLOOR", "CEIL", "SIGN", "RELU", "FLOOR"], "bytes": 484},
-    {"name": "synaptik_pw_g1_s8", "step": 8, "siteKind": "chain-6", "instructions": ["FLOOR", "CEIL", "SIGN", "RELU", "FLOOR", "CEIL"], "bytes": 511},
-    {"name": "synaptik_pw_g1_s9", "step": 9, "siteKind": "chain-7", "instructions": ["FLOOR", "CEIL", "SIGN", "RELU", "FLOOR", "CEIL", "SIGN"], "bytes": 538},
-    {"name": "synaptik_pw_g1_s10", "step": 10, "siteKind": "chain-8", "instructions": ["FLOOR", "CEIL", "SIGN", "RELU", "FLOOR", "CEIL", "SIGN", "RELU"], "bytes": 566}
+    {
+      "name": "synaptik_pw_g1_s0",
+      "step": 0,
+      "siteKind": "singleton",
+      "instructions": [
+        "FLOOR"
+      ],
+      "bytes": 375
+    },
+    {
+      "name": "synaptik_pw_g1_s1",
+      "step": 1,
+      "siteKind": "singleton",
+      "instructions": [
+        "CEIL"
+      ],
+      "bytes": 374
+    },
+    {
+      "name": "synaptik_pw_g1_s2",
+      "step": 2,
+      "siteKind": "singleton",
+      "instructions": [
+        "SIGN"
+      ],
+      "bytes": 374
+    },
+    {
+      "name": "synaptik_pw_g1_s3",
+      "step": 3,
+      "siteKind": "singleton",
+      "instructions": [
+        "RELU"
+      ],
+      "bytes": 374
+    },
+    {
+      "name": "synaptik_pw_g1_s4",
+      "step": 4,
+      "siteKind": "chain-2",
+      "instructions": [
+        "FLOOR",
+        "CEIL"
+      ],
+      "bytes": 402
+    },
+    {
+      "name": "synaptik_pw_g1_s5",
+      "step": 5,
+      "siteKind": "chain-3",
+      "instructions": [
+        "CEIL",
+        "SIGN",
+        "RELU"
+      ],
+      "bytes": 428
+    },
+    {
+      "name": "synaptik_pw_g1_s6",
+      "step": 6,
+      "siteKind": "chain-4",
+      "instructions": [
+        "FLOOR",
+        "CEIL",
+        "SIGN",
+        "RELU"
+      ],
+      "bytes": 456
+    },
+    {
+      "name": "synaptik_pw_g1_s7",
+      "step": 7,
+      "siteKind": "chain-5",
+      "instructions": [
+        "FLOOR",
+        "CEIL",
+        "SIGN",
+        "RELU",
+        "FLOOR"
+      ],
+      "bytes": 484
+    },
+    {
+      "name": "synaptik_pw_g1_s8",
+      "step": 8,
+      "siteKind": "chain-6",
+      "instructions": [
+        "FLOOR",
+        "CEIL",
+        "SIGN",
+        "RELU",
+        "FLOOR",
+        "CEIL"
+      ],
+      "bytes": 511
+    },
+    {
+      "name": "synaptik_pw_g1_s9",
+      "step": 9,
+      "siteKind": "chain-7",
+      "instructions": [
+        "FLOOR",
+        "CEIL",
+        "SIGN",
+        "RELU",
+        "FLOOR",
+        "CEIL",
+        "SIGN"
+      ],
+      "bytes": 538
+    },
+    {
+      "name": "synaptik_pw_g1_s10",
+      "step": 10,
+      "siteKind": "chain-8",
+      "instructions": [
+        "FLOOR",
+        "CEIL",
+        "SIGN",
+        "RELU",
+        "FLOOR",
+        "CEIL",
+        "SIGN",
+        "RELU"
+      ],
+      "bytes": 566
+    }
   ],
   "artifacts": {
-    "provider-inventory.json": {"bytes": 4798, "sha256": "3bd7ea954c5dfc7f49f61eb857c24ee9f6239c4911fcd52dd5cff8a977ab556a"},
-    "generated-fixtures.metal": {"bytes": 89472, "sha256": "8b911dd671194ce11fdf01515793100855dbf54f0f906cb1fa089cd32297f877"},
-    "fixtures.json": {"bytes": 4006, "sha256": "19c51b5d0f385606b93ef610971c657524c99ad7a7bca4f762b90fc111e6b90e"},
+    "provider-inventory.json": {
+      "bytes": 4798,
+      "sha256": "3bd7ea954c5dfc7f49f61eb857c24ee9f6239c4911fcd52dd5cff8a977ab556a"
+    },
+    "generated-fixtures.metal": {
+      "bytes": 89534,
+      "sha256": "0d867d4a3a89b7c9cc42ca2e23af7523666f79497028f3eb2512bc1a09fa61ec"
+    },
+    "fixtures.json": {
+      "bytes": 4006,
+      "sha256": "a2657e179f9c96822a3949e6dd9d1e4fa9c9d737bb8767caaa81af5dfe41b273"
+    },
     "generated-fixtures.air": {
-      "referenceBytes": 117520,
-      "referenceSha256": "9a7c64e6139065f4a69608123376fac071af5a3ac3a7e88b6843cb22a06dd7ab",
+      "referenceBytes": 118000,
+      "referenceSha256": "fb5605d8f35970e9bdeb39f01c10a3a272eb43f949984ce11707a1f313c7fcd9",
       "nondeterministicContainer": true,
       "actualHashLedger": "artifact-observation.json",
       "semanticAuthority": "generated-fixtures.air.instructions.json"
     },
     "generated-fixtures.metallib": {
-      "referenceBytes": 533996,
-      "referenceSha256": "4fb2e9bad6ffb407fadc3124823438e93e65bf035fd2c454483d5c1a9a63912e",
+      "referenceBytes": 535196,
+      "referenceSha256": "0650f47eea80cbda853f4ec32c356cdaf7933a994fe0fe221dcf88fc2dc65a42",
       "nondeterministicContainer": true,
       "actualHashLedger": "artifact-observation.json",
       "semanticAuthority": "generated-fixtures.air.instructions.json"
     },
-    "generated-fixtures.air.ll.canonical": {"bytes": 868505, "sha256": "03322555ac83af08a50c6b054fe798ab443cbe67de485732016c16f877849104"},
-    "generated-fixtures.air.nm.canonical": {"bytes": 4269, "sha256": "02fc1e0dd9a1e84d4a98560d7ad25f5cda2046d0a76efb1aa21e7c868f49a368"},
-    "generated-fixtures.air.instructions.json": {"bytes": 5780, "sha256": "36edcd3fed5621d0d07fb0a900c34e4ea06d9b81252a8381e89200e83e4f8333"},
-    "forbidden-floating-fixtures.metal": {"bytes": 1219, "sha256": "365d7db19c28ca0e1cefb190948be7ce8db90222d284f547b42f9da232d5196d"},
+    "generated-fixtures.air.ll.canonical": {
+      "bytes": 872726,
+      "sha256": "3d7ff8c5375bf0daa62723333cc0a573222b21ee5537c95db2a5f215f6ae2c97"
+    },
+    "generated-fixtures.air.nm.canonical": {
+      "bytes": 4269,
+      "sha256": "02fc1e0dd9a1e84d4a98560d7ad25f5cda2046d0a76efb1aa21e7c868f49a368"
+    },
+    "generated-fixtures.air.instructions.json": {
+      "bytes": 5780,
+      "sha256": "36edcd3fed5621d0d07fb0a900c34e4ea06d9b81252a8381e89200e83e4f8333"
+    },
+    "forbidden-floating-fixtures.metal": {
+      "bytes": 1219,
+      "sha256": "365d7db19c28ca0e1cefb190948be7ce8db90222d284f547b42f9da232d5196d"
+    },
     "forbidden-floating-fixtures.air": {
       "referenceBytes": 4976,
       "referenceSha256": "ce9071b036119f692acda02223990900770a732ed0df9c27ad04cee327e18b35",
@@ -67,17 +252,38 @@
       "actualHashLedger": "artifact-observation.json",
       "semanticAuthority": "forbidden-floating-fixtures.rejections.json"
     },
-    "forbidden-floating-fixtures.air.ll.canonical": {"bytes": 9738, "sha256": "2b1bdb07973bb83423f8ac4563d56441bbaf800d915373716a9bcd6750f952c1"},
-    "forbidden-floating-fixtures.rejections.json": {"bytes": 1124, "sha256": "217b002616734997b054caf4f6095a6980d2264ed2a3761a1c1f2d06e26602cb"}
+    "forbidden-floating-fixtures.air.ll.canonical": {
+      "bytes": 9738,
+      "sha256": "2b1bdb07973bb83423f8ac4563d56441bbaf800d915373716a9bcd6750f952c1"
+    },
+    "forbidden-floating-fixtures.rejections.json": {
+      "bytes": 1124,
+      "sha256": "217b002616734997b054caf4f6095a6980d2264ed2a3761a1c1f2d06e26602cb"
+    }
   },
   "negativeFixtures": [
-    {"symbol": "audit_forbidden_fadd", "forbiddenClass": "fadd"},
-    {"symbol": "audit_forbidden_fmul", "forbiddenClass": "fmul"},
-    {"symbol": "audit_forbidden_fdiv", "forbiddenClass": "fdiv"},
-    {"symbol": "audit_forbidden_fma", "forbiddenClass": "fma"}
+    {
+      "symbol": "audit_forbidden_fadd",
+      "forbiddenClass": "fadd"
+    },
+    {
+      "symbol": "audit_forbidden_fmul",
+      "forbiddenClass": "fmul"
+    },
+    {
+      "symbol": "audit_forbidden_fdiv",
+      "forbiddenClass": "fdiv"
+    },
+    {
+      "symbol": "audit_forbidden_fma",
+      "forbiddenClass": "fma"
+    }
   ],
   "runtimeReflection": {
-    "pipelineOptions": ["MTLPipelineOptionBindingInfo", "MTLPipelineOptionBufferTypeInfo"],
+    "pipelineOptions": [
+      "MTLPipelineOptionBindingInfo",
+      "MTLPipelineOptionBufferTypeInfo"
+    ],
     "input": {
       "name": "input",
       "index": 0,
@@ -106,11 +312,31 @@
       "alignment": 8,
       "bytes": 32,
       "members": [
-        {"name": "elementCount", "type": "ulong", "offset": 0},
-        {"name": "gridWidth", "type": "ulong", "offset": 8},
-        {"name": "gridHeight", "type": "ulong", "offset": 16},
-        {"name": "scalar", "type": "uint", "offset": 24},
-        {"name": "reserved", "type": "uint", "offset": 28}
+        {
+          "name": "elementCount",
+          "type": "ulong",
+          "offset": 0
+        },
+        {
+          "name": "gridWidth",
+          "type": "ulong",
+          "offset": 8
+        },
+        {
+          "name": "gridHeight",
+          "type": "ulong",
+          "offset": 16
+        },
+        {
+          "name": "scalar",
+          "type": "uint",
+          "offset": 24
+        },
+        {
+          "name": "reserved",
+          "type": "uint",
+          "offset": 28
+        }
       ]
     }
   },
@@ -119,10 +345,17 @@
     "bufferCount": 3,
     "pointMetaBytes": 32,
     "generatedSymbols": [
-      "synaptik_pw_g1_s0", "synaptik_pw_g1_s1", "synaptik_pw_g1_s2",
-      "synaptik_pw_g1_s3", "synaptik_pw_g1_s4", "synaptik_pw_g1_s5",
-      "synaptik_pw_g1_s6", "synaptik_pw_g1_s7", "synaptik_pw_g1_s8",
-      "synaptik_pw_g1_s9", "synaptik_pw_g1_s10"
+      "synaptik_pw_g1_s0",
+      "synaptik_pw_g1_s1",
+      "synaptik_pw_g1_s2",
+      "synaptik_pw_g1_s3",
+      "synaptik_pw_g1_s4",
+      "synaptik_pw_g1_s5",
+      "synaptik_pw_g1_s6",
+      "synaptik_pw_g1_s7",
+      "synaptik_pw_g1_s8",
+      "synaptik_pw_g1_s9",
+      "synaptik_pw_g1_s10"
     ]
   }
 }

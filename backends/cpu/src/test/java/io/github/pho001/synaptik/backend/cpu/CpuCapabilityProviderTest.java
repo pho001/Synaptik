@@ -182,7 +182,7 @@ class CpuCapabilityProviderTest {
                 () -> assertFalse(supportsBothProfiles(provider, query(Conv2dKind.CONV2D, attrs,
                         List.of(input, weight), descriptor(DataType.FLOAT32, Shape.of(2, 6, 4, 5))))));
         assertArrayEquals(new DataType[] {DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
-                DataType.INT32, DataType.INT64, DataType.BOOL}, DataType.values());
+                DataType.INT32, DataType.INT64, DataType.BOOL, DataType.FLOAT16}, DataType.values());
     }
     @Test void reportsOnlyExactBatchNormalizationInferenceOccurrences() {
         var provider = new CpuCapabilityProvider();
@@ -451,7 +451,7 @@ class CpuCapabilityProviderTest {
                         new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(f64, state), List.of(f64, mask, state)))),
                 () -> assertTrue(supportsBothProfiles(provider, new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
                         new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(f32, state), List.of(f32, mask, state)))),
-                () -> assertFalse(supportsBothProfiles(provider, new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                () -> assertTrue(supportsBothProfiles(provider, new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
                         new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(bf16, state), List.of(bf16, mask, state)))),
                 () -> assertFalse(supportsBothProfiles(provider, new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
                         new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(f64, aliasedState), List.of(f64, mask, state))))) ;
@@ -646,7 +646,7 @@ class CpuCapabilityProviderTest {
     @Test void reportsOnlyExactStaticResolvedAffineOccurrencesForEveryDataType() {
         var provider = new CpuCapabilityProvider();
         Shape inputShape = Shape.of(2,3), selectedShape = Shape.of(2);
-        for (DataType type : DataType.values()) {
+        for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
             var input = descriptor(type, inputShape);
             var selected = new TensorDescriptor(type, selectedShape, Optional.of(
                     LayoutDescriptor.of(selectedShape, new long[]{3}, 1, true)), false);
@@ -782,7 +782,7 @@ class CpuCapabilityProviderTest {
 
     @Test void reportsEveryExactStaticResolvedIndexingTypeAndRankRow() {
         var provider = new CpuCapabilityProvider();
-        for (DataType dataType : DataType.values()) {
+        for (DataType dataType : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
             for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
                 var data = descriptor(dataType, Shape.of(2, 3));
                 var axisIndices = descriptor(indexType, Shape.of(4));

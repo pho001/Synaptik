@@ -27,8 +27,9 @@ import java.util.List;
  * and the inclusive ordered-binary32 distance ceiling of five; sums use the
  * all-contributors-once aggregate floor and the final division/subtraction uses one FLOAT32
  * operation. Stable algorithms are valid only when their complete results remain inside that
- * recursive set. There is no four-ULP softmax-output oracle or other final-output envelope, and
- * non-FLOAT32 behavior stays strict. See the
+ * recursive set. There is no four-ULP softmax-output oracle or other final-output envelope. Every
+ * current non-FLOAT32 occurrence remains strict; the inactive low-precision reservation changes
+ * none of them. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  *

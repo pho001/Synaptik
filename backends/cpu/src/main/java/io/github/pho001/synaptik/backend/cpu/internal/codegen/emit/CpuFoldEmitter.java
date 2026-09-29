@@ -432,13 +432,18 @@ public final class CpuFoldEmitter {
             code.istore(left);
             return;
         }
+        if (type == DataType.FLOAT16) {
+            emitFloat16Add(code, left, right);
+            code.istore(left);
+            return;
+        }
         loadValue(code, type, left); loadValue(code, type, right);
         switch (type) {
             case FLOAT64 -> code.dadd();
             case FLOAT32 -> code.fadd();
             case INT32 -> code.iadd();
             case INT64 -> code.ladd();
-            case BFLOAT16 -> throw new AssertionError("handled above");
+            case BFLOAT16, FLOAT16 -> throw new AssertionError("handled above");
             case BOOL -> throw new IllegalArgumentException("BOOL fold is unsupported");
         }
         storeValue(code, type, left);
@@ -481,7 +486,7 @@ public final class CpuFoldEmitter {
         return switch (type) {
             case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED";
             case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
-            case BFLOAT16 -> "JAVA_SHORT_UNALIGNED";
+            case BFLOAT16, FLOAT16 -> "JAVA_SHORT_UNALIGNED";
             case INT32 -> "JAVA_INT_UNALIGNED";
             case INT64 -> "JAVA_LONG_UNALIGNED";
             case BOOL -> throw new IllegalArgumentException("BOOL fold is unsupported");
@@ -492,7 +497,7 @@ public final class CpuFoldEmitter {
         return switch (type) {
             case FLOAT64 -> DOUBLE_LAYOUT;
             case FLOAT32 -> FLOAT_LAYOUT;
-            case BFLOAT16 -> SHORT_LAYOUT;
+            case BFLOAT16, FLOAT16 -> SHORT_LAYOUT;
             case INT32 -> INT_LAYOUT;
             case INT64 -> LONG_LAYOUT;
             case BOOL -> throw new IllegalArgumentException("BOOL fold is unsupported");
@@ -503,7 +508,7 @@ public final class CpuFoldEmitter {
         return switch (type) {
             case FLOAT64 -> ConstantDescs.CD_double;
             case FLOAT32 -> ConstantDescs.CD_float;
-            case BFLOAT16 -> ConstantDescs.CD_short;
+            case BFLOAT16, FLOAT16 -> ConstantDescs.CD_short;
             case INT32 -> ConstantDescs.CD_int;
             case INT64 -> ConstantDescs.CD_long;
             case BOOL -> throw new IllegalArgumentException("BOOL fold is unsupported");
@@ -539,12 +544,21 @@ public final class CpuFoldEmitter {
         code.labelBinding(round).iinc(upper, 1).iload(upper).labelBinding(complete);
     }
 
+    private static void emitFloat16Add(CodeBuilder code, int left, int right) {
+        code.iload(left).i2s().invokestatic(FLOAT_CLASS, "float16ToFloat",
+                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
+        code.iload(right).i2s().invokestatic(FLOAT_CLASS, "float16ToFloat",
+                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
+        code.fadd().invokestatic(FLOAT_CLASS, "floatToFloat16",
+                MethodTypeDesc.of(ConstantDescs.CD_short, ConstantDescs.CD_float));
+    }
+
     private static void positiveZero(CodeBuilder code, DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.loadConstant(0.0d).dstore(local);
             case FLOAT32 -> code.loadConstant(0.0f).fstore(local);
             case INT64 -> code.loadConstant(0L).lstore(local);
-            case BFLOAT16, INT32 -> code.loadConstant(0).istore(local);
+            case BFLOAT16, FLOAT16, INT32 -> code.loadConstant(0).istore(local);
             case BOOL -> throw new IllegalArgumentException("BOOL fold is unsupported");
         }
     }
@@ -641,7 +655,7 @@ public final class CpuFoldEmitter {
             case FLOAT64 -> code.dload(local);
             case FLOAT32 -> code.fload(local);
             case INT64 -> code.lload(local);
-            case BFLOAT16, INT32, BOOL -> code.iload(local);
+            case BFLOAT16, FLOAT16, INT32, BOOL -> code.iload(local);
         }
     }
 
@@ -650,7 +664,7 @@ public final class CpuFoldEmitter {
             case FLOAT64 -> code.dstore(local);
             case FLOAT32 -> code.fstore(local);
             case INT64 -> code.lstore(local);
-            case BFLOAT16, INT32, BOOL -> code.istore(local);
+            case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(local);
         }
     }
 
@@ -659,7 +673,7 @@ public final class CpuFoldEmitter {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
             case INT64 -> TypeKind.LONG;
-            case BFLOAT16, INT32, BOOL -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
         };
     }
 

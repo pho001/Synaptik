@@ -649,6 +649,7 @@ class CpuDataMovementGeneratedKernelTest {
             case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY;
             case BOOL -> CarrierAccess.BYTE_ARRAY;
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU data movement unsupported");
         };
         return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
         java.util.Collections.nCopies(inputs.size() + 1, carrier)));
@@ -704,6 +705,7 @@ class CpuDataMovementGeneratedKernelTest {
             case INT32 -> new CpuBufferArgument.Ints((int[]) carrier, 0, bytes, readOnly);
             case INT64 -> new CpuBufferArgument.Longs((long[]) carrier, 0, bytes, readOnly);
             case BOOL -> new CpuBufferArgument.Bytes((byte[]) carrier, 0, bytes, readOnly);
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU data movement unsupported");
         };
     }
 

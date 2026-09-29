@@ -13,6 +13,8 @@ import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.EngineMixedOwnerTestAccess;
 import io.github.pho001.synaptik.engine.RunResult;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
@@ -158,6 +160,47 @@ final class RandomDropoutMetalIntegrationTest {
                     assertResults(session.run(List.of(seed, input)), List.of(
                             floatWords(forward.output()),
                             floatWords(expectedGradient)));
+                }
+            }
+        }
+    }
+
+    @Test
+    void lowPrecisionBackwardReusesSavedMaskAndDeterministicStateOnMetal() {
+        Path library = configuredMetalLibrary();
+        float[] values = {1, 2, 3, 4, 5, 6, 7, 8};
+        byte[] mask = oracle(new int[values.length], 0L, 0L, 0.5d).mask();
+        try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
+            builder.numericalProfile(NumericalProfile.ACCELERATOR);
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+                    Tensor input = nativeTensor(
+                            type, Shape.of(values.length), true,
+                            lowNativeWords(type, values), arena);
+                    Tensor seed = nativeTensor(
+                            type, Shape.of(values.length), false,
+                            lowNativeWords(type, values), arena);
+                    DropoutResult dropout =
+                            input.dropout(0.5d, GraphRngState.initial(0L, 0L));
+                    var compiled = engine.compile(
+                            List.of(dropout.output()), List.of(seed), List.of(input));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled),
+                            type.name());
+                    float[] expected = new float[values.length];
+                    for (int index = 0; index < values.length; index++) {
+                        expected[index] = mask[index] == 0 ? 0.0f : values[index] * 2.0f;
+                    }
+                    List<byte[]> publications = List.of(
+                            lowCanonicalWords(type, expected),
+                            lowCanonicalWords(type, expected));
+                    try (var session = engine.session(compiled)) {
+                        assertResults(session.run(List.of(seed, input)), publications);
+                        assertResults(session.run(List.of(seed, input)), publications);
+                    }
                 }
             }
         }
@@ -329,6 +372,28 @@ final class RandomDropoutMetalIntegrationTest {
         ByteBuffer bytes = ByteBuffer.allocate(words.length * Integer.BYTES)
                 .order(ByteOrder.BIG_ENDIAN);
         for (int word : words) bytes.putInt(word);
+        return bytes.array();
+    }
+
+    private static byte[] lowNativeWords(DataType type, float[] values) {
+        ByteBuffer bytes = ByteBuffer.allocate(values.length * Short.BYTES)
+                .order(ByteOrder.nativeOrder());
+        for (float value : values) {
+            bytes.putShort(type == DataType.BFLOAT16
+                    ? BFloat16Bits.fromFloat(value)
+                    : Float16Bits.fromFloat(value));
+        }
+        return bytes.array();
+    }
+
+    private static byte[] lowCanonicalWords(DataType type, float[] values) {
+        ByteBuffer bytes = ByteBuffer.allocate(values.length * Short.BYTES)
+                .order(ByteOrder.BIG_ENDIAN);
+        for (float value : values) {
+            bytes.putShort(type == DataType.BFLOAT16
+                    ? BFloat16Bits.fromFloat(value)
+                    : Float16Bits.fromFloat(value));
+        }
         return bytes.array();
     }
 

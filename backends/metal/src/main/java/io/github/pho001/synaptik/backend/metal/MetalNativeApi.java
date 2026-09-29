@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
@@ -16,26 +17,28 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Package-private typed seam for the ABI-v5 Metal foundation and bounded graph/custom-program C
+ * Package-private typed seam for the ABI-v6 Metal foundation and bounded graph/custom-program C
  * ABI.
  *
  * <p>Handles remain opaque carrier segments inside this package. Implementations consume each
  * successful context or buffer handle exactly once through its matching release call. The
- * schema-eighteen creator accepts zero feeds and compact materialized slots, while execution
- * still binds every ordered live slot buffer. Java preflight independently authenticates the
- * Task-0066 all-carrier affine/index
- * domains, all 36 casts, logical-versus-physical layouts, saved gradient roles, exact replacement
- * safety, fixed custom routing, and profile constraints before native entry. Native status failures
- * are unchecked and retain both the operation name and raw status value.
+ * schema-nineteen creator accepts zero feeds and compact materialized slots, while execution
+ * still binds every ordered live slot buffer. Java preflight independently authenticates all seven
+ * carriers, the 49 ordered casts, logical-versus-physical layouts, saved gradient roles, exact
+ * replacement safety, fixed custom routing, and profile constraints before native entry.
+ * Low-precision arithmetic remains custom-only; only exact raw-preserving graph images having an
+ * exact active certificate may use MPSGraph. Native status failures are unchecked and retain both
+ * the operation name and raw status value.
  */
 abstract class MetalNativeApi implements AutoCloseable {
-    static final int ABI_VERSION = 5;
+    static final int ABI_VERSION = 6;
     static final String EXECUTABLE_CREATE_OPERATION =
             "synaptik_metal_mpsgraph_executable_create";
     static final String EXECUTABLE_RELEASE_OPERATION =
@@ -75,6 +78,20 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @throws RuntimeException if native creation fails or violates the ABI output contract
      */
     abstract Handle createContext();
+
+    /**
+     * Returns the canonical certification identity retained by one live context.
+     *
+     * @param context non-null live context whose ownership remains with the caller
+     * @return non-null exact six-line native environment record
+     * @throws UnsupportedOperationException for injected seams that do not implement ABI-v6
+     *     environment identity
+     */
+    String certificationEnvironment(Handle context) {
+        throw new UnsupportedOperationException(
+                "injected Metal native seam has no certification environment");
+    }
+
 
     /**
      * Consumes one live context handle exactly once.
@@ -132,8 +149,8 @@ abstract class MetalNativeApi implements AutoCloseable {
      *
      * @param context non-null live context whose ownership remains with the caller
      * @param numericalProfile non-null cold plan profile used by Java fail-closed preflight
-     * @param values non-null explicit schema-eighteen value descriptors
-     * @param graphProgram non-null schema-eighteen typed node program
+     * @param values non-null explicit schema-nineteen value descriptors
+     * @param graphProgram non-null schema-nineteen typed node program
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
@@ -198,7 +215,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * Performs one already validated ABI-v5 program-image create invocation synchronously.
      *
      * @param context non-null live context whose ownership remains with the caller
-     * @param programImage exact readable schema-eighteen image, valid only for this call
+     * @param programImage exact readable schema-nineteen image, valid only for this call
      * @return non-null raw status/output-cell result for checked interpretation
      */
     abstract NativeCreateResult createMpsGraphExecutableNative(
@@ -520,7 +537,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the schema-eighteen typed Metal program create contract. */
+    /** Exact Java preflight for the schema-nineteen typed Metal program create contract. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
         private static final long UINT32_MAX = 0xffff_ffffL;
@@ -613,11 +630,15 @@ abstract class MetalNativeApi implements AutoCloseable {
             boolean containsCustomOperation = graphProgram.nodes().stream()
                             .anyMatch(node -> node.kind().isCustomProgramOperation()
                                     || task0066Selected(node.kind())
-                                    || usesCustomMatmul(node, types, valueRanks))
+                                    || usesCustomMatmul(node, types, valueRanks)
+                                    || usesLowPrecisionCustom(node, types))
                     || fusionPlan != null && fusionPlan.steps().stream().anyMatch(
                             step -> step.kind()
                                     == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE);
+            boolean rawPreservingLowPrecisionGraph =
+                    rawPreservingLowPrecisionGraph(graphProgram, values);
             if (route == MetalPreparedRoute.MPSGRAPH
+                    && !rawPreservingLowPrecisionGraph
                     && graphProgram.nodes().stream()
                             .anyMatch(node -> task0052CustomOnly(node.kind())
                                     || task0063CustomOnly(node.kind())
@@ -626,7 +647,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                                     || task0066Selected(node.kind())
                                     || task0069CustomOnly(
                                             node, valueRanks, valueDimensions)
-                                    || usesCustomMatmul(node, types, valueRanks))) {
+                                    || usesCustomMatmul(node, types, valueRanks)
+                                    || usesLowPrecisionCustom(node, types))) {
                 throw new IllegalArgumentException(
                         "custom-only operations have no approved direct MPSGraph route");
             }
@@ -691,20 +713,28 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_SUB
                                 || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_MUL
                                 || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_DIV
-                                || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_POW)
-                        && node.attributeWords()[0]
-                                != MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT32)) {
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_POW
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_MIN
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_MAX
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.CLAMP)
+                        && (node.attributeWords()[0]
+                                        != MetalMpsGraphProgram.dataTypeWire(
+                                                values.get(left).dataType())
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.CLAMP
+                                        && node.attributeWords()[2]
+                                                != node.attributeWords()[0])) {
                     throw new IllegalArgumentException(
-                            "Metal scalar arithmetic requires an exact FLOAT32 scalar");
+                            "Metal scalar operation requires exact matching scalar types");
                 }
                 if ((node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_ADD
                                 || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_SUB
                                 || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_MUL
                                 || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_DIV
                                 || node.kind() == MetalMpsGraphProgram.NodeKind.RECIPROCAL)
-                        && (values.get(left).requiresGrad() || values.get(output).requiresGrad())) {
+                        && values.get(left).requiresGrad()
+                                != values.get(output).requiresGrad()) {
                     throw new IllegalArgumentException(
-                            "Metal scalar arithmetic and reciprocal require no-grad values");
+                            "Metal scalar arithmetic and reciprocal must preserve gradient metadata");
                 }
                 if (node.kind() == MetalMpsGraphProgram.NodeKind.SORT
                         || node.kind() == MetalMpsGraphProgram.NodeKind.TOP_K) {
@@ -761,11 +791,13 @@ abstract class MetalNativeApi implements AutoCloseable {
                         }
                         MetalMpsGraphProgram.dropoutThreshold(words[0]);
                         MetalMpsGraphProgram.dropoutComplementBits(words[0]);
+                        ValueType valueType = types[left];
                         requireShape(
-                                task0065Value(values.get(left), ValueType.FLOAT32, true)
+                                (valueType == ValueType.FLOAT32 || lowPrecision(valueType))
+                                        && task0065Value(values.get(left), valueType, true)
                                         && task0065State(values.get(right))
                                         && task0065Value(
-                                                values.get(output), ValueType.FLOAT32, true)
+                                                values.get(output), valueType, true)
                                         && task0065Value(
                                                 values.get(mask), ValueType.BOOL, true)
                                         && task0065State(values.get(nextState))
@@ -789,7 +821,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                                             && sameShape(
                                                     left, output, valueRanks, valueDimensions),
                                     node.kind()
-                                            + " input/output must be no-grad matching positive ranks");
+                                            + " input/output must have matching positive ranks");
                     case SCALAR_MUL ->
                             requireShape(
                                     sameShape(left, output, valueRanks, valueDimensions)
@@ -1079,15 +1111,23 @@ abstract class MetalNativeApi implements AutoCloseable {
                                     node, left, output, valueRanks, valueDimensions),
                             "UNFOLD_AXIS attributes and output shape disagree");
                 }
+                boolean lowPrecisionCustom = usesLowPrecisionCustom(node, types);
                 switch (node.kind()) {
                     case INITIAL_STATE -> requireType(types, output, ValueType.INT64);
                     case DROPOUT -> {
                         int[] nodeOutputs = node.outputs();
                         int mask = nodeOutputs[1];
                         int nextState = nodeOutputs[2];
-                        requireType(types, left, ValueType.FLOAT32);
+                        if (types[left] != ValueType.FLOAT32
+                                && !lowPrecision(types[left])) {
+                            throw new IllegalArgumentException(
+                                    "DROPOUT value carrier is unsupported");
+                        }
                         requireType(types, right, ValueType.INT64);
-                        requireType(types, output, ValueType.FLOAT32);
+                        if (types[output] != types[left]) {
+                            throw new IllegalArgumentException(
+                                    "DROPOUT must preserve its value carrier");
+                        }
                         requireType(types, mask, ValueType.BOOL);
                         requireType(types, nextState, ValueType.INT64);
                         if (values.get(left).requiresGrad()
@@ -1130,8 +1170,15 @@ abstract class MetalNativeApi implements AutoCloseable {
                             GELU,
                             GELU_TANH_APPROXIMATION,
                             SILU -> {
-                        requireType(types, left, ValueType.FLOAT32);
-                        requireType(types, output, ValueType.FLOAT32);
+                        if (lowPrecisionCustom) {
+                            if (!lowPrecision(types[left]) || types[output] != types[left]) {
+                                throw new IllegalArgumentException(
+                                        node.kind() + " low-precision carriers disagree");
+                            }
+                        } else {
+                            requireType(types, left, ValueType.FLOAT32);
+                            requireType(types, output, ValueType.FLOAT32);
+                        }
                     }
                     case CONTIGUOUS,
                             RESHAPE,
@@ -1180,8 +1227,15 @@ abstract class MetalNativeApi implements AutoCloseable {
                         requireType(types, output, ValueType.BOOL);
                     }
                     case LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, L2_NORM -> {
-                        requireType(types, left, ValueType.FLOAT32);
-                        requireType(types, output, ValueType.FLOAT32);
+                        if (lowPrecisionCustom) {
+                            if (!lowPrecision(types[left]) || types[output] != types[left]) {
+                                throw new IllegalArgumentException(
+                                        node.kind() + " low-precision carriers disagree");
+                            }
+                        } else {
+                            requireType(types, left, ValueType.FLOAT32);
+                            requireType(types, output, ValueType.FLOAT32);
+                        }
                     }
                     case IS_FINITE, IS_NAN, IS_INF -> {
                         if (!task0066Floating(types[left])) {
@@ -1207,22 +1261,30 @@ abstract class MetalNativeApi implements AutoCloseable {
                                     "WHERE branches and output must use exact floating promotion");
                         }
                     }
-                    case ADD, SUB, MUL, DIV, TENSOR_POW, TENSOR_MIN, TENSOR_MAX -> {
-                        requireType(types, left, ValueType.FLOAT32);
-                        requireType(types, right, ValueType.FLOAT32);
-                        requireType(types, output, ValueType.FLOAT32);
-                    }
-                    case MEAN_SQUARED_ERROR -> {
-                        requireType(types, left, ValueType.FLOAT32);
-                        requireType(types, right, ValueType.FLOAT32);
-                        requireType(types, output, ValueType.FLOAT32);
+                    case ADD, SUB, MUL, DIV, TENSOR_POW, TENSOR_MIN, TENSOR_MAX,
+                            MEAN_SQUARED_ERROR -> {
+                        if (lowPrecisionCustom) {
+                            if (!lowPrecision(types[left])
+                                    || types[right] != types[left]
+                                    || types[output] != types[left]) {
+                                throw new IllegalArgumentException(
+                                        node.kind() + " low-precision carriers disagree");
+                            }
+                        } else {
+                            requireType(types, left, ValueType.FLOAT32);
+                            requireType(types, right, ValueType.FLOAT32);
+                            requireType(types, output, ValueType.FLOAT32);
+                        }
                     }
                     case MATMUL ->
                             validateMatmulTypesAndGradients(
                                     numericalProfile, left, right, output, types, values);
                     case GT, GE, LT, LE, EQ, NE -> {
-                        requireType(types, left, ValueType.FLOAT32);
-                        requireType(types, right, ValueType.FLOAT32);
+                        if (types[left] != ValueType.FLOAT32 && !lowPrecision(types[left])
+                                || types[right] != types[left]) {
+                            throw new IllegalArgumentException(
+                                    "comparison input carriers disagree");
+                        }
                         requireType(types, output, ValueType.BOOL);
                     }
                     case GATHER -> {
@@ -1271,13 +1333,13 @@ abstract class MetalNativeApi implements AutoCloseable {
                         }
                     }
                     case SCATTER_ADD -> {
-                        if (types[left] != ValueType.FLOAT32
-                                || types[auxiliary] != ValueType.FLOAT32
-                                || types[output] != ValueType.FLOAT32
+                        if (types[left] != ValueType.FLOAT32 && !lowPrecision(types[left])
+                                || types[auxiliary] != types[left]
+                                || types[output] != types[left]
                                 || types[right] != ValueType.INT32
                                         && types[right] != ValueType.INT64) {
                             throw new IllegalArgumentException(
-                                    "SCATTER_ADD requires FLOAT32 data/update/result and"
+                                    "SCATTER_ADD requires one supported floating data carrier and"
                                             + " INT32 or INT64 indices");
                         }
                     }
@@ -1341,6 +1403,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 || types[left] != ValueType.FLOAT64
                                         && types[left] != ValueType.FLOAT32
                                         && types[left] != ValueType.BFLOAT16
+                                        && types[left] != ValueType.FLOAT16
                                 || values.get(left).requiresGrad()
                                         != values.get(output).requiresGrad()) {
                             throw new IllegalArgumentException(
@@ -1348,8 +1411,11 @@ abstract class MetalNativeApi implements AutoCloseable {
                         }
                     }
                     case AVERAGE_POOL2D, AVERAGE_POOL3D -> {
-                        requireType(types, left, ValueType.FLOAT32);
-                        requireType(types, output, ValueType.FLOAT32);
+                        if (types[left] != ValueType.FLOAT32 && !lowPrecision(types[left])
+                                || types[output] != types[left]) {
+                            throw new IllegalArgumentException(
+                                    "average pool carrier is incompatible");
+                        }
                         if (values.get(left).requiresGrad()
                                 != values.get(output).requiresGrad()) {
                             throw new IllegalArgumentException(
@@ -1360,7 +1426,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                         if (types[left] != types[output]
                                 || types[left] != ValueType.FLOAT32
                                 && types[left] != ValueType.FLOAT64
-                                && types[left] != ValueType.BFLOAT16) {
+                                && types[left] != ValueType.BFLOAT16
+                                && types[left] != ValueType.FLOAT16) {
                             throw new IllegalArgumentException(
                                     node.kind() + " has an unsupported carrier type");
                         }
@@ -1387,6 +1454,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
                 if (nodeInputs.length != 0) used[left] = true;
             }
+
             if (route == MetalPreparedRoute.CUSTOM_PROGRAM && !containsCustomOperation) {
                 throw new IllegalArgumentException(
                         "custom Metal program route requires a custom operation");
@@ -1423,6 +1491,22 @@ abstract class MetalNativeApi implements AutoCloseable {
                             overflow);
                 }
             }
+        }
+        private static boolean rawPreservingLowPrecisionGraph(
+                MetalMpsGraphProgram program,
+                List<MetalMpsGraphProgram.ValueDescriptor> values) {
+            if (program.nodes().isEmpty() || values.isEmpty()) return false;
+            DataType type = values.getFirst().dataType();
+            if (type != DataType.BFLOAT16 && type != DataType.FLOAT16) return false;
+            for (MetalMpsGraphProgram.ValueDescriptor value : values) {
+                if (value.dataType() != type || value.requiresGrad() || value.byteCount() == 0L) {
+                    return false;
+                }
+            }
+            return program.nodes().stream().allMatch(node -> switch (node.kind()) {
+                case RESHAPE, PERMUTE, CONTIGUOUS, SLICE, CONCAT, TILE -> true;
+                default -> false;
+            });
         }
         private static RankZeroAnchorRoles authenticatedRankZeroAnchorRoles(
                 NumericalProfile numericalProfile,
@@ -1817,13 +1901,24 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
 
         private static boolean task0066Carrier(ValueType type) {
-            return type != null;
+            return type == ValueType.FLOAT64
+                    || type == ValueType.FLOAT32
+                    || type == ValueType.BFLOAT16
+                    || type == ValueType.FLOAT16
+                    || type == ValueType.INT64
+                    || type == ValueType.INT32
+                    || type == ValueType.BOOL;
+        }
+
+        private static boolean lowPrecision(ValueType type) {
+            return type == ValueType.BFLOAT16 || type == ValueType.FLOAT16;
         }
 
         private static boolean task0066Floating(ValueType type) {
             return type == ValueType.FLOAT64
                     || type == ValueType.FLOAT32
-                    || type == ValueType.BFLOAT16;
+                    || type == ValueType.BFLOAT16
+                    || type == ValueType.FLOAT16;
         }
 
         private static ValueType task0066Promote(ValueType left, ValueType right) {
@@ -1831,10 +1926,10 @@ abstract class MetalNativeApi implements AutoCloseable {
             if (left == ValueType.FLOAT64 || right == ValueType.FLOAT64) {
                 return ValueType.FLOAT64;
             }
-            if (left == ValueType.FLOAT32 || right == ValueType.FLOAT32) {
+            if (left == ValueType.FLOAT32 || right == ValueType.FLOAT32 || left != right) {
                 return ValueType.FLOAT32;
             }
-            return ValueType.BFLOAT16;
+            return left;
         }
 
         private static void validateTask0066Gradients(
@@ -1865,7 +1960,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 gradients[0]
                                         && task0066Floating(types[inputs[0]])
                                         && task0066Floating(types[output]);
-                case IS_FINITE, IS_NAN, IS_INF, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT ->
+                case IS_FINITE, IS_NAN, IS_INF, GT, GE, LT, LE, EQ, NE,
+                        LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT ->
                         expected = false;
                 case WHERE -> expected = gradients[1] || gradients[2];
                 case ONE_HOT -> expected = false;
@@ -2452,6 +2548,72 @@ abstract class MetalNativeApi implements AutoCloseable {
                     || ranks[right] != 2
                     || ranks[output] != 2;
         }
+        private static boolean usesLowPrecisionCustom(
+                MetalMpsGraphProgram.Node node, ValueType[] types) {
+            boolean containsLow = false;
+            for (int input : node.inputs()) containsLow |= lowPrecision(types[input]);
+            for (int output : node.outputs()) containsLow |= lowPrecision(types[output]);
+            if (!containsLow) return false;
+            return switch (node.kind()) {
+                case NEG,
+                        ABS,
+                        ADD,
+                        SUB,
+                        MUL,
+                        DIV,
+                        SUM,
+                        MEAN,
+                        SCALAR_ADD,
+                        SCALAR_SUB,
+                        SCALAR_MUL,
+                        SCALAR_DIV,
+                        SCALAR_MIN,
+                        SCALAR_MAX,
+                        CLAMP,
+                        RECIPROCAL,
+                        FLOOR,
+                        CEIL,
+                        SIGN,
+                        RELU,
+                        GT,
+                        GE,
+                        LT,
+                        LE,
+                        EQ,
+                        NE,
+                        TENSOR_MIN,
+                        TENSOR_MAX,
+                        REDUCTION_MIN,
+                        REDUCTION_MAX,
+                        CUM_SUM,
+                        CUM_PROD,
+                        MEAN_SQUARED_ERROR,
+                        MATMUL,
+                        CAST,
+                        IS_FINITE,
+                        IS_NAN,
+                        IS_INF,
+                        WHERE,
+                        SORT,
+                        ARGSORT,
+                        TOP_K,
+                        ARG_MAX,
+                        ARG_MIN,
+                        CONV2D,
+                        CONV3D,
+                        MAX_POOL2D,
+                        AVERAGE_POOL2D,
+                        MAX_POOL3D,
+                        AVERAGE_POOL3D,
+                        DROPOUT,
+                        SCATTER_ADD,
+                        VARIANCE,
+                        L1_NORM ->
+                        true;
+                default -> false;
+            };
+        }
+
 
 
         private static boolean exactLocalTranspose(
@@ -2550,25 +2712,31 @@ abstract class MetalNativeApi implements AutoCloseable {
                 MetalMpsGraphProgram.Node node,
                 ValueType[] types,
                 List<MetalMpsGraphProgram.ValueDescriptor> values) {
+            int output = node.outputIndex();
+            ValueType outputType = types[output];
             boolean anyFloat32 = false;
             boolean anyBfloat16 = false;
             boolean anyGradient = false;
+            boolean allOutputType = lowPrecision(outputType);
             for (int input : node.inputs()) {
                 ValueType type = types[input];
-                if (type != ValueType.FLOAT32 && type != ValueType.BFLOAT16) {
+                if (type != ValueType.FLOAT32
+                        && type != ValueType.BFLOAT16
+                        && type != ValueType.FLOAT16) {
                     throw new IllegalArgumentException(
                             "convolution input carrier is incompatible");
                 }
                 anyFloat32 |= type == ValueType.FLOAT32;
                 anyBfloat16 |= type == ValueType.BFLOAT16;
+                allOutputType &= type == outputType;
                 anyGradient |= values.get(input).requiresGrad();
             }
-            int output = node.outputIndex();
-            boolean incompatibleGradient = anyBfloat16
-                    ? anyGradient || values.get(output).requiresGrad()
-                    : values.get(output).requiresGrad() != anyGradient;
-            if (!anyFloat32 || types[output] != ValueType.FLOAT32
-                    || incompatibleGradient) {
+            boolean outputGradient = values.get(output).requiresGrad();
+            boolean existingGradient = anyBfloat16
+                    ? anyGradient || outputGradient
+                    : outputGradient != anyGradient;
+            if (allOutputType ? outputGradient != anyGradient
+                    : !anyFloat32 || outputType != ValueType.FLOAT32 || existingGradient) {
                 throw new IllegalArgumentException(
                         "convolution carrier or gradient metadata is incompatible");
             }
@@ -2606,6 +2774,12 @@ abstract class MetalNativeApi implements AutoCloseable {
                             || leftType == ValueType.FLOAT32
                                     && rightType == ValueType.BFLOAT16)
                     && !leftGrad && !rightGrad && !outputGrad) {
+                return;
+            } else if (profile == NumericalProfile.ACCELERATOR
+                    && lowPrecision(leftType)
+                    && rightType == leftType
+                    && outputType == leftType
+                    && outputGrad == (leftGrad || rightGrad)) {
                 return;
             }
             throw new IllegalArgumentException(
@@ -2836,12 +3010,13 @@ abstract class MetalNativeApi implements AutoCloseable {
             }
             long dataExtent = data.dimensions()[0];
             long updateExtent = updates.dimensions()[0];
+            int valueWidth = data.dataType().byteWidth();
             if (dataExtent != output.dimensions()[0]
                     || updateExtent != indices.dimensions()[0]
                     || dataExtent < 1L
                     || updateExtent < 1L
-                    || dataExtent > UINT32_MAX / Float.BYTES
-                    || updateExtent > UINT32_MAX / Float.BYTES
+                    || dataExtent > UINT32_MAX / valueWidth
+                    || updateExtent > UINT32_MAX / valueWidth
                     || updateExtent > UINT32_MAX / indices.dataType().byteWidth()) {
                 return false;
             }
@@ -2851,7 +3026,10 @@ abstract class MetalNativeApi implements AutoCloseable {
 
         private static boolean canonicalTask0069(
                 MetalMpsGraphProgram.ValueDescriptor descriptor) {
-            return descriptor.dataType() == DataType.FLOAT32
+            DataType type = descriptor.dataType();
+            return (type == DataType.FLOAT32
+                            || type == DataType.BFLOAT16
+                            || type == DataType.FLOAT16)
                     && descriptor.layout().isPresent()
                     && descriptor.layout().orElseThrow().equals(
                             LayoutDescriptor.contiguous(
@@ -2886,7 +3064,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                     && words[0] == 0L
                     && valueRanks[input] == 1
                     && extent >= 1L
-                    && extent <= UINT32_MAX / Float.BYTES
+                    && extent <= UINT32_MAX / inputDescriptor.dataType().byteWidth()
                     && valueRanks[output] == (node.auxiliary() == 1 ? 1 : 0)
                     && (node.auxiliary() != 1
                             || valueDimensions[output * MAX_RANK] == 1L)
@@ -3242,7 +3420,8 @@ abstract class MetalNativeApi implements AutoCloseable {
             BOOL(Byte.BYTES),
             FLOAT64(Double.BYTES),
             BFLOAT16(Short.BYTES),
-            INT64(Long.BYTES);
+            INT64(Long.BYTES),
+            FLOAT16(Short.BYTES);
 
             private final int byteWidth;
 
@@ -3258,16 +3437,19 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case FLOAT64 -> FLOAT64;
                     case BFLOAT16 -> BFLOAT16;
                     case INT64 -> INT64;
+                    case FLOAT16 -> FLOAT16;
                 };
             }
         }
 
     }
 
-    /** Production JDK Foreign Function and Memory binding of the exact thirteen-symbol ABI. */
+    /** Production JDK Foreign Function and Memory binding of the exact fourteen-symbol ABI. */
     private static final class Ffm extends MetalNativeApi {
         private static final String VERSION = "synaptik_metal_foundation_abi_version";
         private static final String CONTEXT_CREATE = "synaptik_metal_context_create";
+        private static final String CONTEXT_CERTIFICATION_ENVIRONMENT =
+                "synaptik_metal_context_certification_environment";
         private static final String CONTEXT_RELEASE = "synaptik_metal_context_release";
         private static final String BUFFER_CREATE = "synaptik_metal_buffer_create";
         private static final String BUFFER_RELEASE = "synaptik_metal_buffer_release";
@@ -3288,6 +3470,7 @@ abstract class MetalNativeApi implements AutoCloseable {
 
         private final Arena lookupArena;
         private final MethodHandle contextCreate;
+        private final MethodHandle contextCertificationEnvironment;
         private final MethodHandle contextRelease;
         private final MethodHandle bufferCreate;
         private final MethodHandle bufferRelease;
@@ -3304,6 +3487,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         private Ffm(
                 Arena lookupArena,
                 MethodHandle contextCreate,
+                MethodHandle contextCertificationEnvironment,
                 MethodHandle contextRelease,
                 MethodHandle bufferCreate,
                 MethodHandle bufferRelease,
@@ -3316,6 +3500,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                 MethodHandle negKernelPipelineRelease,
                 MethodHandle negKernelPipelineRun) {
             this.lookupArena = lookupArena;
+            this.contextCertificationEnvironment = contextCertificationEnvironment;
             this.contextCreate = contextCreate;
             this.contextRelease = contextRelease;
             this.bufferCreate = bufferCreate;
@@ -3347,6 +3532,10 @@ abstract class MetalNativeApi implements AutoCloseable {
 
                 MethodHandle contextCreate = linker.downcallHandle(
                         require(lookup, CONTEXT_CREATE), FunctionDescriptor.of(JAVA_INT, ADDRESS));
+                MethodHandle contextCertificationEnvironment = linker.downcallHandle(
+                        require(lookup, CONTEXT_CERTIFICATION_ENVIRONMENT),
+                        FunctionDescriptor.of(
+                                JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, ADDRESS));
                 MethodHandle contextRelease = linker.downcallHandle(
                         require(lookup, CONTEXT_RELEASE), FunctionDescriptor.of(JAVA_INT, ADDRESS));
                 MethodHandle bufferCreate = linker.downcallHandle(
@@ -3382,10 +3571,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                 MethodHandle negKernelPipelineRun = linker.downcallHandle(
                         require(lookup, NEG_KERNEL_PIPELINE_RUN),
                         FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS));
-                return new Ffm(arena, contextCreate, contextRelease, bufferCreate, bufferRelease,
-                        bufferUpload, bufferDownload, executableCreate, executableRelease,
-                        executableRun, negKernelPipelineCreate, negKernelPipelineRelease,
-                        negKernelPipelineRun);
+                return new Ffm(arena, contextCreate, contextCertificationEnvironment,
+                        contextRelease, bufferCreate, bufferRelease, bufferUpload, bufferDownload,
+                        executableCreate, executableRelease, executableRun,
+                        negKernelPipelineCreate, negKernelPipelineRelease, negKernelPipelineRun);
             } catch (RuntimeException | Error failure) {
                 closeAfterFailure(arena, failure);
                 throw failure;
@@ -3396,6 +3585,37 @@ abstract class MetalNativeApi implements AutoCloseable {
         Handle createContext() {
             return create(CONTEXT_CREATE, contextCreate, null, 0L, contextRelease);
         }
+
+        @Override
+        String certificationEnvironment(Handle context) {
+            requireOpen();
+            Objects.requireNonNull(context, "context");
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment destination = arena.allocate(4096L, 1L);
+                MemorySegment length = arena.allocate(JAVA_INT);
+                length.set(JAVA_INT, 0L, 0);
+                int status = invokeCertificationEnvironment(
+                        contextCertificationEnvironment,
+                        context.carrier(),
+                        destination,
+                        Math.toIntExact(destination.byteSize()),
+                        length);
+                checkStatus(CONTEXT_CERTIFICATION_ENVIRONMENT, status);
+                long byteCount = Integer.toUnsignedLong(length.get(JAVA_INT, 0L));
+                if (byteCount == 0L || byteCount > destination.byteSize()) {
+                    throw new IllegalStateException(
+                            "Metal certification environment byte count is invalid");
+                }
+                byte[] bytes = destination.asSlice(0L, byteCount).toArray(JAVA_BYTE);
+                String record = new String(bytes, StandardCharsets.UTF_8);
+                if (!java.util.Arrays.equals(bytes, record.getBytes(StandardCharsets.UTF_8))) {
+                    throw new IllegalStateException(
+                            "Metal certification environment is not canonical UTF-8");
+                }
+                return record;
+            }
+        }
+
 
         @Override
         void releaseContext(Handle context) {
@@ -3657,6 +3877,22 @@ abstract class MetalNativeApi implements AutoCloseable {
                 throw failure;
             } catch (Throwable failure) {
                 throw new IllegalStateException(operation + " invocation failed", failure);
+            }
+        }
+
+        private static int invokeCertificationEnvironment(
+                MethodHandle handle,
+                MemorySegment context,
+                MemorySegment destination,
+                int capacity,
+                MemorySegment length) {
+            try {
+                return (int) handle.invokeExact(context, destination, capacity, length);
+            } catch (RuntimeException | Error failure) {
+                throw failure;
+            } catch (Throwable failure) {
+                throw new IllegalStateException(
+                        CONTEXT_CERTIFICATION_ENVIRONMENT + " invocation failed", failure);
             }
         }
 

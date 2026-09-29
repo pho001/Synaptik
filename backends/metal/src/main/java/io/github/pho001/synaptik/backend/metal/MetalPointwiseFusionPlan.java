@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable schema-18 execution extension for one {@code CUSTOM_PROGRAM} image.
+ * Immutable schema-19 execution extension for one {@code CUSTOM_PROGRAM} image.
  *
  * <p>The pointwise generator schema and the anchor-epilogue schema remain distinct typed records
  * inside one canonical execution plan. The canonical manifest is a redundant cross-language
@@ -24,7 +24,7 @@ final class MetalPointwiseFusionPlan {
     static final int MAX_FUNCTION_SOURCE_UTF8_BYTES = 16_384;
     static final int MAX_GENERATED_SOURCE_UTF8_BYTES = 262_144;
     static final int MAX_TOTAL_SOURCE_UTF8_BYTES = 1_048_576;
-    static final int FIXED_CORPUS_UTF8_BYTES = 84_541;
+    static final int FIXED_CORPUS_UTF8_BYTES = 84_603;
     static final int NO_POSITION = -1;
 
     enum StepKind {

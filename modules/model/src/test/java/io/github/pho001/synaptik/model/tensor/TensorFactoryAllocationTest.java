@@ -33,6 +33,7 @@ class TensorFactoryAllocationTest {
         assertCarrier(DataType.FLOAT64, double[].class);
         assertCarrier(DataType.FLOAT32, float[].class);
         assertCarrier(DataType.BFLOAT16, short[].class);
+        assertCarrier(DataType.FLOAT16, short[].class);
         assertCarrier(DataType.INT32, int[].class);
         assertCarrier(DataType.INT64, long[].class);
         assertCarrier(DataType.BOOL, byte[].class);

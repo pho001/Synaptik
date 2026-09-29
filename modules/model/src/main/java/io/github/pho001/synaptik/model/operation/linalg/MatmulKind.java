@@ -26,8 +26,8 @@ import java.util.List;
  * rounding, DAZ/FTZ, and corresponding product/add fusion. It may not drop, duplicate, invent,
  * pretruncate, or replace a term. The existing qualifying nonempty final exact-zero publication
  * freedom remains local to the final MATMUL cell; an empty contraction stays positive zero. This
- * is recursive construction freedom, not a final-output tolerance, and non-FLOAT32 behavior
- * remains strict. See the
+ * is recursive construction freedom, not a final-output tolerance. Every current non-FLOAT32
+ * occurrence remains strict; the inactive low-precision reservation changes none of them. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */
@@ -35,9 +35,10 @@ public enum MatmulKind implements OperationKind {
     /**
      * Requests the sum of pairwise products across one shared contraction dimension.
      *
-     * <p>Floating results use the promoted floating type, with FLOAT32 accumulation for BFLOAT16
-     * and FLOAT32 results and FLOAT64 accumulation for FLOAT64 results. Reassociation and fused
-     * multiply-add are permitted, so bitwise or cross-backend identical rounding is not promised.
+     * <p>Floating results use the promoted floating type, with FLOAT32 accumulation for FLOAT16,
+     * BFLOAT16, and FLOAT32 results and FLOAT64 accumulation for FLOAT64 results.
+     * Reassociation and fused multiply-add are permitted, so bitwise or cross-backend identical
+     * rounding is not promised.
      * Signed-integral results use the promoted width and exact modular arithmetic modulo
      * {@code 2^32} or {@code 2^64}. Empty contractions produce positive floating zero or integral
      * zero. These policies define mathematical meaning without selecting an implementation.</p>

@@ -275,11 +275,14 @@ class MetalCapabilityProviderTest {
                         Optional.of(LayoutDescriptor.of(
                                 selectShape, new long[] {1}, 3L, true)),
                         false);
-                assertTrue(provider.supports(new OperationCapabilityQuery(
-                        profile,
-                        new Operation(SelectKind.SELECT, new SelectAttrs(0, 1)),
-                        List.of(data),
-                        List.of(selected))), type + " SELECT " + profile);
+                assertEquals(
+                        true,
+                        provider.supports(new OperationCapabilityQuery(
+                                profile,
+                                new Operation(SelectKind.SELECT, new SelectAttrs(0, 1)),
+                                List.of(data),
+                                List.of(selected))),
+                        type + " SELECT " + profile);
                 Shape sliceShape = Shape.of(2, 2);
                 TensorDescriptor sliced = new TensorDescriptor(
                         type,
@@ -287,14 +290,17 @@ class MetalCapabilityProviderTest {
                         Optional.of(LayoutDescriptor.of(
                                 sliceShape, new long[] {3, 1}, 1L, true)),
                         false);
-                assertTrue(provider.supports(new OperationCapabilityQuery(
-                        profile,
-                        new Operation(
-                                SliceKind.SLICE,
-                                new SliceAttrs(
-                                        List.of(1L), List.of(2L), List.of(1), List.of(1L))),
-                        List.of(data),
-                        List.of(sliced))), type + " SLICE " + profile);
+                assertEquals(
+                        true,
+                        provider.supports(new OperationCapabilityQuery(
+                                profile,
+                                new Operation(
+                                        SliceKind.SLICE,
+                                        new SliceAttrs(
+                                                List.of(1L), List.of(2L), List.of(1), List.of(1L))),
+                                List.of(data),
+                                List.of(sliced))),
+                        type + " SLICE " + profile);
             }
         }
         Shape unsafeShape = Shape.of(2, 3);
@@ -357,8 +363,9 @@ class MetalCapabilityProviderTest {
   }
 
   @Test
-  void task0066EnforcesTheNineFloatingCastGradientRelations() {
-    List<DataType> floating = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16);
+  void task0066EnforcesAllSixteenFloatingCastGradientRelations() {
+    List<DataType> floating =
+        List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16);
     for (NumericalProfile profile : NumericalProfile.values()) {
       for (DataType source : floating) {
         for (DataType target : floating) {
@@ -421,14 +428,17 @@ class MetalCapabilityProviderTest {
         for (NumericalProfile profile : NumericalProfile.values()) {
             for (DataType type : DataType.values()) {
                 for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
-                    assertTrue(provider.supports(new OperationCapabilityQuery(
-                            profile,
-                            scatterNone,
-                            List.of(
-                                    typed(type, Shape.of(3), false),
-                                    typed(indexType, Shape.of(2, 1), false),
-                                    typed(type, Shape.of(2), false)),
-                            List.of(typed(type, Shape.of(3), false)))));
+                    assertEquals(
+                            true,
+                            provider.supports(new OperationCapabilityQuery(
+                                    profile,
+                                    scatterNone,
+                                    List.of(
+                                            typed(type, Shape.of(3), false),
+                                            typed(indexType, Shape.of(2, 1), false),
+                                            typed(type, Shape.of(2), false)),
+                                    List.of(typed(type, Shape.of(3), false)))),
+                            type + " SCATTER_ND NONE " + indexType + " " + profile);
                 }
                 assertFalse(provider.supports(new OperationCapabilityQuery(
                         profile,
@@ -438,13 +448,16 @@ class MetalCapabilityProviderTest {
                                 typed(DataType.INT32, Shape.of(2, 1), false),
                                 typed(type, Shape.of(2), false)),
                         List.of(typed(type, Shape.of(3), false)))));
-                assertTrue(provider.supports(new OperationCapabilityQuery(
-                        profile,
-                        signedSlice,
-                        List.of(
-                                typed(type, Shape.of(4), false),
-                                typed(type, Shape.of(2), false)),
-                        List.of(typed(type, Shape.of(4), false)))));
+                assertEquals(
+                        true,
+                        provider.supports(new OperationCapabilityQuery(
+                                profile,
+                                signedSlice,
+                                List.of(
+                                        typed(type, Shape.of(4), false),
+                                        typed(type, Shape.of(2), false)),
+                                List.of(typed(type, Shape.of(4), false)))),
+                        type + " SLICE_UPDATE " + profile);
                 assertFalse(provider.supports(new OperationCapabilityQuery(
                         profile,
                         new Operation(
@@ -457,7 +470,7 @@ class MetalCapabilityProviderTest {
                         List.of(typed(type, Shape.of(4), false)))));
             }
             for (DataType type :
-                    List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+                    List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
                 assertTrue(provider.supports(new OperationCapabilityQuery(
                         profile,
                         foldAxis,
@@ -543,7 +556,8 @@ class MetalCapabilityProviderTest {
             for (DataType type : DataType.values()) {
                 boolean expected = type == DataType.FLOAT64
                         || type == DataType.FLOAT32
-                        || type == DataType.BFLOAT16;
+                        || type == DataType.BFLOAT16
+                        || type == DataType.FLOAT16;
                 assertEquals(
                         expected,
                         provider.supports(new OperationCapabilityQuery(
@@ -619,20 +633,20 @@ class MetalCapabilityProviderTest {
                 scalarSeed,
                 gradientVector,
                 gradientVector)));
-        assertFalse(provider.supports(binaryQuery(
+        assertTrue(provider.supports(binaryQuery(
                 NumericalProfile.ACCELERATOR,
                 BinaryArithmeticKind.ADD,
                 scalarSeed,
                 gradientVector,
                 gradientVector)));
         TensorDescriptor gradientMatrix = descriptor(Shape.of(2, 3), true);
-        assertFalse(provider.supports(binaryQuery(
+        assertTrue(provider.supports(binaryQuery(
                 NumericalProfile.ACCELERATOR,
                 BinaryArithmeticKind.MUL,
                 scalarSeed,
                 gradientMatrix,
                 gradientMatrix)));
-        assertFalse(provider.supports(binaryQuery(
+        assertTrue(provider.supports(binaryQuery(
                 NumericalProfile.ACCELERATOR,
                 BinaryArithmeticKind.MUL,
                 gradientMatrix,
@@ -776,7 +790,7 @@ class MetalCapabilityProviderTest {
         }
     }
     @Test
-    void scalarArithmeticAndReciprocalAdmitOnlyAcceleratorNoGradOccurrences() {
+    void scalarArithmeticAndReciprocalAdmitMatchingGradientMetadataUnderAccelerator() {
         TensorDescriptor noGrad = descriptor(Shape.of(2, 3), false);
         TensorDescriptor grad = descriptor(Shape.of(2, 3), true);
         for (ScalarElementwiseKind kind : List.of(
@@ -798,7 +812,7 @@ class MetalCapabilityProviderTest {
                     operation,
                     List.of(noGrad),
                     List.of(noGrad))), "strict " + kind);
-            assertFalse(provider.supports(new OperationCapabilityQuery(
+            assertTrue(provider.supports(new OperationCapabilityQuery(
                     NumericalProfile.ACCELERATOR,
                     operation,
                     List.of(grad),
@@ -827,7 +841,7 @@ class MetalCapabilityProviderTest {
                 UnaryElementwiseKind.RECIPROCAL,
                 noGrad,
                 noGrad)));
-        assertFalse(provider.supports(unaryQuery(
+        assertTrue(provider.supports(unaryQuery(
                 NumericalProfile.ACCELERATOR,
                 UnaryElementwiseKind.RECIPROCAL,
                 grad,
@@ -1157,7 +1171,7 @@ class MetalCapabilityProviderTest {
         assertFalse(provider.supports(binaryQuery(
                 NumericalProfile.ACCELERATOR, BinaryArithmeticKind.ADD, valid, valid,
                 descriptor(Shape.of(2, 3), true))));
-        assertFalse(provider.supports(binaryQuery(
+        assertTrue(provider.supports(binaryQuery(
                 NumericalProfile.ACCELERATOR, BinaryArithmeticKind.ADD, view, valid, valid)));
         TensorDescriptor float64 = typed(DataType.FLOAT64);
         assertFalse(provider.supports(binaryQuery(
@@ -1616,7 +1630,11 @@ class MetalCapabilityProviderTest {
                                     || (leftType == DataType.BFLOAT16
                                             && rightType == DataType.FLOAT32)
                                     || (leftType == DataType.FLOAT32
-                                            && rightType == DataType.BFLOAT16));
+                                            && rightType == DataType.BFLOAT16)
+                                    || (leftType == DataType.BFLOAT16
+                                            && rightType == DataType.BFLOAT16)
+                                    || (leftType == DataType.FLOAT16
+                                            && rightType == DataType.FLOAT16));
                     DataType resultType;
                     if (integral) {
                         resultType = leftType == DataType.INT64 || rightType == DataType.INT64
@@ -1625,9 +1643,10 @@ class MetalCapabilityProviderTest {
                         resultType = DataType.FLOAT64;
                     } else if (leftType == DataType.FLOAT32 || rightType == DataType.FLOAT32) {
                         resultType = DataType.FLOAT32;
-                    } else if (leftType == DataType.BFLOAT16
-                            && rightType == DataType.BFLOAT16) {
-                        resultType = DataType.BFLOAT16;
+                    } else if (leftType == rightType
+                            && (leftType == DataType.BFLOAT16
+                                    || leftType == DataType.FLOAT16)) {
+                        resultType = leftType;
                     } else {
                         resultType = DataType.FLOAT32;
                     }
@@ -1649,13 +1668,13 @@ class MetalCapabilityProviderTest {
                 typed(DataType.BFLOAT16, Shape.of(2, 3), true),
                 typed(DataType.FLOAT32, Shape.of(3, 4), false),
                 typed(DataType.FLOAT32, Shape.of(2, 4), true)));
-        assertFalse(supportsMatmul(
+        assertTrue(supportsMatmul(
                 NumericalProfile.ACCELERATOR,
                 matmul,
                 typed(DataType.BFLOAT16, Shape.of(2, 3), false),
                 typed(DataType.BFLOAT16, Shape.of(3, 4), false),
                 typed(DataType.BFLOAT16, Shape.of(2, 4), false)));
-        assertFalse(supportsMatmul(
+        assertTrue(supportsMatmul(
                 NumericalProfile.ACCELERATOR,
                 matmul,
                 typed(DataType.BFLOAT16, Shape.of(2, 3), true),
@@ -1758,10 +1777,17 @@ class MetalCapabilityProviderTest {
                     List.of(left, right),
                     List.of(boolBroadcast));
             assertTrue(provider.supports(query), kind.name());
-            assertFalse(provider.supports(new OperationCapabilityQuery(
+            assertTrue(provider.supports(new OperationCapabilityQuery(
                     NumericalProfile.STRICT_IEEE,
                     query.operation(),
                     query.inputs(),
+                    query.outputs())));
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    NumericalProfile.ACCELERATOR,
+                    query.operation(),
+                    List.of(
+                            descriptor(left.shape(), true),
+                            descriptor(right.shape(), true)),
                     query.outputs())));
         }
         for (BinaryArithmeticKind kind : List.of(

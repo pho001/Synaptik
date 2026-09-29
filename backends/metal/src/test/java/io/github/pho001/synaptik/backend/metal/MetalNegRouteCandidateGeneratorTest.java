@@ -309,7 +309,7 @@ class MetalNegRouteCandidateGeneratorTest {
         }
     }
     @Test
-    void noGradScalarArithmeticAndReciprocalUseOneFixedMpsGraphCandidate() {
+    void matchingGradientScalarArithmeticAndReciprocalUseOneFixedMpsGraphCandidate() {
         TestNativeApi api = new TestNativeApi();
         try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
             long identity = 210_000L;
@@ -361,6 +361,38 @@ class MetalNegRouteCandidateGeneratorTest {
                         new long[] {1L, Integer.toUnsignedLong(rawBits)},
                         node.attributeWords());
             }
+            for (ScalarElementwiseKind kind : List.of(
+                    ScalarElementwiseKind.ADD,
+                    ScalarElementwiseKind.SUB,
+                    ScalarElementwiseKind.MUL,
+                    ScalarElementwiseKind.DIV)) {
+                Workload workload = operationWorkload(
+                        device,
+                        identity++,
+                        NumericalProfile.ACCELERATOR,
+                        new Operation(
+                                kind,
+                                new ScalarValueAttrs(ScalarValue.float32(2.0f))),
+                        grad,
+                        grad);
+                Generated generated = generated(workload, 2);
+                assertSame(MetalPreparedRoute.MPSGRAPH, generated.analysis().plan().route());
+                assertEquals(
+                        List.of(MetalNegTuningBatch.Candidate.MPSGRAPH),
+                        generated.batch().candidates());
+            }
+            Workload gradReciprocal = operationWorkload(
+                    device,
+                    identity++,
+                    NumericalProfile.ACCELERATOR,
+                    new Operation(
+                            UnaryElementwiseKind.RECIPROCAL,
+                            NoOperationAttrs.INSTANCE),
+                    grad,
+                    grad);
+            assertSame(
+                    MetalPreparedRoute.MPSGRAPH,
+                    generated(gradReciprocal, 2).analysis().plan().route());
             for (int scalarBits : new int[] {
                     0x0000_0000,
                     0x8000_0000,
@@ -420,42 +452,51 @@ class MetalNegRouteCandidateGeneratorTest {
                     rewriteInt(encoded, Integer.BYTES, 14),
                     scalarGenerated.batch()).isEmpty());
 
-            for (TensorDescriptor descriptor : List.of(noGrad, grad)) {
-                NumericalProfile rejectedProfile = descriptor.requiresGrad()
-                        ? NumericalProfile.ACCELERATOR
-                        : NumericalProfile.STRICT_IEEE;
-                for (ScalarElementwiseKind kind : List.of(
-                        ScalarElementwiseKind.ADD,
-                        ScalarElementwiseKind.SUB,
-                        ScalarElementwiseKind.MUL,
-                        ScalarElementwiseKind.DIV,
-                        ScalarElementwiseKind.POW)) {
-                    Workload rejected = operationWorkload(
-                            device,
-                            identity++,
-                            rejectedProfile,
-                            new Operation(
-                                    kind,
-                                    new ScalarValueAttrs(ScalarValue.float32(2.0f))),
-                            descriptor,
-                            descriptor);
-                    assertThrows(
-                            IllegalArgumentException.class,
-                            () -> analyze(rejected.context()));
-                }
-                Workload rejectedReciprocal = operationWorkload(
+            for (ScalarElementwiseKind kind : List.of(
+                    ScalarElementwiseKind.ADD,
+                    ScalarElementwiseKind.SUB,
+                    ScalarElementwiseKind.MUL,
+                    ScalarElementwiseKind.DIV,
+                    ScalarElementwiseKind.MIN,
+                    ScalarElementwiseKind.MAX,
+                    ScalarElementwiseKind.POW)) {
+                Workload strict = operationWorkload(
                         device,
                         identity++,
-                        rejectedProfile,
+                        NumericalProfile.STRICT_IEEE,
                         new Operation(
-                                UnaryElementwiseKind.RECIPROCAL,
-                                NoOperationAttrs.INSTANCE),
-                        descriptor,
-                        descriptor);
+                                kind,
+                                new ScalarValueAttrs(ScalarValue.float32(2.0f))),
+                        noGrad,
+                        noGrad);
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> analyze(rejectedReciprocal.context()));
+                        () -> analyze(strict.context()));
             }
+            Workload strictReciprocal = operationWorkload(
+                    device,
+                    identity++,
+                    NumericalProfile.STRICT_IEEE,
+                    new Operation(
+                            UnaryElementwiseKind.RECIPROCAL,
+                            NoOperationAttrs.INSTANCE),
+                    noGrad,
+                    noGrad);
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> analyze(strictReciprocal.context()));
+            Workload gradPow = operationWorkload(
+                    device,
+                    identity++,
+                    NumericalProfile.ACCELERATOR,
+                    new Operation(
+                            ScalarElementwiseKind.POW,
+                            new ScalarValueAttrs(ScalarValue.float32(2.0f))),
+                    grad,
+                    grad);
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> analyze(gradPow.context()));
             assertEquals(0, api.nativeAllocations.get());
         }
     }
@@ -1034,8 +1075,8 @@ class MetalNegRouteCandidateGeneratorTest {
                     route.wireIdentity()).orElseThrow());
             assertArrayEquals(new byte[] {
                     0x4d, 0x4e, 0x43, 0x41,
-                    0x00, 0x00, 0x00, 0x1b,
-                    0x00, 0x00, 0x00, 0x1b,
+                    0x00, 0x00, 0x00, 0x1c,
+                    0x00, 0x00, 0x00, 0x1c,
                     0x00, 0x00, 0x00, (byte) route.wireIdentity()
             }, codec.encodeCandidate(candidate));
         }
@@ -1057,14 +1098,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(27, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(27, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(27, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(28, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(28, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(28, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(27, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(27, current.batch().compatibility().schemaVersion());
-            assertEquals(27, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(27, current.batch().compatibility().routePolicyVersion());
+            assertEquals(28, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(28, current.batch().compatibility().schemaVersion());
+            assertEquals(28, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(28, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());

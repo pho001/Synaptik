@@ -7,7 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import java.lang.foreign.Arena;
@@ -100,17 +102,20 @@ class MetalConvolutionPoolingNativeTest {
 
     @Test
     void maximumPoolingPreservesWinningBitsAndAllPaddingIdentity() {
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+        for (DataType type : List.of(
+                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
             long firstNaN = switch (type) {
                 case FLOAT64 -> 0x7ff0_0000_0000_1234L;
                 case FLOAT32 -> 0x7fa1_2345L;
                 case BFLOAT16 -> 0x7f81L;
+                case FLOAT16 -> 0x7c01L;
                 default -> throw new AssertionError(type);
             };
             long secondNaN = switch (type) {
                 case FLOAT64 -> 0xfff8_0000_0000_5678L;
                 case FLOAT32 -> 0xffc5_4321L;
                 case BFLOAT16 -> 0xffc2L;
+                case FLOAT16 -> 0xfe02L;
                 default -> throw new AssertionError(type);
             };
             var max2d = node(
@@ -126,7 +131,8 @@ class MetalConvolutionPoolingNativeTest {
             assertArrayEquals(rawWords(type, firstNaN), result.getFirst(), type.toString());
         }
 
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+        for (DataType type : List.of(
+                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
             var numericMax = node(
                     MetalMpsGraphProgram.NodeKind.MAX_POOL2D,
                     new int[] {0}, new int[] {1},
@@ -214,6 +220,80 @@ class MetalConvolutionPoolingNativeTest {
     }
 
     @Test
+    void homogeneousRaw16ConvolutionAndAveragePoolUseOneFinalNarrow() {
+        var convolution = node(
+                MetalMpsGraphProgram.NodeKind.CONV2D,
+                new int[] {0, 1, 2},
+                new int[] {3},
+                MetalMpsGraphProgram.AttributeKind.CONV_2D,
+                1, 1, 0, 0, 1, 1, 1);
+        var convolution3d = node(
+                MetalMpsGraphProgram.NodeKind.CONV3D,
+                new int[] {0, 1},
+                new int[] {2},
+                MetalMpsGraphProgram.AttributeKind.CONV_3D,
+                1, 1, 1, 0, 0, 0, 1, 1, 1, 1);
+        var average = node(
+                MetalMpsGraphProgram.NodeKind.AVERAGE_POOL2D,
+                new int[] {0},
+                new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
+                2, 2, 1, 1, 0, 0, 1, 1, 0);
+        var average3d = node(
+                MetalMpsGraphProgram.NodeKind.AVERAGE_POOL3D,
+                new int[] {0},
+                new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.WINDOW_3D,
+                2, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0);
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            List<byte[]> convolutionResult = execute(
+                    new MetalMpsGraphProgram(List.of(convolution)),
+                    List.of(
+                            typed(type, 1, 1, 2, 2),
+                            typed(type, 1, 1, 2, 2),
+                            typed(type, 1),
+                            typed(type, 1, 1, 1, 1)),
+                    new int[] {0, 1, 2},
+                    new int[] {3},
+                    List.of(
+                            lowWords(type, 1, 2, 3, 4),
+                            lowWords(type, 1, 1, 1, 1),
+                            lowWords(type, 0.5f)));
+            assertArrayEquals(lowWords(type, 10.5f), convolutionResult.getFirst(), type.toString());
+
+            List<byte[]> convolution3dResult = execute(
+                    new MetalMpsGraphProgram(List.of(convolution3d)),
+                    List.of(
+                            typed(type, 1, 1, 2, 2, 2),
+                            typed(type, 1, 1, 2, 2, 2),
+                            typed(type, 1, 1, 1, 1, 1)),
+                    new int[] {0, 1},
+                    new int[] {2},
+                    List.of(
+                            lowWords(type, 1, 2, 3, 4, 5, 6, 7, 8),
+                            lowWords(type, 1, 1, 1, 1, 1, 1, 1, 1)));
+            assertArrayEquals(
+                    lowWords(type, 36.0f), convolution3dResult.getFirst(), type.toString());
+
+            List<byte[]> averageResult = execute(
+                    new MetalMpsGraphProgram(List.of(average)),
+                    List.of(typed(type, 1, 1, 2, 2), typed(type, 1, 1, 1, 1)),
+                    new int[] {0},
+                    new int[] {1},
+                    List.of(lowWords(type, 1, 2, 3, 4)));
+            assertArrayEquals(lowWords(type, 2.5f), averageResult.getFirst(), type.toString());
+
+            List<byte[]> average3dResult = execute(
+                    new MetalMpsGraphProgram(List.of(average3d)),
+                    List.of(typed(type, 1, 1, 2, 1, 1), typed(type, 1, 1, 1, 1, 1)),
+                    new int[] {0},
+                    new int[] {1},
+                    List.of(lowWords(type, 2, 4)));
+            assertArrayEquals(lowWords(type, 3.0f), average3dResult.getFirst(), type.toString());
+        }
+    }
+
+    @Test
     void exactLocalSingletonHeightExpansionFeedsTwoDimensionalPoolWithoutCopy() {
         Shape viewShape = Shape.of(1, 1, 1, 4);
         var expanded = new MetalMpsGraphProgram.ValueDescriptor(
@@ -245,7 +325,7 @@ class MetalConvolutionPoolingNativeTest {
         return switch (type) {
             case FLOAT64 -> 0x8000_0000_0000_0000L;
             case FLOAT32 -> 0x8000_0000L;
-            case BFLOAT16 -> 0x8000L;
+            case BFLOAT16, FLOAT16 -> 0x8000L;
             default -> throw new AssertionError(type);
         };
     }
@@ -255,6 +335,7 @@ class MetalConvolutionPoolingNativeTest {
             case FLOAT64 -> 0x7ff0_0000_0000_0000L;
             case FLOAT32 -> 0x7f80_0000L;
             case BFLOAT16 -> 0x7f80L;
+            case FLOAT16 -> 0x7c00L;
             default -> throw new AssertionError(type);
         };
     }
@@ -264,6 +345,7 @@ class MetalConvolutionPoolingNativeTest {
             case FLOAT64 -> 0xfff0_0000_0000_0000L;
             case FLOAT32 -> 0xff80_0000L;
             case BFLOAT16 -> 0xff80L;
+            case FLOAT16 -> 0xfc00L;
             default -> throw new AssertionError(type);
         };
     }
@@ -273,6 +355,7 @@ class MetalConvolutionPoolingNativeTest {
             case FLOAT64 -> 0x3ff0_0000_0000_0000L;
             case FLOAT32 -> 0x3f80_0000L;
             case BFLOAT16 -> 0x3f80L;
+            case FLOAT16 -> 0x3c00L;
             default -> throw new AssertionError(type);
         };
     }
@@ -282,6 +365,7 @@ class MetalConvolutionPoolingNativeTest {
             case FLOAT64 -> 0xbff0_0000_0000_0000L;
             case FLOAT32 -> 0xbf80_0000L;
             case BFLOAT16 -> 0xbf80L;
+            case FLOAT16 -> 0xbc00L;
             default -> throw new AssertionError(type);
         };
     }
@@ -383,7 +467,7 @@ class MetalConvolutionPoolingNativeTest {
             switch (type) {
                 case FLOAT64 -> bytes.putLong(word);
                 case FLOAT32 -> bytes.putInt((int) word);
-                case BFLOAT16 -> bytes.putShort((short) word);
+                case BFLOAT16, FLOAT16 -> bytes.putShort((short) word);
                 default -> throw new AssertionError(type);
             }
         }
@@ -408,6 +492,20 @@ class MetalConvolutionPoolingNativeTest {
         ByteBuffer bytes = ByteBuffer.allocate(words.length * Short.BYTES)
                 .order(ByteOrder.nativeOrder());
         for (int word : words) bytes.putShort((short) word);
+        return bytes.array();
+    }
+
+    private static byte[] lowWords(DataType type, float... words) {
+        ByteBuffer bytes = ByteBuffer.allocate(words.length * Short.BYTES)
+                .order(ByteOrder.nativeOrder());
+        for (float word : words) {
+            short raw = switch (type) {
+                case BFLOAT16 -> BFloat16Bits.fromFloat(word);
+                case FLOAT16 -> Float16Bits.fromFloat(word);
+                default -> throw new AssertionError(type);
+            };
+            bytes.putShort(raw);
+        }
         return bytes.array();
     }
 

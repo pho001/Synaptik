@@ -32,7 +32,7 @@ import java.util.Set;
  * <p>The selected set is BOOL {@code NOT}/{@code AND}/{@code OR}, signed-integral binary
  * {@code ADD}/{@code SUB}/{@code MUL}/{@code MIN}/{@code MAX}, all signed-integral binary
  * comparisons, and same-typed signed-integral scalar {@code ADD}/{@code SUB}/{@code MUL}/
- * {@code MIN}/{@code MAX}. Floating and BFLOAT16 evaluation, casts, other operations, graph-output
+ * {@code MIN}/{@code MAX}. Floating-point evaluation, casts, other operations, graph-output
  * producers, gradient-eligible results, and multi-output occurrences remain unchanged. An
  * otherwise eligible occurrence may be {@link GraphPhase#FORWARD FORWARD} or
  * {@link GraphPhase#BACKWARD BACKWARD}; its phase is not a constant-folding policy.</p>

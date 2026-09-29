@@ -385,6 +385,7 @@ final class MetalPointwiseFusionPlanner {
     private static boolean fixedCustom(
             MetalMpsGraphProgram.Node node,
             List<MetalMpsGraphProgram.ValueDescriptor> values) {
+        if (lowPrecisionCustom(node, values)) return true;
         if (node.kind() == MetalMpsGraphProgram.NodeKind.VARIANCE) {
             return task0069Variance(node, values);
         }
@@ -400,6 +401,79 @@ final class MetalPointwiseFusionPlanner {
         return left.dataType() != DataType.FLOAT32 || right.dataType() != DataType.FLOAT32
                 || output.dataType() != DataType.FLOAT32 || left.rank() != 2 || right.rank() != 2
                 || output.rank() != 2;
+    }
+
+    private static boolean lowPrecisionCustom(
+            MetalMpsGraphProgram.Node node,
+            List<MetalMpsGraphProgram.ValueDescriptor> values) {
+        boolean containsLow = false;
+        for (int input : node.inputs()) {
+            DataType type = values.get(input).dataType();
+            containsLow |= type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+        }
+        for (int output : node.outputs()) {
+            DataType type = values.get(output).dataType();
+            containsLow |= type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+        }
+        if (!containsLow) return false;
+        return switch (node.kind()) {
+            case NEG,
+                    ABS,
+                    ADD,
+                    SUB,
+                    MUL,
+                    DIV,
+                    SUM,
+                    MEAN,
+                    SCALAR_ADD,
+                    SCALAR_SUB,
+                    SCALAR_MUL,
+                    SCALAR_DIV,
+                    SCALAR_MIN,
+                    SCALAR_MAX,
+                    CLAMP,
+                    RECIPROCAL,
+                    FLOOR,
+                    CEIL,
+                    SIGN,
+                    RELU,
+                    GT,
+                    GE,
+                    LT,
+                    LE,
+                    EQ,
+                    NE,
+                    TENSOR_MIN,
+                    TENSOR_MAX,
+                    REDUCTION_MIN,
+                    REDUCTION_MAX,
+                    CUM_SUM,
+                    CUM_PROD,
+                    MEAN_SQUARED_ERROR,
+                    MATMUL,
+                    CAST,
+                    IS_FINITE,
+                    IS_NAN,
+                    IS_INF,
+                    WHERE,
+                    SORT,
+                    ARGSORT,
+                    TOP_K,
+                    ARG_MAX,
+                    ARG_MIN,
+                    CONV2D,
+                    CONV3D,
+                    MAX_POOL2D,
+                    AVERAGE_POOL2D,
+                    MAX_POOL3D,
+                    AVERAGE_POOL3D,
+                    DROPOUT,
+                    SCATTER_ADD,
+                    VARIANCE,
+                    L1_NORM ->
+                    true;
+            default -> false;
+        };
     }
 
     private static boolean task0069Variance(
@@ -594,7 +668,7 @@ final class MetalPointwiseFusionPlanner {
             MetalPointwiseFusionPlan.CapReason reason) {
         StringBuilder text = new StringBuilder(4096);
         text.append("format 2\n")
-                .append("schema 18\n")
+                .append("schema 19\n")
                 .append("generator 2\n")
                 .append("route 3\n")
                 .append("profile ").append(Integer.toUnsignedString(

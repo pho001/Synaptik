@@ -189,8 +189,9 @@ public final class CpuAttentionEmitter {
     int max = mode + 1;
     int maxJ = max + valueWidth, maxScore = maxJ + 2;
     int sum = max + valueWidth, expJ = sum + valueWidth, weight = expJ + 2;
-    int resultBits = rt == DataType.BFLOAT16 ? mode + 6 : -1;
-    int resultRepresented = rt == DataType.BFLOAT16 ? mode + 7 : -1;
+    boolean lowPrecisionResult = rt == DataType.BFLOAT16 || rt == DataType.FLOAT16;
+    int resultBits = lowPrecisionResult ? mode + 6 : -1;
+    int resultRepresented = lowPrecisionResult ? mode + 7 : -1;
     Label nonOrd = c.newLabel(), classified = c.newLabel();
     c.iload(mode).loadConstant(3).branch(Opcode.IF_ICMPNE, nonOrd);
     negInf(c, rt);
@@ -601,6 +602,11 @@ public final class CpuAttentionEmitter {
               FLOAT,
               "intBitsToFloat",
               MethodTypeDesc.of(TypeKind.FLOAT.upperBound(), TypeKind.INT.upperBound()));
+    } else if (t == DataType.FLOAT16) {
+      c.invokestatic(
+          FLOAT,
+          "float16ToFloat",
+          MethodTypeDesc.of(TypeKind.FLOAT.upperBound(), TypeKind.SHORT.upperBound()));
     }
     if (domain == DataType.FLOAT64 && t != DataType.FLOAT64) c.f2d();
     else if (domain != DataType.FLOAT64 && t == DataType.FLOAT64) c.d2f();
@@ -648,6 +654,14 @@ public final class CpuAttentionEmitter {
           .i2s()
           .istore(represented);
       ce.storeFrozen(t, s.carrierPattern().get(boundary), boundary, address, represented, false);
+    } else if (t == DataType.FLOAT16) {
+      c.fload(local)
+          .invokestatic(
+              FLOAT,
+              "floatToFloat16",
+              MethodTypeDesc.of(TypeKind.SHORT.upperBound(), TypeKind.FLOAT.upperBound()))
+          .istore(represented);
+      ce.storeFrozen(t, s.carrierPattern().get(boundary), boundary, address, represented, false);
     } else ce.storeFrozen(t, s.carrierPattern().get(boundary), boundary, address, local, false);
   }
 
@@ -660,7 +674,7 @@ public final class CpuAttentionEmitter {
       int address,
       int local,
       int represented) {
-    if (t == DataType.BFLOAT16) {
+    if (t == DataType.BFLOAT16 || t == DataType.FLOAT16) {
       c.loadConstant(0).istore(represented);
       ce.storeFrozen(t, s.carrierPattern().get(boundary), boundary, address, represented, false);
     } else {

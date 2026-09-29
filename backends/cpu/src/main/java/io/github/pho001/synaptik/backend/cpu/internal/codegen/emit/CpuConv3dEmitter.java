@@ -19,13 +19,13 @@ import jdk.incubator.vector.FloatVector;
  * <p>The generated body traverses input channels within the selected group, kernel depth,
  * height, and width in increasing logical order. It loads every weight contribution, represents an
  * out-of-range input coordinate as positive zero before ordinary multiplication, accumulates in
- * FLOAT64 or FLOAT32 as selected by the output type, and narrows BFLOAT16 only at the final store.
+ * FLOAT64 or FLOAT32 as selected by the output type, and narrows either low type only at the final store.
  * No Synaptik method is called by generated hot work. The schema-63 vector form is limited to
  * same-typed dense FLOAT32 or FLOAT64 direct convolution. Only the width stride and width
  * dilation must be one; depth and height stride and dilation remain eligible. Preferred-species
  * chunks cover complete in-bounds output-width cells, while padding borders, worker-range
  * fragments, and tails use the same ordered scalar-cell semantics. Every other form, including
- * BFLOAT16, short or interior-free widths, and non-dense access, remains scalar.</p>
+ * BFLOAT16, FLOAT16, short or interior-free widths, and non-dense access, remains scalar.</p>
  */
 public final class CpuConv3dEmitter {
     /** Creates a stateless direct-convolution emitter. */
@@ -1007,6 +1007,11 @@ public final class CpuConv3dEmitter {
             CpuNormEmitter.decodeRepresented(code, type, represented, decoded);
         } else if (type == DataType.FLOAT32) {
             code.fload(represented).fstore(decoded);
+        } else if (type == DataType.FLOAT16) {
+            code.iload(represented).i2s().invokestatic(
+                    ClassDesc.of(Float.class.getName()), "float16ToFloat",
+                    MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short))
+                    .fstore(decoded);
         } else {
             code.iload(represented).loadConstant(16).ishl().invokestatic(
                     ClassDesc.of(Float.class.getName()), "intBitsToFloat",

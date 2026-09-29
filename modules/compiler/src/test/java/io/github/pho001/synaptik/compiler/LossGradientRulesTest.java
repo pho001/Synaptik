@@ -22,23 +22,33 @@ final class LossGradientRulesTest {
     @Test
     void meanSquaredErrorAndDenseCategoricalRestoreEveryReduction() {
         for (LossReduction reduction : LossReduction.values()) {
-            Tensor prediction = tensor(DataType.FLOAT32, Shape.of(2, 3), true);
+            Tensor prediction = tensor(DataType.FLOAT16, Shape.of(2, 3), true);
             Tensor target = tensor(DataType.BFLOAT16, Shape.of(2, 3), true);
             Tensor mse = prediction.meanSquaredError(target, reduction);
-            assertEquals(prediction.descriptor().shape(),
-                    gradient(mseObjective(mse, reduction), prediction).descriptor().shape());
-            assertEquals(target.descriptor().shape(),
-                    gradient(mseObjective(mse, reduction), target).descriptor().shape());
+            Tensor predictionGradient = gradient(mseObjective(mse, reduction), prediction);
+            Tensor targetGradient = gradient(mseObjective(mse, reduction), target);
+            assertEquals(
+                    prediction.descriptor().shape(), predictionGradient.descriptor().shape());
+            assertEquals(
+                    prediction.descriptor().dataType(),
+                    predictionGradient.descriptor().dataType());
+            assertEquals(target.descriptor().shape(), targetGradient.descriptor().shape());
+            assertEquals(
+                    target.descriptor().dataType(), targetGradient.descriptor().dataType());
 
-            Tensor logits = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), true);
+            Tensor logits = tensor(DataType.FLOAT16, Shape.of(2, 3, 4), true);
             Tensor dense = tensor(DataType.BFLOAT16, Shape.of(2, 3, 4), true);
             Tensor loss =
                     logits.categoricalCrossEntropyWithLogits(dense, 1, reduction);
             Tensor objective = mseObjective(loss, reduction);
-            assertEquals(logits.descriptor().shape(),
-                    gradient(objective, logits).descriptor().shape());
-            assertEquals(dense.descriptor().shape(),
-                    gradient(objective, dense).descriptor().shape());
+            Tensor logitsGradient = gradient(objective, logits);
+            Tensor denseGradient = gradient(objective, dense);
+            assertEquals(logits.descriptor().shape(), logitsGradient.descriptor().shape());
+            assertEquals(
+                    logits.descriptor().dataType(), logitsGradient.descriptor().dataType());
+            assertEquals(dense.descriptor().shape(), denseGradient.descriptor().shape());
+            assertEquals(
+                    dense.descriptor().dataType(), denseGradient.descriptor().dataType());
             assertCompiles(objective, logits);
             assertCompiles(objective, dense);
         }

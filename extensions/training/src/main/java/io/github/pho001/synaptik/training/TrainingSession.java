@@ -39,10 +39,11 @@ import java.util.OptionalLong;
  * reuses the one prepared execution, authenticates the objective-then-gradient publications by
  * target index, and applies backend-neutral optimizer arithmetic after detaching all values.</p>
  *
- * <p>The initial update domain is non-empty, connected {@code FLOAT32}/{@code FLOAT64} parameters
- * with finite initial values, fully static dense-contiguous offset-zero non-view descriptors, and
- * exact-capacity writable, shareable native host storage. Unsupported parameter capture fails
- * before private seed allocation or compilation. Values are updated in place so the compiled
+ * <p>The initial update domain is non-empty, connected floating parameters with finite initial
+ * values, fully static dense-contiguous offset-zero non-view descriptors, and exact-capacity
+ * writable, shareable native host storage. {@code BFLOAT16} and {@code FLOAT16} parameters retain
+ * private {@code FLOAT32} master values and publish one rounded logical value per successful
+ * update. Unsupported parameter capture fails before private seed allocation or compilation.
  * Tensor identities remain stable. The caller grants this session exclusive use of the Module's
  * parameter wrappers, captured parameter storage associations, and parameter bytes until close.
  * Parameter replacement, storage replacement, overlapping external input storage, or concurrent
@@ -380,6 +381,9 @@ public final class TrainingSession implements AutoCloseable {
             for (TrainingParameter parameter : parameters) {
                 parameter.stageUpdate(optimizer, optimizerSteps, useAccumulated);
             }
+            for (TrainingParameter parameter : parameters) {
+                parameter.prepareParameterCandidate();
+            }
             validateModuleAndParameters();
             commitParameterCandidates();
             for (TrainingParameter parameter : parameters) {
@@ -421,9 +425,10 @@ public final class TrainingSession implements AutoCloseable {
      * Captures complete detached parameter, optimizer, progress, and pending-gradient state.
      *
      * <p>Lifecycle admission precedes capture. The operation validates the complete Module,
-     * captured storage view, and finite parameter/momentum/accumulation values before copying.
-     * The immutable result contains canonical bytes and remains readable after this session or its
-     * Engine closes. It is not a durable file format.</p>
+     * captured storage view, and finite logical parameter, master parameter, momentum, and
+     * accumulation values before copying. The immutable result contains canonical logical and
+     * optimizer-width bytes and remains readable after this session or its Engine closes. It is
+     * not a durable file format.</p>
      *
      * @return a fresh non-null immutable in-memory state snapshot
      * @throws IllegalStateException if the Engine is closed, close has begun, another operation is
@@ -456,11 +461,12 @@ public final class TrainingSession implements AutoCloseable {
      * Restores one complete compatible in-memory state after validate-before-install preflight.
      *
      * <p>Lifecycle admission precedes inspection of {@code state}. The exact SGD configuration,
-     * counters, parameter count, ordered paths, data types, Shapes, payload lengths, finite payload
-     * values, momentum-disabled slot values, and current Module/storage view all validate before
-     * any parameter write. Success installs parameter bytes in path order, then publishes
-     * momentum, pending gradients, and counters. Failure before commit leaves all current state
-     * unchanged. The supplied immutable state is not retained.</p>
+     * counters, parameter count, ordered paths, data types, Shapes, logical and master payload
+     * lengths, finite payload values, momentum-disabled slot values, and current Module/storage
+     * view all validate before any parameter write. Success atomically installs logical and master
+     * parameter values in path order, then publishes momentum, pending gradients, and counters.
+     * Failure before commit leaves all current state unchanged. The supplied immutable state is not
+     * retained.</p>
      *
      * @param state non-null detached state from a schema-compatible session
      * @throws NullPointerException if {@code state} is {@code null} after successful admission
@@ -899,9 +905,9 @@ public final class TrainingSession implements AutoCloseable {
 
     private static void validateOptimizerNarrowing(
             Sgd optimizer, List<TrainingParameter> parameters) {
-        boolean hasFloat32 = parameters.stream()
-                .anyMatch(parameter -> parameter.dataType() == DataType.FLOAT32);
-        if (!hasFloat32) {
+        boolean hasFloat32Domain = parameters.stream()
+                .anyMatch(parameter -> parameter.dataType() != DataType.FLOAT64);
+        if (!hasFloat32Domain) {
             return;
         }
         float learningRate = (float) optimizer.learningRate();

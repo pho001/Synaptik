@@ -59,8 +59,9 @@ Training-to-Metal optimizer bridge.
   controlled environment. Local-device timing is diagnostic only and never qualification,
   route-selection, or tuning-identity authority. Route choice is cold and fixed; no runtime
   benchmark, retry, fallback, or matrix is permitted.
-- Safe heuristics remain correct without tuning. Model 0026 independently owns future IEEE
-  FLOAT16 semantics; two-byte storage implies neither BFLOAT16 nor FLOAT16 capability.
+- Safe heuristics remain correct without tuning. Model 0026 owns IEEE FLOAT16 semantics; the
+  completed low-precision closure maps every admitted homogeneous FLOAT32 occurrence to BFLOAT16
+  and FLOAT16 without treating shared two-byte storage as capability evidence.
 - Task 0005's strict `ADD`/`SUB`/`MUL`/`DIV` delivery remains historically withdrawn after its
   subnormal audit. Complete 0015 restores only tensor `FLOAT32` binary arithmetic under
   `ACCELERATOR`, with bounded DAZ/FTZ and no strict binary capability.
@@ -243,14 +244,16 @@ Training-to-Metal optimizer bridge.
   lengths, atomic validation, skipped padded work, zero-padding, and final-hidden output. Schema 13
   carries the required cardinality/type structure, but no complete recurrent implementation,
   state-publication, GRU/LSTM, or gradient-route proof exists.
-- Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
-  0017, and Metal 0015/0019/0020/0021/0022/0023/0024/0025 are Complete.
+- At this pre-P12 checkpoint, Model 0026 remained an independent FLOAT16 Draft. Model 0027–0029,
+  Config 0006, Engine 0018, CPU 0017, and Metal 0015/0019/0020/0021/0022/0023/0024/0025 were
+  Complete.
 - Task 0038 is Complete from base `ec4499bd9e18ed863c9091baa9cfe82dbcf06a9b`. It froze the exact
   implemented common/accelerator occurrence matrices and synchronized stale current summaries
   without changing production, native, schema, identity, or test code.
-- Task 0039 remains Blocked on Draft Model 0026 without a probe or production change. Public Model
-  has no FLOAT16 type, oracle, promotion, conversion, or family contract. Its possible next schema,
-  operation, type, and identity values remain conditional and unreserved.
+- Task 0039 remains historically Blocked at that Draft Model-0026 checkpoint without a probe or
+  production change. P12 subsequently completed public FLOAT16 type, oracle, promotion,
+  conversion, family contracts, schema 19, and identity 28; it did not retroactively change the
+  task's evidence or decision.
 - Task 0040 is Blocked from exact clean planning revision
   `c300582727ec568a7482dd974f9d1b2e2e13f82c`. Its sole direct BFLOAT16 Gather execution returned
   `0x7fc0` for required selected raw word `0xffa6`; inputs were unchanged, the later output/guard
@@ -525,9 +528,10 @@ selector or finite composition and current Model semantic/signature source for e
 115 rows. The current catalogs are MPSGraph
 `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE` and custom
 `73 AVAILABLE / 42 PENDING / 0 UNAVAILABLE-WITH-PROOF`. The closed route identity retains wires
-`1..3`; schema 18 embeds the fixed route, exact numerical profile, and custom execution extension,
-identities are version 27, and capability is `86 true / 29 false`. Package-private forcing remains
-result-set-only after fresh authentication; every selected Task-0066 occurrence and exact Task-0069
+`1..3`; schema 19 embeds the fixed route, exact numerical profile, custom execution extension, and
+type wires `1..7`; identities are version 28, and capability is `86 true / 29 false`.
+Package-private forcing remains result-set-only after fresh authentication; every selected
+Task-0066 occurrence and exact Task-0069
 occurrence rejects MPSGraph, while non-domain VARIANCE retains its prior direct structural recipe.
 There is no device, oracle, timing, benchmark, public API, hot fallback, retry, cache, or autotune
 behavior.
@@ -616,18 +620,23 @@ zero findings passed. Metal 0021 landed at implementation `ef2c6a1a`, worker-evi
 oracle, ABI/export, focused suites, real Engine forward/seeded-gradient proof, full build,
 documentation/diff evidence, and independent Class C final `APPROVE` with zero findings passed.
 
-Current ABI 5 retains exactly thirteen exports and accepts one bounded schema-18 route-bearing
-program image with the exact numerical-profile wire. Type wires are `1..6`, operation wires are
+Current ABI 6 exposes exactly fourteen exports and accepts one bounded schema-19 route-bearing
+program image with the exact numerical-profile wire. Type wires are `1..7`, operation wires are
 `1..115`, attribute wires are `0..41`, route wires are `1..3`, and
-workload/exact-policy/candidate/compatibility/route/codec identities are version twenty-seven.
-Task 0055's schema-13/identity-14 foundation, Task 0056's structural catalog, Task 0057's
-schema-14/identity-15 route cutover, Task 0059's schema-15/identity-16 cutover, Tasks 0061–0065's
-identity-17 through identity-21 cutovers, Task 0066/0067/0068 identity 22, Task-0069 identities
-23 through 25, and Task-0070 identity 26 remain historical prerequisites. Task 0071 accepts only
-identity 27 while retaining exactly 86 production kinds and 101 structurally executable kinds.
-Identity 27 remains monotonic because workload compatibility binds the profile, schema version,
-complete encoded image and execution extension, and route policy; a prior-checkpoint decision
-cannot match the current workload.
+workload/exact-policy/candidate/compatibility/route/codec identities are version twenty-eight.
+The historical schema/identity cutovers remain prerequisites, but no older identity or image is
+accepted. The current catalog has exactly 86 production kinds and 101 structurally executable
+kinds. Every admitted homogeneous BFLOAT16 or FLOAT16 arithmetic occurrence uses the authenticated
+custom program unless it is one of the six no-gradient raw-preserving families and exact full-key
+environment certificate lookup authorizes MPSGraph. MPS and MPP probes remain qualified-negative;
+they create no candidate, route, fallback, or capability. Identity 28 is monotonic because workload
+compatibility binds profile, schema, complete encoded image and extension, route policy, certificate
+environment, exact accuracy record, and separate determinism record.
+P13 closes documentation and local qualification over that P12 boundary: a fresh native build,
+ad-hoc-signed package, verified local ZIP and extracted archive, actual Apple-GPU tests and
+integration, CPU and Metal smoke benchmarks, affected Javadocs, and the constrained full build
+passed. This is local evidence only; no Developer ID signing, notarization, publication, or public
+release occurred.
 Complete Model 0028 owns the root-only exact-zero reduction rule. Complete Model 0029 owns the
 MATMUL-only final-publication exact-zero sign rule. Metal 0018 remains Blocked without production
 changes. Complete Metal 0022
@@ -686,15 +695,17 @@ UNFOLD3D/FOLD3D remain separate custom movement/overlap work. Metal 0037 remains
 probe: recurrent arithmetic is recursively reachable for `ACCELERATOR`, but direct RNN lacks
 runtime INT64 valid lengths, atomic validation, skipped padded work, positive-zero padding, and
 `finalHidden`; no complete recurrence, state-publication, GRU/LSTM, or gradient route proof exists.
-Schema 18, type wires `1..6`, operation wires `1..115`, attribute wires `0..41`,
-version-twenty-seven identities, ABI 5, variable cardinality, custom execution plans, and canonical
-or supported-storage-layout all-six rank-`0..16` cross-owner transfer are landed; every other
-identity fails closed. The schema registry is not capability:
-BOOL consumption includes the exact positive-rank ordering/top-K and logic/WHERE domains, integral
-MATMUL remains the only general INT arithmetic consumer, loss ownership is the bounded accelerator
-MSE forward domain only, and the six Task-0064 convolution/pooling rows use their fixed custom
-program rather than the historically blocked opaque direct/composed assumptions.
-Planning-only Task 0039 reserves no FLOAT16 value while Draft Model 0026 provides no public type or oracle.
+Before the FP16 cutover, schema 18, type wires `1..6`, version-twenty-seven identities, ABI 5,
+thirteen exports, and supported all-six rank-`0..16` cross-owner transfer were the landed boundary.
+P12 supersedes that snapshot with schema 19, type wires `1..7`, version-twenty-eight identities,
+ABI 6, fourteen exports, and all-seven transfer; operation wires `1..115`, attribute wires
+`0..41`, variable cardinality, and custom execution plans remain fixed. Every other identity fails
+closed. The schema registry is not capability: BOOL consumption includes the exact positive-rank
+ordering/top-K and logic/WHERE domains, integral MATMUL remains the only general INT arithmetic
+consumer, loss ownership is the bounded accelerator MSE forward domain only, and the six Task-0064
+convolution/pooling rows use their fixed custom program rather than the historically blocked opaque
+direct/composed assumptions. Planning-only Task 0039 historically reserved no FLOAT16 value while
+Draft Model 0026 provided no public type or oracle; P12 no longer shares that limitation.
 Task 0040 is Blocked after its one direct BFLOAT16 Gather run canonicalized required `0xffa6` to
 `0x7fc0`; its artifacts
 were removed and production remains unchanged. Task 0041 is Complete at
@@ -779,9 +790,10 @@ Its source and compiled-AIR certificates, Lean order/store/broadcast/DAZ-FTZ mod
 observer suite, and public Engine smoke cover one physical dispatch and one final store with no
 materialized suffix intermediate. Structural PREPARE and planned RUN payloads expose only bounded
 typed facts and aggregates; lifecycle-close tracing remains deferred because logical prepared
-units share/refcount native resources. Structural `101/14`, capability `86/29`, MPSGraph
-`75/35/5`, custom `73/42/0`, ABI 5, and thirteen exports remain fixed; only schema 18 and identity
-27 are accepted.
+units share/refcount native resources. At the Task-0071 checkpoint, structural `101/14`,
+capability `86/29`, MPSGraph `75/35/5`, custom `73/42/0`, ABI 5, thirteen exports, schema 18, and
+identity 27 were fixed. P12 subsequently superseded the active boundary with ABI 6, fourteen
+exports, schema 19, and identity 28.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030
@@ -872,7 +884,7 @@ and received no inferred facts. The atomic production cutover is complete: all f
 capability-true only for their exact ACCELERATOR domain, use fixed custom whole-program routes, and
 retain direct assigned targets, declared run-owned logical-value buffers, and one synchronous
 Java/native invocation. The original schema 12/identity 13 cutover is historical; Task 0055 later
-migrated current production to ABI 5/schema 13 and identity 14.
+migrated then-current production to ABI 5/schema 13 and identity 14.
 
 [0054](tasks/0054-current-accelerator-115-kind-completeness-audit.md) remains the exact historical
 pre-cutover audit at base `93b3d379`: 40 enums, 115 constants, and
@@ -932,21 +944,16 @@ training, backward closure, and Model 0026 remain unauthorized pending complete-
   0061 generalizes promoted integral and accelerator FLOAT32/mixed MATMUL. Task 0003 changes
   singleton-NEG route choice, not occurrence capability or partitioning.
 - The caller-supplied macOS arm64 native library uses an Objective-C C ABI reached through JDK 26
-  Foreign Function and Memory (FFM). It is not packaged or discovered by the backend. ABI version
-  1 established seven foundation functions and statuses `0..7`; version 2 retained them, added
-  three typed MPSGraph functions and statuses `8..11`; version 3 retained all ten, added three
-  custom-NEG functions and status `12`; version 4 replaced only the NEG-specific MPSGraph create
-  operation with the typed whole-partition create operation. Version 5 replaces that create
-  signature with the original schema-13 program image and adds status `13` for a structurally valid
-  registered operation without a current route. Task 0057 retained ABI 5 and every export while
-  replacing that image with route-bearing schema 14; Task 0059 similarly replaces schema 14 with
-  storage-layout schema 15. Opaque resource kinds are never reinterpreted.
-  ABI 5 exports exactly:
+  Foreign Function and Memory (FFM). It is not discovered or published by the backend. ABI
+  versions 1 through 5 are historical; ABI 6 adds only the immutable certification-environment
+  query and retains the existing resource/export ownership. Opaque resource kinds are never
+  reinterpreted. ABI 6 exports exactly:
 
   ```text
   synaptik_metal_foundation_abi_version
   synaptik_metal_context_create
   synaptik_metal_context_release
+  synaptik_metal_context_certification_environment
   synaptik_metal_buffer_create
   synaptik_metal_buffer_release
   synaptik_metal_buffer_upload
@@ -959,17 +966,15 @@ training, backward closure, and Model 0026 remain unauthorized pending complete-
   synaptik_metal_neg_kernel_pipeline_run
   ```
 
-- Tasks through 0052 retain their historical wire assignments. Task 0055 preserves executable
-  operation wires `1..34` and expands only structural registry coverage to operations `1..115`,
-  attributes `0..41`, and explicit type wires `1..6` in one bounded schema-13 image. Java
-  profile/type preflight rejects every incompatible occurrence before downcall; native validation
-  independently authenticates image bounds, topology, cardinality, attributes, types, and current
-  route support. Explicit unavailable/canonical/affine-view states enforce graph-local view
-  provenance, including exact local identity-prefix, last-two-axis transpose authentication for
-  MATMUL. Affine outputs use authenticated full-logical-size represented-order targets. Canonical
-  host ingress, publication, and CPU/Metal transfer support all six current data types at ranks
-  `0..16` with exact byte widths and strict BOOL-byte validation. This transfer coverage changes no
-  operation capability.
+- Historical tasks retain their recorded wire assignments. The current bounded schema-19 image
+  covers stable type wires `1..7`, operation wires `1..115`, attribute wires `0..41`, and route
+  wires `1..3`; Java and native validation independently authenticate bounds, topology,
+  cardinality, attributes, types, layout, route, and current support. Explicit unavailable,
+  canonical, and affine-view states enforce graph-local provenance, including exact local
+  identity-prefix, last-two-axis transpose authentication for MATMUL. Affine outputs use
+  authenticated full-logical-size represented-order targets. Canonical host ingress, publication,
+  and CPU/Metal transfer support all seven current data types at ranks `0..16` with exact byte
+  widths and strict BOOL-byte validation. Transfer coverage changes no operation capability.
 - Analysis validates the complete maximal Metal partition, selects the route, and declares exact
   buffers/workspaces. Finalization cannot change that route or add undeclared shared requirements;
   it creates route-specific persistent resources only after slot assignment.

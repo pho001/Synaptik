@@ -68,8 +68,8 @@ public class CpuBatchNormInferenceLoweringTest {
                 io.github.pho001.synaptik.model.datatype.DataTypePromotion.promoteFloating(
                         result, types.get(index));
         ScalarValue epsilon = result == DataType.FLOAT64 ? ScalarValue.float64(1e-5)
-                : result == DataType.FLOAT32 ? ScalarValue.float32(1e-5f)
-                : ScalarValue.bfloat16Bits((short) 0x3728);
+                : result == DataType.BFLOAT16 ? ScalarValue.bfloat16Bits((short) 0x3728)
+                : ScalarValue.float32(1e-5f);
         var descriptors = new ArrayList<io.github.pho001.synaptik.model.tensor.TensorDescriptor>();
         descriptors.add(new TensorDescriptor(types.getFirst(), inputShape,
                 java.util.Optional.of(layouts.getFirst()), false));

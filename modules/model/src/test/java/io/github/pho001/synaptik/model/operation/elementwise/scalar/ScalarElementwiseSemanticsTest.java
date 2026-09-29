@@ -190,6 +190,11 @@ class ScalarElementwiseSemanticsTest {
                 () -> new ClampRangeAttrs(ScalarValue.int64(9_007_199_254_740_993L),
                         ScalarValue.int64(9_007_199_254_740_992L)),
                 "minValue must be less than or equal to maxValue");
+        assertIllegalFailure(
+                () -> new ClampRangeAttrs(
+                        ScalarValue.float16Bits((short) 0x3C00),
+                        ScalarValue.float16Bits((short) 0xBC00)),
+                "minValue must be less than or equal to maxValue");
 
         assertAll(
                 () -> assertSame(DataType.FLOAT32,
@@ -201,6 +206,16 @@ class ScalarElementwiseSemanticsTest {
                                 ScalarValue.bfloat16Bits((short) 0x7FC1),
                                 ScalarValue.bfloat16Bits((short) 0x3F80))
                                 .minValue().bfloat16Bits()),
+                () -> assertEquals((short) 0xBC00,
+                        new ClampRangeAttrs(
+                                ScalarValue.float16Bits((short) 0xBC00),
+                                ScalarValue.float16Bits((short) 0x3C00))
+                                .minValue().float16Bits()),
+                () -> assertEquals((short) 0xFE01,
+                        new ClampRangeAttrs(
+                                ScalarValue.float16Bits((short) 0xFE01),
+                                ScalarValue.float16Bits((short) 0x3C00))
+                                .minValue().float16Bits()),
                 () -> assertEquals(Integer.MIN_VALUE,
                         new ClampRangeAttrs(
                                 ScalarValue.int32(Integer.MIN_VALUE), ScalarValue.int32(0))

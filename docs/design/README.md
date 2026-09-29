@@ -34,6 +34,7 @@ acceptance date and considered alternatives.
 - [ADR 0020: Synchronous single-default-device Metal execution](decisions/0020-synchronous-single-default-device-metal-execution.md)
 - [ADR 0021: Total Recursive ACCELERATOR Numerical Floor](decisions/0021-total-recursive-accelerator-numerical-floor.md)
 - [ADR 0022: Auditable Custom Metal Route Cost Evidence](decisions/0022-auditable-custom-metal-route-cost-evidence.md)
+- [ADR 0023: Low-precision ACCELERATOR parity and P0 evidence](decisions/0023-low-precision-accelerator-parity.md)
 
 ## Design notes
 

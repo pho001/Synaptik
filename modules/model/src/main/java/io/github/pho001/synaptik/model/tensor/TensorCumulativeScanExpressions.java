@@ -17,9 +17,9 @@ import java.util.Optional;
  * the first traversed position the selected kind's identity. Reverse mode changes traversal
  * direction without reversing output positions.</p>
  *
- * <p>This package-private boundary accepts exactly FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64
- * inputs, normalizes one axis, preserves the exact input Shape, data type, and gradient-eligibility
- * metadata, and records exact one-input provenance. It does not inspect or accumulate values,
+ * <p>This package-private boundary accepts exactly FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, and
+ * INT64 inputs, normalizes one axis, preserves the exact input Shape, data type, and
+ * gradient-eligibility metadata, and records exact one-input provenance. It does not inspect or accumulate values,
  * preserve resolved layout,
  * allocate storage, define gradient rules, capture a graph, or provide compiler, runtime,
  * backend, or execution behavior.</p>
@@ -37,8 +37,8 @@ final class TensorCumulativeScanExpressions {
      * constructs one {@link CumulativeScanAttrs}. Failures before factory delegation consume no
      * Tensor identity.</p>
      *
-     * @param input non-null FLOAT64, FLOAT32, BFLOAT16, INT32, or INT64 Tensor retained as the
-     *     sole provenance input
+     * @param input non-null FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, or INT64 Tensor retained as
+     *     the sole provenance input
      * @param kind non-null cumulative arithmetic kind retained by the operation
      * @param axis positive or negative input axis accepted by {@link Shape#normalizeAxis(int)}
      * @param exclusive {@code true} to omit each current position from its traversed prefix, or

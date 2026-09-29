@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 
 class CpuOrderingGeneratedKernelTest {
     @Test void generatedClassMatrixUsesDirectTypedAllocationFreeOrderingBodies() {
-        for (DataType type : DataType.values()) {
+        for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
             for (boolean descending : List.of(false, true)) {
                 assertDirectShape(new Operation(OrderingKind.SORT,
                         new SortAttrs(0, descending)), type, false, false, true);
@@ -329,6 +329,7 @@ class CpuOrderingGeneratedKernelTest {
             case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY;
             case BOOL -> CarrierAccess.BYTE_ARRAY;
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU ordering unsupported");
         };
     }
     private static long[] raw(double[] values) { long[] result = new long[values.length];
@@ -345,6 +346,7 @@ class CpuOrderingGeneratedKernelTest {
             case INT32 -> new CpuBufferArgument.Ints((int[]) carrier, 0, bytes, readOnly);
             case INT64 -> new CpuBufferArgument.Longs((long[]) carrier, 0, bytes, readOnly);
             case BOOL -> new CpuBufferArgument.Bytes((byte[]) carrier, 0, bytes, readOnly);
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU ordering unsupported");
         };
     }
 }

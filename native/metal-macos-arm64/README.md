@@ -3,63 +3,54 @@
 ## Purpose
 
 This directory builds the local application binary interface (ABI) used by the Synaptik Metal
-backend on Apple-silicon macOS. ABI version 5 retains the same thirteen context, shared-storage
-buffer, executable, and bounded custom singleton-`NEG` exports. Its graph creator accepts one
-bounded schema-18 program image. The image carries an explicit fixed route and exact numerical-
-profile wire plus value types and complete variable-cardinality operation, attribute, reference,
-dimension, gradient, optional storage-layout metadata, and a route-specific authenticated execution
-extension; no native type, shape, layout, or plan inference is part of the boundary.
+backend on Apple-silicon macOS. ABI version 6 exports fourteen context, certification-environment,
+shared-storage buffer, executable, and bounded custom singleton-`NEG` functions. Its graph creator
+accepts one bounded schema-19 program image. The image carries an explicit fixed route and exact
+numerical-profile wire plus value types and complete variable-cardinality operation, attribute,
+reference, dimension, gradient, optional storage-layout metadata, and a route-specific
+authenticated execution extension; no native type, shape, layout, or plan inference is part of the
+boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
 can structurally execute exactly 101 operation kinds; production capability is exactly 86 kinds.
 Task 0059 adds exact movement/indexing rows and complete positive-stride storage geometry.
 Task 0060 adds replacement/fold rows `72`, `76`, `80`, `82`, and `84` plus exact aggregate rows
 `106..108`. Task 0061 widens existing `MATMUL=15` without adding a wire: both profiles admit
-no-gradient INT32/INT64 ordered pairs; accelerator additionally admits every positive-static
-FLOAT32 vector, matrix, batched, and broadcast geometry plus no-gradient BFLOAT16/FLOAT32 mixed
-pairs with FLOAT32 result. Existing all-FLOAT32 rank-two matrix products retain MPSGraph; every new
-MATMUL form selects the fixed custom program. Exact local identity-prefix, last-two-axis transpose
-inputs retain their physical source, offset, and strides. Task 0062 makes
-`MEAN_SQUARED_ERROR=85` executable only through the fixed MPSGraph composition `SUB(prediction,
-target)`, `MUL(delta, delta)`, and optional full `SUM` or `MEAN`; no opaque MSE selector is used.
-Java production admits only ACCELERATOR same-type canonical positive-rank FLOAT32 for `NONE`,
-`SUM`, and `MEAN`, preserves the input-gradient logical OR as output metadata, and claims no
-generated backward ownership. Task 0063 adds custom-only wires `94=SORT`, `95=ARGSORT`,
-`96=TOP_K`, `109=ARG_MAX`, and `110=ARG_MIN`. The first three admit all six carriers and the arg
-operations admit five numeric carriers. Ranks are in `1..16`; one-dimensional dispatch, every
-positive dimension/count/stride/extent/K, and every derived logical index are bounded to unsigned
-32 bits before resource creation, while byte/span checks remain independently size-safe. The
-integer-only comparator preserves raw selected words, stable order, NaNs-last sorting, signed-zero
-order, top-K pair order, and NaN-preferred arg ties. One TOP_K step owns both values and INT64
-indices.
+no-gradient INT32/INT64 ordered pairs; accelerator admits every positive-static homogeneous
+FLOAT32/BFLOAT16/FLOAT16 vector, matrix, batched, and broadcast geometry plus qualified
+one-low-plus-FLOAT32 widening pairs. Existing all-FLOAT32 rank-two matrix products retain
+MPSGraph; every low or new-geometry MATMUL form selects the fixed custom program. Exact local
+identity-prefix last-two-axis transpose inputs retain their physical source, offset, and strides.
+Task 0062 implements `MEAN_SQUARED_ERROR=85` as `SUB(prediction,target)`,
+`MUL(delta,delta)`, and optional full `SUM` or `MEAN`; P9 admits homogeneous
+FLOAT32/BFLOAT16/FLOAT16 accelerator occurrences and their generated gradients.
+
+Task 0063 adds custom-only wires `94=SORT`, `95=ARGSORT`, `96=TOP_K`, `109=ARG_MAX`, and
+`110=ARG_MIN`. The first three admit all seven carriers and the arg operations admit six numeric
+carriers. Ranks are in `1..16`; every dispatch dimension, count, stride, selected extent, K, and
+derived logical index is bounded to unsigned 32 bits before resource creation. The integer-only
+comparator preserves raw selected words, stable order, NaNs-last sorting, signed-zero order, top-K
+pair order, and NaN-preferred arg ties.
 
 Task 0064 adds custom-only wires `36=CONV2D`, `37=CONV3D`, `97=MAX_POOL2D`,
-`98=AVERAGE_POOL2D`, `99=MAX_POOL3D`, and `100=AVERAGE_POOL3D`. Convolution is
-ACCELERATOR-only with FLOAT32 output, FLOAT32/BFLOAT16 operands, at least one FLOAT32 operand,
-no-gradient mixed operands, and exact all-FLOAT32 gradient metadata. Maximum pooling is
-profile-common for FLOAT64/FLOAT32/BFLOAT16; average pooling is ACCELERATOR-only FLOAT32.
-All dimensions, counts, strides, dilations, paddings, spans, logical coordinates, and
-one-dimensional grid widths are positive or nonnegative as appropriate, fit unsigned 32 bits, and
-are validated before resource creation. Pooling additionally limits the product of kernel extents
-to 65,536 positions, independently of tensor byte sizes, to bound padding-dominated per-output
-work. Exact local singleton-height affine inputs authenticate Conv1d and Pool1d compositions
-without admitting external or general affine layouts. Convolution preserves every grouped term
-and bias placement. Maximum pooling publishes the raw word selected by NaN-first, positive-zero-
-over-negative-zero, first-logical-winner order with negative-infinity padding. Average pooling
-uses the full kernel-position divisor and conceptual positive-zero padding, including ceil-mode
-all-padding windows.
+`98=AVERAGE_POOL2D`, `99=MAX_POOL3D`, and `100=AVERAGE_POOL3D`. Accelerator admits qualified
+homogeneous FLOAT32/BFLOAT16/FLOAT16 convolution and pooling; profile-common maximum pooling also
+retains FLOAT64. All dimensions, counts, strides, dilations, paddings, spans, logical coordinates,
+and one-dimensional grids are checked before resource creation. Pooling caps the kernel-position
+product at 65,536. Exact local singleton-height affine inputs authenticate Conv1d and Pool1d.
+Convolution preserves grouped term/bias order. Maximum pooling selects raw words by NaN-first,
+positive-zero-over-negative-zero, first-logical-winner order with negative-infinity padding.
+Average pooling uses the full kernel-position divisor and conceptual positive-zero padding.
+Non-overlapping maximum-pool backward closes; overlap accumulation and Conv3d backward remain
+fail-closed.
 
-Task 0065 adds custom-only `101=DROPOUT` and `102=INITIAL_STATE`.
-`INITIAL_STATE` has zero inputs and writes one canonical raw `INT64[2]` key/counter output under
-both profiles. ACCELERATOR FLOAT32 dropout consumes ordered value/state inputs and writes distinct
-value, one-byte canonical BOOL mask, and raw next-state outputs. Rank `0..16`, every positive
-extent, element count, referenced span, and one-dimensional dispatch width fit unsigned 32 bits.
-The fixed `SYNAPTIK_METAL_SPLITMIX64_COUNTER_V1` kernel maps each logical ordinal to
-`mix64(counter + ordinal + mix64(key + 0x9e3779b97f4a7c15))`, compares the top 53 bits with the
-exact host-precomputed $\lceil p2^{53}\rceil$ threshold, and advances the counter modulo $2^{64}$.
-Dropped output is raw positive zero; kept output uses FLOAT32 division then multiplication with the
-complement narrowed only after binary64 subtraction. State has one writer, all live outputs use
-ordinary run-local buffers, and direct MPSGraph creation rejects both wires.
+Task 0065 adds custom-only `101=DROPOUT` and `102=INITIAL_STATE`. INITIAL_STATE writes one
+canonical raw INT64[2] key/counter output under both profiles. Accelerator homogeneous
+FLOAT32/BFLOAT16/FLOAT16 dropout writes the value, one-byte canonical BOOL saved mask, and raw next
+state. The fixed SplitMix64 V1 kernel maps each logical ordinal, compares the top 53 bits with the
+exact host threshold, and advances the counter modulo $2^{64}$. Dropped output is raw positive
+zero; kept low output retains FLOAT32 computation until one final narrowing. State has one writer,
+all live outputs use ordinary run-local buffers, and direct MPSGraph creation rejects both wires.
 
 Task 0069 Slices 1 through 3 add source-owned custom-only `114=L1_NORM`, `70=SCATTER_ADD`,
 and `112=VARIANCE` for accelerator FLOAT32. L1 accepts one canonical positive-static rank-one
@@ -91,7 +82,7 @@ one unflagged `fadd` in each L1/ScatterAdd kernel; the VARIANCE kernel contains 
 unflagged `fdiv`, one `fsub`, one `fmul`, no `fadd` or FMA, and one static store. Scatter contains
 no atomics.
 
-Task 0071 adds ACCELERATOR-only anchor-epilogue steps without changing ABI 5 or the thirteen
+Task 0071 added ACCELERATOR-only anchor-epilogue steps while the bridge was ABI 5 with thirteen
 exports. An eligible MATMUL suffix is optional literal scalar multiplication, at most one ordinary
 right-aligned tensor ADD, and optional terminal RELU or no-gradient CLAMP. An eligible Conv2d
 suffix is at most one external ADD followed by optional RELU or no-gradient CLAMP; Conv2d never
@@ -104,18 +95,68 @@ add, and final-store sites plus NaN, signed-zero, infinity, subnormal DAZ/FTZ, a
 
 The remaining 29 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 27. Java
+rather than masquerading as malformed input. Candidate and route identity are version 28. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
-shared custom-program wire 3. Schema 18 embeds wire 2 or 3 and the exact numerical profile in each
+shared custom-program wire 3. Schema 19 embeds wire 2 or 3 and the exact numerical profile in each
 graph image; every other schema, profile, or route value fails closed. The exhaustive Java
 structural catalog adds no native route selection, capability, autotuning, fallback,
 telemetry, or performance authority.
 
-For admitted nodes, the version-27 workload signature binds operation wire, source/target carrier
+BFLOAT16 and FLOAT16 (`7`) arithmetic occurrences use only authenticated custom Metal source.
+Exact homogeneous no-gradient low raw-preserving RESHAPE, simple PERMUTE, materializing CONTIGUOUS,
+SLICE, CONCAT, and TILE may use MPSGraph only after Java cold preparation exactly matches a
+schema-1 environment/program certificate. Custom remains their first candidate. No low occurrence
+is qualified through MPS, pointwise source generation, or anchor-epilogue fusion, and execution
+has no retry or CPU fallback. The complete frozen Metal FLOAT32 ACCELERATOR target set has a
+homogeneous BFLOAT16 and FLOAT16 recipe, while STRICT_IEEE admits only exact-valid movement,
+mapping, selection, ordering, classification, cast, and represented-bit unary rows. Schema 19,
+route wires 2/3, identity 28, native ABI 6, and the existing operation and attribute wires retain
+their allocations.
+
+The 24 positive low raw certificates belong only to MPSGraph. Classic MPS and MPP are
+qualified-negative on the exact `APPLE_9`/`25G83` environment. Reproduce the checked-in
+`backends/metal/evidence/0072/vendor-route-qualification.tsv` matrix from the repository root with:
+
+```bash
+./native/metal-macos-arm64/qualify-low-precision-vendor-routes.sh \
+  native/metal-macos-arm64/build/package-v1/macos-arm64/libsynaptik_metal_foundation.dylib \
+  backends/metal/evidence/0072/vendor-route-qualification.tsv
+```
+
+The probe requires the installed Xcode 27 toolchain. It executes classic
+`MPSSupportsMTLDevice`, an FP16 `MPSCNNConvolution` with FLOAT accumulator-option readback, and an
+isolated BFLOAT16 construction rejection. It also compiles and links four MPP Metal 4.0 probes,
+requires `__HAVE_TENSOR__`, statically fixes `relaxed_precision=false`, and creates FLOAT16/BFLOAT16
+`matmul2d` and `convolution2d` pipelines with FLOAT32 destinations on the target GPU. Classic MPS
+lacks the complete exact Shape/layout proof and BFLOAT16/public-accumulator contract; MPP does not
+specify its internal accumulator through the destination type. All matrix rows remain `REJECTED`.
+The probes add no ABI export, production framework dependency, candidate, route wire, certificate,
+or fallback.
+
+Raw storage is always an unsigned 16-bit word. Exact kernels copy or select that word, predicates
+classify it as an integer encoding, and casts use the declared bit-exact conversion. Arithmetic
+kernels integer-decode each BFLOAT16 or FLOAT16 input to its exact FLOAT32 value, retain FLOAT32
+working values and accumulators (including corresponding safe-mode FMA), and integer-encode each
+observable low result exactly once with round-to-nearest, ties-to-even. No input, contributor,
+accumulator, public value, or saved value is pre-narrowed. Sorting, extrema, maximum pooling, masks,
+indices, RNG state, and selected values remain exact rather than taking arithmetic tolerance.
+
+The low custom library is compiled with `MTLMathModeSafe`. A represented input is widened exactly;
+at a FLOAT32 arithmetic site a FLOAT32 subnormal operand may be consumed either exactly or as
+same-sign zero (DAZ), and a FLOAT32 subnormal site result may remain exact or become same-sign zero
+(FTZ). Integer final narrowing itself does not flush representable low subnormals. Arithmetic NaNs
+retain NaN class and domain behavior, but final low arithmetic publication canonicalizes payload
+and sign; exact selection/order/extrema paths retain the selected raw NaN. Primitive/FMA signed
+zero is retained through final narrowing and may take either sign when the exact arithmetic result
+is zero. Exact paths preserve zero bits; MIN chooses negative zero, MAX chooses positive zero,
+SIGN preserves a zero's sign, RELU maps negative zero to positive zero, and average pooling
+preserves negative zero only when every contributor is negative zero and none is padding.
+
+For admitted nodes, the version-28 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, complete encoded logical storage-layout
-geometry, independently safe physical materialization, and the canonical schema-18 execution
-extension. The schema-18 and identity-27 cutover has no compatibility reader or migration alias;
+geometry, independently safe physical materialization, and the canonical schema-19 execution
+extension. The schema-19 and identity-28 cutover has no compatibility reader or migration alias;
 every other schema or identity fails closed.
 
 ```text
@@ -159,7 +200,7 @@ package and independently verify the final signed bytes:
 The ignored `build/package-v1/macos-arm64/` directory contains exactly the signed dylib,
 `manifest.json`, and `SHA256SUMS`. The canonical schema-1 manifest records the final dylib's
 relative name, size, SHA-256, platform, architecture, macOS 26.0 minimum, install name, empty
-rpath set, ABI 5, node schema 18, required frameworks, and fixed ad-hoc identifier. It contains no
+rpath set, ABI 6, node schema 19, required frameworks, and fixed ad-hoc identifier. It contains no
 time, host, absolute path, source revision, product version, SDK version, Team ID, notarization,
 provenance, or release field. Packaging the same exact signed input produces byte-identical
 manifest and checksum files.
@@ -220,14 +261,15 @@ extraction, cleanup, classpath lookup, or runtime discovery. `SYNAPTIK_METAL_TES
 test-only. The archive does not add authentication or redistribution rights, and it deliberately
 does not copy the CPU-only `THIRD_PARTY_NOTICES.md`.
 
-## ABI version 5
+## ABI version 6
 
-The dylib exports exactly these thirteen symbols:
+The dylib exports exactly these fourteen symbols:
 
 ```text
 synaptik_metal_foundation_abi_version
 synaptik_metal_context_create
 synaptik_metal_context_release
+synaptik_metal_context_certification_environment
 synaptik_metal_buffer_create
 synaptik_metal_buffer_release
 synaptik_metal_buffer_upload
@@ -240,11 +282,26 @@ synaptik_metal_neg_kernel_pipeline_release
 synaptik_metal_neg_kernel_pipeline_run
 ```
 
-The version function returns unsigned value `5`. All other functions return a signed 32-bit
+The version function returns unsigned value `6`. All other functions return a signed 32-bit
 status. Context, buffer, MPSGraph-executable, and custom-pipeline values cross the boundary as
 separate opaque `void *` handle families. Buffer sizes and offsets are unsigned 64-bit values.
-Created handles use caller-supplied output cells, which remain null on failure. The graph creator's
-exact signature is:
+Created handles use caller-supplied output cells, which remain null on failure. The environment
+query writes one bounded UTF-8 identity and reports its required byte length:
+
+```c
+int32_t synaptik_metal_context_certification_environment(
+    void *context,
+    uint8_t *destination,
+    uint32_t capacity,
+    uint32_t *out_length);
+```
+
+The returned six-line record fixes the highest supported Apple GPU family, Darwin OS build, macOS
+SDK plus loaded MPSGraph framework, host/Xcode/Metal compiler versions, and explicit graph options,
+optimization level, synchronous compilation setting, and reduced-precision-fast-math mode. It has
+no device-selection or compatibility-match semantics.
+
+The graph creator's exact signature is:
 
 ```c
 int32_t synaptik_metal_mpsgraph_executable_create(
@@ -254,7 +311,7 @@ int32_t synaptik_metal_mpsgraph_executable_create(
     void **out_executable);
 ```
 
-`program` is one canonical little-endian schema-18 image of at most `INT32_MAX` bytes:
+`program` is one canonical little-endian schema-19 image of at most `INT32_MAX` bytes:
 
 ```text
 128-byte header
@@ -274,7 +331,7 @@ CUSTOM_PROGRAM only:
   32-byte SHA-256 manifest digest
 ```
 
-The 32 header words are magic `SM18` (`0x38314d53`), schema `18`, header bytes `128`, total
+The 32 header words are magic `SM19` (`0x39314d53`), schema `19`, header bytes `128`, total
 bytes, fixed route, exact numerical-profile wire, generator schema/extension flag, the eight core
 counts, the five execution-record counts, manifest/digest byte counts, generated-unit count,
 generated/fixed/total source byte counts, first rejected node, cap reason, and the per-function,
@@ -287,9 +344,9 @@ The exact numerical-profile wires remain `0x53545249=STRICT_IEEE` and
 
 A value descriptor is `{type, rank, dimension_offset, stride_offset, flags, layout_kind,
 storage_offset, referenced_span}`; the final two fields are unsigned 64-bit element counts. Stable
-type wires are `1=FLOAT32`, `2=INT32`, `3=BOOL`, `4=FLOAT64`, `5=BFLOAT16`, and `6=INT64`; rank
-is `0..16`. Flag bits are `requiresGrad`, layout-present, view, and dense-physical. A missing layout
-uses stride offset `UINT32_MAX`, kind/offset/span zero, and no layout flags. A present layout names
+type wires are `1=FLOAT32`, `2=INT32`, `3=BOOL`, `4=FLOAT64`, `5=BFLOAT16`, `6=INT64`, and
+`7=FLOAT16`; rank is `0..16`. Flag bits are `requiresGrad`, layout-present, view, and dense-physical.
+A missing layout uses stride offset `UINT32_MAX`, kind/offset/span zero, and no layout flags. A present layout names
 one rank-sized contiguous stride-pool range and kind `1=DENSE_CONTIGUOUS`,
 `2=DENSE_WITH_OFFSET`, `3=STRIDED`, or `4=BROADCAST_ZERO_STRIDE`. A node descriptor is
 `{operation, attribute_kind, input_offset, input_count, output_offset, output_count,
@@ -315,37 +372,30 @@ outside current execution capability returns status 13. Java independently authe
 encoded profile
 and rejects every other profile-incompatible program before native creation.
 
-Task 0066 broadens the selected existing wires without changing schema, ABI, or operation counts.
-All 36 ordered CAST pairs use integer-defined Model conversion, including direct ties-to-even
-BFLOAT16 rounding, signed zero, gradual underflow, infinity overflow, deterministic NaN handling,
-saturating floating-to-signed conversion, modular INT64-to-INT32 narrowing, and exact BOOL mapping.
-FLOAT64/FLOAT32/BFLOAT16 classification and all nine promoted floating WHERE signatures are
-bit-defined. GATHER, ONE_HOT, replacement scatter, and ND/index movement accept INT32 or INT64
-indices over their declared all-carrier domains.
-Rank-zero GATHER and ONE_HOT indices and rank-zero RESHAPE/PERMUTE shapes use those same checked
-paths; scalar means one represented element and never implies an empty tensor.
+Task 0066 broadens selected existing wires without changing schema, ABI, or operation counts.
+All 49 ordered CAST pairs use integer-defined Model conversion, including direct ties-to-even
+BFLOAT16/FLOAT16 rounding, signed zero, gradual underflow, infinity overflow, deterministic NaN
+handling, saturating floating-to-signed conversion, modular INT64-to-INT32 narrowing, and exact BOOL
+mapping. Four-carrier floating classification and the fourteen non-mixed-low promoted floating
+WHERE signatures are bit-defined. GATHER, ONE_HOT, replacement scatter, and ND/index movement
+accept INT32 or INT64 indices.
 
-All six carriers enter exact affine movement and canonicalization. Logical zero-stride descendants
-are admitted only from authenticated local EXPAND provenance, while every separately bound
-physical descriptor remains safe and dense where materialized. External zero-stride,
-negative-stride, overlapping, empty, dynamic, and unresolved layouts fail closed. Selected
-occurrences use one deterministic custom whole-program route; bounds and destination uniqueness
-are proved before mutation, and there is no retry, fallback, timing, autotuning, or host repair.
-UNFOLD_AXIS accepts every positive static window that fits the selected extent; the historical
-size-16 direct-selector expansion limit does not constrain its fixed custom kernel.
+All seven carriers enter exact affine movement and canonicalization. Logical zero-stride
+descendants are admitted only from authenticated local EXPAND provenance, while every separately
+bound physical descriptor stays safe and dense where materialized. External unsafe-stride,
+overlapping, empty, dynamic, and unresolved layouts fail closed. Selected occurrences use one
+deterministic custom whole-program route; bounds and destination uniqueness are proved before
+mutation, and there is no retry, fallback, timing, autotuning, or host repair. UNFOLD_AXIS accepts
+every positive static window that fits the selected extent.
 
-Task 0060 adds exact custom execution for replacement-only SCATTER_ND and signed SLICE_UPDATE
-(including crop placement) over all six carriers. Scatter accepts canonical INT32/INT64 indices
-and preflights every tuple's bounds plus global scalar-destination uniqueness before its initial
-copy or any replacement. Slice updates require positive update extents, signed non-zero steps, and
-an exact in-bounds mapping; zero-length SliceAttrs updates are rejected by the positive-dimension
-schema. FOLD_AXIS, FOLD2D, and FOLD3D accept only FLOAT64, FLOAT32, and BFLOAT16 when every stride
-is at least the effective dilated kernel. Integral and BOOL fold images fail closed. Their
-output-centric kernels give each output cell one writer, copy its sole in-bounds contributor, skip
-conceptual padding, and otherwise write the carrier's exact zero. INT32/INT64 PROD uses stable
-row-major fixed-width modular multiplication. BOOL ALL/ANY
-use exact zero/one identities and stable row-major logical reduction. Empty axes are raw point
-copies on positive-dimensional or rank-zero tensors and never imply zero-extent support.
+Task 0060 custom replacement and signed slice update preserve all seven carriers. Scatter accepts
+canonical INT32/INT64 indices and preflights every tuple's bounds plus global destination
+uniqueness before copying or replacement. FOLD_AXIS accepts every non-BOOL carrier; FOLD2D/FOLD3D
+accept FLOAT64/FLOAT32/BFLOAT16/FLOAT16 when every stride is at least the effective dilated kernel.
+Their output-centric kernels give each output cell one writer, copy its sole in-bounds contributor,
+skip conceptual padding, and otherwise write exact carrier zero. INT32/INT64 PROD uses stable
+row-major modular multiplication; BOOL ALL/ANY uses exact zero/one identities. Empty axes are point
+identities and never imply zero-extent support.
 
 Task 0064's six kernels are output-cell-owned and require no scratch, atomics, host calculation,
 repair, retry, or fallback. Convolution iterates groups and every kernel-position/channel term in
@@ -465,10 +515,10 @@ Affine-view targets are supplied full positive logical byte extents and receive 
 coordinate order. That dense physical choice is backend-private: logical view strides, offsets,
 and `isView` metadata remain unchanged, and it does not imply aliasing with the source.
 `CONTIGUOUS` targets use the ordinary canonical materialization path. Canonical host ingress,
-download, and CPU/Metal prepared transfer accept ranks `0..16` for all six public data types:
-`FLOAT32`, `FLOAT64`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`. Exact big-endian canonical byte
-widths are retained at the public boundary; native shared storage is byte-preserving. Every BOOL
-upload and downloaded/publicized BOOL byte is validated as exactly `0` or `1`.
+download, and CPU/Metal prepared transfer accept ranks `0..16` for all seven public data types:
+`FLOAT32`, `FLOAT64`, `BFLOAT16`, `FLOAT16`, `INT32`, `INT64`, and `BOOL`. Exact big-endian
+canonical byte widths are retained at the public boundary; native shared storage is byte-preserving.
+Every BOOL upload and downloaded/publicized BOOL byte is validated as exactly `0` or `1`.
 
 Java validates live typed handles and readable pointer arrays before native entry. The ABI cannot
 prove that an arbitrary non-null raw pointer is live, type-correct, or sufficiently sized;
@@ -496,7 +546,7 @@ capability narrowing, tuning, fallback, or a performance claim.
 
 ## Shared exact custom whole-program execution
 
-Any schema-18 program containing an exact custom node or a MATMUL outside the retained
+Any schema-19 program containing an exact custom node or a MATMUL outside the retained
 all-FLOAT32 rank-two MPSGraph slice uses one retained custom-program handle. Creation authenticates
 the frozen SHA-256 values of all ten reviewed fixed-kernel components and their ordered
 84,541-byte total. The sole production pointwise emitter first traverses a structured
@@ -611,7 +661,7 @@ nm -gUj "$LIB"
 
 The verifier requires exactly one arm64 Mach-O 64-bit `DYLIB`, minimum macOS 26.0, install name
 `@rpath/libsynaptik_metal_foundation.dylib`, no `LC_RPATH`, only Apple system dependencies, all
-three required framework links, and exactly the thirteen exports above. It also requires a strict
+three required framework links, and exactly the fourteen exports above. It also requires a strict
 valid ad-hoc signature with identifier `io.github.pho001.synaptik.metal.foundation` and no Team ID,
 plus the exact three-file schema-1 package, modes, canonical manifest, and checksums. It fails
 closed rather than signing, repairing, normalizing, or accepting an ambiguous package.
@@ -669,45 +719,40 @@ and full-reduction domains is the authorization proof; these executions corrobor
 grant capability by sampling. The packaged CPU-free Engine proof covers sole Metal ownership, all
 three publications including four-byte scalars, direct and nested-custom-program execution, reused
 and independent sessions, input preservation, strict/excluded-domain and all eight neighboring
-normalization/loss-family rejection, and generated-backward rejection.
+normalization/loss-family rejection.
 
 Convolution/pooling coverage checks grouped biased and unbiased Conv2d/Conv3d, exact Conv1d and
-Pool1d singleton-height compositions, dilation/stride/padding/ceil geometry, mixed BFLOAT16 input
-widening, padding multiplied by infinity, all maximum carriers under both profiles, raw NaN
-payloads, signed-zero/tie/infinity ordering, fixed average divisors, all-padding windows,
-subnormals, and opposing infinities. Java/native malformed-image parity rejects bad types, ranks,
-attributes, Shapes, gradient metadata, external affine layouts, one-past unsigned-32-bit facts,
-and profile mismatches before resource creation. CPU-free public Engine evidence covers retained
-reuse, isolated sessions, direct and composed forward publication, separately selected Conv2d
-input/weight/bias cotangents, and non-overlapping average Pool2d/Pool3d cotangents. It also proves
-early rejection of strict convolution/average pooling, joint or mixed convolution gradients,
-overlap accumulation, generated Conv3d/maximum-pool gradients, attention, and convolution
-transpose.
+Pool1d singleton-height compositions, dilation/stride/padding/ceil geometry, homogeneous low and
+widening execution, maximum raw NaN/signed-zero/tie/infinity ordering, fixed average divisors, and
+all-padding windows. Java/native malformed-image parity rejects bad types, ranks, attributes,
+Shapes, gradient metadata, external affine layouts, one-past unsigned-32-bit facts, and profile
+mismatches before resource creation. CPU-free public Engine evidence covers forward reuse,
+separate and joint Conv2d cotangents, non-overlapping average-pool cotangents, and
+FLOAT32/BFLOAT16/FLOAT16 non-overlapping maximum-pool cotangents. Strict convolution/average
+pooling, overlap accumulation, Conv3d backward, attention, and convolution transpose reject before
+native execution.
 
 ## Boundaries
 
 The bridge itself implements no library discovery, package selection or extraction, Engine
-composition, mixed-owner schedule, CPU fallback, asynchronous API, buffer pool, persistent constant
-buffer, executable serialization, FLOAT16, BFLOAT16-result MATMUL, FLOAT64 arithmetic, masked or
-unproved aggregate reductions, strict floating MATMUL or MSE, non-FLOAT32 or rank-zero MSE,
-arbitrary normalization/loss ownership, dynamic/zero-extent MATMUL, arbitrary affine MATMUL input,
-implicit-seed or MSE backward execution, alias promise, or performance claim. Accelerator floating
-MATMUL contracts every scalar product through a fixed loop body whose multiply-add occurs exactly
-once in increasing contraction order; corresponding FMA placement is permitted and only a complete
-nonempty exact-zero result receives the final zero-sign choice. Integer arithmetic is exact
-two's-complement modular arithmetic. Mixed BFLOAT16 inputs widen exactly and are never narrowed
-because the result is FLOAT32. Affine operands address their authenticated physical source
-directly; no hidden transpose materialization occurs. There is no tiling, atomics, autotuning,
-runtime route selection, retry, or fallback. Generated accelerator FLOAT32 gradients use the same
-admitted MATMUL domain but do not imply unrestricted Metal training.
-Task 0064 adds no strict convolution/average arithmetic, FLOAT64/BFLOAT16 convolution result,
-FLOAT64/BFLOAT16 average pooling, generated Conv3d or maximum-pool backward, overlap accumulation,
-attention, convolution transpose, asymmetric padding, alternate layouts, dynamic/empty geometry,
-general affine input, scratch, atomics, or host repair. The six admitted rows use only the fixed
-bounded custom kernels described above. Task 0065 adds no strict dropout, non-FLOAT32 dropout,
-portable or configurable generator, entropy, random-quality promise, host/eager distribution
-route, or recurrent execution. RNN, GRU, and LSTM remain unsupported in both directions and bias
-forms, including zero-length/no-work cases and every gradient.
+composition, asynchronous API, buffer pool, executable serialization, implicit seeding, alias
+promise, or performance claim. It executes only capability-admitted fixed routes. Homogeneous
+BFLOAT16/FLOAT16 kernels decode inputs exactly, retain FLOAT32 working values and accumulators, and
+narrow each observable low result once. Direct BFLOAT16/FLOAT16 mixed-low operations have no
+kernel; explicit FLOAT32 casts provide that boundary.
+
+Accelerator floating MATMUL contracts each scalar product through one increasing-order loop.
+Homogeneous low output narrows once; widening rows publish FLOAT32. Authenticated affine operands
+address their physical source directly. There is no tiling, atomics, autotuning, runtime route
+selection, retry, or fallback. Generated accelerator floating gradients use the same admitted
+domain without implying unrestricted training.
+
+Strict convolution/average arithmetic, Conv3d backward, overlap accumulation, attention,
+convolution transpose, asymmetric padding, unsafe layouts, dynamic/empty geometry, scratch,
+atomics, and host repair remain unavailable. Strict dropout, portable/configurable RNG, entropy or
+random-quality claims, host/eager distribution, and recurrent execution also remain unavailable.
+RNN, GRU, and LSTM reject both directions, bias forms, zero-length/no-work cases, and every
+gradient.
 
 The public Java Metal surface is `MetalCapabilityProvider`, `MetalBackendConfiguration`, and
 `MetalBackendIntegration`; Engine accepts an explicitly opened integration through

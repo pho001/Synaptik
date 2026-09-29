@@ -11,6 +11,8 @@ class CpuRandomIrTest {
         var write = plan(CpuAccessPlan.AccessKind.WRITE);
         var ir = new CpuRandomIr(CpuRandomIr.Family.DROPOUT, DataType.FLOAT64, 0, 0,
                 Double.doubleToRawLongBits(.5), List.of(read, read, write, write, write));
+        var bfloat16 = new CpuRandomIr(CpuRandomIr.Family.DROPOUT, DataType.BFLOAT16, 0, 0,
+                Double.doubleToRawLongBits(.5), List.of(read, read, write, write, write));
         assertAll(() -> assertTrue(ir.encodedKernelIr().familyIdentity()
                         .contains(CpuRandomIr.GENERATOR_ID)),
                 () -> assertTrue(ir.encodedKernelIr().familyIdentity()
@@ -33,8 +35,11 @@ class CpuRandomIrTest {
                 () -> assertEquals(List.of(DataType.FLOAT64, DataType.INT64, DataType.FLOAT64,
                         DataType.BOOL, DataType.INT64), ir.encodedKernelIr().values().stream()
                         .map(CpuKernelIr.Value::dataType).toList()),
+                () -> assertEquals(List.of(DataType.BFLOAT16, DataType.INT64, DataType.BFLOAT16,
+                        DataType.BOOL, DataType.INT64), bfloat16.encodedKernelIr().values().stream()
+                        .map(CpuKernelIr.Value::dataType).toList()),
                 () -> assertThrows(IllegalArgumentException.class, () -> new CpuRandomIr(
-                        CpuRandomIr.Family.DROPOUT, DataType.BFLOAT16, 0, 0, 0,
+                        CpuRandomIr.Family.DROPOUT, DataType.INT32, 0, 0, 0,
                         List.of(read, read, write, write, write))));
     }
 

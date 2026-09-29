@@ -34,7 +34,7 @@ public class CpuOrderingLoweringTest {
     }
 
     @Test void supportsSixTypesAndRejectsWrongOutputContracts() {
-        for (DataType type : DataType.values()) assertDoesNotThrow(() -> lower(context(
+        for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) assertDoesNotThrow(() -> lower(context(
                 new Operation(OrderingKind.SORT, new SortAttrs(0, false)), type,
                 Shape.of(3), Shape.of(3), false)));
         assertThrows(IllegalArgumentException.class, () -> lower(context(

@@ -119,7 +119,7 @@ cleanup boundary for a session the caller leaves open.
 Inference sessions are synchronous and fixed to one compiled graph and one prepared execution.
 They do not provide asynchronous submission, dynamic input identities or descriptors, implicit
 materialization, persistence, generic device-result handles, or tuning controls. Explicit
-CPU/Metal composition supports current single-owner execution and the bounded all-six-carrier
+CPU/Metal composition supports current single-owner execution and the bounded all-seven-carrier
 rank-0..16 static canonical or positive-stride non-overlapping transfer domain; unsupported
 capability or transfer combinations fail during compile or session construction rather than
 falling back during a run.

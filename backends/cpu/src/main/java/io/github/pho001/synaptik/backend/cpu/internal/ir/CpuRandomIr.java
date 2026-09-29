@@ -14,7 +14,7 @@ import java.util.Objects;
  * dropout remain cold invocation facts.</p>
  *
  * @param family non-null initializer or dropout family
- * @param valueType FLOAT64/FLOAT32 dropout value type, or INT64 for initialization
+ * @param valueType FLOAT64/FLOAT32/BFLOAT16 dropout value type, or INT64 for initialization
  * @param keyBits raw initializer key bits; ignored for dropout
  * @param counterBits raw initializer counter bits; ignored for dropout
  * @param probabilityBits raw validated binary64 probability bits; zero for initialization
@@ -54,7 +54,7 @@ public record CpuRandomIr(Family family, DataType valueType, long keyBits, long 
      * Validates and snapshots one exact random-family structural form.
      *
      * @param family non-null initializer or dropout family
-     * @param valueType FLOAT64/FLOAT32 dropout value type, or INT64 for initialization
+     * @param valueType FLOAT64/FLOAT32/BFLOAT16 dropout value type, or INT64 for initialization
      * @param keyBits raw initializer key bits; ignored for dropout
      * @param counterBits raw initializer counter bits; ignored for dropout
      * @param probabilityBits raw validated binary64 probability bits; zero for initialization
@@ -73,7 +73,8 @@ public record CpuRandomIr(Family family, DataType valueType, long keyBits, long 
                     || boundaryAccess.getFirst().accessKind() != CpuAccessPlan.AccessKind.WRITE) {
                 throw new IllegalArgumentException("initial-state structural facts disagree");
             }
-        } else if ((valueType != DataType.FLOAT64 && valueType != DataType.FLOAT32)
+        } else if ((valueType != DataType.FLOAT64 && valueType != DataType.FLOAT32
+                && valueType != DataType.BFLOAT16 && valueType != DataType.FLOAT16)
                 || boundaryAccess.size() != 5
                 || boundaryAccess.get(0).accessKind() != CpuAccessPlan.AccessKind.READ
                 || boundaryAccess.get(1).accessKind() != CpuAccessPlan.AccessKind.READ

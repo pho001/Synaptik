@@ -11,8 +11,8 @@ import java.util.Objects;
  *
  * <p>The channel axis is already normalized to a non-negative logical position. Epsilon is a
  * finite, strictly positive BFLOAT16, FLOAT32, or FLOAT64 value added to the explicit running
- * variance inside the square root. Both values are immutable semantic metadata; this record owns
- * no Tensor, raw axis, statistic, training state, compiler, backend, runtime, or result.</p>
+ * variance inside the square root; FLOAT32 is the scalar metadata format for a FLOAT16 result.
+ * Both values are immutable semantic metadata; this record owns no Tensor, raw axis, statistic, training state, compiler, backend, runtime, or result.</p>
  *
  * @param channelAxis normalized non-negative logical channel axis
  * @param epsilon non-null exact finite positive floating value retained unchanged

@@ -32,10 +32,11 @@ final class TensorSoftmaxExpressions {
     /**
      * Validates local input metadata and creates one fresh normalization expression.
      *
-     * <p>Validation null-checks {@code input} and then {@code kind}, requires FLOAT64, FLOAT32, or
-     * BFLOAT16 input, reads the exact input Shape, normalizes {@code axis} exactly once, and creates
-     * one {@link SoftmaxAttrs} before common construction. Type rejection precedes axis validation,
-     * and every failure before factory delegation consumes no Tensor identity.</p>
+     * <p>Validation null-checks {@code input} and then {@code kind}, requires FLOAT64, FLOAT32,
+     * BFLOAT16, or FLOAT16 input, reads the exact input Shape, normalizes {@code axis} exactly
+     * once, and creates one {@link SoftmaxAttrs} before common construction. Type rejection
+     * precedes axis validation, and every failure before factory delegation consumes no Tensor
+     * identity.</p>
      *
      * @param input non-null floating Tensor retained as the sole provenance input
      * @param kind non-null exact {@link SoftmaxKind#SOFTMAX} or
@@ -63,7 +64,7 @@ final class TensorSoftmaxExpressions {
     }
 
     /**
-     * Requires one of the three current floating input data types without conversion or promotion.
+     * Requires one of the four current floating input data types without conversion or promotion.
      *
      * @param input non-null Tensor whose immutable descriptor supplies the data type
      * @throws IllegalArgumentException if the input type is not floating, with message

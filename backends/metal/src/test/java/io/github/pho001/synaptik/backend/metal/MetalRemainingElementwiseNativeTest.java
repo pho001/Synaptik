@@ -424,7 +424,7 @@ class MetalRemainingElementwiseNativeTest {
                             1, 1, 1, 1, 1, 1, 1
                         })));
         for (DataType carrier :
-                List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+                List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
             List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
                     typed(carrier, 1, 2, 2),
                     typed(carrier, 1, 5),
@@ -716,12 +716,13 @@ class MetalRemainingElementwiseNativeTest {
     }
 
     @Test
-    void task0066CastsAllThirtySixCarrierPairsAgainstIndependentExactValueOracle() {
+    void task0066CastsAllFortyNineCarrierPairsAgainstIndependentExactValueOracle() {
         Path library = configuredLibrary();
         DataType[] carriers = {
             DataType.FLOAT64,
             DataType.FLOAT32,
             DataType.BFLOAT16,
+            DataType.FLOAT16,
             DataType.INT64,
             DataType.INT32,
             DataType.BOOL
@@ -738,6 +739,7 @@ class MetalRemainingElementwiseNativeTest {
                 Float.floatToRawIntBits(1.0f),
                 Float.floatToRawIntBits(2.0f)),
                 bytes16(0x0000, 0xbf80, 0x3f80, 0x4000),
+                bytes16(0x0000, 0xbc00, 0x3c00, 0x4000),
                 bytes64(0L, -1L, 1L, 2L),
                 bytes32(0, -1, 1, 2),
                 new byte[] {0, 1, 1, 0});
@@ -762,10 +764,10 @@ class MetalRemainingElementwiseNativeTest {
                 NumericalProfile.STRICT_IEEE,
                 new MetalMpsGraphProgram(nodes),
                 values,
-                new int[] {0, 1, 2, 3, 4, 5},
+                new int[] {0, 1, 2, 3, 4, 5, 6},
                 targets.stream().mapToInt(Integer::intValue).toArray(),
                 feeds);
-        assertEquals(36, actual.size());
+        assertEquals(49, actual.size());
         for (int index = 0; index < expected.size(); index++) {
             assertArrayEquals(expected.get(index), actual.get(index), "cast pair " + index);
         }
@@ -1990,14 +1992,7 @@ class MetalRemainingElementwiseNativeTest {
                 new int[] {input},
                 new int[] {output},
                 MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
-                new long[] {switch (target) {
-                    case FLOAT32 -> 1L;
-                    case INT32 -> 2L;
-                    case BOOL -> 3L;
-                    case FLOAT64 -> 4L;
-                    case BFLOAT16 -> 5L;
-                    case INT64 -> 6L;
-                }});
+                new long[] {MetalMpsGraphProgram.dataTypeWire(target)});
     }
 
     private static MetalMpsGraphProgram.ValueDescriptor value(long... dimensions) {
@@ -2040,6 +2035,7 @@ class MetalRemainingElementwiseNativeTest {
             case INT32 -> bytes32(
                     Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0, 1, 0x1234_5678);
             case BOOL -> new byte[] {0, 1, 0, 1, 1, 0};
+            case FLOAT16 -> bytes16(0x8000, 0x7e01, 0x0001, 0x3c00, 0xfe22, 0x8001);
         };
     }
 
@@ -2051,6 +2047,7 @@ class MetalRemainingElementwiseNativeTest {
             case INT64 -> 0x7654_3210_fedc_ba98L;
             case INT32 -> Integer.toUnsignedLong(0x8765_4321);
             case BOOL -> 1L;
+            case FLOAT16 -> 0xfe22L;
         };
     }
 
@@ -2083,7 +2080,7 @@ class MetalRemainingElementwiseNativeTest {
                 case FLOAT64, INT64 ->
                     words.putLong(0x0102_0304_0000_0000L | Integer.toUnsignedLong(value));
                 case FLOAT32, INT32 -> words.putInt(0x0100_0000 | value);
-                case BFLOAT16 -> words.putShort((short) (0x0100 | value));
+                case BFLOAT16, FLOAT16 -> words.putShort((short) (0x0100 | value));
                 case BOOL -> words.put((byte) (value & 1));
             }
         }
@@ -2190,6 +2187,10 @@ class MetalRemainingElementwiseNativeTest {
       case INT64 -> boolSource ? bytes64(0L, 1L, 1L, 0L) : bytes64(0L, -1L, 1L, 2L);
       case INT32 -> boolSource ? bytes32(0, 1, 1, 0) : bytes32(0, -1, 1, 2);
       case BOOL -> boolSource ? new byte[] {0, 1, 1, 0} : new byte[] {0, 1, 1, 1};
+      case FLOAT16 ->
+          boolSource
+              ? bytes16(0x0000, 0x3c00, 0x3c00, 0x0000)
+              : bytes16(0x0000, 0xbc00, 0x3c00, 0x4000);
     };
   }
 

@@ -408,7 +408,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void task0062CpuFreeAcceleratorRunsAllMseReductionsAndRejectsBackwardOwnership() {
+    void task0062CpuFreeAcceleratorRunsMseForwardAndGeneratedBackward() {
         Path library = configuredMetalLibrary();
         List<ObservedTrace> events = new CopyOnWriteArrayList<>();
         int[] predictionBits = {
@@ -536,20 +536,21 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
                     Tensor seed = nativeTensor(
                             descriptor(Shape.scalar()), arena, 1.0f);
-                    assertThrows(
-                            IllegalStateException.class,
-                            () -> engine.compile(
-                                    List.of(mean),
-                                    List.of(seed),
-                                    List.of(prediction, target)),
-                            "MSE forward ownership does not claim generated backward nodes");
+                    var backwardCompiled = engine.compile(
+                            List.of(mean),
+                            List.of(seed),
+                            List.of(prediction, target));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(backwardCompiled));
+                    try (InferenceSession backward = engine.session(backwardCompiled);
+                            var result = backward.run(List.of(prediction, target, seed))) {
+                        assertEquals(3, result.resultCount());
+                        assertPublication(result, 0, 5.5f);
+                        assertPublication(result, 1, 0.5f, 0.5f, 1.0f, 2.0f);
+                        assertPublication(result, 2, -0.5f, -0.5f, -1.0f, -2.0f);
+                    }
 
-                    Tensor bfloatPrediction = nativeBfloatTensor(
-                            Shape.of(2), arena, 1.0f, 2.0f);
-                    Tensor bfloatTarget = nativeBfloatTensor(
-                            Shape.of(2), arena, 0.0f, 1.0f);
-                    Tensor floatTarget = nativeTensor(
-                            descriptor(Shape.of(2)), arena, 0.0f, 1.0f);
                     Tensor doublePrediction = nativeDoubleTensor(
                             Shape.of(2), arena, 1.0, 2.0);
                     Tensor doubleTarget = nativeDoubleTensor(
@@ -571,10 +572,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             ScalarValue.float32(0.5f),
                             epsilon);
                     List<List<Tensor>> blockedGraphs = List.of(
-                            List.of(bfloatPrediction.meanSquaredError(
-                                    bfloatTarget, LossReduction.NONE)),
-                            List.of(bfloatPrediction.meanSquaredError(
-                                    floatTarget, LossReduction.NONE)),
                             List.of(doublePrediction.meanSquaredError(
                                     doubleTarget, LossReduction.NONE)),
                             List.of(scalarPrediction.meanSquaredError(
@@ -1111,7 +1108,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void acceleratorMetalEngineRunsNoGradScalarArithmeticAndReciprocal() {
+    void acceleratorMetalEngineRunsScalarArithmeticReciprocalAndGeneratedGradients() {
         Path library = configuredMetalLibrary();
         int[] inputBits = {
             0x3f80_0000, 0xc020_0000, 0x0000_0000,
@@ -1164,15 +1161,26 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertArrayEquals(inputBits, inputBytes.toArray(ValueLayout.JAVA_INT));
                 }
 
-                Tensor gradInput = nativeTensorBits(
-                        descriptor(Shape.of(3, 3), true), arena, inputBits);
-                IllegalStateException failure = assertThrows(
-                        IllegalStateException.class,
-                        () -> engine.compile(List.of(
-                                gradInput.add(ScalarValue.float32(2.0f)),
-                                gradInput.reciprocal())));
-                assertTrue(failure.getMessage().contains(
-                        "no hard-eligible backend is available for ownership selection"));
+                Tensor gradInput = nativeTensor(
+                        descriptor(Shape.of(3, 3), true),
+                        arena,
+                        1, 1, 1, 1, 1, 1, 1, 1, 1);
+                Tensor seed = nativeTensor(descriptor(Shape.scalar()), arena, 1);
+                Tensor added = gradInput.add(ScalarValue.float32(2.0f)).sum();
+                Tensor reciprocal = gradInput.reciprocal().sum();
+                var gradientCompiled = engine.compile(
+                        List.of(added, reciprocal),
+                        List.of(seed, seed),
+                        List.of(gradInput));
+                assertEquals(
+                        List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(gradientCompiled));
+                try (InferenceSession session = engine.session(gradientCompiled);
+                        var result = session.run(List.of(gradInput, seed))) {
+                    assertPublication(result, 0, 27);
+                    assertPublication(result, 1, 9);
+                    assertPublication(result, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                }
             }
         }
     }
@@ -2567,19 +2575,17 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         }
     }
     @Test
-    void publicMetalOnlyRejectsEveryExcludedMatmulTypeProfileGradientAndLayoutForm() {
+    void publicMetalClosesHomogeneousLowMatmulAndRejectsRemainingExcludedForms() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared()) {
             Tensor floatLeft = nativeTensor(
                     descriptor(Shape.of(2, 2)), arena, 1, 2, 3, 4);
             Tensor floatRight = nativeTensor(
                     descriptor(Shape.of(2, 1)), arena, 5, 6);
-            Tensor bfloatLeft = nativeBfloatTensor(
-                    Shape.of(2, 2), arena, 1, 2, 3, 4);
-            Tensor bfloatRight = nativeBfloatTensor(
-                    Shape.of(2, 1), arena, 5, 6);
-            Tensor mixedGradientLeft = nativeBfloatTensor(
+            Tensor bfloatGradientLeft = nativeBfloatTensor(
                     Shape.of(2, 2), true, arena, 1, 2, 3, 4);
+            Tensor bfloatGradientRight = nativeBfloatTensor(
+                    Shape.of(2, 1), true, arena, 5, 6);
             Tensor doubleLeft = nativeDoubleTensor(
                     Shape.of(2, 2), arena, 1, 2, 3, 4);
             Tensor doubleRight = nativeDoubleTensor(
@@ -2626,28 +2632,33 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
-                    assertThrows(
-                            IllegalStateException.class,
-                            () -> engine.compile(List.of(bfloatLeft.matmul(bfloatRight))));
+                    Tensor bfloatOutput =
+                            bfloatGradientLeft.matmul(bfloatGradientRight);
+                    var bfloatGradient = engine.compile(
+                            List.of(bfloatOutput),
+                            List.of(bfloatGradientSeed),
+                            List.of(bfloatGradientLeft, bfloatGradientRight));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(bfloatGradient));
+                    try (InferenceSession session = engine.session(bfloatGradient);
+                            var result = session.run(List.of(
+                                    bfloatGradientLeft,
+                                    bfloatGradientRight,
+                                    bfloatGradientSeed))) {
+                        assertBfloatPublication(result, 0, 17, 39);
+                        assertBfloatPublication(result, 1, 5, 6, 5, 6);
+                        assertBfloatPublication(result, 2, 4, 6);
+                    }
                     assertThrows(
                             IllegalStateException.class,
                             () -> engine.compile(List.of(doubleLeft.matmul(doubleRight))));
                     assertThrows(
                             IllegalStateException.class,
                             () -> engine.compile(
-                                    List.of(mixedGradientLeft.matmul(bfloatRight)),
-                                    List.of(bfloatGradientSeed),
-                                    List.of(mixedGradientLeft)));
-                    assertThrows(
-                            IllegalStateException.class,
-                            () -> engine.compile(
                                     List.of(doubleGradientLeft.matmul(doubleRight)),
                                     List.of(doubleGradientSeed),
                                     List.of(doubleGradientLeft)));
-                    assertThrows(
-                            IllegalStateException.class,
-                            () -> engine.compile(List.of(
-                                    mixedGradientLeft.matmul(floatRight))));
                     assertThrows(
                             IllegalStateException.class,
                             () -> engine.compile(List.of(zeroLeft.matmul(zeroRight))));
@@ -3330,6 +3341,18 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         }
     }
 
+
+    private static void assertBfloatPublication(
+            io.github.pho001.synaptik.engine.RunResult result,
+            int publicationIndex,
+            float... expected) {
+        ByteBuffer bytes = result.materialize(
+                result.publications().get(publicationIndex),
+                Math.multiplyExact((long) expected.length, Short.BYTES)).bytes();
+        for (float value : expected) {
+            assertEquals((short) (Float.floatToRawIntBits(value) >>> 16), bytes.getShort());
+        }
+    }
     private static void assertPublication(
             io.github.pho001.synaptik.engine.RunResult result,
             int publicationIndex,

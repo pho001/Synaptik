@@ -81,7 +81,7 @@ public final class Embedding extends UnaryTensorModule {
      *
      * @param vocabularySize positive number of ordinary trainable table rows
      * @param embeddingSize positive width of each table row
-     * @param dataType non-null floating table type; exactly FLOAT64, FLOAT32, or BFLOAT16
+     * @param dataType non-null floating table type; exactly FLOAT64, FLOAT32, BFLOAT16, or FLOAT16
      * @param weightInitialization non-null existing policy applied once to the complete table
      * @param seed seed for the exact standard random source used by a random policy; accepted but
      *     otherwise ignored by zero and one

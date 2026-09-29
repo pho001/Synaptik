@@ -56,7 +56,7 @@ import org.junit.jupiter.api.Test;
  */
 class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     private static final String BASE = "/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/";
-    private static final String INVENTORY_SHA256 = "6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2";
+    private static final String INVENTORY_SHA256 = "9c06f9898dc287c6d2c3805088460c699052d14dbe707de146845659ce5450eb";
     private static final Set<String> AFFINE = Set.of("CONTIGUOUS", "EXPAND", "EXPAND_DIMS", "PERMUTE", "RESHAPE", "SELECT", "SLICE", "SQUEEZE");
     private static final Set<String> MOVEMENT = Set.of("PAD", "TILE", "CONCAT", "STACK", "SLICE_UPDATE", "UNFOLD_AXIS", "UNFOLD2D");
     private static final Set<String> INDEXING = Set.of("GATHER", "GATHER_ELEMENTS", "GATHER_ND", "ONE_HOT");
@@ -383,7 +383,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
             String layout = switch (type) {
                 case FLOAT64 -> "OfDouble:D";
                 case FLOAT32 -> "OfFloat:F";
-                case BFLOAT16 -> "OfShort:S";
+                case BFLOAT16, FLOAT16 -> "OfShort:S";
                 case INT64 -> "OfLong:J";
                 case INT32 -> "OfInt:I";
                 case BOOL -> "OfByte:B";
@@ -393,7 +393,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         return switch (type) {
             case FLOAT64 -> store ? "DASTORE" : "DALOAD";
             case FLOAT32 -> store ? "FASTORE" : "FALOAD";
-            case BFLOAT16 -> store ? "SASTORE" : "SALOAD";
+            case BFLOAT16, FLOAT16 -> store ? "SASTORE" : "SALOAD";
             case INT64 -> store ? "LASTORE" : "LALOAD_DATA";
             case INT32 -> store ? "IASTORE" : "IALOAD";
             case BOOL -> store ? "BASTORE" : "BALOAD";
@@ -481,12 +481,9 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     private static Object patterned(DataType type, int n) { return switch (type) {
         case FLOAT64 -> { double[] x = new double[n]; for (int i=0;i<n;i++) x[i]=Double.longBitsToDouble(0x7ff8000000000000L+i); yield x; }
         case FLOAT32 -> { float[] x = new float[n]; for (int i=0;i<n;i++) x[i]=Float.intBitsToFloat(0x7fc00000+i); yield x; }
-        case BFLOAT16 -> { short[] x = new short[n]; for (int i=0;i<n;i++) x[i]=(short)(0x8000+i); yield x; }
+        case BFLOAT16, FLOAT16 -> { short[] x = new short[n]; for (int i=0;i<n;i++) x[i]=(short)(0x8000+i); yield x; }
         case INT64 -> { long[] x = new long[n]; for (int i=0;i<n;i++) x[i]=0x1020304050607080L+i; yield x; }
         case INT32 -> { int[] x = new int[n]; for (int i=0;i<n;i++) x[i]=0x10203040+i; yield x; }
-        // BOOL semantic inputs are canonical.  Their alternating values, paired with the
-        // inverse canonical output sentinel below, make a copied BOOL visibly distinct at
-        // every same-address affine cell without relying on invalid nonzero byte encodings.
         case BOOL -> { byte[] x = new byte[n]; for (int i=0;i<n;i++) x[i]=(byte)(i & 1); yield x; }
     }; }
     private static Object sentinels(DataType type, int n) {
@@ -498,7 +495,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         byte[] x = new byte[n]; for (int i = 0; i < n; i++) x[i] = (byte) ((i + 1) & 1); return x;
     }
     private static MemorySegment segment(Object array) { if (array instanceof double[] x) return MemorySegment.ofArray(x); if (array instanceof float[] x) return MemorySegment.ofArray(x); if (array instanceof short[] x) return MemorySegment.ofArray(x); if (array instanceof long[] x) return MemorySegment.ofArray(x); if (array instanceof int[] x) return MemorySegment.ofArray(x); return MemorySegment.ofArray((byte[]) array); }
-    private static long raw(Object value, DataType type, int i) { return switch (type) { case FLOAT64 -> Double.doubleToRawLongBits(((double[]) value)[i]); case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(((float[]) value)[i])); case BFLOAT16 -> Short.toUnsignedLong(((short[]) value)[i]); case INT64 -> ((long[]) value)[i]; case INT32 -> Integer.toUnsignedLong(((int[]) value)[i]); case BOOL -> Byte.toUnsignedLong(((byte[]) value)[i]); }; }
+    private static long raw(Object value, DataType type, int i) { return switch (type) { case FLOAT64 -> Double.doubleToRawLongBits(((double[]) value)[i]); case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(((float[]) value)[i])); case BFLOAT16, FLOAT16 -> Short.toUnsignedLong(((short[]) value)[i]); case INT64 -> ((long[]) value)[i]; case INT32 -> Integer.toUnsignedLong(((int[]) value)[i]); case BOOL -> Byte.toUnsignedLong(((byte[]) value)[i]); }; }
     private static void assertUntouchedAffineResult(PreparedAffine row, long[] range, Object before,
             Object after, String implementation) {
         for (int cell = 0; cell < 32; cell++) {
@@ -516,7 +513,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         int length = switch (type) {
             case FLOAT64 -> ((double[]) expected).length;
             case FLOAT32 -> ((float[]) expected).length;
-            case BFLOAT16 -> ((short[]) expected).length;
+            case BFLOAT16, FLOAT16 -> ((short[]) expected).length;
             case INT64 -> ((long[]) expected).length;
             case INT32 -> ((int[]) expected).length;
             case BOOL -> ((byte[]) expected).length;
@@ -539,8 +536,8 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         var candidates = CpuOrdinaryNonPointwiseGeneratedMatrixTest.movementOrFoldCandidates().stream()
                 .filter(candidate -> candidate.operationForm().equals("PAD") || candidate.operationForm().equals("TILE"))
                 .toList();
-        assertEquals(28, candidates.size(), "exact PAD/TILE movement sub-slice");
-        assertEquals(Map.of("PAD", 4L, "TILE", 24L), movementCounts(candidates));
+        assertEquals(32, candidates.size(), "exact PAD/TILE movement sub-slice");
+        assertEquals(Map.of("PAD", 4L, "TILE", 28L), movementCounts(candidates));
         var rows = new ArrayList<CpuAffineMovementIndexingScatterRandomCleanJavaOracle.Row>();
         var prepared = new ArrayList<PreparedMovement>();
         for (var candidate : candidates) {
@@ -584,7 +581,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
                 executions++;
             }
         }
-        assertEquals(112, executions, "28 rows × full, empty, interior and tail ranges");
+        assertEquals(128, executions, "32 rows × full, empty, interior and tail ranges");
     }
 
     /**
@@ -602,7 +599,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         var candidates = CpuOrdinaryNonPointwiseGeneratedMatrixTest.movementOrFoldCandidates().stream()
                 .filter(candidate -> candidate.operationForm().equals("PAD") || candidate.operationForm().equals("TILE"))
                 .toList();
-        assertEquals(28, candidates.size(), "exact PAD/TILE structural sub-slice");
+        assertEquals(32, candidates.size(), "exact PAD/TILE structural sub-slice");
         var rows = new ArrayList<CpuAffineMovementIndexingScatterRandomCleanJavaOracle.Row>();
         var prepared = new ArrayList<PreparedMovement>();
         for (var candidate : candidates) {
@@ -645,7 +642,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
             if (row.candidate.operationForm().equals("PAD")) pads++; else tiles++;
         }
         assertEquals(4, pads, "all PAD rows retain topology facts");
-        assertEquals(24, tiles, "all TILE rows retain topology facts");
+        assertEquals(28, tiles, "all TILE rows retain topology facts");
     }
 
     /** Ensures PAD/TILE comparisons reject mutations of each retained topology fact. */
@@ -954,7 +951,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     private static Map<String, Long> movementCounts(List<CpuOrdinaryNonPointwiseGeneratedMatrixTest.MovementOrFoldCandidate> candidates) {
         var result = new TreeMap<String, Long>(); candidates.forEach(c -> result.merge(c.operationForm(), 1L, Long::sum)); return result;
     }
-    private static long padBits(io.github.pho001.synaptik.model.operation.layout.PadAttrs attrs) { var v=attrs.constantValue(); return switch(v.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits(v.float64Value()); case FLOAT32 -> Float.floatToRawIntBits(v.float32Value()) & 0xffffffffL; case BFLOAT16 -> v.bfloat16Bits() & 0xffffL; case INT64 -> v.int64Value(); case INT32 -> v.int32Value() & 0xffffffffL; case BOOL -> v.booleanValue()?1L:0L; }; }
+    private static long padBits(io.github.pho001.synaptik.model.operation.layout.PadAttrs attrs) { var v=attrs.constantValue(); return switch(v.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits(v.float64Value()); case FLOAT32 -> Float.floatToRawIntBits(v.float32Value()) & 0xffffffffL; case BFLOAT16 -> v.bfloat16Bits() & 0xffffL; case FLOAT16 -> v.float16Bits() & 0xffffL; case INT64 -> v.int64Value(); case INT32 -> v.int32Value() & 0xffffffffL; case BOOL -> v.booleanValue()?1L:0L; }; }
     private static List<MovementCarrier> movementCarriers(PreparedMovement row) {
         var result = new ArrayList<MovementCarrier>();
         for (int i = 0; i < row.plan.boundaryValues().size(); i++) {
@@ -984,8 +981,8 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         var candidates = CpuOrdinaryNonPointwiseGeneratedMatrixTest.movementOrFoldCandidates().stream()
                 .filter(candidate -> Set.of("SLICE_UPDATE", "UNFOLD_AXIS", "UNFOLD2D")
                         .contains(candidate.operationForm())).toList();
-        assertEquals(52, candidates.size(), "exact remaining non-fold movement slice");
-        assertEquals(Map.of("SLICE_UPDATE", 24L, "UNFOLD_AXIS", 24L, "UNFOLD2D", 4L), movementCounts(candidates));
+        assertEquals(60, candidates.size(), "exact remaining non-fold movement slice");
+        assertEquals(Map.of("SLICE_UPDATE", 28L, "UNFOLD_AXIS", 28L, "UNFOLD2D", 4L), movementCounts(candidates));
         var rows = new ArrayList<CpuAffineMovementIndexingScatterRandomCleanJavaOracle.Row>();
         var prepared = new ArrayList<PreparedMovement>();
         for (var candidate : candidates) {
@@ -1035,7 +1032,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
                 executions++;
             }
         }
-        assertEquals(208, executions, "52 rows × full, empty, interior and tail ranges");
+        assertEquals(240, executions, "60 rows × full, empty, interior and tail ranges");
     }
 
     /** Checks family-specific Class-File projections without claiming instruction or CFG identity. */
@@ -1074,7 +1071,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
             assertFamilyMovementProjection(owner, form, rank, row.specialization, generated, counterpart);
             compared++;
         }
-        assertEquals(52, compared, "all SLICE_UPDATE/UNFOLD_AXIS/UNFOLD2D rows have paired family projections");
+        assertEquals(60, compared, "all SLICE_UPDATE/UNFOLD_AXIS/UNFOLD2D rows have paired family projections");
     }
 
     private static void assertFamilyMovementProjection(String owner, String form, int rank,
@@ -1190,14 +1187,14 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     @Test void concatAndStackAccessInventoryAndActualEmitterPathCrossTabsRemainExact() throws Exception {
         var rows = ownedRows().stream().filter(row -> row.form.equals("CONCAT") || row.form.equals("STACK"))
                 .toList();
-        assertEquals(48, rows.size(), "exact composition owner universe");
+        assertEquals(56, rows.size(), "exact composition owner universe");
         Map<String, Map<String, Long>> inventory = new TreeMap<>();
         for (Row row : rows) {
             String regime = row.access.contains("DENSE_LINEAR") ? "DENSE_LINEAR" : "GENERAL_ODOMETER";
             inventory.computeIfAbsent(row.form, unused -> new TreeMap<>()).merge(regime, 1L, Long::sum);
         }
-        assertEquals(Map.of("CONCAT", Map.of("DENSE_LINEAR", 12L, "GENERAL_ODOMETER", 12L),
-                "STACK", Map.of("DENSE_LINEAR", 12L, "GENERAL_ODOMETER", 12L)), inventory,
+        assertEquals(Map.of("CONCAT", Map.of("DENSE_LINEAR", 14L, "GENERAL_ODOMETER", 14L),
+                "STACK", Map.of("DENSE_LINEAR", 14L, "GENERAL_ODOMETER", 14L)), inventory,
                 "checked inventory access cross-tab with every owner accounted once");
 
         Map<String, Map<String, Long>> actual = new TreeMap<>();
@@ -1211,19 +1208,19 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
             actual.computeIfAbsent(candidate.operationForm(), unused -> new TreeMap<>()).merge(addressing, 1L, Long::sum);
             if (candidate.ownerId().contains("segment-contiguous") && addressing.equals("GENERAL_LONG")) denseSegmentGeneral++;
         }
-        assertEquals(Map.of("CONCAT", Map.of("DENSE_HEAP_ARRAY_INT", 6L, "GENERAL_LONG", 18L),
-                "STACK", Map.of("DENSE_HEAP_ARRAY_INT", 6L, "GENERAL_LONG", 18L)), actual,
+        assertEquals(Map.of("CONCAT", Map.of("DENSE_HEAP_ARRAY_INT", 7L, "GENERAL_LONG", 21L),
+                "STACK", Map.of("DENSE_HEAP_ARRAY_INT", 7L, "GENERAL_LONG", 21L)), actual,
                 "actual selected emitter loop-addressing cross-tab with every owner accounted once");
-        assertEquals(12, denseSegmentGeneral,
-                "six dense segment-contiguous rows per composition form deliberately use GENERAL_LONG");
+        assertEquals(14, denseSegmentGeneral,
+                "seven dense segment-contiguous rows per composition form deliberately use GENERAL_LONG");
     }
 
     /** Executes every CONCAT and STACK row with a source-derived occurrence map and packed geometry. */
     @Test void everyConcatAndStackRowExecutesPairedTypedCleanJavaSelectionLoops() throws Throwable {
         var candidates = CpuOrdinaryNonPointwiseGeneratedMatrixTest.movementOrFoldCandidates().stream()
                 .filter(c -> c.operationForm().equals("CONCAT") || c.operationForm().equals("STACK")).toList();
-        assertEquals(48, candidates.size(), "exact CONCAT/STACK movement sub-slice");
-        assertEquals(Map.of("CONCAT", 24L, "STACK", 24L), movementCounts(candidates));
+        assertEquals(56, candidates.size(), "exact CONCAT/STACK movement sub-slice");
+        assertEquals(Map.of("CONCAT", 28L, "STACK", 28L), movementCounts(candidates));
         var rows = new ArrayList<CpuAffineMovementIndexingScatterRandomCleanJavaOracle.Row>();
         var prepared = new ArrayList<PreparedMovement>();
         for (var candidate : candidates) {
@@ -1268,7 +1265,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
                 executions++;
             }
         }
-        assertEquals(48 * 4, executions, "every CONCAT/STACK row runs full, empty, interior and tail ranges");
+        assertEquals(56 * 4, executions, "every CONCAT/STACK row runs full, empty, interior and tail ranges");
     }
 
     /**
@@ -1303,7 +1300,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
             assertCompositionHygiene(owner + " clean", counterpart, true);
             compared++;
         }
-        assertEquals(48, compared, "all CONCAT/STACK rows have paired topology projections");
+        assertEquals(56, compared, "all CONCAT/STACK rows have paired topology projections");
     }
 
     /**
@@ -1331,7 +1328,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
                     movement.plan().occurrenceToBoundary()));
             prepared.add(new PreparedMovement(candidate, plan, route.specialization(), route.kernelIr(), descriptor.dataType()));
         }
-        assertEquals(48, prepared.size(), "exact composition relation denominator");
+        assertEquals(56, prepared.size(), "exact composition relation denominator");
         var clean = CpuAffineMovementIndexingScatterRandomCleanJavaOracle.compile(rows);
         int comparisons = 0;
         for (PreparedMovement row : prepared) {
@@ -1351,7 +1348,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
                 comparisons++;
             }
         }
-        assertEquals(48 * 4, comparisons, "full, empty, interior and tail executable relation probes");
+        assertEquals(56 * 4, comparisons, "full, empty, interior and tail executable relation probes");
     }
 
     /** Real javac semantic mutations fail a named executable-relation field; hygiene controls stay hygiene-only. */
@@ -1608,7 +1605,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         return result;
     }
     private static Object newProvenanceArray(DataType type, int cells, int role, int markedAddress, boolean output) {
-        Object result = switch (type) { case FLOAT64 -> new double[cells]; case FLOAT32 -> new float[cells]; case BFLOAT16 -> new short[cells]; case INT64 -> new long[cells]; case INT32 -> new int[cells]; case BOOL -> new byte[cells]; };
+        Object result = switch (type) { case FLOAT64 -> new double[cells]; case FLOAT32 -> new float[cells]; case BFLOAT16, FLOAT16 -> new short[cells]; case INT64 -> new long[cells]; case INT32 -> new int[cells]; case BOOL -> new byte[cells]; };
         for (int address = 0; address < cells; address++) setRaw(result, type, address, output ? 0L : provenanceValue(type, role, address, markedAddress));
         return result;
     }
@@ -1620,10 +1617,10 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     private static long provenanceValue(DataType type, int role, int address, int markedAddress) {
         if (type == DataType.BOOL) return address == markedAddress ? 1L : 0L;
         return switch (type) { case FLOAT64 -> 0x3ff0000000000000L + role * 0x10000L + address; case FLOAT32 -> 0x3f000000L + role * 0x10000L + address;
-            case BFLOAT16 -> 0x1000L + role * 0x100L + address; case INT64 -> 0x1020304050600000L + role * 0x10000L + address;
+            case BFLOAT16, FLOAT16 -> 0x1000L + role * 0x100L + address; case INT64 -> 0x1020304050600000L + role * 0x10000L + address;
             case INT32 -> 0x10200000L + role * 0x10000L + address; case BOOL -> throw new AssertionError(); };
     }
-    private static void setRaw(Object target, DataType type, int address, long value) { switch (type) { case FLOAT64 -> ((double[]) target)[address] = Double.longBitsToDouble(value); case FLOAT32 -> ((float[]) target)[address] = Float.intBitsToFloat((int) value); case BFLOAT16 -> ((short[]) target)[address] = (short) value; case INT64 -> ((long[]) target)[address] = value; case INT32 -> ((int[]) target)[address] = (int) value; case BOOL -> ((byte[]) target)[address] = (byte) value; } }
+    private static void setRaw(Object target, DataType type, int address, long value) { switch (type) { case FLOAT64 -> ((double[]) target)[address] = Double.longBitsToDouble(value); case FLOAT32 -> ((float[]) target)[address] = Float.intBitsToFloat((int) value); case BFLOAT16, FLOAT16 -> ((short[]) target)[address] = (short) value; case INT64 -> ((long[]) target)[address] = value; case INT32 -> ((int[]) target)[address] = (int) value; case BOOL -> ((byte[]) target)[address] = (byte) value; } }
     private record ProvenanceIdentity(int role, long address) { }
     private record CompositionRelation(long outputAddress, List<Long> logicalCoordinate, int occurrenceOrdinal,
             int carrierRole, long sourceAddress, long relativeOrInputCoordinate) { }
@@ -1726,13 +1723,13 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     @Test void exactOwnedRowsRetainGeneratedAbiAndScopedHygieneWhileOnlyOtherFamiliesRemainPartial() throws Exception {
         new CpuGeneratedCoverageCheckpointTest().exactCombinationInventoryReproducesEveryCanonicalFixtureExecution();
         List<Row> rows = ownedRows();
-        assertEquals(2_252, rows.size(), "CPU 0009C exact generated denominator");
-        assertEquals(Map.of("affine", 1_536L, "movement", 128L, "indexing", 152L, "scatter", 416L, "random", 20L), counts(rows));
+        assertEquals(2_384, rows.size(), "CPU 0009C exact generated denominator");
+        assertEquals(Map.of("affine", 1_536L, "movement", 148L, "indexing", 176L, "scatter", 496L, "random", 28L), counts(rows));
         assertEquals(Map.of("CONTIGUOUS", 192L, "EXPAND", 192L, "EXPAND_DIMS", 192L, "PERMUTE", 192L, "RESHAPE", 192L, "SELECT", 192L, "SLICE", 192L, "SQUEEZE", 192L), formCounts(rows, "affine"));
-        assertEquals(Map.of("PAD", 4L, "TILE", 24L, "CONCAT", 24L, "STACK", 24L, "SLICE_UPDATE", 24L, "UNFOLD_AXIS", 24L, "UNFOLD2D", 4L), formCounts(rows, "movement"));
-        assertEquals(Map.of("GATHER", 48L, "GATHER_ELEMENTS", 48L, "GATHER_ND", 48L, "ONE_HOT", 8L), formCounts(rows, "indexing"));
-        assertEquals(Map.of("SCATTER_ELEMENTS", 208L, "SCATTER_ND", 208L), formCounts(rows, "scatter"));
-        assertEquals(Map.of("DROPOUT", 16L, "INITIAL_STATE", 4L), formCounts(rows, "random"));
+        assertEquals(Map.of("PAD", 4L, "TILE", 28L, "CONCAT", 28L, "STACK", 28L, "SLICE_UPDATE", 28L, "UNFOLD_AXIS", 28L, "UNFOLD2D", 4L), formCounts(rows, "movement"));
+        assertEquals(Map.of("GATHER", 56L, "GATHER_ELEMENTS", 56L, "GATHER_ND", 56L, "ONE_HOT", 8L), formCounts(rows, "indexing"));
+        assertEquals(Map.of("SCATTER_ELEMENTS", 248L, "SCATTER_ND", 248L), formCounts(rows, "scatter"));
+        assertEquals(Map.of("DROPOUT", 24L, "INITIAL_STATE", 4L), formCounts(rows, "random"));
         assertFalse(rows.stream().anyMatch(row -> row.form.equals("FOLD_AXIS") || row.form.equals("FOLD2D")), "fold remains CPU 0009D");
 
         int hygienicCompositionRows = 0;
@@ -1747,7 +1744,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
             } else assertGeneratedInstructionMemberHygiene(row.owner, selected);
             assertFamilyFacts(row);
         }
-        assertEquals(48, hygienicCompositionRows,
+        assertEquals(56, hygienicCompositionRows,
                 "CONCAT/STACK entries have active allocation/exception hygiene evidence");
     }
 
@@ -1772,7 +1769,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
                     candidate.operationForm(), candidate.context(), inventory.remove(candidate.ownerId())));
         }
         assertTrue(inventory.isEmpty(), "every checked indexing owner has a source-derived candidate");
-        assertEquals(152, prepared.size(), "GATHER 48, GATHER_ELEMENTS 48, GATHER_ND 48, ONE_HOT 8");
+        assertEquals(176, prepared.size(), "GATHER 56, GATHER_ELEMENTS 56, GATHER_ND 56, ONE_HOT 8");
 
         var cleanRows = new ArrayList<CpuAffineMovementIndexingScatterRandomCleanJavaOracle.Row>();
         for (PreparedIndexing row : prepared) cleanRows.add(new CpuAffineMovementIndexingScatterRandomCleanJavaOracle.Row(
@@ -1931,7 +1928,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     private static String indexingFfmTarget(String access, DataType type) {
         String layout = switch (type) {
             case FLOAT64 -> "OfDouble:D"; case FLOAT32 -> "OfFloat:F";
-            case BFLOAT16 -> "OfShort:S"; case INT64 -> "OfLong:J";
+            case BFLOAT16, FLOAT16 -> "OfShort:S"; case INT64 -> "OfLong:J";
             case INT32 -> "OfInt:I"; case BOOL -> "OfByte:B";
         };
         int separator = layout.indexOf(':');
@@ -2006,7 +2003,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
      */
     @Test void everyScatterRowHasAnIndependentTypedCleanJavaStateProjection() throws Throwable {
         var candidates = CpuOrdinaryNonPointwiseGeneratedMatrixTest.scatterCandidates();
-        assertEquals(416, candidates.size(), "exact scatter owner denominator");
+        assertEquals(496, candidates.size(), "exact scatter owner denominator");
         var cleanRows = new ArrayList<CpuAffineMovementIndexingScatterRandomCleanJavaOracle.Row>();
         var prepared = new ArrayList<PreparedScatter>();
         for (var candidate : candidates) {
@@ -2094,8 +2091,8 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
             if (row.form.equals("SCATTER_ELEMENTS")) elements++; else nd++;
             if (row.scratchRequirement.required()) scratchRows++;
         }
-        assertEquals(208, elements, "SCATTER_ELEMENTS paired rows");
-        assertEquals(208, nd, "SCATTER_ND paired rows");
+        assertEquals(248, elements, "SCATTER_ELEMENTS paired rows");
+        assertEquals(248, nd, "SCATTER_ND paired rows");
         assertTrue(scratchRows > 0, "floating MUL retains its separate workspace ABI");
     }
 
@@ -2263,7 +2260,8 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         // one of the boundary slots and cannot change this cardinality.
         boolean required = dataParameters == preparedBoundaryCount + 1
                 && parameters.get(dataParameters - 1).equals("java.lang.foreign.MemorySegment");
-        boolean applicable = type == DataType.FLOAT64 || type == DataType.FLOAT32 || type == DataType.BFLOAT16;
+        boolean applicable = type == DataType.FLOAT64 || type == DataType.FLOAT32
+                || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
         long bytes = required ? exactScratchBytes(type, maximumUpdates) : 0L;
         assertEquals(bytes, preparedBytes, "descriptor-derived exact scratch extent");
         assertEquals(required, applicable && bytes > 0L, "exact-product scratch admission");
@@ -2271,9 +2269,12 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     }
 
     private static long exactScratchBytes(DataType type, long maximumUpdates) {
-        if (type != DataType.FLOAT64 && type != DataType.FLOAT32 && type != DataType.BFLOAT16) return 0L;
-        int precision = type == DataType.FLOAT64 ? 53 : type == DataType.FLOAT32 ? 24 : 8;
-        long exponent = type == DataType.FLOAT64 ? 1_074L : type == DataType.FLOAT32 ? 149L : 133L;
+        if (type != DataType.FLOAT64 && type != DataType.FLOAT32
+                && type != DataType.BFLOAT16 && type != DataType.FLOAT16) return 0L;
+        int precision = type == DataType.FLOAT64 ? 53 : type == DataType.FLOAT32 ? 24
+                : type == DataType.FLOAT16 ? 11 : 8;
+        long exponent = type == DataType.FLOAT64 ? 1_074L : type == DataType.FLOAT32 ? 149L
+                : type == DataType.FLOAT16 ? 24L : 133L;
         long factors = Math.addExact(maximumUpdates, 1L);
         Math.multiplyExact(factors, exponent); // independently retain the lowerer overflow guard.
         long limbs = Math.floorDiv(Math.addExact(Math.multiplyExact((long) precision, factors), 63L), 64L);
@@ -2396,11 +2397,12 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
                 "java/lang/Double.longBitsToDouble(J)D"));
         for (DataType type : List.of(row.dataType, row.indexType)) {
             String layout = switch (type) {
-                case FLOAT64 -> "OfDouble;J"; case FLOAT32 -> "OfFloat;J"; case BFLOAT16 -> "OfShort;J";
+                case FLOAT64 -> "OfDouble;J"; case FLOAT32 -> "OfFloat;J";
+                case BFLOAT16, FLOAT16 -> "OfShort;J";
                 case INT64 -> "OfLong;J"; case INT32 -> "OfInt;J"; case BOOL -> "OfByte;J";
             };
             String result = switch (type) {
-                case FLOAT64 -> "D"; case FLOAT32 -> "F"; case BFLOAT16 -> "S";
+                case FLOAT64 -> "D"; case FLOAT32 -> "F"; case BFLOAT16, FLOAT16 -> "S";
                 case INT64 -> "J"; case INT32 -> "I"; case BOOL -> "B";
             };
             String prefix = "java/lang/foreign/MemorySegment.";
@@ -2418,6 +2420,11 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
                 "io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuDataMovementEmitter.bf16f(S)F",
                 "io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/generated/AffineMovementIndexingScatterRandomCleanJava.bf16(F)S",
                 "io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/generated/AffineMovementIndexingScatterRandomCleanJava.bf16f(S)F"));
+        if (row.dataType == DataType.FLOAT16) allowed.addAll(Set.of(
+                "java/lang/Float.float16ToFloat(S)F",
+                "java/lang/Float.floatToFloat16(F)S",
+                "io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/generated/AffineMovementIndexingScatterRandomCleanJava.f16(F)S",
+                "io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/generated/AffineMovementIndexingScatterRandomCleanJava.f16f(S)F"));
         return allowed.contains(target);
     }
 
@@ -2430,7 +2437,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     @Test void everyRandomRowExecutesAndMatchesItsSeparatedTypedCleanJavaProjection() throws Throwable {
         var candidates = CpuOrdinaryNonPointwiseGeneratedMatrixTest.randomOrOneHotCandidates().stream()
                 .filter(candidate -> RANDOM.contains(candidate.operationForm())).toList();
-        assertEquals(20, candidates.size(), "exact random owner denominator");
+        assertEquals(28, candidates.size(), "exact random owner denominator");
         var cleanRows = new ArrayList<CpuAffineMovementIndexingScatterRandomCleanJavaOracle.Row>();
         var prepared = new ArrayList<PreparedRandom>();
         for (var candidate : candidates) {
@@ -2498,7 +2505,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
             }
             if (row.candidate.operationForm().equals("DROPOUT")) dropout++; else initializer++;
         }
-        assertEquals(16, dropout, "DROPOUT paired rows");
+        assertEquals(24, dropout, "DROPOUT paired rows");
         assertEquals(4, initializer, "INITIAL_STATE paired rows");
     }
 
@@ -2760,21 +2767,29 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     private static boolean permittedRandomInvoke(String target) {
         return Set.of(
                 "java/lang/Double.longBitsToDouble(J)D",
+                "java/lang/Double.doubleToRawLongBits(D)J",
+                "java/lang/Float.float16ToFloat(S)F",
+                "java/lang/Float.floatToFloat16(F)S",
+                "java/lang/Float.isNaN(F)Z",
                 "java/lang/foreign/MemorySegment.get(Ljava/lang/foreign/ValueLayout$OfLong;J)J",
                 "java/lang/foreign/MemorySegment.get(Ljava/lang/foreign/ValueLayout$OfDouble;J)D",
                 "java/lang/foreign/MemorySegment.get(Ljava/lang/foreign/ValueLayout$OfFloat;J)F",
+                "java/lang/foreign/MemorySegment.get(Ljava/lang/foreign/ValueLayout$OfShort;J)S",
                 "java/lang/foreign/MemorySegment.get(Ljava/lang/foreign/ValueLayout$OfByte;J)B",
                 "java/lang/foreign/MemorySegment.set(Ljava/lang/foreign/ValueLayout$OfLong;JJ)V",
                 "java/lang/foreign/MemorySegment.set(Ljava/lang/foreign/ValueLayout$OfDouble;JD)V",
                 "java/lang/foreign/MemorySegment.set(Ljava/lang/foreign/ValueLayout$OfFloat;JF)V",
+                "java/lang/foreign/MemorySegment.set(Ljava/lang/foreign/ValueLayout$OfShort;JS)V",
                 "java/lang/foreign/MemorySegment.set(Ljava/lang/foreign/ValueLayout$OfByte;JB)V",
                 "java/lang/foreign/MemorySegment.getAtIndex(Ljava/lang/foreign/ValueLayout$OfLong;J)J",
                 "java/lang/foreign/MemorySegment.getAtIndex(Ljava/lang/foreign/ValueLayout$OfDouble;J)D",
                 "java/lang/foreign/MemorySegment.getAtIndex(Ljava/lang/foreign/ValueLayout$OfFloat;J)F",
+                "java/lang/foreign/MemorySegment.getAtIndex(Ljava/lang/foreign/ValueLayout$OfShort;J)S",
                 "java/lang/foreign/MemorySegment.getAtIndex(Ljava/lang/foreign/ValueLayout$OfByte;J)B",
                 "java/lang/foreign/MemorySegment.setAtIndex(Ljava/lang/foreign/ValueLayout$OfLong;JJ)V",
                 "java/lang/foreign/MemorySegment.setAtIndex(Ljava/lang/foreign/ValueLayout$OfDouble;JD)V",
                 "java/lang/foreign/MemorySegment.setAtIndex(Ljava/lang/foreign/ValueLayout$OfFloat;JF)V",
+                "java/lang/foreign/MemorySegment.setAtIndex(Ljava/lang/foreign/ValueLayout$OfShort;JS)V",
                 "java/lang/foreign/MemorySegment.setAtIndex(Ljava/lang/foreign/ValueLayout$OfByte;JB)V")
                 .contains(target);
     }

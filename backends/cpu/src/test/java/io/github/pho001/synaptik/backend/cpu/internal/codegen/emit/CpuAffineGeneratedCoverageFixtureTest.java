@@ -126,7 +126,7 @@ class CpuAffineGeneratedCoverageFixtureTest {
             assertTrue(stream != null, "generated coverage inventory");
             inventory = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         }
-        assertEquals("6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2",
+        assertEquals("9c06f9898dc287c6d2c3805088460c699052d14dbe707de146845659ce5450eb",
                 java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                         .digest(inventory.getBytes(StandardCharsets.UTF_8))), "inventory SHA-256");
         Set<String> owners = new TreeSet<>();
@@ -148,6 +148,7 @@ class CpuAffineGeneratedCoverageFixtureTest {
             case INT64 -> { long[] result = new long[length]; for (int i = 0; i < length; i++) result[i] = 10_000L + i; yield result; }
             case INT32 -> { int[] result = new int[length]; for (int i = 0; i < length; i++) result[i] = 10_000 + i; yield result; }
             case BOOL -> { byte[] result = new byte[length]; for (int i = 0; i < length; i++) result[i] = (byte) (i & 1); yield result; }
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU affine coverage unsupported");
         };
     }
 
@@ -155,6 +156,7 @@ class CpuAffineGeneratedCoverageFixtureTest {
         return switch (type) {
             case FLOAT64 -> new double[length]; case FLOAT32 -> new float[length]; case BFLOAT16 -> new short[length];
             case INT64 -> new long[length]; case INT32 -> new int[length]; case BOOL -> new byte[length];
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU affine coverage unsupported");
         };
     }
 
@@ -255,6 +257,7 @@ class CpuAffineGeneratedCoverageFixtureTest {
         private static CarrierAccess heap(DataType type) { return switch (type) {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY; case BFLOAT16 -> CarrierAccess.SHORT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY; case BOOL -> CarrierAccess.BYTE_ARRAY;
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU affine coverage unsupported");
         }; }
     }
 }

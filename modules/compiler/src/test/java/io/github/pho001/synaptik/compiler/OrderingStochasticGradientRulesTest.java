@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
@@ -50,11 +51,14 @@ final class OrderingStochasticGradientRulesTest {
     }
 
     @Test
-    void dropoutReusesCanonicalMaskAndDoesNotConstructAnotherDropout() {
-        Tensor input = tensor();
+    void dropoutReusesCanonicalMaskAndDirectlyCastsFloat16Complement() {
+        Tensor input = tensor(DataType.FLOAT16);
+        double keepProbability = 0x1.0020000002000p-1;
+        // Direct FLOAT64-to-FLOAT16 rounding yields 0x3801; routing through FLOAT32 yields 0x3800.
         DropoutResult dropout =
-                input.dropout(0.25d, GraphRngState.initial(7L, 11L));
+                input.dropout(1.0d - keepProbability, GraphRngState.initial(7L, 11L));
         Tensor gradient = gradient(dropout.output().sum(), input);
+        assertEquals(DataType.FLOAT16, gradient.descriptor().dataType());
         assertEquals(WhereSelectionKind.WHERE,
                 gradient.provenance().orElseThrow().operation().kind());
         Tensor canonicalMask =
@@ -66,6 +70,11 @@ final class OrderingStochasticGradientRulesTest {
                         .ScalarElementwiseKind.DIV,
                 gradient.provenance().orElseThrow().inputs().get(1)
                         .provenance().orElseThrow().operation().kind());
+        assertEquals(
+                (short) 0x3801,
+                ((ScalarValueAttrs) gradient.provenance().orElseThrow().inputs().get(1)
+                        .provenance().orElseThrow().operation().attrs())
+                        .value().float16Bits());
         assertEquals(
                 DropoutKind.DROPOUT,
                 dropout.output().provenance().orElseThrow().operation().kind());
@@ -94,7 +103,11 @@ final class OrderingStochasticGradientRulesTest {
     }
 
     private static Tensor tensor() {
+        return tensor(DataType.FLOAT32);
+    }
+
+    private static Tensor tensor(DataType dataType) {
         return TensorFactory.create(new TensorDescriptor(
-                DataType.FLOAT32, Shape.of(3), Optional.empty(), true));
+                dataType, Shape.of(3), Optional.empty(), true));
     }
 }

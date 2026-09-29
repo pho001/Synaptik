@@ -29,10 +29,33 @@ public final class EngineMixedOwnerTestAccess {
         return List.copyOf(owners);
     }
 
+    /** Returns exact planned owner names in partition order for one advanced compiled graph. */
+    public static List<String> partitionOwners(AdvancedCompiledGraph graph) {
+        Objects.requireNonNull(graph, "graph");
+        Object artifacts = field(graph, "artifacts");
+        List<?> partitions = (List<?>) invoke(artifacts, "partitions");
+        var owners = new ArrayList<String>(partitions.size());
+        for (Object partition : partitions) {
+            Object owner = invoke(partition, "owner");
+            owners.add((String) invoke(owner, "value"));
+        }
+        return List.copyOf(owners);
+    }
+
     /** Returns the exact immutable Compiler artifacts retained by one compiled graph. */
     public static CompileArtifacts compileArtifacts(CompiledGraph graph) {
         Objects.requireNonNull(graph, "graph");
         return (CompileArtifacts) field(graph, "artifacts");
+    }
+
+    /** Returns the advanced owner behind an ordinary Engine for staged-gradient integration tests. */
+    public static AdvancedEngine advancedEngine(Engine engine) {
+        return Objects.requireNonNull(engine, "engine").lifecycleOwner();
+    }
+
+    /** Returns the exact immutable Compiler artifacts retained by one advanced compiled graph. */
+    public static CompileArtifacts compileArtifacts(AdvancedCompiledGraph graph) {
+        return Objects.requireNonNull(graph, "graph").artifacts();
     }
 
     /**

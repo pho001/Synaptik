@@ -46,9 +46,9 @@ final class FirstOrderAutogradTest {
 
     @Test
     void accumulatesAttentionOutputSlotsInStableCanonicalOrder() {
-        Tensor query = tensor(Shape.of(2, 3, 4));
-        Tensor key = tensor(Shape.of(2, 5, 4));
-        Tensor value = tensor(Shape.of(2, 5, 6));
+        Tensor query = tensor(DataType.FLOAT16, Shape.of(2, 3, 4));
+        Tensor key = tensor(DataType.FLOAT16, Shape.of(2, 5, 4));
+        Tensor value = tensor(DataType.FLOAT16, Shape.of(2, 5, 6));
         ScaledDotProductAttentionResult attention =
                 query.scaledDotProductAttentionWithWeights(key, value);
         Tensor objective = attention.output().sum().add(attention.weights().sum());
@@ -70,6 +70,7 @@ final class FirstOrderAutogradTest {
         Tensor gradient = FirstOrderAutograd.expand(
                         plan, CompileTimeConstantGraph.Ingress.empty())
                 .targetGradients().getFirst().gradient();
+        assertEquals(DataType.FLOAT16, gradient.descriptor().dataType());
         assertEquals(
                 BinaryArithmeticKind.ADD,
                 gradient.provenance().orElseThrow().operation().kind());
@@ -102,8 +103,8 @@ final class FirstOrderAutogradTest {
 
     @Test
     void createsExactStorageFreeScalarZeroAndOneLeavesForEveryFloatingType() {
-        for (DataType dataType :
-                List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+        for (DataType dataType : List.of(
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
             var constants = new FirstOrderAutograd.DerivativeConstants();
             Tensor zero = constants.zeroBase(dataType);
             Tensor one = constants.oneBase(dataType);
@@ -122,6 +123,14 @@ final class FirstOrderAutogradTest {
                 assertEquals(
                         (short) 0x3F80,
                         constants.bindings().get(1).splat().value().bfloat16Bits());
+            }
+            if (dataType == DataType.FLOAT16) {
+                assertEquals(
+                        (short) 0x0000,
+                        constants.bindings().get(0).splat().value().float16Bits());
+                assertEquals(
+                        (short) 0x3C00,
+                        constants.bindings().get(1).splat().value().float16Bits());
             }
         }
     }
@@ -208,6 +217,9 @@ final class FirstOrderAutogradTest {
         assertEquals((short) 0x4000, constants.two(DataType.BFLOAT16).bfloat16Bits());
         assertEquals((short) 0xC000, constants.negativeTwo(DataType.BFLOAT16).bfloat16Bits());
         assertEquals((short) 0xBF00, constants.negativeHalf(DataType.BFLOAT16).bfloat16Bits());
+        assertEquals((short) 0x4000, constants.two(DataType.FLOAT16).float16Bits());
+        assertEquals((short) 0xC000, constants.negativeTwo(DataType.FLOAT16).float16Bits());
+        assertEquals((short) 0xB800, constants.negativeHalf(DataType.FLOAT16).float16Bits());
         assertEquals(
                 0x40000000,
                 Float.floatToRawIntBits(constants.two(DataType.FLOAT32).float32Value()));
@@ -255,6 +267,7 @@ final class FirstOrderAutogradTest {
                 .targetGradients()
                 .getFirst()
                 .gradient();
+        assertEquals(DataType.FLOAT32, gradient.descriptor().dataType());
 
         assertEquals(BinaryArithmeticKind.ADD,
                 gradient.provenance().orElseThrow().operation().kind());
@@ -274,7 +287,11 @@ final class FirstOrderAutogradTest {
     }
 
     private static Tensor tensor(Shape shape) {
+        return tensor(DataType.FLOAT32, shape);
+    }
+
+    private static Tensor tensor(DataType dataType, Shape shape) {
         return TensorFactory.create(new TensorDescriptor(
-                DataType.FLOAT32, shape, Optional.empty(), true));
+                dataType, shape, Optional.empty(), true));
     }
 }

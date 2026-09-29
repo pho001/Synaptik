@@ -510,7 +510,7 @@ persistent-resource transfer, but the concrete backend owns the physical mechani
 owns the per-run state. Fixed CPU `Engine.standard()`, explicit CPU/Metal builder composition
 including bounded mixed-owner schedules, and advanced CPU composition are current; generic plugin
 registration and executable persistence are not. Mixed CPU/Metal values have deterministic
-owner-indexed representations and exact all-six-carrier, rank-0..16 static canonical or positive-
+owner-indexed representations and exact all-seven-carrier, rank-0..16 static canonical or positive-
 stride non-overlapping storage-layout transfer recipes with checked physical spans. The current CPU
 complete-plan tuning producer is session-scoped, so Phase 2 does not persist or reuse a complete
 prepared plan across sessions.
@@ -551,11 +551,16 @@ authenticated compact materialized set for a shared custom-program route. It low
 typed MPSGraph node whose native recipe is fixed subtraction, self-multiplication, and optional full
 SUM or MEAN. It lowers Task-0060 scatter preflight, signed slice placement, single-writer non-overlap
 folds, exact modular/logical reductions, every Task-0063 row, and selected Task-0066/Task-0069
-occurrences to their fixed custom programs without atomics or fallback. It may replace only an
-exact private ACCELERATOR MATMUL/Conv2d suffix with one typed anchor instruction. It preserves typed
-ingress, target and internal physical byte geometry, window/index obligations, unsigned-32-bit
-geometry, and the profile in the schema-eighteen/version-twenty-seven route identity without
-widening capability. Every other identity fails closed.
+occurrences to their fixed custom programs without atomics or fallback. Low arithmetic remains on
+that custom baseline. For homogeneous no-gradient BFLOAT16/FLOAT16 RESHAPE, simple PERMUTE,
+materializing CONTIGUOUS, SLICE, CONCAT, and TILE, the custom candidate stays first and an
+MPSGraph candidate is added only after exact schema-one certificate equality against the
+context-retained immutable environment; missing, malformed, stale, or non-PASS evidence adds
+nothing. It may replace only an exact private ACCELERATOR MATMUL/Conv2d suffix with one typed
+anchor instruction. It preserves typed ingress, target and internal physical byte geometry,
+window/index obligations, unsigned-32-bit geometry, and the profile in the
+schema-nineteen/version-twenty-eight route identity without widening capability. Every other
+identity fails closed.
 
 Metal's one closed prepared-route identity owns the existing candidate wires `1..3` and the
 MPSGraph/custom-kernel family. Candidate serialization delegates to it. A returned plan retains one

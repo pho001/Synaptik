@@ -7,16 +7,23 @@ import java.util.UUID;
 /**
  * Owns one native Metal device/command-queue context and leases held by its child resources.
  *
- * <p>The context begins with one owner reference. Every successful buffer or workspace
- * allocation adds one child lease. Closing marks the owner closed before releasing its reference,
- * rejects later allocation and access, and defers the single native context release until the
- * last child closes. The lifecycle gate is thread-safe; distinct open child resources otherwise
- * remain independently usable.</p>
+ * <p>A production open hashes the exact dylib before and after native context creation, parses the
+ * ABI-six environment record, and loads the atomic schema-one certificate store before publishing
+ * the context. Those retained facts are immutable cold-preparation identity. Injected unit-test
+ * seams deliberately receive a non-certifiable identity and an empty usable store.</p>
+ *
+ * <p>The context begins with one owner reference. Every successful buffer or workspace allocation
+ * adds one child lease. Closing marks the owner closed before releasing its reference, rejects
+ * later allocation and access, and defers the single native context release until the last child
+ * closes. The lifecycle gate is thread-safe; distinct open child resources otherwise remain
+ * independently usable.</p>
  */
 final class MetalDeviceContext implements AutoCloseable {
     private final MetalNativeApi api;
     private final MetalNativeApi.Handle handle;
     private final SessionNonce sessionNonce;
+    private final MetalCertificationEnvironment certificationEnvironment;
+    private final MetalLowPrecisionCertificateStore certificateStore;
     private final ResourcePublisher resourcePublisher;
     private boolean closed;
     private boolean nativeReleased;
@@ -26,10 +33,27 @@ final class MetalDeviceContext implements AutoCloseable {
             MetalNativeApi api,
             MetalNativeApi.Handle handle,
             ResourcePublisher resourcePublisher) {
+        this(
+                api,
+                handle,
+                resourcePublisher,
+                MetalCertificationEnvironment.unavailable(),
+                MetalLowPrecisionCertificateStore.emptyForTesting());
+    }
+
+    private MetalDeviceContext(
+            MetalNativeApi api,
+            MetalNativeApi.Handle handle,
+            ResourcePublisher resourcePublisher,
+            MetalCertificationEnvironment certificationEnvironment,
+            MetalLowPrecisionCertificateStore certificateStore) {
         this.api = Objects.requireNonNull(api, "api");
         this.handle = Objects.requireNonNull(handle, "handle");
         this.resourcePublisher = Objects.requireNonNull(
                 resourcePublisher, "resourcePublisher");
+        this.certificationEnvironment = Objects.requireNonNull(
+                certificationEnvironment, "certificationEnvironment");
+        this.certificateStore = Objects.requireNonNull(certificateStore, "certificateStore");
         UUID nonce = UUID.randomUUID();
         this.sessionNonce = new SessionNonce(
                 nonce.getMostSignificantBits(), nonce.getLeastSignificantBits());
@@ -47,6 +71,25 @@ final class MetalDeviceContext implements AutoCloseable {
     SessionNonce sessionNonce() {
         return sessionNonce;
     }
+
+    /**
+     * Returns the immutable environment identity captured before preparation can begin.
+     *
+     * @return non-null exact identity of the loaded bridge, device, platform, and graph options
+     */
+    MetalCertificationEnvironment certificationEnvironment() {
+        return certificationEnvironment;
+    }
+
+    /**
+     * Returns the immutable fail-closed certificate store loaded with this context.
+     *
+     * @return non-null retained schema-one store
+     */
+    MetalLowPrecisionCertificateStore certificateStore() {
+        return certificateStore;
+    }
+
 
     /**
      * Private value representation of one context's session compatibility identity.
@@ -67,7 +110,28 @@ final class MetalDeviceContext implements AutoCloseable {
      * @throws Error if loading, creation, or failure cleanup reports an error
      */
     static MetalDeviceContext open(Path absoluteLibraryPath) {
-        return open(MetalNativeApi.open(absoluteLibraryPath));
+        Objects.requireNonNull(absoluteLibraryPath, "absoluteLibraryPath");
+        String beforeDigest = MetalCertificationEnvironment.sha256(absoluteLibraryPath);
+        MetalNativeApi api = MetalNativeApi.open(absoluteLibraryPath);
+        MetalNativeApi.Handle context = null;
+        try {
+            context = Objects.requireNonNull(api.createContext(), "native context handle");
+            String nativeRecord = api.certificationEnvironment(context);
+            String afterDigest = MetalCertificationEnvironment.sha256(absoluteLibraryPath);
+            MetalCertificationEnvironment environment =
+                    MetalCertificationEnvironment.parse(nativeRecord, beforeDigest, afterDigest);
+            MetalLowPrecisionCertificateStore store =
+                    MetalLowPrecisionCertificateStore.loadBundled();
+            return new MetalDeviceContext(
+                    api, context, ResourcePublisher.DEFAULT, environment, store);
+        } catch (RuntimeException | Error failure) {
+            if (context != null) {
+                MetalNativeApi.Handle acquired = context;
+                suppressDistinct(failure, () -> api.releaseContext(acquired));
+            }
+            suppressDistinct(failure, api::close);
+            throw failure;
+        }
     }
 
     /**

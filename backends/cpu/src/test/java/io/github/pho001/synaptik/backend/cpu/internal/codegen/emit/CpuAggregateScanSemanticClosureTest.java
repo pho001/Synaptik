@@ -25,10 +25,10 @@ class CpuAggregateScanSemanticClosureTest {
     @Test void everyAggregateAndScanMatrixCandidateDefinesAndExecutesItsOwnArtifact()
             throws Throwable {
         var candidates = CpuOrdinaryNonPointwiseGeneratedMatrixTest.aggregateOrScanCandidates();
-        assertEquals(460, candidates.size());
-        assertEquals(300, candidates.stream().filter(c -> c.context().nodes().getFirst().operation().kind()
+        assertEquals(552, candidates.size());
+        assertEquals(360, candidates.stream().filter(c -> c.context().nodes().getFirst().operation().kind()
                 instanceof AggregateReductionKind).count());
-        assertEquals(160, candidates.size() - 300);
+        assertEquals(192, candidates.size() - 360);
         for (var candidate : candidates) execute(candidate);
     }
 
@@ -145,9 +145,12 @@ class CpuAggregateScanSemanticClosureTest {
         return represented(type, value);
     }
     private static double number(DataType type, Object value) { return type == DataType.BFLOAT16
-            ? Float.intBitsToFloat((Short.toUnsignedInt((Short) value)) << 16) : ((Number) value).doubleValue(); }
+            ? Float.intBitsToFloat((Short.toUnsignedInt((Short) value)) << 16)
+            : type == DataType.FLOAT16 ? Float.float16ToFloat((Short) value)
+            : ((Number) value).doubleValue(); }
     private static Object represented(DataType type, double value) { return switch (type) {
         case FLOAT64 -> value; case FLOAT32 -> (float) value; case BFLOAT16 -> bfloat((float) value);
+        case FLOAT16 -> Float.floatToFloat16((float) value);
         case INT64 -> (long) value; case INT32 -> (int) value; case BOOL -> (byte) ((int) value); }; }
     private static short bfloat(float value) { int bits = Float.floatToRawIntBits(value), upper = bits >>> 16, lower = bits & 0xffff;
         if ((bits & 0x7f800000) == 0x7f800000 && (bits & 0x7fffff) != 0) upper |= 0x40;
@@ -158,12 +161,12 @@ class CpuAggregateScanSemanticClosureTest {
     private static long address(PrepareContext<?> c, int value, long[] coordinate) { var l = c.values().get(value).descriptor().layout().orElseThrow(); long address = l.storageOffset(); long[] strides = l.strides(); for (int i = 0; i < coordinate.length; i++) address += strides[i] * coordinate[i]; return address; }
     private static long elements(long[] shape) { long value = 1; for (long dimension : shape) value *= dimension; return value; }
     private static long[] coordinates(long ordinal, long[] shape) { long[] result = new long[shape.length]; for (int i = shape.length - 1; i >= 0; i--) { result[i] = ordinal % shape[i]; ordinal /= shape[i]; } return result; }
-    private static Object storage(DataType type, long size) { return switch (type) { case FLOAT64 -> new double[(int) size]; case FLOAT32 -> new float[(int) size]; case BFLOAT16 -> new short[(int) size]; case INT64 -> new long[(int) size]; case INT32 -> new int[(int) size]; case BOOL -> new byte[(int) size]; }; }
+    private static Object storage(DataType type, long size) { return switch (type) { case FLOAT64 -> new double[(int) size]; case FLOAT32 -> new float[(int) size]; case BFLOAT16, FLOAT16 -> new short[(int) size]; case INT64 -> new long[(int) size]; case INT32 -> new int[(int) size]; case BOOL -> new byte[(int) size]; }; }
     private static void fillInput(Object storage, DataType type) { for (int i = 0; i < Array.getLength(storage); i++) set(storage, type, i, represented(type, (i % 5) - 2)); }
     private static void fill(Object storage, DataType type, int value) { for (int i = 0; i < Array.getLength(storage); i++) set(storage, type, i, represented(type, value)); }
     private static Object cloneArray(Object value) { if (value instanceof double[] a) return a.clone(); if (value instanceof float[] a) return a.clone(); if (value instanceof short[] a) return a.clone(); if (value instanceof long[] a) return a.clone(); if (value instanceof int[] a) return a.clone(); return ((byte[]) value).clone(); }
-    private static Object get(Object storage, DataType type, long index) { return switch (type) { case FLOAT64 -> ((double[]) storage)[(int) index]; case FLOAT32 -> ((float[]) storage)[(int) index]; case BFLOAT16 -> ((short[]) storage)[(int) index]; case INT64 -> ((long[]) storage)[(int) index]; case INT32 -> ((int[]) storage)[(int) index]; case BOOL -> ((byte[]) storage)[(int) index]; }; }
-    private static void set(Object storage, DataType type, long index, Object value) { switch (type) { case FLOAT64 -> ((double[]) storage)[(int) index] = (Double) value; case FLOAT32 -> ((float[]) storage)[(int) index] = (Float) value; case BFLOAT16 -> ((short[]) storage)[(int) index] = (Short) value; case INT64 -> ((long[]) storage)[(int) index] = (Long) value; case INT32 -> ((int[]) storage)[(int) index] = (Integer) value; case BOOL -> ((byte[]) storage)[(int) index] = (Byte) value; } }
+    private static Object get(Object storage, DataType type, long index) { return switch (type) { case FLOAT64 -> ((double[]) storage)[(int) index]; case FLOAT32 -> ((float[]) storage)[(int) index]; case BFLOAT16, FLOAT16 -> ((short[]) storage)[(int) index]; case INT64 -> ((long[]) storage)[(int) index]; case INT32 -> ((int[]) storage)[(int) index]; case BOOL -> ((byte[]) storage)[(int) index]; }; }
+    private static void set(Object storage, DataType type, long index, Object value) { switch (type) { case FLOAT64 -> ((double[]) storage)[(int) index] = (Double) value; case FLOAT32 -> ((float[]) storage)[(int) index] = (Float) value; case BFLOAT16, FLOAT16 -> ((short[]) storage)[(int) index] = (Short) value; case INT64 -> ((long[]) storage)[(int) index] = (Long) value; case INT32 -> ((int[]) storage)[(int) index] = (Integer) value; case BOOL -> ((byte[]) storage)[(int) index] = (Byte) value; } }
     private static MemorySegment segment(Object value) { if (value instanceof double[] a) return MemorySegment.ofArray(a); if (value instanceof float[] a) return MemorySegment.ofArray(a); if (value instanceof short[] a) return MemorySegment.ofArray(a); if (value instanceof long[] a) return MemorySegment.ofArray(a); if (value instanceof int[] a) return MemorySegment.ofArray(a); return MemorySegment.ofArray((byte[]) value); }
     private static void assertRaw(Object expected, Object actual, String message) { if (expected instanceof double[] a) assertArrayEquals(a, (double[]) actual, message); else if (expected instanceof float[] a) assertArrayEquals(a, (float[]) actual, message); else if (expected instanceof short[] a) assertArrayEquals(a, (short[]) actual, message); else if (expected instanceof long[] a) assertArrayEquals(a, (long[]) actual, message); else if (expected instanceof int[] a) assertArrayEquals(a, (int[]) actual, message); else assertArrayEquals((byte[]) expected, (byte[]) actual, message); }
 }

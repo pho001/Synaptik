@@ -48,7 +48,7 @@ public record CpuFoldIr(Family family, DataType dataType, CpuAccessPlan inputAcc
                 || dataType == DataType.BOOL
                 || family == Family.FOLD2D
                     && dataType != DataType.FLOAT64 && dataType != DataType.FLOAT32
-                    && dataType != DataType.BFLOAT16
+                    && dataType != DataType.BFLOAT16 && dataType != DataType.FLOAT16
                 || additionPolicy != CANONICAL_SEQUENTIAL_ADDITION) {
             throw new IllegalArgumentException("fold structural facts disagree");
         }

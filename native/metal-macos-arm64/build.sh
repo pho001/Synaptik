@@ -49,6 +49,24 @@ STAGING_DIR="$(mktemp -d "${BUILD_DIR}/.native-build.XXXXXX")"
 [[ ! -L "${STAGING_DIR}" && -d "${STAGING_DIR}" ]] \
     || fail "native staging path must be a real directory"
 STAGED_OUTPUT="${STAGING_DIR}/libsynaptik_metal_foundation.dylib"
+SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version)"
+XCODE_VERSION="$(xcodebuild -version | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+METAL_COMPILER_VERSION="$(xcrun --sdk macosx metal --version | sed -n '1p')"
+for value in "${SDK_VERSION}" "${XCODE_VERSION}" "${METAL_COMPILER_VERSION}"; do
+    [[ -n "${value}" && ! "${value}" =~ [[:cntrl:]] ]] \
+        || fail "toolchain identity must be one non-empty printable line"
+done
+BUILD_IDENTITY_HEADER="${STAGING_DIR}/synaptik_build_identity.h"
+escape_c_string() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+printf '#define SYNAPTIK_BUILD_MACOS_SDK_VERSION "%s"\n' \
+    "$(escape_c_string "${SDK_VERSION}")" > "${BUILD_IDENTITY_HEADER}"
+printf '#define SYNAPTIK_BUILD_XCODE_VERSION "%s"\n' \
+    "$(escape_c_string "${XCODE_VERSION}")" >> "${BUILD_IDENTITY_HEADER}"
+printf '#define SYNAPTIK_BUILD_METAL_COMPILER_VERSION "%s"\n' \
+    "$(escape_c_string "${METAL_COMPILER_VERSION}")" >> "${BUILD_IDENTITY_HEADER}"
+
 
 xcrun --sdk macosx clang \
     -arch arm64 \
@@ -57,6 +75,7 @@ xcrun --sdk macosx clang \
     -fobjc-arc \
     -fvisibility=hidden \
     -Wall -Wextra -Werror \
+    -include "${BUILD_IDENTITY_HEADER}" \
     -Wl,-install_name,@rpath/libsynaptik_metal_foundation.dylib \
     -framework Foundation \
     -framework Metal \
@@ -73,5 +92,6 @@ require_replaceable_output
 mv -f -- "${STAGED_OUTPUT}" "${OUTPUT}"
 [[ ! -L "${OUTPUT}" && -f "${OUTPUT}" ]] \
     || fail "published output must be a regular non-symlink file"
+rm -f -- "${BUILD_IDENTITY_HEADER}"
 rmdir "${STAGING_DIR}"
 STAGING_DIR=""

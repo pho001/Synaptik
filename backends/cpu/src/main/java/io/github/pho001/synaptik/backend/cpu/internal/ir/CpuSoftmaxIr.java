@@ -26,7 +26,7 @@ public record CpuSoftmaxIr(SoftmaxKind kind, DataType dataType, int axis,
         Objects.requireNonNull(inputAccess, "inputAccess");
         Objects.requireNonNull(outputAccess, "outputAccess");
         if ((dataType != DataType.FLOAT64 && dataType != DataType.FLOAT32
-                && dataType != DataType.BFLOAT16) || axis < 0
+                && dataType != DataType.BFLOAT16 && dataType != DataType.FLOAT16) || axis < 0
                 || axis >= inputAccess.iterationRank()
                 || inputAccess.iterationRank() != outputAccess.iterationRank()
                 || inputAccess.accessKind() != CpuAccessPlan.AccessKind.READ

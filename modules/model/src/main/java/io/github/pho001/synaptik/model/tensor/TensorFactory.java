@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.model.tensor;
 
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -35,18 +36,18 @@ import java.util.concurrent.atomic.AtomicLong;
  * resolved dense-contiguous tensor by copying its row-major logical values into newly allocated
  * heap storage. Nested primitive-array import additionally infers exact carrier type and fully
  * static dense shape after validating the complete rectangular structure. Numeric values and raw
- * BFLOAT16 bits are copied unchanged; BOOL bytes are normalized to zero or one. Heap allocation
- * uses automatic-scope memory segments, so it
- * introduces no arena, close operation, external lifetime owner, or deterministic reclamation.
- * Descriptor-based creation and flat import do not build descriptors or resolve layouts. Nested
- * import is the bounded exception: it synthesizes the exact fully static shape and canonical
- * dense-contiguous descriptor proved by the source structure. Exact primitive scalar overloads,
- * zeros, ones, type-safe full-value tensors, rectangular identity matrices, like-shaped zero/one
- * variants, and integer ranges create independent dense-contiguous eager leaf tensors.
- * Full-value methods infer the exact type from one primitive value, with only the explicitly named
- * BFLOAT16 method performing conversion. Rectangular identity creation supports all six current
- * data types, writes typed one on the main diagonal, and leaves typed zero elsewhere. The
- * {@link #eye(long, long, DataType, Optional, boolean)} method is only an unchanged-argument
+ * BFLOAT16 or FLOAT16 bits are copied unchanged; BOOL bytes are normalized to zero or one. Heap
+ * allocation uses automatic-scope memory segments, so it introduces no arena, close operation,
+ * external lifetime owner, or deterministic reclamation. Descriptor-based creation and flat
+ * import do not build descriptors or resolve layouts. Nested import is the bounded exception: it
+ * synthesizes the exact fully static shape and canonical dense-contiguous descriptor proved by the
+ * source structure. Exact primitive scalar overloads, zeros, ones, type-safe full-value tensors,
+ * rectangular identity matrices, like-shaped zero/one variants, and integer ranges create
+ * independent dense-contiguous eager leaf tensors. Primitive full-value methods infer the exact
+ * type from one primitive value; explicitly named BFLOAT16 and FLOAT16 scalar/full methods perform
+ * the corresponding binary32-to-16-bit conversion. Rectangular identity creation supports all
+ * seven current data types, writes typed one on the main diagonal, and leaves typed zero elsewhere.
+ * The {@link #eye(long, long, DataType, Optional, boolean)} method is only an unchanged-argument
  * convenience delegation to canonical identity-matrix creation. These are eager leaf-data
  * constructors, not general mutable fill, identity operations, or expression semantics. The
  * factory does not otherwise infer descriptors, retain or expose source/backing arrays, convert
@@ -270,9 +271,10 @@ public final class TensorFactory {
      * empty label. The resolved layout's referenced element span is the exact physical capacity;
      * logical element count is not substituted. The data type selects {@code double[]},
      * {@code float[]}, {@code short[]}, {@code int[]}, {@code long[]}, or {@code byte[]} for
-     * {@code FLOAT64}, {@code FLOAT32}, {@code BFLOAT16}, {@code INT32}, {@code INT64}, or
-     * {@code BOOL}, respectively. Primitive-array contents begin with the JVM default all-zero raw
-     * representation; this is an allocation fact, not a public fill or zeros operation.</p>
+     * {@code FLOAT64}, {@code FLOAT32}, both {@code BFLOAT16} and {@code FLOAT16}, {@code INT32},
+     * {@code INT64}, or {@code BOOL}, respectively. Primitive-array contents begin with the JVM
+     * default all-zero raw representation; this is an allocation fact, not a public fill or zeros
+     * operation.</p>
      *
      * <p>The array-backed segment has an automatic scope that keeps its heap base reachable and is
      * accessible from any thread. The returned tensor retains matching writable
@@ -311,8 +313,9 @@ public final class TensorFactory {
      * above {@link Integer#MAX_VALUE} are rejected without a native or off-heap fallback.</p>
      *
      * <p>The exhaustive carrier mapping is {@code FLOAT64 -> double[]},
-     * {@code FLOAT32 -> float[]}, {@code BFLOAT16 -> short[]}, {@code INT32 -> int[]},
-     * {@code INT64 -> long[]}, and {@code BOOL -> byte[]}. The matching
+     * {@code FLOAT32 -> float[]}, {@code BFLOAT16 -> short[]},
+     * {@code FLOAT16 -> short[]}, {@code INT32 -> int[]}, {@code INT64 -> long[]}, and
+     * {@code BOOL -> byte[]}. The matching
      * {@link MemorySegment#ofArray(double[]) MemorySegment.ofArray} overload creates a writable
      * heap segment with an automatic scope that keeps the array reachable and permits access from
      * any thread. Raw contents start with the JVM default zero representation. No backing-array
@@ -371,7 +374,7 @@ public final class TensorFactory {
         MemorySegment segment = switch (descriptor.dataType()) {
             case FLOAT64 -> MemorySegment.ofArray(new double[length]);
             case FLOAT32 -> MemorySegment.ofArray(new float[length]);
-            case BFLOAT16 -> MemorySegment.ofArray(new short[length]);
+            case BFLOAT16, FLOAT16 -> MemorySegment.ofArray(new short[length]);
             case INT32 -> MemorySegment.ofArray(new int[length]);
             case INT64 -> MemorySegment.ofArray(new long[length]);
             case BOOL -> MemorySegment.ofArray(new byte[length]);
@@ -500,6 +503,42 @@ public final class TensorFactory {
                 DataType.BFLOAT16,
                 source.length,
                 MemorySegment.ofArray(source));
+    }
+
+    /**
+     * Creates a dense-contiguous {@link DataType#FLOAT16} tensor by copying raw binary16 bits.
+     *
+     * <p>Each short is copied bit-for-bit without floating-point conversion or NaN
+     * canonicalization. Source order is logical row-major order. A resolved dense-contiguous
+     * layout and exact logical element count are required. The source array is not retained;
+     * allocation, label validation, identifier allocation, and their failure effects follow
+     * {@link #allocate(TensorDescriptor, Optional)}. Carrier, layout, and length failures occur
+     * before destination or identifier allocation. A blank label fails after destination and
+     * identifier allocation but before copying; exhaustion occurs after destination allocation
+     * and before copying. Unexpected copy failures consume the identifier without rollback.</p>
+     *
+     * @param descriptor non-null completed descriptor whose data type is {@code FLOAT16} and whose
+     *     resolved layout is dense-contiguous
+     * @param label non-null optional diagnostic label delegated to allocation
+     * @param source non-null raw binary16 bit patterns to copy; the caller retains the array
+     * @return a non-null fresh tensor containing an independent bit-for-bit copy of the source
+     * @throws NullPointerException if {@code descriptor}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as the message
+     * @throws IllegalArgumentException if the descriptor data type is not {@code FLOAT16}, its
+     *     layout is unresolved or not dense-contiguous, source length differs from logical element
+     *     count, or delegated Tensor validation rejects a blank label
+     * @throws IllegalStateException if resolved geometry unexpectedly has no known logical element
+     *     count, or identifier space is exhausted with message
+     *     {@code tensor identifier space exhausted}
+     * @throws OutOfMemoryError if destination heap allocation fails before identifier allocation
+     */
+    public static Tensor fromFlatFloat16Array(
+            TensorDescriptor descriptor, Optional<String> label, short[] source) {
+        Objects.requireNonNull(descriptor, "descriptor");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return importFlat(
+                descriptor, label, DataType.FLOAT16, source.length, MemorySegment.ofArray(source));
     }
 
     /**
@@ -785,6 +824,35 @@ public final class TensorFactory {
             float value, Optional<String> label, boolean requiresGrad) {
         Objects.requireNonNull(label, "label");
         return TensorConstants.scalarBFloat16(value, label, requiresGrad);
+    }
+
+    /**
+     * Creates an independent rank-zero {@link DataType#FLOAT16} tensor by converting binary32 input.
+     *
+     * <p>{@code value} is converted explicitly by {@link Float16Bits#fromFloat(float)} with
+     * round-to-nearest, ties-to-even binary16 semantics; signed zero and infinities are preserved
+     * and NaN is canonicalized. The resulting raw {@code short} bits are copied into new dense
+     * storage. Null-label and later allocation, blank-label, identifier, ownership, and memory
+     * effects match {@link #scalar(double, Optional, boolean)}.</p>
+     *
+     * @param value binary32 semantic value to round to FLOAT16
+     * @param label non-null optional diagnostic label; present text is normalized by {@code Tensor}
+     * @param requiresGrad whether the differentiable scalar requests model-level gradient
+     *     eligibility
+     * @return a non-null fresh rank-zero FLOAT16 tensor with independent dense storage and identity
+     * @throws NullPointerException if {@code label} is null, with message {@code label}, before
+     *     allocation
+     * @throws IllegalArgumentException if delegated Tensor validation rejects a blank label, with
+     *     message {@code label must not be blank}; the allocated identifier is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after source and destination allocation
+     * @throws ArithmeticException if checked scalar layout arithmetic unexpectedly overflows
+     * @throws OutOfMemoryError if source or destination heap allocation fails
+     */
+    public static Tensor scalarFloat16(
+            float value, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.scalarFloat16(value, label, requiresGrad);
     }
 
     /**
@@ -1132,6 +1200,42 @@ public final class TensorFactory {
     }
 
     /**
+     * Creates a fully static dense FLOAT16 tensor by converting and repeating one binary32 value.
+     *
+     * <p>After descriptor validation, {@link Float16Bits#fromFloat(float)} converts the semantic
+     * input once using round-to-nearest with ties to even and canonical NaN handling. One
+     * {@code short[]} source is filled with the converted raw bits and copied once. Scalar and
+     * empty static shapes are valid. The result owns fresh metadata and storage, has empty
+     * provenance, and retains neither the source nor any conversion state. Empty label means
+     * absent; present text is stripped and validated by {@link Tensor}.</p>
+     *
+     * <p>Shape then label null checks precede static-shape, checked-count, Java-array-limit,
+     * dense-layout, and gradient validation. Those failures consume no ID. A blank label fails
+     * after source, destination, and ID allocation; exhaustion occurs after both arrays exist; and
+     * an unexpected copy failure occurs after ID allocation. Identifiers are never rolled back.</p>
+     *
+     * @param shape non-null fully static result shape; scalar and empty shapes are valid
+     * @param value binary32 semantic value converted with {@link Float16Bits#fromFloat(float)}
+     * @param label non-null optional diagnostic label
+     * @param requiresGrad explicit model-level gradient request
+     * @return a non-null fresh independent provenance-free FLOAT16 leaf with copied storage
+     * @throws NullPointerException if {@code shape} or {@code label} is null, checked in that order
+     * @throws IllegalArgumentException if {@code shape} is dynamic, its count exceeds
+     *     {@link Integer#MAX_VALUE}, {@code requiresGrad} is ineligible, or a present label is blank
+     * @throws ArithmeticException if checked non-zero element-count or dense-layout arithmetic
+     *     overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after destination
+     *     allocation
+     * @throws OutOfMemoryError if source or destination allocation fails before ID allocation
+     */
+    public static Tensor fullFloat16(
+            Shape shape, float value, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.fullFloat16(shape, value, label, requiresGrad);
+    }
+
+    /**
      * Creates a fully static dense INT32 tensor filled with one exact signed value.
      *
      * <p>One {@code int[]} source is filled exactly and copied once through the matching flat
@@ -1233,17 +1337,15 @@ public final class TensorFactory {
 
     /**
      * Creates a dense rectangular matrix with typed one on the main diagonal and zero elsewhere.
-     *
-     * <p>All six current data types are supported. Rows and columns may be unequal or zero, and
+     * <p>All seven current data types are supported. Rows and columns may be unequal or zero, and
      * the result always has shape {@code [rows, columns]}. One default-zero matching carrier is
      * populated only at coordinates {@code (i, i)} for {@code 0 <= i < min(rows, columns)}, then
-     * copied through one flat import. Diagonal values are {@code 1.0d}, {@code 1.0f}, converted
-     * BFLOAT16 one bits, {@code 1}, {@code 1L}, or canonical BOOL byte {@code 1}; off-diagonal
-     * values retain the corresponding JVM default-zero representation. Square, wide, tall,
-     * zero-row, and zero-column matrices are valid. The result has new descriptor, dense layout,
-     * source and destination carriers, storage, identity, and empty provenance; no carrier is
-     * shared or retained outside its storage. Empty label means absent; present text is stripped
-     * and validated by {@link Tensor}.</p>
+     * copied through one flat import. Diagonal values are typed one representations for FLOAT64,
+     * FLOAT32, BFLOAT16, FLOAT16, INT32, INT64, and BOOL; off-diagonal values retain typed zeros.
+     * Square, wide, tall, zero-row, and zero-column matrices are valid. The result has new
+     * descriptor, dense layout, source and destination carriers, storage, identity, and empty
+     * provenance; no carrier is retained. Empty label means absent; present text is stripped and
+     * validated by {@link Tensor}.</p>
      *
      * <p>Validation checks {@code dataType} and {@code label} for null in that order, then rejects
      * negative rows before negative columns. Rank-two shape construction is followed by checked
@@ -1403,9 +1505,10 @@ public final class TensorFactory {
      * <p>Logical import is limited to resolved dense-contiguous geometry so sequential source
      * positions map one-to-one to sequential destination positions. Exact carrier data type and
      * logical element count are validated before destination or identifier allocation. Numeric
-     * carriers and raw BFLOAT16 bits use a byte-for-byte bulk copy; only BOOL is normalized because
-     * its byte carrier accepts multiple non-zero encodings for the same logical true value. After
-     * validation, the method calls {@link #allocate(TensorDescriptor, Optional)} exactly once,
+     * carriers and raw BFLOAT16/FLOAT16 bits use a byte-for-byte bulk copy; only BOOL is
+     * normalized because its byte carrier accepts multiple non-zero encodings for the same logical
+     * true value. After validation, the method calls
+     * {@link #allocate(TensorDescriptor, Optional)} exactly once,
      * obtains the attached destination segment, fully populates it, and only then returns the
      * tensor. The source segment and its array are never retained.</p>
      *

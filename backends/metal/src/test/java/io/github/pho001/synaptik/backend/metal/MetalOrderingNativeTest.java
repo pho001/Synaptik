@@ -212,6 +212,13 @@ class MetalOrderingNativeTest {
                     positiveOne = 0x3f80L;
                     nanB = 0xffc2L;
                 }
+                case FLOAT16 -> {
+                    nanA = 0x7c01L;
+                    negativeZero = 0x8000L;
+                    negativeOne = 0xbc00L;
+                    positiveOne = 0x3c00L;
+                    nanB = 0xfe02L;
+                }
                 default -> throw new AssertionError(type);
             }
             return new CarrierCase(
@@ -254,7 +261,7 @@ class MetalOrderingNativeTest {
             switch (type) {
                 case FLOAT64, INT64 -> bytes.putLong(word);
                 case FLOAT32, INT32 -> bytes.putInt((int) word);
-                case BFLOAT16 -> bytes.putShort((short) word);
+                case BFLOAT16, FLOAT16 -> bytes.putShort((short) word);
                 case BOOL -> bytes.put((byte) word);
             }
         }

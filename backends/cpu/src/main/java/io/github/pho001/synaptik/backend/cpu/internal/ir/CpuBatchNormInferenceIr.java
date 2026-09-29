@@ -120,7 +120,8 @@ public record CpuBatchNormInferenceIr(List<DataType> inputTypes, DataType result
     @Override public String structuralKey() { return encodedKernelIr().structuralKey(); }
 
     private static boolean supported(DataType type) {
-        return type == DataType.BFLOAT16 || type == DataType.FLOAT32 || type == DataType.FLOAT64;
+        return type == DataType.BFLOAT16 || type == DataType.FLOAT16
+                || type == DataType.FLOAT32 || type == DataType.FLOAT64;
     }
 
     private static boolean positiveFiniteEpsilon(DataType type, long bits) {
@@ -133,6 +134,9 @@ public record CpuBatchNormInferenceIr(List<DataType> inputTypes, DataType result
             case BFLOAT16 -> (bits & ~0xffffL) == 0
                     && Float.isFinite(Float.intBitsToFloat((int) bits << 16))
                     && Float.intBitsToFloat((int) bits << 16) > 0.0f;
+            case FLOAT16 -> (bits & ~0xffffL) == 0
+                    && Float.isFinite(Float.float16ToFloat((short) bits))
+                    && Float.float16ToFloat((short) bits) > 0.0f;
             default -> false;
         };
     }

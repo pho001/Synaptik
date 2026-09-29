@@ -270,41 +270,48 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
-    void schemaEighteenProgramImageIsExactCarriesProfileRouteAndAllSixDataTypeWires() {
+    void schemaNineteenProgramImageIsExactCarriesProfileRouteAndAllSevenDataTypeWires() {
         var program = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.generic(
                 MetalMpsGraphProgram.NodeKind.CONCAT,
-                new int[] {0, 1, 2, 3, 4, 5},
-                new int[] {6},
+                new int[] {0, 1, 2, 3, 4, 5, 6},
+                new int[] {7},
                 MetalMpsGraphProgram.AttributeKind.AXIS,
                 new long[] {0L})));
+        var float16 = new MetalMpsGraphProgram.ValueDescriptor(
+                DataType.FLOAT16, new long[0], false);
         var values = List.of(
-                new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {2, 3}, false),
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT32, new long[] {2, 3}, false),
                 new MetalMpsGraphProgram.ValueDescriptor(DataType.INT32, new long[0], false),
                 new MetalMpsGraphProgram.ValueDescriptor(DataType.BOOL, new long[0], false),
                 new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT64, new long[0], false),
                 new MetalMpsGraphProgram.ValueDescriptor(DataType.BFLOAT16, new long[0], false),
                 new MetalMpsGraphProgram.ValueDescriptor(DataType.INT64, new long[0], false),
-                new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {2, 3}, true));
+                float16,
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT32, new long[] {2, 3}, true));
         byte[] actual = program.encodedProgramImage(
                 NumericalProfile.STRICT_IEEE,
-                values, new int[] {0, 1, 2, 3, 4, 5}, new int[] {6});
+                values, new int[] {0, 1, 2, 3, 4, 5, 6}, new int[] {7});
 
-        ByteBuffer expected = ByteBuffer.allocate(568).order(ByteOrder.LITTLE_ENDIAN);
+        assertEquals(1L, float16.elementCount());
+        assertEquals(Short.BYTES, float16.byteCount());
+        ByteBuffer expected = ByteBuffer.allocate(616).order(ByteOrder.LITTLE_ENDIAN);
         expected.putInt(MetalMpsGraphProgram.MAGIC);
         expected.putInt(MetalMpsGraphProgram.SCHEMA_VERSION);
         expected.putInt(MetalMpsGraphProgram.HEADER_BYTES);
-        expected.putInt(568);
+        expected.putInt(616);
         expected.putInt(MetalPreparedRoute.MPSGRAPH.wireIdentity());
         expected.putInt(MetalMpsGraphProgram.STRICT_IEEE_PROFILE_WIRE);
         expected.putInt(0);
         expected.putInt(0);
+        expected.putInt(8);
+        expected.putInt(1);
         expected.putInt(7);
         expected.putInt(1);
-        expected.putInt(6);
-        expected.putInt(1);
         expected.putInt(4);
         expected.putInt(4);
-        expected.putInt(14);
+        expected.putInt(16);
         expected.putInt(1);
         for (int extensionField = 0; extensionField < 11; extensionField++) expected.putInt(0);
         expected.putInt(-1);
@@ -315,12 +322,13 @@ class MetalMpsGraphAffineSchemaTest {
         putValue(expected, 4, 0, 2, 2, 2, 1, 0L, 1L);
         putValue(expected, 5, 0, 2, 2, 2, 1, 0L, 1L);
         putValue(expected, 6, 0, 2, 2, 2, 1, 0L, 1L);
+        putValue(expected, 7, 0, 2, 2, 2, 1, 0L, 1L);
         putValue(expected, 1, 2, 2, 2, 3, 1, 0L, 6L);
         expected.putInt(77);
         expected.putInt(3);
+        expected.putInt(8);
         expected.putInt(7);
-        expected.putInt(6);
-        expected.putInt(13);
+        expected.putInt(15);
         expected.putInt(1);
         expected.putInt(0);
         expected.putInt(1);
@@ -332,7 +340,8 @@ class MetalMpsGraphAffineSchemaTest {
         expected.putLong(1);
         expected.putLong(3);
         expected.putLong(1);
-        for (int reference : new int[] {0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6}) {
+        for (int reference :
+                new int[] {0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7}) {
             expected.putInt(reference);
         }
         expected.putLong(0L);

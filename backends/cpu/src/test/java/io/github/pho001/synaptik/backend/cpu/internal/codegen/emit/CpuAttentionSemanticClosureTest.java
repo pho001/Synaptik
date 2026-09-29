@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 
 /** Executes every exact generated attention inventory owner against a test-local stable oracle. */
 class CpuAttentionSemanticClosureTest {
-    private static final List<DataType> FLOATING = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16);
+    private static final List<DataType> FLOATING = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16);
     private static final CpuPartitionAnalysisInputs.MaterializationPolicy MATERIALIZATION =
             new CpuPartitionAnalysisInputs.MaterializationPolicy(true, 0, 1, 20, 1, 3, 1_000_000, 1, 1);
 
@@ -35,7 +35,7 @@ class CpuAttentionSemanticClosureTest {
                         assertTrue(owners.add(fixture.owner()), "duplicate semantic witness " + fixture);
                         invokeAndCompare(fixture); raw++;
                     }
-        assertEquals(4560, raw, "one definition and invocation per attention inventory row");
+        assertEquals(9_280, raw, "one definition and invocation per attention inventory row");
         assertEquals(inventoryOwners(), owners, "complete non-projecting attention inventory-owner join");
     }
 
@@ -174,11 +174,12 @@ class CpuAttentionSemanticClosureTest {
         return result + a * strides[strides.length - 2] + b * strides[strides.length - 1];
     }
     private static double narrow(DataType t, double x) { return t == DataType.FLOAT64 ? x : (float) x; }
-    private static double quantize(DataType t, double x) { return t == DataType.BFLOAT16 ? Float.intBitsToFloat((ScalarValue.bfloat16((float) x).bfloat16Bits() & 0xffff) << 16) : narrow(t, x); }
+    private static double quantize(DataType t, double x) { return t == DataType.BFLOAT16 ? Float.intBitsToFloat((ScalarValue.bfloat16((float) x).bfloat16Bits() & 0xffff) << 16)
+            : t == DataType.FLOAT16 ? Float.float16ToFloat(Float.floatToFloat16((float) x)) : narrow(t, x); }
     private static long offset(LayoutDescriptor l, io.github.pho001.synaptik.model.shape.Shape shape, long logical) { long r = l.storageOffset(); long[] d = shape.toLongArray(), st = l.strides(); for (int i = d.length - 1; i >= 0; i--) { r += (logical % d[i]) * st[i]; logical /= d[i]; } return r; }
     private static long elements(io.github.pho001.synaptik.model.shape.Shape shape) { long result = 1; for (long x : shape.toLongArray()) result *= x; return result; }
-    private static void assertStorage(double[] expected, Storage actual, Fixture f) { for (int i = 0; i < expected.length; i++) assertEquals(expected[i], actual.get(i), actual.type == DataType.BFLOAT16 ? .02 : actual.type == DataType.FLOAT32 ? 2e-5 : 0, f + " physical " + i); }
-    private static Set<String> inventoryOwners() throws Exception { try (var stream = CpuAttentionSemanticClosureTest.class.getResourceAsStream("/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/generated-coverage-inventory.tsv")) { assertNotNull(stream); Set<String> result = new TreeSet<>(); for (String line : new String(stream.readAllBytes(), StandardCharsets.UTF_8).split("\\n")) { String[] fields = line.split("\\t", -1); if (fields.length == 27 && fields[2].equals("SCALED_DOT_PRODUCT_ATTENTION")) assertTrue(result.add(fields[0]), "duplicate inventory owner " + fields[0]); } assertEquals(4560, result.size()); return result; } }
+    private static void assertStorage(double[] expected, Storage actual, Fixture f) { for (int i = 0; i < expected.length; i++) assertEquals(expected[i], actual.get(i), actual.type == DataType.BFLOAT16 ? .02 : actual.type == DataType.FLOAT16 ? .003 : actual.type == DataType.FLOAT32 ? 2e-5 : 0, f + " physical " + i); }
+    private static Set<String> inventoryOwners() throws Exception { try (var stream = CpuAttentionSemanticClosureTest.class.getResourceAsStream("/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/generated-coverage-inventory.tsv")) { assertNotNull(stream); Set<String> result = new TreeSet<>(); for (String line : new String(stream.readAllBytes(), StandardCharsets.UTF_8).split("\\n")) { String[] fields = line.split("\\t", -1); if (fields.length == 27 && fields[2].equals("SCALED_DOT_PRODUCT_ATTENTION")) assertTrue(result.add(fields[0]), fields[0]); } assertEquals(9_280, result.size()); return result; } }
 
     private enum Request {
         HEAP_CONTIGUOUS_SCALAR(false, false, false, false, CpuGeneratedDirectEvidenceClosureTest.scalar(1)),
@@ -194,11 +195,11 @@ class CpuAttentionSemanticClosureTest {
     }
     private static final class Storage {
         final DataType type; final CarrierAccess carrier; final Object heap; final MemorySegment segment;
-        Storage(DataType type, CarrierAccess carrier) { this.type = type; this.carrier = carrier; heap = switch (type) { case FLOAT64 -> new double[256]; case FLOAT32 -> new float[256]; case BFLOAT16 -> new short[256]; case BOOL -> new byte[256]; default -> throw new AssertionError(type); }; segment = switch (type) { case FLOAT64 -> MemorySegment.ofArray((double[]) heap); case FLOAT32 -> MemorySegment.ofArray((float[]) heap); case BFLOAT16 -> MemorySegment.ofArray((short[]) heap); case BOOL -> MemorySegment.ofArray((byte[]) heap); default -> throw new AssertionError(type); }; }
+        Storage(DataType type, CarrierAccess carrier) { this.type = type; this.carrier = carrier; heap = switch (type) { case FLOAT64 -> new double[256]; case FLOAT32 -> new float[256]; case BFLOAT16, FLOAT16 -> new short[256]; case BOOL -> new byte[256]; default -> throw new AssertionError(type); }; segment = switch (type) { case FLOAT64 -> MemorySegment.ofArray((double[]) heap); case FLOAT32 -> MemorySegment.ofArray((float[]) heap); case BFLOAT16, FLOAT16 -> MemorySegment.ofArray((short[]) heap); case BOOL -> MemorySegment.ofArray((byte[]) heap); default -> throw new AssertionError(type); }; }
         Object argument() { return carrier == CarrierAccess.MEMORY_SEGMENT ? segment : heap; }
         void fill(double x) { for (int i = 0; i < 256; i++) set(i, x); }
-        void set(long i, double x) { switch (type) { case FLOAT64 -> ((double[]) heap)[(int) i] = x; case FLOAT32 -> ((float[]) heap)[(int) i] = (float) x; case BFLOAT16 -> ((short[]) heap)[(int) i] = ScalarValue.bfloat16((float) x).bfloat16Bits(); case BOOL -> ((byte[]) heap)[(int) i] = (byte) x; default -> throw new AssertionError(type); } }
-        double get(long i) { return switch (type) { case FLOAT64 -> ((double[]) heap)[(int) i]; case FLOAT32 -> ((float[]) heap)[(int) i]; case BFLOAT16 -> Float.intBitsToFloat((((short[]) heap)[(int) i] & 0xffff) << 16); case BOOL -> ((byte[]) heap)[(int) i]; default -> throw new AssertionError(type); }; }
+        void set(long i, double x) { switch (type) { case FLOAT64 -> ((double[]) heap)[(int) i] = x; case FLOAT32 -> ((float[]) heap)[(int) i] = (float) x; case BFLOAT16 -> ((short[]) heap)[(int) i] = ScalarValue.bfloat16((float) x).bfloat16Bits(); case FLOAT16 -> ((short[]) heap)[(int) i] = Float.floatToFloat16((float) x); case BOOL -> ((byte[]) heap)[(int) i] = (byte) x; default -> throw new AssertionError(type); } }
+        double get(long i) { return switch (type) { case FLOAT64 -> ((double[]) heap)[(int) i]; case FLOAT32 -> ((float[]) heap)[(int) i]; case BFLOAT16 -> Float.intBitsToFloat((((short[]) heap)[(int) i] & 0xffff) << 16); case FLOAT16 -> Float.float16ToFloat(((short[]) heap)[(int) i]); case BOOL -> ((byte[]) heap)[(int) i]; default -> throw new AssertionError(type); }; }
         double[] snapshot() { double[] r = new double[256]; for (int i = 0; i < r.length; i++) r[i] = get(i); return r; }
     }
 }

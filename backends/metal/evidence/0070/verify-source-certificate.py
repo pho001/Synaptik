@@ -18,9 +18,9 @@ def require(text: str, fragment: str) -> None:
 def main() -> None:
     certificate = json.loads(CERTIFICATE.read_text(encoding="utf-8"))
     assert certificate["schema"] == "synaptik.metal.pointwise-fusion-certificate.v1"
-    assert certificate["programSchema"] == 18
+    assert certificate["programSchema"] == 19
     assert certificate["generatorSchema"] == 2
-    assert certificate["magic"] == "0x38314d53"
+    assert certificate["magic"] == "0x39314d53"
     assert certificate["identityCount"] == len(certificate["sources"]) + 2
 
     texts: dict[str, str] = {}
@@ -60,9 +60,9 @@ def main() -> None:
     )
 
     for fragment in (
-        "static final int SCHEMA_VERSION = 18;",
+        "static final int SCHEMA_VERSION = 19;",
         "static final int HEADER_BYTES = 128;",
-        "static final int MAGIC = 0x38314d53;",
+        "static final int MAGIC = 0x39314d53;",
         "MPSGraph image cannot carry an extension",
         ".putInt(extension ? EXECUTION_EXTENSION_PRESENT : 0)",
         "for (int value : plan.materializedProgramValueIndices()) out.putInt(value);",
@@ -75,7 +75,7 @@ def main() -> None:
         "static final int MAX_FUNCTION_SOURCE_UTF8_BYTES = 16_384;",
         "static final int MAX_GENERATED_SOURCE_UTF8_BYTES = 262_144;",
         "static final int MAX_TOTAL_SOURCE_UTF8_BYTES = 1_048_576;",
-        "static final int FIXED_CORPUS_UTF8_BYTES = 84_541;",
+        "static final int FIXED_CORPUS_UTF8_BYTES = 84_603;",
         "FLOOR(1, 10), CEIL(2, 9), SIGN(3, 9), RELU(4, 9)",
     ):
         require(java_plan, fragment)
@@ -115,8 +115,8 @@ def main() -> None:
     assert "source bytes and hashes remain exclusively" in java_plan
 
     for fragment in (
-        "synaptik_read_le32(program) != UINT32_C(0x38314d53)",
-        "synaptik_read_le32(program + 4U) != 18U",
+        "synaptik_read_le32(program) != UINT32_C(0x39314d53)",
+        "synaptik_read_le32(program + 4U) != 19U",
         "synaptik_read_le32(program + 8U) != 128U",
         "BOOL extension = route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM;",
         "members_offset + (uint64_t)member_count * 4U",
@@ -177,7 +177,7 @@ def main() -> None:
     require(native, "stringByAppendingString:generated_source")
 
     for fragment in (
-        "#define SYNAPTIK_POINTWISE_FIXED_CORPUS_BYTES 84541U",
+        "#define SYNAPTIK_POINTWISE_FIXED_CORPUS_BYTES 84603U",
         "#define SYNAPTIK_POINTWISE_MAX_UNITS 32U",
         "#define SYNAPTIK_POINTWISE_MAX_INSTRUCTIONS 256U",
         "#define SYNAPTIK_POINTWISE_MAX_FUNCTION_BYTES 16384U",
@@ -202,20 +202,20 @@ def main() -> None:
     assert "[NSMutableString" not in generator
     assert generator.count("kernel void synaptik_pw_g1_s%u") == 1
     for fragment in (
-        "schemaEighteenPacksOddReferencePoolDirectlyBeforeAttributes",
+        "schemaNineteenPacksOddReferencePoolDirectlyBeforeAttributes",
         "pointwiseGeometryRequiresRankOneThroughSixteenAndUnsignedElementCount",
         "thirtyThirdGeneratedUnitStopsAtTheAuthenticatedUnitCap",
         "sourceCountCoversEveryUnsignedStepOrdinalDecimalWidthBoundary",
     ):
         require(planner_test, fragment)
     for fragment in (
-        "schemaEighteenRejectsCorruptFusionRecordsManifestAndDigest",
-        "schemaEighteenAuthenticatesCapStopPrecedenceAndFirstRejectedNode",
-        "schemaEighteenRejectsFunctionCapAndCompactVirtualValueForgeries",
+        "schemaNineteenRejectsCorruptFusionRecordsManifestAndDigest",
+        "schemaNineteenAuthenticatesCapStopPrecedenceAndFirstRejectedNode",
+        "schemaNineteenRejectsFunctionCapAndCompactVirtualValueForgeries",
         "nativeParsesUnpaddedOddReferencePoolBeforeAttributes",
         "nativePointwiseEligibilityUsesExplicitRankAndUnsignedElementBounds",
         "appendOutOfRangeMemberStep",
-        "fixed-corpus-bytes 84542",
+        "fixed-corpus-bytes 84604",
         "generatedNegMember",
         "generatedAbsMember",
     ):
@@ -361,7 +361,7 @@ def main() -> None:
         "-isysroot", "<absolute SDKROOT>"
     ]
     fixed = compiled["fixedCorpus"]
-    assert fixed["bytes"] == certificate["fixedCorpus"]["bytes"] == 84541
+    assert fixed["bytes"] == certificate["fixedCorpus"]["bytes"] == 84603
     assert fixed["sha256"] == certificate["fixedCorpus"]["sha256"]
     assert fixed["components"] == certificate["fixedCorpus"]["components"]
     assert compiled["requiredAirFacts"]["bufferCount"] == 3

@@ -29,7 +29,7 @@ class CpuGeneratedCoverageCheckpointTest {
     private static final String POST_TERMINAL_PRE_FROZEN_LAYOUT_INVENTORY_SHA256 =
             "2e9f07e30b47429387c8c1043207ee6e8feae327f09ac24a7a8f8c51821918fb";
     private static final String FROZEN_LAYOUT_INVENTORY_SHA256 =
-            "6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2";
+            "9c06f9898dc287c6d2c3805088460c699052d14dbe707de146845659ce5450eb";
     private static final String HEADER = "owner-id\tevidence-key\toperation-form\tlowered-ir-family"
             + "\tdescriptor-alias-roles\tordered-boundary-values\tvirtual-values\tunit-count"
             + "\taffine-address-pairs\tordered-carriers\tlayout-access\trequested-strategy"
@@ -60,15 +60,15 @@ class CpuGeneratedCoverageCheckpointTest {
                 assertEquals("N/A_NO_GENERATED_CODE", row[26], entry.getKey());
             }
         }
-        assertEquals(17_470L, observed.values().stream().filter(record -> record.outcome().equals("GENERATED")).count());
-        assertEquals(173L, observed.values().stream().filter(record -> !record.outcome().equals("GENERATED")).count());
-        assertEquals(845L, observed.keySet().stream().filter(id -> id.startsWith("pointwise-matrix:")).count());
+        assertEquals(41_336L, observed.values().stream().filter(record -> record.outcome().equals("GENERATED")).count());
+        assertEquals(265L, observed.values().stream().filter(record -> !record.outcome().equals("GENERATED")).count());
+        assertEquals(1_025L, observed.keySet().stream().filter(id -> id.startsWith("pointwise-matrix:")).count());
         assertEquals(263L, observed.keySet().stream().filter(id -> id.startsWith("scalar-immediate:")).count());
         assertTrue(observed.keySet().stream().anyMatch(id -> id.startsWith("ordinary:")));
         assertTrue(observed.keySet().stream().anyMatch(id -> id.startsWith("specialized:")));
         assertTrue(observed.keySet().stream().anyMatch(id -> id.startsWith("composition:conv1d/")));
         assertTrue(observed.keySet().stream().anyMatch(id -> id.startsWith("composition:pool1d/")));
-        assertEquals(17_470L, rows.values().stream().filter(row -> row[21].equals("GENERATED"))
+        assertEquals(41_336L, rows.values().stream().filter(row -> row[21].equals("GENERATED"))
                 .filter(row -> !row[25].equals("PENDING") && !row[26].equals("PENDING")).count());
         assertLiveDispositionResolution(observed);
     }
@@ -116,7 +116,7 @@ class CpuGeneratedCoverageCheckpointTest {
                 "the aggregate layout correction intentionally advances the frozen inventory");
     }
 
-    @Test void directPoolProjectionInvokesEveryOneOfIts120ExactInventoryOwners() throws Throwable {
+    @Test void directPoolProjectionInvokesEveryOneOfIts160ExactInventoryOwners() throws Throwable {
         new CpuPool2d3dSemanticClosureTest()
                 .everyExactGeneratedPoolOwnerDefinesAndInvokesItsSpecializedEntry();
         Map<String, String[]> rows = parse(resource("generated-coverage-inventory.tsv"));
@@ -126,7 +126,7 @@ class CpuGeneratedCoverageCheckpointTest {
                     .filter(entry -> entry.getValue()[2].equals(form))
                     .filter(entry -> entry.getValue()[21].equals("GENERATED"))
                     .count();
-            assertEquals(30L, count, form + " exact generated inventory projection");
+            assertEquals(40L, count, form + " exact generated inventory projection");
         }
     }
 
@@ -287,11 +287,11 @@ class CpuGeneratedCoverageCheckpointTest {
 
     private static void assertGeneratedOwnerPartitions(Map<String, String[]> rows) {
         Map<String, Long> expected = Map.of(
-                "specialized", 12_850L,
+                "specialized", 35_600L,
                 "affine-matrix", 1_536L,
-                "ordinary", 1_400L,
-                "pointwise-matrix", 845L,
-                "composition", 576L,
+                "ordinary", 1_664L,
+                "pointwise-matrix", 1_025L,
+                "composition", 1_248L,
                 "scalar-immediate", 263L);
         Map<String, Long> actual = new TreeMap<>();
         for (var entry : rows.entrySet()) {
@@ -301,8 +301,8 @@ class CpuGeneratedCoverageCheckpointTest {
             actual.merge(partition, 1L, Long::sum);
         }
         assertEquals(expected, actual, "generated owner partitions must be complete and disjoint");
-        assertEquals(17_470L, actual.values().stream().mapToLong(Long::longValue).sum());
-        assertEquals(173L, rows.size() - actual.values().stream().mapToLong(Long::longValue).sum(),
+        assertEquals(41_336L, actual.values().stream().mapToLong(Long::longValue).sum());
+        assertEquals(265L, rows.size() - actual.values().stream().mapToLong(Long::longValue).sum(),
                 "provider/preparer rejects remain outside generated semantic closure");
     }
 
@@ -454,21 +454,21 @@ class CpuGeneratedCoverageCheckpointTest {
      * Seals the finite scatter projection used by the direct generated-entry closure.
      *
      * <p>The projection is deliberately by exact owner identity, rather than by a family witness:
-     * every one of the 416 inventory records remains individually accountable.  The inventory
+     * every one of the 496 inventory records remains individually accountable. The inventory
      * digest catches stale or hand-edited projections before a semantic closure can claim them.</p>
      */
     @Test void scatterProjectionIsExactCompleteAndBoundToTheCurrentInventoryBytes() throws Exception {
         String inventory = resource("generated-coverage-inventory.tsv");
-        assertEquals("6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2",
+        assertEquals("9c06f9898dc287c6d2c3805088460c699052d14dbe707de146845659ce5450eb",
                 hex(MessageDigest.getInstance("SHA-256").digest(inventory.getBytes(StandardCharsets.UTF_8))));
         Map<String, String[]> rows = parse(inventory);
         var scatter = rows.entrySet().stream().filter(entry -> entry.getKey().startsWith("ordinary:"))
                 .filter(entry -> entry.getValue()[2].equals("SCATTER_ELEMENTS")
                         || entry.getValue()[2].equals("SCATTER_ND")).toList();
-        assertEquals(416, scatter.size());
-        assertEquals(208, scatter.stream().filter(entry -> entry.getValue()[2].equals("SCATTER_ELEMENTS")).count());
-        assertEquals(208, scatter.stream().filter(entry -> entry.getValue()[2].equals("SCATTER_ND")).count());
-        assertEquals(416, scatter.stream().map(Map.Entry::getKey).distinct().count(), "duplicate projection owner");
+        assertEquals(496, scatter.size());
+        assertEquals(248, scatter.stream().filter(entry -> entry.getValue()[2].equals("SCATTER_ELEMENTS")).count());
+        assertEquals(248, scatter.stream().filter(entry -> entry.getValue()[2].equals("SCATTER_ND")).count());
+        assertEquals(496, scatter.stream().map(Map.Entry::getKey).distinct().count(), "duplicate projection owner");
         for (var entry : scatter) {
             String[] row = entry.getValue();
             assertEquals("GENERATED", row[21], entry.getKey());
@@ -488,13 +488,13 @@ class CpuGeneratedCoverageCheckpointTest {
     /**
      * Seals the direct-execution ownership join for all ordinary aggregate and scan candidates.
      *
-     * <p>The semantic closure defines and invokes each of these 460 contexts.  This projection
+     * <p>The semantic closure defines and invokes each of these 552 contexts. This projection
      * makes a changed inventory, duplicate identity, stale omission, or orphaned executable
      * context fail before that execution can be mistaken for coverage of a different row.</p>
      */
-    @Test void aggregateAndScanProjectionHasExactlyThe460ExecutableOwners() throws Exception {
+    @Test void aggregateAndScanProjectionHasExactlyThe552ExecutableOwners() throws Exception {
         String inventory = resource("generated-coverage-inventory.tsv");
-        assertEquals("6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2",
+        assertEquals("9c06f9898dc287c6d2c3805088460c699052d14dbe707de146845659ce5450eb",
                 hex(MessageDigest.getInstance("SHA-256").digest(inventory.getBytes(StandardCharsets.UTF_8))));
         Map<String, String[]> rows = parse(inventory);
         Set<String> forms = Set.of("SUM", "MEAN", "PROD", "AGGREGATE_MIN", "AGGREGATE_MAX",
@@ -505,8 +505,8 @@ class CpuGeneratedCoverageCheckpointTest {
         Set<String> executable = CpuOrdinaryNonPointwiseGeneratedMatrixTest.aggregateOrScanCandidates().stream()
                 .map(candidate -> "ordinary:" + candidate.ownerId())
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        assertEquals(460, projected.size(), "exact inventory projection");
-        assertEquals(460, executable.size(), "exact direct-execution owner set");
+        assertEquals(552, projected.size(), "exact inventory projection");
+        assertEquals(552, executable.size(), "exact direct-execution owner set");
         assertEquals(executable, projected, "orphan, stale, or relabeled aggregate/scan owner");
         for (String owner : projected) {
             String[] row = rows.get(owner);
@@ -520,21 +520,21 @@ class CpuGeneratedCoverageCheckpointTest {
         String duplicate = inventory + projected.iterator().next() + "\t"
                 + String.join("\t", rows.get(projected.iterator().next())) + "\n";
         assertThrows(AssertionError.class, () -> parse(duplicate));
-        assertEquals(459, projected.stream().filter(owner -> !owner.equals(projected.iterator().next())).count(),
+        assertEquals(551, projected.stream().filter(owner -> !owner.equals(projected.iterator().next())).count(),
                 "removing one owner is an observable stale projection");
     }
 
     /**
      * Seals the direct-execution join for the finite gather and stable-ordering closure.
      *
-     * <p>The source inventory remains authoritative for the 336 identities.  Comparing its exact
+     * <p>The source inventory remains authoritative for the 392 identities. Comparing its exact
      * SHA-bound projection with independently reconstructed contexts makes duplicate, orphan,
      * stale, or manually relabelled owners fail closed.</p>
      */
-    @Test void indexingAndOrderingProjectionHasExactlyThe336ExecutableOwners() throws Exception {
+    @Test void indexingAndOrderingProjectionHasExactlyThe392ExecutableOwners() throws Exception {
         String inventory = resource("generated-coverage-inventory.tsv");
         String digest = hex(MessageDigest.getInstance("SHA-256").digest(inventory.getBytes(StandardCharsets.UTF_8)));
-        assertEquals("6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2", digest);
+        assertEquals("9c06f9898dc287c6d2c3805088460c699052d14dbe707de146845659ce5450eb", digest);
         Map<String, String[]> rows = parse(inventory);
         Set<String> forms = Set.of("GATHER", "GATHER_ELEMENTS", "GATHER_ND", "SORT", "ARGSORT", "TOP_K");
         Set<String> projected = rows.entrySet().stream().filter(entry -> entry.getKey().startsWith("ordinary:"))
@@ -543,15 +543,15 @@ class CpuGeneratedCoverageCheckpointTest {
         Set<String> executable = CpuOrdinaryNonPointwiseGeneratedMatrixTest.indexingOrOrderingCandidates().stream()
                 .map(candidate -> "ordinary:" + candidate.ownerId())
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        assertEquals(336, projected.size(), "exact inventory projection");
-        assertEquals(336, executable.size(), "exact reconstructed owner set");
+        assertEquals(392, projected.size(), "exact inventory projection");
+        assertEquals(392, executable.size(), "exact reconstructed owner set");
         assertEquals(executable, projected, "duplicate, orphan, stale, or relabelled owner");
-        assertEquals(48, projected.stream().filter(id -> rows.get(id)[2].equals("GATHER")).count());
-        assertEquals(48, projected.stream().filter(id -> rows.get(id)[2].equals("GATHER_ELEMENTS")).count());
-        assertEquals(48, projected.stream().filter(id -> rows.get(id)[2].equals("GATHER_ND")).count());
-        assertEquals(48, projected.stream().filter(id -> rows.get(id)[2].equals("SORT")).count());
-        assertEquals(48, projected.stream().filter(id -> rows.get(id)[2].equals("ARGSORT")).count());
-        assertEquals(96, projected.stream().filter(id -> rows.get(id)[2].equals("TOP_K")).count());
+        assertEquals(56, projected.stream().filter(id -> rows.get(id)[2].equals("GATHER")).count());
+        assertEquals(56, projected.stream().filter(id -> rows.get(id)[2].equals("GATHER_ELEMENTS")).count());
+        assertEquals(56, projected.stream().filter(id -> rows.get(id)[2].equals("GATHER_ND")).count());
+        assertEquals(56, projected.stream().filter(id -> rows.get(id)[2].equals("SORT")).count());
+        assertEquals(56, projected.stream().filter(id -> rows.get(id)[2].equals("ARGSORT")).count());
+        assertEquals(112, projected.stream().filter(id -> rows.get(id)[2].equals("TOP_K")).count());
         for (String owner : projected) {
             String[] row = rows.get(owner);
             assertEquals("GENERATED", row[21], owner);
@@ -613,9 +613,9 @@ class CpuGeneratedCoverageCheckpointTest {
             assertEquals("PARTIAL_NO_REPRESENTATIVE_BENCHMARK", performance, record.occurrenceId());
             performancePartial++;
         }
-        assertEquals(2_252L, proved);
-        assertEquals(15_218L, partial);
-        assertEquals(17_470L, performancePartial);
+        assertEquals(2_384L, proved);
+        assertEquals(38_952L, partial);
+        assertEquals(41_336L, performancePartial);
         var scoped = observed.values().stream().filter(CpuGeneratedCoverageCheckpointTest::isCpu0009cOwner)
                 .findFirst().orElseThrow();
         var reversed = new java.util.ArrayList<>(CpuGeneratedCoverageDispositionRegistry.entries());

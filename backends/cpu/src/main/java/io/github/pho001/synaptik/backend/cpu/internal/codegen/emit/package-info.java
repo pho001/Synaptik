@@ -11,8 +11,8 @@
  * typed local. It preserves represented-bit identities and explicit intermediate boundaries,
  * performs direct BFLOAT16 rounding, and emits no Synaptik conversion-helper call. Cross-type
  * CAST bodies are scalar-only; caller-parallel orchestration reuses the same generated entry. A separate scalar
- * affine emitter copies represented bits for all six Model data types, including opaque BFLOAT16
- * through {@code short[]} or native-order two-byte {@code MemorySegment} access. Vector generation covers the
+ * affine emitter copies represented bits for all seven Model data types, including both opaque
+ * 16-bit floats through {@code short[]} or native-order two-byte {@code MemorySegment} access. Vector generation covers the
  * bounded typed value matrix plus unit-private floating masks and scalar-broadcast BOOL conditions;
  * materialized or general external masks remain scalar. Every unary opcode has a scalar body;
  * FLOOR, CEIL, SIGMOID, GELU tanh approximation, and SiLU remain scalar-compute only. Vector
@@ -164,11 +164,11 @@
  * and performs one direct INT64 coordinate store. Heap, segment, mixed, dense, general, and
  * zero-stride-read forms use the same typed primitive algorithm without a Synaptik hot helper.</p>
  *
- * <p>The separate masked-reduction emitter owns a three-boundary FLOAT64, FLOAT32, or BFLOAT16
- * output-cell body. It derives right-aligned mask addresses directly, branches on the canonical
- * BOOL byte before loading data, increments one primitive selected count only for true positions,
- * and reuses the generation-time exact-sum arithmetic owner for one final SUM or MEAN rounding.
- * The generated entry contains no Synaptik runtime call, allocation, semantic dispatch, mask
+ * <p>The separate masked-reduction emitter owns a three-boundary FLOAT64, FLOAT32, BFLOAT16, or
+ * FLOAT16 output-cell body. It derives right-aligned mask addresses directly, branches on the
+ * canonical BOOL byte before loading data, increments one primitive selected count only for true
+ * positions, and reuses the generation-time exact-sum arithmetic owner for one final SUM or
+ * MEAN rounding. The generated entry contains no Synaptik runtime call, allocation, semantic dispatch, mask
  * materialization, partial state, or combine step.</p>
  *
  * <p>Three focused advanced-reduction emitters share only generated coordinate traversal. The

@@ -252,8 +252,9 @@ public final class CpuPool3dLowering {
         public Geometry {
             Objects.requireNonNull(kind, "kind"); Objects.requireNonNull(dataType, "dataType");
             Objects.requireNonNull(input, "input"); Objects.requireNonNull(output, "output");
-            if (dataType != DataType.BFLOAT16 && dataType != DataType.FLOAT32
-                    && dataType != DataType.FLOAT64 || kernelDepth <= 0 || kernelHeight <= 0
+            if (dataType != DataType.BFLOAT16 && dataType != DataType.FLOAT16
+                    && dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64
+                    || kernelDepth <= 0 || kernelHeight <= 0
                     || kernelWidth <= 0 || strideDepth <= 0 || strideHeight <= 0
                     || strideWidth <= 0 || paddingDepth < 0 || paddingHeight < 0
                     || paddingWidth < 0 || dilationDepth <= 0 || dilationHeight <= 0

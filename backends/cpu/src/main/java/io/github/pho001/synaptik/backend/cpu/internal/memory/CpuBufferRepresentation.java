@@ -97,7 +97,7 @@ public abstract class CpuBufferRepresentation implements BufferRepresentation {
                     ? new CpuBufferArgument.Doubles(values, offset, size, readOnly) : mismatch();
             case FLOAT32 -> base instanceof float[] values
                     ? new CpuBufferArgument.Floats(values, offset, size, readOnly) : mismatch();
-            case BFLOAT16 -> base instanceof short[] values
+            case BFLOAT16, FLOAT16 -> base instanceof short[] values
                     ? new CpuBufferArgument.Shorts(values, offset, size, readOnly) : mismatch();
             case INT32 -> base instanceof int[] values
                     ? new CpuBufferArgument.Ints(values, offset, size, readOnly) : mismatch();

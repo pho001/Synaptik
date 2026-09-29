@@ -30,7 +30,8 @@ import java.util.List;
  * {@code N}/{@code N-1} divisors, and fixed running-statistic multiply/add transitions. Aggregates
  * include every contributor once; the irreducible square-root site uses the inclusive
  * ordered-binary32 distance ceiling of five. The composite gains no final-output envelope and
- * saved outputs are exact stored results; non-FLOAT32 behavior stays strict. See the
+ * saved outputs are exact stored results. Every current non-FLOAT32 occurrence remains strict;
+ * the inactive low-precision reservation changes none of them. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */

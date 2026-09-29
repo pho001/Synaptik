@@ -64,10 +64,10 @@ final class TensorAxisGatherExpressions {
     /**
      * Validates an embedding-weight table and creates one canonical axis-zero GATHER expression.
      *
-     * <p>{@code weights} must have rank two and exact BFLOAT16, FLOAT32, or FLOAT64 type. Its
-     * axis zero is the vocabulary axis and axis one is the embedding Dimension. Indices may have
-     * any rank, including scalar, but must have exact INT32 or INT64 type. The result Shape is the
-     * complete indices Shape followed by the exact weight axis-one Dimension.</p>
+     * <p>{@code weights} must have rank two and exact BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type.
+     * Its axis zero is the vocabulary axis and axis one is the embedding Dimension. Indices may
+     * have any rank, including scalar, but must have exact INT32 or INT64 type. The result Shape is
+     * the complete indices Shape followed by the exact weight axis-one Dimension.</p>
      *
      * <p>After embedding-specific validation, this method delegates directly to
      * {@link #gather(Tensor, Tensor, int)} with axis zero. The sole resulting producer therefore
@@ -80,8 +80,8 @@ final class TensorAxisGatherExpressions {
      * sparse-gradient, maximum-norm, or frequency-scaling option changes that ordinary Gather
      * occurrence.</p>
      *
-     * @param weights non-null rank-two BFLOAT16, FLOAT32, or FLOAT64 table retained as provenance
-     *     input zero and never mutated
+     * @param weights non-null rank-two BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 table retained as
+     *     provenance input zero and never mutated
      * @param indices non-null INT32 or INT64 coordinates of any rank retained as provenance input
      *     one and never mutated
      * @return a non-null fresh storage-free GATHER tensor whose Shape is the indices Shape plus
@@ -104,7 +104,7 @@ final class TensorAxisGatherExpressions {
         DataType weightsDataType = weightsDescriptor.dataType();
         if (!weightsDataType.isFloating()) {
             throw new IllegalArgumentException(
-                    "embedding weights data type must be BFLOAT16, FLOAT32, or FLOAT64: "
+                    "embedding weights data type must be BFLOAT16, FLOAT16, FLOAT32, or FLOAT64: "
                             + weightsDataType);
         }
         validateIndexType("embedding", indices.descriptor());

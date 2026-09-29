@@ -20,6 +20,7 @@ class CastValueConversionsTest {
             DataType.FLOAT64,
             DataType.FLOAT32,
             DataType.BFLOAT16,
+            DataType.FLOAT16,
             DataType.INT64,
             DataType.INT32,
             DataType.BOOL);
@@ -70,81 +71,64 @@ class CastValueConversionsTest {
     }
 
     @Test
-    void admitsAllThirtySixPairsWithIndependentRepresentativeResults() {
+    void admitsAllFortyNinePairsWithIndependentRepresentativeResults() {
         ScalarValue[] sources = {
             ScalarValue.float64(-2.75d),
             ScalarValue.float32(-2.75f),
             ScalarValue.bfloat16Bits((short) 0xC030),
+            ScalarValue.float16Bits((short) 0xC180),
             ScalarValue.int64(-3L),
             ScalarValue.int32(-3),
             ScalarValue.bool(true)
         };
         ScalarValue[][] expected = {
             {
-                ScalarValue.float64(-2.75d),
-                ScalarValue.float32(-2.75f),
-                ScalarValue.bfloat16Bits((short) 0xC030),
-                ScalarValue.int64(-2L),
-                ScalarValue.int32(-2),
-                ScalarValue.bool(true)
+                ScalarValue.float64(-2.75d), ScalarValue.float32(-2.75f),
+                ScalarValue.bfloat16Bits((short) 0xC030), ScalarValue.float16Bits((short) 0xC180),
+                ScalarValue.int64(-2L), ScalarValue.int32(-2), ScalarValue.bool(true)
             },
             {
-                ScalarValue.float64(-2.75d),
-                ScalarValue.float32(-2.75f),
-                ScalarValue.bfloat16Bits((short) 0xC030),
-                ScalarValue.int64(-2L),
-                ScalarValue.int32(-2),
-                ScalarValue.bool(true)
+                ScalarValue.float64(-2.75d), ScalarValue.float32(-2.75f),
+                ScalarValue.bfloat16Bits((short) 0xC030), ScalarValue.float16Bits((short) 0xC180),
+                ScalarValue.int64(-2L), ScalarValue.int32(-2), ScalarValue.bool(true)
             },
             {
-                ScalarValue.float64(-2.75d),
-                ScalarValue.float32(-2.75f),
-                ScalarValue.bfloat16Bits((short) 0xC030),
-                ScalarValue.int64(-2L),
-                ScalarValue.int32(-2),
-                ScalarValue.bool(true)
+                ScalarValue.float64(-2.75d), ScalarValue.float32(-2.75f),
+                ScalarValue.bfloat16Bits((short) 0xC030), ScalarValue.float16Bits((short) 0xC180),
+                ScalarValue.int64(-2L), ScalarValue.int32(-2), ScalarValue.bool(true)
             },
             {
-                ScalarValue.float64(-3.0d),
-                ScalarValue.float32(-3.0f),
-                ScalarValue.bfloat16Bits((short) 0xC040),
-                ScalarValue.int64(-3L),
-                ScalarValue.int32(-3),
-                ScalarValue.bool(true)
+                ScalarValue.float64(-2.75d), ScalarValue.float32(-2.75f),
+                ScalarValue.bfloat16Bits((short) 0xC030), ScalarValue.float16Bits((short) 0xC180),
+                ScalarValue.int64(-2L), ScalarValue.int32(-2), ScalarValue.bool(true)
             },
             {
-                ScalarValue.float64(-3.0d),
-                ScalarValue.float32(-3.0f),
-                ScalarValue.bfloat16Bits((short) 0xC040),
-                ScalarValue.int64(-3L),
-                ScalarValue.int32(-3),
-                ScalarValue.bool(true)
+                ScalarValue.float64(-3.0d), ScalarValue.float32(-3.0f),
+                ScalarValue.bfloat16Bits((short) 0xC040), ScalarValue.float16Bits((short) 0xC200),
+                ScalarValue.int64(-3L), ScalarValue.int32(-3), ScalarValue.bool(true)
             },
             {
-                ScalarValue.float64(1.0d),
-                ScalarValue.float32(1.0f),
-                ScalarValue.bfloat16Bits((short) 0x3F80),
-                ScalarValue.int64(1L),
-                ScalarValue.int32(1),
-                ScalarValue.bool(true)
+                ScalarValue.float64(-3.0d), ScalarValue.float32(-3.0f),
+                ScalarValue.bfloat16Bits((short) 0xC040), ScalarValue.float16Bits((short) 0xC200),
+                ScalarValue.int64(-3L), ScalarValue.int32(-3), ScalarValue.bool(true)
+            },
+            {
+                ScalarValue.float64(1.0d), ScalarValue.float32(1.0f),
+                ScalarValue.bfloat16Bits((short) 0x3F80), ScalarValue.float16Bits((short) 0x3C00),
+                ScalarValue.int64(1L), ScalarValue.int32(1), ScalarValue.bool(true)
             }
         };
-
         for (int sourceIndex = 0; sourceIndex < sources.length; sourceIndex++) {
             for (int targetIndex = 0; targetIndex < MATRIX_ORDER.size(); targetIndex++) {
                 ScalarValue source = sources[sourceIndex];
                 DataType target = MATRIX_ORDER.get(targetIndex);
-                ScalarValue expectedResult = expected[sourceIndex][targetIndex];
                 ScalarValue result = CastValueConversions.convert(source, target);
-
+                ScalarValue expectedResult = expected[sourceIndex][targetIndex];
                 assertAll(
                         () -> assertEquals(target, result.dataType()),
                         () -> assertEquals(expectedResult, result));
-                if (source.dataType() == target) {
-                    assertSame(source, result);
-                } else {
-                    assertNotSame(source, result);
-                }
+                if (source.dataType() == target) assertSame(source, result);
+                else assertNotSame(source, result);
             }
         }
     }
@@ -155,6 +139,7 @@ class CastValueConversionsTest {
                 ScalarValue.float64(Double.longBitsToDouble(0xFFF0_0000_0000_0042L)),
                 ScalarValue.float32(Float.intBitsToFloat(0x7FA1_2345)),
                 ScalarValue.bfloat16Bits((short) 0xFF81),
+                ScalarValue.float16Bits((short) 0xFE01),
                 ScalarValue.int64(Long.MIN_VALUE),
                 ScalarValue.int32(Integer.MIN_VALUE),
                 ScalarValue.bool(false));
@@ -163,7 +148,40 @@ class CastValueConversionsTest {
             assertSame(value, CastValueConversions.convert(value, value.dataType()));
         }
     }
+    @Test
+    void roundsBinary64DirectlyToFloat16AndCoversEveryOrderedPair() {
+        double witness = 1.0d + Math.scalb(1.0d, -11) + Math.scalb(1.0d, -25);
+        assertEquals(
+                0x3C01,
+                Short.toUnsignedInt(CastValueConversions.convert(
+                        ScalarValue.float64(witness), DataType.FLOAT16).float16Bits()));
+        List<ScalarValue> representatives = List.of(
+                ScalarValue.float64(1.25d),
+                ScalarValue.float32(1.25f),
+                ScalarValue.bfloat16(1.25f),
+                ScalarValue.float16(1.25f),
+                ScalarValue.int64(1L),
+                ScalarValue.int32(1),
+                ScalarValue.bool(true));
+        for (ScalarValue source : representatives) {
+            for (DataType target : DataType.values()) {
+                ScalarValue result = CastValueConversions.convert(source, target);
+                assertEquals(target, result.dataType());
+                if (source.dataType() == target) assertSame(source, result);
+            }
+        }
+    }
 
+    @Test
+    void handlesLongMinimumWithoutSignedMagnitudeOverflow() {
+        ScalarValue minimum = ScalarValue.int64(Long.MIN_VALUE);
+        assertEquals(
+                (short) 0xDF00,
+                CastValueConversions.convert(minimum, DataType.BFLOAT16).bfloat16Bits());
+        assertEquals(
+                (short) 0xFC00,
+                CastValueConversions.convert(minimum, DataType.FLOAT16).float16Bits());
+    }
     @Test
     void roundsFloat64DirectlyToBFloat16AtTiesCarryOverflowAndUnderflow() {
         assertAll(
@@ -181,6 +199,31 @@ class CastValueConversionsTest {
                 () -> assertBFloat16(0x0001, f64(0x3790_0000_0000_0001L)),
                 () -> assertBFloat16(0x8000, f64(0xB790_0000_0000_0000L)),
                 () -> assertBFloat16(0x8001, f64(0xB790_0000_0000_0001L)));
+    }
+
+    @Test
+    void preservesFloat16SignsBoundariesAndNaNPolicyAcrossCasts() {
+        assertEquals(0x8000, Short.toUnsignedInt(CastValueConversions.convert(
+                ScalarValue.float64(-0.0d), DataType.FLOAT16).float16Bits()));
+        assertEquals(0x7C00, Short.toUnsignedInt(CastValueConversions.convert(
+                ScalarValue.float64(Double.POSITIVE_INFINITY), DataType.FLOAT16).float16Bits()));
+        assertEquals(0x0001, Short.toUnsignedInt(CastValueConversions.convert(
+                ScalarValue.float64(Math.scalb(1.0d, -24)), DataType.FLOAT16).float16Bits()));
+        assertEquals(0x7E00, Short.toUnsignedInt(CastValueConversions.convert(
+                ScalarValue.float64(Double.longBitsToDouble(0xFFF0_0000_0000_0042L)),
+                DataType.FLOAT16).float16Bits()));
+        assertEquals(0x7FC0, Short.toUnsignedInt(CastValueConversions.convert(
+                ScalarValue.float16Bits((short) 0xFE01), DataType.BFLOAT16).bfloat16Bits()));
+        assertEquals(0x7E00, Short.toUnsignedInt(CastValueConversions.convert(
+                ScalarValue.bfloat16Bits((short) 0xFFC1), DataType.FLOAT16).float16Bits()));
+        assertEquals(0xFFC0_2000, Float.floatToRawIntBits(CastValueConversions.convert(
+                ScalarValue.float16Bits((short) 0xFE01), DataType.FLOAT32).float32Value()));
+        assertEquals(
+                0xFFF0_0000_0000_0000L | (0x001L << 42),
+                Double.doubleToRawLongBits(CastValueConversions.convert(
+                        ScalarValue.float16Bits((short) 0xFC01), DataType.FLOAT64).float64Value()));
+        assertBFloat16(0x0000, ScalarValue.float64(Math.scalb(1.0d, -144)));
+        assertBFloat16(0x8000, ScalarValue.float64(-Math.scalb(1.0d, -144)));
     }
 
     @Test
@@ -223,8 +266,8 @@ class CastValueConversionsTest {
     void widensFiniteValuesAndNaNsByExactLeftAlignedBitMappings() {
         ScalarValue bf16Signaling = ScalarValue.bfloat16Bits((short) 0x7F81);
         ScalarValue bf16QuietNegative = ScalarValue.bfloat16Bits((short) 0xFFC1);
+        ScalarValue float16SignalingNegative = ScalarValue.float16Bits((short) 0xFC01);
         ScalarValue float32Signaling = f32(0x7FA1_2345);
-
         assertAll(
                 () -> assertEquals(
                         0x7F81_0000,
@@ -241,6 +284,11 @@ class CastValueConversionsTest {
                         Double.doubleToRawLongBits(CastValueConversions
                                 .convert(float32Signaling, DataType.FLOAT64)
                                 .float64Value())),
+                () -> assertEquals(
+                        0xFF80_2000,
+                        Float.floatToRawIntBits(CastValueConversions
+                                .convert(float16SignalingNegative, DataType.FLOAT32)
+                                .float32Value())),
                 () -> assertFloat32Bits(0x0001_0000,
                         ScalarValue.bfloat16Bits((short) 0x0001)),
                 () -> assertFloat64Bits(0x37A0_0000_0000_0000L,
@@ -260,6 +308,8 @@ class CastValueConversionsTest {
                 () -> assertBFloat16(0x4380, ScalarValue.int32(257)),
                 () -> assertBFloat16(0x4382, ScalarValue.int32(259)),
                 () -> assertBFloat16(0x4400, ScalarValue.int32(511)),
+                () -> assertFloat16(0x6800, ScalarValue.int32(2_049)),
+                () -> assertFloat16(0x6802, ScalarValue.int32(2_051)),
                 () -> assertFloat32Bits(0x4F00_0000, ScalarValue.int32(Integer.MAX_VALUE)),
                 () -> assertFloat64Bits(0x43E0_0000_0000_0000L,
                         ScalarValue.int64(Long.MAX_VALUE)),
@@ -325,8 +375,10 @@ class CastValueConversionsTest {
     @Test
     void appliesCanonicalBooleanZeroOneAndNumericTruthiness() {
         assertAll(
-                () -> assertNumericBoolean(false, 0x0000_0000_0000_0000L, 0x0000_0000, 0x0000),
-                () -> assertNumericBoolean(true, 0x3FF0_0000_0000_0000L, 0x3F80_0000, 0x3F80),
+                () -> assertNumericBoolean(
+                        false, 0x0000_0000_0000_0000L, 0x0000_0000, 0x0000, 0x0000),
+                () -> assertNumericBoolean(
+                        true, 0x3FF0_0000_0000_0000L, 0x3F80_0000, 0x3F80, 0x3C00),
                 () -> assertFalse(toBoolean(ScalarValue.float64(0.0d))),
                 () -> assertFalse(toBoolean(ScalarValue.float64(-0.0d))),
                 () -> assertTrue(toBoolean(f64(0x0000_0000_0000_0001L))),
@@ -339,6 +391,9 @@ class CastValueConversionsTest {
                 () -> assertFalse(toBoolean(ScalarValue.bfloat16Bits((short) 0x8000))),
                 () -> assertTrue(toBoolean(ScalarValue.bfloat16Bits((short) 0x8001))),
                 () -> assertTrue(toBoolean(ScalarValue.bfloat16Bits((short) 0x7F81))),
+                () -> assertFalse(toBoolean(ScalarValue.float16Bits((short) 0x8000))),
+                () -> assertTrue(toBoolean(ScalarValue.float16Bits((short) 0x8001))),
+                () -> assertTrue(toBoolean(ScalarValue.float16Bits((short) 0xFC01))),
                 () -> assertFalse(toBoolean(ScalarValue.int64(0L))),
                 () -> assertTrue(toBoolean(ScalarValue.int64(Long.MIN_VALUE))),
                 () -> assertFalse(toBoolean(ScalarValue.int32(0))),
@@ -357,6 +412,12 @@ class CastValueConversionsTest {
         assertEquals(
                 (short) expectedBits,
                 CastValueConversions.convert(source, DataType.BFLOAT16).bfloat16Bits());
+    }
+
+    private static void assertFloat16(int expectedBits, ScalarValue source) {
+        assertEquals(
+                (short) expectedBits,
+                CastValueConversions.convert(source, DataType.FLOAT16).float16Bits());
     }
 
     private static void assertFloat32Bits(int expectedBits, ScalarValue source) {
@@ -392,7 +453,11 @@ class CastValueConversionsTest {
     }
 
     private static void assertNumericBoolean(
-            boolean source, long float64Bits, int float32Bits, int bfloat16Bits) {
+            boolean source,
+            long float64Bits,
+            int float32Bits,
+            int bfloat16Bits,
+            int float16Bits) {
         ScalarValue value = ScalarValue.bool(source);
         assertAll(
                 () -> assertEquals(float64Bits, Double.doubleToRawLongBits(
@@ -401,6 +466,8 @@ class CastValueConversionsTest {
                         CastValueConversions.convert(value, DataType.FLOAT32).float32Value())),
                 () -> assertEquals((short) bfloat16Bits,
                         CastValueConversions.convert(value, DataType.BFLOAT16).bfloat16Bits()),
+                () -> assertEquals((short) float16Bits,
+                        CastValueConversions.convert(value, DataType.FLOAT16).float16Bits()),
                 () -> assertEquals(source ? 1L : 0L,
                         CastValueConversions.convert(value, DataType.INT64).int64Value()),
                 () -> assertEquals(source ? 1 : 0,

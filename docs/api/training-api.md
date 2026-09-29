@@ -39,15 +39,16 @@ occurrence for each parameter, with the exact matching `targetIndex`.
 
 ## Initial parameter domain
 
-The first update path supports non-empty `FLOAT32` and `FLOAT64` parameters whose Shapes are fully
-static and whose layouts are dense-contiguous, offset zero, non-view, and exact-span. Storage must
-be writable, exact-capacity, element-aligned native host memory shareable across operation
-threads. Initial parameter values must be finite. Empty or non-finite parameters fail during
-capture before private seed allocation, compile, or prepare. The session updates accepted storage
-in place, preserving the Tensor identity captured by the compiled graph. JVM-heap, read-only,
-thread-confined, strided/view, BFLOAT16, and device-only parameter storage are outside this first
-domain. The caller grants the session exclusive use of the captured Module bindings and parameter
-bytes until close.
+The update path supports non-empty `FLOAT64`, `FLOAT32`, `BFLOAT16`, and `FLOAT16` parameters whose
+Shapes are fully static and whose layouts are dense-contiguous, offset zero, non-view, and exact-
+span. Storage must be writable, exact-capacity, element-aligned native host memory shareable across
+operation threads. Initial parameter values must be finite. Empty or non-finite parameters fail
+during capture before private seed allocation, compile, or prepare. The session updates accepted
+storage in place, preserving the Tensor identity captured by the compiled graph. BFLOAT16 and
+FLOAT16 parameters retain private FLOAT32 masters and publish one narrowed logical value only
+after a successful update. JVM-heap, read-only, thread-confined, strided/view, integral, BOOL, and
+device-only parameter storage are outside this domain. The caller grants the session exclusive use
+of the captured Module bindings and parameter bytes until close.
 
 ## SGD and gradient modes
 
@@ -56,9 +57,10 @@ and learning rate `lr`, SGD first computes `d = g + wd * p`. Without momentum, t
 `p = p - lr * d`. With momentum, the first successful optimizer step stores `d` without applying
 dampening; later steps store `m * previous + (1 - damp) * d`. Ordinary momentum selects that new
 slot, while Nesterov selects `d + m * newSlot`. Dampening is in `[0, 1]`; Nesterov requires
-positive momentum and exactly zero dampening. FLOAT32 parameters validate narrowed coefficients
-and use represented binary32 arithmetic, including rejecting Nesterov momentum that narrows to
-zero. FLOAT64 parameters use binary64.
+positive momentum and exactly zero dampening. FLOAT32, BFLOAT16, and FLOAT16 parameters validate
+coefficients after one binary32 narrowing and use finite binary32 master, momentum, accumulation,
+and candidate arithmetic. A successful low-precision update narrows the validated master candidate
+once to the declared logical type. FLOAT64 parameters use binary64.
 
 `RESET_AND_STEP` updates from only the current gradients and clears older pending accumulation.
 `ACCUMULATE` adds the current gradients to the pending sum without changing parameters, momentum,
@@ -78,10 +80,13 @@ momentum, accumulation, or counters. A non-finite detached objective alone is pe
 required gradients and all optimizer arithmetic are finite. The optimizer loop uses primitive
 arrays allocated when the session opens and creates no object per element.
 
-`state()` returns canonical big-endian parameter, momentum, and pending-gradient bytes associated
-with stable paths and exact schemas. `restore(state)` validates the complete optimizer (including
-dampening), counters, paths, schemas, finite payloads, and lengths before installing anything.
-This is an in-memory handoff, not a durable checkpoint format.
+`state()` returns canonical big-endian logical-parameter, master-parameter, momentum, and pending-
+gradient bytes associated with stable paths and exact schemas. Logical payloads use the declared
+type width: two bytes per BFLOAT16/FLOAT16 element, four for FLOAT32, and eight for FLOAT64.
+Master, momentum, and pending-gradient payloads use four bytes per element for BFLOAT16, FLOAT16,
+and FLOAT32 parameters and eight for FLOAT64. `restore(state)` validates the complete optimizer
+(including dampening), counters, paths, schemas, finite payloads, and exact lengths before
+installing anything. This is an in-memory handoff, not a durable checkpoint format.
 
 Every `run` or state operation performs lifecycle admission before argument validation. Engine
 closure wins first, then session closing/closure, then busy admission; only an admitted operation
@@ -89,9 +94,10 @@ inspects its arguments. A racing operation fails. Close first rejects later admi
 an already-admitted Training operation to finish, then attempts all owned cleanup once. Repeated
 and concurrent close calls replay the same retained cleanup result. The borrowed Engine, Module,
 and parameter storage are never closed. Detached `TrainingStep` and `TrainingState` values remain
-readable after session and Engine close. CPU and configured real Metal/mixed execution use the
-same Engine route; a capability-classified unsupported route fails before optimizer mutation.
-Training contains no backend-specific branch.
+readable after session and Engine close. CPU and supported configured Metal/mixed execution use
+the same Engine route; a capability-classified unsupported route fails before optimizer mutation.
+This backend-neutral lifecycle does not itself prove or widen BFLOAT16/FLOAT16 Metal graph
+capability. Training contains no backend-specific branch.
 
 ## Current NN typed Model composition contract
 

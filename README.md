@@ -23,36 +23,38 @@ one-shot forward computation, and a bounded scalar-objective backward convenienc
 CPU composition; `Engine.builder()` explicitly owns opened CPU and/or Metal integrations and
 executes non-empty single-owner plans or bounded mixed CPU/Metal plans through deterministic
 owner-indexed representations and ordered transfer steps. Current cross-owner transfer supports
-fully static rank-0..16 values of all six carriers over canonical or approved positive-stride
-non-overlapping layouts. Metal executes a closed occurrence-specific matrix. Its common domain
-includes exact unary, affine, canonicalization, indexing, BOOL, Task-0059 raw-movement,
-Task-0060 replacement/fold/aggregate, unsigned-32-bit-bounded stable ordering, top-K, numeric
-arg-extrema, and exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d rows. `SORT`, `ARGSORT`,
-and `TOP_K` admit all six carriers; `ARG_MIN` and `ARG_MAX` admit the five numeric carriers.
-`ACCELERATOR` additionally admits the documented FLOAT32 arithmetic, reductions, scans, every
-positive-static FLOAT32 `MATMUL` vector, matrix, batched, and broadcast geometry, same-type
-canonical positive-rank FLOAT32 MSE forward execution for `NONE`, `SUM`, and `MEAN`, exact
-no-gradient rank-one FLOAT32 `L1_NORM` over ordered axis `[0]`, FLOAT32-result grouped
-Conv2d/Conv3d over FLOAT32/BFLOAT16 roles, and FLOAT32 average Pool2d/Pool3d. Convolution mixed
-operands are no-gradient; all-FLOAT32 convolution and pooling
-preserve their exact supported gradient metadata. Both profiles admit no-gradient promoted
-INT32/INT64 `MATMUL`; accelerator also admits no-gradient BFLOAT16/FLOAT32 mixed pairs with
-FLOAT32 result. Canonical or authenticated local last-two-axis transpose MATMUL operands and the
-exact local singleton-height Conv1d/Pool1d compositions are allowed. Existing rank-two FLOAT32
-matrix products retain direct MPSGraph; new MATMUL geometries, carrier pairs, and all six
-convolution/pooling rows use the fixed custom program. MSE uses fixed MPSGraph subtraction,
-self-multiplication, and optional full reduction and grants no generated backward ownership.
-Strict convolution/average pooling, generated Conv3d and maximum-pool gradients, attention,
-convolution transpose, and every other unlisted occurrence fail closed. Eligible singleton
-negation retains its custom alternative. Exact custom nodes fix their whole partition to one
-custom program with compact run-owned materialized slots and direct targets; top-K publishes paired
-values and INT64 indices from one step. Deterministic generated Metal units fuse eligible linear
-canonical FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains while preserving every barrier.
-`ACCELERATOR` additionally fuses exact private MATMUL or Conv2d suffixes into one safe-math
-dispatch and final store: MATMUL admits ordered scalar-multiply, one ordinary-broadcast ADD, then
-RELU or CLAMP; Conv2d admits one ordinary-broadcast ADD, then RELU or CLAMP. ABI 5 and thirteen
-exports remain fixed; the route-bearing program image is schema 18 and backend-local route,
-workload, policy, and codec identities are version 27.
+fully static rank-0..16 values of all seven carriers over canonical or approved positive-stride
+non-overlapping layouts. Metal executes a closed occurrence-specific matrix. Its common exact
+domain includes unary operations, affine movement and canonicalization, indexing, BOOL,
+replacement/fold/aggregate operations, unsigned-32-bit-bounded stable ordering, top-K, numeric
+arg-extrema, and maximum pooling. `SORT`, `ARGSORT`, and `TOP_K` admit all seven carriers;
+`ARG_MIN` and `ARG_MAX` admit the six numeric carriers.
+`ACCELERATOR` additionally admits the documented arithmetic, scalar, reduction, scan, MATMUL,
+MSE, convolution, average-pooling, dropout, L1, ScatterAdd, and singleton-variance occurrences.
+Every supported homogeneous `FLOAT32` accelerator occurrence has corresponding `BFLOAT16` and
+`FLOAT16` ownership with `FLOAT32` working values and accumulators and one final ties-to-even
+narrowing. Direct mixed `BFLOAT16`/`FLOAT16` operations have no low-precision kernel; callers use
+explicit casts to `FLOAT32`. Every low arithmetic partition uses `CUSTOM_PROGRAM`; exact
+homogeneous no-gradient raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`,
+`SLICE`, `CONCAT`, and `TILE` images may additionally use MPSGraph only after an exact schema-1
+environment/program certificate match. Classic MPS and MPP remain qualified-negative. There is no
+MPS, CPU, retry, generated-pointwise, or fusion fallback.
+
+Canonical or authenticated local last-two-axis transpose MATMUL operands and exact local
+singleton-height Conv1d/Pool1d compositions are allowed. Existing rank-two FLOAT32 matrix products
+retain direct MPSGraph; newly admitted MATMUL forms and convolution/pooling rows use the fixed
+custom program. Gradient-bearing arithmetic, scalar, reduction, scan, dropout, non-overlapping
+maximum-pool, and other admitted differentiable rows retain the exact compiler-generated
+first-order and owned higher-order paths. Overlapping generated folds, Conv3d backward, attention,
+convolution transpose, and every other unlisted occurrence remain fail-closed. Exact custom nodes
+fix their whole partition to one custom program with compact run-owned materialized slots and
+direct targets; top-K publishes paired values and INT64 indices from one step. Deterministic
+generated Metal units continue to fuse only their qualified FLOAT32 chains; low-precision
+partitions never enter those routes. ABI 6 and fourteen exports are fixed; the route-bearing
+program image is schema 19, data-type wires are `1..7`, and backend-local route, workload, policy,
+and codec identities are version 28. The active certificate store contains exactly 24 positive
+raw-preserving MPSGraph rows; its complete key and separate accuracy and determinism records are
+reported only for the selected certified route.
 Standard-Metal convenience, generic plugin registration/discovery, CUDA, broader optimizers,
 durable persistence, and generic graph/plan tuning remain planned.
 Focused documentation identifies the exact current boundary for each area.

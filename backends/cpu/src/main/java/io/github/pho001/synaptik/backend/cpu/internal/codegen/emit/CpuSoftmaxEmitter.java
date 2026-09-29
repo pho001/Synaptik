@@ -297,6 +297,10 @@ public final class CpuSoftmaxEmitter {
         carriers.load(type, specialization.carrierPattern().getFirst(), 0, address, intAddress);
         if (type == DataType.FLOAT64) code.dstore(represented).dload(represented).dstore(value);
         else if (type == DataType.FLOAT32) code.fstore(represented).fload(represented).f2d().dstore(value);
+        else if (type == DataType.FLOAT16) code.istore(represented).iload(represented).i2s()
+                .invokestatic(ClassDesc.of(Float.class.getName()), "float16ToFloat",
+                        MethodTypeDesc.of(TypeKind.FLOAT.upperBound(), TypeKind.SHORT.upperBound()))
+                .f2d().dstore(value);
         else code.istore(represented).iload(represented).loadConstant(16).ishl()
                 .invokestatic(ClassDesc.of(Float.class.getName()), "intBitsToFloat",
                         MethodTypeDesc.of(TypeKind.FLOAT.upperBound(), TypeKind.INT.upperBound()))
@@ -311,6 +315,10 @@ public final class CpuSoftmaxEmitter {
         if (type == DataType.FLOAT64) code.dstore(represented).dload(represented).dstore(value);
         else if (type == DataType.FLOAT32) code.fstore(represented).fload(represented).f2d()
                 .dstore(value);
+        else if (type == DataType.FLOAT16) code.istore(represented).iload(represented).i2s()
+                .invokestatic(ClassDesc.of(Float.class.getName()), "float16ToFloat",
+                        MethodTypeDesc.of(TypeKind.FLOAT.upperBound(), TypeKind.SHORT.upperBound()))
+                .f2d().dstore(value);
         else code.istore(represented).iload(represented).loadConstant(16).ishl()
                 .invokestatic(ClassDesc.of(Float.class.getName()), "intBitsToFloat",
                         MethodTypeDesc.of(TypeKind.FLOAT.upperBound(), TypeKind.INT.upperBound()))

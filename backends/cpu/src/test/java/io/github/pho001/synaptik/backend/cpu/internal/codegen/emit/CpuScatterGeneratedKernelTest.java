@@ -39,7 +39,7 @@ class CpuScatterGeneratedKernelTest {
     @Test
     void everyGeneratedScatterClassHasAStableDirectTypedShape() {
         var generated = new ArrayList<GeneratedScatterClass>();
-        for (DataType dataType : DataType.values()) {
+        for (DataType dataType : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
             var reductions =
                     dataType == DataType.BOOL
                             ? List.of(ScatterReduction.NONE)
@@ -415,7 +415,7 @@ class CpuScatterGeneratedKernelTest {
 
     @Test
     void coversAllRepresentedReplacementTypesAndBothIndexCarriers() throws Throwable {
-        for (DataType type : DataType.values())
+        for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable())
             for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
                 Object output = values(type, 0, 0, 0);
                 Object indices = indexType == DataType.INT32 ? new int[] {2} : new long[] {2};
@@ -1077,8 +1077,8 @@ class CpuScatterGeneratedKernelTest {
                                         case FLOAT32, BFLOAT16 -> Opcode.FADD;
                                         case INT32 -> Opcode.IADD;
                                         case INT64 -> Opcode.LADD;
-                                        case BOOL ->
-                                                throw new AssertionError("BOOL ADD is unsupported");
+                                        case BOOL, FLOAT16 ->
+                                                throw new AssertionError("unsupported ADD type");
                                     })
                             > 0,
                     label);
@@ -1113,6 +1113,7 @@ class CpuScatterGeneratedKernelTest {
             case INT32 -> Opcode.IALOAD;
             case INT64 -> Opcode.LALOAD;
             case BOOL -> Opcode.BALOAD;
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scatter unsupported");
         };
     }
 
@@ -1124,6 +1125,8 @@ class CpuScatterGeneratedKernelTest {
             case INT32 -> Opcode.IASTORE;
             case INT64 -> Opcode.LASTORE;
             case BOOL -> Opcode.BASTORE;
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scatter unsupported");
+            default -> throw new IllegalArgumentException("unsupported CPU scatter type");
         };
     }
 
@@ -1187,6 +1190,8 @@ class CpuScatterGeneratedKernelTest {
             case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY;
             case BOOL -> CarrierAccess.BYTE_ARRAY;
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scatter unsupported");
+            default -> throw new IllegalArgumentException("unsupported CPU scatter type");
         };
     }
 
@@ -1221,6 +1226,7 @@ class CpuScatterGeneratedKernelTest {
                 for (int i = 0; i < v.length; i++) x[i] = (byte) (v[i] & 1);
                 yield x;
             }
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scatter unsupported");
         };
     }
 

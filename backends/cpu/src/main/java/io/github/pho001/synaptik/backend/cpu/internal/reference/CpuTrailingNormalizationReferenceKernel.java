@@ -165,8 +165,10 @@ public final class CpuTrailingNormalizationReferenceKernel {
         if (type == DataType.FLOAT64) return switch (operation) { case '+' -> a + b;
             case '-' -> a - b; case '*' -> a * b; default -> a / b; };
         float x = (float) a, y = (float) b;
-        return switch (operation) { case '+' -> x + y; case '-' -> x - y;
+        float result = switch (operation) { case '+' -> x + y; case '-' -> x - y;
             case '*' -> x * y; default -> x / y; };
+        return type == DataType.FLOAT16
+                ? Float.float16ToFloat(Float.floatToFloat16(result)) : result;
     }
     private static double read(double[] values, long offset, long[] strides, long[] coordinates) {
         long address = offset;
@@ -212,6 +214,8 @@ public final class CpuTrailingNormalizationReferenceKernel {
     private static double represented(DataType type, double value) {
         if (type == DataType.FLOAT64) return value; float narrowed = (float) value;
         if (type == DataType.FLOAT32) return narrowed;
+        if (type == DataType.FLOAT16)
+            return Float.float16ToFloat(Float.floatToFloat16(narrowed));
         int bits = Float.floatToRawIntBits(narrowed);
         if ((bits & 0x7fffffff) > 0x7f800000) return Float.intBitsToFloat(0x7fc00000);
         bits += 0x7fff + (bits >>> 16 & 1); return Float.intBitsToFloat(bits & 0xffff0000);

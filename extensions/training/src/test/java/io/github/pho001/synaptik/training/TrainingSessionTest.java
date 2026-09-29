@@ -8,7 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
@@ -479,6 +481,57 @@ final class TrainingSessionTest {
         assertFalse(retainedState.parameters().getFirst().parameterBytes().hasArray());
     }
 
+    @Test
+    void lowPrecisionSnapshotsPreserveLogicalBitsFloatMastersSignedZeroAndSubnormals() {
+        for (DataType dataType : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            short negativeZero = (short) 0x8000;
+            short smallestSubnormal = 0x0001;
+            Tensor parameter =
+                    lowVector(dataType, new short[] {negativeZero, smallestSubnormal}, true);
+            ScalarParameters module = new ScalarParameters(parameter);
+            Tensor objective = parameter.cast(DataType.FLOAT32).sum();
+
+            try (Engine engine = Engine.standard();
+                    TrainingSession session =
+                            TrainingSession.open(engine, module, objective, new Sgd(0.1d))) {
+                TrainingState initial = session.state();
+                TrainingState.ParameterState state = initial.parameters().getFirst();
+                assertEquals(2 * Short.BYTES, state.parameterBytes().remaining());
+                assertEquals(2 * Float.BYTES, state.masterParameterBytes().remaining());
+                assertEquals(2 * Float.BYTES, state.momentumBytes().remaining());
+                assertEquals(2 * Float.BYTES, state.accumulatedGradientBytes().remaining());
+
+                ByteBuffer logical = state.parameterBytes();
+                assertEquals(negativeZero, logical.getShort());
+                assertEquals(smallestSubnormal, logical.getShort());
+                ByteBuffer master = state.masterParameterBytes();
+                assertEquals(
+                        Float.floatToRawIntBits(-0.0f),
+                        Float.floatToRawIntBits(master.getFloat()));
+                assertEquals(decodeLow(dataType, smallestSubnormal), master.getFloat(), 0.0f);
+
+                IllegalArgumentException compatibilityFailure = assertThrows(
+                        IllegalArgumentException.class,
+                        () -> new TrainingState.ParameterState(
+                                "value",
+                                dataType,
+                                Shape.of(2),
+                                new byte[2 * Short.BYTES],
+                                new byte[2 * Float.BYTES],
+                                new byte[2 * Float.BYTES]));
+                assertTrue(compatibilityFailure.getMessage().contains(
+                        "supports only FLOAT32 or FLOAT64"));
+
+                session.run(List.of(), GradientMode.RESET_AND_STEP);
+                session.restore(initial);
+                MemorySegment restored = parameter.hostStorage().orElseThrow().segment();
+                assertEquals(negativeZero, restored.getAtIndex(ValueLayout.JAVA_SHORT, 0));
+                assertEquals(smallestSubnormal, restored.getAtIndex(ValueLayout.JAVA_SHORT, 1));
+                assertStateEquals(initial, session.state());
+            }
+        }
+    }
+
     private static Tensor scalar(float value, boolean requiresGrad) {
         return scalar(Arena.global(), value, requiresGrad);
     }
@@ -499,6 +552,33 @@ final class TrainingSessionTest {
         MemorySegmentStorage storage =
                 new MemorySegmentStorage(DataType.FLOAT32, 1, segment);
         return TensorFactory.create(descriptor, Optional.empty(), Optional.of(storage));
+    }
+
+    private static Tensor lowVector(
+            DataType dataType, short[] rawValues, boolean requiresGrad) {
+        Shape shape = Shape.of(rawValues.length);
+        TensorDescriptor descriptor = new TensorDescriptor(
+                dataType,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                requiresGrad);
+        MemorySegment segment = Arena.global().allocate(
+                Math.multiplyExact((long) rawValues.length, Short.BYTES),
+                Short.BYTES);
+        for (int index = 0; index < rawValues.length; index++) {
+            segment.setAtIndex(ValueLayout.JAVA_SHORT, index, rawValues[index]);
+        }
+        return TensorFactory.create(
+                descriptor,
+                Optional.empty(),
+                Optional.of(new MemorySegmentStorage(
+                        dataType, rawValues.length, segment)));
+    }
+
+    private static float decodeLow(DataType dataType, short bits) {
+        return dataType == DataType.BFLOAT16
+                ? BFloat16Bits.toFloat(bits)
+                : Float16Bits.toFloat(bits);
     }
 
     private static Tensor scalar64(double value, boolean requiresGrad) {
@@ -539,6 +619,9 @@ final class TrainingSessionTest {
             assertEquals(left.dataType(), right.dataType());
             assertEquals(left.shape(), right.shape());
             assertArrayEquals(bytes(left.parameterBytes()), bytes(right.parameterBytes()));
+            assertArrayEquals(
+                    bytes(left.masterParameterBytes()),
+                    bytes(right.masterParameterBytes()));
             assertArrayEquals(bytes(left.momentumBytes()), bytes(right.momentumBytes()));
             assertArrayEquals(
                     bytes(left.accumulatedGradientBytes()),

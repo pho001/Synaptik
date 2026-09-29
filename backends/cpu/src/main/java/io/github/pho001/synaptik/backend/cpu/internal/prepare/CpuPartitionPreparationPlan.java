@@ -2016,13 +2016,29 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
         }
         }
         if (fusionDecisions.isEmpty()) validateSpecializedSubgraphs(units, specializedSubgraphs);
-        else validateRetainedSpecializedSubgraphs(specializedSubgraphs, fusionDecisions);
+        else validateRetainedSpecializedSubgraphs(units, specializedSubgraphs, fusionDecisions);
         validateFusionDecisions(units, boundaryValues, bufferDeclarations,
                 publicationBoundaryPositions, fusionDecisions, representationDecisions);
     }
 
+    /**
+     * Compares recognition with the retained compatibility baseline and records which of its
+     * boundary positions correspond to recognized outputs. A position must also bind
+     * consistently to the actual retained {@link ValueId} wherever its unit boundary survives
+     * selection. Selected execution may fuse an external suffix, so recognized output facts
+     * remain necessary even when a baseline output becomes virtual. Such an output has no
+     * retained {@code ValueId}, so its claimed relative position is not independently
+     * authenticated here.
+     *
+     * @param units non-null retained selected execution units
+     * @param facts non-null ordered recognition snapshots
+     * @param decisions non-null retained candidate decisions ending in a selection
+     * @throws IllegalArgumentException if recognition exceeds its bound or disagrees with the
+     *     selected compatibility baseline
+     */
     private static void validateRetainedSpecializedSubgraphs(
-            List<CpuSpecializedSubgraph> facts, List<CpuFusionDecision> decisions) {
+            List<ExecutionUnitPlan> units, List<CpuSpecializedSubgraph> facts,
+            List<CpuFusionDecision> decisions) {
         if (facts.size() > 8) throw new IllegalArgumentException(
                 "CPU plan retains at most eight recognition facts");
         CpuFusionDecision.Selection selection = decisions.stream()
@@ -2031,6 +2047,63 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
                         new IllegalArgumentException("recognition has no retained baseline selection"));
         List<CpuFusionDecision.UnitIdentity> baseline =
                 selection.compatibilityBaseline().units();
+        var recognizedProducers = new java.util.HashSet<Integer>();
+        var valueByClaimedPosition = new java.util.HashMap<Integer, ValueId>();
+        var claimedPositionByValue = new java.util.HashMap<ValueId, Integer>();
+        for (CpuSpecializedSubgraph fact : facts) {
+            if (fact.baselineUnitIndices().size()
+                    != fact.structuralIdentity().baselineUnits().size()) {
+                throw new IllegalArgumentException("retained recognition baseline is invalid");
+            }
+            for (int local = 0; local < fact.baselineUnitIndices().size(); local++) {
+                int unitIndex = fact.baselineUnitIndices().get(local);
+                if (unitIndex < 0 || unitIndex >= baseline.size()) {
+                    throw new IllegalArgumentException("retained recognition baseline is invalid");
+                }
+                var recognized = fact.structuralIdentity().baselineUnits().get(local);
+                var selected = baseline.get(unitIndex);
+                ExecutionUnitPlan actualUnit = units.stream().filter(unit ->
+                        unit.memberNodeOrdinals().containsAll(selected.memberNodePositions()))
+                        .findFirst().orElse(null);
+                if (actualUnit == null) throw new IllegalArgumentException(
+                        "retained recognition baseline IR or resource topology disagrees");
+                boolean sameUnit = actualUnit.memberNodeOrdinals().equals(
+                        selected.memberNodePositions());
+                boolean leadingMembers = actualUnit.memberNodeOrdinals().size()
+                        >= selected.memberNodePositions().size()
+                        && actualUnit.memberNodeOrdinals().subList(0,
+                                selected.memberNodePositions().size()).equals(
+                                        selected.memberNodePositions());
+                for (int boundary = 0; boundary < Math.min(recognized.boundaries().size(),
+                        selected.boundaries().size()); boundary++) {
+                    CpuKernelIr.Value.Kind kind = recognized.boundaries().get(boundary).role();
+                    int relative = selected.boundaries().get(boundary)
+                            .relativeBoundaryPosition();
+                    if (kind == CpuKernelIr.Value.Kind.OUTPUT) {
+                        recognizedProducers.add(relative);
+                    }
+                    if (kind == CpuKernelIr.Value.Kind.INPUT && leadingMembers
+                            || kind == CpuKernelIr.Value.Kind.OUTPUT && sameUnit) {
+                        var actualIrValues = actualUnit.portablePlan().kernelIr().values().stream()
+                                .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL)
+                                .toList();
+                        if (boundary >= actualUnit.boundaryValues().size()
+                                || boundary >= actualIrValues.size()
+                                || actualIrValues.get(boundary).kind() != kind) throw
+                                new IllegalArgumentException(
+                                        "retained recognition baseline IR or resource topology disagrees");
+                        ValueId value = actualUnit.boundaryValues().get(boundary);
+                        ValueId priorValue = valueByClaimedPosition.putIfAbsent(relative, value);
+                        Integer priorPosition = claimedPositionByValue.putIfAbsent(value, relative);
+                        if (priorValue != null && !priorValue.equals(value)
+                                || priorPosition != null && priorPosition != relative) {
+                            throw new IllegalArgumentException(
+                                    "retained recognition baseline IR or resource topology disagrees");
+                        }
+                    }
+                }
+            }
+        }
         var claimed = new BitSet();
         int previousAnchor = -1;
         for (CpuSpecializedSubgraph fact : facts) {
@@ -2060,9 +2133,12 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
                 previousUnit = unitIndex;
                 CpuFusionDecision.UnitIdentity selectedUnit = baseline.get(unitIndex);
                 associatedMembers.addAll(selectedUnit.memberNodePositions());
+                ExecutionUnitPlan actualUnit = units.stream().filter(unit ->
+                        unit.memberNodeOrdinals().containsAll(selectedUnit.memberNodePositions()))
+                        .findFirst().orElse(null);
                 if (!retainedBaselineMatches(
                         fact.structuralIdentity().baselineUnits().get(local), selectedUnit,
-                        baseline)) {
+                        baseline, recognizedProducers, actualUnit, units)) {
                     throw new IllegalArgumentException(
                             "retained recognition baseline IR or resource topology disagrees");
                 }
@@ -2088,12 +2164,32 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
         }
     }
 
+    /**
+     * Checks a recognition snapshot against its selected compatibility unit. Repeated reads of
+     * a producerless boundary remain external; a cross-unit boundary must have a producer in
+     * recognized baseline output topology or the retained execution units as well as multiple
+     * baseline occurrences. For a surviving leading input boundary, actual producer topology
+     * overrides the claimed output-position mapping. A virtualized baseline output has no
+     * retained {@code ValueId}, so its claimed position can still alias a producerless input.
+     *
+     * @param recognition non-null recognition snapshot for one baseline unit
+     * @param selected non-null selected compatibility-baseline unit
+     * @param completeBaseline non-null complete selected baseline used to resolve shared roles
+     * @param recognizedProducers non-null relative positions claimed by recognized baseline
+     *     outputs, without consulting selected role labels; virtualized outputs are not
+     *     independently bound to retained values
+     * @param actualUnit retained execution unit containing the baseline members, or null
+     * @param actualUnits non-null complete retained execution-unit list
+     * @return whether structural, execution, boundary, and workspace facts agree
+     */
     private static boolean retainedBaselineMatches(
             CpuSpecializedSubgraph.BaselineUnitFact recognition,
             CpuFusionDecision.UnitIdentity selected,
-            List<CpuFusionDecision.UnitIdentity> completeBaseline) {
+            List<CpuFusionDecision.UnitIdentity> completeBaseline,
+            java.util.Set<Integer> recognizedProducers,
+            ExecutionUnitPlan actualUnit, List<ExecutionUnitPlan> actualUnits) {
         CpuSpecializedSubgraph.BaselineExecutionFact execution = recognition.execution();
-        if (!CpuFusionDecision.StructuralKey.fromHex(recognition.structuralKey())
+        if (actualUnit == null || !CpuFusionDecision.StructuralKey.fromHex(recognition.structuralKey())
                     .equals(selected.portableIrStructuralKey())
                 || !execution.specialization().equals(selected.specialization())
                 || decisionStrategy(execution) != selected.strategy()
@@ -2119,7 +2215,27 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
                     unit.boundaries().stream()).filter(boundary ->
                             boundary.relativeBoundaryPosition()
                                     == current.relativeBoundaryPosition()).count();
-            boolean roleMatches = occurrences > 1
+            boolean producedInside = recognizedProducers.contains(
+                    current.relativeBoundaryPosition());
+            boolean leadingMembers = actualUnit.memberNodeOrdinals().size()
+                    >= selected.memberNodePositions().size()
+                    && actualUnit.memberNodeOrdinals().subList(0,
+                            selected.memberNodePositions().size()).equals(
+                                    selected.memberNodePositions());
+            if (old.role() == CpuKernelIr.Value.Kind.INPUT
+                    && (leadingMembers || !producedInside)) {
+                if (index >= actualUnit.boundaryValues().size()) return false;
+                ValueId value = actualUnit.boundaryValues().get(index);
+                producedInside = actualUnits.stream().anyMatch(unit -> {
+                    int position = unit.boundaryValues().indexOf(value);
+                    return position >= 0 && unit.portablePlan().kernelIr().values().stream()
+                            .filter(candidate -> candidate.kind()
+                                    != CpuKernelIr.Value.Kind.VIRTUAL)
+                            .toList().get(position).kind() == CpuKernelIr.Value.Kind.OUTPUT;
+                });
+            }
+            boolean crossUnit = producedInside && occurrences > 1;
+            boolean roleMatches = crossUnit
                     ? current.role() == CpuFusionDecision.BoundaryRole.CROSS_UNIT
                     : old.role() == CpuKernelIr.Value.Kind.INPUT
                         ? current.role() == CpuFusionDecision.BoundaryRole.EXTERNAL_READ

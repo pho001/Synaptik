@@ -38,7 +38,7 @@
  *
  * <p>The cumulative-scan oracle independently reconstructs logical slice coordinates and applies
  * forward/reverse, inclusive/exclusive typed accumulation across FLOAT64, FLOAT32, BFLOAT16,
- * INT32, and INT64. It shares neither the generated packed-coordinate walk nor the emitter.</p>
+ * FLOAT16, INT32, and INT64. It shares neither the generated packed-coordinate walk nor the emitter.</p>
  *
  * <p>The ordinary aggregate oracle independently maps full, single-axis, and multi-axis logical
  * coordinates and applies exact numerical sum/product state with independent integer/rational

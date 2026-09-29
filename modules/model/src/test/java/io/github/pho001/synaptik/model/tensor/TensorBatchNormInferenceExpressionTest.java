@@ -114,6 +114,22 @@ class TensorBatchNormInferenceExpressionTest {
     }
 
     @Test
+    void float16OperandsRetainFloat16ResultWithFloat32EpsilonMetadata() {
+        Tensor input = tensor(DataType.FLOAT16, Shape.of(2, 3), false);
+        Tensor vector = tensor(DataType.FLOAT16, Shape.of(3), false);
+        ScalarValue epsilon = ScalarValue.float32(1.0e-5f);
+
+        Tensor result = input.batchNormInference(
+                1, vector, vector, vector, vector, epsilon);
+        BatchNormInferenceAttrs attrs = (BatchNormInferenceAttrs)
+                result.provenance().orElseThrow().operation().attrs();
+
+        assertAll(
+                () -> assertSame(DataType.FLOAT16, result.descriptor().dataType()),
+                () -> assertSame(epsilon, attrs.epsilon()));
+    }
+
+    @Test
     void rejectsRankAxisVectorAndStaticDimensionFailuresWithExactMessages() {
         ScalarValue epsilon = ScalarValue.float32(1.0e-5f);
         Tensor vectorInput = tensor(DataType.FLOAT32, Shape.of(3), false);

@@ -312,7 +312,7 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
     }
 
     @Test
-    void generatedMaximumPoolAndConv3dBackwardRemainFailClosed() {
+    void generatedMaximumPoolBackwardClosesWhileConv3dRemainsCompilerFailClosed() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
             builder.numericalProfile(NumericalProfile.ACCELERATOR);
@@ -322,11 +322,18 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                 Tensor poolInput = tensor(
                         arena, Shape.of(1, 1, 2, 2), true, 1, 2, 3, 4);
                 Tensor maximum = poolInput.maxPool2d(
-                        new MaxPool2dAttrs(2, 2, 1, 1, 0, 0, 1, 1, false));
+                        new MaxPool2dAttrs(2, 2, 2, 2, 0, 0, 1, 1, false));
                 Tensor poolSeed = tensor(arena, Shape.of(1, 1, 1, 1), false, 1);
-                assertThrows(IllegalStateException.class,
-                        () -> engine.compile(
-                                List.of(maximum), List.of(poolSeed), List.of(poolInput)));
+                var maximumCompiled = engine.compile(
+                        List.of(maximum), List.of(poolSeed), List.of(poolInput));
+                assertEquals(
+                        List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(maximumCompiled));
+                try (var session = engine.session(maximumCompiled)) {
+                    assertResults(
+                            session.run(List.of(poolInput, poolSeed)),
+                            List.of(floats(4), floats(0, 0, 0, 1)));
+                }
 
                 Tensor convInput = tensor(
                         arena, Shape.of(1, 1, 1, 1, 1), true, 2);
@@ -335,9 +342,12 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                 Tensor convolution = convInput.conv3d(convWeight, Conv3dAttrs.defaults());
                 Tensor convSeed = tensor(
                         arena, Shape.of(1, 1, 1, 1, 1), false, 1);
-                assertThrows(IllegalArgumentException.class,
+                IllegalArgumentException failure = assertThrows(
+                        IllegalArgumentException.class,
                         () -> engine.compile(
                                 List.of(convolution), List.of(convSeed), List.of(convInput)));
+                assertTrue(failure.getMessage().contains(
+                        "Conv3d is forward-only until Compiler task 0006C closes its gradients"));
             }
         }
     }

@@ -67,7 +67,7 @@ class CpuScalarImmediateClampMatrixTest {
             assertEquals(Integer.toString(fixture.parallelism()), row.get("parallelism"), fixture.id());
             assertEquals(artifact.descriptor(), row.get("entry-descriptor"), fixture.id());
             assertEquals(artifact.strategy(), row.get("strategy"), fixture.id());
-            assertEquals("67", artifact.generatorSchema(), fixture.id());
+            assertEquals("68", artifact.generatorSchema(), fixture.id());
             assertEquals(artifact.generatorSchema(), row.get("generator-schema"), fixture.id());
             assertEquals(artifact.classIdentitySchema(), row.get("class-identity-schema"), fixture.id());
             assertEquals(artifact.structuralKey(), row.get("structural-key"), fixture.id());
@@ -171,7 +171,7 @@ class CpuScalarImmediateClampMatrixTest {
                     form.inputLayout(), form.outputShape(), form.outputLayout(), form.materializationPolicy())).plan().units().getFirst().executionStrategy()), row.get("selected-strategy"), form.id());
             assertEquals(artifact.strategy(), row.get("artifact-strategy"), form.id());
             assertEquals(artifact.descriptor(), row.get("entry-descriptor"), form.id());
-            assertEquals("67", artifact.generatorSchema(), form.id());
+            assertEquals("68", artifact.generatorSchema(), form.id());
             assertEquals(artifact.generatorSchema(), row.get("generator-schema"), form.id());
             assertEquals(artifact.classIdentitySchema(), row.get("class-identity-schema"), form.id());
             assertEquals(artifact.structuralKey(), row.get("structural-key"), form.id());
@@ -261,7 +261,7 @@ class CpuScalarImmediateClampMatrixTest {
             assertEquals(64, artifact.hash().length(), fixture.id());
             assertFalse(artifact.descriptor().isBlank(), fixture.id());
             assertTrue(List.of("scalar", "vector").contains(artifact.strategy()), fixture.id());
-            assertEquals("67", artifact.generatorSchema(), fixture.id());
+            assertEquals("68", artifact.generatorSchema(), fixture.id());
             assertEquals(fixture.type() == DataType.BFLOAT16 ? "59" : "52",
                     artifact.classIdentitySchema(), fixture.id());
         }
@@ -334,7 +334,7 @@ class CpuScalarImmediateClampMatrixTest {
                 DataType.INT32, DataType.INT64);
         var expectedPairs = new java.util.LinkedHashSet<String>();
         for (var kind : ScalarElementwiseKind.values()) {
-            for (var type : DataType.values()) {
+            for (var type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
                 boolean expected = type != DataType.BOOL
                         && (kind != ScalarElementwiseKind.CLAMP
                             && kind != ScalarElementwiseKind.DIV
@@ -574,6 +574,7 @@ class CpuScalarImmediateClampMatrixTest {
             case INT32 -> ScalarValue.int32(value);
             case INT64 -> ScalarValue.int64(value);
             case BOOL -> ScalarValue.bool(value != 0);
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scalar clamp unsupported");
         };
     }
 
@@ -585,6 +586,7 @@ class CpuScalarImmediateClampMatrixTest {
             case FLOAT64 -> Double.isFinite(value.float64Value());
             case INT32, INT64 -> true;
             case BOOL -> throw new AssertionError(value);
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scalar clamp unsupported");
         };
     }
 

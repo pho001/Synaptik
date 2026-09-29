@@ -13,8 +13,8 @@ import java.util.Objects;
  *
  * <p>The normalized Shape has positive rank and identifies exact trailing input axes. Epsilon is
  * a finite, strictly positive BFLOAT16, FLOAT32, or FLOAT64 value added to population variance
- * inside the square root. This record retains both immutable references unchanged; it does not
- * retain an input, derive axes, calculate statistics, or own compiler or execution state.</p>
+ * inside the square root; FLOAT32 is the scalar metadata format for a FLOAT16 result. This record
+ * retains both immutable references unchanged; it does not retain an input, derive axes, calculate statistics, or own compiler or execution state.</p>
  *
  * @param normalizedShape non-null positive-rank Shape corresponding to exact trailing input axes;
  *     retained unchanged

@@ -779,7 +779,7 @@ public final class CpuScatterEmitter {
                 switch (type) {
                     case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED";
                     case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
-                    case BFLOAT16 -> "JAVA_SHORT_UNALIGNED";
+                    case BFLOAT16, FLOAT16 -> "JAVA_SHORT_UNALIGNED";
                     case INT32 -> "JAVA_INT_UNALIGNED";
                     case INT64 -> "JAVA_LONG_UNALIGNED";
                     case BOOL -> "JAVA_BYTE";
@@ -848,7 +848,7 @@ public final class CpuScatterEmitter {
         return switch (type) {
             case FLOAT64 -> DOUBLE_LAYOUT;
             case FLOAT32 -> FLOAT_LAYOUT;
-            case BFLOAT16 -> SHORT_LAYOUT;
+            case BFLOAT16, FLOAT16 -> SHORT_LAYOUT;
             case INT32 -> INT_LAYOUT;
             case INT64 -> LONG_LAYOUT;
             case BOOL -> BYTE_LAYOUT;
@@ -859,7 +859,7 @@ public final class CpuScatterEmitter {
         return switch (type) {
             case FLOAT64 -> ConstantDescs.CD_double;
             case FLOAT32 -> ConstantDescs.CD_float;
-            case BFLOAT16 -> ConstantDescs.CD_short;
+            case BFLOAT16, FLOAT16 -> ConstantDescs.CD_short;
             case INT32 -> ConstantDescs.CD_int;
             case INT64 -> ConstantDescs.CD_long;
             case BOOL -> ConstantDescs.CD_byte;
@@ -1517,6 +1517,11 @@ public final class CpuScatterEmitter {
             code.istore(left);
             return;
         }
+        if (type == DataType.FLOAT16) {
+            emitFloat16Reduction(code, reduction, left, right);
+            code.istore(left);
+            return;
+        }
         loadValue(code, type, left);
         loadValue(code, type, right);
         switch (type) {
@@ -1568,7 +1573,7 @@ public final class CpuScatterEmitter {
                                     ConstantDescs.CD_long,
                                     ConstantDescs.CD_long));
             }
-            case BFLOAT16 -> throw new AssertionError("handled above");
+            case BFLOAT16, FLOAT16 -> throw new AssertionError("handled above");
             case BOOL -> throw new IllegalArgumentException("BOOL reduction is unsupported");
         }
         storeValue(code, type, left);
@@ -1661,6 +1666,22 @@ public final class CpuScatterEmitter {
                 .branch(Opcode.IFNE, round);
         code.iload(upperBits).branch(Opcode.GOTO, complete);
         code.labelBinding(round).iinc(upperBits, 1).iload(upperBits).labelBinding(complete);
+    }
+
+    private static void emitFloat16Reduction(
+            CodeBuilder code, ScatterReduction reduction, int left, int right) {
+        code.iload(left).i2s().invokestatic(FLOAT_CLASS, "float16ToFloat",
+                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
+        code.iload(right).i2s().invokestatic(FLOAT_CLASS, "float16ToFloat",
+                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
+        if (reduction == ScatterReduction.ADD) code.fadd();
+        else if (reduction == ScatterReduction.MUL) code.fmul();
+        else code.invokestatic(ClassDesc.of(Math.class.getName()),
+                reduction == ScatterReduction.MIN ? "min" : "max",
+                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_float,
+                        ConstantDescs.CD_float));
+        code.invokestatic(FLOAT_CLASS, "floatToFloat16",
+                MethodTypeDesc.of(ConstantDescs.CD_short, ConstantDescs.CD_float));
     }
 
     private static void emitBfloatToFloat(CodeBuilder code, int representedBits, int target) {
@@ -1788,7 +1809,7 @@ public final class CpuScatterEmitter {
             case FLOAT64 -> code.dload(local);
             case FLOAT32 -> code.fload(local);
             case INT64 -> code.lload(local);
-            case BFLOAT16, INT32, BOOL -> code.iload(local);
+            case BFLOAT16, FLOAT16, INT32, BOOL -> code.iload(local);
         }
     }
 
@@ -1797,7 +1818,7 @@ public final class CpuScatterEmitter {
             case FLOAT64 -> code.dstore(local);
             case FLOAT32 -> code.fstore(local);
             case INT64 -> code.lstore(local);
-            case BFLOAT16, INT32, BOOL -> code.istore(local);
+            case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(local);
         }
     }
 
@@ -1806,7 +1827,7 @@ public final class CpuScatterEmitter {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
             case INT64 -> TypeKind.LONG;
-            case BFLOAT16, INT32, BOOL -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
         };
     }
 

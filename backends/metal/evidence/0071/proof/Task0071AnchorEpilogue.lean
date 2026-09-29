@@ -4,7 +4,7 @@ namespace Task0071
 
 open Task0069
 
-/-- The only source-ordered operations admitted after an anchor in schema 18. -/
+/-- The only source-ordered operations admitted after an anchor in schema 19. -/
 inductive Opcode where
   | scalarMul
   | add

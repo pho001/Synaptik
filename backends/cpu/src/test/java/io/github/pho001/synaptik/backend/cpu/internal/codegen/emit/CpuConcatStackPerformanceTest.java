@@ -76,13 +76,13 @@ class CpuConcatStackPerformanceTest {
         Assumptions.assumeTrue(Boolean.getBoolean(ENABLE)); runParent(root());
     }
 
-    @Test void sourceDerivedFortyEightRowMappingSelectsEveryChangedPathAndCarrierShape() throws Exception {
+    @Test void sourceDerivedFiftySixRowMappingSelectsEveryChangedPathAndCarrierShape() throws Exception {
         List<CpuOrdinaryNonPointwiseGeneratedMatrixTest.MovementOrFoldCandidate> rows = compositionRows();
-        assertEquals(48, rows.size());
+        assertEquals(56, rows.size());
         for (String form : List.of("CONCAT", "STACK")) {
             List<CpuOrdinaryNonPointwiseGeneratedMatrixTest.MovementOrFoldCandidate> formRows = rows.stream()
                     .filter(row -> row.operationForm().equals(form)).toList();
-            assertEquals(24, formRows.size(), form);
+            assertEquals(28, formRows.size(), form);
             for (Case c : Case.values()) if (c.form.equals(form)) {
                 List<?> matches = formRows.stream().filter(row -> row.ownerId().contains("/FLOAT32/")
                         && row.ownerId().endsWith('/' + c.request)).toList();

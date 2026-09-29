@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.testing.integration;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -9,7 +10,9 @@ import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
 import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
@@ -21,9 +24,11 @@ import io.github.pho001.synaptik.nn.module.Parameter;
 import io.github.pho001.synaptik.training.GradientMode;
 import io.github.pho001.synaptik.training.Sgd;
 import io.github.pho001.synaptik.training.TrainingSession;
+import io.github.pho001.synaptik.training.TrainingState;
 import io.github.pho001.synaptik.training.TrainingStep;
 import java.lang.foreign.Arena;
 import java.lang.foreign.ValueLayout;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -68,6 +73,16 @@ final class TrainingSessionCpuIntegrationTest {
 
         assertTrue(Math.abs(finalValue - 2.5f) < 0.001f);
         assertTrue(retained.objective().bytes().getFloat() < 1e-5f);
+    }
+
+    @Test
+    void bfloat16TrainingConvergesAccumulatesFailsAtomicallyAndResumes() {
+        assertLowPrecisionTrainingLifecycle(DataType.BFLOAT16);
+    }
+
+    @Test
+    void float16TrainingConvergesAccumulatesFailsAtomicallyAndResumes() {
+        assertLowPrecisionTrainingLifecycle(DataType.FLOAT16);
     }
 
     @Test
@@ -136,6 +151,142 @@ final class TrainingSessionCpuIntegrationTest {
         }
     }
 
+    private static void assertLowPrecisionTrainingLifecycle(DataType dataType) {
+        try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(CpuBackendIntegration.open());
+            try (Engine engine = builder.build()) {
+                Tensor target = scalar(arena, 2.5f, false);
+                Tensor sourceParameter = lowScalar(arena, dataType, -4.0f, true);
+                Tensor resumedParameter = lowScalar(arena, dataType, -4.0f, true);
+                ScalarModule sourceModule = new ScalarModule(sourceParameter);
+                ScalarModule resumedModule = new ScalarModule(resumedParameter);
+                Tensor sourceDifference =
+                        sourceParameter.cast(DataType.FLOAT32).sub(target);
+                Tensor resumedDifference =
+                        resumedParameter.cast(DataType.FLOAT32).sub(target);
+                Sgd optimizer = new Sgd(0.05d, 0.25d, 0.0d, false);
+
+                try (TrainingSession source = TrainingSession.open(
+                                engine,
+                                sourceModule,
+                                sourceDifference.mul(sourceDifference),
+                                optimizer);
+                        TrainingSession resumed = TrainingSession.open(
+                                engine,
+                                resumedModule,
+                                resumedDifference.mul(resumedDifference),
+                                optimizer)) {
+                    short initialBits = rawLow(sourceParameter);
+                    source.run(List.of(target), GradientMode.ACCUMULATE);
+                    TrainingStep accumulated =
+                            source.run(List.of(target), GradientMode.ACCUMULATE);
+                    assertTrue(accumulated.optimizerStep().isEmpty());
+                    assertEquals(2, accumulated.accumulatedGradientRuns());
+                    assertEquals(initialBits, rawLow(sourceParameter));
+
+                    TrainingState checkpoint = source.state();
+                    TrainingState.ParameterState pending =
+                            checkpoint.parameters().getFirst();
+                    assertEquals(Short.BYTES, pending.parameterBytes().remaining());
+                    assertEquals(Float.BYTES, pending.masterParameterBytes().remaining());
+                    assertEquals(-4.0f, pending.masterParameterBytes().getFloat(), 0.0f);
+                    assertEquals(
+                            -26.0f,
+                            pending.accumulatedGradientBytes().getFloat(),
+                            0.0f);
+
+                    resumed.restore(checkpoint);
+                    TrainingStep sourceUpdate =
+                            source.run(List.of(target), GradientMode.ACCUMULATE_AND_STEP);
+                    TrainingStep resumedUpdate =
+                            resumed.run(List.of(target), GradientMode.ACCUMULATE_AND_STEP);
+                    assertEquals(1, sourceUpdate.optimizerStep().orElseThrow());
+                    assertEquals(1, resumedUpdate.optimizerStep().orElseThrow());
+                    assertEquals(0, sourceUpdate.accumulatedGradientRuns());
+                    assertEquals(0, resumedUpdate.accumulatedGradientRuns());
+                    assertTrue(rawLow(sourceParameter) != initialBits);
+                    assertEquals(rawLow(sourceParameter), rawLow(resumedParameter));
+                    assertEquals(
+                            -2.05f,
+                            source.state().parameters().getFirst()
+                                    .masterParameterBytes().getFloat(),
+                            1e-6f);
+                    assertStateEquals(source.state(), resumed.state());
+
+                    for (int step = 0; step < 100; step++) {
+                        source.run(List.of(target), GradientMode.RESET_AND_STEP);
+                        resumed.run(List.of(target), GradientMode.RESET_AND_STEP);
+                    }
+                    float finalValue = lowValue(sourceParameter);
+                    float tolerance = dataType == DataType.BFLOAT16 ? 0.02f : 0.002f;
+                    assertTrue(Math.abs(finalValue - 2.5f) <= tolerance);
+                    assertEquals(rawLow(sourceParameter), rawLow(resumedParameter));
+                    assertStateEquals(source.state(), resumed.state());
+                }
+
+                Tensor badParameter = lowScalar(arena, dataType, 1.0f, true);
+                Tensor nonFinite = scalar(arena, Float.NaN, false);
+                ScalarModule badModule = new ScalarModule(badParameter);
+                Tensor badObjective =
+                        badParameter.cast(DataType.FLOAT32).mul(nonFinite);
+                try (TrainingSession session = TrainingSession.open(
+                        engine, badModule, badObjective, new Sgd(0.1d))) {
+                    TrainingState before = session.state();
+                    short rawBefore = rawLow(badParameter);
+                    assertThrows(
+                            ArithmeticException.class,
+                            () -> session.run(
+                                    List.of(nonFinite), GradientMode.RESET_AND_STEP));
+                    assertEquals(rawBefore, rawLow(badParameter));
+                    assertStateEquals(before, session.state());
+                    assertEquals(0, session.executions());
+                    assertEquals(0, session.optimizerSteps());
+                }
+            }
+        }
+    }
+
+    private static void assertStateEquals(TrainingState expected, TrainingState actual) {
+        assertEquals(expected.optimizer(), actual.optimizer());
+        assertEquals(expected.executions(), actual.executions());
+        assertEquals(expected.optimizerSteps(), actual.optimizerSteps());
+        assertEquals(expected.accumulatedGradientRuns(), actual.accumulatedGradientRuns());
+        assertEquals(expected.parameters().size(), actual.parameters().size());
+        for (int index = 0; index < expected.parameters().size(); index++) {
+            TrainingState.ParameterState left = expected.parameters().get(index);
+            TrainingState.ParameterState right = actual.parameters().get(index);
+            assertEquals(left.path(), right.path());
+            assertEquals(left.dataType(), right.dataType());
+            assertEquals(left.shape(), right.shape());
+            assertArrayEquals(bytes(left.parameterBytes()), bytes(right.parameterBytes()));
+            assertArrayEquals(
+                    bytes(left.masterParameterBytes()),
+                    bytes(right.masterParameterBytes()));
+            assertArrayEquals(bytes(left.momentumBytes()), bytes(right.momentumBytes()));
+            assertArrayEquals(
+                    bytes(left.accumulatedGradientBytes()),
+                    bytes(right.accumulatedGradientBytes()));
+        }
+    }
+
+    private static byte[] bytes(ByteBuffer buffer) {
+        byte[] result = new byte[buffer.remaining()];
+        buffer.get(result);
+        return result;
+    }
+
+    private static short rawLow(Tensor tensor) {
+        return tensor.hostStorage().orElseThrow().segment()
+                .get(ValueLayout.JAVA_SHORT, 0);
+    }
+
+    private static float lowValue(Tensor tensor) {
+        short bits = rawLow(tensor);
+        return tensor.descriptor().dataType() == DataType.BFLOAT16
+                ? BFloat16Bits.toFloat(bits)
+                : Float16Bits.toFloat(bits);
+    }
+
     private static float parameterValue(ScalarModule module) {
         return module.value().value().hostStorage().orElseThrow().segment()
                 .get(ValueLayout.JAVA_FLOAT, 0);
@@ -162,6 +313,23 @@ final class TrainingSessionCpuIntegrationTest {
         MemorySegmentStorage storage = new MemorySegmentStorage(
                 DataType.FLOAT32, 1, arena.allocate(Float.BYTES, Float.BYTES));
         storage.segment().set(ValueLayout.JAVA_FLOAT, 0, value);
+        return TensorFactory.create(descriptor, Optional.empty(), Optional.of(storage));
+    }
+
+    private static Tensor lowScalar(
+            Arena arena, DataType dataType, float value, boolean requiresGrad) {
+        Shape shape = Shape.scalar();
+        TensorDescriptor descriptor = new TensorDescriptor(
+                dataType,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                requiresGrad);
+        MemorySegmentStorage storage = new MemorySegmentStorage(
+                dataType, 1, arena.allocate(Short.BYTES, Short.BYTES));
+        short bits = dataType == DataType.BFLOAT16
+                ? BFloat16Bits.fromFloat(value)
+                : Float16Bits.fromFloat(value);
+        storage.segment().set(ValueLayout.JAVA_SHORT, 0, bits);
         return TensorFactory.create(descriptor, Optional.empty(), Optional.of(storage));
     }
 

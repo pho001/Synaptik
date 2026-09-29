@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
 
 /** Executes every finite generated batch-normalization inventory row against a clean Java oracle. */
 class CpuBatchNormSemanticClosureTest {
-    private static final List<DataType> FLOATING = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16);
+    private static final List<DataType> FLOATING = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16);
     private static final Shape SHAPE = Shape.of(2, 3, 4);
     private static final CpuPartitionAnalysisInputs.MaterializationPolicy MATERIALIZATION =
             new CpuPartitionAnalysisInputs.MaterializationPolicy(true, 0, 1, 20, 1, 3, 1_000_000, 1, 1);
@@ -40,7 +40,7 @@ class CpuBatchNormSemanticClosureTest {
             assertTrue(owners.add(f.owner()), "duplicate inference witness " + f);
             inference(f); raw++;
         }
-        assertEquals(2430, raw);
+        assertEquals(10_240, raw);
         assertEquals(inventoryOwners("BATCH_NORM_INFERENCE"), owners);
     }
 
@@ -52,7 +52,7 @@ class CpuBatchNormSemanticClosureTest {
             assertTrue(owners.add(f.owner()), "duplicate training witness " + f);
             training(f); raw++;
         }
-        assertEquals(2430, raw);
+        assertEquals(10_240, raw);
         assertEquals(inventoryOwners("BATCH_NORM_TRAINING"), owners);
     }
 
@@ -134,8 +134,10 @@ class CpuBatchNormSemanticClosureTest {
             double bias = s.get(map[2]).get(vector(g.inputs().get(map[2]), channel));
             double mean = s.get(map[3]).get(vector(g.inputs().get(map[3]), channel));
             double variance = s.get(map[4]).get(vector(g.inputs().get(map[4]), channel));
-            double denominator = result == DataType.FLOAT64 ? Math.sqrt(variance + epsilon(g.epsilonBits(), result))
-                    : (float) Math.sqrt((float) variance + (float) epsilon(g.epsilonBits(), result));
+            double radicand = op(result, variance, epsilon(g.epsilonBits(), result), '+');
+            double denominator = result == DataType.FLOAT64 ? Math.sqrt(radicand)
+                    : result == DataType.FLOAT16 ? half(Math.sqrt(radicand))
+                    : (float) Math.sqrt((float) radicand);
             for (long ordinal = 0; ordinal < g.nonChannelCount(); ordinal++) {
                 long input = tensor(g.inputs().get(map[0]), g.channelAxis(), channel, ordinal);
                 long output = tensor(g.output(), g.channelAxis(), channel, ordinal);
@@ -150,13 +152,16 @@ class CpuBatchNormSemanticClosureTest {
         double momentum = epsilon(g.momentumBits(), result), eps = epsilon(g.epsilonBits(), result);
         for (long channel = 0; channel < g.channelCount(); channel++) {
             double sum = 0; for (long n = 0; n < g.reductionCount(); n++) sum += s.get(map[0]).get(tensor(g.inputs().get(map[0]), g.channelAxis(), channel, n));
-            double mean = result == DataType.FLOAT64 ? sum / g.reductionCount() : (float) (sum / g.reductionCount());
+            double mean = result == DataType.FLOAT64 ? sum / g.reductionCount()
+                    : (float) (sum / g.reductionCount());
             double dev = 0, squares = 0;
             for (long n = 0; n < g.reductionCount(); n++) { double d = op(result, s.get(map[0]).get(tensor(g.inputs().get(map[0]), g.channelAxis(), channel, n)), mean, '-'); dev += d; squares += d * d; }
             double numerator = Math.max(0, squares - dev * dev / g.reductionCount());
             double biased = op(result, numerator, g.reductionCount(), '/');
             double unbiased = op(result, numerator, g.reductionCount() - 1, '/');
-            double saved = op(result, 1, Math.sqrt(op(result, biased, eps, '+')), '/');
+            double root = Math.sqrt(op(result, biased, eps, '+'));
+            if (result == DataType.FLOAT16) root = half(root);
+            double saved = op(result, 1, root, '/');
             double scale = s.get(map[1]).get(vector(g.inputs().get(map[1]), channel));
             double bias = s.get(map[2]).get(vector(g.inputs().get(map[2]), channel));
             double oldMean = s.get(map[3]).get(vector(g.inputs().get(map[3]), channel));
@@ -177,9 +182,14 @@ class CpuBatchNormSemanticClosureTest {
 
     private static double op(DataType type, double left, double right, char operator) {
         if (type == DataType.FLOAT64) return switch (operator) { case '+' -> left + right; case '-' -> left - right; case '*' -> left * right; case '/' -> left / right; default -> throw new AssertionError(); };
-        float a = (float) left, b = (float) right; return switch (operator) { case '+' -> a + b; case '-' -> a - b; case '*' -> a * b; case '/' -> a / b; default -> throw new AssertionError(); };
+        float a = (float) left, b = (float) right;
+        float result = switch (operator) { case '+' -> a + b; case '-' -> a - b; case '*' -> a * b; case '/' -> a / b; default -> throw new AssertionError(); };
+        return type == DataType.FLOAT16 ? half(result) : result;
     }
-    private static double epsilon(long bits, DataType type) { return switch (type) { case FLOAT64 -> Double.longBitsToDouble(bits); case FLOAT32 -> Float.intBitsToFloat((int) bits); case BFLOAT16 -> Float.intBitsToFloat((int) bits << 16); default -> throw new AssertionError(type); }; }
+    private static double half(double value) {
+        return Float.float16ToFloat(Float.floatToFloat16((float) value));
+    }
+    private static double epsilon(long bits, DataType type) { return switch (type) { case FLOAT64 -> Double.longBitsToDouble(bits); case FLOAT32 -> Float.intBitsToFloat((int) bits); case BFLOAT16 -> Float.intBitsToFloat((int) bits << 16); case FLOAT16 -> Float.float16ToFloat((short) bits); default -> throw new AssertionError(type); }; }
     private static long vector(Object layout, long channel) { return layout instanceof CpuBatchNormInferenceLowering.Layout l ? l.offset() + channel * l.strides()[0] : ((CpuBatchNormTrainingLowering.Layout) layout).offset() + channel * ((CpuBatchNormTrainingLowering.Layout) layout).strides()[0]; }
     private static long tensor(Object layout, int axis, long channel, long ordinal) {
         long[] extents, strides; long address;
@@ -212,5 +222,5 @@ class CpuBatchNormSemanticClosureTest {
     private static void assertStorage(double[] expected, Storage actual, Object label) { for (int i = 0; i < expected.length; i++) assertEquals(actual.quantize(expected[i]), actual.get(i), 0, label + " physical " + i); }
     private record Fixture(boolean training, List<DataType> types, int axis, Request request) { String owner() { return "specialized:batch-" + (training ? "training" : "inference") + '/' + types + '/' + axis + '/' + request; } }
     private enum Request { HEAP_CONTIGUOUS_SCALAR(false,false,false,false,CpuGeneratedDirectEvidenceClosureTest.scalar(1)), SEGMENT_CONTIGUOUS_VECTOR(true,false,false,false,CpuGeneratedDirectEvidenceClosureTest.vector(1)), MIXED_GENERAL_PARALLEL_VECTOR(false,true,true,false,CpuGeneratedDirectEvidenceClosureTest.vector(4)), HEAP_GENERAL_PARALLEL_SCALAR(false,false,true,false,CpuGeneratedDirectEvidenceClosureTest.scalar(4)), HEAP_GENERAL_MATERIALIZATION(false,false,true,true,CpuGeneratedDirectEvidenceClosureTest.scalar(1)); final boolean segment,mixed,general,materialization; final CpuPartitionAnalysisInputs.PortableExecutionConfig execution; Request(boolean segment,boolean mixed,boolean general,boolean materialization,CpuPartitionAnalysisInputs.PortableExecutionConfig execution) { this.segment=segment;this.mixed=mixed;this.general=general;this.materialization=materialization;this.execution=execution; } }
-    private static final class Storage { final DataType type; final CarrierAccess carrier; final Object heap; final MemorySegment segment; Storage(DataType type, CarrierAccess carrier) { this.type=type;this.carrier=carrier; heap=switch(type){case FLOAT64->new double[128];case FLOAT32->new float[128];case BFLOAT16->new short[128];default->throw new AssertionError(type);}; segment=switch(type){case FLOAT64->MemorySegment.ofArray((double[])heap);case FLOAT32->MemorySegment.ofArray((float[])heap);case BFLOAT16->MemorySegment.ofArray((short[])heap);default->throw new AssertionError(type);}; } Object argument(){return carrier==CarrierAccess.MEMORY_SEGMENT?segment:heap;} void fill(double value){for(int i=0;i<128;i++)set(i,value);} void set(long i,double v){switch(type){case FLOAT64->((double[])heap)[(int)i]=v;case FLOAT32->((float[])heap)[(int)i]=(float)v;case BFLOAT16->((short[])heap)[(int)i]=ScalarValue.bfloat16((float)v).bfloat16Bits();default->throw new AssertionError(type);}} double get(long i){return switch(type){case FLOAT64->((double[])heap)[(int)i];case FLOAT32->((float[])heap)[(int)i];case BFLOAT16->Float.intBitsToFloat((((short[])heap)[(int)i]&0xffff)<<16);default->throw new AssertionError(type);};} double quantize(double v){return switch(type){case FLOAT64->v;case FLOAT32->(float)v;case BFLOAT16->Float.intBitsToFloat((ScalarValue.bfloat16((float)v).bfloat16Bits()&0xffff)<<16);default->throw new AssertionError(type);};} double[] snapshot(){double[] r=new double[128];for(int i=0;i<r.length;i++)r[i]=get(i);return r;} }
+    private static final class Storage { final DataType type; final CarrierAccess carrier; final Object heap; final MemorySegment segment; Storage(DataType type, CarrierAccess carrier) { this.type=type;this.carrier=carrier; heap=switch(type){case FLOAT64->new double[128];case FLOAT32->new float[128];case BFLOAT16,FLOAT16->new short[128];default->throw new AssertionError(type);}; segment=switch(type){case FLOAT64->MemorySegment.ofArray((double[])heap);case FLOAT32->MemorySegment.ofArray((float[])heap);case BFLOAT16,FLOAT16->MemorySegment.ofArray((short[])heap);default->throw new AssertionError(type);}; } Object argument(){return carrier==CarrierAccess.MEMORY_SEGMENT?segment:heap;} void fill(double value){for(int i=0;i<128;i++)set(i,value);} void set(long i,double v){switch(type){case FLOAT64->((double[])heap)[(int)i]=v;case FLOAT32->((float[])heap)[(int)i]=(float)v;case BFLOAT16->((short[])heap)[(int)i]=ScalarValue.bfloat16((float)v).bfloat16Bits();case FLOAT16->((short[])heap)[(int)i]=Float.floatToFloat16((float)v);default->throw new AssertionError(type);}} double get(long i){return switch(type){case FLOAT64->((double[])heap)[(int)i];case FLOAT32->((float[])heap)[(int)i];case BFLOAT16->Float.intBitsToFloat((((short[])heap)[(int)i]&0xffff)<<16);case FLOAT16->Float.float16ToFloat(((short[])heap)[(int)i]);default->throw new AssertionError(type);};} double quantize(double v){return switch(type){case FLOAT64->v;case FLOAT32->(float)v;case BFLOAT16->Float.intBitsToFloat((ScalarValue.bfloat16((float)v).bfloat16Bits()&0xffff)<<16);case FLOAT16->Float.float16ToFloat(Float.floatToFloat16((float)v));default->throw new AssertionError(type);};} double[] snapshot(){double[] r=new double[128];for(int i=0;i<r.length;i++)r[i]=get(i);return r;} }
 }

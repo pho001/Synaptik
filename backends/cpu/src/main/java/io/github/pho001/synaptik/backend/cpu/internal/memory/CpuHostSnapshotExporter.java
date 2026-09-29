@@ -39,7 +39,7 @@ public final class CpuHostSnapshotExporter {
      *
      * <p>The fully static resolved layout supplies a non-negative storage offset and positive or
      * zero element strides. Rank zero reads its offset element; a zero-element shape returns a fresh
-     * empty array without accessing an element. All six current data types preserve represented
+     * empty array without accessing an element. All seven current data types preserve represented
      * bits without conversion, including floating NaN payloads and signed zeros; BOOL additionally
      * requires each logical value to be exactly {@code 0} or {@code 1}.</p>
      *
@@ -186,7 +186,7 @@ public final class CpuHostSnapshotExporter {
                 case FLOAT64 -> Double.doubleToRawLongBits(memory.get(NATIVE_DOUBLE, relativeBytes));
                 case FLOAT32 -> Integer.toUnsignedLong(
                         Float.floatToRawIntBits(memory.get(NATIVE_FLOAT, relativeBytes)));
-                case BFLOAT16 -> Short.toUnsignedLong(memory.get(NATIVE_SHORT, relativeBytes));
+                case BFLOAT16, FLOAT16 -> Short.toUnsignedLong(memory.get(NATIVE_SHORT, relativeBytes));
                 case INT64 -> memory.get(NATIVE_LONG, relativeBytes);
                 case INT32 -> Integer.toUnsignedLong(memory.get(NATIVE_INT, relativeBytes));
                 case BOOL -> Byte.toUnsignedLong(memory.get(ValueLayout.JAVA_BYTE, relativeBytes));
@@ -200,7 +200,7 @@ public final class CpuHostSnapshotExporter {
             case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(
                     ((CpuBufferArgument.Floats) argument)
                             .carrier()[arrayIndex(carrierBytes, width)]));
-            case BFLOAT16 -> Short.toUnsignedLong(((CpuBufferArgument.Shorts) argument)
+            case BFLOAT16, FLOAT16 -> Short.toUnsignedLong(((CpuBufferArgument.Shorts) argument)
                     .carrier()[arrayIndex(carrierBytes, width)]);
             case INT64 -> ((CpuBufferArgument.Longs) argument)
                     .carrier()[arrayIndex(carrierBytes, width)];

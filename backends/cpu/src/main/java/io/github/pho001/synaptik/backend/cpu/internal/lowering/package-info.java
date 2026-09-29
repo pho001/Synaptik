@@ -68,9 +68,9 @@
  * and logical draw geometry, and declares no workspace or mutable generator state.</p>
  *
  * <p>Cumulative-scan lowering admits exactly one static resolved-layout CUM_SUM or CUM_PROD
- * occurrence across FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64. It derives the independent
- * non-axis slice domain, retains exact input/output layout geometry, requires a distinct
- * injective output, and declares exactly those two buffers with no workspace, materialization,
+ * occurrence across FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, and INT64. It derives the
+ * independent non-axis slice domain, retains exact input/output layout geometry, requires a
+ * distinct injective output, and declares exactly those two buffers with no workspace, materialization,
  * partial scan, or combine state.</p>
  *
  * <p>Ordinary aggregate lowering admits exactly one static resolved-layout SUM, MEAN, PROD, MIN,
@@ -93,16 +93,16 @@
  * declares no workspace, materialization, partial result, or combine state.</p>
  *
  * <p>Masked-reduction lowering is a distinct three-boundary family for one static resolved-layout,
- * axis-removing FLOAT64, FLOAT32, or BFLOAT16 SUM/MEAN occurrence. It derives directional
+ * axis-removing FLOAT64, FLOAT32, BFLOAT16, or FLOAT16 SUM/MEAN occurrence. It derives directional
  * right-aligned canonical-BOOL mask addressing without materialization, complete output-cell
  * ranges, exact selected-axis and state bounds, and one exact-state slice per simultaneously used
  * range. Selected count remains a generated primitive local; no domain is split or combined.</p>
  *
  * <p>Advanced-reduction lowering admits exactly one static resolved-layout LOG_SUM_EXP,
- * VARIANCE, STANDARD_DEVIATION, L1_NORM, or L2_NORM occurrence over the three floating types.
- * It preserves ordered axes, derives canonical complete selected domains and injective output
- * cells, rejects invalid corrected denominators, and declares exact state only for L1 and the
- * statistical mean pass.</p>
+ * VARIANCE, STANDARD_DEVIATION, L1_NORM, or L2_NORM occurrence over the four floating types. It
+ * preserves ordered axes, derives canonical complete selected domains and injective output cells,
+ * rejects invalid corrected denominators, and declares exact state only for L1 and the statistical
+ * mean pass.</p>
  *
  * <p>Softmax lowering admits exactly one first-class static resolved-layout SOFTMAX or
  * LOG_SOFTMAX occurrence. It preserves Shape, derives canonical complete-slice ranges and

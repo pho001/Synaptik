@@ -46,8 +46,8 @@ import org.junit.jupiter.api.Test;
 final class GradientRulesTest {
     @Test
     void erfUsesTheFixedCorrectlyRoundedCoefficientForEveryFloatingType() {
-        for (DataType dataType :
-                List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+        for (DataType dataType : List.of(
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
             Tensor target = tensor(dataType, Shape.of(3));
             Tensor objective = target.erf().sum();
 
@@ -59,6 +59,7 @@ final class GradientRulesTest {
 
             switch (dataType) {
                 case BFLOAT16 -> assertEquals((short) 0x3F90, coefficient.bfloat16Bits());
+                case FLOAT16 -> assertEquals((short) 0x3C83, coefficient.float16Bits());
                 case FLOAT32 -> assertEquals(
                         0x3F906EBB, Float.floatToRawIntBits(coefficient.float32Value()));
                 case FLOAT64 -> assertEquals(
@@ -150,12 +151,14 @@ final class GradientRulesTest {
 
         for (ScalarValue exponent : List.of(
                 ScalarValue.bfloat16Bits((short) 0x4000),
+                ScalarValue.float16Bits((short) 0x4000),
                 ScalarValue.float32(2.0f),
                 ScalarValue.float64(2.0d))) {
             Tensor input = tensor(exponent.dataType(), Shape.of(2));
             Tensor scalarGradient = gradient(input.pow(exponent).sum(), input);
             ScalarValue expected = switch (exponent.dataType()) {
                 case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x3F80);
+                case FLOAT16 -> ScalarValue.float16Bits((short) 0x3C00);
                 case FLOAT32 -> ScalarValue.float32(1.0f);
                 case FLOAT64 -> ScalarValue.float64(1.0d);
                 case INT32, INT64, BOOL -> throw new AssertionError();
@@ -211,8 +214,8 @@ final class GradientRulesTest {
 
     @Test
     void fixedCoefficientTableIsUsedForEveryFloatingTypeWithoutHostDerivation() {
-        for (DataType dataType :
-                List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+        for (DataType dataType : List.of(
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
             Tensor input = tensor(dataType, Shape.of(2));
             Set<ScalarValue> values = new HashSet<>();
             for (Tensor output : List.of(
@@ -221,14 +224,14 @@ final class GradientRulesTest {
             }
 
             for (long[] bits : List.of(
-                    new long[] {0x3F00L, 0x3F000000L, 0x3FE0000000000000L},
-                    new long[] {0xBF00L, 0xBF000000L, 0xBFE0000000000000L},
-                    new long[] {0x4000L, 0x40000000L, 0x4000000000000000L},
-                    new long[] {0x3F35L, 0x3F3504F3L, 0x3FE6A09E667F3BCDL},
-                    new long[] {0x3ECCL, 0x3ECC422AL, 0x3FD9884533D43651L},
-                    new long[] {0x3F4CL, 0x3F4C422AL, 0x3FE9884533D43651L},
-                    new long[] {0x3D37L, 0x3D372713L, 0x3FA6E4E26D4801F7L},
-                    new long[] {0x3E09L, 0x3E095D4FL, 0x3FC12BA9D1F60179L})) {
+                    new long[] {0x3F00L, 0x3800L, 0x3F000000L, 0x3FE0000000000000L},
+                    new long[] {0xBF00L, 0xB800L, 0xBF000000L, 0xBFE0000000000000L},
+                    new long[] {0x4000L, 0x4000L, 0x40000000L, 0x4000000000000000L},
+                    new long[] {0x3F35L, 0x39A8L, 0x3F3504F3L, 0x3FE6A09E667F3BCDL},
+                    new long[] {0x3ECCL, 0x3662L, 0x3ECC422AL, 0x3FD9884533D43651L},
+                    new long[] {0x3F4CL, 0x3A62L, 0x3F4C422AL, 0x3FE9884533D43651L},
+                    new long[] {0x3D37L, 0x29B9L, 0x3D372713L, 0x3FA6E4E26D4801F7L},
+                    new long[] {0x3E09L, 0x304BL, 0x3E095D4FL, 0x3FC12BA9D1F60179L})) {
                 assertTrue(values.contains(scalarFromBits(dataType, bits)));
             }
         }
@@ -408,7 +411,7 @@ final class GradientRulesTest {
 
     @Test
     void layerRmsAndBatchNormalizationCoverEverySelectedFloatingRole() {
-        Tensor input = tensor(DataType.BFLOAT16, Shape.of(2, 3, 4));
+        Tensor input = tensor(DataType.FLOAT16, Shape.of(2, 3, 4));
         Tensor scale32 = tensor(DataType.FLOAT32, Shape.of(3, 4));
         Tensor bias64 = tensor(DataType.FLOAT64, Shape.of(3, 4));
         Tensor layer = input.layerNorm(
@@ -419,12 +422,13 @@ final class GradientRulesTest {
         for (Tensor target : List.of(input, scale32, bias64)) {
             assertGradientCompiles(layer.sum(), target);
         }
+        Tensor bfloatInput = tensor(DataType.BFLOAT16, Shape.of(2, 3, 4));
         assertGradientCompiles(
-                input.layerNorm(
+                bfloatInput.layerNorm(
                                 Shape.of(3, 4),
                                 ScalarValue.bfloat16Bits((short) 0x3728))
                         .sum(),
-                input);
+                bfloatInput);
 
         Tensor rmsScale = tensor(DataType.FLOAT32, Shape.of(3, 4));
         Tensor rms = input.rmsNorm(
@@ -433,13 +437,13 @@ final class GradientRulesTest {
             assertGradientCompiles(rms.sum(), target);
         }
         assertGradientCompiles(
-                input.rmsNorm(
+                bfloatInput.rmsNorm(
                                 Shape.of(3, 4),
                                 ScalarValue.bfloat16Bits((short) 0x3728))
                         .sum(),
-                input);
+                bfloatInput);
 
-        Tensor channelInput = tensor(DataType.BFLOAT16, Shape.of(2, 3, 4));
+        Tensor channelInput = tensor(DataType.FLOAT16, Shape.of(2, 3, 4));
         Tensor channelScale = tensor(DataType.FLOAT32, Shape.of(3));
         Tensor channelBias = tensor(DataType.FLOAT64, Shape.of(3));
         Tensor runningMean = tensor(DataType.FLOAT32, Shape.of(3));
@@ -552,19 +556,24 @@ final class GradientRulesTest {
 
     @Test
     void matmulSupportsTheSelectedPromotedRoleAndRepeatedOperandMultiplicity() {
-        Tensor selectedLeft = tensor(DataType.FLOAT32, Shape.of(2, 3));
-        Tensor narrowerRight = tensor(DataType.BFLOAT16, Shape.of(3, 4));
+        Tensor selectedLeft = tensor(DataType.FLOAT16, Shape.of(2, 3));
+        Tensor otherRight = tensor(DataType.BFLOAT16, Shape.of(3, 4));
+        Tensor selectedLeftGradient =
+                gradient(selectedLeft.matmul(otherRight).sum(), selectedLeft);
+        assertEquals(selectedLeft.descriptor().shape(), selectedLeftGradient.descriptor().shape());
         assertEquals(
-                selectedLeft.descriptor().shape(),
-                gradient(selectedLeft.matmul(narrowerRight).sum(), selectedLeft)
-                        .descriptor().shape());
+                selectedLeft.descriptor().dataType(),
+                selectedLeftGradient.descriptor().dataType());
 
-        Tensor narrowerLeft = tensor(DataType.BFLOAT16, Shape.of(2, 3));
-        Tensor selectedRight = tensor(DataType.FLOAT32, Shape.of(3, 4));
+        Tensor otherLeft = tensor(DataType.BFLOAT16, Shape.of(2, 3));
+        Tensor selectedRight = tensor(DataType.FLOAT16, Shape.of(3, 4));
+        Tensor selectedRightGradient =
+                gradient(otherLeft.matmul(selectedRight).sum(), selectedRight);
         assertEquals(
-                selectedRight.descriptor().shape(),
-                gradient(narrowerLeft.matmul(selectedRight).sum(), selectedRight)
-                        .descriptor().shape());
+                selectedRight.descriptor().shape(), selectedRightGradient.descriptor().shape());
+        assertEquals(
+                selectedRight.descriptor().dataType(),
+                selectedRightGradient.descriptor().dataType());
 
         Tensor repeated = tensor(Shape.of(2, 2));
         Tensor repeatedGradient = gradient(repeated.matmul(repeated).sum(), repeated);
@@ -722,8 +731,8 @@ final class GradientRulesTest {
 
     @Test
     void compilesEverySupportedElementwiseVariantForEveryFloatingType() {
-        for (DataType dataType :
-                List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+        for (DataType dataType : List.of(
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
             Tensor target = tensor(dataType, Shape.of(2, 3));
             Tensor other = tensor(dataType, Shape.of(2, 3));
             ScalarValue scalar = one(dataType);
@@ -789,10 +798,33 @@ final class GradientRulesTest {
     }
 
     @Test
+    void castGradientsRestoreTheExactInputTypeAcrossFloat16Boundaries() {
+        for (List<DataType> pair : List.of(
+                List.of(DataType.FLOAT16, DataType.BFLOAT16),
+                List.of(DataType.BFLOAT16, DataType.FLOAT16),
+                List.of(DataType.FLOAT16, DataType.FLOAT32),
+                List.of(DataType.FLOAT32, DataType.FLOAT16),
+                List.of(DataType.FLOAT16, DataType.FLOAT64),
+                List.of(DataType.FLOAT64, DataType.FLOAT16))) {
+            Tensor input = tensor(pair.get(0), Shape.of(2, 3));
+            Tensor result = gradient(input.cast(pair.get(1)).sum(), input);
+
+            assertEquals(CastKind.CAST,
+                    result.provenance().orElseThrow().operation().kind());
+            assertEquals(input.descriptor().shape(), result.descriptor().shape());
+            assertEquals(input.descriptor().dataType(), result.descriptor().dataType());
+        }
+    }
+
+    @Test
     void mixedFloatingContributionsUnbroadcastBeforeOneReverseCast() {
         for (List<DataType> pair : List.of(
+                List.of(DataType.BFLOAT16, DataType.FLOAT16),
+                List.of(DataType.FLOAT16, DataType.BFLOAT16),
                 List.of(DataType.BFLOAT16, DataType.FLOAT32),
+                List.of(DataType.FLOAT16, DataType.FLOAT32),
                 List.of(DataType.BFLOAT16, DataType.FLOAT64),
+                List.of(DataType.FLOAT16, DataType.FLOAT64),
                 List.of(DataType.FLOAT32, DataType.FLOAT64))) {
             Tensor narrow = tensor(pair.get(0), Shape.of(2, 1));
             Tensor wide = tensor(pair.get(1), Shape.of(2, 3));
@@ -893,6 +925,7 @@ final class GradientRulesTest {
     private static ScalarValue one(DataType dataType) {
         return switch (dataType) {
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x3F80);
+            case FLOAT16 -> ScalarValue.float16Bits((short) 0x3C00);
             case FLOAT32 -> ScalarValue.float32(1.0f);
             case FLOAT64 -> ScalarValue.float64(1.0d);
             case INT32, INT64, BOOL -> throw new AssertionError(dataType);
@@ -902,6 +935,7 @@ final class GradientRulesTest {
     private static ScalarValue zero(DataType dataType) {
         return switch (dataType) {
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x0000);
+            case FLOAT16 -> ScalarValue.float16Bits((short) 0x0000);
             case FLOAT32 -> ScalarValue.float32(0.0f);
             case FLOAT64 -> ScalarValue.float64(0.0d);
             case INT32, INT64, BOOL -> throw new AssertionError(dataType);
@@ -987,8 +1021,9 @@ final class GradientRulesTest {
     private static ScalarValue scalarFromBits(DataType dataType, long[] bits) {
         return switch (dataType) {
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) bits[0]);
-            case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat((int) bits[1]));
-            case FLOAT64 -> ScalarValue.float64(Double.longBitsToDouble(bits[2]));
+            case FLOAT16 -> ScalarValue.float16Bits((short) bits[1]);
+            case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat((int) bits[2]));
+            case FLOAT64 -> ScalarValue.float64(Double.longBitsToDouble(bits[3]));
             case INT32, INT64, BOOL -> throw new AssertionError(dataType);
         };
     }

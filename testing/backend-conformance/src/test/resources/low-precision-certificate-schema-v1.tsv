@@ -1,0 +1,23 @@
+schema	record	ordinal	field	key_member	required	encoding	meaning
+1	ACCURACY	01	envelope-id	false	true	stable-model-envelope-id	Model-owned per-family public accuracy envelope
+1	ACCURACY	02	qualification-method	false	true	enum-name	DEDUCTIVE_PROOF or CERTIFIED_ENVELOPE
+1	ACCURACY	03	evidence-digest	false	true	sha256	immutable proof or certification evidence bytes
+1	ACCURACY	04	verdict	false	true	enum-name	PASS is required for eligibility
+1	CERTIFICATE_KEY	01	profile	true	true	enum-name	exact graph numerical profile
+1	CERTIFICATE_KEY	02	operation-family	true	true	stable-family-id	exact operation or fusion family
+1	CERTIFICATE_KEY	03	dtype-tuple	true	true	ordered-dtype-list	ordered logical input and output data types
+1	CERTIFICATE_KEY	04	accumulator-dtype	true	true	dtype-or-NONE	exact working accumulator data type, or canonical NONE for a non-arithmetic route with no accumulator
+1	CERTIFICATE_KEY	05	shape-layout-domain	true	true	canonical-domain-id	exact qualified shape rank and layout domain
+1	CERTIFICATE_KEY	06	route	true	true	stable-route-id	exact candidate route identity
+1	CERTIFICATE_KEY	07	gpu-family	true	true	stable-gpu-id	exact qualified GPU family
+1	CERTIFICATE_KEY	08	os-build	true	true	version-string	exact qualified operating-system build
+1	CERTIFICATE_KEY	09	sdk-version	true	true	version-string	exact qualified SDK and framework version set
+1	CERTIFICATE_KEY	10	compiler-version	true	true	version-string	exact Metal and host compiler version set
+1	CERTIFICATE_KEY	11	binary-digest	true	true	sha256	exact native binary bytes
+1	CERTIFICATE_KEY	12	shader-digest	true	true	sha256-or-NONE	exact shader or graph program bytes when present
+1	CERTIFICATE_KEY	13	flags-options	true	true	canonical-option-set	exact compile math and reduced-precision options
+1	CERTIFICATE_KEY	14	capability-manifest-hash	true	true	sha256	exact provider-derived capability manifest bytes
+1	DETERMINISM_METADATA	01	certificate-key-hash	false	true	sha256	reference to the accuracy certificate key only
+1	DETERMINISM_METADATA	02	determinism-contract-id	false	true	stable-contract-id	separate reproducibility or ordering contract
+1	DETERMINISM_METADATA	03	evidence-digest	false	true	sha256	immutable determinism evidence bytes
+1	DETERMINISM_METADATA	04	verdict	false	true	enum-name	metadata only and never an accuracy verdict input

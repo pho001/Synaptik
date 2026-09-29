@@ -95,7 +95,7 @@ public final class Linear extends UnaryTensorModule {
      * @param inFeatures strictly positive input-feature count
      * @param outFeatures strictly positive output-feature count
      * @param bias whether to create and declare a deterministic zero bias
-     * @param dataType non-null floating parameter type: FLOAT64, FLOAT32, or BFLOAT16
+     * @param dataType non-null floating parameter type: FLOAT64, FLOAT32, BFLOAT16, or FLOAT16
      * @param randomGenerator non-null transient caller-owned source used only for weight samples
      * @throws NullPointerException if {@code dataType} or {@code randomGenerator} is null, checked
      *     in that order

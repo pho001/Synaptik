@@ -580,6 +580,7 @@ class TensorPadTileExpressionTest {
             case FLOAT64 -> ScalarValue.float64(value);
             case FLOAT32 -> ScalarValue.float32((float) value);
             case BFLOAT16 -> ScalarValue.bfloat16((float) value);
+            case FLOAT16 -> ScalarValue.float16((float) value);
             case INT32 -> ScalarValue.int32((int) value);
             case INT64 -> ScalarValue.int64((long) value);
             case BOOL -> ScalarValue.bool(value != 0.0d);

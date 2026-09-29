@@ -241,8 +241,9 @@ public final class CpuBackendIntegration implements AutoCloseable {
      *
      * <p>Logical elements are traversed in row-major coordinate order through the supplied fully
      * static, resolved descriptor, including its non-negative offset and positive or zero strides.
-     * {@code FLOAT64}, {@code FLOAT32}, {@code BFLOAT16}, {@code INT64}, and {@code INT32}
-     * represented bits are encoded big-endian without conversion; floating-point NaN payloads and
+     * {@code FLOAT64}, {@code FLOAT32}, {@code BFLOAT16}, {@code FLOAT16}, {@code INT64}, and
+     * {@code INT32} represented bits are encoded big-endian without conversion; floating-point
+     * NaN payloads and
      * signed zeros are preserved. {@code BOOL} accepts and copies only stored bytes {@code 0} and
      * {@code 1}. Source segment values are interpreted in native byte order. The fresh mutable
      * result belongs exclusively to the caller and is unaffected by later representation, result,

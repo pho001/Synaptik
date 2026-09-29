@@ -259,11 +259,12 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         matmulIr = Objects.requireNonNull(matmulIr, "matmulIr");
         if (classIdentitySchema != 52 && classIdentitySchema != 54 && classIdentitySchema != 55
                 && classIdentitySchema != 56 && classIdentitySchema != 57
-                && classIdentitySchema != 58 && classIdentitySchema != 59 && classIdentitySchema != 60
-                && classIdentitySchema != 61 && classIdentitySchema != 62
-                && classIdentitySchema != 63) {
+                && classIdentitySchema != 58 && classIdentitySchema != 59
+                && classIdentitySchema != 60 && classIdentitySchema != 61
+                && classIdentitySchema != 62 && classIdentitySchema != 63
+                && classIdentitySchema != 68) {
             throw new IllegalArgumentException(
-                    "class identity schema must be 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, or 63");
+                    "class identity schema must be 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, or 68");
         }
         if ((classIdentitySchema == 54) != matmulIr.isPresent()
                 || classIdentitySchema == 55 && matmulIr.isPresent()) {
@@ -371,7 +372,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         return switch (type) {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY;
             case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
-            case BFLOAT16 -> CarrierAccess.SHORT_ARRAY;
+            case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY;
             case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY;
             case BOOL -> CarrierAccess.BYTE_ARRAY;
@@ -389,7 +390,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
             case INT32 -> IntVector.SPECIES_PREFERRED.vectorBitSize();
             case INT64 -> LongVector.SPECIES_PREFERRED.vectorBitSize();
             case BOOL -> ByteVector.SPECIES_PREFERRED.vectorBitSize();
-            case BFLOAT16 -> 0;
+            case BFLOAT16, FLOAT16 -> 0;
         };
     }
 

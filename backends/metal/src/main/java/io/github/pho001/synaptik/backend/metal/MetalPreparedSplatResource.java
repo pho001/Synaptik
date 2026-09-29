@@ -73,7 +73,8 @@ final class MetalPreparedSplatResource implements PreparedResource {
                 switch (scalar.dataType()) {
                     case FLOAT64, INT64 -> source.setAtIndex(JAVA_LONG, index, rawBits);
                     case FLOAT32, INT32 -> source.setAtIndex(JAVA_INT, index, (int) rawBits);
-                    case BFLOAT16 -> source.setAtIndex(JAVA_SHORT, index, (short) rawBits);
+                    case BFLOAT16, FLOAT16 ->
+                            source.setAtIndex(JAVA_SHORT, index, (short) rawBits);
                     case BOOL -> source.setAtIndex(JAVA_BYTE, index, (byte) rawBits);
                 }
             }
@@ -201,6 +202,7 @@ final class MetalPreparedSplatResource implements PreparedResource {
             case FLOAT32 -> Float.floatToRawIntBits(scalar.float32Value())
                     & 0xffff_ffffL;
             case BFLOAT16 -> scalar.bfloat16Bits() & 0xffffL;
+            case FLOAT16 -> scalar.float16Bits() & 0xffffL;
             case INT64 -> scalar.int64Value();
             case INT32 -> scalar.int32Value() & 0xffff_ffffL;
             case BOOL -> scalar.booleanValue() ? 1L : 0L;

@@ -159,8 +159,8 @@ consume the canonical saved mean and inverse-standard-deviation wrappers at slot
 those slots cannot be independent cotangent roots.
 
 ERF constructs `g * exp(-(x * x)) * (2 / sqrt(pi))`. Its coefficient is exact scalar-operation
-metadata with fixed BFLOAT16/FLOAT32/FLOAT64 bits `0x3F90`, `0x3F906EBB`, and
-`0x3FF20DD750429B6D`; the rule does not evaluate host floating arithmetic.
+metadata with fixed BFLOAT16/FLOAT16/FLOAT32/FLOAT64 bits `0x3F90`, `0x3C83`, `0x3F906EBB`,
+and `0x3FF20DD750429B6D`; the rule does not evaluate host floating arithmetic.
 
 MIN and MAX split an exact represented-numeric tie equally between Tensor inputs; scalar extrema
 give the Tensor receiver one half at a tie. First-class CLAMP applies that rule to the exact
@@ -178,9 +178,9 @@ Exact GELU, fixed tanh-approximation GELU, and SiLU use fixed-coefficient analyt
 finite and NaN inputs. They return `g` at positive infinity and exact positive zero at negative
 infinity. Other analytic rows add no domain, finite, singularity, or continuous-extension mask;
 ordinary Tensor operations determine their exceptional behavior in formula order. Compiler
-0005A uses fixed BFLOAT16/FLOAT32/FLOAT64 coefficient bits for one half, negative one half, two,
-the inverse-square-root terms, and `0.044715`/`0.134145`; compilation evaluates no host
-transcendental coefficient.
+0005A uses fixed BFLOAT16/FLOAT16/FLOAT32/FLOAT64 coefficient bits for one half, negative one half,
+two, the inverse-square-root terms, and `0.044715`/`0.134145`; the FLOAT16 `0.044715` coefficient is
+the raw half word `0x29B9`. Compilation evaluates no host transcendental coefficient.
 
 MATMUL handles vector-vector, vector-matrix, matrix-vector, and matrix-matrix rank promotion.
 Each selected result reverses batch broadcasting and then casts once if the operand type differs

@@ -24,7 +24,8 @@ import java.util.List;
  * formula recurses through {@code x*x}, sum/count, epsilon addition, square root, division, and
  * optional scale multiplication. Every contributor participates once under the aggregate floor,
  * and the irreducible square-root site uses the inclusive ordered-binary32 distance ceiling of
- * five. The composite gains no final-output envelope; non-FLOAT32 behavior stays strict. See the
+ * five. The composite gains no final-output envelope. Every current non-FLOAT32 occurrence
+ * remains strict; the inactive low-precision reservation changes none of them. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */

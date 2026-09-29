@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.compiler;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastValueConversions;
 import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.tensor.Tensor;
@@ -56,6 +57,8 @@ final class StochasticGradientRules {
             case FLOAT64 -> ScalarValue.float64(value);
             case FLOAT32 -> ScalarValue.float32((float) value);
             case BFLOAT16 -> ScalarValue.bfloat16((float) value);
+            case FLOAT16 -> CastValueConversions.convert(
+                    ScalarValue.float64(value), DataType.FLOAT16);
             case INT32, INT64, BOOL -> throw new IllegalArgumentException(
                     "dropout derivative requires floating data type: " + dataType);
         };

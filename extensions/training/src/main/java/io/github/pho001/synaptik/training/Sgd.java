@@ -11,8 +11,9 @@ package io.github.pho001.synaptik.training;
  * slot to {@code d}; dampening is deliberately not applied on that first step. Later steps set the
  * slot to {@code m * previous + (1 - damp) * d}. Ordinary momentum uses the updated slot.
  * Nesterov uses {@code d + m * updatedSlot}, requires positive momentum, and is compatible only
- * with zero dampening. FLOAT32 sessions narrow all numeric configuration values once and perform
- * represented binary32 arithmetic; FLOAT64 sessions use binary64 arithmetic.</p>
+ * with zero dampening. FLOAT32, BFLOAT16, and FLOAT16 parameter sessions narrow all numeric
+ * configuration values once and perform binary32 master-state arithmetic; FLOAT64 parameter
+ * sessions use binary64 arithmetic.</p>
  *
  * <p>The value owns no parameters or mutable state and may be shared by sessions. Each session
  * initializes independent zero momentum slots and retains this exact configuration, including

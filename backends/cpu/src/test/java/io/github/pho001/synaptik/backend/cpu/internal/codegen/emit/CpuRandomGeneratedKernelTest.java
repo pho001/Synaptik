@@ -4,10 +4,17 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBorrowedBuffer;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.*;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastValueConversions;
+import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
+import io.github.pho001.synaptik.runtime.run.BufferRepresentationBinding;
+import io.github.pho001.synaptik.runtime.run.RunResourceOwnership;
+import io.github.pho001.synaptik.runtime.run.RunState;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -28,9 +35,8 @@ class CpuRandomGeneratedKernelTest {
                 List.of(CarrierAccess.LONG_ARRAY), DataType.INT64, true);
         assertDirectShape(CpuRandomLoweringTest.initialContext(1, 2),
                 List.of(CarrierAccess.MEMORY_SEGMENT), DataType.INT64, false);
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32)) {
-            CarrierAccess value = type == DataType.FLOAT64
-                    ? CarrierAccess.DOUBLE_ARRAY : CarrierAccess.FLOAT_ARRAY;
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+            CarrierAccess value = valueCarrier(type);
             for (int pattern = 0; pattern < 32; pattern++) {
                 List<CarrierAccess> carriers = new ArrayList<>();
                 for (int role = 0; role < 5; role++) carriers.add((pattern & 1 << role) == 0
@@ -294,17 +300,17 @@ class CpuRandomGeneratedKernelTest {
 
     @Test void eachDropoutBoundaryRoleIndependentlyUsesItsSelectedCarrier() throws Throwable {
         try (Arena arena = Arena.ofConfined()) {
-            for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32)) {
-                CarrierAccess value = type == DataType.FLOAT64
-                        ? CarrierAccess.DOUBLE_ARRAY : CarrierAccess.FLOAT_ARRAY;
+            for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32,
+                    DataType.BFLOAT16)) {
+                CarrierAccess value = valueCarrier(type);
                 List<CarrierAccess> heap = List.of(value, CarrierAccess.LONG_ARRAY, value,
                         CarrierAccess.BYTE_ARRAY, CarrierAccess.LONG_ARRAY);
                 for (int segmentRole = 0; segmentRole < 5; segmentRole++) {
                     List<CarrierAccess> selected = new ArrayList<>(heap);
                     selected.set(segmentRole, CarrierAccess.MEMORY_SEGMENT);
-                    Object input = type == DataType.FLOAT64 ? new double[]{3.25} : new float[]{3.25f};
+                    Object input = valueArray(type, 1);
                     Object state = new long[]{9, -1};
-                    Object output = type == DataType.FLOAT64 ? new double[1] : new float[1];
+                    Object output = valueArray(type, 1);
                     Object mask = new byte[1];
                     Object next = new long[2];
                     Object[] arguments = {input, state, output, mask, next};
@@ -323,9 +329,7 @@ class CpuRandomGeneratedKernelTest {
                     generated.handle.invokeWithArguments(arguments[0], arguments[1], arguments[2],
                             arguments[3], arguments[4], generated.geometry, 0L, 1L);
                     assertAll("type=" + type + " role=" + segmentRole,
-                            () -> assertEquals(type == DataType.FLOAT64
-                                            ? Double.doubleToRawLongBits(3.25)
-                                            : Float.floatToRawIntBits(3.25f),
+                            () -> assertEquals(expectedRaw(type, 3.25),
                                     rawValue(arguments[2], type)),
                             () -> assertEquals((byte) 1, readByte(arguments[3], 0)),
                             () -> assertEquals(9, readLong(arguments[4], 0)),
@@ -352,6 +356,122 @@ class CpuRandomGeneratedKernelTest {
         empty.handle.invokeWithArguments(new float[0], emptyState, new float[0], new byte[0],
                 emptyNext, empty.geometry, 0L, 0L);
         assertArrayEquals(emptyState, emptyNext);
+    }
+
+    @Test void bfloat16ZeroProbabilityPreservesSignedZeroCanonicalizesNaNAndReplaysOddTail()
+            throws Throwable {
+        var invocation = generated(CpuRandomLoweringTest.dropoutContext(DataType.BFLOAT16,
+                Shape.of(7), -0.0d), carriers(DataType.BFLOAT16));
+        short[] input = {(short) 0x8000, (short) 0x7fa1, (short) 0x3f80,
+                (short) 0xbf80, (short) 0x7f80, (short) 0xff80, (short) 0x0001};
+        long[] state = {0x1234, 7};
+        short[] first = new short[7], replay = new short[7];
+        byte[] firstMask = new byte[7], replayMask = new byte[7];
+        long[] firstNext = new long[2], replayNext = new long[2];
+        invocation.handle.invokeWithArguments(input, state, first, firstMask, firstNext,
+                invocation.geometry, 0L, 0L);
+        invocation.handle.invokeWithArguments(input, state, first, firstMask, firstNext,
+                invocation.geometry, 0L, 3L);
+        invocation.handle.invokeWithArguments(input, state, first, firstMask, firstNext,
+                invocation.geometry, 3L, 7L);
+        invocation.handle.invokeWithArguments(input, state, replay, replayMask, replayNext,
+                invocation.geometry, 0L, 0L);
+        invocation.handle.invokeWithArguments(input, state, replay, replayMask, replayNext,
+                invocation.geometry, 0L, 3L);
+        invocation.handle.invokeWithArguments(input, state, replay, replayMask, replayNext,
+                invocation.geometry, 3L, 7L);
+        short[] expected = input.clone();
+        expected[1] = (short) 0x7fc0;
+        assertAll(() -> assertArrayEquals(expected, first),
+                () -> assertArrayEquals(first, replay),
+                () -> assertArrayEquals(new byte[]{1, 1, 1, 1, 1, 1, 1}, firstMask),
+                () -> assertArrayEquals(firstMask, replayMask),
+                () -> assertArrayEquals(new long[]{state[0], state[1] + 7}, firstNext),
+                () -> assertArrayEquals(firstNext, replayNext));
+    }
+
+    @Test void bfloat16GeneralBroadcastAndStridedWritesMatchLogicalDrawsAcrossRanges()
+            throws Throwable {
+        Shape shape = Shape.of(2, 2);
+        Shape stateShape = Shape.of(2);
+        var context = CpuRandomLoweringTest.dropoutContext(DataType.BFLOAT16, shape, .5d,
+                List.of(LayoutDescriptor.of(shape, new long[]{0, 2}, 1, true),
+                        LayoutDescriptor.of(stateShape, new long[]{2}, 1, true),
+                        LayoutDescriptor.of(shape, new long[]{7, 2}, 1, true),
+                        LayoutDescriptor.of(shape, new long[]{8, 3}, 2, true),
+                        LayoutDescriptor.of(stateShape, new long[]{3}, 2, true)));
+        var invocation = generated(context, carriers(DataType.BFLOAT16));
+        short[] input = {(short) 0x55aa, (short) 0x3fc0, (short) 0x55aa, (short) 0xc010};
+        long[] state = {-1, 0x1234, -1, 7};
+        short[] first = new short[11], replay = new short[11];
+        byte[] firstMask = new byte[14], replayMask = new byte[14];
+        long[] firstNext = new long[6], replayNext = new long[6];
+        Arrays.fill(first, (short) 0x55aa);
+        Arrays.fill(replay, (short) 0x55aa);
+        Arrays.fill(firstMask, (byte) -1);
+        Arrays.fill(replayMask, (byte) -1);
+        Arrays.fill(firstNext, -1);
+        Arrays.fill(replayNext, -1);
+        for (Object[] outputs : List.of(new Object[]{first, firstMask, firstNext},
+                new Object[]{replay, replayMask, replayNext})) {
+            invocation.handle.invokeWithArguments(input, state, outputs[0], outputs[1], outputs[2],
+                    invocation.geometry, 0L, 0L);
+            invocation.handle.invokeWithArguments(input, state, outputs[0], outputs[1], outputs[2],
+                    invocation.geometry, 2L, 4L);
+            invocation.handle.invokeWithArguments(input, state, outputs[0], outputs[1], outputs[2],
+                    invocation.geometry, 0L, 2L);
+        }
+        int[] inputAddresses = {1, 3, 1, 3};
+        int[] outputAddresses = {1, 3, 8, 10};
+        int[] maskAddresses = {2, 5, 10, 13};
+        for (int logical = 0; logical < 4; logical++) {
+            boolean keep = oracleUniform(oracleWord(0x1234, 7, logical)) >= .5d;
+            assertEquals(keep ? (byte) 1 : (byte) 0, firstMask[maskAddresses[logical]]);
+            double value = CastValueConversions.convert(
+                    ScalarValue.bfloat16Bits(input[inputAddresses[logical]]),
+                    DataType.FLOAT64).float64Value();
+            assertEquals(keep ? expectedBfloat(value / .5d) : (short) 0,
+                    first[outputAddresses[logical]]);
+        }
+        assertAll(() -> assertArrayEquals(first, replay),
+                () -> assertArrayEquals(firstMask, replayMask),
+                () -> assertArrayEquals(firstNext, replayNext),
+                () -> assertEquals(0x1234, firstNext[2]),
+                () -> assertEquals(11, firstNext[5]),
+                () -> assertEquals((short) 0x55aa, first[0]),
+                () -> assertEquals((byte) -1, firstMask[0]));
+    }
+
+    @Test void preparedBfloat16DropoutBindsAndExecutesTheGeneratedArtifact() {
+        var base = CpuRandomLoweringTest.dropoutContext(DataType.BFLOAT16, Shape.of(3), 0.0d);
+        List<CarrierAccess> selected = carriers(DataType.BFLOAT16);
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false, selected));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
+        short[] input = {(short) 0x8000, (short) 0x7fa1, (short) 0x3f80};
+        long[] stateWords = {9, -1};
+        short[] output = new short[3];
+        byte[] mask = new byte[3];
+        long[] next = new long[2];
+        var state = new RunState(executable.memoryPlan(), List.of(
+                borrowed(DataType.BFLOAT16, input),
+                borrowed(DataType.INT64, stateWords),
+                borrowed(DataType.BFLOAT16, output),
+                borrowed(DataType.BOOL, mask),
+                borrowed(DataType.INT64, next)).stream().map(buffer -> List.of(
+                        new BufferRepresentationBinding(buffer, RunResourceOwnership.BORROWED)))
+                        .toList(), List.of());
+        try {
+            assertDoesNotThrow(() -> executable.bind(state).execute());
+            assertAll(() -> assertArrayEquals(new short[]{(short) 0x8000, (short) 0x7fc0,
+                            (short) 0x3f80}, output),
+                    () -> assertArrayEquals(new byte[]{1, 1, 1}, mask),
+                    () -> assertArrayEquals(new long[]{9, 2}, next));
+        } finally {
+            state.close();
+        }
     }
 
     private static void assertVector(long key, long counter, long index, long word, double uniform) {
@@ -398,21 +518,76 @@ class CpuRandomGeneratedKernelTest {
                 : ((MemorySegment) carrier).get(ValueLayout.JAVA_BYTE, index);
     }
 
+    private static CpuBorrowedBuffer borrowed(DataType type, Object carrier) {
+        MemorySegment segment = switch (carrier) {
+            case short[] values -> MemorySegment.ofArray(values);
+            case long[] values -> MemorySegment.ofArray(values);
+            case byte[] values -> MemorySegment.ofArray(values);
+            default -> throw new IllegalArgumentException("unsupported prepared dropout carrier");
+        };
+        return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(type,
+                java.lang.reflect.Array.getLength(carrier), segment));
+    }
+
     private static void writeValue(Object carrier, DataType type, double value) {
-        if (type == DataType.FLOAT64) writeDouble(carrier, 0, value);
-        else if (carrier instanceof float[] array) array[0] = (float) value;
-        else ((MemorySegment) carrier).set(ValueLayout.JAVA_FLOAT, 0, (float) value);
+        if (type == DataType.FLOAT64) {
+            writeDouble(carrier, 0, value);
+        } else if (type == DataType.FLOAT32) {
+            if (carrier instanceof float[] array) array[0] = (float) value;
+            else ((MemorySegment) carrier).set(ValueLayout.JAVA_FLOAT, 0, (float) value);
+        } else {
+            short bits = expectedBfloat(value);
+            if (carrier instanceof short[] array) array[0] = bits;
+            else ((MemorySegment) carrier).set(ValueLayout.JAVA_SHORT_UNALIGNED, 0, bits);
+        }
     }
 
     private static long rawValue(Object carrier, DataType type) {
         if (type == DataType.FLOAT64) return Double.doubleToRawLongBits(readDouble(carrier, 0));
-        float value = carrier instanceof float[] array ? array[0]
-                : ((MemorySegment) carrier).get(ValueLayout.JAVA_FLOAT, 0);
-        return Float.floatToRawIntBits(value);
+        if (type == DataType.FLOAT32) {
+            float value = carrier instanceof float[] array ? array[0]
+                    : ((MemorySegment) carrier).get(ValueLayout.JAVA_FLOAT, 0);
+            return Integer.toUnsignedLong(Float.floatToRawIntBits(value));
+        }
+        short value = carrier instanceof short[] array ? array[0]
+                : ((MemorySegment) carrier).get(ValueLayout.JAVA_SHORT_UNALIGNED, 0);
+        return Short.toUnsignedLong(value);
+    }
+
+    private static long expectedRaw(DataType type, double value) {
+        return switch (type) {
+            case FLOAT64 -> Double.doubleToRawLongBits(value);
+            case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits((float) value));
+            case BFLOAT16 -> Short.toUnsignedLong(expectedBfloat(value));
+            default -> throw new IllegalArgumentException("unsupported dropout value type");
+        };
+    }
+
+    private static short expectedBfloat(double value) {
+        return CastValueConversions.convert(ScalarValue.float64(value), DataType.BFLOAT16)
+                .bfloat16Bits();
+    }
+
+    private static Object valueArray(DataType type, int length) {
+        return switch (type) {
+            case FLOAT64 -> new double[length];
+            case FLOAT32 -> new float[length];
+            case BFLOAT16 -> new short[length];
+            default -> throw new IllegalArgumentException("unsupported dropout value type");
+        };
+    }
+
+    private static CarrierAccess valueCarrier(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY;
+            case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
+            case BFLOAT16 -> CarrierAccess.SHORT_ARRAY;
+            default -> throw new IllegalArgumentException("unsupported dropout value type");
+        };
     }
 
     private static List<CarrierAccess> carriers(DataType type) {
-        CarrierAccess value = type == DataType.FLOAT64 ? CarrierAccess.DOUBLE_ARRAY : CarrierAccess.FLOAT_ARRAY;
+        CarrierAccess value = valueCarrier(type);
         return List.of(value, CarrierAccess.LONG_ARRAY, value, CarrierAccess.BYTE_ARRAY,
                 CarrierAccess.LONG_ARRAY);
     }
@@ -460,16 +635,25 @@ class CpuRandomGeneratedKernelTest {
                                 CpuRandomEmitter.class.getName().replace('.', '/'))
                                 || reference.type().stringValue().contains("Ljava/lang/Object;")),
                         references.toString()),
-                () -> assertTrue(references.stream().allMatch(reference ->
-                        reference.owner().asInternalName().equals("java/lang/foreign/ValueLayout")
-                                || reference.owner().asInternalName().equals(
-                                    "java/lang/foreign/MemorySegment")), references.toString()),
+                () -> assertTrue(references.stream().allMatch(reference -> Set.of(
+                                "java/lang/foreign/ValueLayout",
+                                "java/lang/foreign/MemorySegment",
+                                "java/lang/Float",
+                                "java/lang/Double").contains(reference.owner().asInternalName())),
+                        references.toString()),
                 () -> assertEquals(expectedReferences, actualReferences),
-                () -> assertEquals(dense, references.isEmpty(), references.toString()),
+                () -> assertEquals(dense && valueType != DataType.BFLOAT16,
+                        references.isEmpty(), references.toString()),
                 () -> assertTrue(invokes.stream().allMatch(call ->
                         call.owner().asInternalName().equals("java/lang/foreign/MemorySegment")
                                 && (call.name().stringValue().equals("get")
-                                    || call.name().stringValue().equals("set"))),
+                                    || call.name().stringValue().equals("set"))
+                        || valueType == DataType.BFLOAT16
+                                && call.owner().asInternalName().equals("java/lang/Float")
+                                && call.name().stringValue().equals("intBitsToFloat")
+                        || valueType == DataType.BFLOAT16
+                                && call.owner().asInternalName().equals("java/lang/Double")
+                                && call.name().stringValue().equals("doubleToRawLongBits")),
                         invokes.toString()),
                 () -> assertTrue(instructions.stream().map(Instruction::opcode)
                         .anyMatch(opcode -> opcode == Opcode.GOTO)));
@@ -483,6 +667,10 @@ class CpuRandomGeneratedKernelTest {
                 addSegmentReferences(expected, DataType.INT64, false, true);
             }
             return expected;
+        }
+        if (valueType == DataType.BFLOAT16) {
+            expected.add("java/lang/Float#intBitsToFloat:(I)F");
+            expected.add("java/lang/Double#doubleToRawLongBits:(D)J");
         }
         if (carriers.get(0) == CarrierAccess.MEMORY_SEGMENT) {
             addSegmentReferences(expected, valueType, true, false);
@@ -507,6 +695,7 @@ class CpuRandomGeneratedKernelTest {
         String layout = switch (type) {
             case FLOAT64 -> "DOUBLE";
             case FLOAT32 -> "FLOAT";
+            case BFLOAT16 -> "SHORT";
             case INT64 -> "LONG";
             case BOOL -> "BYTE";
             default -> throw new IllegalArgumentException("unsupported random segment type");
@@ -514,6 +703,7 @@ class CpuRandomGeneratedKernelTest {
         String primitive = switch (type) {
             case FLOAT64 -> "D";
             case FLOAT32 -> "F";
+            case BFLOAT16 -> "S";
             case INT64 -> "J";
             case BOOL -> "B";
             default -> throw new IllegalArgumentException("unsupported random segment type");
@@ -521,6 +711,7 @@ class CpuRandomGeneratedKernelTest {
         String layoutType = "Ljava/lang/foreign/ValueLayout$Of" + switch (type) {
             case FLOAT64 -> "Double";
             case FLOAT32 -> "Float";
+            case BFLOAT16 -> "Short";
             case INT64 -> "Long";
             case BOOL -> "Byte";
             default -> throw new IllegalArgumentException("unsupported random segment type");

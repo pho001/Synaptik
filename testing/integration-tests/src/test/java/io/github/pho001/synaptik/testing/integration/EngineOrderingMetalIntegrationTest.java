@@ -385,6 +385,7 @@ final class EngineOrderingMetalIntegrationTest {
             case FLOAT32 -> (word & 0x7f80_0000L) == 0x7f80_0000L
                     && (word & 0x007f_ffffL) != 0;
             case BFLOAT16 -> (word & 0x7f80L) == 0x7f80L && (word & 0x007fL) != 0;
+            case FLOAT16 -> (word & 0x7c00L) == 0x7c00L && (word & 0x03ffL) != 0;
             case INT32, INT64, BOOL -> false;
         };
     }
@@ -397,6 +398,10 @@ final class EngineOrderingMetalIntegrationTest {
                     (int) word < 0 ? ~(int) word : (int) word ^ Integer.MIN_VALUE);
             case INT32 -> Integer.toUnsignedLong((int) word ^ Integer.MIN_VALUE);
             case BFLOAT16 -> {
+                int narrowed = (int) word & 0xffff;
+                yield ((narrowed & 0x8000) != 0 ? ~narrowed : narrowed ^ 0x8000) & 0xffffL;
+            }
+            case FLOAT16 -> {
                 int narrowed = (int) word & 0xffff;
                 yield ((narrowed & 0x8000) != 0 ? ~narrowed : narrowed ^ 0x8000) & 0xffffL;
             }
@@ -419,6 +424,10 @@ final class EngineOrderingMetalIntegrationTest {
             case BFLOAT16 -> new long[] {
                 0x0001L, 0x8001L, 0x7f80L, 0xff80L,
                 0x7f81L, 0xffc2L, 0x7f7fL, 0x0080L
+            };
+            case FLOAT16 -> new long[] {
+                0x0001L, 0x8001L, 0x7c00L, 0xfc00L,
+                0x7c01L, 0xfe02L, 0x7bffL, 0x0400L
             };
             case INT32 -> new long[] {
                 Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0,
@@ -458,7 +467,7 @@ final class EngineOrderingMetalIntegrationTest {
             switch (type) {
                 case FLOAT64, INT64 -> bytes.putLong(word);
                 case FLOAT32, INT32 -> bytes.putInt((int) word);
-                case BFLOAT16 -> bytes.putShort((short) word);
+                case BFLOAT16, FLOAT16 -> bytes.putShort((short) word);
                 case BOOL -> bytes.put((byte) word);
             }
         }

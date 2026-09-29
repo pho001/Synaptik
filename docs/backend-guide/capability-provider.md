@@ -33,6 +33,38 @@ The query snapshots ordered input and output list membership while retaining the
 `Operation` and `TensorDescriptor` references. It validates occurrence counts, not descriptor
 compatibility or eventual executability.
 
+## Frozen P0 low-precision evidence
+
+The checked-in
+[`low-precision-capability-ledger-v1.tsv`](../../testing/backend-conformance/src/test/resources/low-precision-capability-ledger-v1.tsv)
+is a canonical representative snapshot produced by calling the actual CPU and Metal providers
+under both profiles. It contains 508 data rows: 127 stable representative occurrences for each of
+two providers and two profiles. The two additional occurrences are the F32/FLOAT16 cast directions
+made representable by the active Model type. The CPU rows reflect their current support, while
+Metal remains fail-closed. Supported and explicit unsupported answers are both retained.
+`LowPrecisionCapabilityLedgerTest` reconstructs the basis, calls the providers, serializes UTF-8
+TSV with LF endings, enforces stable ordering and unique keys, and reports the first missing,
+added, or byte-changed row.
+
+Each F32 provider portion ends at the `supported` boolean. Separate
+`bf16_current_supported` and `fp16_current_supported` fields are the actual answers from the same
+provider for the corresponding mapped occurrence: every F32 descriptor and F32-typed scalar or
+cast target is replaced by the selected low-precision type while every other field is retained.
+Neither answer is inferred from F32 or from the other mapped type. The following BF16/FP16 target,
+target-profile, and exclusion fields are architecture mapping, not provider output. No row asserts
+route, runtime, device, certificate, or generated-backward ownership.
+The basis is representative rather than an enumeration of every legal shape, layout, attribute,
+or gradient combination; the provider's focused tests remain authoritative for its complete
+current predicate.
+
+This mechanism does not redesign `BackendCapabilityProvider`. The separate identity-allocation
+ledger records active Model `DataType.FLOAT16` ordinal 6, CPU generator schema 68, Metal type wire
+7, program schema 19, backend identities 28, certificate schema 1, and native ABI 6. The checked-in
+[`low-precision-certificate-schema-v1.tsv`](../../testing/backend-conformance/src/test/resources/low-precision-certificate-schema-v1.tsv)
+defines the complete certificate key and accuracy fields plus a separate determinism-metadata
+record. That field schema remains independent of provider truth; the Metal backend separately owns
+the exact certificate rows that can add its narrow raw-preserving MPSGraph candidate.
+
 ## Current shared identity, availability, and requirement vocabulary
 
 The current Java API can name an ownership domain, name a device within that domain, and express
@@ -257,33 +289,37 @@ same exact answer under `STRICT_IEEE` and `ACCELERATOR`.
 The current Metal provider admits the exact common unary, affine, canonicalization, indexing,
 classification, BOOL, replacement, movement, non-overlapping fold/window, ordering/top-K/numeric
 arg-extrema, maximum-pool, initial-state, and promoted integral MATMUL rows under both profiles.
-Task 0066 completes all 36 ordered casts; FLOAT64/FLOAT32/BFLOAT16 classification; scalar and
-right-aligned BOOL logic; all nine promoted floating `WHERE` signatures; all-six-carrier exact
-movement; INT32/INT64 index parity; `FOLD_AXIS` over every numeric carrier; and 2D/3D
-unfold/fold over the three floating carriers. Replacement scatter remains `NONE`, folds remain
-non-overlapping, and every admitted Shape/layout is fully static and checked. `SORT`, `ARGSORT`,
-and positive-K `TOP_K` admit all six carriers; `ARG_MAX` and `ARG_MIN` admit the five numeric
-carriers over canonical dense ranks `1..16` with unsigned-32-bit-bounded geometry.
+All 49 ordered casts, FLOAT64/FLOAT32/BFLOAT16/FLOAT16 classification, scalar and right-aligned
+BOOL logic, the 14 floating `WHERE` signatures other than direct BFLOAT16/FLOAT16 mixing, exact
+seven-carrier movement, INT32/INT64 index parity, `FOLD_AXIS` over all six numeric carriers, and
+2D/3D unfold/fold over all four floating carriers are complete. Replacement scatter remains
+`NONE`, folds remain non-overlapping, and every admitted Shape/layout is fully static and checked.
+`SORT`, `ARGSORT`, and positive-K `TOP_K` admit all seven carriers; `ARG_MAX` and `ARG_MIN` admit
+the six numeric carriers over canonical dense ranks `1..16` with unsigned-32-bit-bounded geometry.
 
 Accelerator additionally admits the documented FLOAT32 arithmetic, extrema, scalar, reduction,
 scan, MSE, general MATMUL, average-pooling, convolution, explicit-state dropout, and exact
-rank-one no-gradient FLOAT32 `L1_NORM` and `SCATTER_ADD`, plus singleton `VARIANCE`. ScatterAdd
-uses axis zero, canonical base/index/update/output roles, and a materialized INT32/INT64 index
-feed; the compiler explicitly canonicalizes its generated zero base, and the complete range scan
-precedes dispatch and mutation. Variance requires no-gradient FLOAT32 input `[1]`, axis `[0]`,
-correction zero, and canonical scalar or retained `[1]` output. Both profiles admit no-gradient
-INT32/INT64 MATMUL pairs with INT64-dominant promotion and modular result arithmetic. Every
-selected Task-0066 occurrence at wires `6..11,16..19,39..45,51,69,71..84` and all three Task-0069
-occurrences at wires `70,112,114` use one fixed `CUSTOM_PROGRAM` route. Capability distinguishes
-logical affine layouts from their independently authenticated physical spans and rejects
+rank-one no-gradient FLOAT32 `L1_NORM` and `SCATTER_ADD`, plus singleton `VARIANCE`. Every
+supported homogeneous accelerator FLOAT32 occurrence has BFLOAT16 and FLOAT16 counterparts;
+direct BFLOAT16/FLOAT16 mixed-low execution remains unsupported. ScatterAdd uses axis zero,
+canonical base/index/update/output roles, and a materialized INT32/INT64 index feed; the compiler
+explicitly canonicalizes its generated zero base, and the complete range scan precedes dispatch
+and mutation. Variance requires no-gradient input `[1]`, axis `[0]`, correction zero, and canonical
+scalar or retained `[1]` output. Both profiles admit no-gradient INT32/INT64 MATMUL pairs with
+INT64-dominant promotion and modular result arithmetic. Every low arithmetic occurrence and the
+three exact rank-one FLOAT32 special occurrences use one fixed `CUSTOM_PROGRAM` route. Only the
+six exact homogeneous no-gradient raw-preserving low program forms may add MPSGraph after a
+complete certificate match; classic MPS and MPP are qualified-negative and own no route.
+Capability distinguishes logical affine layouts from their independently authenticated physical spans and rejects
 dynamic/empty geometry, zero or negative external strides, overlap, every other additive scatter,
 reduction-dependent adjoints, and every other unlisted occurrence before route selection.
 
-ABI 5 retains the thirteen export names and consumes one bounded schema-18 route-bearing program
-image. Operation wires `1..115`, attribute wires `0..41`, route wires `1..3`, and type wires
-`1..6` are structural vocabulary only. The custom-program extension authenticates compact
-materialized slots, deterministic generated pointwise units, and exact ACCELERATOR MATMUL/Conv2d
-anchor epilogues without widening capability. Version-twenty-seven workload, policy, candidate,
-compatibility, route, and codec identities authenticate that meaning; every other identity fails closed.
-Production capability is `86/29`, structural execution remains `101/14`, and the MPSGraph/custom catalogs are
-`75/35/5` and `73/42/0`.
+ABI 6 exposes fourteen functions and consumes one bounded schema-19 route-bearing program image.
+Operation wires `1..115`, attribute wires `0..41`, route wires `1..3`, and type wires `1..7` are
+structural vocabulary only. The custom-program extension authenticates compact materialized slots,
+deterministic generated pointwise units, and exact ACCELERATOR MATMUL/Conv2d anchor epilogues
+without widening capability. Version-twenty-eight workload, policy, candidate, compatibility,
+route, and codec identities authenticate that meaning; every other identity fails closed.
+Production capability is `86/29`, structural execution remains `101/14`, and the MPSGraph/custom
+catalogs are `75/35/5` and `73/42/0`. Exact environment/program certificate matching is a
+prepare-time route filter and never changes a provider answer.

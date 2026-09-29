@@ -98,6 +98,22 @@ class TensorFactoryFlatImportTest {
     }
 
     @Test
+    void copiesRawFloat16BitsWithoutConversionOrSourceRetention() {
+        short[] source = {(short) 0x8000, (short) 0x7E01, (short) 0xFFFF};
+
+        Tensor tensor = TensorFactory.fromFlatFloat16Array(
+                dense(DataType.FLOAT16, Shape.of(3)), Optional.empty(), source);
+        short[] destination = heapArray(tensor, short[].class);
+
+        assertAll(
+                () -> assertNotSame(source, destination),
+                () -> assertArrayEquals(source, destination));
+        source[0] = 0x3C00;
+        assertArrayEquals(new short[] {(short) 0x8000, (short) 0x7E01, (short) 0xFFFF},
+                destination);
+    }
+
+    @Test
     void normalizesBoolBytesWithoutRetainingOrMutatingTheSource() {
         byte[] source = {0, -2, 3, Byte.MIN_VALUE, Byte.MAX_VALUE};
         byte[] original = source.clone();
@@ -142,6 +158,7 @@ class TensorFactoryFlatImportTest {
         TensorDescriptor float64 = dense(DataType.FLOAT64, Shape.scalar());
         TensorDescriptor float32 = dense(DataType.FLOAT32, Shape.scalar());
         TensorDescriptor bfloat16 = dense(DataType.BFLOAT16, Shape.scalar());
+        TensorDescriptor float16 = dense(DataType.FLOAT16, Shape.scalar());
         TensorDescriptor int32 = dense(DataType.INT32, Shape.scalar());
         TensorDescriptor int64 = dense(DataType.INT64, Shape.scalar());
         TensorDescriptor bool = dense(DataType.BOOL, Shape.scalar());
@@ -158,6 +175,10 @@ class TensorFactoryFlatImportTest {
                 () -> TensorFactory.fromFlatArray(null, null, (short[]) null),
                 () -> TensorFactory.fromFlatArray(bfloat16, null, (short[]) null),
                 () -> TensorFactory.fromFlatArray(bfloat16, Optional.empty(), (short[]) null));
+        assertNullFailures(
+                () -> TensorFactory.fromFlatFloat16Array(null, null, null),
+                () -> TensorFactory.fromFlatFloat16Array(float16, null, null),
+                () -> TensorFactory.fromFlatFloat16Array(float16, Optional.empty(), null));
         assertNullFailures(
                 () -> TensorFactory.fromFlatArray(null, null, (int[]) null),
                 () -> TensorFactory.fromFlatArray(int32, null, (int[]) null),
@@ -198,6 +219,10 @@ class TensorFactoryFlatImportTest {
                 IllegalArgumentException.class,
                 () -> TensorFactory.fromFlatArray(
                         int32Unresolved, Optional.empty(), new short[0]));
+        IllegalArgumentException float16 = assertThrows(
+                IllegalArgumentException.class,
+                () -> TensorFactory.fromFlatFloat16Array(
+                        bfloat16Unresolved, Optional.empty(), new short[0]));
         IllegalArgumentException int32 = assertThrows(
                 IllegalArgumentException.class,
                 () -> TensorFactory.fromFlatArray(
@@ -221,6 +246,10 @@ class TensorFactoryFlatImportTest {
                 () -> assertEquals(
                         "flat source data type must match descriptor: expected=BFLOAT16, actual=INT32",
                         bfloat16.getMessage()),
+                () -> assertEquals(
+                        "flat source data type must match descriptor: expected=FLOAT16,"
+                                + " actual=BFLOAT16",
+                        float16.getMessage()),
                 () -> assertEquals(
                         "flat source data type must match descriptor: expected=INT32, actual=INT64",
                         int32.getMessage()),

@@ -19,9 +19,10 @@ import java.util.Optional;
  * <p>For channel {@code c}, the semantic formula is
  * {@code ((input - runningMean[c]) / sqrt(runningVariance[c] + epsilon)) * scale[c] + bias[c]}.
  * The helper reads no values, so negative running variance is retained for ordinary floating
- * square-root behavior rather than rejected or repaired. BFLOAT16 and FLOAT32 results compute in
- * FLOAT32; FLOAT64 results compute in FLOAT64. Empty and special-value behavior, permitted
- * reassociation, and rounding are semantic constraints for later conforming execution.</p>
+ * square-root behavior rather than rejected or repaired. BFLOAT16, FLOAT16, and FLOAT32 results
+ * compute in FLOAT32; FLOAT64 results compute in FLOAT64. FLOAT16 result metadata uses an exact
+ * FLOAT32 epsilon. Empty and special-value behavior, permitted reassociation, and rounding are
+ * semantic constraints for later conforming execution.</p>
  *
  * <p>Every success delegates exactly once to the factory and creates one fresh, storage-free,
  * layout-unresolved output with the exact input Shape, combined gradient eligibility, ordered
@@ -41,14 +42,14 @@ final class TensorBatchNormInferenceExpressions {
      * @param bias non-null floating rank-one per-channel bias retained at position 2
      * @param runningMean non-null floating rank-one estimated mean retained at position 3
      * @param runningVariance non-null floating rank-one estimated variance retained at position 4
-     * @param epsilon non-null exact finite positive floating value matching promoted result type
+     * @param epsilon non-null finite positive scalar matching the result type, except FLOAT16 uses FLOAT32
      * @return fresh unlabeled, storage-free, layout-unresolved result with exact input Shape,
      *     promoted type, combined gradient eligibility, and output index zero; never {@code null}
      * @throws NullPointerException if a Tensor argument or epsilon is null, checked in logical
      *     input order and then epsilon
      * @throws IllegalArgumentException if an input is non-floating, input rank is less than two,
      *     a per-channel operand is not rank one or is statically incompatible with the input
-     *     channel extent, or epsilon is invalid or not exactly result-typed
+     *     channel extent, or epsilon does not match the result arithmetic type
      * @throws IndexOutOfBoundsException if {@code channelAxis} is invalid for input Shape
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
@@ -95,7 +96,9 @@ final class TensorBatchNormInferenceExpressions {
         resultType = DataTypePromotion.promoteFloating(resultType, biasType);
         resultType = DataTypePromotion.promoteFloating(resultType, meanType);
         resultType = DataTypePromotion.promoteFloating(resultType, varianceType);
-        if (epsilon.dataType() != resultType) {
+        if (epsilon.dataType() != resultType
+                && (resultType != DataType.FLOAT16
+                        || epsilon.dataType() != DataType.FLOAT32)) {
             throw new IllegalArgumentException(
                     "batchNormInference epsilon data type must match result data type: epsilon="
                             + epsilon.dataType() + ", result=" + resultType);

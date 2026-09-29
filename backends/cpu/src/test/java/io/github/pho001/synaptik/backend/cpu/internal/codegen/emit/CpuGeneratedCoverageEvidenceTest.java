@@ -16,18 +16,18 @@ class CpuGeneratedCoverageEvidenceTest {
     @Test void retainedLossFailureIsExactIncompleteAndNeverSelectable() throws Exception {
         Map<String, String[]> ledger = parseLedger(resource("generated-coverage-evidence-ledger.tsv"));
         assertEquals(8, ledger.size());
-        assertArrayEquals(new String[] {"cpu-0009-inventory-17643", "CURRENT", "EXACT_EXECUTION_FIXTURE_MATRIX", "17643", "0",
+        assertArrayEquals(new String[] {"cpu-0009-inventory-41601", "CURRENT", "EXACT_EXECUTION_FIXTURE_MATRIX", "41601", "0",
                 "NOT_APPLICABLE", "NOT_APPLICABLE", "NOT_APPLICABLE", "NOT_APPLICABLE", "CHECKED_SELECTED",
-                "generated-coverage-inventory.tsv:17470-generated-plus-173-rejected-exact-owner-evidence-keys"}, ledger.get("cpu-0009-inventory-17643"));
-        assertArrayEquals(new String[] {"cpu-0009c-oracle-proved-2252", "ORACLE_PROVED", "EXACT_CLEAN_JAVA_STRUCTURAL_ORACLE", "2252", "0",
+                "generated-coverage-inventory.tsv:41336-generated-plus-265-rejected-exact-owner-evidence-keys"}, ledger.get("cpu-0009-inventory-41601"));
+        assertArrayEquals(new String[] {"cpu-0009c-oracle-proved-2384", "ORACLE_PROVED", "EXACT_CLEAN_JAVA_STRUCTURAL_ORACLE", "2384", "0",
                 "NOT_APPLICABLE", "NOT_APPLICABLE", "NOT_APPLICABLE", "NOT_APPLICABLE", "CHECKED_SELECTED",
-                "oracle-0009c-*-v1;exact-affine-movement-indexing-scatter-random-owner-selectors"}, ledger.get("cpu-0009c-oracle-proved-2252"));
-        assertArrayEquals(new String[] {"cpu-0009-oracle-partial-15218", "PARTIAL", "EXACT_EXECUTION_FIXTURE_MATRIX", "15218", "15218",
+                "oracle-0009c-*-v1;exact-affine-movement-indexing-scatter-random-owner-selectors"}, ledger.get("cpu-0009c-oracle-proved-2384"));
+        assertArrayEquals(new String[] {"cpu-0009-oracle-partial-38952", "PARTIAL", "EXACT_EXECUTION_FIXTURE_MATRIX", "38952", "38952",
                 "NOT_APPLICABLE", "NOT_APPLICABLE", "NOT_APPLICABLE", "NOT_APPLICABLE", "NOT_SELECTED",
-                "oracle-exact-fixture-classfile-v1;all-other-generated-owners-remain-unproved"}, ledger.get("cpu-0009-oracle-partial-15218"));
-        assertArrayEquals(new String[] {"cpu-0009-performance-partial-17470", "PARTIAL", "EXACT_EXECUTION_FIXTURE_MATRIX", "17470", "17470",
+                "oracle-exact-fixture-classfile-v1;all-other-generated-owners-remain-unproved"}, ledger.get("cpu-0009-oracle-partial-38952"));
+        assertArrayEquals(new String[] {"cpu-0009-performance-partial-41336", "PARTIAL", "EXACT_EXECUTION_FIXTURE_MATRIX", "41336", "41336",
                 "NOT_TIMED_BY_0009", "NOT_APPLICABLE", "NOT_APPLICABLE", "NOT_APPLICABLE", "NOT_SELECTED",
-                "performance-exact-fixture-unmeasured-v1;no-representative-benchmark-projection"}, ledger.get("cpu-0009-performance-partial-17470"));
+                "performance-exact-fixture-unmeasured-v1;no-representative-benchmark-projection"}, ledger.get("cpu-0009-performance-partial-41336"));
         assertArrayEquals(new String[] {"cpu-0008i-loss-792", "NON_PASSING", "INCOMPLETE_FIVE_FORK", "792", "19",
                 "1.3861164205039096", "536", "INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS-BFLOAT16-INT32-MEAN-false-roles0_1-0",
                 "e0bef60ca1d84e31c8fc8d712cdd1accf365ba9be07e17315ae6198da28b8348", "FAIL_CLOSED",
@@ -47,13 +47,13 @@ class CpuGeneratedCoverageEvidenceTest {
         assertTrue(json.endsWith("\n") && !json.contains("\r"), "canonical LF JSON");
         Map<String, Object> root = object(new JsonReader(json).parse());
         assertEquals(List.of("schema", "status", "materializationCandidates", "materializationsSelected", "inventory", "gaps", "nonPassing", "projections"), List.copyOf(root.keySet()));
-        assertEquals(65L, root.get("schema"));
+        assertEquals(68L, root.get("schema"));
         assertEquals("FAIL_CLOSED", root.get("status"));
         assertEquals(4L, root.get("materializationCandidates"));
         assertEquals(0L, root.get("materializationsSelected"));
         Map<String, Object> inventory = object(root.get("inventory"));
-        assertEquals(Map.of("rows", 17643L, "current", 17643L, "partialOracle", 17470L,
-                "partialPerformance", 17470L, "nonPassing", 3L, "status", "CHECKED"), inventory);
+        assertEquals(Map.of("rows", 41601L, "current", 41601L, "partialOracle", 41336L,
+                "partialPerformance", 41336L, "nonPassing", 3L, "status", "CHECKED"), inventory);
         Map<String, Object> gap = object(list(root.get("gaps")).getFirst());
         assertEquals(List.of("unit", "family", "form", "reason", "root", "rawFork0Sha256", "followUp"), List.copyOf(gap.keySet()));
         assertEquals("cpu-0008i-loss-792", gap.get("unit"));
@@ -97,7 +97,7 @@ class CpuGeneratedCoverageEvidenceTest {
             assertTrue(List.of("CHECKED_SELECTED", "NOT_SELECTED", "FAIL_CLOSED", "KEEP_SCALAR", "KEEP_WHOLE_CELL").contains(row[9]), row[0]);
             assertNull(rows.put(row[0], row), "duplicate ledger unit: " + row[0]);
         }
-        assertEquals(List.of("cpu-0009-inventory-17643", "cpu-0009c-oracle-proved-2252", "cpu-0009-oracle-partial-15218", "cpu-0009-performance-partial-17470", "cpu-0008q1-finite-basis", "cpu-0008i-loss-792", "cpu-0008o-stable-vector", "cpu-0008p-partial-reduction"), List.copyOf(rows.keySet()));
+        assertEquals(List.of("cpu-0009-inventory-41601", "cpu-0009c-oracle-proved-2384", "cpu-0009-oracle-partial-38952", "cpu-0009-performance-partial-41336", "cpu-0008q1-finite-basis", "cpu-0008i-loss-792", "cpu-0008o-stable-vector", "cpu-0008p-partial-reduction"), List.copyOf(rows.keySet()));
         return rows;
     }
 

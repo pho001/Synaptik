@@ -124,7 +124,7 @@ public final class CpuAggregateLowering {
         boolean exactFloating = actualReduction && (kind == CpuAggregateIr.Kind.SUM
                 || kind == CpuAggregateIr.Kind.MEAN || kind == CpuAggregateIr.Kind.PROD)
                 && (type == DataType.FLOAT64 || type == DataType.FLOAT32
-                    || type == DataType.BFLOAT16);
+                    || type == DataType.BFLOAT16 || type == DataType.FLOAT16);
         int stateLimbCount = exactFloating ? stateLimbCount(kind, type, domainCount) : 0;
         long scratchSliceBytes = exactFloating ? Math.addExact(
                 kind == CpuAggregateIr.Kind.PROD ? 24L : 8L,
@@ -151,16 +151,19 @@ public final class CpuAggregateLowering {
     }
 
     private static int stateLimbCount(CpuAggregateIr.Kind kind, DataType type, long domainCount) {
-        int precision = type == DataType.FLOAT64 ? 53 : type == DataType.FLOAT32 ? 24 : 8;
+        int precision = type == DataType.FLOAT64 ? 53 : type == DataType.FLOAT32 ? 24
+                : type == DataType.FLOAT16 ? 11 : 8;
         if (kind == CpuAggregateIr.Kind.PROD) {
             int maximumExponentMagnitude = type == DataType.FLOAT64 ? 1074
-                    : type == DataType.FLOAT32 ? 149 : 133;
+                    : type == DataType.FLOAT32 ? 149 : type == DataType.FLOAT16 ? 24 : 133;
             Math.multiplyExact((long) maximumExponentMagnitude, Math.max(1L, domainCount));
             long bits = Math.multiplyExact((long) precision, Math.max(1L, domainCount));
             return Math.toIntExact(Math.max(1L, Math.addExact(bits, 63L) / 64L));
         }
-        int emin = type == DataType.FLOAT64 ? -1074 : type == DataType.FLOAT32 ? -149 : -133;
-        int emax = type == DataType.FLOAT64 ? 1023 : 127;
+        int emin = type == DataType.FLOAT64 ? -1074
+                : type == DataType.FLOAT32 ? -149 : type == DataType.FLOAT16 ? -24 : -133;
+        int emax = type == DataType.FLOAT64 ? 1023
+                : type == DataType.FLOAT16 ? 15 : 127;
         int cardinalityBits = domainCount <= 1 ? 0
                 : 64 - Long.numberOfLeadingZeros(domainCount - 1);
         long signedBits = Math.addExact((long) emax + 1L - emin,
@@ -349,7 +352,7 @@ public final class CpuAggregateLowering {
             boolean exactFloating = actualReduction && (kind == CpuAggregateIr.Kind.SUM
                     || kind == CpuAggregateIr.Kind.MEAN || kind == CpuAggregateIr.Kind.PROD)
                     && (dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
-                        || dataType == DataType.BFLOAT16);
+                        || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16);
             int expectedLimbs = exactFloating ? CpuAggregateLowering.stateLimbCount(
                     kind, dataType, domainCount) : 0;
             long expectedSlice = exactFloating ? Math.addExact(

@@ -25,9 +25,9 @@ import org.junit.jupiter.api.Test;
 final class AttentionGradientRulesTest {
     @Test
     void bothOutputSlotsReuseTheCanonicalWeightsAndRouteExactRoles() {
-        Tensor query = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), true);
-        Tensor key = tensor(DataType.FLOAT32, Shape.of(2, 5, 4), true);
-        Tensor value = tensor(DataType.FLOAT32, Shape.of(2, 5, 6), true);
+        Tensor query = tensor(DataType.FLOAT16, Shape.of(2, 3, 4), true);
+        Tensor key = tensor(DataType.FLOAT16, Shape.of(2, 5, 4), true);
+        Tensor value = tensor(DataType.FLOAT16, Shape.of(2, 5, 6), true);
         ScaledDotProductAttentionResult attention =
                 query.scaledDotProductAttentionWithWeights(key, value);
         Tensor canonicalWeights =
@@ -38,6 +38,9 @@ final class AttentionGradientRulesTest {
         Tensor queryGradient = gradient(outputObjective, query);
         Tensor keyGradient = gradient(outputObjective, key);
         Tensor valueGradient = gradient(outputObjective, value);
+        assertEquals(DataType.FLOAT16, queryGradient.descriptor().dataType());
+        assertEquals(DataType.FLOAT16, keyGradient.descriptor().dataType());
+        assertEquals(DataType.FLOAT16, valueGradient.descriptor().dataType());
         assertTrue(reaches(queryGradient, canonicalWeights));
         assertTrue(reaches(keyGradient, canonicalWeights));
         assertTrue(reaches(valueGradient, canonicalWeights));

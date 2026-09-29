@@ -102,6 +102,7 @@ public final class CpuBatchNormTrainingEmitter {
         CpuLayerNormEmitter.arithmetic(code,resultType,numerator,nm1,Opcode.DDIV,unbiased);
         CpuLayerNormEmitter.arithmetic(code,resultType,biased,epsilon,Opcode.DADD,radicand);
         code.dload(radicand).invokestatic(MATH,"sqrt",CpuNormEmitter.doubleUnary()).dstore(root);
+        if(resultType==DataType.FLOAT16)roundFloat16(code,root);
         CpuLayerNormEmitter.arithmetic(code,resultType,one,root,Opcode.DDIV,saved);
         loadVector(code,carriers,specialization,map[1],vectorRep[0],scale,geometry,strides[map[1]],channel,address);
         loadVector(code,carriers,specialization,map[2],vectorRep[1],bias,geometry,strides[map[2]],channel,address);
@@ -147,5 +148,6 @@ public final class CpuBatchNormTrainingEmitter {
     private static void tensorAddress(CodeBuilder c,int g,int rank,int axis,int ext,int stride,int base,int channel,int ordinal,int remaining,int coordinate,int address){
         CpuNormEmitter.geometry(c,g,base).lload(channel);CpuNormEmitter.geometry(c,g,stride+axis).lmul().ladd().lstore(address);c.lload(ordinal).lstore(remaining);
         for(int a=rank-1;a>=0;a--){if(a==axis)continue;c.lload(remaining);CpuNormEmitter.geometry(c,g,ext+a).lrem().lstore(coordinate);c.lload(remaining);CpuNormEmitter.geometry(c,g,ext+a).ldiv().lstore(remaining);c.lload(address).lload(coordinate);CpuNormEmitter.geometry(c,g,stride+a).lmul().ladd().lstore(address);}}
-    private static double scalar(String identity,String marker,DataType type){long bits=Long.parseUnsignedLong(CpuLayerNormEmitter.field(identity,marker));return switch(type){case FLOAT64->Double.longBitsToDouble(bits);case FLOAT32->Float.intBitsToFloat((int)bits);case BFLOAT16->Float.intBitsToFloat((int)bits<<16);default->throw new IllegalArgumentException("type");};}
+    private static double scalar(String identity,String marker,DataType type){long bits=Long.parseUnsignedLong(CpuLayerNormEmitter.field(identity,marker));return switch(type){case FLOAT64->Double.longBitsToDouble(bits);case FLOAT32->Float.intBitsToFloat((int)bits);case BFLOAT16->Float.intBitsToFloat((int)bits<<16);case FLOAT16->Float.float16ToFloat((short)bits);default->throw new IllegalArgumentException("type");};}
+    private static void roundFloat16(CodeBuilder c,int value){CpuCastEmitter.emitDoubleToHalf(c,value);c.invokestatic(ClassDesc.of(Float.class.getName()),"float16ToFloat",java.lang.constant.MethodTypeDesc.of(TypeKind.FLOAT.upperBound(),TypeKind.SHORT.upperBound())).f2d().dstore(value);}
 }

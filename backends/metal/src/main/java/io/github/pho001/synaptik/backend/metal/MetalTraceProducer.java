@@ -6,12 +6,15 @@ import io.github.pho001.synaptik.trace.TraceEventId;
 import io.github.pho001.synaptik.trace.TraceLevel;
 import io.github.pho001.synaptik.trace.TracePayload;
 import io.github.pho001.synaptik.trace.TracePhase;
+import io.github.pho001.synaptik.trace.certificate.LowPrecisionCertificate;
+import io.github.pho001.synaptik.trace.certificate.LowPrecisionCertificateKey;
 import io.github.pho001.synaptik.trace.id.TraceBackendId;
 import io.github.pho001.synaptik.trace.id.TraceDeviceId;
 import io.github.pho001.synaptik.trace.id.TraceInvocationId;
 import io.github.pho001.synaptik.trace.id.TracePreparedUnitId;
 import io.github.pho001.synaptik.trace.payload.BackendInvocationOutcome;
 import io.github.pho001.synaptik.trace.payload.BackendPreparationOutcome;
+import io.github.pho001.synaptik.trace.payload.LowPrecisionTraceMetadata;
 import io.github.pho001.synaptik.trace.payload.TraceCacheStatus;
 import io.github.pho001.synaptik.trace.payload.TraceNativeStatus;
 import io.github.pho001.synaptik.trace.payload.TraceNativeStatusKind;
@@ -87,6 +90,19 @@ final class MetalTraceProducer {
             int[] feeds,
             int[] targets,
             int internalCount) {
+        return prepareUnit(
+                numericalProfile, route, program, values, feeds, targets, internalCount, null);
+    }
+
+    PreparedUnit prepareUnit(
+            NumericalProfile numericalProfile,
+            MetalPreparedRoute route,
+            MetalMpsGraphProgram program,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            int[] feeds,
+            int[] targets,
+            int internalCount,
+            MetalNegPreparationPlan qualificationPlan) {
         if (!enabled.get()) {
             return null;
         }
@@ -107,6 +123,9 @@ final class MetalTraceProducer {
                     facts.plannedCustomSteps(),
                     facts.plannedCustomStepsTruncated());
             emitPreparationStructure(unit, facts);
+            if (qualificationPlan != null) {
+                emitLowPrecisionRoute(unit, route, qualificationPlan);
+            }
             return unit;
         } catch (RuntimeException failure) {
             disable();
@@ -205,6 +224,47 @@ final class MetalTraceProducer {
                         facts.plannedCustomStepsTruncated()));
     }
 
+
+    /** Emits certificate identity only for the narrow raw-preserving low-precision family. */
+    private void emitLowPrecisionRoute(
+            PreparedUnit unit,
+            MetalPreparedRoute route,
+            MetalNegPreparationPlan qualificationPlan) {
+        Optional<MetalLowPrecisionRouteCertification.Expected> expected =
+                MetalLowPrecisionRouteCertification.expected(qualificationPlan);
+        if (expected.isEmpty()) {
+            return;
+        }
+        LowPrecisionCertificate certificate = route == MetalPreparedRoute.MPSGRAPH
+                ? MetalLowPrecisionRouteCertification.find(qualificationPlan)
+                        .map(MetalLowPrecisionRouteCertification.Qualification::certificate)
+                        .orElse(null)
+                : null;
+        if (route == MetalPreparedRoute.MPSGRAPH && certificate == null) {
+            throw new IllegalArgumentException(
+                    "certified low-precision graph route lost its exact certificate");
+        }
+        LowPrecisionCertificateKey key = expected.orElseThrow().key();
+        Optional<LowPrecisionCertificateKey> selectedKey = certificate == null
+                ? Optional.empty() : Optional.of(certificate.key());
+        emitStructural(
+                TracePhase.PREPARE,
+                TraceLevel.INFO,
+                new LowPrecisionTraceMetadata(
+                        unit.route,
+                        key.dtypeTuple(),
+                        key.accumulatorDtype(),
+                        unit.profile,
+                        LowPrecisionCertificateKey.SCHEMA_VERSION,
+                        selectedKey,
+                        certificate == null
+                                ? LowPrecisionCertificate.Status.NOT_CERTIFIED
+                                : LowPrecisionCertificate.Status.CERTIFIED,
+                        certificate == null
+                                ? Optional.empty() : Optional.of(certificate.accuracy()),
+                        certificate == null
+                                ? Optional.empty() : Optional.of(certificate.determinism())));
+    }
 
     void preparationSucceeded(PreparedUnit unit) {
         emitPreparation(unit, TraceOutcomeStatus.SUCCEEDED, NATIVE_SUCCESS);

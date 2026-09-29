@@ -1,24 +1,24 @@
 {
   "artifacts": {
     "air": {
-      "bytes": 109424,
-      "sha256": "0910cf65f5205bcbd8016abd3a252d81b751b88dd681b65f8b73c374bd91da67"
+      "bytes": 109904,
+      "sha256": "9316c7642c1ea9dea110f869fc456196c3fed2a54089847a4ff439edc94da408"
     },
     "ir": {
-      "bytes": 810710,
-      "sha256": "1c46f000888ed7bafaf0490fde1e957a594320521474f6ead32f4ccb9a4c6a6f"
+      "bytes": 814921,
+      "sha256": "8e718e771760c6f3223661682665852d0fcfd49c48745799c71ab0d06c4026e1"
     },
     "kernelHeader": {
       "bytes": 7348,
       "sha256": "233fa3685f073585324f25eb9b10bbdaa89ac79479c80290ce2e4fbef46b900d"
     },
     "metallib": {
-      "bytes": 486686,
-      "sha256": "b09ead23c20e4b9c1de200e4176914aa08642e4f68edf218ef79bb97659b8d1e"
+      "bytes": 487886,
+      "sha256": "a0df8b5be8dc7888e55e6a753e823ccceb2697d30829af62c3660b45e02b50a2"
     },
     "source": {
-      "bytes": 84541,
-      "sha256": "5e7d65bfc46f52532781a3730aeda2202b798022b61fb60ea5beeb95307e77bb"
+      "bytes": 84603,
+      "sha256": "eb9a4bc2e9156bd971c59a3f8c1416df61627fe1c8e5655ccff28ecdf28b39f5"
     },
     "symbols": {
       "bytes": 3861,

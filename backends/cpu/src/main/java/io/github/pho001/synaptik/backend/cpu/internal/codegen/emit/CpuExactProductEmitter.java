@@ -113,7 +113,8 @@ final class CpuExactProductEmitter {
      */
     CpuExactProductEmitter(CodeBuilder code, DataType type, int scratch, int geometry,
             int offsetIndex, int bytesIndex, boolean localState) {
-        if (type != DataType.FLOAT64 && type != DataType.FLOAT32 && type != DataType.BFLOAT16)
+        if (type != DataType.FLOAT64 && type != DataType.FLOAT32
+                && type != DataType.BFLOAT16 && type != DataType.FLOAT16)
             throw new IllegalArgumentException("exact product requires a floating type");
         this.code = code;
         this.type = type;
@@ -624,7 +625,7 @@ final class CpuExactProductEmitter {
                             .i2l()
                             .loadConstant(0xffffffffL)
                             .land();
-            case BFLOAT16 -> code.iload(value).i2l().loadConstant(0xffffL).land();
+            case BFLOAT16, FLOAT16 -> code.iload(value).i2l().loadConstant(0xffffL).land();
             default -> throw new IllegalArgumentException("not a floating product");
         }
     }
@@ -648,7 +649,7 @@ final class CpuExactProductEmitter {
                                     MethodTypeDesc.of(
                                             ConstantDescs.CD_float, ConstantDescs.CD_int))
                             .fstore(value);
-            case BFLOAT16 -> code.lload(result).l2i().istore(value);
+            case BFLOAT16, FLOAT16 -> code.lload(result).l2i().istore(value);
             default -> throw new IllegalArgumentException("not a floating product");
         }
     }
@@ -734,11 +735,12 @@ final class CpuExactProductEmitter {
     }
 
     private int fractionBits() {
-        return type == DataType.FLOAT64 ? 52 : type == DataType.FLOAT32 ? 23 : 7;
+        return type == DataType.FLOAT64 ? 52
+                : type == DataType.FLOAT32 ? 23 : type == DataType.FLOAT16 ? 10 : 7;
     }
 
     private int bias() {
-        return type == DataType.FLOAT64 ? 1023 : 127;
+        return type == DataType.FLOAT64 ? 1023 : type == DataType.FLOAT16 ? 15 : 127;
     }
 
     private int precision() {
@@ -746,7 +748,7 @@ final class CpuExactProductEmitter {
     }
 
     private int maxExponent() {
-        return type == DataType.FLOAT64 ? 1023 : 127;
+        return type == DataType.FLOAT64 ? 1023 : type == DataType.FLOAT16 ? 15 : 127;
     }
 
     private int minimumNormal() {
@@ -758,7 +760,7 @@ final class CpuExactProductEmitter {
     }
 
     private long exponentMask() {
-        return type == DataType.FLOAT64 ? 0x7ffL : 0xffL;
+        return type == DataType.FLOAT64 ? 0x7ffL : type == DataType.FLOAT16 ? 0x1fL : 0xffL;
     }
 
     private long signBit() {
@@ -770,13 +772,15 @@ final class CpuExactProductEmitter {
     private long canonicalNan() {
         return type == DataType.FLOAT64
                 ? 0x7ff8000000000000L
-                : type == DataType.FLOAT32 ? 0x7fc00000L : 0x7fc0L;
+                : type == DataType.FLOAT32 ? 0x7fc00000L
+                : type == DataType.FLOAT16 ? 0x7e00L : 0x7fc0L;
     }
 
     private long positiveInfinity() {
         return type == DataType.FLOAT64
                 ? 0x7ff0000000000000L
-                : type == DataType.FLOAT32 ? 0x7f800000L : 0x7f80L;
+                : type == DataType.FLOAT32 ? 0x7f800000L
+                : type == DataType.FLOAT16 ? 0x7c00L : 0x7f80L;
     }
 
     private static CodeBuilder geometry(CodeBuilder code, int slot, int index) {

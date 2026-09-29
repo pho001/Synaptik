@@ -19,6 +19,13 @@ canonical geometry. Caller-bindable input descriptors remain exact. This complet
 capability: the provider and complete-partition lowering still reject unsupported semantics, data
 types, Shapes, resolved geometry, topology, carriers, and resource requirements.
 
+Generator schema 68 is the systematic portable FLOAT16 expansion: every current CPU occurrence
+that admits FLOAT32 also admits the descriptor-identical FLOAT16 substitution under both
+`STRICT_IEEE` and `ACCELERATOR`, with raw `short` storage and the operation's documented
+FLOAT32 computation boundary followed by one direct binary16 narrowing where numerical work is
+performed. The checked capability ledger closes all 114 representative FLOAT16 occurrences in
+each profile; unsupported geometry, topology, aliasing, or non-type constraints remain unchanged.
+
 A CPU-owned partition directed acyclic graph (DAG) has no fixed eight-node partition cap. Its
 compiled nodes must be supported and remain in stable producer-before-consumer order; checked
 geometry and resource requirements must still be valid. CPU analysis decomposes the complete
@@ -28,15 +35,16 @@ still contains at most eight compiled nodes; a long partition can contain more t
 topologically ordered units behind one partition-level prepared executable. For example, nine
 separately published pointwise results can remain nine units in one CPU partition and run in
 publication order; the eight-node limit is not a Compiler partition boundary. Eligible
-unpublished single-use pointwise results remain virtual inside a fused unit; every value crossing
-units, every published result, and every external read is an ordinary declared buffer. One
-pointwise unit may therefore have multiple ordered output stores. A static affine unit remains
-one connected one-input/one-output chain of at most eight resolved-layout view
-occurrences. A static movement unit is exactly one resolved-layout PAD, TILE, CONCAT, STACK,
+unpublished single-use pointwise
+results remain virtual inside a fused unit; every value crossing units, every published result,
+and every external read is an ordinary declared buffer. One pointwise unit may therefore have
+multiple ordered output stores. A static affine unit remains one connected one-input/one-output
+chain of at most eight resolved-layout view occurrences. A static movement unit is exactly one
+resolved-layout PAD, TILE, CONCAT, STACK,
 UNFOLD_AXIS, or UNFOLD2D occurrence. It declares each distinct input once in first-occurrence
 order plus one distinct injective output while preserving every semantic composition occurrence.
-UNFOLD_AXIS copies all six represented types; UNFOLD2D copies only FLOAT64, FLOAT32, and BFLOAT16
-under the Model's canonical NCHW columns contract.
+UNFOLD_AXIS copies all seven represented types; UNFOLD2D copies FLOAT64, FLOAT32, BFLOAT16, and
+FLOAT16 under the Model's canonical NCHW columns contract.
 The fourth family is exactly one resolved-layout `GATHER`, `GATHER_ELEMENTS`, `GATHER_ND`, or
 `ONE_HOT` occurrence. It validates every logical INT32/INT64 index deterministically before any
 output write and then uses scalar or parallel-scalar generated output ranges. The movement family
@@ -50,15 +58,15 @@ without mutating inputs. Scalar and parallel-scalar execution own disjoint outpu
 The sixth family is exactly one resolved-layout overlap fold occurrence: general-axis
 `FOLD_AXIS`, or canonical columns-to-NCHW `FOLD2D`. Every result coordinate begins at represented
 positive zero and accumulates its logical input contributions in canonical input row-major order.
-Both families accept FLOAT64, FLOAT32, and BFLOAT16; `FOLD_AXIS` additionally accepts INT32 and
-INT64. `FOLD2D` excludes symmetric-padding and ceil-tail positions outside the unpadded result.
+Both families accept FLOAT64, FLOAT32, BFLOAT16, and FLOAT16; `FOLD_AXIS` additionally accepts
+INT32 and INT64. `FOLD2D` excludes symmetric-padding and ceil-tail positions outside the unpadded result.
 Schema-26 generated fold entries embed the selected family mapping, represented addition, and
 typed array or native-order segment access. Dense heap arrays use integer loop/address state;
 general layouts and segment or mixed carriers normally use long addressing. Schema 35 adds one
 guarded bounded exception for the frozen mixed-carrier FLOAT32 FOLD2D shape; every unproved case
 retains the typed general-long body.
 The seventh family is exactly one resolved-layout stable ordering occurrence: `SORT`, `ARGSORT`,
-or two-output `TOP_K`. It accepts all six represented types, orders complete logical-axis slices,
+or two-output `TOP_K`. It accepts all seven represented types, orders complete logical-axis slices,
 keeps every floating NaN after non-NaNs in both directions, reverses signed-zero order with the
 requested direction, and preserves increasing original logical index for equal values and NaNs.
 SORT and TOP_K copy selected represented bits; ARGSORT and TOP_K write zero-based INT64 axis
@@ -69,8 +77,8 @@ Schema-27 generated ordering entries embed the typed stable merge, comparison, o
 selected-pair index ordering, and represented value/index stores. Proved dense heap-array forms
 use integer loop and address state; general layouts and segment or mixed carriers retain typed
 long addressing. Scratch access remains direct through the assigned segment in both forms.
-The eighth family is exactly one resolved-layout `INITIAL_STATE` or FLOAT64/FLOAT32 `DROPOUT`
-occurrence. It uses explicit key/counter state and the versioned CPU-private
+The eighth family is exactly one resolved-layout `INITIAL_STATE` or FLOAT64/FLOAT32/FLOAT16
+`DROPOUT` occurrence. It uses explicit key/counter state and the versioned CPU-private
 `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1` mapping. INITIAL_STATE writes key then counter without a draw.
 DROPOUT consumes one draw per row-major logical value ordinal, writes the dropped value, a
 canonical one-byte BOOL keep mask, and the next key/counter state, with identical scalar and
@@ -80,48 +88,48 @@ integer addressing; arbitrary layouts and segment or mixed carriers normally use
 addressing. Schema 35 adds one guarded bounded exception for the frozen rank-one FLOAT32 mixed-
 carrier dropout shape; every unproved case retains the typed general-long body.
 The ninth family is exactly one resolved-layout `CUM_SUM` or `CUM_PROD` occurrence. It accepts
-FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 in inclusive/exclusive and forward/reverse modes.
+FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, and INT64 in inclusive/exclusive and forward/reverse modes.
 Each logical scan slice keeps one sequential typed accumulator; scalar or parallel-scalar
 execution may distribute only whole independent slices. The family declares one input and one
 distinct output, with zero workspace or materialization. Schema 38 adds one completely
 guarded fixed `[1024,1024]` axis-one exclusive reverse INT64 product body over segment carriers;
 all other admitted scan geometries retain their existing typed bodies.
 The tenth family is exactly one resolved-layout ordinary or binding-aware aggregate occurrence. `SUM`, `PROD`,
-`MIN`, and `MAX` accept FLOAT64, FLOAT32, BFLOAT16, INT32, or INT64; `MEAN` accepts the three
+`MIN`, and `MAX` accept FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, or INT64; `MEAN` accepts the four
 floating types; and Boolean `ALL` and `ANY` accept canonical BOOL. Exact full, single-axis, and
 multi-axis forms share one output-cell geometry, including an empty multi-axis selection as a
 one-value point domain. Scalar or parallel-scalar execution distributes only whole output cells.
 Floating SUM, MEAN, and PROD use declared run-owned exact-state workspace; every other row uses
 zero workspace. No row uses input materialization, partial reductions, or a combine step.
-Binding-aware SUM-to-Shape adds fully bound right-aligned SUM over the same five numeric types;
+Binding-aware SUM-to-Shape adds fully bound right-aligned SUM over the same six numeric types;
 it uses exact floating or modular integral arithmetic when axes reduce and raw represented copying
 when none does.
 The eleventh family is exactly one resolved-layout, one-axis `ARG_MIN` or `ARG_MAX` occurrence.
-It accepts FLOAT64, FLOAT32, BFLOAT16, INT32, or INT64 and writes a zero-based logical axis
+It accepts FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, or INT64 and writes a zero-based logical axis
 coordinate as INT64. The normalized axis, keep/remove-Dimension form, FIRST/LAST tie policy, NaN
 preference, signed-zero order, and signed integral order come from the Model contract. Scalar or
 parallel-scalar execution owns complete output cells and uses no workspace or materialization.
 The twelfth family is exactly one resolved-layout, axis-removing masked `SUM` or `MEAN`
-occurrence. Data and output are the same FLOAT64, FLOAT32, or BFLOAT16 type; the second input is a
-canonical BOOL mask whose ordinary right-aligned broadcast must equal the data Shape exactly.
+occurrence. Data and output are the same FLOAT64, FLOAT32, BFLOAT16, or FLOAT16 type; the second
+input is a canonical BOOL mask whose ordinary right-aligned broadcast must equal the data Shape exactly.
 False positions are excluded before their data is loaded or classified. Scalar or parallel-scalar
 execution owns complete output cells, keeps an exact true-position count, and uses one run-owned
 exact-state slice per simultaneously used range. It declares three buffers and no mask
 materialization, selected-count workspace, partial result, or combine state.
 The thirteenth family is exactly one resolved-layout `LOG_SUM_EXP`, `VARIANCE`,
 `STANDARD_DEVIATION`, `L1_NORM`, or `L2_NORM` occurrence. It accepts matching FLOAT64, FLOAT32,
-or BFLOAT16 input and output, preserves the Model-owned ordered axes and correction, and walks
-each selected domain in canonical input-axis row-major order. Log-sum-exp uses a maximum-shifted
+BFLOAT16, or FLOAT16 input and output, preserves the Model-owned ordered axes and correction, and
+walks each selected domain in canonical input-axis row-major order. Log-sum-exp uses a maximum-shifted
 two-pass sum; variance and standard deviation use corrected two-pass statistics; L1 uses the
 existing exact represented-sum state; and L2 uses scaled sum of squares. Scalar or parallel-scalar
 execution owns complete output cells. Only L1 and statistics use a run-owned exact-state slice;
 the family adds no materialization, partial result, combine state, vector body, or native route.
 The fourteenth family is exactly one resolved-layout `MAX_POOL2D` or `AVERAGE_POOL2D` occurrence
-over matching rank-four NCHW BFLOAT16, FLOAT32, or FLOAT64 input and output. It uses the Model's
-literal floor/ceiling grid, symmetric padding, stride, and dilation. Scalar or parallel-scalar
+over matching rank-four NCHW BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 input and output. It uses the
+Model's literal floor/ceiling grid, symmetric padding, stride, and dilation. Scalar or parallel-scalar
 execution owns complete output cells, accepts exact typed heap-array, segment, or mixed carriers,
 and declares zero workspace. Max excludes padding; average includes conceptual positive-zero
-padding in its fixed kernel-position divisor. The direct schema-55 generated body is the only
+padding in its fixed kernel-position divisor. The direct schema-68 generated body is the only
 pooling route and adds no fusion, materialization, vector body, native route, saved indices, or
 backward execution.
 
@@ -130,20 +138,20 @@ recognizes `EXPAND_DIMS(axis 2) -> POOL2D -> SQUEEZE(axis 2)`. Both rank edits r
 and the external rank-three input and output are the only buffer boundaries. Recognition requires
 private single-use intermediates, exact affine singleton-height layouts, and Pool2d height
 geometry `(kernel, stride, padding, dilation) = (1, 1, 0, 1)`. A near match follows ordinary
-partition-DAG decomposition. This optimization retains schema-55 Pool2d class identity and does
+partition-DAG decomposition. This optimization retains schema-68 Pool2d class identity and does
 not create a Pool1d operation, capability query, IR family, route, or generated artifact; CPU
 continues to report the three visible component occurrences independently.
 
 The fifteenth family is exactly one resolved-layout `MAX_POOL3D` or `AVERAGE_POOL3D` occurrence
-over matching rank-five NCDHW BFLOAT16, FLOAT32, or FLOAT64 input and output. The direct schema-56
-generated body visits each complete output cell in depth-height-width order and supports typed
-heap-array, native-order segment, and mixed carriers. Maximum excludes padding, preserves the
+over matching rank-five NCDHW BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 input and output. The direct
+schema-68 generated body visits each complete output cell in depth-height-width order and supports
+typed heap-array, native-order segment, and mixed carriers. Maximum excludes padding, preserves the
 first eligible NaN or equal winner, ranks positive zero above negative zero, and returns negative
 infinity for an all-padding window. Average uses the fixed
-`kernelDepth * kernelHeight * kernelWidth` count-padding divisor, FLOAT32 arithmetic for BFLOAT16
-and FLOAT32, FLOAT64 arithmetic for FLOAT64, and one final BFLOAT16 narrowing. Scalar execution
-or caller-owned parallel-scalar ranges divide only complete output cells; the family declares one
-read, one write, and zero workspace or materialization. Current support is limited to fully static
+`kernelDepth * kernelHeight * kernelWidth` count-padding divisor, FLOAT32 arithmetic for BFLOAT16,
+FLOAT16, and FLOAT32, FLOAT64 arithmetic for FLOAT64, and one final low-precision narrowing.
+Scalar execution or caller-owned parallel-scalar ranges divide only complete output cells; the
+family declares one read, one write, and zero workspace or materialization. Current support is limited to fully static
 Shapes, resolved non-negative layouts, an injective output, exact floor/literal-ceil geometry, and
 non-gradient occurrences. It adds no pooling fusion, saved winners, general PoolNd bridge,
 unfold/fold execution, vector/native route, or dynamic geometry.
@@ -151,37 +159,38 @@ unfold/fold execution, vector/native route, or dynamic geometry.
 The sixteenth family is exactly one first-class `SCALED_DOT_PRODUCT_ATTENTION` occurrence with
 three ordered query/key/value inputs and an optional right-broadcast canonical BOOL mask, and one
 output or same-occurrence normalized weights at output slot one. It accepts only fully static,
-resolved non-negative layouts and BFLOAT16, FLOAT32, or FLOAT64 query/key/value types. The direct
-schema-57 generated scalar body owns complete broadcast-batch/query rows, applies top-left causal
-eligibility (`j <= i`) together with the BOOL mask before reading excluded score/value data, and
+resolved non-negative layouts and BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 query/key/value types. The
+direct schema-68 generated scalar body owns complete broadcast-batch/query rows, applies top-left
+causal eligibility (`j <= i`) together with the BOOL mask before reading excluded score/value data,
 uses one exact score/weight scratch slice per selected range. The body has no MATMUL/SOFTMAX
 decomposition, external fusion, materialization, vector/native/packed/flash route, or interpreted
 fallback. CPU analysis declares the workspace before shared slot assignment; CPU finalization
 binds the selected generated artifact after assignment; Runtime invokes only the resulting
 prepared primitive state. This is current forward execution, not dropout or training execution,
-and it does not support dynamic shapes, negative strides, in-place/overlap layouts, FLOAT16,
+and it does not support dynamic shapes, negative strides, in-place/overlap layouts,
 integral/quantized data, or a universal performance claim.
 
 Generated scalar and Java 26 Vector API entries accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
 process-local loaded compatibility identity. The pointwise semantic matrix uses one forty-eight-
-opcode CPU-private vocabulary across FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, and BOOL. Exactly
-44 same-typed forms admit BFLOAT16, and CAST additionally admits all 36 ordered source/target
-pairs through scalar or caller-parallel scalar execution; this does not make every opcode or
-mixed-type occurrence executable. Affine copies accept all six current
-Model data types and transfer represented bits without conversion. BFLOAT16 pointwise boundaries
-use raw `short[]` representation or native-order two-byte segment access. The access
+opcode CPU-private vocabulary across FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, INT64, and BOOL.
+Exactly 44 same-typed forms admit each low-precision floating type, and CAST additionally admits
+all 49 ordered source/target pairs through scalar or caller-parallel scalar execution; this does
+not make every opcode or mixed-type occurrence executable. Affine copies accept all seven current
+Model data types and transfer represented bits without conversion. BFLOAT16 and FLOAT16 pointwise
+boundaries use raw `short[]` representation or native-order two-byte segment access. The access
 family covers scalar/rank/singleton/multi-axis
 broadcasting, zero extents, offsets, positive and broadcast-zero strides, and ordered
 heap/segment/mixed carrier patterns for the derived boundaries. CPU 0005H closes all nineteen
-same-typed FLOAT32/FLOAT64 unary kinds, while preserving the three separate floating-classification
+same-typed FLOAT16/FLOAT32/FLOAT64 unary kinds, while preserving the three separate floating-classification
 kinds and CPU 0005G's extrema, clamp, Tensor power, and canonical-BOOL logic. CPU 0005J preserves
 that semantic inventory while adding exact preferred-species vector parity for selected floating
 extrema/clamp/ReLU/sign/cast, signed-integral arithmetic/extrema/cast, canonical-BOOL logic/cast,
 and narrowly virtual floating comparison/classification masks through logical masks into WHERE.
 Cold analysis selects scalar, vector, parallel-scalar, or parallel-vector execution;
-vector-ineligible admitted geometry or opcodes fall back to scalar compute. Analysis can also
-retain bounded direct, eligible single-copy, and eligible disjoint-consumer pair representation
+vector-ineligible admitted geometry or opcodes fall back to scalar compute. For partitions of at
+most eight compiled nodes, analysis can also retain bounded direct, eligible single-copy, and
+eligible disjoint-consumer pair representation
 candidates for external reads across FLOAT64, FLOAT32, INT32, INT64, and canonical BOOL pointwise
 work. Each copy candidate owns a declared run workspace and explicit generated affine-copy unit;
 compatible repeated and cross-unit uses share one copy. Ordinary preparation selects direct and
@@ -358,7 +367,7 @@ new collaboration work and uses the existing provider quiescence, restoration, a
 `CpuBackendIntegration.completePlanTuning()` returns the same retained
 `CpuCompletePlanTuning` collaboration while the integration is open. Its current meaning of a
 **complete-plan candidate** is deliberately narrower than the future multi-backend model-plan
-space:
+space and applies only to a CPU partition of at most eight compiled nodes:
 
 ```text
 same exact stable partition projection
@@ -384,7 +393,12 @@ Phase-1 batch to prove compatibility, but it does not enumerate, rank, time, or 
 route candidates. Thus Phase 2 never repeats Phase-1 search.
 
 The returned batch contains every retained legal topology/representation combination in stable
-order, or no batch when completeness cannot be proved or fewer than two alternatives exist.
+order, or no batch when completeness cannot be proved or fewer than two alternatives exist. For
+a partition above eight compiled nodes, ordinary CPU preparation still executes a direct plan,
+but complete-plan candidates are unavailable: the internal candidate result has no identities
+and reports incomplete, and an explicit selected-plan identity is rejected. Phase 2 therefore
+does not tune or select such a partition.
+
 Candidate-only copied representations remain explicit alternatives for this collaboration; their
 presence does not promote them into ordinary heuristic preparation, which continues to select
 the established direct representation. `trialPreparation(...)` and
@@ -456,6 +470,7 @@ meaning:
 | `FLOAT64` | 8 | Raw `double` bits, including NaN payload/sign, infinities, and signed zero |
 | `FLOAT32` | 4 | Raw `float` bits, including NaN payload/sign, infinities, and signed zero |
 | `BFLOAT16` | 2 | Exact stored 16-bit payload; no widening, rounding, or NaN conversion |
+| `FLOAT16` | 2 | Exact stored IEEE binary16 payload; no widening, rounding, or NaN conversion |
 | `INT64` | 8 | Two's-complement 64-bit pattern |
 | `INT32` | 4 | Two's-complement 32-bit pattern |
 | `BOOL` | 1 | Exact byte `0` or `1`; every other byte fails rather than being normalized |
@@ -970,13 +985,20 @@ entry, measurement, or Runtime input. The facts are immutable CPU-private cold P
 they do not enter schema 52, generated-artifact identity, finalization choice, Runtime dispatch,
 Trace, tuning, or a cache.
 
-Boundary roles are also validated independently. Preparation derives an immutable ordered list of
-publication boundary positions from `LogicalMemoryRequirement.graphOutput()`. Plan validation
-uses that projection to recompute `PUBLICATION` versus unpublished `PARTITION_WRITE`, while unit
-occurrence counts independently determine `CROSS_UNIT`. It also compares every derivable retained
-0008C baseline fact—member order, structural key, specialization, dependencies, access geometry,
-workspace, and topology—against the exact compatibility identity. A mismatch fails closed rather
-than trusting the claimed decision or recognition fact.
+Boundary roles are also checked against producer and publication facts. Preparation derives an
+immutable ordered list of publication boundary positions from
+`LogicalMemoryRequirement.graphOutput()`. Plan validation uses that projection to recompute
+`PUBLICATION` versus unpublished `PARTITION_WRITE`, while unit
+occurrence counts and producer topology distinguish `CROSS_UNIT` from `EXTERNAL_READ`: a value
+read by two units is cross-unit only when a unit in the partition produces it. For example, two
+chained `FLOAT32` matrix products may both read the same caller-owned weight. That weight remains
+an external read in both units, while the first product's materialized result is a cross-unit
+value consumed by the second product. An optional `RELU` after the chain does not change the
+weight's role. The retained recognition snapshot is checked against the selected compatibility
+baseline before shared resource assignment. Validation also compares retained
+0008C baseline facts—member order, structural key, specialization, dependencies, access geometry,
+workspace, and topology—against the compatibility identity. These checks reject mismatched roles
+and geometry rather than trusting the claimed decision or recognition fact.
 
 The retained fixed-topology evidence is intentionally narrow. Across two retained runs, all 45
 samples per comparison were kept; generated/direct medians were `0.886422494` and `0.885426214`,
@@ -1061,21 +1083,22 @@ operation-specific lowerer, emitter, executable, or registry class:
 
 | Family | Current admitted semantics and exact types |
 |---|---|
-| Binary arithmetic | Same-type `ADD`, `SUB`, `MUL`, `MIN`, and `MAX` for FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64; same-type `DIV` and direct Tensor/Tensor `POW` for FLOAT64, FLOAT32, and BFLOAT16 |
-| Scalar arithmetic and range | Exact typed scalar `ADD`, `SUB`, `MUL`, `MIN`, and `MAX` for the same five numeric types; exact typed scalar `DIV` and `POW` plus first-class range `CLAMP` for FLOAT64, FLOAT32, and BFLOAT16 |
-| Unary | All nineteen `UnaryElementwiseKind` values for same-typed FLOAT64/FLOAT32/BFLOAT16: `ABS`, `NEG`, `RECIPROCAL`, `LOG`, `LOG1P`, `EXP`, `EXPM1`, `ERF`, `SQRT`, `RSQRT`, `FLOOR`, `CEIL`, `SIGN`, `RELU`, `SIGMOID`, `TANH`, `GELU`, `GELU_TANH_APPROXIMATION`, and `SILU` |
-| Classification | `IS_FINITE`, `IS_NAN`, and `IS_INF` for FLOAT64/FLOAT32/BFLOAT16 to BOOL |
-| Comparison | All six ordered/equality comparisons for FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 to BOOL |
+| Binary arithmetic | Same-type `ADD`, `SUB`, `MUL`, `MIN`, and `MAX` for FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, and INT64; same-type `DIV` and direct Tensor/Tensor `POW` for FLOAT64, FLOAT32, BFLOAT16, and FLOAT16 |
+| Scalar arithmetic and range | Exact typed scalar `ADD`, `SUB`, `MUL`, `MIN`, and `MAX` for the same six numeric types; exact typed scalar `DIV` and `POW` plus first-class range `CLAMP` for FLOAT64, FLOAT32, BFLOAT16, and FLOAT16 |
+| Unary | All nineteen `UnaryElementwiseKind` values for same-typed FLOAT64/FLOAT32/BFLOAT16/FLOAT16: `ABS`, `NEG`, `RECIPROCAL`, `LOG`, `LOG1P`, `EXP`, `EXPM1`, `ERF`, `SQRT`, `RSQRT`, `FLOOR`, `CEIL`, `SIGN`, `RELU`, `SIGMOID`, `TANH`, `GELU`, `GELU_TANH_APPROXIMATION`, and `SILU` |
+| Classification | `IS_FINITE`, `IS_NAN`, and `IS_INF` for FLOAT64/FLOAT32/BFLOAT16/FLOAT16 to BOOL |
+| Comparison | All six ordered/equality comparisons for FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, and INT64 to BOOL |
 | Logical | Canonical-BOOL `AND`, `OR`, and `NOT` |
-| Selection | BOOL-conditioned `WHERE` with same-type FLOAT64, FLOAT32, or BFLOAT16 branches |
-| Cast | All 36 ordered `CAST` pairs among FLOAT64, FLOAT32, BFLOAT16, INT64, INT32, and BOOL; cross-type forms are scalar-only |
+| Selection | BOOL-conditioned `WHERE` with same-type FLOAT64, FLOAT32, BFLOAT16, or FLOAT16 branches |
+| Cast | All 49 ordered `CAST` pairs among FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT64, INT32, and BOOL; cross-type forms are scalar-only |
 
-Scalar and parallel-scalar generated execution cover every row. BFLOAT16 contributes exactly 44
-forms: seven binary, eight scalar/range, nineteen unary, six comparison, three classification,
-and one `WHERE`. These forms support `short[]`, native-order `MemorySegment`, and mixed carriers
-under `DENSE_LINEAR`, read-only `SCALAR_ALL_ZERO`, `LAST_AXIS_BIAS`, `BLOCK_OUTER`, and
-`GENERAL_ODOMETER`. They are scalar only; caller-parallel execution reuses the same scalar
-generated entry, and no BFLOAT16 Vector API route is current. Vector and parallel-vector require
+Scalar and parallel-scalar generated execution cover every row. BFLOAT16 and FLOAT16 each
+contribute exactly 44 forms: seven binary, eight scalar/range, nineteen unary, six comparison,
+three classification, and one `WHERE`. These forms support `short[]`, native-order
+`MemorySegment`, and mixed carriers under `DENSE_LINEAR`, read-only `SCALAR_ALL_ZERO`,
+`LAST_AXIS_BIAS`, `BLOCK_OUTER`, and `GENERAL_ODOMETER`. They are scalar only; caller-parallel
+execution reuses the same scalar generated entry, and neither low-precision type has a current
+Vector API route. Vector and parallel-vector require
 one exact lane type, an eligible value/mask topology, and the completed contiguous-run access
 checks:
 
@@ -1101,8 +1124,8 @@ while numeric segment offsets retain element-width scaling and native byte order
 the bounded byte bridge, and the existing scalar body handles short ranges and remainders in lane
 order. A dense boundary may use its exact primitive array or `MemorySegment`, including ordered
 mixed carrier patterns. `LAST_AXIS_BIAS`, `BLOCK_OUTER`, and `GENERAL_ODOMETER` mask boundaries,
-external BOOL inputs to mixed floating logical operations, BFLOAT16, integral predicates, and
-other mixed floating-mask topologies remain scalar or fail closed according to the pre-existing
+external BOOL inputs to mixed floating logical operations, BFLOAT16, FLOAT16, integral predicates,
+and other mixed floating-mask topologies remain scalar or fail closed according to the pre-existing
 route rules.
 
 Publication is still driven by graph and execution-unit boundaries. A private same-unit mask
@@ -1131,9 +1154,9 @@ These operation and access rules also apply inside the bounded pointwise DAG mod
 unit may be a vertical chain or a horizontally fused same-domain branch set with multiple stores;
 barrier edges remain materialized between units.
 
-BFLOAT16 fusion preserves each logical operation boundary even when no intermediate buffer is
-materialized. A producing node stores raw 16-bit bits in its virtual local; each numerical
-consumer decodes those bits to FLOAT32, and each producing node performs one inline
+BFLOAT16 and FLOAT16 fusion preserve each logical operation boundary even when no intermediate
+buffer is materialized. A producing node stores raw 16-bit bits in its virtual local; each
+numerical consumer decodes those bits to FLOAT32, and each producing node performs one inline
 round-to-nearest-ties-to-even encode with canonical produced NaN. For example:
 
 ```text
@@ -1189,14 +1212,14 @@ The eight-node limit applies to each fused pointwise or affine unit, not to the 
 partition. Malformed topology or an independently unsupported seed fails before declaration or
 artifact access.
 
-CAST follows the Model-owned 36-pair value contract. Same-type pairs preserve represented bits,
+CAST follows the Model-owned 49-pair value contract. Same-type pairs preserve represented bits,
 including signed zero and every NaN pattern. Cross-type conversion uses these categories:
 
 | Source/target category | CPU result |
 |---|---|
-| Floating or integral to floating | Direct target-format round-to-nearest, ties-to-even; FLOAT64/integral to BFLOAT16 never passes through FLOAT32 |
+| Floating or integral to floating | Direct target-format round-to-nearest, ties-to-even; FLOAT64/integral to BFLOAT16 or FLOAT16 never passes through FLOAT32 |
 | Lossy floating NaN conversion | Positive canonical quiet NaN in the target format |
-| BFLOAT16/FLOAT32 widening | Exact finite widening and the Model-defined left-aligned NaN fraction mapping |
+| BFLOAT16/FLOAT16/FLOAT32 widening | Exact finite widening and the Model-defined left-aligned NaN fraction mapping |
 | Floating to INT64/INT32 | Truncate toward zero, saturate infinities/out-of-range values, and map NaN to zero |
 | INT32 to INT64 / INT64 to INT32 | Sign extension / retention of the low 32 two's-complement bits |
 | BOOL conversion | False/true becomes positive zero/one; numeric zero of either floating sign becomes false and every other numeric value becomes true |
@@ -1214,9 +1237,9 @@ and unsupported. A negative slice step is an operation coordinate rule and does 
 negative storage stride.
 
 A bounded pointwise directed acyclic graph containing cross-type CAST stays one scalar or
-caller-parallel scalar unit. Each CAST stores the target primitive or raw BFLOAT16 bits in its
-virtual local before a consumer executes, so `FLOAT64 -> BFLOAT16 -> FLOAT64` preserves the
-BFLOAT16 rounding boundary even without a materialized intermediate. The generated class is
+caller-parallel scalar unit. Each CAST stores the target primitive or raw low-precision bits in its
+virtual local before a consumer executes, so `FLOAT64 -> FLOAT16 -> FLOAT64` preserves the
+FLOAT16 rounding boundary even without a materialized intermediate. The generated class is
 final, field-free, and has one typed static entry; generated element work calls no Synaptik
 conversion helper. Same-type CAST keeps its established vector eligibility. No current CAST path
 adds SIMD conversion, native execution, materialization, workspace, route selection, or
@@ -1283,12 +1306,12 @@ The generated copy writes `a` and `b` once each. This proves deterministic disti
 materialization; it does not attach shared aliasing to the expanded graph value or promise a dense
 six-element result representation.
 
-The copy transfers raw represented bits for FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, and BOOL.
-The seven generated carrier forms are `DOUBLE_ARRAY`, `FLOAT_ARRAY`, `SHORT_ARRAY`, `INT_ARRAY`,
-`LONG_ARRAY`, `BYTE_ARRAY`, and `MEMORY_SEGMENT`. `SHORT_ARRAY` maps only the existing BFLOAT16
-`CpuBufferArgument.Shorts` form. Array-to-array, array-to-segment, segment-to-array, and segment-to-
-segment copies preserve floating NaN payloads and signed zeros, raw BFLOAT16 payloads, signed
-integral patterns, and canonical BOOL bytes without conversion, promotion, arithmetic, or
+The copy transfers raw represented bits for FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, INT64,
+and BOOL. The seven generated carrier forms are `DOUBLE_ARRAY`, `FLOAT_ARRAY`, `SHORT_ARRAY`,
+`INT_ARRAY`, `LONG_ARRAY`, `BYTE_ARRAY`, and `MEMORY_SEGMENT`. `SHORT_ARRAY` maps both BFLOAT16
+and FLOAT16 to the existing `CpuBufferArgument.Shorts` form. Array-to-array, array-to-segment,
+segment-to-array, and segment-to-segment copies preserve floating NaN payloads and signed zeros,
+raw BFLOAT16/FLOAT16 payloads, signed integral patterns, and canonical BOOL bytes without
 canonicalization.
 
 Affine bodies use scalar compute. The scalar and parallel-scalar strategies execute arbitrary
@@ -1299,9 +1322,9 @@ affine load/store, gather, scatter, masked tail, or speed claim.
 Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
 scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
-before current schema-45 artifact access and constructs one immutable executable. Cold binding validates
-the exact data type, carrier, byte size, alignment, accessibility, output writability, canonical
-BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
+before current schema-68 artifact access and constructs one immutable executable. Cold binding
+validates the exact data type, carrier, byte size, alignment, accessibility, output writability,
+canonical BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
 carriers, address table, and `start`/`end` bounds; it receives no operation, graph node, Shape,
 layout, affine IR, or route choice.
 
@@ -1325,7 +1348,7 @@ general performance claim.
 
 The portable movement family accepts exactly one fully static, resolved-layout `PAD`, `TILE`,
 `CONCAT`, or `STACK` occurrence. All inputs and the output have one exact common Model data type;
-represented-bit movement therefore covers FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, and BOOL
+represented-bit movement therefore covers FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, INT64, and BOOL
 without conversion or numerical interpretation. PAD retains the exact typed fill bits, TILE
 repeats complete logical input patterns, CONCAT selects ordered segments along an existing axis,
 and STACK selects ordered inputs along one inserted axis.
@@ -1361,9 +1384,9 @@ callback, or per-element allocation in generated code.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes current schema-45 generated artifacts;
-cold binding validates complete input/output spans and rejects every output/input overlap before
-execution. The scalar reference consumes the same movement IR and compact geometry for
+falls back to scalar for this family. CPU finalization realizes current schema-68 generated
+artifacts; cold binding validates complete input/output spans and rejects every output/input
+overlap before execution. The scalar reference consumes the same movement IR and compact geometry for
 differential tests, not as a Runtime fallback.
 
 Dense heap-array affine and movement entries use a cold-proved integer loop/address form. The
@@ -1414,14 +1437,14 @@ The movement family also accepts exactly one fully static, resolved-layout windo
 window size as the final result axis. For input Shape `[2, 3]`, axis `1`, size `2`, and step `1`,
 the exact result Shape is `[2, 2, 2]`; output coordinate `[n, position, offset]` reads input
 coordinate `[n, position + offset]`. This row copies represented bits for FLOAT64, FLOAT32,
-BFLOAT16, INT32, INT64, and canonical BOOL without padding or numerical interpretation.
+BFLOAT16, FLOAT16, INT32, INT64, and canonical BOOL without padding or numerical interpretation.
 
 `UNFOLD2D` accepts rank-four NCHW input and produces canonical rank-three im2col columns in
 `[N, C * kernelHeight * kernelWidth, outputHeight * outputWidth]` order. Kernel width and output
 width are the fastest-changing coordinates. Kernel, stride, symmetric padding, dilation, and
 floor/ceil output-grid calculations are checked during CPU analysis. Direct `Window2dAttrs` uses
 represented positive zero outside the source. `Unfold2dAttrs` instead uses its exact matching
-FLOAT64, FLOAT32, or BFLOAT16 padding bits, including signed zero and NaN payloads. Integral and
+FLOAT64, FLOAT32, BFLOAT16, or FLOAT16 padding bits, including signed zero and NaN payloads. Integral and
 BOOL two-dimensional unfold remain unsupported because the Model contract is floating-only.
 
 The generated artifact records the window family, rank/access structure, carrier/type facts, and
@@ -1439,7 +1462,7 @@ claim. Functional slice update is a separate one-node movement form described be
 
 The portable indexing family accepts exactly one fully static, resolved-layout occurrence of
 `GATHER`, `GATHER_ELEMENTS`, `GATHER_ND`, or `ONE_HOT`. Gather data and output may use any of the
-six current Model data types and copy represented bits without conversion. Indices are INT32 or
+seven current Model data types and copy represented bits without conversion. Indices are INT32 or
 INT64. `ONE_HOT` writes canonical BOOL byte `0` or `1` and has no configurable on/off values,
 alternate output type, ignored index, or default row.
 
@@ -1489,7 +1512,7 @@ injectivity, and output/input non-overlap checks still run.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-45 generated class artifact, one prepared
+no materialization, no workspace, one current schema-68 generated class artifact, one prepared
 executable, and one bound invocation. The generated class embeds carrier-, type-, family-, and
 access-specialized output loops rather than delegating through a generic carrier bridge. Proved
 dense heap arrays use integer loop/address state; segment, mixed-carrier, and general-layout forms
@@ -1552,8 +1575,8 @@ step:   -2
 result:  [10, 11, 80, 13, 90]
 ```
 
-The implementation copies represented bits for FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, and
-canonical BOOL through heap arrays, native-order `MemorySegment` carriers, or compatible mixed
+The implementation copies represented bits for FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, INT64,
+and canonical BOOL through heap arrays, native-order `MemorySegment` carriers, or compatible mixed
 patterns. It covers scalar and empty results or update regions. Arbitrary half-open result ranges,
 including parallel chunks, cold-seed their own coordinate and signed-sequence cursors, so chunks
 remain independent and deterministic. The hot loop performs no per-element allocation, division,
@@ -1580,8 +1603,8 @@ batch Dimensions. Historical `SCATTER_AXIS_ADD` and the superseded reduced-rank 
 are not current operations.
 
 Indices are exactly INT32 or INT64. Replacement reduction `NONE` accepts FLOAT64, FLOAT32,
-BFLOAT16, INT32, INT64, and canonical BOOL; `ADD`, `MUL`, `MIN`, and `MAX` accept the five numeric
-types, while Gather-compatible `SCATTER_ADD` is fixed to numeric addition. Every untouched result
+BFLOAT16, FLOAT16, INT32, INT64, and canonical BOOL; `ADD`, `MUL`, `MIN`, and `MAX` accept the six
+numeric types, while Gather-compatible `SCATTER_ADD` is fixed to numeric addition. Every untouched result
 coordinate copies the exact base representation. `NONE` replaces an addressed coordinate with
 its unique update. Other reductions include the base exactly once and every addressed update
 exactly once, including duplicate contributions. Integral addition and multiplication are
@@ -1617,8 +1640,8 @@ deterministically last-assignment-wins if a caller bypasses the required uniquen
 that is a Class-File test invariant, not supported public behavior. Resolved inputs may use
 non-negative offsets and strides, including broadcast-zero strides; output layout must be writable
 and injective. Heap carriers are
-`double[]`, `float[]`, raw BFLOAT16 `short[]`, `int[]`, `long[]`, and canonical BOOL `byte[]`;
-native-order `MemorySegment` and compatible mixed patterns are also supported. Exact repeated
+`double[]`, `float[]`, raw BFLOAT16/FLOAT16 `short[]`, `int[]`, `long[]`, and canonical BOOL
+`byte[]`; native-order `MemorySegment` and compatible mixed patterns are also supported. Exact repeated
 input values deduplicate to one boundary, and input/input overlap is allowed. Output overlap with
 any input is rejected.
 
@@ -1633,7 +1656,7 @@ presented as whole-family linear complexity.
 Only a floating `MUL` plan with non-empty output and contribution domains declares workspace. One
 run-owned `CpuContiguousWorkspace` contains a checked, eight-byte-aligned fixed-capacity primitive-
 limb scratch slice per selected range; slices are disjoint, reset and reused. The FLOAT64,
-FLOAT32, or BFLOAT16 generated entry embeds its type-specialized factor classification,
+FLOAT32, BFLOAT16, or FLOAT16 generated entry embeds its type-specialized factor classification,
 sign/exponent/significand state, primitive-limb multiplication, and final ties-to-even rounding.
 It uses no `BigInteger`, generic scatter helper, or per-factor/per-output allocation. Every other
 scatter row declares no workspace, and scatter never selects input materialization. Schema 16
@@ -1686,20 +1709,20 @@ positive zero, including coordinates that receive no contribution.
 `FOLD_AXIS` removes the input's final window-size dimension and restores one explicit target
 axis. If window position is `w`, final-dimension offset is `k`, and step is `s`, that input
 position contributes at target coordinate `w * s + k`. Gaps and the trailing remainder left by
-floor-counted windows remain positive zero. FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 are
-supported.
+floor-counted windows remain positive zero. FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, and INT64
+are supported.
 
 `FOLD2D` accepts canonical columns `[N, C * KH * KW, OH * OW]` and writes explicit NCHW output
 `[N, C, H, W]`. For each logical column position, CPU derives its batch, channel, kernel, and
 window coordinates. It adds the value only when the corresponding unpadded height and width are
 inside `[0, H)` and `[0, W)`. Leading or trailing symmetric-padding positions and terminal
 ceil-grid positions outside the unpadded output are excluded geometrically; there is no padding
-scalar to compare or add. This family supports FLOAT64, FLOAT32, and BFLOAT16 only.
+scalar to compare or add. This family supports FLOAT64, FLOAT32, BFLOAT16, and FLOAT16 only.
 
 For each output coordinate, scalar generated execution visits contributing logical input
 positions in canonical flattened row-major order. FLOAT64 and FLOAT32 perform sequential
-same-format addition. BFLOAT16 expands the represented accumulator and operand to binary32, adds,
-and rounds back to BFLOAT16 after every contribution. INT32 and INT64 `FOLD_AXIS` use fixed-width
+same-format addition. BFLOAT16 and FLOAT16 widen the represented accumulator and operand to
+binary32, add, and round back to their represented type after every contribution. INT32 and INT64 `FOLD_AXIS` use fixed-width
 two's-complement modular addition. This order is the current CPU realization and gives bitwise
 parity between scalar and parallel-scalar execution; it is not a cross-backend Model promise.
 
@@ -1740,8 +1763,8 @@ or performance support.
 ### Current stable ordering and selection family
 
 The portable ordering family accepts exactly one fully static, resolved-layout `SORT`, `ARGSORT`,
-or `TOP_K` occurrence. The input may be FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, or canonical
-BOOL. SORT has ordered boundaries `[input, values]`; ARGSORT has `[input, indices]`; TOP_K has
+or `TOP_K` occurrence. The input may be FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, INT64, or
+canonical BOOL. SORT has ordered boundaries `[input, values]`; ARGSORT has `[input, indices]`; TOP_K has
 `[input, values, indices]`, with values at output slot zero and INT64 indices at slot one. Every
 output is distinct, writable, injective, and has the exact Model Shape. CPU creates no hidden
 second SORT output and does not decompose TOP_K into separate executable occurrences.
@@ -1776,8 +1799,8 @@ input/output overlap and TOP_K output/output overlap before any scratch mutation
 generated call construction, or worker submission. Heap arrays, native-order `MemorySegment`,
 and compatible mixed carriers are supported; input reads may use dense, offset, positive-strided,
 or zero-strided layouts, and outputs may use injective non-dense layouts. Values outputs copy the
-selected raw FLOAT64/FLOAT32 NaN and signed-zero bits, raw BFLOAT16 payloads, integral patterns,
-or canonical BOOL bytes without conversion.
+selected raw FLOAT64/FLOAT32 NaN and signed-zero bits, raw BFLOAT16/FLOAT16 payloads, integral
+patterns, or canonical BOOL bytes without conversion.
 
 Schema 18 records the ordering family, represented type, direction/output-order flags, ordered
 boundary roles and carrier forms, output count, and scratch-bearing entry shape. It excludes
@@ -1787,13 +1810,13 @@ independent primitive-index insertion implementation for differential evidence; 
 Runtime fallback.
 
 Schema 27 introduced the complete carrier-, represented-type-, family-, direction-, output-,
-and access-specialized ordering body, which current schema 47 retains. It uses a stable bottom-up
+and access-specialized ordering body, which current schema 68 retains. It uses a stable bottom-up
 merge over the two assigned
 INT64 scratch regions, selecting the left logical index on equality. Dense heap-array forms use
 cold-proved integer loop and address state. Arbitrary supported layouts and heap, segment, or
 mixed carrier forms use typed long-address access; values and indices are stored without a
-generic `Object` execution bridge or runtime family dispatch. Schema 27 and every earlier
-envelope are incompatible misses and are regenerated under schema 37; no migration reader is
+generic `Object` execution bridge or runtime family dispatch. Schema 27 and every earlier envelope
+are incompatible misses and are regenerated under current schema 68; no migration reader is
 provided.
 
 The retained fixed five-fork evidence compares dense FLOAT32 schema-27 generated entries with
@@ -1816,8 +1839,8 @@ The portable random family accepts exactly one fully static, resolved-layout occ
 `INITIAL_STATE` occurrence has no input and one writable INT64 `Shape[2]` output. It writes the
 exact raw key word to logical lane zero and counter word to lane one; it does not hash either
 word, draw randomness, or advance the counter. A `DROPOUT` occurrence has ordered boundaries
-`[value, state, output, keepMask, nextState]`. Value and output must be FLOAT64 or FLOAT32 with
-the same Shape, the mask is canonical BOOL with that Shape, and both state values are INT64
+`[value, state, output, keepMask, nextState]`. Value and output must be FLOAT64, FLOAT32, or FLOAT16
+with the same Shape, the mask is canonical BOOL with that Shape, and both state values are INT64
 `Shape[2]`. Every writable layout and the state input must be injective. BFLOAT16 dropout fails
 closed: its raw `short` carrier does not establish the direct, correctly rounded scaling and
 conversion rule required for numerical execution.
@@ -1847,8 +1870,9 @@ when `uniform53(word) >= probability`; equality therefore keeps. The comparison 
 without first narrowing the draw or probability. Mask storage is byte `1` for kept and byte `0`
 for dropped. A dropped value is represented positive zero. For a kept value, CPU computes
 `denominator = 1.0d - probability` once per invocation. FLOAT64 performs one binary64 division.
-FLOAT32 widens its exact input to binary64, performs the same division, then narrows once. This
-fixed order forbids reciprocal multiplication and fixes parity for this CPU configuration.
+FLOAT32 and FLOAT16 widen their exact input to binary64 and perform the same division; FLOAT32
+narrows once to binary32, while FLOAT16 narrows directly to binary16 without a binary32
+double-rounding boundary. This fixed order forbids reciprocal multiplication and fixes parity for this CPU configuration.
 
 The independent compatibility vectors are:
 
@@ -1898,7 +1922,7 @@ probability bits, ordered boundary roles and carriers, and zero-scratch shape. C
 slots, carriers, workers, and ranges remain cold when they do not change emitted bytes. There is
 no migration reader for old artifacts. Schema 28 is the first version whose random entries embed
 the direct typed initializer and FLOAT64/FLOAT32 dropout bodies. A schema-27 envelope is an
-incompatible safe miss: cold finalization regenerates and may publish current schema-45 bytes
+incompatible safe miss: cold finalization regenerates and may publish current schema-68 bytes
 after shared slot assignment rather than loading, converting, or aliasing the old bridge class.
 
 Retained observational evidence for the fixed dense heap-array shape `[64,16384]`, probability
@@ -1947,6 +1971,7 @@ The exact current type and execution matrix is:
 | FLOAT64 | yes | yes | One binary64 operation per visited value; retain the binary64 result | Scalar, parallel-scalar |
 | FLOAT32 | yes | yes | One binary32 operation per visited value; retain the binary32 result | Scalar, parallel-scalar |
 | BFLOAT16 | yes | yes | Widen represented operands to FLOAT32, operate once, then round back to BFLOAT16 after every value | Scalar, parallel-scalar |
+| FLOAT16 | yes | yes | Widen represented operands to FLOAT32, operate once, then round back to FLOAT16 after every value | Scalar, parallel-scalar |
 | INT32 | yes | yes | Two's-complement 32-bit modular operation after every value | Scalar, parallel-scalar |
 | INT64 | yes | yes | Two's-complement 64-bit modular operation after every value | Scalar, parallel-scalar |
 | BOOL | no | no | Unsupported | None |
@@ -2032,8 +2057,8 @@ Runtime scan primitive are not implemented.
 
 The portable ordinary-aggregate family accepts exactly one fully static, resolved-layout
 `SUM`, `MEAN`, `PROD`, `MIN`, `MAX`, `ALL`, or `ANY` occurrence. `SUM`, `PROD`, `MIN`, and `MAX`
-accept FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 and preserve that represented type. `MEAN`
-accepts only FLOAT64, FLOAT32, and BFLOAT16. `ALL` and `ANY` accept and produce only canonical
+accept FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, and INT64 and preserve that represented type.
+`MEAN` accepts only FLOAT64, FLOAT32, BFLOAT16, and FLOAT16. `ALL` and `ANY` accept and produce only canonical
 one-byte BOOL. Integral MEAN, the distinct masked and arg-extrema forms, and later reduction
 families fail closed through this ordinary-family path before their focused lowerers are
 considered.
@@ -2087,12 +2112,12 @@ Floating domains use numerical order, with negative zero selected for `MIN` and 
 `MAX`. Any NaN makes the result NaN. The CPU-local deterministic policy introduced with schema 21
 copies the
 represented bits of the first NaN in canonical logical input row-major traversal order; this is
-not a Model, cross-backend, or future-schema payload promise. BFLOAT16 values widen only for
-comparison, and the selected output copies the original 16 represented bits without arithmetic
+not a Model, cross-backend, or future-schema payload promise. BFLOAT16 and FLOAT16 values widen
+only for comparison, and the selected output copies the original 16 represented bits without arithmetic
 or rounding.
 
 Floating SUM uses the exact real sum of all finite selected values and rounds that value once to
-BFLOAT16, FLOAT32, or FLOAT64 with round-to-nearest, ties-to-even. MEAN divides the exact sum by
+BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 with round-to-nearest, ties-to-even. MEAN divides the exact sum by
 the exact positive domain count before that single rounding; it does not first produce a rounded
 SUM. PROD retains an exact integer significand and power-of-two exponent for all finite nonzero
 factors, then rounds the exact product once with the same rule. "Exact" describes the internal
@@ -2144,10 +2169,10 @@ retention, structural boundary access, first-logical-NaN/signed-zero policy, com
 range meaning, carrier forms, and zero scratch. Schema 22 added embedded typed-body and dense
 heap-array loop-shape compatibility. Schema 29 added numerical kind/type/form identity,
 domain cardinality, exact-state limb and slice shape, scratch-bearing entry shape, and direct
-SUM/MEAN/PROD bodies. Schema 30 additionally emits FLOAT64, FLOAT32, BFLOAT16, INT32, and
+SUM/MEAN/PROD bodies. Schema 30 additionally emits FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, and
 INT64 MIN/MAX selection and canonical BOOL ALL/ANY combination directly. Floating selection keeps
-the first logical NaN bits and the established signed-zero choice, BFLOAT16 compares widened values
-but copies the selected 16-bit representation, and integral comparison remains signed. Concrete
+the first logical NaN bits and the established signed-zero choice, low-precision values compare
+widened but copy the selected 16-bit representation, and integral comparison remains signed.
 offsets, stride magnitudes, slots, carrier objects, addresses, workers, run identity, and selected
 range count remain cold when they do not change emitted bytes or resource shape. Schema-29 and
 earlier artifacts are incompatible safe misses; there is no migration reader or partial reuse.
@@ -2198,7 +2223,7 @@ uses long-address right-aligned target mapping for every supported heap-array, n
 `MemorySegment`, or mixed carrier combination, including nonzero offsets, positive or zero input
 strides, arbitrary injective output layouts, and arbitrary valid half-open output-cell ranges.
 The generated raw-copy body handles the no-reduction form directly. The cold-guarded dense
-`[64,128,256]` to `[128,1]` form uses direct primitive nested loops for all five numeric types;
+`[64,128,256]` to `[128,1]` form uses direct primitive nested loops for all six numeric types;
 its integral body has the same pre-tested one-accumulator algorithm, hot-loop work, and dataflow
 shape as the optimal clean-Java implementation. Floating reductions reuse the exact SUM emitter
 and one final round-to-nearest, ties-to-even result conversion; INT32 and INT64 addition remains
@@ -2236,8 +2261,8 @@ dynamic binding, a Vector API reduction body, native execution, or fusion.
 
 The portable arg-extrema family accepts exactly one fully static, resolved-layout `ARG_MIN` or
 `ARG_MAX` occurrence. It has one numeric input and one distinct writable INT64 output. The input
-type is exactly FLOAT64, FLOAT32, BFLOAT16, INT32, or INT64. CPU consumes the Model-normalized
-non-negative axis and validates it against the resolved input rank; it does not renormalize the
+type is exactly FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, or INT64. CPU consumes the
+Model-normalized non-negative axis and validates it against the resolved input rank; it does not renormalize the
 axis or add a multi-axis form. The selected extent must be positive. A zero extent on an
 unselected axis is legal and produces zero output cells, so execution makes no generated call,
 submits no worker work, and reads or writes no value.
@@ -2263,7 +2288,7 @@ The first row's equal minima occupy logical coordinates 1 and 2; FIRST chooses 1
 change those answers. For floating input, every represented NaN is preferred to every non-NaN in
 both extrema directions, and multiple NaNs tie. Negative zero orders below positive zero, so
 `ARG_MIN([-0.0, +0.0])` returns `0` and `ARG_MAX([-0.0, +0.0])` returns `1`. Infinities follow
-ordinary numerical order. BFLOAT16 widens only its represented raw 16-bit value for comparison.
+ordinary numerical order. BFLOAT16 and FLOAT16 widen only their represented raw 16-bit value for comparison.
 
 Input reads support arbitrary legal resolved non-negative layouts, including nonzero offsets,
 positive strides, and zero-stride repeated reads. Output writes support arbitrary legal injective
@@ -2302,8 +2327,8 @@ remain fail-closed.
 
 The portable masked-reduction family accepts exactly one fully static, resolved-layout,
 axis-removing `SUM` or `MEAN` occurrence. Its ordered boundaries are `[data, mask, output]`.
-Data and output have the same FLOAT64, FLOAT32, or BFLOAT16 type, and the mask is canonical
-one-byte BOOL. CPU consumes one already normalized non-negative axis and validates that removing
+Data and output have the same FLOAT64, FLOAT32, BFLOAT16, or FLOAT16 type, and the mask is
+canonical one-byte BOOL. CPU consumes one already normalized non-negative axis and validates that removing
 it produces the exact output Shape. Scalar data, keep-Dimension, full- or multi-axis forms,
 integral data, non-BOOL masks, unresolved Shapes or layouts, and any other masked operation remain
 fail-closed.
@@ -2374,8 +2399,8 @@ their existing owners.
 
 The portable advanced-reduction family accepts exactly one fully static, resolved-layout
 `LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, `L1_NORM`, or `L2_NORM` occurrence. Input and
-output use the same FLOAT64, FLOAT32, or BFLOAT16 representation. CPU consumes the Model's
-normalized ordered axes, keep-Dimension choice, and non-negative statistical correction. Axis
+output use the same FLOAT64, FLOAT32, BFLOAT16, or FLOAT16 representation. CPU consumes the
+Model's normalized ordered axes, keep-Dimension choice, and non-negative statistical correction. Axis
 order remains specialization and diagnostic identity; selected values are visited in canonical
 input-axis row-major order. The selected-domain count `N` must fit `long`, and statistics fail
 closed unless `N > correction`.
@@ -2389,8 +2414,8 @@ The numerical owner is selected while the class is generated:
 | `L1_NORM` | Exact sum of represented absolute values, rounded once | Existing exact-state slice |
 | `L2_NORM` | Scaled sum of squares followed by square root | None |
 
-FLOAT32 and BFLOAT16 values use binary64 intermediates and narrow once at the output. That is a
-CPU-private implementation choice, not public type promotion or a cross-backend bitwise promise.
+FLOAT32, BFLOAT16, and FLOAT16 values use binary64 intermediates and narrow once at the output.
+That is a CPU-private implementation choice, not public type promotion or a cross-backend bitwise promise.
 Log-sum-exp preserves a finite singleton directly. Statistics clamp only a negative roundoff
 residue before division; standard deviation then takes the non-negative principal square root.
 The L2 scale prevents avoidable finite overflow or underflow from squaring first.
@@ -2429,8 +2454,8 @@ below.
 The portable stable-softmax family accepts exactly one first-class, fully static,
 resolved-layout `SOFTMAX` or `LOG_SOFTMAX` occurrence. CPU never recognizes an equivalent-looking
 maximum/subtraction/exponential/reduction/division/logarithm graph as this family. Input and output
-use the same FLOAT64, FLOAT32, or BFLOAT16 representation and exact Shape, and retain matching
-gradient-eligibility metadata. The selected normalized axis must have positive extent. A zero
+use the same FLOAT64, FLOAT32, BFLOAT16, or FLOAT16 representation and exact Shape, and retain
+matching gradient-eligibility metadata. The selected normalized axis must have positive extent. A zero
 extent on any non-selected axis instead makes the shape-preserving output empty, so execution
 performs no value scan, generated call, write, or worker submission.
 
@@ -2513,12 +2538,12 @@ exact Shape. The four admitted forms are:
 | RMS | `[input]` | Divide by the root mean square |
 | Scaled RMS | `[input, scale]` | Divide, then multiply by scale |
 
-Every input may independently be BFLOAT16, FLOAT32, or FLOAT64. Promotion follows occurrence
-order—input/scale/bias for affine Layer and input/scale for scaled RMS—and the output plus exact
-typed epsilon must use the resulting type. Reads convert each represented input to that result
-type before numerical work. BFLOAT16 and FLOAT32 results use FLOAT32 formula boundaries, including
-the rounded Layer mean and final divide/multiply/add; FLOAT64 uses FLOAT64. BFLOAT16 is encoded
-once at the final store. This is a CPU-private conforming computation boundary, not a public cast,
+Every input may independently be BFLOAT16, FLOAT16, FLOAT32, or FLOAT64. Promotion follows
+occurrence order—input/scale/bias for affine Layer and input/scale for scaled RMS—and the output
+plus exact typed epsilon must use the resulting type. Reads convert each represented input to that
+result type before numerical work. BFLOAT16, FLOAT16, and FLOAT32 results use FLOAT32 formula
+boundaries, including the rounded Layer mean and final divide/multiply/add; FLOAT64 uses FLOAT64.
+BFLOAT16 and FLOAT16 are encoded once at the final store. This is a CPU-private conforming computation boundary, not a public cast,
 result-format change, or cross-backend bitwise promise.
 
 A Layer slice with values `x_i` and population count `N` requests:
@@ -2588,8 +2613,8 @@ not infer this family from decomposed arithmetic. The input and output have the 
 Shape of rank at least two; scale, bias, running mean, and running variance are rank-one `[C]`
 vectors, where `C` is the extent of the normalized arbitrary static channel axis.
 
-Every input may independently be BFLOAT16, FLOAT32, or FLOAT64. Promotion proceeds in the exact
-five-input occurrence order, and the output and positive finite epsilon use that result type.
+Every input may independently be BFLOAT16, FLOAT16, FLOAT32, or FLOAT64. Promotion proceeds in the
+exact five-input occurrence order, and the output and positive finite epsilon use that result type.
 Epsilon is retained by its exact result-type bits. Each represented input is converted to the
 result type before the direct running-variance formula is evaluated in this order:
 
@@ -2601,9 +2626,9 @@ result       = standardized * scale[channel] + bias[channel]
 ```
 
 The add, square root boundary, subtraction, division, multiplication, and final addition use
-FLOAT32 locals and rounding boundaries for BFLOAT16/FLOAT32 results and FLOAT64 locals for FLOAT64
-results. BFLOAT16 is encoded once at the final store. Scale, bias, mean, variance, and denominator
-are hoisted outside the coordinates belonging to a channel. This is a CPU-private conforming
+FLOAT32 locals and rounding boundaries for BFLOAT16/FLOAT16/FLOAT32 results and FLOAT64 locals for
+FLOAT64 results. BFLOAT16 and FLOAT16 are encoded once at the final store. Scale, bias, mean,
+variance, and denominator are hoisted outside the coordinates belonging to a channel. This is a CPU-private conforming
 finite-precision realization, not a public cast or cross-backend bitwise promise.
 
 Cold preparation derives prefix, channel, suffix, flattened non-channel, and output counts. The
@@ -2658,8 +2683,8 @@ outputs = [output, nextRunningMean, nextRunningVariance,
 All descriptors and layouts are fully static and resolved. The input rank is at least two, the
 arbitrary normalized channel axis has extent `C`, and the other four inputs plus outputs one
 through four are rank-one `[C]` vectors. Every output has an injective writable layout. The CPU
-route accepts independent BFLOAT16, FLOAT32, or FLOAT64 inputs, promotes them in the displayed
-order, and requires every output plus momentum and epsilon to have the promoted result type.
+route accepts independent BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 inputs, promotes them in the
+displayed order, and requires every output plus momentum and epsilon to have the promoted result type.
 Equivalent decomposed reductions and arithmetic remain ordinary nodes; training never shares an
 identity or runtime mode with batch inference.
 
@@ -2695,13 +2720,11 @@ nextRunningMean     = (1 - momentum) * runningMean + momentum * batchMean
 nextRunningVariance = (1 - momentum) * runningVariance + momentum * unbiasedVariance
 ```
 
-These are ordinary explicit outputs. The route neither mutates the supplied running statistics
-nor retains hidden cross-run state. Saved mean and saved inverse standard deviation are also
-ordinary graph outputs, not backend-created tape or persistent workspace. BFLOAT16 and FLOAT32
-results use FLOAT32 formula boundaries; FLOAT64 uses FLOAT64. BFLOAT16 narrows only at final
-stores. NaN or infinity in a non-empty input channel produces canonical NaN batch statistics and
-normalized results. Old running variance affects only its transition; it is not used, checked, or
-repaired for forward normalization. The written transition arithmetic remains authoritative at
+ordinary graph outputs, not backend-created tape or persistent workspace. BFLOAT16, FLOAT16, and
+FLOAT32 results use FLOAT32 formula boundaries; FLOAT64 uses FLOAT64. BFLOAT16 and FLOAT16 narrow
+only at final stores. NaN or infinity in a non-empty input channel produces canonical NaN batch
+statistics and normalized results. Old running variance affects only its transition; it is not
+used, checked, or repaired for forward normalization. The written transition arithmetic remains authoritative at
 momentum endpoints, so a zero coefficient does not suppress NaN or infinity.
 
 Preparation declares unique inputs once in first-occurrence order, then all five outputs, and
@@ -2737,15 +2760,15 @@ not a universal performance, tuning, vector/native, or cross-backend bitwise cla
 The portable CPU route accepts one explicit fully static, resolved-layout grouped `CONV2D`
 occurrence. Input uses NCHW order `[N, C_in, H, W]`; weight uses
 `[C_out, C_in/groups, K_h, K_w]`; optional intrinsic bias uses `[C_out]`; and output uses
-`[N, C_out, H_out, W_out]`. FLOAT64, FLOAT32, and BFLOAT16 boundaries may be selected
+`[N, C_out, H_out, W_out]`. FLOAT64, FLOAT32, BFLOAT16, and FLOAT16 boundaries may be selected
 independently and promote in semantic input order. The route supports positive groups, including
 depthwise geometry, positive stride and dilation, and non-negative explicit symmetric padding.
 
 Generated work owns a half-open range of complete output cells. For each cell it visits the
 contiguous group-local input channels, kernel height, and kernel width in increasing logical
 order. Out-of-range padded input is conceptual positive zero and still participates in ordinary
-multiplication. FLOAT64 output accumulates in FLOAT64; FLOAT32 and BFLOAT16 output accumulate in
-FLOAT32; BFLOAT16 narrows only at the final store. An intrinsic bias initializes the accumulator.
+multiplication. FLOAT64 output accumulates in FLOAT64; FLOAT32, BFLOAT16, and FLOAT16 output
+accumulate in FLOAT32; BFLOAT16 and FLOAT16 narrow only at the final store. An intrinsic bias initializes the accumulator.
 The direct generated body may additionally retain one legal same-type right-broadcast ADD, or
 that ADD followed by exact RELU. Other independently supported pointwise suffixes are not silently
 fused into this body.
@@ -2758,7 +2781,7 @@ Eligible direct same-typed dense FLOAT32/FLOAT64 forms may instead select output
 parallel-vector execution when width stride and dilation are one and at least one preferred-species
 block is fully in bounds. Non-width stride and dilation remain eligible. Scalar work handles
 padding borders, worker-range fragments, and tails. Arrays, native-order segments, and ordered
-mixed carriers are supported. BFLOAT16, external epilogues, mixed types, non-dense access,
+mixed carriers are supported. BFLOAT16, FLOAT16, external epilogues, mixed types, non-dense access,
 short/no-interior-block shapes, and other width geometry remain scalar. Ranges require no atomics,
 partial sums, combine step, packing, im2col buffer, or hidden workspace.
 
@@ -2800,8 +2823,8 @@ there is no Conv1d operation, generated body, workspace, materialization, or gra
 Conv3d is instead one first-class `CONV3D` occurrence. The direct CPU route accepts fully static,
 resolved-layout NCDHW input `[N, C_in, D, H, W]`, weight
 `[C_out, C_in/groups, K_d, K_h, K_w]`, optional intrinsic bias `[C_out]`, and output
-`[N, C_out, D_out, H_out, W_out]`. FLOAT64, FLOAT32, and BFLOAT16 boundaries promote in semantic
-input order. Groups may be one, intermediate, or depthwise; stride and dilation are positive;
+`[N, C_out, D_out, H_out, W_out]`. FLOAT64, FLOAT32, BFLOAT16, and FLOAT16 boundaries promote in
+semantic input order. Groups may be one, intermediate, or depthwise; stride and dilation are positive;
 symmetric padding is non-negative. Legal layouts may have arbitrary non-negative offsets and
 strides, but the output must be injective.
 
@@ -2810,13 +2833,13 @@ Generated Conv3d work owns a half-open range of complete output cells in logical
 kernel depth, height, and width in increasing order. Padded input coordinates contribute
 positive zero through ordinary multiplication, so an infinite stored weight can still produce
 NaN. Optional intrinsic bias initializes the accumulator once. FLOAT64 output accumulates in
-FLOAT64; FLOAT32 and BFLOAT16 output accumulate in FLOAT32; BFLOAT16 narrows once at the store.
+FLOAT64; FLOAT32, BFLOAT16, and FLOAT16 output accumulate in FLOAT32; BFLOAT16 and FLOAT16 narrow once at the store.
 
 Eligible direct same-typed dense FLOAT32/FLOAT64 forms may select output-width vector or
 parallel-vector execution under the same width-only geometry and full-block conditions as
 Conv2d; non-width stride and dilation remain eligible. Scalar work handles borders, fragments,
-and tails, while BFLOAT16, mixed types, non-dense access, short/no-interior-block shapes, and other
-width geometry remain scalar. Parallel ranges retain one writer per cell, so Conv3d declares no workspace,
+and tails, while BFLOAT16, FLOAT16, mixed types, non-dense access, short/no-interior-block shapes,
+and other width geometry remain scalar. Parallel ranges retain one writer per cell, so Conv3d declares no workspace,
 packing, im2col buffer, partial sum, atomic, or combine phase. Empty output invokes no generated
 entry and submits no worker work. Cold binding accepts exact typed primitive arrays,
 native-order accessible `MemorySegment` values, and mixed carriers. Before any write or worker
@@ -2864,10 +2887,10 @@ result axis is removed. Leading batch prefixes align from the right; an absent o
 operand batch coordinate has effective stride zero, so unequal-rank and two-sided singleton
 broadcasting reuse the same checked geometry without copying.
 
-All thirteen ordered non-BOOL numeric promotions are supported: the nine pairs over BFLOAT16,
-FLOAT32, and FLOAT64, plus the four pairs over INT32 and INT64. BFLOAT16 operands decode to
-FLOAT32; BFLOAT16 and FLOAT32 results accumulate in FLOAT32, FLOAT64 accumulates in FLOAT64, and
-BFLOAT16 rounds once at the final store. Integral accumulation uses Java's modular arithmetic at
+All twenty ordered non-BOOL numeric promotions are supported: the sixteen pairs over BFLOAT16,
+FLOAT16, FLOAT32, and FLOAT64, plus the four pairs over INT32 and INT64. BFLOAT16 and FLOAT16
+operands decode to FLOAT32; BFLOAT16, FLOAT16, and FLOAT32 results accumulate in FLOAT32, FLOAT64
+accumulates in FLOAT64, and BFLOAT16/FLOAT16 round once at the final store. Integral accumulation uses Java's modular arithmetic at
 the promoted INT32 or INT64 width. Every accumulator starts at its typed zero and traverses K in
 increasing logical order exactly once. Empty K therefore writes positive floating zero or
 integral zero for each existing output cell.
@@ -2935,12 +2958,12 @@ broadcast batch, inserted or removed vector axis, bias, terminal, or other epilo
 complete proved rank-two output binding. Every failure or uncertain fact leaves the portable plan
 selected and declares no OpenBLAS-only workspace.
 
-BFLOAT16 remains a supported Model and portable CPU data type, but it has no current OpenBLAS
-MATMUL route. The deferred direct-BFLOAT16 side branch requires a concrete capability proving
-BFLOAT16 inputs and output, FLOAT32 accumulation across the complete contraction, and exactly one
-final BFLOAT16 narrowing. `cblas_sbgemm`, conversion staging, a temporary FLOAT32 output matrix,
-platform inference, and relaxed semantics do not satisfy that requirement. Its absence does not
-block the FLOAT32/FLOAT64 route or its tuning work.
+BFLOAT16 and FLOAT16 remain supported Model and portable CPU data types, but neither has a current
+OpenBLAS MATMUL route. The deferred direct-BFLOAT16 side branch requires a concrete capability
+proving BFLOAT16 inputs and output, FLOAT32 accumulation across the complete contraction, and
+exactly one final BFLOAT16 narrowing. `cblas_sbgemm`, conversion staging, a temporary FLOAT32
+output matrix, platform inference, and relaxed semantics do not satisfy that requirement. The
+absence of low-precision OpenBLAS routes does not block the FLOAT32/FLOAT64 route or its tuning work.
 
 The direct form requires expected native, type-width-aligned `MemorySegment` storage and canonical
 zero-offset dense row-major access for all three matrices. For each boundary that is not direct,
@@ -3128,7 +3151,7 @@ claim.
 
 The portable CPU route accepts one fully static, resolved-layout `MAX_POOL2D` or
 `AVERAGE_POOL2D` occurrence with one rank-four channels-first input `[N,C,H,W]` and one matching
-output. Input and output must have the same BFLOAT16, FLOAT32, or FLOAT64 type. The input may use
+output. Input and output must have the same BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type. The input may use
 arbitrary checked non-negative strides, including broadcast-zero strides; the output layout must
 be injective. Each boundary independently accepts its exact primitive heap-array carrier or a
 native-order `MemorySegment`, including mixed input/output carrier forms.
@@ -3152,12 +3175,12 @@ positive zero but still count in the divisor of four, while the center average i
 Maximum pooling visits kernel height and then kernel width in increasing order, excludes padding
 from selection, and writes negative infinity for an all-padding window. The first NaN wins; among
 non-NaNs ordinary numerical order applies, positive zero wins over negative zero, and equal
-candidates retain the first represented sample. In particular, BFLOAT16 compares decoded values
-but stores the selected represented non-NaN bits rather than narrowing a promoted accumulator.
+candidates retain the first represented sample. In particular, BFLOAT16 and FLOAT16 compare
+decoded values but store the selected represented non-NaN bits rather than narrowing a promoted accumulator.
 
 Average pooling always divides by `kernelHeight * kernelWidth`; dilation changes coordinates, not
-the divisor. BFLOAT16 and FLOAT32 accumulate and divide in FLOAT32, FLOAT64 does both in FLOAT64,
-and BFLOAT16 narrows once after division. Conceptual padding contributes positive zero. An exact
+the divisor. BFLOAT16, FLOAT16, and FLOAT32 accumulate and divide in FLOAT32, FLOAT64 does both in
+FLOAT64, and BFLOAT16/FLOAT16 narrow once after division. Conceptual padding contributes positive zero. An exact
 zero result is negative only when every divisor contribution is an in-bounds negative zero;
 cancellation, any positive zero, or any padding produces positive zero. Increasing kernel-order
 traversal makes this CPU implementation deterministic, but it is not a cross-backend finite-bit
@@ -3218,7 +3241,7 @@ bindings, and mutable state.
 
 MSE `SUM` and `MEAN` remain scalar. Their current CPU meaning accumulates squared errors in
 increasing logical-element order with left-associated scalar addition; a horizontal vector
-reduction or partial reduction would change that order. BFLOAT16, mixed FLOAT32/FLOAT64,
+reduction or partial reduction would change that order. BFLOAT16, FLOAT16, mixed FLOAT32/FLOAT64,
 non-contiguous MSE, categorical losses, zero-element work, rank-zero work, and domains shorter
 than one preferred species also retain scalar or parallel-scalar execution. Vector preference is
 a fallback preference: an ineligible loss does not lose CPU support, gain a materialization, or
@@ -3449,12 +3472,17 @@ or speedup.
 
 ### Current contiguous representation candidates
 
-Before shared assignment, CPU analysis completes a bounded cross-product of each already legal
-CPU 0008D topology with representation forms. Stable order is direct first, then every eligible
-single copy in source order, then every eligible pair of distinct sources in lexicographic source
+Before shared assignment, CPU analysis of a partition with at most eight compiled nodes completes
+a bounded cross-product of each already legal CPU 0008D topology with representation forms. For a
+longer partition, this candidate enumeration and its fixed-ID copy workspaces are unavailable;
+ordinary preparation selects the direct portable multi-unit path and declares only intrinsic
+unit workspaces under their final unit indices. Stable candidate order within the bounded domain
+is direct first, then every eligible single copy in source order, then every eligible pair of
+distinct sources in lexicographic source
 order. Eligible external reads cover FLOAT64, FLOAT32, INT32, INT64, and canonical BOOL, whose
-stored byte representation is the CPU UINT8 carrier form. BFLOAT16 remains excluded because raw
-movement support does not establish pointwise numerical support. Scalar/all-zero and already
+stored byte representation is the CPU UINT8 carrier form. BFLOAT16 and FLOAT16 remain excluded
+from these copy candidates; raw movement support alone does not establish an eligible copied
+pointwise representation. Scalar/all-zero and already
 dense sources, unused values, incompatible mappings or carriers, unresolved or overflowed facts,
 and candidates beyond the exact source, variant, or resource ceilings fail closed.
 
@@ -3927,9 +3955,12 @@ FLOAT32/FLOAT64 vector-mask boundary classes described above, schema 62 adds onl
 contiguous FLOAT32/FLOAT64 MSE `NONE` vector classes, schema 63 adds eligible direct dense
 FLOAT32/FLOAT64 Conv2d/Conv3d output-width vector classes, and schema 64 makes the four proved
 FLOAT32/FLOAT64 vector scalar-power realizations self-contained without changing their semantic
-or specialization identity fields. The current envelope version is 64;
-older envelopes are incompatible safe misses, while scalar Conv retains schema 52, scalar loss remains on schema 58, and
-unchanged prior-family projections retain their established structural bytes.
+or specialization identity fields. Schema 65 finalizes CONCAT/STACK terminal emission and freezes
+affected typed layouts; schema 66 freezes aggregate scalar segment layouts; schema 67 adds the
+numerical-profile wire identity; and schema 68 activates direct FLOAT16 execution throughout the
+portable generated families. The current envelope version is 68; older envelopes are incompatible
+safe misses, while scalar Conv retains schema 52, scalar loss remains on schema 58, and unchanged
+prior-family projections retain their established structural bytes.
 
 CPU 0008L retained evidence verifies this boundary against the same-algorithm optimal clean Java
 oracle required for generated code. All 72 generated Class-Files and 72 `javap` reports passed
@@ -3948,7 +3979,7 @@ native fallback, hardware-intrinsic guarantee, or performance result is implemen
 Public `Engine.Builder` can register CPU alone or beside Metal, while `Engine.standard()` remains
 fixed CPU-only. Ordinary composition can execute mixed CPU/Metal plans by assigning one physical
 representation per participating owner and scheduling direct native-host-staged transfer for all
-six carriers over exact rank-0..16 static canonical or positive-stride non-overlapping layouts
+seven carriers over exact rank-0..16 static canonical or positive-stride non-overlapping layouts
 with checked physical spans. Generic plugin composition and conversion-based transfer remain
 unsupported. Ordinary provider tests prove Java validation and exact ABI forwarding, not
 installed-library numerical correctness. The native checkpoint proves only its selected binary
@@ -3966,6 +3997,13 @@ fusion, decomposition, materialization, thresholds, worker policy, vector specie
 fallbacks. Model's accelerator profile is semantically broader, but CPU deliberately realizes only
 the common strict subset: it enables no extra reassociation, reduced precision, approximate
 instruction, denormals-are-zero (DAZ), or flush-to-zero (FTZ) behavior.
+
+P0 freezes representative true and false F32 provider answers and independently queries the
+corresponding BF16 occurrence before assigning a target. It never infers BF16 support from F32.
+Current BF16 true rows are preserved; an explicit false row may become a future parity target only
+when its operation-family contract says so. These are inactive target decisions and change no
+matrix or route. The provider ledger contains no route, runtime/device, generated-backward, or
+certificate fact.
 
 The requested profile is retained unchanged in partition plans, generated-kernel specialization
 and artifact identity, OpenBLAS workload identity, and local and complete-plan tuning

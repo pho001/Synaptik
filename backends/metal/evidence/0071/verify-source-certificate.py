@@ -21,12 +21,12 @@ def main() -> None:
     certificate = json.loads(CERTIFICATE.read_text(encoding="utf-8"))
     assert certificate["abiVersion"] == 5
     assert certificate["exportCount"] == 13
-    assert certificate["programSchema"] == 18
+    assert certificate["programSchema"] == 19
     assert certificate["generatorSchema"] == 2
-    assert certificate["identityVersion"] == 27
-    assert certificate["fixedCorpus"]["bytes"] == 84541
+    assert certificate["identityVersion"] == 28
+    assert certificate["fixedCorpus"]["bytes"] == 84603
     assert certificate["fixedCorpus"]["sha256"] == (
-        "5e7d65bfc46f52532781a3730aeda2202b798022b61fb60ea5beeb95307e77bb"
+        "eb9a4bc2e9156bd971c59a3f8c1416df61627fe1c8e5655ccff28ecdf28b39f5"
     )
     assert certificate["lifecycleTrace"] == "deferred-shared-native-resource-lifetime"
 
@@ -55,15 +55,15 @@ def main() -> None:
     proof = texts["formal-proof"]
 
     for fragment in (
-        "static final int SCHEMA_VERSION = 18;",
-        "static final int MAGIC = 0x38314d53;",
+        "static final int SCHEMA_VERSION = 19;",
+        "static final int MAGIC = 0x39314d53;",
         "encodedProgramImage(",
         "updateDigest(",
     ):
         require(program, fragment)
     for fragment in (
         "static final int GENERATOR_SCHEMA = 2;",
-        "static final int FIXED_CORPUS_UTF8_BYTES = 84_541;",
+        "static final int FIXED_CORPUS_UTF8_BYTES = 84_603;",
         "static final int MAX_ANCHOR_UNITS = 64;",
         "static final int MAX_EXECUTION_INSTRUCTIONS = 512;",
         "ANCHOR_EPILOGUE(4)",
@@ -76,7 +76,7 @@ def main() -> None:
         "anchor-opcodes scalar-mul=1 add=2 relu=3 clamp=4",
         "execution-caps 64 512",
         "format 2",
-        "schema 18",
+        "schema 19",
         "generator 2",
     ):
         require(planner, fragment)
@@ -102,7 +102,7 @@ def main() -> None:
         "sizeof(SynaptikMetalAnchorEpilogueMeta) == 6096U",
         "options.mathMode = MTLMathModeSafe",
         "SynaptikTask0071AnchorEpilogueKernelSource",
-        "return [fixed lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 84541U",
+        "return [fixed lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 84603U",
         "step.anchorEpilogue = YES",
         "step.epilogueInput = program_to_slot[step.epilogueInput]",
     ):
@@ -131,10 +131,10 @@ def main() -> None:
     ):
         require(observer_test, fragment)
     for fragment in (
-        "nativeAbiFiveAcceptsCanonicalSchemaEighteenAndRejectsMalformedImages",
-        "0x37314d53",
-        "schema <= 17",
-        "schemaEighteenRejectsCorruptFusionRecordsManifestAndDigest",
+        "nativeAbiFiveAcceptsCanonicalSchemaNineteenAndRejectsMalformedImages",
+        "0x38314d53",
+        "schema <= 18",
+        "schemaNineteenRejectsCorruptFusionRecordsManifestAndDigest",
     ):
         require(raw_test, fragment)
     for fragment in (
@@ -169,8 +169,8 @@ def main() -> None:
         "\"MetalInvocationPlan\"",
     ):
         require(public_smoke, fragment)
-    require(package_builder, '\\"nodeSchemaVersion\\":18')
-    require(package_verifier, '\\"nodeSchemaVersion\\":18')
+    require(package_builder, '\\"nodeSchemaVersion\\":19')
+    require(package_verifier, '\\"nodeSchemaVersion\\":19')
 
     assert "sorry" not in proof
     assert "axiom " not in proof

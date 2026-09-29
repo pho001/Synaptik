@@ -36,7 +36,7 @@ import org.junit.jupiter.api.Test;
 /** Executes every finite MATMUL inventory row against a test-local clean-Java oracle. */
 class CpuMatmulSemanticClosureTest {
     private static final List<DataType> NUMERIC = List.of(DataType.FLOAT64, DataType.FLOAT32,
-            DataType.BFLOAT16, DataType.INT64, DataType.INT32);
+            DataType.BFLOAT16, DataType.FLOAT16, DataType.INT64, DataType.INT32);
     private static final List<Shape[]> FORMS = List.of(new Shape[] {Shape.of(3), Shape.of(3)},
             new Shape[] {Shape.of(2, 3), Shape.of(3)}, new Shape[] {Shape.of(3), Shape.of(3, 4)},
             new Shape[] {Shape.of(2, 3), Shape.of(3, 4)},
@@ -59,7 +59,7 @@ class CpuMatmulSemanticClosureTest {
                 raw++;
             }
         }
-        assertEquals(390, raw, "one exact generated definition/invocation per MATMUL inventory row");
+        assertEquals(600, raw, "one exact generated definition/invocation per MATMUL inventory row");
         assertEquals(inventoryOwners(), owners, "complete non-projecting MATMUL inventory-owner join");
     }
 
@@ -189,19 +189,20 @@ class CpuMatmulSemanticClosureTest {
                 String[] fields = lines[line].split("\\t", -1);
                 if (fields[2].equals("MATMUL")) assertTrue(owners.add(fields[0]), "duplicate inventory owner " + fields[0]);
             }
-            assertEquals(390, owners.size());
+            assertEquals(600, owners.size());
             return owners;
         }
     }
 
     private static void assertStorage(double[] expected, Storage actual, Fixture f) {
         for (int i = 0; i < expected.length; i++) assertEquals(quantize(actual.type, expected[i]), actual.get(i),
-                actual.type == DataType.BFLOAT16 ? .02 : actual.type == DataType.FLOAT32 ? 2e-5 : 0,
+                actual.type == DataType.BFLOAT16 ? .02 : actual.type == DataType.FLOAT16 ? .003 : actual.type == DataType.FLOAT32 ? 2e-5 : 0,
                 f + " physical " + i);
     }
 
     private static double quantize(DataType type, double value) { return switch (type) {
         case BFLOAT16 -> Float.intBitsToFloat((ScalarValue.bfloat16((float) value).bfloat16Bits() & 0xffff) << 16);
+        case FLOAT16 -> Float.float16ToFloat(Float.floatToFloat16((float) value));
         case FLOAT32 -> (float) value;
         case INT32 -> (int) value;
         case INT64 -> (long) value;
@@ -245,18 +246,18 @@ class CpuMatmulSemanticClosureTest {
     private static final class Storage {
         final DataType type; final CarrierAccess carrier; final Object heap; final MemorySegment segment;
         Storage(DataType type, CarrierAccess carrier) { this.type = type; this.carrier = carrier; this.heap = switch (type) {
-            case FLOAT64 -> new double[256]; case FLOAT32 -> new float[256]; case BFLOAT16 -> new short[256];
+            case FLOAT64 -> new double[256]; case FLOAT32 -> new float[256]; case BFLOAT16, FLOAT16 -> new short[256];
             case INT32 -> new int[256]; case INT64 -> new long[256]; default -> throw new AssertionError(type); };
             this.segment = switch (type) { case FLOAT64 -> MemorySegment.ofArray((double[]) heap); case FLOAT32 -> MemorySegment.ofArray((float[]) heap);
-                case BFLOAT16 -> MemorySegment.ofArray((short[]) heap); case INT32 -> MemorySegment.ofArray((int[]) heap);
+                case BFLOAT16, FLOAT16 -> MemorySegment.ofArray((short[]) heap); case INT32 -> MemorySegment.ofArray((int[]) heap);
                 case INT64 -> MemorySegment.ofArray((long[]) heap); default -> throw new AssertionError(type); }; }
         Object argument() { return carrier == CarrierAccess.MEMORY_SEGMENT ? segment : heap; }
         void fill(double value) { for (int i = 0; i < 256; i++) set(i, value); }
         void set(long index, double value) { switch (type) { case FLOAT64 -> ((double[]) heap)[(int) index] = value; case FLOAT32 -> ((float[]) heap)[(int) index] = (float) value;
-            case BFLOAT16 -> ((short[]) heap)[(int) index] = ScalarValue.bfloat16((float) value).bfloat16Bits(); case INT32 -> ((int[]) heap)[(int) index] = (int) value;
+            case BFLOAT16 -> ((short[]) heap)[(int) index] = ScalarValue.bfloat16((float) value).bfloat16Bits(); case FLOAT16 -> ((short[]) heap)[(int) index] = Float.floatToFloat16((float) value); case INT32 -> ((int[]) heap)[(int) index] = (int) value;
             case INT64 -> ((long[]) heap)[(int) index] = (long) value; default -> throw new AssertionError(type); } }
         double get(long index) { return switch (type) { case FLOAT64 -> ((double[]) heap)[(int) index]; case FLOAT32 -> ((float[]) heap)[(int) index];
-            case BFLOAT16 -> Float.intBitsToFloat((((short[]) heap)[(int) index] & 0xffff) << 16); case INT32 -> ((int[]) heap)[(int) index];
+            case BFLOAT16 -> Float.intBitsToFloat((((short[]) heap)[(int) index] & 0xffff) << 16); case FLOAT16 -> Float.float16ToFloat(((short[]) heap)[(int) index]); case INT32 -> ((int[]) heap)[(int) index];
             case INT64 -> ((long[]) heap)[(int) index]; default -> throw new AssertionError(type); }; }
         double[] snapshot() { double[] result = new double[256]; for (int i = 0; i < result.length; i++) result[i] = get(i); return result; }
     }

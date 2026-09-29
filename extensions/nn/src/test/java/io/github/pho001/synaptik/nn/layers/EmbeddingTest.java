@@ -402,7 +402,7 @@ class EmbeddingTest {
     @Test
     void delegatesEveryFloatingTableAndExactIndexTypeToOneOrdinaryGather() {
         for (DataType weightType : List.of(
-                DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
             for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
                 Tensor weight = tensor(weightType, Shape.of(10, 4), true);
                 Tensor indices = tensor(indexType, Shape.of(2, 3), false);
@@ -544,7 +544,8 @@ class EmbeddingTest {
     }
 
     private static List<DataType> floatingTypes() {
-        return List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16);
+        return List.of(
+                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16);
     }
 
     private static List<ParameterInitialization> initializationPolicies() {
@@ -607,7 +608,7 @@ class EmbeddingTest {
                     heapArray(expected, double[].class), heapArray(actual, double[].class));
             case FLOAT32 -> assertArrayEquals(
                     heapArray(expected, float[].class), heapArray(actual, float[].class));
-            case BFLOAT16 -> assertArrayEquals(
+            case BFLOAT16, FLOAT16 -> assertArrayEquals(
                     heapArray(expected, short[].class), heapArray(actual, short[].class));
             case INT32, INT64, BOOL -> throw new AssertionError("unexpected non-floating type");
         }
@@ -630,6 +631,11 @@ class EmbeddingTest {
             case BFLOAT16 -> {
                 short[] expected = new short[length];
                 Arrays.fill(expected, BFloat16Bits.fromFloat(one ? 1.0f : 0.0f));
+                assertArrayEquals(expected, heapArray(tensor, short[].class));
+            }
+            case FLOAT16 -> {
+                short[] expected = new short[length];
+                Arrays.fill(expected, (short) (one ? 0x3C00 : 0x0000));
                 assertArrayEquals(expected, heapArray(tensor, short[].class));
             }
             case INT32, INT64, BOOL -> throw new AssertionError("unexpected non-floating type");

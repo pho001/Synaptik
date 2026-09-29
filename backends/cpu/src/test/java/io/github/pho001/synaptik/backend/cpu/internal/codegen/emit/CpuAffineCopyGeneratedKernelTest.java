@@ -183,7 +183,7 @@ class CpuAffineCopyGeneratedKernelTest {
     }
 
     @Test void preservesEveryRepresentedTypeAcrossEveryArraySegmentPair() {
-        for (DataType type : DataType.values()) for (boolean sourceHeap : List.of(false, true))
+        for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) for (boolean sourceHeap : List.of(false, true))
                 for (boolean resultHeap : List.of(false, true)) {
             Object source = source(type);
             Object result = array(type, 8);
@@ -267,6 +267,7 @@ class CpuAffineCopyGeneratedKernelTest {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
             case BFLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> CarrierAccess.BYTE_ARRAY;
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU affine copy unsupported");
         };
     }
     private static Object source(DataType type) {
@@ -279,6 +280,7 @@ class CpuAffineCopyGeneratedKernelTest {
                     5, (short)0x8000, (short)0xffff};
             case INT32 -> new int[]{0, Integer.MIN_VALUE, -1, 1, Integer.MAX_VALUE, 7, 8, -9, 10};
             case INT64 -> new long[]{0, Long.MIN_VALUE, -1, 1, Long.MAX_VALUE, 7, 8, -9, 10};
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU affine copy unsupported");
             case BOOL -> new byte[]{0, 1, 0, 1, 0, 1, 0, 1, 0};
         };
     }
@@ -287,6 +289,7 @@ class CpuAffineCopyGeneratedKernelTest {
             case FLOAT64 -> new double[size]; case FLOAT32 -> new float[size];
             case BFLOAT16 -> new short[size]; case INT32 -> new int[size];
             case INT64 -> new long[size]; case BOOL -> new byte[size];
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU affine copy unsupported");
         };
     }
     private static MemorySegment segment(Object array) {

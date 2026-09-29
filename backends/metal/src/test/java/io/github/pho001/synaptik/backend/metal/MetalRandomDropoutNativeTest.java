@@ -7,7 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
@@ -87,6 +89,34 @@ class MetalRandomDropoutNativeTest {
                 assertArrayEquals(expected.nextState(), actual.get(2),
                         Double.toHexString(probability));
             }
+        }
+    }
+
+    @Test
+    void raw16DropoutConsumesAndAdvancesExplicitStateThroughCustomKernels() {
+        long key = 0x0123_4567_89ab_cdefL;
+        long counter = 17L;
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            MetalMpsGraphProgram program = new MetalMpsGraphProgram(List.of(
+                    initial(1, key, counter),
+                    dropout(0, 1, 2, 3, 4, 0.0d)));
+            List<byte[]> input = List.of(lowWords(type, 1.0f, -2.0f, 0.5f, -0.0f));
+            List<byte[]> result = execute(
+                    NumericalProfile.ACCELERATOR,
+                    program,
+                    List.of(
+                            typed(type, 4),
+                            typed(DataType.INT64, 2),
+                            typed(type, 4),
+                            typed(DataType.BOOL, 4),
+                            typed(DataType.INT64, 2)),
+                    new int[] {0},
+                    new int[] {2, 3, 4},
+                    input,
+                    1).getFirst();
+            assertArrayEquals(input.getFirst(), result.get(0), type.toString());
+            assertArrayEquals(new byte[] {1, 1, 1, 1}, result.get(1), type.toString());
+            assertArrayEquals(longWords(key, counter + 4L), result.get(2), type.toString());
         }
     }
 
@@ -333,6 +363,19 @@ class MetalRandomDropoutNativeTest {
                 assertEquals(expectedWords[index], actualWords[index], message + " at " + index);
             }
         }
+    }
+
+    private static byte[] lowWords(DataType type, float... words) {
+        ByteBuffer bytes = ByteBuffer.allocate(words.length * Short.BYTES)
+                .order(ByteOrder.nativeOrder());
+        for (float word : words) {
+            bytes.putShort(switch (type) {
+                case BFLOAT16 -> BFloat16Bits.fromFloat(word);
+                case FLOAT16 -> Float16Bits.fromFloat(word);
+                default -> throw new AssertionError(type);
+            });
+        }
+        return bytes.array();
     }
 
     private static byte[] longWords(long... words) {

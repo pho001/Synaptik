@@ -24,7 +24,8 @@ import java.util.List;
  * inclusive ordered-binary32 distance ceiling of five.
  * Scalar extrema and clamp still select an original candidate under their exact NaN, signed-zero,
  * bound, and tie rules, except that DAZ-normalized candidates may tie. Attribute values and
- * guards remain exact, no final-output tolerance is added, and non-FLOAT32 behavior stays strict.
+ * guards remain exact and no final-output tolerance is added. Every current non-FLOAT32
+ * occurrence remains strict; the inactive low-precision reservation changes none of them.
  * See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>

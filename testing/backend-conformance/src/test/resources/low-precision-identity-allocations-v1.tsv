@@ -1,0 +1,15 @@
+schema	scope	identity	current	reserved	status	constraint
+1	cpu	generator-schema	68	NONE	ACTIVATED_CPU_FLOAT16	integrated FLOAT16 cutover; pre-68 artifacts are incompatible misses
+1	metal	attribute-wires	0..41	UNCHANGED	FROZEN	never renumber or reuse
+1	metal	candidate-schema	28	NONE	ACTIVATED_METAL_FLOAT16	coordinated with compatibility route-policy workload-policy and codec identities; pre-28 artifacts are incompatible misses
+1	metal	certificate-schema	1	NONE	ACTIVATED_METAL_CERTIFIED_RAW_MPSGRAPH	exact environment-bound schema-1 certificates qualify only matching raw-preserving schema-19 images
+1	metal	codec-version	28	NONE	ACTIVATED_METAL_FLOAT16	coordinated identity cutover; pre-28 artifacts are incompatible misses
+1	metal	compatibility-schema	28	NONE	ACTIVATED_METAL_FLOAT16	coordinated identity cutover; pre-28 artifacts are incompatible misses
+1	metal	dtype-wire-FLOAT16	7	NONE	ACTIVATED_METAL_FLOAT16	appended after existing wires 1..6
+1	metal	native-abi	6	NONE	ACTIVATED_METAL_CERTIFIED_RAW_MPSGRAPH	adds immutable context certification-environment identity export
+1	metal	operation-wires	1..115	UNCHANGED	FROZEN	never renumber or reuse
+1	metal	program-schema	19	NONE	ACTIVATED_METAL_FLOAT16	clean cutover; schema 19 is the only currently accepted image
+1	metal	route-policy-version	28	NONE	ACTIVATED_METAL_FLOAT16	coordinated identity cutover; pre-28 artifacts are incompatible misses
+1	metal	route-wires	1..3	UNCHANGED	FROZEN	current route identities retain their exact meanings
+1	metal	workload-policy-version	28	NONE	ACTIVATED_METAL_FLOAT16	coordinated identity cutover; pre-28 artifacts are incompatible misses
+1	model	DataType-FLOAT16	ORDINAL_6	APPEND_AFTER_BOOL	ACTIVATED_MODEL_ONLY	model value allocation is active at ordinal 6; backend identities are recorded in their owning rows

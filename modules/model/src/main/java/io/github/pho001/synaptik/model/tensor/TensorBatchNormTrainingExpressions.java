@@ -22,7 +22,9 @@ import java.util.Optional;
  * savedInverseStandardDeviation]}. It reduces
  * every non-channel axis, uses biased batch variance for normalization, correction-one variance
  * for the explicit running-variance transition, and treats momentum as the new-batch weight.
- * Epsilon appears only inside {@code 1 / sqrt(biasedVariance + epsilon)}.</p>
+ * Epsilon appears only inside {@code 1 / sqrt(biasedVariance + epsilon)}. BFLOAT16, FLOAT16, and
+ * FLOAT32 results use FLOAT32 reduction and formula arithmetic; FLOAT64 uses FLOAT64. FLOAT16
+ * result metadata uses exact FLOAT32 momentum and epsilon.</p>
  *
  * <p>The helper reads no values and owns no running state. It creates five fresh indexed Tensor
  * wrappers under one producer, returns slots zero through two, and discards the local wrappers for
@@ -42,15 +44,17 @@ final class TensorBatchNormTrainingExpressions {
      * @param bias non-null floating rank-one per-channel bias at position two
      * @param runningMean non-null floating rank-one old running mean at position three
      * @param runningVariance non-null floating rank-one old running variance at position four
-     * @param momentum non-null exact finite new-batch weight in {@code [0, 1]} matching result type
-     * @param epsilon non-null exact finite positive stabilizer matching result type
+     * @param momentum non-null finite new-batch weight in {@code [0, 1]} matching the result type,
+     *     except FLOAT16 uses FLOAT32
+     * @param epsilon non-null finite positive stabilizer matching the result type, except FLOAT16
+     *     uses FLOAT32
      * @return three-component public result selecting producer slots zero through two; never
      *     {@code null}
      * @throws NullPointerException if an input or scalar is null, checked in declaration order
      * @throws IllegalArgumentException if a Tensor is non-floating, input rank is below two, a
      *     per-channel operand is not rank one or is statically channel-incompatible, a statically
-     *     positive channel has reduction count below two, or a scalar is invalid or not exactly
-     *     result-typed
+     *     positive channel has reduction count below two, or a scalar does not match the result
+     *     arithmetic type
      * @throws IndexOutOfBoundsException if {@code channelAxis} is invalid for the input Shape
      * @throws IllegalStateException if tensor identifier space is exhausted; identifiers already
      *     allocated for earlier output positions remain consumed
@@ -101,12 +105,16 @@ final class TensorBatchNormTrainingExpressions {
         resultType = DataTypePromotion.promoteFloating(resultType, biasType);
         resultType = DataTypePromotion.promoteFloating(resultType, meanType);
         resultType = DataTypePromotion.promoteFloating(resultType, varianceType);
-        if (momentum.dataType() != resultType) {
+        if (momentum.dataType() != resultType
+                && (resultType != DataType.FLOAT16
+                        || momentum.dataType() != DataType.FLOAT32)) {
             throw new IllegalArgumentException(
                     "batchNormTraining momentum data type must match result data type: momentum="
                             + momentum.dataType() + ", result=" + resultType);
         }
-        if (epsilon.dataType() != resultType) {
+        if (epsilon.dataType() != resultType
+                && (resultType != DataType.FLOAT16
+                        || epsilon.dataType() != DataType.FLOAT32)) {
             throw new IllegalArgumentException(
                     "batchNormTraining epsilon data type must match result data type: epsilon="
                             + epsilon.dataType() + ", result=" + resultType);

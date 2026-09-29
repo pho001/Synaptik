@@ -6,6 +6,10 @@ Accepted — 2026-09-25
 
 Supersedes [ADR 0019](0019-explicit-numerical-profiles.md).
 
+Qualified for future newly admitted low-precision `ACCELERATOR` arithmetic by
+[ADR 0023](0023-low-precision-accelerator-parity.md). This record remains authoritative for every
+current occurrence, every `STRICT_IEEE` result set, and the complete `FLOAT32` recursive floors.
+
 ## Context
 
 ADR 0019 established two graph-wide cold numerical-profile identities and deliberately limited
@@ -15,11 +19,11 @@ or backend route would need another exceptional row, and the same formula could 
 meaning depending on whether it was visible or nested inside another operation.
 
 The current Model owns formulas, guards, contributor sets, masks, mappings, state transitions,
-special-value behavior, and saved values. Completed Model 0031 separately owns backend-independent
-exact-reference strict unary sets for BFLOAT16, FLOAT32, and FLOAT64; this decision adds only the
-recursive accelerator superset. For that accelerator bound, Java's scalar and Vector `TANH`
-contract is at most 2.5 ULP from the exact result, while FLOAT32 Vector lanes use the
-specified widen/evaluate/narrow adaptation. A power-of-two binade boundary converts that guarantee
+special-value behavior, and saved values. Model 0031 established backend-independent exact-
+reference strict unary sets for BFLOAT16, FLOAT32, and FLOAT64; the cumulative P12/P13 cutover
+extends those sets to FLOAT16. This decision adds only the recursive accelerator superset. For
+that accelerator bound, Java's scalar and Vector `TANH` contract is at most 2.5 ULP from the exact
+result, while FLOAT32 Vector lanes use the specified widen/evaluate/narrow adaptation. A power-of-two binade boundary converts that guarantee
 to an ordered distance of five adjacent binary32 representation steps. The one-ULP Java
 logarithmic/exponential contract and retained Metal `EXP`/`SIGMOID` observations fit within
 ordered distance two.
@@ -68,8 +72,9 @@ floors. Accepted.
 `STRICT_IEEE` is the explicit union of every current per-operation allowed-result set, including
 the completed Model 0031 unary baseline.
 
-`ACCELERATOR` is the union of that strict set and the results constructible for `FLOAT32` by the
-following recursive floors. Non-`FLOAT32` behavior remains strict.
+`ACCELERATOR` is currently the union of that strict set and the results constructible for
+`FLOAT32` by the following recursive floors. Every current non-`FLOAT32` occurrence remains strict.
+ADR 0023 reserves the only future exception without activating it.
 
 ### Exact and discrete floor
 

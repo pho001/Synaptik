@@ -1,7 +1,9 @@
 package io.github.pho001.synaptik.training;
 
 import io.github.pho001.synaptik.engine.HostTensorValue;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
@@ -24,6 +26,11 @@ final class TrainingParameter {
     private final DataType dataType;
     private final Shape shape;
     private final int elementCount;
+    private float[] master32;
+    private float[] masterCandidate32;
+    private float[] masterRollback32;
+    private short[] parameterCandidate16;
+    private short[] parameterRollback16;
 
     private float[] gradient32;
     private float[] accumulated32;
@@ -55,15 +62,7 @@ final class TrainingParameter {
         this.dataType = tensor.descriptor().dataType();
         this.shape = tensor.descriptor().shape();
         this.elementCount = elementCount;
-        if (dataType == DataType.FLOAT32) {
-            gradient32 = new float[elementCount];
-            accumulated32 = new float[elementCount];
-            accumulatedCandidate32 = new float[elementCount];
-            parameterCandidate32 = new float[elementCount];
-            parameterRollback32 = new float[elementCount];
-            momentum32 = new float[elementCount];
-            momentumCandidate32 = new float[elementCount];
-        } else {
+        if (dataType == DataType.FLOAT64) {
             gradient64 = new double[elementCount];
             accumulated64 = new double[elementCount];
             accumulatedCandidate64 = new double[elementCount];
@@ -71,6 +70,32 @@ final class TrainingParameter {
             parameterRollback64 = new double[elementCount];
             momentum64 = new double[elementCount];
             momentumCandidate64 = new double[elementCount];
+        } else {
+            gradient32 = new float[elementCount];
+            accumulated32 = new float[elementCount];
+            accumulatedCandidate32 = new float[elementCount];
+            momentum32 = new float[elementCount];
+            momentumCandidate32 = new float[elementCount];
+            if (dataType == DataType.FLOAT32) {
+                parameterCandidate32 = new float[elementCount];
+                parameterRollback32 = new float[elementCount];
+            } else {
+                master32 = new float[elementCount];
+                masterCandidate32 = new float[elementCount];
+                masterRollback32 = new float[elementCount];
+                parameterCandidate16 = new short[elementCount];
+                parameterRollback16 = new short[elementCount];
+                initializeMaster();
+            }
+        }
+    }
+
+    private void initializeMaster() {
+        for (int index = 0; index < elementCount; index++) {
+            short bits = segment.get(ValueLayout.JAVA_SHORT, (long) index * Short.BYTES);
+            master32[index] = dataType == DataType.BFLOAT16
+                    ? BFloat16Bits.toFloat(bits)
+                    : Float16Bits.toFloat(bits);
         }
     }
 
@@ -83,9 +108,9 @@ final class TrainingParameter {
         Tensor stableTensor = Objects.requireNonNull(stableParameter.value(), "parameter.value()");
         var descriptor = stableTensor.descriptor();
         DataType type = descriptor.dataType();
-        if (type != DataType.FLOAT32 && type != DataType.FLOAT64) {
+        if (!type.isFloating()) {
             throw new IllegalArgumentException(
-                    "training parameter must use FLOAT32 or FLOAT64 at path "
+                    "training parameter must use a floating type at path "
                             + stablePath + ": " + type);
         }
         if (!descriptor.requiresGrad()) {
@@ -163,6 +188,12 @@ final class TrainingParameter {
         return Math.multiplyExact((long) elementCount, dataType.byteWidth());
     }
 
+    long masterByteSize() {
+        return Math.multiplyExact(
+                (long) elementCount,
+                dataType == DataType.FLOAT64 ? Double.BYTES : Float.BYTES);
+    }
+
     void validateBinding() {
         if (parameter.value() != tensor) {
             throw new IllegalStateException(
@@ -187,26 +218,32 @@ final class TrainingParameter {
 
     void decodeGradient(HostTensorValue value) {
         Objects.requireNonNull(value, "gradient");
-        if (value.dataType() != dataType || !value.shape().equals(shape)) {
+        if (value.dataType() != dataType
+                || !value.shape().equals(shape)
+                || value.elementCount() != elementCount
+                || value.byteSize() != byteSize()) {
             throw new IllegalStateException(
                     "gradient schema does not match parameter at path " + path);
         }
-        if (value.elementCount() != elementCount || value.byteSize() != byteSize()) {
-            throw new IllegalStateException(
-                    "gradient payload size does not match parameter at path " + path);
-        }
         ByteBuffer bytes = value.bytes().order(ByteOrder.BIG_ENDIAN);
-        if (dataType == DataType.FLOAT32) {
+        if (dataType == DataType.FLOAT64) {
             for (int index = 0; index < elementCount; index++) {
-                float gradient = bytes.getFloat();
-                requireFinite(gradient, "decoded gradient", path, index);
-                gradient32[index] = gradient;
+                gradient64[index] = bytes.getDouble();
+            }
+        } else if (dataType == DataType.FLOAT32) {
+            for (int index = 0; index < elementCount; index++) {
+                gradient32[index] = bytes.getFloat();
             }
         } else {
             for (int index = 0; index < elementCount; index++) {
-                double gradient = bytes.getDouble();
-                requireFinite(gradient, "decoded gradient", path, index);
-                gradient64[index] = gradient;
+                gradient32[index] = decodeLow(bytes.getShort());
+            }
+        }
+        for (int index = 0; index < elementCount; index++) {
+            if (dataType == DataType.FLOAT64) {
+                requireFinite(gradient64[index], "decoded gradient", path, index);
+            } else {
+                requireFinite(gradient32[index], "decoded gradient", path, index);
             }
         }
         if (bytes.hasRemaining()) {
@@ -216,7 +253,7 @@ final class TrainingParameter {
     }
 
     void stageAccumulation() {
-        if (dataType == DataType.FLOAT32) {
+        if (dataType != DataType.FLOAT64) {
             for (int index = 0; index < elementCount; index++) {
                 float candidate = accumulated32[index] + gradient32[index];
                 requireFinite(candidate, "accumulated gradient candidate", path, index);
@@ -232,7 +269,7 @@ final class TrainingParameter {
     }
 
     void stageUpdate(Sgd optimizer, long completedSteps, boolean useAccumulatedCandidate) {
-        if (dataType == DataType.FLOAT32) {
+        if (dataType != DataType.FLOAT64) {
             stageUpdate32(optimizer, completedSteps, useAccumulatedCandidate);
         } else {
             stageUpdate64(optimizer, completedSteps, useAccumulatedCandidate);
@@ -248,10 +285,21 @@ final class TrainingParameter {
         float[] selected = useAccumulatedCandidate ? accumulatedCandidate32 : gradient32;
         boolean firstMomentumStep = completedSteps == 0;
         for (int index = 0; index < elementCount; index++) {
-            long offset = (long) index * Float.BYTES;
-            float parameterValue = segment.get(ValueLayout.JAVA_FLOAT, offset);
+            float parameterValue;
+            if (dataType == DataType.FLOAT32) {
+                parameterValue = segment.get(
+                        ValueLayout.JAVA_FLOAT, (long) index * Float.BYTES);
+                parameterRollback32[index] = parameterValue;
+            } else {
+                short logicalBits = segment.get(
+                        ValueLayout.JAVA_SHORT, (long) index * Short.BYTES);
+                requireFinite(
+                        decodeLow(logicalBits), "current logical parameter", path, index);
+                parameterRollback16[index] = logicalBits;
+                parameterValue = master32[index];
+                masterRollback32[index] = parameterValue;
+            }
             requireFinite(parameterValue, "current parameter", path, index);
-            parameterRollback32[index] = parameterValue;
             float decayTerm = weightDecay * parameterValue;
             requireFinite(decayTerm, "weight-decay term", path, index);
             float adjusted = selected[index] + decayTerm;
@@ -285,7 +333,11 @@ final class TrainingParameter {
             requireFinite(scaledUpdate, "scaled update", path, index);
             float candidate = parameterValue - scaledUpdate;
             requireFinite(candidate, "parameter candidate", path, index);
-            parameterCandidate32[index] = candidate;
+            if (dataType == DataType.FLOAT32) {
+                parameterCandidate32[index] = candidate;
+            } else {
+                masterCandidate32[index] = candidate;
+            }
         }
     }
 
@@ -298,8 +350,8 @@ final class TrainingParameter {
         double[] selected = useAccumulatedCandidate ? accumulatedCandidate64 : gradient64;
         boolean firstMomentumStep = completedSteps == 0;
         for (int index = 0; index < elementCount; index++) {
-            long offset = (long) index * Double.BYTES;
-            double parameterValue = segment.get(ValueLayout.JAVA_DOUBLE, offset);
+            double parameterValue = segment.get(
+                    ValueLayout.JAVA_DOUBLE, (long) index * Double.BYTES);
             requireFinite(parameterValue, "current parameter", path, index);
             parameterRollback64[index] = parameterValue;
             double decayTerm = weightDecay * parameterValue;
@@ -339,8 +391,26 @@ final class TrainingParameter {
         }
     }
 
+    void prepareParameterCandidate() {
+        if (dataType == DataType.FLOAT16 || dataType == DataType.BFLOAT16) {
+            for (int index = 0; index < elementCount; index++) {
+                short narrowed = encodeLow(masterCandidate32[index]);
+                requireFinite(
+                        decodeLow(narrowed), "logical parameter candidate", path, index);
+                parameterCandidate16[index] = narrowed;
+            }
+        }
+    }
+
     void writeParameterCandidate() {
-        if (dataType == DataType.FLOAT32) {
+        if (dataType == DataType.FLOAT64) {
+            for (int index = 0; index < elementCount; index++) {
+                segment.set(
+                        ValueLayout.JAVA_DOUBLE,
+                        (long) index * Double.BYTES,
+                        parameterCandidate64[index]);
+            }
+        } else if (dataType == DataType.FLOAT32) {
             for (int index = 0; index < elementCount; index++) {
                 segment.set(
                         ValueLayout.JAVA_FLOAT,
@@ -350,15 +420,23 @@ final class TrainingParameter {
         } else {
             for (int index = 0; index < elementCount; index++) {
                 segment.set(
-                        ValueLayout.JAVA_DOUBLE,
-                        (long) index * Double.BYTES,
-                        parameterCandidate64[index]);
+                        ValueLayout.JAVA_SHORT,
+                        (long) index * Short.BYTES,
+                        parameterCandidate16[index]);
             }
+            System.arraycopy(masterCandidate32, 0, master32, 0, elementCount);
         }
     }
 
     void rollbackParameter() {
-        if (dataType == DataType.FLOAT32) {
+        if (dataType == DataType.FLOAT64) {
+            for (int index = 0; index < elementCount; index++) {
+                segment.set(
+                        ValueLayout.JAVA_DOUBLE,
+                        (long) index * Double.BYTES,
+                        parameterRollback64[index]);
+            }
+        } else if (dataType == DataType.FLOAT32) {
             for (int index = 0; index < elementCount; index++) {
                 segment.set(
                         ValueLayout.JAVA_FLOAT,
@@ -368,15 +446,16 @@ final class TrainingParameter {
         } else {
             for (int index = 0; index < elementCount; index++) {
                 segment.set(
-                        ValueLayout.JAVA_DOUBLE,
-                        (long) index * Double.BYTES,
-                        parameterRollback64[index]);
+                        ValueLayout.JAVA_SHORT,
+                        (long) index * Short.BYTES,
+                        parameterRollback16[index]);
             }
+            System.arraycopy(masterRollback32, 0, master32, 0, elementCount);
         }
     }
 
     void commitMomentum() {
-        if (dataType == DataType.FLOAT32) {
+        if (dataType != DataType.FLOAT64) {
             float[] previous = momentum32;
             momentum32 = momentumCandidate32;
             momentumCandidate32 = previous;
@@ -388,7 +467,7 @@ final class TrainingParameter {
     }
 
     void commitAccumulation() {
-        if (dataType == DataType.FLOAT32) {
+        if (dataType != DataType.FLOAT64) {
             float[] previous = accumulated32;
             accumulated32 = accumulatedCandidate32;
             accumulatedCandidate32 = previous;
@@ -400,7 +479,7 @@ final class TrainingParameter {
     }
 
     void clearAccumulation() {
-        if (dataType == DataType.FLOAT32) {
+        if (dataType != DataType.FLOAT64) {
             Arrays.fill(accumulated32, 0.0f);
             Arrays.fill(accumulatedCandidate32, 0.0f);
         } else {
@@ -410,21 +489,29 @@ final class TrainingParameter {
     }
 
     void validateFiniteState() {
-        if (dataType == DataType.FLOAT32) {
-            for (int index = 0; index < elementCount; index++) {
-                requireFiniteState(
-                        segment.get(ValueLayout.JAVA_FLOAT, (long) index * Float.BYTES),
-                        "current parameter", index);
-                requireFiniteState(momentum32[index], "momentum slot", index);
-                requireFiniteState(accumulated32[index], "accumulated gradient", index);
-            }
-        } else {
+        if (dataType == DataType.FLOAT64) {
             for (int index = 0; index < elementCount; index++) {
                 requireFiniteState(
                         segment.get(ValueLayout.JAVA_DOUBLE, (long) index * Double.BYTES),
                         "current parameter", index);
                 requireFiniteState(momentum64[index], "momentum slot", index);
                 requireFiniteState(accumulated64[index], "accumulated gradient", index);
+            }
+        } else {
+            for (int index = 0; index < elementCount; index++) {
+                if (dataType == DataType.FLOAT32) {
+                    requireFiniteState(
+                            segment.get(ValueLayout.JAVA_FLOAT, (long) index * Float.BYTES),
+                            "current parameter", index);
+                } else {
+                    short logicalBits = segment.get(
+                            ValueLayout.JAVA_SHORT, (long) index * Short.BYTES);
+                    requireFiniteState(
+                            decodeLow(logicalBits), "current logical parameter", index);
+                    requireFiniteState(master32[index], "master parameter", index);
+                }
+                requireFiniteState(momentum32[index], "momentum slot", index);
+                requireFiniteState(accumulated32[index], "accumulated gradient", index);
             }
         }
     }
@@ -433,28 +520,48 @@ final class TrainingParameter {
         validateBinding();
         validateFiniteState();
         byte[] parameterBytes = new byte[(int) byteSize()];
-        byte[] momentumBytes = new byte[parameterBytes.length];
-        byte[] accumulatedBytes = new byte[parameterBytes.length];
+        byte[] masterBytes = new byte[(int) masterByteSize()];
+        byte[] momentumBytes = new byte[masterBytes.length];
+        byte[] accumulatedBytes = new byte[masterBytes.length];
         ByteBuffer parameterBuffer = ByteBuffer.wrap(parameterBytes).order(ByteOrder.BIG_ENDIAN);
+        ByteBuffer masterBuffer = ByteBuffer.wrap(masterBytes).order(ByteOrder.BIG_ENDIAN);
         ByteBuffer momentumBuffer = ByteBuffer.wrap(momentumBytes).order(ByteOrder.BIG_ENDIAN);
         ByteBuffer accumulatedBuffer = ByteBuffer.wrap(accumulatedBytes).order(ByteOrder.BIG_ENDIAN);
-        if (dataType == DataType.FLOAT32) {
+        if (dataType == DataType.FLOAT64) {
             for (int index = 0; index < elementCount; index++) {
-                parameterBuffer.putFloat(segment.get(
-                        ValueLayout.JAVA_FLOAT, (long) index * Float.BYTES));
+                double value = segment.get(
+                        ValueLayout.JAVA_DOUBLE, (long) index * Double.BYTES);
+                parameterBuffer.putDouble(value);
+                masterBuffer.putDouble(value);
+                momentumBuffer.putDouble(momentum64[index]);
+                accumulatedBuffer.putDouble(accumulated64[index]);
+            }
+        } else if (dataType == DataType.FLOAT32) {
+            for (int index = 0; index < elementCount; index++) {
+                float value = segment.get(
+                        ValueLayout.JAVA_FLOAT, (long) index * Float.BYTES);
+                parameterBuffer.putFloat(value);
+                masterBuffer.putFloat(value);
                 momentumBuffer.putFloat(momentum32[index]);
                 accumulatedBuffer.putFloat(accumulated32[index]);
             }
         } else {
             for (int index = 0; index < elementCount; index++) {
-                parameterBuffer.putDouble(segment.get(
-                        ValueLayout.JAVA_DOUBLE, (long) index * Double.BYTES));
-                momentumBuffer.putDouble(momentum64[index]);
-                accumulatedBuffer.putDouble(accumulated64[index]);
+                parameterBuffer.putShort(segment.get(
+                        ValueLayout.JAVA_SHORT, (long) index * Short.BYTES));
+                masterBuffer.putFloat(master32[index]);
+                momentumBuffer.putFloat(momentum32[index]);
+                accumulatedBuffer.putFloat(accumulated32[index]);
             }
         }
         return new TrainingState.ParameterState(
-                path, dataType, shape, parameterBytes, momentumBytes, accumulatedBytes);
+                path,
+                dataType,
+                shape,
+                parameterBytes,
+                masterBytes,
+                momentumBytes,
+                accumulatedBytes);
     }
 
     void validateState(TrainingState.ParameterState state, Sgd optimizer) {
@@ -465,10 +572,12 @@ final class TrainingParameter {
             throw new IllegalArgumentException(
                     "training state parameter schema mismatch at path " + path);
         }
-        int expectedBytes = (int) byteSize();
-        if (state.parameterBytesInternal().length != expectedBytes
-                || state.momentumBytesInternal().length != expectedBytes
-                || state.accumulatedGradientBytesInternal().length != expectedBytes) {
+        int expectedLogicalBytes = (int) byteSize();
+        int expectedMasterBytes = (int) masterByteSize();
+        if (state.parameterBytesInternal().length != expectedLogicalBytes
+                || state.masterParameterBytesInternal().length != expectedMasterBytes
+                || state.momentumBytesInternal().length != expectedMasterBytes
+                || state.accumulatedGradientBytesInternal().length != expectedMasterBytes) {
             throw new IllegalArgumentException(
                     "training state payload size mismatch at path " + path);
         }
@@ -482,25 +591,39 @@ final class TrainingParameter {
     void stageRestore(TrainingState.ParameterState state) {
         ByteBuffer parameterBuffer = ByteBuffer.wrap(state.parameterBytesInternal())
                 .order(ByteOrder.BIG_ENDIAN);
+        ByteBuffer masterBuffer = ByteBuffer.wrap(state.masterParameterBytesInternal())
+                .order(ByteOrder.BIG_ENDIAN);
         ByteBuffer momentumBuffer = ByteBuffer.wrap(state.momentumBytesInternal())
                 .order(ByteOrder.BIG_ENDIAN);
         ByteBuffer accumulatedBuffer = ByteBuffer.wrap(state.accumulatedGradientBytesInternal())
                 .order(ByteOrder.BIG_ENDIAN);
-        if (dataType == DataType.FLOAT32) {
+        if (dataType == DataType.FLOAT64) {
+            for (int index = 0; index < elementCount; index++) {
+                parameterRollback64[index] = segment.get(
+                        ValueLayout.JAVA_DOUBLE, (long) index * Double.BYTES);
+                parameterCandidate64[index] = parameterBuffer.getDouble();
+                masterBuffer.getDouble();
+                momentumCandidate64[index] = momentumBuffer.getDouble();
+                accumulatedCandidate64[index] = accumulatedBuffer.getDouble();
+            }
+        } else if (dataType == DataType.FLOAT32) {
             for (int index = 0; index < elementCount; index++) {
                 parameterRollback32[index] = segment.get(
                         ValueLayout.JAVA_FLOAT, (long) index * Float.BYTES);
                 parameterCandidate32[index] = parameterBuffer.getFloat();
+                masterBuffer.getFloat();
                 momentumCandidate32[index] = momentumBuffer.getFloat();
                 accumulatedCandidate32[index] = accumulatedBuffer.getFloat();
             }
         } else {
             for (int index = 0; index < elementCount; index++) {
-                parameterRollback64[index] = segment.get(
-                        ValueLayout.JAVA_DOUBLE, (long) index * Double.BYTES);
-                parameterCandidate64[index] = parameterBuffer.getDouble();
-                momentumCandidate64[index] = momentumBuffer.getDouble();
-                accumulatedCandidate64[index] = accumulatedBuffer.getDouble();
+                parameterRollback16[index] = segment.get(
+                        ValueLayout.JAVA_SHORT, (long) index * Short.BYTES);
+                masterRollback32[index] = master32[index];
+                parameterCandidate16[index] = parameterBuffer.getShort();
+                masterCandidate32[index] = masterBuffer.getFloat();
+                momentumCandidate32[index] = momentumBuffer.getFloat();
+                accumulatedCandidate32[index] = accumulatedBuffer.getFloat();
             }
         }
     }
@@ -513,19 +636,29 @@ final class TrainingParameter {
     private void validateFinitePayload(TrainingState.ParameterState state) {
         ByteBuffer parameterBytes = ByteBuffer.wrap(state.parameterBytesInternal())
                 .order(ByteOrder.BIG_ENDIAN);
+        ByteBuffer masterBytes = ByteBuffer.wrap(state.masterParameterBytesInternal())
+                .order(ByteOrder.BIG_ENDIAN);
         ByteBuffer momentumBytes = ByteBuffer.wrap(state.momentumBytesInternal())
                 .order(ByteOrder.BIG_ENDIAN);
         ByteBuffer accumulatedBytes = ByteBuffer.wrap(state.accumulatedGradientBytesInternal())
                 .order(ByteOrder.BIG_ENDIAN);
         for (int index = 0; index < elementCount; index++) {
-            if (dataType == DataType.FLOAT32) {
+            if (dataType == DataType.FLOAT64) {
+                requireFinitePayload(parameterBytes.getDouble(), "parameter", index);
+                requireFinitePayload(masterBytes.getDouble(), "master parameter", index);
+                requireFinitePayload(momentumBytes.getDouble(), "momentum", index);
+                requireFinitePayload(accumulatedBytes.getDouble(), "accumulated gradient", index);
+            } else if (dataType == DataType.FLOAT32) {
                 requireFinitePayload(parameterBytes.getFloat(), "parameter", index);
+                requireFinitePayload(masterBytes.getFloat(), "master parameter", index);
                 requireFinitePayload(momentumBytes.getFloat(), "momentum", index);
                 requireFinitePayload(accumulatedBytes.getFloat(), "accumulated gradient", index);
             } else {
-                requireFinitePayload(parameterBytes.getDouble(), "parameter", index);
-                requireFinitePayload(momentumBytes.getDouble(), "momentum", index);
-                requireFinitePayload(accumulatedBytes.getDouble(), "accumulated gradient", index);
+                requireFinitePayload(
+                        decodeLow(parameterBytes.getShort()), "logical parameter", index);
+                requireFinitePayload(masterBytes.getFloat(), "master parameter", index);
+                requireFinitePayload(momentumBytes.getFloat(), "momentum", index);
+                requireFinitePayload(accumulatedBytes.getFloat(), "accumulated gradient", index);
             }
         }
     }
@@ -533,15 +666,15 @@ final class TrainingParameter {
     private boolean containsNonZeroMomentum(TrainingState.ParameterState state) {
         ByteBuffer bytes = ByteBuffer.wrap(state.momentumBytesInternal())
                 .order(ByteOrder.BIG_ENDIAN);
-        if (dataType == DataType.FLOAT32) {
+        if (dataType == DataType.FLOAT64) {
             for (int index = 0; index < elementCount; index++) {
-                if (bytes.getFloat() != 0.0f) {
+                if (bytes.getDouble() != 0.0d) {
                     return true;
                 }
             }
         } else {
             for (int index = 0; index < elementCount; index++) {
-                if (bytes.getDouble() != 0.0d) {
+                if (bytes.getFloat() != 0.0f) {
                     return true;
                 }
             }
@@ -549,14 +682,36 @@ final class TrainingParameter {
         return false;
     }
 
+    private float decodeLow(short bits) {
+        return dataType == DataType.BFLOAT16
+                ? BFloat16Bits.toFloat(bits)
+                : Float16Bits.toFloat(bits);
+    }
+
+    private short encodeLow(float value) {
+        return dataType == DataType.BFLOAT16
+                ? BFloat16Bits.fromFloat(value)
+                : Float16Bits.fromFloat(value);
+    }
+
     private static void validateFiniteStorage(
             String path, MemorySegment segment, DataType dataType, int elementCount) {
         for (int index = 0; index < elementCount; index++) {
-            boolean finite = dataType == DataType.FLOAT32
-                    ? Float.isFinite(segment.get(
-                            ValueLayout.JAVA_FLOAT, (long) index * Float.BYTES))
-                    : Double.isFinite(segment.get(
-                            ValueLayout.JAVA_DOUBLE, (long) index * Double.BYTES));
+            boolean finite;
+            if (dataType == DataType.FLOAT64) {
+                finite = Double.isFinite(segment.get(
+                        ValueLayout.JAVA_DOUBLE, (long) index * Double.BYTES));
+            } else if (dataType == DataType.FLOAT32) {
+                finite = Float.isFinite(segment.get(
+                        ValueLayout.JAVA_FLOAT, (long) index * Float.BYTES));
+            } else {
+                short bits = segment.get(
+                        ValueLayout.JAVA_SHORT, (long) index * Short.BYTES);
+                float value = dataType == DataType.BFLOAT16
+                        ? BFloat16Bits.toFloat(bits)
+                        : Float16Bits.toFloat(bits);
+                finite = Float.isFinite(value);
+            }
             if (!finite) {
                 throw new IllegalArgumentException(
                         "training parameter must be finite at path " + path

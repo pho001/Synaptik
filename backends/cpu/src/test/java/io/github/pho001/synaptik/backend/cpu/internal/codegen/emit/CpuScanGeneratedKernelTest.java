@@ -230,6 +230,7 @@ class CpuScanGeneratedKernelTest {
             case INT32 -> new CpuBufferArgument.Ints((int[]) value, 0, ((int[]) value).length * 4L, readOnly);
             case INT64 -> new CpuBufferArgument.Longs((long[]) value, 0, ((long[]) value).length * 8L, readOnly);
             case BOOL -> throw new AssertionError();
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scan unsupported");
         };
     }
 
@@ -243,6 +244,7 @@ class CpuScanGeneratedKernelTest {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
             case BFLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> throw new AssertionError();
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scan unsupported");
         };
         PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(carrier, carrier)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();

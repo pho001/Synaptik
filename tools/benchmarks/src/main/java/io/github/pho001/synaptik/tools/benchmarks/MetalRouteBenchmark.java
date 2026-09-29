@@ -4,6 +4,8 @@ import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
 import io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider;
 import io.github.pho001.synaptik.backend.metal.MetalLocalWorkloadTuning;
+import io.github.pho001.synaptik.backend.metal.MetalInvocationPlan;
+import io.github.pho001.synaptik.backend.metal.MetalPreparationStructure;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.compiler.GraphCompilationPort;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
@@ -224,10 +226,22 @@ public final class MetalRouteBenchmark {
                     }
                 }
                 List<TraceEvent<? extends TracePayload>> snapshot = collector.snapshot();
-                if (snapshot.size() != eventStart + 2
+                if (snapshot.size() != eventStart + 4
                         || !snapshot.subList(0, eventStart).equals(observedEvents)) {
                     throw new IllegalStateException(
-                            "attestation candidate must add exactly its PREPARE and RUN events");
+                            "attestation candidate must add PREPARE structure/outcome "
+                                    + "and RUN plan/outcome events");
+                }
+                if (snapshot.get(eventStart).phase() != TracePhase.PREPARE
+                        || snapshot.get(eventStart).level() != TraceLevel.INFO
+                        || !(snapshot.get(eventStart).payload()
+                                instanceof MetalPreparationStructure)
+                        || snapshot.get(eventStart + 2).phase() != TracePhase.RUN
+                        || snapshot.get(eventStart + 2).level() != TraceLevel.INFO
+                        || !(snapshot.get(eventStart + 2).payload()
+                                instanceof MetalInvocationPlan)) {
+                    throw new IllegalStateException(
+                            "attestation structural PREPARE/RUN events have wrong shape");
                 }
                 TraceRouteKind expectedRoute = index == 0
                         ? TraceRouteKind.CUSTOM_KERNEL
@@ -236,8 +250,8 @@ public final class MetalRouteBenchmark {
                         index,
                         identityHex(suite, index),
                         expectedRoute,
-                        snapshot.get(eventStart),
-                        snapshot.get(eventStart + 1)));
+                        snapshot.get(eventStart + 1),
+                        snapshot.get(eventStart + 3)));
                 observedEvents = snapshot;
             }
         }

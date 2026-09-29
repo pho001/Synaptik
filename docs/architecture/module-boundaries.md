@@ -6,7 +6,7 @@ The boundaries apply to both implemented and planned modules. Model, Backend Con
 Compiler, Runtime, Prepare, Engine, CPU, and the profile-qualified Metal execution domain have
 substantive implementations; Config and Trace are partial.
 The current public execution path supports fixed CPU ownership and explicit CPU/Metal composition,
-including mixed-owner schedules with bounded bidirectional all-six-carrier transfer over exact
+including mixed-owner schedules with bounded bidirectional all-seven-carrier transfer over exact
 rank-0..16 static canonical or positive-stride non-overlapping layouts. Other concrete backends,
 conversion-based transfer, and most extensions remain planned or incomplete. The
 [roadmap](../planning/roadmap.md) records exact delivery status.
@@ -39,27 +39,35 @@ The model does not know backend support, device residency, kernel selection, bac
 
 Model is also the sole owner of the two graph numerical-profile result sets. `STRICT_IEEE` means
 each operation's unchanged current contract rather than universal bitwise strictness.
-`ACCELERATOR` is its total recursive `FLOAT32` superset under the
-[normative exact/discrete, primitive, aggregate, and composite-inheritance floors](contracts/foundational-modules.md#numerical-profiles).
-It preserves exact kind/attributes, mapping, contributors, masks, indices, state, traversal,
-casts, ordering, guards, identities, divisors, and publication; permits DAZ/FTZ, one-round basic
-arithmetic, and an inclusive ordered-binary32 distance-at-most-five ceiling only at irreducible
-elementary-function sites; and lets aggregates use any all-contributors-once binary tree with
-corresponding FMA. Composite and generated-gradient formulas recurse through those sites and gain
-no final-output tolerance. Non-FLOAT32 behavior remains strict. This is neither generic fast math
-nor permission for reduced precision, algebraic
-substitution, cross-node contraction, predicate tolerance, term loss, or hidden state change.
-Existing operation-local final exact-zero publication freedoms remain local to their named final
-results. The semantic contract, Config identity, and cold propagation spine are current.
+`ACCELERATOR` adds its total recursive `FLOAT32` superset and active low-precision extension under
+the [normative exact/discrete, primitive, aggregate, composite-inheritance, and low-precision
+contract](contracts/foundational-modules.md#numerical-profiles). Its FLOAT32 floors preserve exact
+kind/attributes, mapping, contributors, masks, indices, state, traversal, casts, ordering, guards,
+identities, divisors, and publication; permit DAZ/FTZ, one-round basic arithmetic, and an inclusive
+ordered-binary32 distance-at-most-five ceiling only at irreducible elementary-function sites; and
+let aggregates use any all-contributors-once binary tree with corresponding FMA. Composite and
+generated-gradient formulas recurse through those sites and gain no final-output tolerance.
+
+Admitted low arithmetic retains exact discrete/raw/cast/public/saved/final-RNE boundaries, uses a
+complete `FLOAT32`-working custom baseline, and permits only the family-declared DAZ/FTZ,
+arithmetic zero-sign/NaN-class freedoms, operation-local reassociation/FMA, and fusion across
+unobservable single-use intermediates. Model owns the cancellation- and size-aware family
+envelope; opaque transformed routes qualify by deductive proof or versioned certification, not
+names, examples, or generic `allclose`. Determinism metadata is separate from accuracy.
+Provider-derived parity answers remain separate from route, backward, runtime/device, and
+certificate facts.
+
 For any backend and occurrence domain, strict capability and behavior are an accelerator subset.
 CPU supports both profiles identically with exact current behavior. Metal supports the exact
-bounded canonical movement, indexing, replacement, fold, aggregate, ordering/top-K/numeric
-arg-extrema, and no-gradient promoted INT32/INT64 MATMUL domains under both profiles. Ordering
-uses the fixed unsigned-32-bit-bounded custom program and TOP_K publishes one paired values/index
-occurrence. Under `ACCELERATOR`, Metal additionally supports the documented FLOAT32 arithmetic/
-reduction/scan rows, every positive-static FLOAT32 MATMUL vector/matrix/batched/broadcast geometry
-with authenticated local last-two transposes, and no-gradient mixed BFLOAT16/FLOAT32 MATMUL;
-unsupported pairs fail closed. Rank-zero Metal support is local to produced reduction,
+bounded seven-carrier movement, indexing, replacement, fold, aggregate, ordering/top-K/numeric
+arg-extrema, and no-gradient promoted INT32/INT64 MATMUL domains under both profiles. Under
+`ACCELERATOR`, Metal additionally supports every qualified homogeneous
+FLOAT32/BFLOAT16/FLOAT16 arithmetic, reduction, scan, MATMUL, MSE, convolution, pooling, dropout,
+L1, ScatterAdd, and singleton-variance occurrence. Low arithmetic is custom-only. Exact
+no-gradient homogeneous low raw-preserving RESHAPE/PERMUTE/CONTIGUOUS/SLICE/CONCAT/TILE images may
+add MPSGraph only after exact environment/program certification. Direct BFLOAT16/FLOAT16 mixing
+and every unsupported occurrence fail closed.
+Rank-zero Metal support is local to produced reduction,
 arg-extrema, or vector/vector MATMUL targets plus explicit scalar-seed ingress for vector/vector
 gradients; it does not widen mixed-owner CPU/Metal transfer. The local explicitly seeded general
 FLOAT32 MATMUL gradient path and ordinary Compiler-generated backward occurrences remain backend
@@ -206,7 +214,7 @@ Concrete backends never depend on Engine.
 The fixed standard factory and public builder are explicit composition, not generic registration
 or discovery. The builder prepares non-empty single-owner or mixed CPU/Metal plans through one
 shared transaction. Mixed values use one deterministic representation per participating owner and
-exact rank-0..16 static transfer for all six carriers over canonical or positive-stride
+exact rank-0..16 static transfer for all seven carriers over canonical or positive-stride
 non-overlapping layouts with checked physical spans; this does not imply a general conversion or
 fallback system.
 

@@ -820,6 +820,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 convVector ? 63 : attention ? 57 : pool3d ? 56 : pool2d ? 55 : matmul ? 54
                         : selectedPortableIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr
                             ? vectorEligible ? 62 : 58
+                            : kernelIr.familyIdentity().equals("pointwise")
+                                && kernelIr.values().stream().anyMatch(value ->
+                                    value.dataType() == DataType.FLOAT16) ? 68
                             : kernelIr.familyIdentity().equals("pointwise") && crossTypeCast ? 60
                             : vectorEligible && hasDenseFloatingMaskBoundary(kernelIr, vectorType) ? 61
                             : kernelIr.familyIdentity().equals("pointwise")

@@ -34,7 +34,8 @@ public final class CpuSoftmaxReferenceKernel {
         Objects.requireNonNull(kind, "kind"); Objects.requireNonNull(type, "type");
         Objects.requireNonNull(input, "input"); Objects.requireNonNull(extents, "extents");
         Objects.requireNonNull(inputStrides, "inputStrides");
-        if ((type != DataType.FLOAT64 && type != DataType.FLOAT32 && type != DataType.BFLOAT16)
+        if ((type != DataType.FLOAT64 && type != DataType.FLOAT32
+                && type != DataType.BFLOAT16 && type != DataType.FLOAT16)
                 || extents.length == 0 || extents.length != inputStrides.length
                 || axis < 0 || axis >= extents.length || extents[axis] <= 0 || inputOffset < 0
                 || Arrays.stream(extents).anyMatch(v -> v < 0)
@@ -146,6 +147,8 @@ public final class CpuSoftmaxReferenceKernel {
         if (type == DataType.FLOAT64) return value;
         float narrowed = (float) value;
         if (type == DataType.FLOAT32) return narrowed;
+        if (type == DataType.FLOAT16)
+            return Float.float16ToFloat(Float.floatToFloat16(narrowed));
         int bits = Float.floatToRawIntBits(narrowed);
         int upper = (bits + 0x7fff + ((bits >>> 16) & 1)) >>> 16;
         return Float.intBitsToFloat(upper << 16);

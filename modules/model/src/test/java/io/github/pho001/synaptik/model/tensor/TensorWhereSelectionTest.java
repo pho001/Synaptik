@@ -408,6 +408,8 @@ class TensorWhereSelectionTest {
                     dataType, elementCount, MemorySegment.ofArray(new byte[elementCount]));
             case FLOAT32 -> new MemorySegmentStorage(
                     dataType, elementCount, MemorySegment.ofArray(new float[elementCount]));
+            case FLOAT16, BFLOAT16 -> new MemorySegmentStorage(
+                    dataType, elementCount, MemorySegment.ofArray(new short[elementCount]));
             default -> throw new IllegalArgumentException(
                     "unsupported test storage type " + dataType);
         };

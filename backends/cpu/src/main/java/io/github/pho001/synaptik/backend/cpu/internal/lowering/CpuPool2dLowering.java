@@ -332,6 +332,7 @@ public final class CpuPool2dLowering {
             Objects.requireNonNull(input, "input");
             Objects.requireNonNull(output, "output");
             if (dataType != io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16
+                            && dataType != io.github.pho001.synaptik.model.datatype.DataType.FLOAT16
                             && dataType != io.github.pho001.synaptik.model.datatype.DataType.FLOAT32
                             && dataType != io.github.pho001.synaptik.model.datatype.DataType.FLOAT64
                     || kernelHeight <= 0

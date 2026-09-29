@@ -72,8 +72,10 @@ import org.junit.jupiter.api.Test;
 
 /** Contract-derived generated coverage for CPU first-class specialized families. */
 class CpuSpecializedGeneratedMatrixTest {
-    private static final List<DataType> FLOATING = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16);
-    private static final List<DataType> ARG_INPUTS = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.INT64, DataType.INT32);
+    private static final List<DataType> FLOATING = List.of(
+            DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16);
+    private static final List<DataType> ARG_INPUTS = List.of(DataType.FLOAT64, DataType.FLOAT32,
+            DataType.BFLOAT16, DataType.FLOAT16, DataType.INT64, DataType.INT32);
     private static final CpuPartitionAnalysisInputs.MaterializationPolicy MATERIALIZATION =
             new CpuPartitionAnalysisInputs.MaterializationPolicy(true, 0, 1, 20, 1, 3, 1_000_000, 1, 1);
 
@@ -326,7 +328,8 @@ class CpuSpecializedGeneratedMatrixTest {
         return Shape.of(result.stream().mapToLong(Long::longValue).toArray()); }
     private static List<List<DataType>> floatingRoleCombinations() { var result = new ArrayList<List<DataType>>();
         for (var a : FLOATING) for (var b : FLOATING) for (var c : FLOATING) for (var d : FLOATING) for (var e : FLOATING) result.add(List.of(a,b,c,d,e)); return result; }
-    private static List<DataType> numeric() { return List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.INT64, DataType.INT32); }
+    private static List<DataType> numeric() { return List.of(DataType.FLOAT64, DataType.FLOAT32,
+            DataType.BFLOAT16, DataType.FLOAT16, DataType.INT64, DataType.INT32); }
     private static Shape matmulOutput(Shape left, Shape right) { var dims = new ArrayList<Long>(); long[] a = left.toLongArray(), b = right.toLongArray();
         int ar = a.length, br = b.length, batch = Math.max(0, Math.max(ar - 2, br - 2));
         for (int i = 0; i < batch; i++) { long x = i < batch - Math.max(0, ar - 2) ? 1 : a[i - (batch - Math.max(0, ar - 2))]; long y = i < batch - Math.max(0, br - 2) ? 1 : b[i - (batch - Math.max(0, br - 2))]; dims.add(Math.max(x, y)); }
@@ -398,7 +401,7 @@ class CpuSpecializedGeneratedMatrixTest {
     }
     private static ScalarValue scale(DataType type) { return switch (type) {
         case FLOAT64 -> ScalarValue.float64(0.5d);
-        case FLOAT32 -> ScalarValue.float32(0.5f);
+        case FLOAT32, FLOAT16 -> ScalarValue.float32(0.5f);
         case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x3f00);
         default -> throw new AssertionError(type);
     }; }
@@ -426,7 +429,7 @@ class CpuSpecializedGeneratedMatrixTest {
                 java.util.stream.IntStream.range(0, roles.size()).boxed().toList(), descriptors, descriptor(result, input));
     }
     private static ScalarValue epsilon(DataType type) { return type == DataType.FLOAT64 ? ScalarValue.float64(1e-5)
-            : type == DataType.FLOAT32 ? ScalarValue.float32(1e-5f) : ScalarValue.bfloat16Bits((short) 0x3728); }
+            : type == DataType.BFLOAT16 ? ScalarValue.bfloat16Bits((short) 0x3728) : ScalarValue.float32(1e-5f); }
     private static TensorDescriptor descriptor(DataType type, Shape shape) { return new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.contiguous(shape)), false); }
     private static List<LayoutDescriptor> trainingLayouts(Shape shape, int axis) { var result = new ArrayList<LayoutDescriptor>(); Shape vector = Shape.of(shape.toLongArray()[axis]); result.add(LayoutDescriptor.contiguous(shape));
         for (int i = 1; i < 5; i++) result.add(LayoutDescriptor.contiguous(vector)); result.add(LayoutDescriptor.contiguous(shape)); for (int i = 1; i < 5; i++) result.add(LayoutDescriptor.contiguous(vector)); return result; }

@@ -138,7 +138,9 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * class identity projection. Schema 67 inserts the stable backend-local numerical-profile wire
  * identity into specialization compatibility and every generated-class identity. It invalidates
  * pre-67 envelopes, binary names, and class bytes while leaving generated executable method bodies
- * and arithmetic unchanged.
+ * and arithmetic unchanged. Schema 68 activates FLOAT16 across the portable generated families,
+ * adding its direct short-carrier load/store, widening, arithmetic, and narrowing bodies. It
+ * invalidates pre-68 envelopes while retaining existing family-specific class projections.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter. Schema 47 adds first-class stable softmax/log-softmax. Schema 48 adds the four
  * trailing Layer/RMS forms, ordered mixed-type boundaries, exact typed epsilon identity,
@@ -240,10 +242,12 @@ public final class CpuGeneratorSchema {
      * aggregate semantics and every generated class identity projection. Schema 67 adds the stable
      * numerical-profile wire identity to compatibility and generated-class identity, so pre-67
      * envelopes, binary names, and class bytes are incompatible even when the family-specific
-     * class-identity schema number is retained. Generated executable method bodies are unchanged.
+     * class-identity schema number is retained. Schema 68 activates direct FLOAT16 short-carrier
+     * execution throughout the portable generated family set and invalidates every pre-68
+     * compatibility envelope; unchanged family projections retain their assigned schema numbers.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 67;
+    public static final int CURRENT_VERSION = 68;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

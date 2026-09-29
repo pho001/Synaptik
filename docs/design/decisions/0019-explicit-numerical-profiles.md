@@ -150,10 +150,10 @@ local-tuning, complete-plan-tuning, and cache-compatibility identity before a ba
 relaxed capability. CPU now advertises both profiles with identical exact behavior. Metal's common
 domain includes its exact unary/affine/canonicalization/indexing/BOOL/movement/replacement/fold/
 aggregate rows and no-gradient promoted INT32/INT64 MATMUL. Accelerator Metal additionally
-advertises its documented FLOAT32 arithmetic/reduction/scan rows, every positive-static FLOAT32
-MATMUL geometry, and no-gradient BFLOAT16/FLOAT32 mixed MATMUL. Strict rejects floating MATMUL but
-retains the common integral rows. Unsupported pairs still fail closed; no backend may infer
-permission merely from the identity.
+advertises only the FLOAT32 and low-precision rows admitted by the current capability provider and
+the parity boundary in ADR 0023. Direct BFLOAT16/FLOAT16 mixing remains unsupported, and strict
+floating MATMUL remains fail-closed. No backend may infer permission merely from the profile
+identity.
 
 Trace payload changes remain deferred. The current propagation spine adds no trace field because
 the profile is cold prepared identity rather than per-run state; later observability requires a

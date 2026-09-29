@@ -44,10 +44,12 @@ import org.junit.jupiter.api.Test;
 
 /** Matrix evidence for the actual Model-owned NCW-to-NCHW one-dimensional compositions. */
 class CpuOneDimensionalCompositionGeneratedMatrixTest {
-    private static final List<DataType> FLOATING = List.of(DataType.BFLOAT16, DataType.FLOAT32,
-            DataType.FLOAT64);
+    private static final List<DataType> FLOATING = List.of(DataType.BFLOAT16, DataType.FLOAT16,
+            DataType.FLOAT32, DataType.FLOAT64);
     private static final Map<DataType, List<Request>> ADMITTED_POOL_REQUESTS = Map.of(
             DataType.BFLOAT16, List.of(Request.MIXED_GENERAL_PARALLEL_VECTOR,
+                    Request.HEAP_GENERAL_PARALLEL_SCALAR, Request.HEAP_GENERAL_MATERIALIZATION),
+            DataType.FLOAT16, List.of(Request.MIXED_GENERAL_PARALLEL_VECTOR,
                     Request.HEAP_GENERAL_PARALLEL_SCALAR, Request.HEAP_GENERAL_MATERIALIZATION),
             DataType.FLOAT32, List.of(Request.MIXED_GENERAL_PARALLEL_VECTOR,
                     Request.HEAP_GENERAL_PARALLEL_SCALAR, Request.HEAP_GENERAL_MATERIALIZATION),
@@ -85,14 +87,15 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
     /** The finite provider-admitted Pool1d composition requests rejected by preparation. */
     static List<CpuGeneratedCoverageEvidenceRegistry.PreparerRejectedFixture> rejectedPoolFixtures() {
         var fixtures = new ArrayList<CpuGeneratedCoverageEvidenceRegistry.PreparerRejectedFixture>();
-        for (PoolCase geometry : poolCases()) for (Request request : Request.values()) {
-            if (!poolRequestIsAdmitted(DataType.BFLOAT16, request)) {
-                fixtures.add(new CpuGeneratedCoverageEvidenceRegistry.PreparerRejectedFixture(
-                        "pool1d/" + geometry.id + '/' + DataType.BFLOAT16 + '/' + request,
-                        "POOL1D_COMPOSITION", configure(poolContext(DataType.BFLOAT16, geometry), request),
-                        "POOL1D_COMPOSITION_AFFINE_BOUNDARY"));
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
+            for (PoolCase geometry : poolCases()) for (Request request : Request.values()) {
+                if (!poolRequestIsAdmitted(type, request)) {
+                    fixtures.add(new CpuGeneratedCoverageEvidenceRegistry.PreparerRejectedFixture(
+                            "pool1d/" + geometry.id + '/' + type + '/' + request,
+                            "POOL1D_COMPOSITION", configure(poolContext(type, geometry), request),
+                            "POOL1D_COMPOSITION_AFFINE_BOUNDARY"));
+                }
             }
-        }
         return List.copyOf(fixtures);
     }
 
@@ -109,8 +112,8 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
                     rows++;
                 }
             }
-        assertEquals(108, rows, "3 channel forms × 3 geometry mappings × 36 role forms");
-        assertEquals(540, generated, "every Conv1d row owns one generated unit for five requests");
+        assertEquals(240, rows, "3 channel forms × 3 geometry mappings × 80 role forms");
+        assertEquals(1_200, generated, "every Conv1d row owns one generated unit for five requests");
     }
 
     @Test void everyModelValidPool1dCompositionTypeAndGeometryGeneratesAcrossRequests() {
@@ -119,9 +122,10 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
             generated += verifyPool("pool1d/" + geometry.id + '/' + type, poolContext(type, geometry));
             rows++;
         }
-        assertEquals(12, rows, "two geometries for each pooling kind × three types");
-        assertEquals(36, generated, "twelve rows × three exact general-layout requests");
-        assertEquals(8, rejectedPoolFixtures().size(), "four BFLOAT16 geometries × two contiguous requests");
+        assertEquals(16, rows, "two geometries for each pooling kind × four types");
+        assertEquals(48, generated, "sixteen rows × three exact general-layout requests");
+        assertEquals(16, rejectedPoolFixtures().size(),
+                "eight BFLOAT16/FLOAT16 geometries × two contiguous requests");
     }
 
     @Test void malformedPublishedAndNearMatchCompositionsRemainOutsideTheOwnedRoute() {

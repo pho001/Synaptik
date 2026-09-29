@@ -7,21 +7,34 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
+import io.github.pho001.synaptik.compiler.FunctionalGradientRequest;
+import io.github.pho001.synaptik.config.compile.BackendIntent;
+import io.github.pho001.synaptik.config.compile.CompileMode;
+import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
+import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
+import io.github.pho001.synaptik.engine.AdvancedCompiledGraph;
+import io.github.pho001.synaptik.engine.AdvancedEngine;
+import io.github.pho001.synaptik.engine.AdvancedPreparedExecution;
+import io.github.pho001.synaptik.engine.AdvancedRunResult;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.EngineMixedOwnerTestAccess;
 import io.github.pho001.synaptik.engine.RunResult;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
+import io.github.pho001.synaptik.model.operation.loss.LossReduction;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
@@ -29,6 +42,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Executors;
@@ -41,6 +55,7 @@ final class DtypeLayoutGradientMetalIntegrationTest {
     DataType.FLOAT64,
     DataType.FLOAT32,
     DataType.BFLOAT16,
+    DataType.FLOAT16,
     DataType.INT64,
     DataType.INT32,
     DataType.BOOL
@@ -186,7 +201,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
   @Test
   void everyFloatingCastPairPublishesItsReverseCastAdjointOnMetal() {
     Path library = configuredMetalLibrary();
-    DataType[] floating = {DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16};
+    DataType[] floating = {
+      DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16
+    };
     try (Arena arena = Arena.ofShared();
         Engine.Builder builder = Engine.builder()) {
       builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
@@ -207,6 +224,213 @@ final class DtypeLayoutGradientMetalIntegrationTest {
                   List.of(
                       canonical(target, new long[] {-1, 2}), canonical(source, new long[] {1, 3})));
             }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  void homogeneousLowBroadcastGradientsSumToInputShapeOnMetal() {
+    Path library = configuredMetalLibrary();
+    try (Arena arena = Arena.ofShared();
+        Engine.Builder builder = Engine.builder()) {
+      builder.numericalProfile(NumericalProfile.ACCELERATOR);
+      builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
+      try (Engine engine = builder.build()) {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+          Tensor left = tensor(arena, type, true, Shape.of(2, 1), 2, 3);
+          Tensor right = tensor(arena, type, true, Shape.of(1, 3), 4, 5, 6);
+          Tensor seed = tensor(arena, type, false, Shape.scalar(), 1);
+          Tensor objective = left.mul(right).sum();
+          var compiled =
+              engine.compile(List.of(objective), List.of(seed), List.of(left, right));
+          assertEquals(
+              List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled), type.name());
+          try (var session = engine.session(compiled)) {
+            assertResults(
+                session.run(List.of(left, right, seed)),
+                List.of(
+                    canonical(type, new long[] {75}),
+                    canonical(type, new long[] {15, 15}),
+                    canonical(type, new long[] {5, 5, 5})));
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  void homogeneousLowMseMeanBackwardUsesNormalizedGeneratedFormula() {
+    Path library = configuredMetalLibrary();
+    try (Arena arena = Arena.ofShared();
+        Engine.Builder builder = Engine.builder()) {
+      builder.numericalProfile(NumericalProfile.ACCELERATOR);
+      builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
+      try (Engine engine = builder.build()) {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+          Tensor prediction = tensor(arena, type, true, 2, 4);
+          Tensor target = tensor(arena, type, true, 0, 0);
+          Tensor seed = tensor(arena, type, false, Shape.scalar(), 1);
+          Tensor loss = prediction.meanSquaredError(target, LossReduction.MEAN);
+          var compiled =
+              engine.compile(List.of(loss), List.of(seed), List.of(prediction, target));
+          assertEquals(
+              List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled), type.name());
+          try (var session = engine.session(compiled)) {
+            assertResults(
+                session.run(List.of(prediction, target, seed)),
+                List.of(
+                    canonical(type, new long[] {10}),
+                    canonical(type, new long[] {2, 4}),
+                    canonical(type, new long[] {-2, -4})));
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  void homogeneousLowMaximumPoolBackwardClosesForNonOverlappingGeometry() {
+    Path library = configuredMetalLibrary();
+    try (Arena arena = Arena.ofShared();
+        Engine.Builder builder = Engine.builder()) {
+      builder.numericalProfile(NumericalProfile.ACCELERATOR);
+      builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
+      try (Engine engine = builder.build()) {
+        MaxPool2dAttrs attrs = new MaxPool2dAttrs(2, 2, 2, 2, 0, 0, 1, 1, false);
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+          Tensor input = tensor(arena, type, true, Shape.of(1, 1, 2, 2), 1, 2, 3, 4);
+          Tensor seed = tensor(arena, type, false, Shape.of(1, 1, 1, 1), 1);
+          Tensor maximum = input.maxPool2d(attrs);
+          var compiled = engine.compile(List.of(maximum), List.of(seed), List.of(input));
+          assertEquals(
+              List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled), type.name());
+          try (var session = engine.session(compiled)) {
+            assertResults(
+                session.run(List.of(input, seed)),
+                List.of(
+                    canonical(type, new long[] {4}),
+                    canonical(type, new long[] {0, 0, 0, 1})));
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  void mixedLowBackwardUsesExplicitFloat32CastBoundariesOnMetal() {
+    Path library = configuredMetalLibrary();
+    try (Arena arena = Arena.ofShared();
+        Engine.Builder builder = Engine.builder()) {
+      builder.numericalProfile(NumericalProfile.ACCELERATOR);
+      builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
+      try (Engine engine = builder.build()) {
+        Tensor bfloat16 = tensor(arena, DataType.BFLOAT16, true, 2, 3);
+        Tensor float16 = tensor(arena, DataType.FLOAT16, true, 4, 5);
+        Tensor seed = tensor(arena, DataType.FLOAT32, false, Shape.scalar(), 1);
+        Tensor objective = bfloat16.cast(DataType.FLOAT32)
+            .mul(float16.cast(DataType.FLOAT32))
+            .sum();
+        assertEquals(DataType.FLOAT32, objective.descriptor().dataType());
+        var compiled =
+            engine.compile(List.of(objective), List.of(seed), List.of(bfloat16, float16));
+        assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled));
+        try (var session = engine.session(compiled)) {
+          assertResults(
+              session.run(List.of(bfloat16, float16, seed)),
+              List.of(
+                  canonical(DataType.FLOAT32, new long[] {23}),
+                  canonical(DataType.BFLOAT16, new long[] {4, 5}),
+                  canonical(DataType.FLOAT16, new long[] {2, 3})));
+        }
+      }
+    }
+  }
+
+  @Test
+  void float16SecondOrderGradientExecutesAsOneOwnedMetalPartition() {
+    Path library = configuredMetalLibrary();
+    try (Arena arena = Arena.ofShared();
+        Engine.Builder builder = Engine.builder()) {
+      builder.numericalProfile(NumericalProfile.ACCELERATOR);
+      builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
+      try (Engine engine = builder.build()) {
+        Tensor target = tensor(arena, DataType.FLOAT16, true, 2, 3);
+        Tensor secondSeed = tensor(arena, DataType.FLOAT16, false, 5, 7);
+        Tensor objective = target.mul(target).sum();
+        FunctionalGradientRequest.Stage first = new FunctionalGradientRequest.Stage(
+            List.of(new FunctionalGradientRequest.ForwardTensorReference(objective)),
+            List.of(Optional.empty()),
+            List.of(target),
+            true,
+            FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+        FunctionalGradientRequest.Stage second = new FunctionalGradientRequest.Stage(
+            List.of(new FunctionalGradientRequest.FirstStageGradientReference(0)),
+            List.of(Optional.of(secondSeed)),
+            List.of(target),
+            false,
+            FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+        AdvancedEngine advanced = EngineMixedOwnerTestAccess.advancedEngine(engine);
+        AdvancedCompiledGraph compiled = advanced.compile(
+            CompileMode.FORWARD_AND_BACKWARD,
+            List.of(objective),
+            Optional.of(new FunctionalGradientRequest(List.of(first, second))),
+            GraphOptimizationConfig.standard(),
+            BackendIntent.unconstrained(),
+            PartitionScoringConfig.neutral());
+        var artifacts = EngineMixedOwnerTestAccess.compileArtifacts(compiled);
+        assertEquals(
+            List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled));
+        assertTrue(artifacts.derivatives().derivativeOrderByNode().containsValue(2));
+
+        List<BufferRepresentation> inputs = new ArrayList<>();
+        try {
+          for (var binding : artifacts.constants().bindableInputBindings()) {
+            Tensor source;
+            if (binding.tensorId().equals(target.id())) {
+              source = target;
+            } else if (binding.tensorId().equals(secondSeed.id())) {
+              source = secondSeed;
+            } else {
+              throw new AssertionError("unexpected staged-gradient input " + binding.tensorId());
+            }
+            inputs.add(advanced.borrow(source.hostStorage().orElseThrow()));
+          }
+          try (AdvancedPreparedExecution prepared = advanced.prepare(compiled);
+              AdvancedRunResult result = advanced.run(prepared, inputs)) {
+            assertEquals(3, result.resultCount());
+          }
+        } finally {
+          for (BufferRepresentation input : inputs.reversed()) {
+            input.close();
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  void lowCumulativeProductBackwardClosesComparisonsScansAndSavedForwardValues() {
+    Path library = configuredMetalLibrary();
+    try (Arena arena = Arena.ofShared();
+        Engine.Builder builder = Engine.builder()) {
+      builder.numericalProfile(NumericalProfile.ACCELERATOR);
+      builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
+      try (Engine engine = builder.build()) {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+          Tensor input = tensor(arena, type, true, 2, 3, 4);
+          Tensor seed = tensor(arena, type, false, Shape.scalar(), 1);
+          Tensor objective = input.cumProd(0, false, false).sum();
+          var compiled = engine.compile(List.of(objective), List.of(seed), List.of(input));
+          assertEquals(
+              List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled), type.name());
+          try (var session = engine.session(compiled)) {
+            assertResults(
+                session.run(List.of(input, seed)),
+                List.of(
+                    canonical(type, new long[] {32}),
+                    canonical(type, new long[] {16, 10, 6})));
           }
         }
       }
@@ -751,6 +975,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
       case BFLOAT16 ->
           storage.set(
               ValueLayout.JAVA_SHORT, 0L, (short) (Float.floatToRawIntBits((float) value) >>> 16));
+      case FLOAT16 ->
+          storage.set(
+              ValueLayout.JAVA_SHORT, 0L, Float16Bits.fromFloat((float) value));
       case INT64 -> storage.set(ValueLayout.JAVA_LONG, 0L, value);
       case INT32 -> storage.set(ValueLayout.JAVA_INT, 0L, (int) value);
       case BOOL -> storage.set(ValueLayout.JAVA_BYTE, 0L, (byte) (value == 0 ? 0 : 1));
@@ -789,7 +1016,7 @@ final class DtypeLayoutGradientMetalIntegrationTest {
         switch (type) {
           case FLOAT64, INT64 -> Long.BYTES;
           case FLOAT32, INT32 -> Integer.BYTES;
-          case BFLOAT16 -> Short.BYTES;
+          case BFLOAT16, FLOAT16 -> Short.BYTES;
           case BOOL -> Byte.BYTES;
         };
     MemorySegment storage = arena.allocate(width * values.length, width);
@@ -806,6 +1033,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
         case INT64 -> storage.setAtIndex(ValueLayout.JAVA_LONG, index, value);
         case INT32 -> storage.setAtIndex(ValueLayout.JAVA_INT, index, (int) value);
         case BOOL -> storage.setAtIndex(ValueLayout.JAVA_BYTE, index, (byte) (value == 0 ? 0 : 1));
+        case FLOAT16 ->
+            storage.setAtIndex(
+                ValueLayout.JAVA_SHORT, index, Float16Bits.fromFloat((float) value));
       }
     }
     TensorDescriptor descriptor =
@@ -822,7 +1052,7 @@ final class DtypeLayoutGradientMetalIntegrationTest {
         switch (type) {
           case FLOAT64, INT64 -> Long.BYTES;
           case FLOAT32, INT32 -> Integer.BYTES;
-          case BFLOAT16 -> Short.BYTES;
+          case BFLOAT16, FLOAT16 -> Short.BYTES;
           case BOOL -> Byte.BYTES;
         };
     ByteBuffer bytes = ByteBuffer.allocate(width * values.length).order(ByteOrder.BIG_ENDIAN);
@@ -834,6 +1064,7 @@ final class DtypeLayoutGradientMetalIntegrationTest {
         case INT64 -> bytes.putLong(value);
         case INT32 -> bytes.putInt((int) value);
         case BOOL -> bytes.put((byte) (value == 0 ? 0 : 1));
+        case FLOAT16 -> bytes.putShort(Float16Bits.fromFloat((float) value));
       }
     }
     return bytes.array();
@@ -849,7 +1080,10 @@ final class DtypeLayoutGradientMetalIntegrationTest {
                 .bytes();
         byte[] actual = new byte[bytes.remaining()];
         bytes.get(actual);
-        assertArrayEquals(expected.get(index), actual, "publication " + index);
+        assertArrayEquals(
+            expected.get(index),
+            actual,
+            "publication " + index + ", actual bytes=" + Arrays.toString(actual));
       }
     }
   }

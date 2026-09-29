@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -32,10 +33,13 @@ class TensorFactoryFullIdentityTest {
         double doubleValue = Double.longBitsToDouble(0x7ff8_0000_0000_0042L);
         float floatValue = Float.intBitsToFloat(0x8000_0000);
         float bfloatValue = Float.intBitsToFloat(0x3f80_8000);
+        float float16Value = 1.0009766f;
 
         Tensor float64 = TensorFactory.full(shape, doubleValue, Optional.of("  full  "), true);
         Tensor float32 = TensorFactory.full(shape, floatValue, Optional.empty(), true);
         Tensor bfloat16 = TensorFactory.fullBFloat16(shape, bfloatValue, Optional.empty(), true);
+        Tensor float16 = TensorFactory.fullFloat16(
+                shape, float16Value, Optional.empty(), true);
         Tensor int32 = TensorFactory.full(shape, Integer.MIN_VALUE, Optional.empty(), false);
         Tensor int64 = TensorFactory.full(shape, Long.MAX_VALUE, Optional.empty(), false);
         Tensor boolFalse = TensorFactory.full(shape, false, Optional.empty(), false);
@@ -51,6 +55,10 @@ class TensorFactoryFullIdentityTest {
                         filledShort(6, BFloat16Bits.fromFloat(bfloatValue)),
                         heapArray(bfloat16, short[].class)),
                 () -> assertDenseLeaf(bfloat16, shape, DataType.BFLOAT16, true),
+                () -> assertArrayEquals(
+                        filledShort(6, Float16Bits.fromFloat(float16Value)),
+                        heapArray(float16, short[].class)),
+                () -> assertDenseLeaf(float16, shape, DataType.FLOAT16, true),
                 () -> assertArrayEquals(
                         filledInt(6, Integer.MIN_VALUE), heapArray(int32, int[].class)),
                 () -> assertDenseLeaf(int32, shape, DataType.INT32, false),
@@ -316,6 +324,8 @@ class TensorFactoryFullIdentityTest {
                     identityFloat(length, rows, columns), heapArray(tensor, float[].class));
             case BFLOAT16 -> assertArrayEquals(
                     identityShort(length, rows, columns), heapArray(tensor, short[].class));
+            case FLOAT16 -> assertArrayEquals(
+                    identityFloat16(length, rows, columns), heapArray(tensor, short[].class));
             case INT32 -> assertArrayEquals(
                     identityInt(length, rows, columns), heapArray(tensor, int[].class));
             case INT64 -> assertArrayEquals(
@@ -356,6 +366,13 @@ class TensorFactoryFullIdentityTest {
         short[] result = new short[length];
         for (int index = 0; index < Math.min(rows, columns); index++) {
             result[index * columns + index] = BFloat16Bits.fromFloat(1.0f);
+        }
+        return result;
+    }
+    private static short[] identityFloat16(int length, int rows, int columns) {
+        short[] result = new short[length];
+        for (int index = 0; index < Math.min(rows, columns); index++) {
+            result[index * columns + index] = Float16Bits.fromFloat(1.0f);
         }
         return result;
     }

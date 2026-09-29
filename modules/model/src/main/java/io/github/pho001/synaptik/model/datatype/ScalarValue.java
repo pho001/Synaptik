@@ -4,8 +4,8 @@ package io.github.pho001.synaptik.model.datatype;
  * Stores one immutable scalar semantic value as an exact {@link DataType} and primitive bits.
  *
  * <p>The named factories preserve the representation of each current data type. Floating-point
- * signed zeros and raw NaN payloads remain distinct, integral values never pass through a
- * floating representation, raw BFLOAT16 patterns remain unchanged, and booleans use canonical
+ * signed zeros and raw NaN payloads remain distinct, integral values never pass through a floating
+ * representation, raw BFLOAT16 and FLOAT16 patterns remain unchanged, and booleans use canonical
  * zero-or-one bits. This value is an operation parameter, not a scalar Tensor, storage value,
  * conversion request, serialization, or executable constant. Inspection is deliberately
  * type-specific: an inspector for a different data type fails instead of converting the value.</p>
@@ -62,6 +62,26 @@ public final class ScalarValue {
      */
     public static ScalarValue bfloat16Bits(short bits) {
         return new ScalarValue(DataType.BFLOAT16, bits & 0xFFFFL);
+    }
+
+    /**
+     * Converts one binary32 value to binary16 using round-to-nearest, ties-to-even.
+     *
+     * @param value binary32 value to convert
+     * @return non-null converted {@link DataType#FLOAT16} scalar value
+     */
+    public static ScalarValue float16(float value) {
+        return float16Bits(Float16Bits.fromFloat(value));
+    }
+
+    /**
+     * Creates an exact IEEE-754 binary16 value without conversion or NaN canonicalization.
+     *
+     * @param bits raw binary16 bit pattern; every pattern is accepted
+     * @return non-null exact {@link DataType#FLOAT16} scalar value
+     */
+    public static ScalarValue float16Bits(short bits) {
+        return new ScalarValue(DataType.FLOAT16, bits & 0xFFFFL);
     }
 
     /**
@@ -134,6 +154,17 @@ public final class ScalarValue {
      */
     public short bfloat16Bits() {
         requireType(DataType.BFLOAT16);
+        return (short) bits;
+    }
+
+    /**
+     * Returns the exact raw binary16 pattern.
+     *
+     * @return all 16 stored bits in a Java {@code short}
+     * @throws IllegalStateException if this value is not {@link DataType#FLOAT16}
+     */
+    public short float16Bits() {
+        requireType(DataType.FLOAT16);
         return (short) bits;
     }
 
@@ -212,7 +243,7 @@ public final class ScalarValue {
         int width = switch (dataType) {
             case FLOAT64, INT64 -> 16;
             case FLOAT32, INT32 -> 8;
-            case BFLOAT16 -> 4;
+            case FLOAT16, BFLOAT16 -> 4;
             case BOOL -> 2;
         };
         return "ScalarValue[dataType="

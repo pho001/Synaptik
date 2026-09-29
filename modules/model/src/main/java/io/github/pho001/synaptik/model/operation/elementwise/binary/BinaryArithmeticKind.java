@@ -27,8 +27,8 @@ import java.util.List;
  * ordered-binary32 distance ceiling of five. {@code MIN} and {@code MAX} preserve their exact NaN,
  * signed-zero, and original-candidate selection rules, except that DAZ-normalized values may tie.
  * Existing final exact-zero publication freedoms remain local to their named final results. This
- * is a site rule, not a final-output tolerance;
- * every non-FLOAT32 type remains strict. See the
+ * is a site rule, not a final-output tolerance. Every current non-FLOAT32 occurrence remains
+ * strict; the inactive low-precision reservation changes none of them. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  *
@@ -82,8 +82,8 @@ public enum BinaryArithmeticKind implements OperationKind {
     /**
      * Selects the mathematical minimum of the corresponding left and right element values.
      *
-     * <p>For FLOAT64 and FLOAT32 this compares the represented IEEE-754 value; BFLOAT16 compares
-     * the value represented by its exact 16-bit storage after the existing promotion. If either
+     * <p>FLOAT64 and FLOAT32 compare the represented IEEE-754 value; FLOAT16 and BFLOAT16 compare
+     * the values represented by their exact 16-bit storage after the existing promotion. If either
      * candidate is NaN, the result is NaN. Opposite signed zeros produce negative zero,
      * independent of operand order. Infinities and unequal non-NaN values use ordinary numeric
      * order; equal nonzero candidates produce that numeric value. The request promises no NaN
@@ -97,8 +97,8 @@ public enum BinaryArithmeticKind implements OperationKind {
     /**
      * Selects the mathematical maximum of the corresponding left and right element values.
      *
-     * <p>For FLOAT64 and FLOAT32 this compares the represented IEEE-754 value; BFLOAT16 compares
-     * the value represented by its exact 16-bit storage after the existing promotion. If either
+     * <p>FLOAT64 and FLOAT32 compare the represented IEEE-754 value; FLOAT16 and BFLOAT16 compare
+     * the values represented by their exact 16-bit storage after the existing promotion. If either
      * candidate is NaN, the result is NaN. Opposite signed zeros produce positive zero,
      * independent of operand order. Infinities and unequal non-NaN values use ordinary numeric
      * order; equal nonzero candidates produce that numeric value. The request promises no NaN

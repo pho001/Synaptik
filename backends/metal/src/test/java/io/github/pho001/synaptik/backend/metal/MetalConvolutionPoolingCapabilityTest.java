@@ -88,10 +88,25 @@ class MetalConvolutionPoolingCapabilityTest {
         Shape inputShape = Shape.of(1, 2, 3, 4);
         Shape outputShape = Shape.of(1, 2, 3, 3);
         for (NumericalProfile profile : NumericalProfile.values()) {
-            for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
-                assertTrue(supports(profile, max2d,
+            for (DataType type :
+                    List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                assertFalse(supports(profile, max2d,
                         List.of(descriptor(type, inputShape, true)),
-                        descriptor(type, outputShape, true)), profile + " " + type);
+                        descriptor(type, outputShape, true)), "overlap " + profile + " " + type);
+            }
+        }
+        Operation nonOverlappingMax = new Operation(
+                Pool2dKind.MAX_POOL2D,
+                new MaxPool2dAttrs(2, 3, 2, 3, 0, 0, 1, 1, false));
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            for (DataType type :
+                    List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                assertTrue(supports(
+                        profile,
+                        nonOverlappingMax,
+                        List.of(descriptor(type, Shape.of(1, 2, 4, 6), true)),
+                        descriptor(type, Shape.of(1, 2, 2, 2), true)),
+                        "non-overlap " + profile + " " + type);
             }
         }
         assertFalse(supports(NumericalProfile.ACCELERATOR, max2d,
@@ -109,9 +124,11 @@ class MetalConvolutionPoolingCapabilityTest {
         assertFalse(supports(NumericalProfile.STRICT_IEEE, average2d,
                 List.of(descriptor(DataType.FLOAT32, inputShape, false)),
                 descriptor(DataType.FLOAT32, outputShape, false)));
-        assertFalse(supports(NumericalProfile.ACCELERATOR, average2d,
-                List.of(descriptor(DataType.BFLOAT16, inputShape, false)),
-                descriptor(DataType.BFLOAT16, outputShape, false)));
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            assertTrue(supports(NumericalProfile.ACCELERATOR, average2d,
+                    List.of(descriptor(type, inputShape, false)),
+                    descriptor(type, outputShape, false)));
+        }
     }
 
     @Test

@@ -900,7 +900,7 @@ class CpuRepresentationPlannerTest {
             case INT32 -> CpuKernelSpecialization.CarrierAccess.INT_ARRAY;
             case INT64 -> CpuKernelSpecialization.CarrierAccess.LONG_ARRAY;
             case BOOL -> CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY;
-            case BFLOAT16 -> throw new IllegalArgumentException("BFLOAT16 is not admitted");
+            case BFLOAT16, FLOAT16 -> throw new IllegalArgumentException("unsupported floating carrier");
         };
     }
 
@@ -911,7 +911,7 @@ class CpuRepresentationPlannerTest {
             case INT32 -> { int[] a = new int[count]; for (int i=0;i<count;i++)a[i]=i+seed; yield a; }
             case INT64 -> { long[] a = new long[count]; for (int i=0;i<count;i++)a[i]=i+seed; yield a; }
             case BOOL -> { byte[] a = new byte[count]; for (int i=0;i<count;i++)a[i]=(byte)((i+seed)&1); yield a; }
-            case BFLOAT16 -> throw new IllegalArgumentException("BFLOAT16 is not admitted");
+            case BFLOAT16, FLOAT16 -> throw new IllegalArgumentException("unsupported floating source");
         };
     }
 
@@ -969,7 +969,7 @@ class CpuRepresentationPlannerTest {
                 case INT32 -> "oracleIntArray";
                 case INT64 -> "oracleLongArray";
                 case BOOL -> "oracleByteArray";
-                case BFLOAT16 -> throw new IllegalArgumentException("BFLOAT16 is not admitted");
+                case BFLOAT16, FLOAT16 -> throw new IllegalArgumentException("unsupported floating type");
             };
             sourceType = switch (sourceCarrier) {
                 case DOUBLE_ARRAY -> double[].class;
@@ -1099,7 +1099,7 @@ class CpuRepresentationPlannerTest {
                 case BOOL -> { byte a = readByte(first, index), b = readByte(second, index);
                     byte value = (byte) (((a & b) == 0 ? 1 : 0) | readByte(third, index));
                     output.set(ValueLayout.JAVA_BYTE, offset, value); yield value; }
-                case BFLOAT16 -> throw new IllegalArgumentException("BFLOAT16 is not admitted");
+                case BFLOAT16, FLOAT16 -> throw new IllegalArgumentException("unsupported floating type");
             };
         }
         return checksum;
@@ -1142,7 +1142,7 @@ class CpuRepresentationPlannerTest {
                     byte b = readByte(second, secondIndex);
                     byte value = (byte) (((a & b) == 0 ? 1 : 0) | readByte(third, index));
                     output.set(ValueLayout.JAVA_BYTE, offset, value); yield value; }
-                case BFLOAT16 -> throw new IllegalArgumentException("BFLOAT16 is not admitted");
+                case BFLOAT16, FLOAT16 -> throw new IllegalArgumentException("unsupported floating type");
             };
         }
         return checksum;
@@ -1201,7 +1201,7 @@ class CpuRepresentationPlannerTest {
             case INT32 -> MemorySegment.ofArray((int[]) array);
             case INT64 -> MemorySegment.ofArray((long[]) array);
             case BOOL -> MemorySegment.ofArray((byte[]) array);
-            case BFLOAT16 -> throw new IllegalArgumentException("BFLOAT16 is not admitted");
+            case BFLOAT16, FLOAT16 -> throw new IllegalArgumentException("unsupported floating type");
         };
     }
 

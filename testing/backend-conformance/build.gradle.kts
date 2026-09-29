@@ -6,6 +6,7 @@ dependencies {
     testImplementation(project(":modules:model"))
     testImplementation(project(":modules:planning"))
     testImplementation(project(":modules:runtime"))
+    testImplementation(project(":modules:trace"))
     testImplementation(project(":modules:prepare"))
     testImplementation(project(":backends:cpu"))
     testImplementation(project(":backends:metal"))

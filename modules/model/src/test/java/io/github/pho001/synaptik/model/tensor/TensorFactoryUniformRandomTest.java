@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -107,10 +108,16 @@ class TensorFactoryUniformRandomTest {
     void passesExactBoundsAndConvertsScriptedSamplesForAllFloatingCarriersInOrder() {
         double lower = -0x1.0000000000001p20;
         double upper = 0x1.0000000000001p20;
-        double[] samples = {lower, -0.0d, 0x1.0000000000001p-20, Math.nextDown(upper)};
+        double[] samples = {
+            lower,
+            -0.0d,
+            1.0d + Math.scalb(1.0d, -11) + Math.scalb(1.0d, -25),
+            Math.nextDown(upper)
+        };
         BoundedScriptedGenerator float64Source = new BoundedScriptedGenerator(samples);
         BoundedScriptedGenerator float32Source = new BoundedScriptedGenerator(samples);
         BoundedScriptedGenerator bfloat16Source = new BoundedScriptedGenerator(samples);
+        BoundedScriptedGenerator float16Source = new BoundedScriptedGenerator(samples);
         Shape matrix = Shape.of(2, 2);
         Shape vector = Shape.of(4);
 
@@ -138,25 +145,38 @@ class TensorFactoryUniformRandomTest {
                 bfloat16Source,
                 Optional.empty(),
                 true);
+        Tensor float16 = TensorRandoms.randomUniform(
+                vector,
+                DataType.FLOAT16,
+                lower,
+                upper,
+                float16Source,
+                Optional.empty(),
+                true);
 
         float[] expected32 = new float[samples.length];
         short[] expectedBfloat16 = new short[samples.length];
+        short[] expectedFloat16 = new short[samples.length];
         for (int index = 0; index < samples.length; index++) {
             expected32[index] = (float) samples[index];
             expectedBfloat16[index] = BFloat16Bits.fromFloat((float) samples[index]);
+            expectedFloat16[index] = Float16Bits.fromDouble(samples[index]);
         }
 
         assertAll(
                 () -> assertArrayEquals(samples, heapArray(float64, double[].class)),
                 () -> assertArrayEquals(expected32, heapArray(float32, float[].class)),
                 () -> assertArrayEquals(expectedBfloat16, heapArray(bfloat16, short[].class)),
+                () -> assertArrayEquals(expectedFloat16, heapArray(float16, short[].class)),
                 () -> float64Source.assertEveryCallUsed(lower, upper),
                 () -> float32Source.assertEveryCallUsed(lower, upper),
                 () -> bfloat16Source.assertEveryCallUsed(lower, upper),
+                () -> float16Source.assertEveryCallUsed(lower, upper),
                 () -> assertEquals(Optional.of("uniform"), float64.label()),
                 () -> assertDescriptor(float64, matrix, DataType.FLOAT64, true),
                 () -> assertDescriptor(float32, vector, DataType.FLOAT32, true),
                 () -> assertDescriptor(bfloat16, vector, DataType.BFLOAT16, true),
+                () -> assertDescriptor(float16, vector, DataType.FLOAT16, true),
                 () -> assertNotSame(float64.hostStorage().orElseThrow(),
                         float32.hostStorage().orElseThrow()),
                 () -> assertNotEquals(float64.id(), float32.id()));

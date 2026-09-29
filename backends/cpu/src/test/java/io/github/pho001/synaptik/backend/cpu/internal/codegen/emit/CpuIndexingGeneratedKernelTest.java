@@ -95,7 +95,7 @@ class CpuIndexingGeneratedKernelTest {
 
     @Test void gatherCopiesEveryRepresentedTypeWithBothIndexWidthsAndScalarIndices()
             throws Throwable {
-        for (DataType type : DataType.values()) {
+        for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
             for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
                 Object source = values(type, 10, 21, 31);
                 Object indices = indexType == DataType.INT32 ? new int[]{2, 0}
@@ -341,7 +341,8 @@ class CpuIndexingGeneratedKernelTest {
     private static CarrierAccess heap(DataType t) { return switch(t) {
         case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
         case BFLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
-        case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> CarrierAccess.BYTE_ARRAY; }; }
+        case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> CarrierAccess.BYTE_ARRAY;
+        case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU indexing unsupported"); }; }
     private static io.github.pho001.synaptik.model.tensor.TensorDescriptor desc(DataType t, Shape s) {
         return CpuIndexingLoweringTest.descriptor(t,s);
     }
@@ -359,6 +360,7 @@ class CpuIndexingGeneratedKernelTest {
             case BOOL -> { byte[] result = new byte[values.length];
                 for (int i = 0; i < values.length; i++) result[i] = (byte) (values[i] & 1);
                 yield result; }
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU indexing unsupported");
         };
     }
 

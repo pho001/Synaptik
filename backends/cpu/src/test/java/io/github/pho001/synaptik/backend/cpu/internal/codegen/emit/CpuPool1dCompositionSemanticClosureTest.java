@@ -23,8 +23,8 @@ import org.junit.jupiter.api.Test;
 /** Direct generated-entry semantic closure for every current generated Pool1d composition row. */
 class CpuPool1dCompositionSemanticClosureTest {
     private static final String RESOURCE = "/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/generated-coverage-inventory.tsv";
-    private static final String INVENTORY_SHA256 = "6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2";
-    private static final List<DataType> TYPES = List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64);
+    private static final String INVENTORY_SHA256 = "9c06f9898dc287c6d2c3805088460c699052d14dbe707de146845659ce5450eb";
+    private static final List<DataType> TYPES = List.of(DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT32, DataType.FLOAT64);
     private static final List<String> GEOMETRIES = List.of("max-floor", "max-ceil", "average-floor", "average-ceil");
     private static final List<String> REQUESTS = List.of("HEAP_GENERAL_MATERIALIZATION", "HEAP_GENERAL_PARALLEL_SCALAR", "MIXED_GENERAL_PARALLEL_VECTOR");
 
@@ -36,7 +36,7 @@ class CpuPool1dCompositionSemanticClosureTest {
             assertTrue(reconstructed.add(owner), "duplicate reconstructed candidate " + owner);
             execute(new Candidate(owner, geometry, type, request));
         }
-        assertEquals(36, reconstructed.size(), "four Model pool mappings × three types × three admitted requests");
+        assertEquals(48, reconstructed.size(), "four Model pool mappings × four types × three admitted requests");
         assertEquals(reconstructed, expected, "exact current inventory owner projection");
     }
 
@@ -44,7 +44,7 @@ class CpuPool1dCompositionSemanticClosureTest {
         String inventory = resource();
         assertEquals(INVENTORY_SHA256, sha256(inventory), "inventory changed: refresh exact closure deliberately");
         Set<String> owners = inventoryOwners(inventory);
-        assertEquals(36, owners.size());
+        assertEquals(48, owners.size());
         String one = owners.iterator().next();
         assertThrows(AssertionError.class, () -> inventoryOwners(inventory + lineFor(inventory, one) + '\n'), "duplicate owner");
         assertThrows(AssertionError.class, () -> requireSame(owners, Set.of("composition:pool1d/orphan")), "orphan candidate");
@@ -146,7 +146,7 @@ class CpuPool1dCompositionSemanticClosureTest {
     private static String sha256(String value) throws Exception { return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
     private static boolean positive(double value) { return Double.doubleToRawLongBits(value) == 0L; }
     private static boolean negativeZero(double value) { return Double.doubleToRawLongBits(value) == Long.MIN_VALUE; }
-    private static void put(DataType type, Object target, long index, double value) { switch (type) { case BFLOAT16 -> ((short[]) target)[(int) index] = ScalarValue.bfloat16((float) value).bfloat16Bits(); case FLOAT32 -> ((float[]) target)[(int) index] = (float) value; case FLOAT64 -> ((double[]) target)[(int) index] = value; default -> throw new AssertionError(type); } }
+    private static void put(DataType type, Object target, long index, double value) { switch (type) { case BFLOAT16 -> ((short[]) target)[(int) index] = ScalarValue.bfloat16((float) value).bfloat16Bits(); case FLOAT16 -> ((short[]) target)[(int) index] = Float.floatToFloat16((float) value); case FLOAT32 -> ((float[]) target)[(int) index] = (float) value; case FLOAT64 -> ((double[]) target)[(int) index] = value; default -> throw new AssertionError(type); } }
     private static void assertRawEquals(Object expected, Object actual, String message) { if (expected instanceof short[] a) assertArrayEquals(a, (short[]) actual, message); else if (expected instanceof float[] a) assertArrayEquals(bits(a), bits((float[]) actual), message); else assertArrayEquals(bits((double[]) expected), bits((double[]) actual), message); }
     private static int[] bits(float[] values) { int[] result = new int[values.length]; for (int i = 0; i < values.length; i++) result[i] = Float.floatToRawIntBits(values[i]); return result; }
     private static long[] bits(double[] values) { return Arrays.stream(values).mapToLong(Double::doubleToRawLongBits).toArray(); }
@@ -154,11 +154,11 @@ class CpuPool1dCompositionSemanticClosureTest {
     private record Candidate(String owner, String geometry, DataType type, String request) { }
     private static final class Storage {
         final DataType type; final CarrierAccess carrier; final Object heap; final MemorySegment segment;
-        Storage(DataType type, CarrierAccess carrier) { this.type = type; this.carrier = carrier; heap = switch (type) { case BFLOAT16 -> new short[512]; case FLOAT32 -> new float[512]; case FLOAT64 -> new double[512]; default -> throw new AssertionError(type); }; segment = heap instanceof short[] x ? MemorySegment.ofArray(x) : heap instanceof float[] x ? MemorySegment.ofArray(x) : MemorySegment.ofArray((double[]) heap); }
+        Storage(DataType type, CarrierAccess carrier) { this.type = type; this.carrier = carrier; heap = switch (type) { case BFLOAT16, FLOAT16 -> new short[512]; case FLOAT32 -> new float[512]; case FLOAT64 -> new double[512]; default -> throw new AssertionError(type); }; segment = heap instanceof short[] x ? MemorySegment.ofArray(x) : heap instanceof float[] x ? MemorySegment.ofArray(x) : MemorySegment.ofArray((double[]) heap); }
         Object argument() { return carrier == CarrierAccess.MEMORY_SEGMENT ? segment : heap; }
         void fill(double value) { for (int i = 0; i < 512; i++) CpuPool1dCompositionSemanticClosureTest.put(type, heap, i, value); }
         void put(long index, double value) { CpuPool1dCompositionSemanticClosureTest.put(type, heap, index, value); }
-        double get(long index) { return switch (type) { case BFLOAT16 -> Float.intBitsToFloat(((((short[]) heap)[(int) index]) & 0xffff) << 16); case FLOAT32 -> ((float[]) heap)[(int) index]; case FLOAT64 -> ((double[]) heap)[(int) index]; default -> throw new AssertionError(type); }; }
+        double get(long index) { return switch (type) { case BFLOAT16 -> Float.intBitsToFloat(((((short[]) heap)[(int) index]) & 0xffff) << 16); case FLOAT16 -> Float.float16ToFloat(((short[]) heap)[(int) index]); case FLOAT32 -> ((float[]) heap)[(int) index]; case FLOAT64 -> ((double[]) heap)[(int) index]; default -> throw new AssertionError(type); }; }
         Object copy() { return heap instanceof short[] x ? x.clone() : heap instanceof float[] x ? x.clone() : ((double[]) heap).clone(); }
     }
 }

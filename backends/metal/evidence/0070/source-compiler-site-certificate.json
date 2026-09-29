@@ -1,14 +1,15 @@
 {
   "compiledMslAudit": {
     "path": "backends/metal/evidence/0070/compiled-generated-msl-audit.json",
-    "sha256": "a46cf1d4d3b081ea999a252b79313d20a39bf6f11cd8a62dfebdb707cda4970a"
+    "sha256": "94443049e470459a3a748ebfee7c91c8abf304aec0a190b8d45019b7860907e9"
   },
   "fixedCorpus": {
-    "bytes": 84541,
+    "bytes": 84603,
+    "sha256": "eb9a4bc2e9156bd971c59a3f8c1416df61627fe1c8e5655ccff28ecdf28b39f5",
     "components": [
       {
-        "bytes": 16912,
-        "sha256": "f79d5b3fa13d0cd9a704f326196703aa41305bb62f7957d8413e697c9319e58e",
+        "bytes": 16974,
+        "sha256": "650af9b349f1559250471f2c53c8195aebe2d77e642dfb4d11d89683fb14c1c7",
         "symbol": "SynaptikExactKernelSource"
       },
       {
@@ -56,13 +57,12 @@
         "sha256": "e165612540f551ce547c145dde4fa48e46ff06e652b4729272b8bfabc75f0663",
         "symbol": "SynaptikTask0071AnchorEpilogueKernelSource"
       }
-    ],
-    "sha256": "5e7d65bfc46f52532781a3730aeda2202b798022b61fb60ea5beeb95307e77bb"
+    ]
   },
   "generatorSchema": 2,
   "identityCount": 30,
-  "magic": "0x38314d53",
-  "programSchema": 18,
+  "magic": "0x39314d53",
+  "programSchema": 19,
   "proof": {
     "allRawWords": 4294967296,
     "dispatchObserverRequired": true,
@@ -74,27 +74,27 @@
     {
       "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphProgram.java",
       "role": "java-program-image",
-      "sha256": "32f6a468fd216c1e8565ce0e175a2f4b98a0a273fb8b5cc90a7d52511b1113ba"
+      "sha256": "b38d76467e5752bfc601d187b261bed5e6134cd95b04528f0b3a7ebd48167386"
     },
     {
       "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalPointwiseFusionPlan.java",
       "role": "java-fusion-plan",
-      "sha256": "f19ef90dbd64483a44db938f3c1657d588a99f72286a9990c053d4495e09e431"
+      "sha256": "6a1b39c04da666fcd44fb0eb772437e4839584631e8845d75b1d716bfe5cef48"
     },
     {
       "path": "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalPointwiseFusionPlanner.java",
       "role": "java-planner",
-      "sha256": "1c71332d87deada35f0cd5af51258f302577afbd32eb471d9da4d4a4d869d398"
+      "sha256": "57eb6e06963f061e6a98aa10177bb8f95e3d3108549b4ab904de0fc7a65e763d"
     },
     {
       "path": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
       "role": "native-parser-runtime",
-      "sha256": "f14eee9b44674c703cb333ab581a4b768244ff0c26395a6e5758ff5996fa6983"
+      "sha256": "be0a3c1ff6f9e26fc96970562139603e234b8308c97269fe714e57a3246bb103"
     },
     {
       "path": "native/metal-macos-arm64/src/SynaptikPointwiseFusionKernelSource.h",
       "role": "native-generator",
-      "sha256": "7cd2e405e0b5e2c0a5062e24226954434aa6fd17bf5e611e2dff032fd111035a"
+      "sha256": "6158f9bd2af89cf676ff18dabe3d544bd0c8f35d0fc72a114a453bbf01973fd2"
     },
     {
       "path": "native/metal-macos-arm64/build.sh",
@@ -114,22 +114,22 @@
     {
       "path": "testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineExplicitCompositionMetalIntegrationTest.java",
       "role": "public-smoke",
-      "sha256": "df6e96132e3a23a5431779a4ae03adcabd79a569a4da9b752ce27c93bbab1ac1"
+      "sha256": "596d16b1def04d3703b54300401d6754d4463df54bde9922e482be34fa545c43"
     },
     {
       "path": "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalPointwiseFusionPlannerTest.java",
       "role": "planner-test",
-      "sha256": "b9b5c621c75f467fa9260f225d4b1641f91284b6d3f4aed28d11f318b991f816"
+      "sha256": "d1c6235ea29ee1d43293dbc7bbd560e2ca91bc27e747e0f3f4e122bf7d041f28"
     },
     {
       "path": "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphRawAbiNativeTest.java",
       "role": "raw-abi-test",
-      "sha256": "378b79779875c3704f0d0c80f2097401d93d2adb521da95bab5c0837c7b8b7c3"
+      "sha256": "fdd218b389bde0034e9ff9b0fbfd39ad61330e7ed79b2806c6c384d8bf25be89"
     },
     {
       "path": "backends/metal/evidence/0070/extract-generated-fixtures.py",
       "role": "audit-extractor",
-      "sha256": "11f520aae3fab637b2cae7b06190019761feb9d8967fd314342474d3049ab824"
+      "sha256": "78eea6e0bac859394189f12c7c8375ea175c6317536d5e1cacf2090dd99a4aca"
     },
     {
       "path": "backends/metal/evidence/0070/verify-compiled-generated-msl-audit.py",
@@ -184,7 +184,7 @@
     {
       "path": "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalRemainingElementwiseNativeTest.java",
       "role": "runtime-matrix-test",
-      "sha256": "d75156c8af3713f4b18a82ed44b23916464085367139031daae646c4a271cffe"
+      "sha256": "fd865ec487bdf0ade247ca7ace0e1afdae7282bd473798c150141131df00af23"
     },
     {
       "path": "backends/metal/evidence/0069/proof/Task0069Binary32.lean",

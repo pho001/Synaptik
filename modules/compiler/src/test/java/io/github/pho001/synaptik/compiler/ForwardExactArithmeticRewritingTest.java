@@ -348,6 +348,7 @@ final class ForwardExactArithmeticRewritingTest {
     private static List<DataType> numericTypes() {
         return List.of(
                 DataType.BFLOAT16,
+                DataType.FLOAT16,
                 DataType.FLOAT32,
                 DataType.FLOAT64,
                 DataType.INT32,
@@ -358,6 +359,7 @@ final class ForwardExactArithmeticRewritingTest {
         List<ScalarRewriteCase> result = new ArrayList<>();
         for (ScalarValue value : List.of(
                 ScalarValue.bfloat16Bits((short) 0x3F80),
+                ScalarValue.float16Bits((short) 0x3C00),
                 ScalarValue.float32(1.0f),
                 ScalarValue.float64(1.0d),
                 ScalarValue.int32(1),
@@ -368,6 +370,7 @@ final class ForwardExactArithmeticRewritingTest {
                 : List.of(ScalarElementwiseKind.DIV, ScalarElementwiseKind.POW)) {
             for (ScalarValue value : List.of(
                     ScalarValue.bfloat16Bits((short) 0x3F80),
+                    ScalarValue.float16Bits((short) 0x3C00),
                     ScalarValue.float32(1.0f),
                     ScalarValue.float64(1.0d))) {
                 result.add(new ScalarRewriteCase(kind, value));
@@ -389,6 +392,10 @@ final class ForwardExactArithmeticRewritingTest {
             result.add(new ScalarRewriteCase(kind, ScalarValue.float64(-0.0d)));
             result.add(new ScalarRewriteCase(kind, ScalarValue.float32(0.0f)));
             result.add(new ScalarRewriteCase(kind, ScalarValue.float32(-0.0f)));
+            result.add(new ScalarRewriteCase(
+                    kind, ScalarValue.float16Bits((short) 0x0000)));
+            result.add(new ScalarRewriteCase(
+                    kind, ScalarValue.float16Bits((short) 0x8000)));
         }
         for (ScalarValue value : List.of(
                 ScalarValue.bfloat16Bits((short) 0xBF80),
@@ -399,6 +406,14 @@ final class ForwardExactArithmeticRewritingTest {
                 ScalarValue.bfloat16Bits((short) 0x7FC0),
                 ScalarValue.bfloat16Bits((short) 0x7F80),
                 ScalarValue.bfloat16Bits((short) 0xFF80),
+                ScalarValue.float16Bits((short) 0xBC00),
+                ScalarValue.float16Bits((short) 0x0000),
+                ScalarValue.float16Bits((short) 0x3BFF),
+                ScalarValue.float16Bits((short) 0x3C01),
+                ScalarValue.float16Bits((short) 0x4000),
+                ScalarValue.float16Bits((short) 0x7E00),
+                ScalarValue.float16Bits((short) 0x7C00),
+                ScalarValue.float16Bits((short) 0xFC00),
                 ScalarValue.float32(-1.0f),
                 ScalarValue.float32(0.0f),
                 ScalarValue.float32(2.0f),
@@ -424,6 +439,14 @@ final class ForwardExactArithmeticRewritingTest {
                     ScalarValue.bfloat16Bits((short) 0x7FC0),
                     ScalarValue.bfloat16Bits((short) 0x7F80),
                     ScalarValue.bfloat16Bits((short) 0xFF80),
+                    ScalarValue.float16Bits((short) 0xBC00),
+                    ScalarValue.float16Bits((short) 0x0000),
+                    ScalarValue.float16Bits((short) 0x3BFF),
+                    ScalarValue.float16Bits((short) 0x3C01),
+                    ScalarValue.float16Bits((short) 0x4000),
+                    ScalarValue.float16Bits((short) 0x7E00),
+                    ScalarValue.float16Bits((short) 0x7C00),
+                    ScalarValue.float16Bits((short) 0xFC00),
                     ScalarValue.float64(-1.0d),
                     ScalarValue.float64(0.0d),
                     ScalarValue.float64(2.0d),

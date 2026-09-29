@@ -59,7 +59,7 @@ Each non-null `takeOwnership(...)` call transfers the integration at method entr
 reuse it afterward, even when registration reports an error. Registration order is deterministic
 Planning input, not fallback priority. A graph supported entirely by one owner stays on that
 owner. A CPU/Metal graph is prepared only when every directed cross-owner edge is supported;
-current transfer is exact native-host-staged in either direction for all six carriers over fully
+current transfer is exact native-host-staged in either direction for all seven carriers over fully
 static rank-0..16 canonical or positive-stride non-overlapping layouts with checked physical spans.
 It performs no type/layout conversion or fallback.
 
@@ -106,8 +106,8 @@ backend.
 |---|---|---|
 | A caller expects `Engine.standard()` to discover Metal or CUDA | Fixed standard composition was mistaken for explicit registration. | Use `Engine.builder()` for explicit Metal ownership; CUDA has no public lifecycle integration. |
 | Registration order is treated as fallback order | Deterministic Planning input was mistaken for retry priority. | Expect a missing owner or unsupported transfer to fail without owner substitution. |
-| A mixed plan fails before backend analysis | One required directed edge is outside the current all-six-carrier rank-0..16 static canonical or positive-stride non-overlapping CPU/Metal transfer domain. | Use supported descriptors with checked physical spans and native host storage for CPU endpoints, or keep that value on one owner. |
-| A scalar cross-owner transfer fails | Rank-zero itself is supported, but its type, layout, physical byte span, or endpoint representation did not match exactly. | Keep the scalar descriptor canonical with an exact one-element physical span and use one of the six model carriers. |
+| A mixed plan fails before backend analysis | One required directed edge is outside the current all-seven-carrier rank-0..16 static canonical or positive-stride non-overlapping CPU/Metal transfer domain. | Use supported descriptors with checked physical spans and native host storage for CPU endpoints, or keep that value on one owner. |
+| A scalar cross-owner transfer fails | Rank-zero itself is supported, but its type, layout, physical byte span, or endpoint representation did not match exactly. | Keep the scalar descriptor canonical with an exact one-element physical span and use one of the seven model carriers. |
 | CPU scalar and OpenBLAS appear as separate owners | Backend route and backend identity were confused. | Let CPU preparation choose its internal route. |
 | Runtime changes owner after a failure | Ownership was deferred past compilation/preparation. | Runtime must execute the already prepared schedule. |
 | `unconstrained()` is treated as guaranteed fallback | Absence of a hard requirement was mistaken for a valid candidate. | Expect compilation to fail when no supplied backend is eligible. |
@@ -119,23 +119,24 @@ backend.
 `Engine.builder()` defaults to `NumericalProfile.STRICT_IEEE`. Call
 `numericalProfile(NumericalProfile.ACCELERATOR)` before `build()` to request the bounded Model
 profile explicitly. CPU executes either choice through the same exact capability and routes. Metal
-admits the common exact FLOAT32 baseline under both profiles: `NEG`, `ABS`, `RESHAPE`, `EXPAND`,
-`PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`. Accelerator Metal additionally admits
-tensor `ADD`/`SUB`/`MUL`/`DIV`, no-gradient canonical positive-rank FLOAT32 scalar
-`ADD`/`SUB`/`MUL`/`DIV` and `RECIPROCAL`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE` reductions, and
-positive static rank-two `MATMUL`; strict Metal rejects those additions. Full, single-axis,
-ordered multi-axis including empty, keep-dimensions, and binding-resolved sum-to-Shape forms are
-supported; masked and other reduction families are not. Locally produced scalar reductions may
-publish and cross the CPU/Metal boundary using the same exact all-six-carrier rank-0..16 transfer
-contract. There is no fallback to strict or owner substitution after an accelerator request; every
-unsupported occurrence fails closed.
+admits a broad exact common domain under both profiles and a larger `ACCELERATOR` domain. Every
+supported homogeneous accelerator FLOAT32 occurrence has BFLOAT16 and FLOAT16 counterparts with
+FLOAT32 working values and accumulators and one final ties-to-even narrowing. Direct
+BFLOAT16/FLOAT16 mixed-low arithmetic remains unsupported; use explicit FLOAT32 casts. Every low
+arithmetic partition uses `CUSTOM_PROGRAM`. Only exact homogeneous no-gradient raw-preserving
+`RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and `TILE` images may
+also expose MPSGraph after a complete schema-1 environment/program certificate match. Classic MPS
+and MPP remain qualified-negative and own no candidate or fallback. Locally produced scalar
+reductions may publish and cross the CPU/Metal boundary through the same exact all-seven-carrier
+rank-0..16 transfer contract. There is no fallback to strict or owner substitution after an
+accelerator request; every unsupported occurrence fails closed.
 
 ## Limitations
 
 There is no current `CompileConfig` aggregate, reflective or service-based registration/discovery,
 CUDA lifecycle adapter, device-level public selector, general transfer/conversion system, or
 runtime fallback. Mixed-owner execution is specifically bounded to the registered CPU/Metal
-integrations and exact all-six-carrier rank-0..16 static canonical or positive-stride
+integrations and exact all-seven-carrier rank-0..16 static canonical or positive-stride
 non-overlapping transfer domain.
 
 ## Related documentation

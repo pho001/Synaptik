@@ -280,7 +280,7 @@ public final class CpuMaskedReductionLowering {
             Objects.requireNonNull(data, "data"); Objects.requireNonNull(mask, "mask");
             Objects.requireNonNull(output, "output");
             boolean floating = dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
-                    || dataType == DataType.BFLOAT16;
+                    || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16;
             if (!floating || axis < 0 || axis >= data.extents.length
                     || mask.extents.length > data.extents.length
                     || !Arrays.equals(remove(data.extents, axis), output.extents)

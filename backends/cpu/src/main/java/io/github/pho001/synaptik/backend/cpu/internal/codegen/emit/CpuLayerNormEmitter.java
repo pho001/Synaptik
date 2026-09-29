@@ -283,7 +283,7 @@ public final class CpuLayerNormEmitter {
      * Allocates a local matching one represented floating boundary type.
      *
      * @param code non-null method builder to mutate
-     * @param type BFLOAT16, FLOAT32, or FLOAT64 represented type
+     * @param type BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 represented type
      * @return allocated local index
      */
     static int represented(CodeBuilder code, DataType type) {
@@ -334,6 +334,24 @@ public final class CpuLayerNormEmitter {
                 default -> throw new IllegalArgumentException("operation"); }
             code.dstore(target); return;
         }
+        if (type == DataType.FLOAT16) {
+            Opcode floatOperation = switch (operation) {
+                case DADD -> Opcode.FADD; case DSUB -> Opcode.FSUB; case DMUL -> Opcode.FMUL;
+                case DDIV -> Opcode.FDIV; default -> throw new IllegalArgumentException("operation");
+            };
+            code.dload(left).d2f().dload(right).d2f();
+            switch (floatOperation) { case FADD -> code.fadd(); case FSUB -> code.fsub();
+                case FMUL -> code.fmul(); case FDIV -> code.fdiv();
+                default -> throw new IllegalArgumentException("operation"); }
+            code.invokestatic(java.lang.constant.ClassDesc.of(Float.class.getName()),
+                    "floatToFloat16", java.lang.constant.MethodTypeDesc.of(
+                            TypeKind.SHORT.upperBound(), TypeKind.FLOAT.upperBound()))
+                    .invokestatic(java.lang.constant.ClassDesc.of(Float.class.getName()),
+                            "float16ToFloat", java.lang.constant.MethodTypeDesc.of(
+                                    TypeKind.FLOAT.upperBound(), TypeKind.SHORT.upperBound()))
+                    .f2d().dstore(target);
+            return;
+        }
         Opcode floatOperation = switch (operation) {
             case DADD -> Opcode.FADD; case DSUB -> Opcode.FSUB; case DMUL -> Opcode.FMUL;
             case DDIV -> Opcode.FDIV; default -> throw new IllegalArgumentException("operation");
@@ -375,7 +393,7 @@ public final class CpuLayerNormEmitter {
      * Decodes exact typed epsilon bits from structural identity.
      *
      * @param identity non-null canonical trailing-normalization identity
-     * @param type exact BFLOAT16, FLOAT32, or FLOAT64 result type
+     * @param type exact BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 result type
      * @return positive finite epsilon widened exactly to binary64
      * @throws IllegalArgumentException if {@code type} is not a supported floating type
      */
@@ -385,6 +403,7 @@ public final class CpuLayerNormEmitter {
             case FLOAT64 -> Double.longBitsToDouble(bits);
             case FLOAT32 -> Float.intBitsToFloat((int) bits);
             case BFLOAT16 -> Float.intBitsToFloat((int) bits << 16);
+            case FLOAT16 -> Float.float16ToFloat((short) bits);
             default -> throw new IllegalArgumentException("normalization result must be floating");
         };
     }

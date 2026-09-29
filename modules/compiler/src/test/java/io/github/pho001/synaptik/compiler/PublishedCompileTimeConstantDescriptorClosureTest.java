@@ -109,7 +109,8 @@ final class PublishedCompileTimeConstantDescriptorClosureTest {
                 ScalarValue.bfloat16Bits((short) 0x8000),
                 ScalarValue.int32(Integer.MIN_VALUE),
                 ScalarValue.int64(Long.MAX_VALUE),
-                ScalarValue.bool(true));
+                ScalarValue.bool(true),
+                ScalarValue.float16Bits((short) 0x8000));
         Shape shape = Shape.of(2, 3);
 
         ValidatedGraph result = closeInputs(

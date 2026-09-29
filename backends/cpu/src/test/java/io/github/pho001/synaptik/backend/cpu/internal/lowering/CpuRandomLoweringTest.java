@@ -23,6 +23,8 @@ public class CpuRandomLoweringTest {
         var initial = new CpuPartitionLowering().lower(initialContext(0x1234L, -7L));
         var dropout = new CpuPartitionLowering().lower(dropoutContext(DataType.FLOAT32,
                 Shape.of(2, 3), .25d));
+        var bfloat16 = new CpuPartitionLowering().lower(dropoutContext(DataType.BFLOAT16,
+                Shape.of(3), .2d));
         assertAll(
                 () -> assertEquals(CpuRandomIr.Family.INITIAL_STATE,
                         ((CpuRandomIr) initial.portableKernelIr()).family()),
@@ -33,15 +35,16 @@ public class CpuRandomLoweringTest {
                         ((CpuRandomIr) dropout.portableKernelIr()).family()),
                 () -> assertEquals(List.of(DataType.FLOAT32, DataType.INT64, DataType.FLOAT32,
                         DataType.BOOL, DataType.INT64), dropout.boundaryDataTypes()),
+                () -> assertEquals(List.of(DataType.BFLOAT16, DataType.INT64,
+                        DataType.BFLOAT16, DataType.BOOL, DataType.INT64),
+                        bfloat16.boundaryDataTypes()),
                 () -> assertEquals(6, dropout.elementCount()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()));
     }
 
-    @Test void rejectsBfloat16DynamicUnresolvedAndNonInjectiveOutputs() {
-        assertThrows(IllegalArgumentException.class, () -> new CpuPartitionLowering().lower(
-                dropoutContext(DataType.BFLOAT16, Shape.of(3), .2d)));
+    @Test void rejectsUnresolvedBfloat16OutputBeforeResourceDeclaration() {
         assertThrows(IllegalArgumentException.class, () -> {
-            var base = dropoutContext(DataType.FLOAT64, Shape.of(2), .2d);
+            var base = dropoutContext(DataType.BFLOAT16, Shape.of(2), .2d);
             var values = new ArrayList<>(base.values());
             var memory = new ArrayList<>(base.memoryRequirements());
             TensorDescriptor old = values.get(2).descriptor();

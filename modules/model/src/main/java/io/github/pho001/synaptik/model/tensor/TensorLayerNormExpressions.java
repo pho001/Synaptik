@@ -19,10 +19,11 @@ import java.util.Optional;
  *
  * <p>The helper validates caller inputs before allocating result identity, derives an unresolved
  * one-output descriptor, and delegates exactly once to the derived-Tensor factory. It records
- * population-variance semantics only: BFLOAT16 and FLOAT32 results use FLOAT32 accumulation,
- * FLOAT64 results use FLOAT64 accumulation, and affine operands promote in input, scale, bias
- * order. Empty results contain no normalized values. NaN, infinity, signed-zero, overflow,
- * reassociation, and rounding behavior are semantic constraints retained for later conforming
+ * population-variance semantics only: BFLOAT16, FLOAT16, and FLOAT32 results use FLOAT32
+ * accumulation, FLOAT64 results use FLOAT64 accumulation, and affine operands promote in input,
+ * scale, bias order. FLOAT16 result metadata uses an exact FLOAT32 epsilon. Empty results contain
+ * no normalized values. NaN, infinity, signed-zero, overflow, reassociation, and rounding behavior
+ * are semantic constraints retained for later conforming
  * execution; this helper reads no values and selects no algorithm.</p>
  *
  * <p>Every successful request is fresh, unlabeled, storage-free, and layout-unresolved. It retains
@@ -38,14 +39,14 @@ final class TensorLayerNormExpressions {
      *
      * @param input non-null floating input retained as sole producer input
      * @param normalizedShape non-null positive-rank Shape matched to trailing input axes
-     * @param epsilon non-null finite positive floating scalar with the exact input data type
+     * @param epsilon non-null finite positive scalar matching the input type, except FLOAT16 uses FLOAT32
      * @return fresh unlabeled, storage-free, layout-unresolved result retaining the exact input
      *     Shape, type, and gradient eligibility, with sole-input provenance at output index zero;
      *     never {@code null}
      * @throws NullPointerException if an argument is null, checked in declaration order
      * @throws IllegalArgumentException if input is non-floating, normalized Shape is empty or is
-     *     statically incompatible with the trailing input axes, or epsilon is invalid or has a
-     *     different type from input
+     *     statically incompatible with the trailing input axes, or epsilon does not match the
+     *     result arithmetic type
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     static Tensor apply(Tensor input, Shape normalizedShape, ScalarValue epsilon) {
@@ -72,14 +73,14 @@ final class TensorLayerNormExpressions {
      * @param normalizedShape non-null positive-rank Shape matched to trailing input axes
      * @param scale non-null floating scale with Shape exactly equal to normalized Shape
      * @param bias non-null floating bias with Shape exactly equal to normalized Shape
-     * @param epsilon non-null finite positive floating scalar with exact promoted result type
+     * @param epsilon non-null finite positive scalar matching the result type, except FLOAT16 uses FLOAT32
      * @return fresh unlabeled, storage-free, layout-unresolved result retaining the exact input
      *     Shape, promoted type, combined gradient eligibility, and ordered
      *     {@code [input, scale, bias]} provenance at output index zero; never {@code null}
      * @throws NullPointerException if an argument is null, checked in declaration order
      * @throws IllegalArgumentException if an operand is non-floating, normalized Shape is empty or
      *     statically incompatible with trailing input axes, scale or bias Shape is not exactly the
-     *     normalized Shape, or epsilon is invalid or differs from the promoted result type
+     *     normalized Shape, or epsilon does not match the promoted result arithmetic type
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     static Tensor apply(
@@ -161,7 +162,9 @@ final class TensorLayerNormExpressions {
     }
 
     private static void validateEpsilonType(ScalarValue epsilon, DataType resultType) {
-        if (epsilon.dataType() != resultType) {
+        if (epsilon.dataType() != resultType
+                && (resultType != DataType.FLOAT16
+                        || epsilon.dataType() != DataType.FLOAT32)) {
             throw new IllegalArgumentException(
                     "layerNorm epsilon data type must match result data type: epsilon="
                             + epsilon.dataType() + ", result=" + resultType);

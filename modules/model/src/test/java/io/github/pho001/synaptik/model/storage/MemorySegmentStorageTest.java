@@ -28,6 +28,7 @@ class MemorySegmentStorageTest {
                 DataType.FLOAT64, MemorySegment.ofArray(new double[3]),
                 DataType.FLOAT32, MemorySegment.ofArray(new float[3]),
                 DataType.BFLOAT16, MemorySegment.ofArray(new short[3]),
+                DataType.FLOAT16, MemorySegment.ofArray(new short[3]),
                 DataType.INT32, MemorySegment.ofArray(new int[3]),
                 DataType.INT64, MemorySegment.ofArray(new long[3]),
                 DataType.BOOL, MemorySegment.ofArray(new byte[3]));
@@ -153,6 +154,7 @@ class MemorySegmentStorageTest {
             MemorySegment confined = confinedArena.allocate(16, 8);
             MemorySegment shared = sharedArena.allocate(16, 8);
             MemorySegment unaligned = confinedArena.allocate(8, 1).asSlice(1, 4);
+            MemorySegment unalignedFloat16 = confinedArena.allocate(4, 1).asSlice(1, 2);
             MemorySegment exactSlice = shared.asSlice(4, 8);
 
             MemorySegmentStorage confinedStorage =
@@ -161,6 +163,8 @@ class MemorySegmentStorageTest {
                     new MemorySegmentStorage(DataType.FLOAT64, 2, shared);
             MemorySegmentStorage unalignedStorage =
                     new MemorySegmentStorage(DataType.FLOAT32, 1, unaligned);
+            MemorySegmentStorage unalignedFloat16Storage =
+                    new MemorySegmentStorage(DataType.FLOAT16, 1, unalignedFloat16);
             MemorySegmentStorage sliceStorage =
                     new MemorySegmentStorage(DataType.INT32, 2, exactSlice);
 
@@ -168,6 +172,7 @@ class MemorySegmentStorageTest {
                     () -> assertSame(confined, confinedStorage.segment()),
                     () -> assertSame(shared, sharedStorage.segment()),
                     () -> assertSame(unaligned, unalignedStorage.segment()),
+                    () -> assertSame(unalignedFloat16, unalignedFloat16Storage.segment()),
                     () -> assertSame(exactSlice, sliceStorage.segment()),
                     () -> assertSame(confined.scope(), confinedStorage.segment().scope()),
                     () -> assertSame(shared.scope(), sharedStorage.segment().scope()));

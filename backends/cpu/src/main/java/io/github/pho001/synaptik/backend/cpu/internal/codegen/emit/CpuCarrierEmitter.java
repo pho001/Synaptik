@@ -96,6 +96,7 @@ final class CpuCarrierEmitter {
             }
         }
         for (DataType type : DataType.values()) {
+            if (type == DataType.FLOAT16) continue;
             int offset = layoutLocalOffset(type);
             if (required[offset]) emitLayout(code, type, directNativePredefinedLayouts)
                     .astore(base + offset);
@@ -261,7 +262,7 @@ final class CpuCarrierEmitter {
             if (intAddress) code.iload(addressLocal); else code.lload(addressLocal).l2i();
             switch (type) {
                 case FLOAT64 -> code.daload(); case FLOAT32 -> code.faload();
-                case BFLOAT16 -> code.saload(); case INT32 -> code.iaload();
+                case BFLOAT16, FLOAT16 -> code.saload(); case INT32 -> code.iaload();
                 case INT64 -> code.laload(); case BOOL -> code.baload();
                 default -> throw new IllegalArgumentException("unsupported carrier data type");
             }
@@ -319,7 +320,7 @@ final class CpuCarrierEmitter {
             code.l2i();
             switch (type) {
                 case FLOAT64 -> code.daload(); case FLOAT32 -> code.faload();
-                case BFLOAT16 -> code.saload(); case INT32 -> code.iaload();
+                case BFLOAT16, FLOAT16 -> code.saload(); case INT32 -> code.iaload();
                 case INT64 -> code.laload(); case BOOL -> code.baload();
                 default -> throw new IllegalArgumentException("unsupported carrier data type");
             }
@@ -355,7 +356,7 @@ final class CpuCarrierEmitter {
         if (access != CarrierAccess.MEMORY_SEGMENT) {
             switch (type) {
                 case FLOAT64 -> code.daload(); case FLOAT32 -> code.faload();
-                case BFLOAT16 -> code.saload(); case INT32 -> code.iaload();
+                case BFLOAT16, FLOAT16 -> code.saload(); case INT32 -> code.iaload();
                 case INT64 -> code.laload(); case BOOL -> code.baload();
                 default -> throw new IllegalArgumentException("unsupported carrier data type");
             }
@@ -404,7 +405,7 @@ final class CpuCarrierEmitter {
         if (access != CarrierAccess.MEMORY_SEGMENT) {
             switch (type) {
                 case FLOAT64 -> code.dastore(); case FLOAT32 -> code.fastore();
-                case BFLOAT16 -> code.sastore(); case INT32 -> code.iastore();
+                case BFLOAT16, FLOAT16 -> code.sastore(); case INT32 -> code.iastore();
                 case INT64 -> code.lastore(); case BOOL -> code.bastore();
                 default -> throw new IllegalArgumentException("unsupported carrier data type");
             }
@@ -451,7 +452,7 @@ final class CpuCarrierEmitter {
             loadLocal(type, valueLocal);
             switch (type) {
                 case FLOAT64 -> code.dastore(); case FLOAT32 -> code.fastore();
-                case BFLOAT16 -> code.sastore(); case INT32 -> code.iastore();
+                case BFLOAT16, FLOAT16 -> code.sastore(); case INT32 -> code.iastore();
                 case INT64 -> code.lastore(); case BOOL -> code.bastore();
                 default -> throw new IllegalArgumentException("unsupported carrier data type");
             }
@@ -492,7 +493,7 @@ final class CpuCarrierEmitter {
         String field = switch (type) {
             case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED";
             case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
-            case BFLOAT16 -> "JAVA_SHORT_UNALIGNED";
+            case BFLOAT16, FLOAT16 -> "JAVA_SHORT_UNALIGNED";
             case INT32 -> "JAVA_INT_UNALIGNED";
             case INT64 -> "JAVA_LONG_UNALIGNED";
             case BOOL -> "JAVA_BYTE";
@@ -657,7 +658,7 @@ final class CpuCarrierEmitter {
             boolean directNativePredefinedLayouts) {
         String field = switch (type) {
             case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED"; case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
-            case BFLOAT16 -> "JAVA_SHORT_UNALIGNED";
+            case BFLOAT16, FLOAT16 -> "JAVA_SHORT_UNALIGNED";
             case INT32 -> "JAVA_INT_UNALIGNED"; case INT64 -> "JAVA_LONG_UNALIGNED";
             case BOOL -> "JAVA_BYTE"; default -> throw new IllegalArgumentException("unsupported type");
         };
@@ -689,7 +690,7 @@ final class CpuCarrierEmitter {
         return switch (type) {
             case FLOAT64 -> 0;
             case FLOAT32 -> 1;
-            case BFLOAT16 -> 2;
+            case BFLOAT16, FLOAT16 -> 2;
             case INT32 -> 3;
             case INT64 -> 4;
             case BOOL -> 5;
@@ -699,7 +700,7 @@ final class CpuCarrierEmitter {
     private void loadLocal(DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dload(local); case FLOAT32 -> code.fload(local);
-            case BFLOAT16, INT32, BOOL -> code.iload(local); case INT64 -> code.lload(local);
+            case BFLOAT16, FLOAT16, INT32, BOOL -> code.iload(local); case INT64 -> code.lload(local);
             default -> throw new IllegalArgumentException("unsupported type");
         }
     }
@@ -707,7 +708,7 @@ final class CpuCarrierEmitter {
     private static ClassDesc layoutClass(DataType type) {
         return switch (type) {
             case FLOAT64 -> DOUBLE_LAYOUT; case FLOAT32 -> FLOAT_LAYOUT;
-            case BFLOAT16 -> SHORT_LAYOUT; case INT32 -> INT_LAYOUT;
+            case BFLOAT16, FLOAT16 -> SHORT_LAYOUT; case INT32 -> INT_LAYOUT;
             case INT64 -> LONG_LAYOUT; case BOOL -> BYTE_LAYOUT;
             default -> throw new IllegalArgumentException("unsupported type");
         };
@@ -717,7 +718,7 @@ final class CpuCarrierEmitter {
         return switch (type) {
             case FLOAT64 -> java.lang.constant.ConstantDescs.CD_double;
             case FLOAT32 -> java.lang.constant.ConstantDescs.CD_float;
-            case BFLOAT16 -> java.lang.constant.ConstantDescs.CD_short;
+            case BFLOAT16, FLOAT16 -> java.lang.constant.ConstantDescs.CD_short;
             case INT32 -> java.lang.constant.ConstantDescs.CD_int;
             case INT64 -> java.lang.constant.ConstantDescs.CD_long;
             case BOOL -> java.lang.constant.ConstantDescs.CD_byte;

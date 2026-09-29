@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 /** Direct generated-entry, clean-Java semantic closure for the masked and advanced reductions. */
 class CpuMaskedAdvancedReductionSemanticClosureTest {
     private static final Shape INPUT = Shape.of(2, 3);
-    private static final List<DataType> TYPES = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16);
+    private static final List<DataType> TYPES = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16);
     private static final CpuPartitionAnalysisInputs.MaterializationPolicy MATERIALIZATION =
             new CpuPartitionAnalysisInputs.MaterializationPolicy(true, 0, 1, 20, 1, 3, 1_000_000, 1, 1);
     private static final String BASE = "/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/";
@@ -58,9 +58,9 @@ class CpuMaskedAdvancedReductionSemanticClosureTest {
                 }
             }
         }
-        assertEquals(630, owners.size());
+        assertEquals(840, owners.size());
         for (String form : List.of("MASKED_SUM", "MASKED_MEAN", "LOG_SUM_EXP", "L1_NORM", "L2_NORM", "VARIANCE", "STANDARD_DEVIATION"))
-            assertEquals(90, counts.get(form), form);
+            assertEquals(120, counts.get(form), form);
         assertEquals(inventoryOwners(), owners, "missing, duplicate, orphaned, or stale inventory owner");
     }
 
@@ -142,20 +142,20 @@ class CpuMaskedAdvancedReductionSemanticClosureTest {
         var carriers=new ArrayList<CarrierAccess>();for(int i=0;i<values.size();i++)carriers.add(r.segment||r.mixed&&i%2==1?CarrierAccess.MEMORY_SEGMENT:heap(values.get(i).descriptor().dataType()));
         return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), values, memory, base.constants(), new CpuPartitionAnalysisInputs(false,carriers,r.execution,r.materialization?MATERIALIZATION:CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED));
     }
-    private static Set<String> inventoryOwners() throws Exception {String text;try(InputStream in=CpuMaskedAdvancedReductionSemanticClosureTest.class.getResourceAsStream(BASE+"generated-coverage-inventory.tsv")){assertNotNull(in);text=new String(in.readAllBytes(),StandardCharsets.UTF_8);}assertEquals("6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2",java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8))));Set<String>s=new TreeSet<>();for(String line:text.split("\\n")){String[]r=line.split("\\t",-1);if(r.length==27&&r[0].startsWith("specialized:")&&Set.of("MASKED_SUM","MASKED_MEAN","LOG_SUM_EXP","L1_NORM","L2_NORM","VARIANCE","STANDARD_DEVIATION").contains(r[2]))assertTrue(s.add(r[0]),"duplicate "+r[0]);}return s;}
+    private static Set<String> inventoryOwners() throws Exception {String text;try(InputStream in=CpuMaskedAdvancedReductionSemanticClosureTest.class.getResourceAsStream(BASE+"generated-coverage-inventory.tsv")){assertNotNull(in);text=new String(in.readAllBytes(),StandardCharsets.UTF_8);}assertEquals("9c06f9898dc287c6d2c3805088460c699052d14dbe707de146845659ce5450eb",java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8))));Set<String>s=new TreeSet<>();for(String line:text.split("\\n")){String[]r=line.split("\\t",-1);if(r.length==27&&r[0].startsWith("specialized:")&&Set.of("MASKED_SUM","MASKED_MEAN","LOG_SUM_EXP","L1_NORM","L2_NORM","VARIANCE","STANDARD_DEVIATION").contains(r[2]))assertTrue(s.add(r[0]),"duplicate "+r[0]);}return s;}
     private static Shape outputShape(List<Integer> axes,boolean keep){long[]in=INPUT.toLongArray();var d=new ArrayList<Long>();for(int a=0;a<2;a++)if(axes.contains(a)){if(keep)d.add(1L);}else d.add(in[a]);return Shape.of(d.stream().mapToLong(Long::longValue).toArray());}
     private static boolean matches(long[]ic,long[]oc,List<Integer>axes,boolean keep){int p=0;for(int a=0;a<2;a++){if(axes.contains(a)){if(keep)p++;}else if(ic[a]!=oc[p++])return false;}return true;}
     private static long[] maskCoord(long[]ic,long[]ms){long[]r=new long[ms.length];for(int a=0;a<ms.length;a++)r[a]=ms[a]==1?0:ic[ic.length-ms.length+a];return r;}
     private static long address(LayoutDescriptor l,long[]c){long v=l.storageOffset();long[]s=l.strides();for(int a=0;a<c.length;a++)v+=c[a]*s[a];return v;}
     private static long[] coord(long ordinal,long[]shape){long[]r=new long[shape.length];for(int a=shape.length-1;a>=0;a--){r[a]=ordinal%shape[a];ordinal/=shape[a];}return r;}
     private static int capacity(TensorDescriptor d){long max=d.layout().orElseThrow().storageOffset();long[]s=d.layout().orElseThrow().strides(),sh=d.shape().toLongArray();for(int a=0;a<s.length;a++)max+=(sh[a]-1)*s[a];return (int)max+1;}
-    private static CarrierAccess heap(DataType t){return switch(t){case FLOAT64->CarrierAccess.DOUBLE_ARRAY;case FLOAT32->CarrierAccess.FLOAT_ARRAY;case BFLOAT16->CarrierAccess.SHORT_ARRAY;case BOOL->CarrierAccess.BYTE_ARRAY;default->throw new AssertionError(t);};}
+    private static CarrierAccess heap(DataType t){return switch(t){case FLOAT64->CarrierAccess.DOUBLE_ARRAY;case FLOAT32->CarrierAccess.FLOAT_ARRAY;case BFLOAT16,FLOAT16->CarrierAccess.SHORT_ARRAY;case BOOL->CarrierAccess.BYTE_ARRAY;default->throw new AssertionError(t);};}
     private static Object array(DataType t,int n){return t==DataType.FLOAT64?new double[n]:t==DataType.FLOAT32?new float[n]:new short[n];}
     private static MemorySegment segment(Object a){if(a instanceof double[]x)return MemorySegment.ofArray(x);if(a instanceof float[]x)return MemorySegment.ofArray(x);if(a instanceof short[]x)return MemorySegment.ofArray(x);return MemorySegment.ofArray((byte[])a);}
     private static void fillData(Object a,DataType t,TensorDescriptor d){double[]v={1,-2,3,4,-5,6};for(int i=0;i<6;i++)set(a,t,address(d.layout().orElseThrow(),coord(i,INPUT.toLongArray())),v[i]);}
     private static void fillMask(byte[]a,TensorDescriptor d){long n=1;for(long x:d.shape().toLongArray())n*=x;for(long i=0;i<n;i++)a[(int)address(d.layout().orElseThrow(),coord(i,d.shape().toLongArray()))]=(byte)((i&1)==0?1:0);}
-    private static double get(Object a,DataType t,long i){return t==DataType.FLOAT64?((double[])a)[(int)i]:t==DataType.FLOAT32?((float[])a)[(int)i]:Float.intBitsToFloat(Short.toUnsignedInt(((short[])a)[(int)i])<<16);}
-    private static void set(Object a,DataType t,long i,double v){if(t==DataType.FLOAT64)((double[])a)[(int)i]=v;else if(t==DataType.FLOAT32)((float[])a)[(int)i]=(float)v;else ((short[])a)[(int)i]=(short)(Float.floatToRawIntBits((float)v)>>>16);}
+    private static double get(Object a,DataType t,long i){return t==DataType.FLOAT64?((double[])a)[(int)i]:t==DataType.FLOAT32?((float[])a)[(int)i]:t==DataType.FLOAT16?Float.float16ToFloat(((short[])a)[(int)i]):Float.intBitsToFloat(Short.toUnsignedInt(((short[])a)[(int)i])<<16);}
+    private static void set(Object a,DataType t,long i,double v){if(t==DataType.FLOAT64)((double[])a)[(int)i]=v;else if(t==DataType.FLOAT32)((float[])a)[(int)i]=(float)v;else if(t==DataType.FLOAT16)((short[])a)[(int)i]=Float.floatToFloat16((float)v);else ((short[])a)[(int)i]=(short)(Float.floatToRawIntBits((float)v)>>>16);}
     private static void fill(Object a,DataType t,double v){for(int i=0;i<java.lang.reflect.Array.getLength(a);i++)set(a,t,i,v);}
     private static Object copy(Object a){if(a instanceof double[]x)return x.clone();if(a instanceof float[]x)return x.clone();return ((short[])a).clone();}
     private static void assertRaw(Object e,Object a,String m){if(e instanceof double[]x){double[]y=(double[])a;for(int i=0;i<x.length;i++)assertTrue(Double.isNaN(x[i])?Double.isNaN(y[i]):Math.abs(x[i]-y[i])<=Math.ulp(x[i])*2,m+" at "+i);}else if(e instanceof float[]x){float[]y=(float[])a;for(int i=0;i<x.length;i++)assertTrue(Float.isNaN(x[i])?Float.isNaN(y[i]):Math.abs(x[i]-y[i])<=Math.ulp(x[i])*2,m+" at "+i);}else {short[]x=(short[])e,y=(short[])a;assertEquals(x.length,y.length,m);for(int i=0;i<x.length;i++)assertTrue(Math.abs(Short.toUnsignedInt(x[i])-Short.toUnsignedInt(y[i]))<=1,m+" BFLOAT16 represented rounding at "+i);}}

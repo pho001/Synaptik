@@ -43,7 +43,8 @@ public final class CpuPool3dEmitter {
                 || specialization.carrierPattern().size() != 2
                 || specialization.boundaryDataTypes().size() != 2
                 || specialization.boundaryDataTypes().get(1) != type
-                || type != DataType.BFLOAT16 && type != DataType.FLOAT32 && type != DataType.FLOAT64
+                || type != DataType.BFLOAT16 && type != DataType.FLOAT16
+                        && type != DataType.FLOAT32 && type != DataType.FLOAT64
                 || specialization.classIdentitySchema() != 56
                 || !ir.familyIdentity().contains(":type=" + type + ":")
                 || !ir.familyIdentity().endsWith(":realization=DIRECT_SCALAR")
@@ -317,7 +318,7 @@ public final class CpuPool3dEmitter {
         zero(code, type);
         storeValue(code, type, sum);
         code.labelBinding(store);
-        if (type == DataType.BFLOAT16) {
+        if (type == DataType.BFLOAT16 || type == DataType.FLOAT16) {
             int result = code.allocateLocal(TypeKind.DOUBLE);
             code.fload(sum).f2d().dstore(result);
             CpuNormEmitter.emitStore(code, carriers, s, type, 1, output, result, false, true);
@@ -394,6 +395,13 @@ public final class CpuPool3dEmitter {
     private static void decode(CodeBuilder c, DataType t, int represented, int value) {
         if (t == DataType.FLOAT64) c.dload(represented).dstore(value);
         else if (t == DataType.FLOAT32) c.fload(represented).fstore(value);
+        else if (t == DataType.FLOAT16)
+            c.iload(represented).i2s()
+                    .invokestatic(
+                            FLOAT,
+                            "float16ToFloat",
+                            MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short))
+                    .fstore(value);
         else
             c.iload(represented)
                     .loadConstant(16)
@@ -500,6 +508,6 @@ public final class CpuPool3dEmitter {
     private static void negativeInfinity(CodeBuilder c, DataType t, int target) {
         if (t == DataType.FLOAT64) c.loadConstant(Double.NEGATIVE_INFINITY).dstore(target);
         else if (t == DataType.FLOAT32) c.loadConstant(Float.NEGATIVE_INFINITY).fstore(target);
-        else c.loadConstant(0xff80).istore(target);
+        else c.loadConstant(t == DataType.FLOAT16 ? 0xfc00 : 0xff80).istore(target);
     }
 }

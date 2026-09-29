@@ -147,7 +147,7 @@ final class MetalBackendRuntime implements AutoCloseable {
     /**
      * Creates one Metal-owned input representation from caller-owned host storage.
      *
-     * <p>The upload is complete before return. All six model data types transfer their exact raw
+     * <p>The upload is complete before return. All seven model data types transfer their exact raw
      * physical storage bytes. This descriptor-free borrow does not interpret BOOL bytes: later
      * descriptor-aware execution, transfer, and publication paths validate logical BOOL positions
      * while leaving prefix and gap bytes uninterpreted. The representation retains the storage as a
@@ -275,7 +275,7 @@ final class MetalBackendRuntime implements AutoCloseable {
    * bytes.
      *
      * <p>Canonical non-view rank-0..16 publications, including scalars, and every authenticated
-   * rank-0..16 affine or SELECT/SLICE storage-layout publication support all six model data types.
+   * rank-0..16 affine or SELECT/SLICE storage-layout publication support all seven model data types.
    * BOOL logical elements must be zero or one; prefix and gap bytes are not interpreted. The
      * logical descriptor is validated but never rewritten.
      *

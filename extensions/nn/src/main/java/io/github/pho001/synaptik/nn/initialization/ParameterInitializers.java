@@ -16,11 +16,12 @@ import java.util.random.RandomGenerator;
  * Creates eager floating Tensor leaves intended for neural-network parameter bindings.
  *
  * <p>Every method requires a fully static {@link Shape} and one of {@link DataType#FLOAT64},
- * {@link DataType#FLOAT32}, or {@link DataType#BFLOAT16}. Every successful call returns a fresh
- * dense-contiguous, host-backed, provenance-free Tensor that retains the exact supplied Shape and
- * data type, has no label, and has {@code requiresGrad == true}. Callers may bind that Tensor to a
- * module-owned {@link Parameter}; this class does not create, name, own, retain, or update a
- * parameter, and {@code Parameter} owns no initialization policy.</p>
+ * {@link DataType#FLOAT32}, {@link DataType#BFLOAT16}, or {@link DataType#FLOAT16}. Every
+ * successful call returns a fresh dense-contiguous, host-backed, provenance-free Tensor that
+ * retains the exact supplied Shape and data type, has no label, and has
+ * {@code requiresGrad == true}. Callers may bind that Tensor to a module-owned {@link Parameter};
+ * this class does not create, name, own, retain, or update a parameter, and
+ * {@code Parameter} owns no initialization policy.</p>
  *
  * <p>Random values are sampled eagerly through the Model random factories from the exact
  * caller-supplied {@link RandomGenerator}. Each logical row-major element consumes one matching
@@ -122,7 +123,7 @@ public final class ParameterInitializers {
      * Creates a fresh floating parameter Tensor filled with exact typed zero.
      *
      * @param shape non-null fully static result shape; scalar and zero-element shapes are valid
-     * @param dataType non-null floating result type: FLOAT64, FLOAT32, or BFLOAT16
+     * @param dataType non-null floating result type: FLOAT64, FLOAT32, BFLOAT16, or FLOAT16
      * @return a non-null fresh dense provenance-free and unlabeled Tensor retaining the exact
      *     supplied shape and type, with {@code requiresGrad == true}
      * @throws NullPointerException if {@code shape} or {@code dataType} is null, checked in that
@@ -141,7 +142,7 @@ public final class ParameterInitializers {
      * Creates a fresh floating parameter Tensor filled with exact typed one.
      *
      * @param shape non-null fully static result shape; scalar and zero-element shapes are valid
-     * @param dataType non-null floating result type: FLOAT64, FLOAT32, or BFLOAT16
+     * @param dataType non-null floating result type: FLOAT64, FLOAT32, BFLOAT16, or FLOAT16
      * @return a non-null fresh dense provenance-free and unlabeled Tensor retaining the exact
      *     supplied shape and type, with {@code requiresGrad == true}
      * @throws NullPointerException if {@code shape} or {@code dataType} is null, checked in that
@@ -161,13 +162,13 @@ public final class ParameterInitializers {
      *
      * <p>Each row-major element consumes one {@link RandomGenerator#nextGaussian()} call and the
      * Model applies binary64 {@code mean + gaussian * standardDeviation} before its documented
-     * FLOAT64, FLOAT32, or BFLOAT16 conversion. The caller owns and advances the exact supplied
-     * source; this method neither retains nor manages it. An empty Tensor consumes no call. Model
-     * validation, sampling, conversion, allocation, identifier, source-failure, and non-rollback
-     * semantics are preserved.</p>
+     * FLOAT64, FLOAT32, BFLOAT16, or FLOAT16 conversion. The caller owns and advances the exact
+     * supplied source; this method neither retains nor manages it. An empty Tensor consumes no
+     * call. Model validation, sampling, conversion, allocation, identifier, source-failure, and
+     * non-rollback semantics are preserved.</p>
      *
      * @param shape non-null fully static result shape whose count fits a Java array
-     * @param dataType non-null floating result type: FLOAT64, FLOAT32, or BFLOAT16
+     * @param dataType non-null floating result type: FLOAT64, FLOAT32, BFLOAT16, or FLOAT16
      * @param mean finite binary64 distribution mean
      * @param standardDeviation finite non-negative binary64 standard deviation
      * @param randomGenerator non-null transient caller-owned source, never retained
@@ -209,7 +210,7 @@ public final class ParameterInitializers {
      * identifier, source-failure, and non-rollback semantics are preserved.</p>
      *
      * @param shape non-null fully static result shape whose count fits a Java array
-     * @param dataType non-null floating result type: FLOAT64, FLOAT32, or BFLOAT16
+     * @param dataType non-null floating result type: FLOAT64, FLOAT32, BFLOAT16, or FLOAT16
      * @param lowerBoundInclusive finite inclusive binary64 lower bound
      * @param upperBoundExclusive finite exclusive binary64 upper bound, strictly greater than the
      *     lower bound
@@ -250,7 +251,7 @@ public final class ParameterInitializers {
      *
      * @param weightShape non-null fully static rank-two shape in {@code [fanOut, fanIn]}
      *     orientation with both extents positive
-     * @param dataType non-null floating result type: FLOAT64, FLOAT32, or BFLOAT16
+     * @param dataType non-null floating result type: FLOAT64, FLOAT32, BFLOAT16, or FLOAT16
      * @param randomGenerator non-null transient caller-owned source, never retained
      * @return a non-null fresh dense provenance-free and unlabeled Tensor retaining the exact
      *     supplied weight shape and type, with {@code requiresGrad == true}
@@ -284,7 +285,7 @@ public final class ParameterInitializers {
      *
      * @param weightShape non-null fully static rank-two shape in {@code [fanOut, fanIn]}
      *     orientation with both extents positive
-     * @param dataType non-null floating result type: FLOAT64, FLOAT32, or BFLOAT16
+     * @param dataType non-null floating result type: FLOAT64, FLOAT32, BFLOAT16, or FLOAT16
      * @param randomGenerator non-null transient caller-owned source, never retained
      * @return a non-null fresh dense provenance-free and unlabeled Tensor retaining the exact
      *     supplied weight shape and type, with {@code requiresGrad == true}
@@ -317,7 +318,7 @@ public final class ParameterInitializers {
      *
      * @param weightShape non-null fully static rank-two shape in {@code [fanOut, fanIn]}
      *     orientation with both extents positive
-     * @param dataType non-null floating result type: FLOAT64, FLOAT32, or BFLOAT16
+     * @param dataType non-null floating result type: FLOAT64, FLOAT32, BFLOAT16, or FLOAT16
      * @param randomGenerator non-null transient caller-owned source, never retained
      * @return a non-null fresh dense provenance-free and unlabeled Tensor retaining the exact
      *     supplied weight shape and type, with {@code requiresGrad == true}
@@ -349,7 +350,7 @@ public final class ParameterInitializers {
      *
      * @param weightShape non-null fully static rank-two shape in {@code [fanOut, fanIn]}
      *     orientation with both extents positive
-     * @param dataType non-null floating result type: FLOAT64, FLOAT32, or BFLOAT16
+     * @param dataType non-null floating result type: FLOAT64, FLOAT32, BFLOAT16, or FLOAT16
      * @param randomGenerator non-null transient caller-owned source, never retained
      * @return a non-null fresh dense provenance-free and unlabeled Tensor retaining the exact
      *     supplied weight shape and type, with {@code requiresGrad == true}

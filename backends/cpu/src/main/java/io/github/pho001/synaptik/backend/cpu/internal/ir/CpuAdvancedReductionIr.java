@@ -49,7 +49,7 @@ public record CpuAdvancedReductionIr(Kind kind, DataType dataType, int[] ordered
         Objects.requireNonNull(inputAccess, "inputAccess");
         Objects.requireNonNull(outputAccess, "outputAccess");
         boolean floating = dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
-                || dataType == DataType.BFLOAT16;
+                || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16;
         boolean statistical = kind == Kind.VARIANCE || kind == Kind.STANDARD_DEVIATION;
         if (!floating || selectedAxes.length != inputAccess.iterationRank()
                 || outputAccess.accessKind() != CpuAccessPlan.AccessKind.WRITE

@@ -72,9 +72,10 @@ Task [0001](tasks/0001-public-training-session-and-sgd-lifecycle.md) is Complete
 `2e110c7688ead480faa4215ff67f9814fa81f4ad`. Mandatory external Class C review first returned
 `BLOCK` with six P1 and one P2 findings. After remediation and full validation, external re-review
 returned `APPROVE` with findings `0`. The task provides the first public TrainingSession, SGD,
-accumulation, detached in-memory state, strict restore, CPU/Metal coverage, and the intentional
-public-Engine dependency recorded by ADR 0018. Parameter groups, broader optimizers, durable
-persistence, and exact data-progress resume remain Draft; no later Training task is Ready.
+accumulation, detached in-memory state, strict restore, qualified CPU parameter-carrier coverage,
+and the existing Metal objective path recorded by ADR 0018. This does not claim BFLOAT16 or
+FLOAT16 Metal training execution; low-precision parameters keep private FLOAT32 masters, momentum,
+and accumulated gradients, with exact logical and optimizer-width snapshot payloads. Parameter groups, broader optimizers, durable persistence, and exact data-progress resume remain Draft; no later Training task is Ready.
 
 ## Open questions
 

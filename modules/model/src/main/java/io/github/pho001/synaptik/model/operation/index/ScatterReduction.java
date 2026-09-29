@@ -30,8 +30,8 @@ package io.github.pho001.synaptik.model.operation.index;
  * rounded to the unchanged result format with round-to-nearest, ties-to-even. Finite overflow
  * produces signed infinity; subnormal, underflow, and signed-zero results follow that rounding
  * and the exact product sign. FLOAT32 and FLOAT64 use their represented IEEE-754 values, while
- * BFLOAT16 uses the value represented by its exact current 16-bit storage and rounds the final
- * abstract product to BFLOAT16. The contract does not select a NaN payload, sign, signaling
+ * BFLOAT16 and FLOAT16 use the values represented by their exact current 16-bit storage and round
+ * the final abstract product to the unchanged low format. The contract does not select a NaN payload, sign, signaling
  * behavior, or source. Reassociation and equal-or-wider intermediates are permitted only when
  * they conform to this target and any future conformance tolerance; narrower accumulation,
  * saturation, a fixed factor sequence, payload preservation, and bitwise reproducibility are not

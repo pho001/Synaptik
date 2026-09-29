@@ -94,10 +94,10 @@ import java.util.Arrays;
  * <p>The provider has a stable CPU ownership identity and advertises the bounded, fully static
  * pointwise matrix implemented by the portable route: selected same-type arithmetic including
  * extrema and floating Tensor power, exact scalar arithmetic and floating range clamp,
- * canonical-BOOL logic, all nineteen same-typed BFLOAT16/FLOAT32/FLOAT64 unary semantics,
- * floating classification, comparisons, floating {@code WHERE}, and all 36 ordered {@code CAST}
- * pairs among FLOAT64, FLOAT32, BFLOAT16, INT64, INT32, and BOOL. CAST capability validates the
- * source, target attribute, output type, equal static Shape, and resolved non-negative layouts;
+ * canonical-BOOL logic, all nineteen same-typed floating unary semantics, floating classification,
+ * comparisons, floating {@code WHERE}, and all 49 ordered {@code CAST} pairs among FLOAT64,
+ * FLOAT32, BFLOAT16, FLOAT16, INT64, INT32, and BOOL. CAST capability validates the source,
+ * target attribute, output type, equal static Shape, and resolved non-negative layouts;
  * it cannot inspect carrier bytes, so canonical BOOL storage remains an execution precondition. Every
  * descriptor has a resolved layout, and results obey the
  * Model family's shape rule. The provider also admits the exact one-input, one-output, fully
@@ -106,10 +106,10 @@ import java.util.Arrays;
  * {@code SLICE}, including target-relative crop attributes. These affine rows preserve one data
  * type and must carry the exact layout implied by their Model semantics. The provider also
  * admits one fully static, resolved-layout {@code PAD}, {@code TILE}, {@code CONCAT}, or
- * {@code STACK} occurrence for all six represented data types. Movement inputs preserve their
+ * {@code STACK} occurrence for all seven represented data types. Movement inputs preserve their
  * exact semantic occurrence order, the output layout must be injective, and composition is
  * bounded to one through sixteen occurrences. The same movement route admits one
- * {@code UNFOLD_AXIS} occurrence for all six represented types or one floating
+ * {@code UNFOLD_AXIS} occurrence for all seven represented types or one floating
  * {@code UNFOLD2D} occurrence with direct positive-zero or exact typed padding. Both window
  * forms require their exact static result geometry and one distinct injective output. A separate
  * one-node indexing matrix admits {@code GATHER}, {@code GATHER_ELEMENTS}, {@code GATHER_ND}, and
@@ -123,27 +123,27 @@ import java.util.Arrays;
  * canonical represented addition, and no implicit base, workspace, or padding value.</p>
  *
  * <p>The pooling matrix admits direct static NCHW Pool2d and non-gradient NCDHW Pool3d max and
- * fixed-divisor average occurrences for BFLOAT16, FLOAT32, and FLOAT64. Pool3d requires exact
+ * fixed-divisor average occurrences for every floating type. Pool3d requires exact
  * floor/ceil output geometry, non-negative resolved layouts, and an injective output; its input
  * may be non-injective because pooling only reads it. Pool1d remains three independently reported
  * affine/Pool2d components and is not a capability kind of its own.</p>
  *
  * <p>A distinct one-node ordering matrix admits stable {@code SORT}, {@code ARGSORT}, and
- * two-output {@code TOP_K} for all six represented types. It requires exact static Shape and
+ * two-output {@code TOP_K} for all seven represented types. It requires exact static Shape and
  * output-role relationships, resolved non-negative layouts, and injective outputs. This
  * occurrence-local capability records Model order only; CPU lowering and binding remain
  * responsible for exact scratch, carrier compatibility, and physical non-overlap.</p>
  *
  * <p>A distinct one-node cumulative-scan matrix admits {@code CUM_SUM} and {@code CUM_PROD}
- * across FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64. It requires one non-scalar static Shape,
+ * across FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, and INT64. It requires one non-scalar static Shape,
  * the same input/output type and Shape, a valid normalized axis, resolved non-negative layouts,
  * and an injective output. Capability covers inclusive/exclusive and forward/reverse modes;
  * lowering and binding remain responsible for exact sequential per-slice realization, carrier
  * compatibility, and complete physical non-overlap.</p>
  *
  * <p>A distinct one-node ordinary aggregate matrix admits SUM, PROD, MIN, and MAX for FLOAT64,
- * FLOAT32, BFLOAT16, INT32, and INT64; MEAN for the three floating types; and ALL and ANY for
- * canonical BOOL. Exact parameterless full,
+ * FLOAT32, BFLOAT16, FLOAT16, INT32, and INT64; MEAN for the four floating types; and ALL and ANY
+ * for canonical BOOL. Exact parameterless full,
  * single-axis, and multi-axis attributes are supported with fully static Model-derived output
  * Shapes, resolved non-negative layouts, and an injective output. Lowering and binding retain
  * responsibility for canonical selected-axis membership, complete-domain traversal, exact
@@ -151,28 +151,28 @@ import java.util.Arrays;
  * {@code SumToShapeAttrs}: fully bound target coordinates are right-aligned with the source,
  * leading axes and unequal target-one axes reduce, and equal aligned axes are preserved.</p>
  *
- * <p>A separate one-node arg-extrema matrix admits ARG_MIN and ARG_MAX for the five numeric
+ * <p>A separate one-node arg-extrema matrix admits ARG_MIN and ARG_MAX for the six numeric
  * input types with an exact non-gradient INT64 output. It requires one valid normalized axis,
  * positive selected extent, exact keep/remove-Dimension output Shape, resolved non-negative
  * layouts, and an injective output. Tie policy and logical-coordinate semantics remain Model
  * facts; lowering and binding own complete output-cell realization and physical non-overlap.</p>
  *
  * <p>A separate advanced-reduction matrix admits LOG_SUM_EXP, VARIANCE,
- * STANDARD_DEVIATION, L1_NORM, and L2_NORM for FLOAT64, FLOAT32, and BFLOAT16. It requires
- * normalized ordered multi-axis or statistical attributes, identical gradient-eligibility and
+ * STANDARD_DEVIATION, L1_NORM, and L2_NORM for every floating type. It requires normalized
+ * ordered multi-axis or statistical attributes, identical gradient-eligibility and
  * input/output types, exact retained/removed-axis output Shape, resolved non-negative layouts,
  * and an injective output. Statistics additionally require the static selected-domain count to
  * exceed the non-negative correction.</p>
  *
  * <p>A separate one-node stable-normalization matrix admits first-class SOFTMAX and LOG_SOFTMAX
- * for FLOAT64, FLOAT32, and BFLOAT16. It requires one positive selected-axis extent, identical
+ * for every floating type. It requires one positive selected-axis extent, identical
  * Shape/type/gradient eligibility, resolved non-negative layouts, and an injective output. The
  * CPU execution boundary separately rejects non-finite represented inputs and shifts before any
  * output mutation; that admitted subset is not a Model semantic promise.</p>
 
  * <p>A separate one-node loss matrix admits mean-squared error plus dense-target and index-target
- * categorical cross-entropy directly from logits for BFLOAT16, FLOAT32, and FLOAT64 prediction
- * values.  MSE and dense targets are floating and retain the exact logits Shape; index targets
+ * categorical cross-entropy directly from logits for every floating prediction type. MSE and
+ * dense targets are floating and retain the exact logits Shape; index targets
  * are INT32 or INT64 and omit the normalized class axis.  The result has the promoted floating
  * type for MSE/dense loss and the logits type for index loss, has either the corresponding
  * unreduced Shape or a scalar Shape, and has an injective resolved layout.  Lowering owns cold
@@ -181,13 +181,13 @@ import java.util.Arrays;
  * <p>A separate trailing-normalization matrix admits only first-class Layer and RMS occurrences
  * over a positive-rank static normalized Shape. Layer supports input-only and exact
  * {@code [input, scale, bias]} affine forms; RMS supports input-only and exact
- * {@code [input, scale]} forms. BFLOAT16, FLOAT32, and FLOAT64 operands promote in occurrence
- * order, epsilon and output use that exact type, and the output retains input Shape with an
+ * {@code [input, scale]} forms. Floating operands promote in occurrence order, epsilon and output
+ * use that exact type, and the output retains input Shape with an
  * injective resolved layout. Capability does not recognize an equivalent decomposed graph.</p>
  *
  * <p>A separate MATMUL matrix admits every fully static, resolved-layout non-BOOL numeric pair:
- * all ordered BFLOAT16/FLOAT32/FLOAT64 pairs and all ordered INT32/INT64 pairs. It validates
- * rank-one vector promotion, exact K agreement, right-aligned batch broadcasting, promoted result
+ * all ordered floating pairs and all ordered INT32/INT64 pairs. It validates rank-one vector
+ * promotion, exact K agreement, right-aligned batch broadcasting, promoted result
  * type and Shape, non-negative layouts, and an injective output. Lowering remains responsible for
  * exact carrier compatibility, checked normalized geometry, bounded scalar/vector realization,
  * alias rejection, optional recognized epilogues, and independent output work-unit ownership.</p>
@@ -195,7 +195,7 @@ import java.util.Arrays;
  * <p>The movement route also admits exactly one fully static, resolved-layout
  * {@code SLICE_UPDATE} occurrence with ordered {@code [base, update]} inputs. Both normalized
  * signed finite-coordinate {@link SliceAttrs} and target-relative {@link CropToShapeAttrs}
- * placement are supported for all six represented types. The result retains the base Shape and
+ * placement are supported for all seven represented types. The result retains the base Shape and
  * uses a distinct injective layout; its semantic effect is to copy base values and replace only
  * selected positions, without mutating either input.</p>
  *
@@ -233,16 +233,16 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * Reports whether an occurrence belongs to the exact implemented semantic set.
      * Binary and comparison results must equal the current right-aligned broadcast result;
      * unary, classification, scalar-arithmetic, range-clamp, logical-NOT, and cast results
-     * preserve shape; all 36 ordered casts require an exact target/output-type match but need not
+     * preserve shape; all 49 ordered casts require an exact target/output-type match but need not
      * preserve the input type. Binary logical rows use the same right-aligned broadcast rule;
      * {@code WHERE} applies branch-first then condition broadcasting. Admitted affine operations
      * require one input, one output, the same data type, fully static Shapes, resolved layouts,
      * and their exact current attributes and descriptor relationship. Admitted movement
      * operations additionally require exact static PAD/TILE/composition/window/slice-update shape
      * relationships, an injective result layout, and at most sixteen composition occurrences.
-     * General-axis unfold admits every represented type; NCHW two-dimensional unfold admits only
-     * FLOAT64, FLOAT32, and BFLOAT16 with exact matching padding type. Indexing rows additionally
-     * require INT32/INT64 indices and their exact current Shape
+     * General-axis unfold admits every represented type; NCHW two-dimensional unfold admits every
+     * floating type with exact matching padding type. Indexing rows additionally require
+     * INT32/INT64 indices and their exact current Shape
      * formulas; run-bound value checks remain an execution responsibility rather than capability
      * inspection. Functional scatter additionally requires ordered data/indices/updates, exact
      * data/update type equality, current family attributes and shape formulas, and rejects BOOL
@@ -250,14 +250,14 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * INT64 only for general-axis fold. Ordering additionally requires one input, exact one- or
      * two-output roles, and an injective resolved output layout; execution supplies stable
      * NaN-last/signed-zero order, logical INT64 indices, and represented-bit value copies.
-     * Cumulative scans additionally require a non-scalar input, the same five-type numeric input
+     * Cumulative scans additionally require a non-scalar input, the same six-type numeric input
      * and output descriptor, a valid normalized axis, and an injective output layout.
      * Ordinary aggregates additionally require the exact numerical, extrema, or BOOL fold matrix,
      * one exact ordinary attribute form or SUM-to-Shape form, the Model-derived output Shape,
      * and an injective output. SUM-to-Shape requires fully bound right-aligned pairs that are
      * equal or have target extent one.
-     * Arg extrema additionally requires a five-type numeric input, exact non-gradient INT64
-     * output, valid normalized axis with positive selected extent, exact keep/remove-Dimension
+     * Arg extrema additionally requires a six-type numeric input, exact non-gradient INT64 output,
+     * valid normalized axis with positive selected extent, exact keep/remove-Dimension
      * Shape, and injective output layout.
      * Advanced reductions additionally require the exact floating type/attribute pairing,
      * ordered normalized axes, matching gradient eligibility, Model-derived output Shape, and a
@@ -266,8 +266,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * floating descriptor pair, and a positive selected extent.
      * Losses additionally require one exact current loss attribute form, two ordered inputs,
      * one injective resolved output, static normalized class geometry where applicable, the
-     * Model result type/Shape/gradient relationship, BFLOAT16/FLOAT32/FLOAT64 floating operands,
-     * and INT32/INT64 index targets only for index categorical loss. Carrier bases, alias checks,
+     * Model result type/Shape/gradient relationship, floating operands, and INT32/INT64 index
+     * targets only for index categorical loss. Carrier bases, alias checks,
      * actual ignore values, and direct traversal remain later CPU responsibilities.
      * Dynamic or unresolved geometry, negative-step extraction slices, non-injective
      * movement outputs, and all rows outside the implemented matrix return {@code false} without
@@ -289,7 +289,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                 : requestedKind == BatchNormKind.BATCH_NORM_TRAINING ? 5 : 1;
         boolean attentionOutputs = requestedKind == ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION
                 && (query.outputs().size() == 1 || query.outputs().size() == 2);
-        if ((!attentionOutputs && query.outputs().size() != expectedOutputs) || !query.inputs().stream().allMatch(CpuCapabilityProvider::staticResolved)
+        if ((!attentionOutputs && query.outputs().size() != expectedOutputs)
+                || !query.inputs().stream().allMatch(CpuCapabilityProvider::staticResolved)
                 || !query.outputs().stream().allMatch(CpuCapabilityProvider::staticResolved)) {
             return false;
         }
@@ -535,7 +536,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         DataType type = input.dataType();
         int rank = input.shape().rank();
         if ((type != DataType.FLOAT64 && type != DataType.FLOAT32
-                && type != DataType.BFLOAT16) || output.dataType() != type
+                && type != DataType.BFLOAT16 && type != DataType.FLOAT16)
+                || output.dataType() != type
                 || output.requiresGrad() != input.requiresGrad() || rank <= 0
                 || attrs.axis() < 0 || attrs.axis() >= rank
                 || input.shape().toLongArray()[attrs.axis()] <= 0
@@ -582,7 +584,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         for (int axis = 0; axis < normalizedShape.length; axis++)
             if (inputShape[leading + axis] != normalizedShape[axis]) return false;
         LayoutDescriptor out = output.layout().orElseThrow();
-        return output.dataType() == result && epsilon.dataType() == result
+        return output.dataType() == result && scalarMatchesResult(epsilon, result)
                 && output.requiresGrad() == gradient && out.storageOffset() >= 0
                 && java.util.Arrays.stream(out.strides()).allMatch(value -> value >= 0)
                 && injective(inputShape, out.strides());
@@ -609,7 +611,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             gradient |= operand.requiresGrad();
         }
         LayoutDescriptor out = output.layout().orElseThrow();
-        return output.dataType() == result && attrs.epsilon().dataType() == result
+        return output.dataType() == result && scalarMatchesResult(attrs.epsilon(), result)
                 && output.requiresGrad() == gradient && out.storageOffset() >= 0
                 && java.util.Arrays.stream(out.strides()).allMatch(value -> value >= 0)
                 && injective(input.shape().toLongArray(), out.strides());
@@ -636,7 +638,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             result = io.github.pho001.synaptik.model.datatype.DataTypePromotion.promoteFloating(
                     result, operand.dataType());
         }
-        if (attrs.momentum().dataType() != result || attrs.epsilon().dataType() != result)
+        if (!scalarMatchesResult(attrs.momentum(), result)
+                || !scalarMatchesResult(attrs.epsilon(), result))
             return false;
         boolean inputGrad = input.requiresGrad();
         boolean[] gradients = {inputGrad || query.inputs().get(1).requiresGrad()
@@ -680,12 +683,13 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         boolean bool = kind == AggregateReductionKind.ALL || kind == AggregateReductionKind.ANY;
         boolean mean = kind == AggregateReductionKind.MEAN;
         boolean numeric = input.dataType() == DataType.FLOAT64 || input.dataType() == DataType.FLOAT32
-                || input.dataType() == DataType.BFLOAT16 || input.dataType() == DataType.INT32
-                || input.dataType() == DataType.INT64;
+                || input.dataType() == DataType.BFLOAT16 || input.dataType() == DataType.FLOAT16
+                || input.dataType() == DataType.INT32 || input.dataType() == DataType.INT64;
         if (bool != (input.dataType() == DataType.BOOL) || !bool && !numeric
                 || mean && input.dataType() != DataType.FLOAT64
                     && input.dataType() != DataType.FLOAT32
                     && input.dataType() != DataType.BFLOAT16
+                    && input.dataType() != DataType.FLOAT16
                 || output.dataType() != input.dataType()) return false;
         Object attrs = query.operation().attrs(); int rank = input.shape().rank();
         if (attrs instanceof SumToShapeAttrs sumTo) {
@@ -730,7 +734,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         TensorDescriptor input = query.inputs().getFirst();
         DataType type = input.dataType();
         if ((type != DataType.FLOAT64 && type != DataType.FLOAT32
-                && type != DataType.BFLOAT16) || output.dataType() != type
+                && type != DataType.BFLOAT16 && type != DataType.FLOAT16)
+                || output.dataType() != type
                 || output.requiresGrad() != input.requiresGrad()) return false;
         int rank = input.shape().rank();
         java.util.List<Integer> axes; boolean keep; long correction = 0;
@@ -767,7 +772,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         TensorDescriptor data = query.inputs().get(0), mask = query.inputs().get(1);
         DataType type = data.dataType();
         if ((type != DataType.FLOAT64 && type != DataType.FLOAT32
-                && type != DataType.BFLOAT16) || output.dataType() != type
+                && type != DataType.BFLOAT16 && type != DataType.FLOAT16)
+                || output.dataType() != type
                 || mask.dataType() != DataType.BOOL || mask.requiresGrad()
                 || output.requiresGrad() != data.requiresGrad()
                 || attrs.axis() < 0 || attrs.axis() >= data.shape().rank()
@@ -790,8 +796,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         TensorDescriptor input = query.inputs().getFirst();
         DataType type = input.dataType();
         if ((type != DataType.FLOAT64 && type != DataType.FLOAT32
-                && type != DataType.BFLOAT16 && type != DataType.INT32
-                && type != DataType.INT64)
+                && type != DataType.BFLOAT16 && type != DataType.FLOAT16
+                && type != DataType.INT32 && type != DataType.INT64)
                 || output.dataType() != DataType.INT64 || output.requiresGrad()) return false;
         int rank = input.shape().rank();
         int axis = attrs.axis();
@@ -832,7 +838,9 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         TensorDescriptor value = query.inputs().get(0), state = query.inputs().get(1);
         TensorDescriptor output = query.outputs().get(0), mask = query.outputs().get(1);
         TensorDescriptor next = query.outputs().get(2);
-        if ((value.dataType() != DataType.FLOAT64 && value.dataType() != DataType.FLOAT32)
+        if ((value.dataType() != DataType.FLOAT64 && value.dataType() != DataType.FLOAT32
+                && value.dataType() != DataType.BFLOAT16
+                && value.dataType() != DataType.FLOAT16)
                 || output.dataType() != value.dataType() || !output.shape().equals(value.shape())
                 || mask.dataType() != DataType.BOOL || !mask.shape().equals(value.shape())
                 || !stateDescriptor(state) || !stateDescriptor(next)) return false;
@@ -925,7 +933,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                 ||ks[ks.length-2]!=vs[vs.length-2])return false;
         DataType result=DataTypePromotion.promoteFloating(
                 DataTypePromotion.promoteFloating(q.dataType(),k.dataType()),v.dataType());
-        if(attrs.scale().isPresent()&&attrs.scale().orElseThrow().dataType()!=result)return false;
+        if(attrs.scale().isPresent()
+                && !scalarMatchesResult(attrs.scale().orElseThrow(), result))return false;
         int qb=qs.length-2,kb=ks.length-2,vb=vs.length-2,batch=Math.max(qb,Math.max(kb,vb));
         long[] prefix=new long[batch];
         for(int axis=0;axis<batch;axis++){
@@ -1396,7 +1405,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     }
 
     private static boolean windowFloating(DataType type) {
-        return type == DataType.FLOAT64 || type == DataType.FLOAT32 || type == DataType.BFLOAT16;
+        return type == DataType.FLOAT64 || type == DataType.FLOAT32
+                || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
     }
 
     private static boolean injective(long[] extents, long[] strides) {
@@ -1575,14 +1585,21 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * Reports the represented floating matrix admitted by direct CPU loss lowering.
      *
      * @param type non-null candidate tensor element type
-     * @return {@code true} for BFLOAT16, FLOAT32, or FLOAT64; otherwise {@code false}
+     * @return {@code true} for BFLOAT16, FLOAT16, FLOAT32, or FLOAT64; otherwise {@code false}
      */
     private static boolean lossFloating(DataType type) {
-        return type == DataType.FLOAT64 || type == DataType.FLOAT32 || type == DataType.BFLOAT16;
+        return type == DataType.FLOAT64 || type == DataType.FLOAT32
+                || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+    }
+
+    private static boolean scalarMatchesResult(
+            io.github.pho001.synaptik.model.datatype.ScalarValue scalar, DataType result) {
+        return scalar.dataType() == result
+                || result == DataType.FLOAT16 && scalar.dataType() == DataType.FLOAT32;
     }
 
     private static boolean normalizationFloating(DataType type) {
-        return floating(type) || type == DataType.BFLOAT16;
+        return floating(type) || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
     }
 
     private static boolean supportedNumeric(DataType type) {
@@ -1590,7 +1607,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     }
 
     private static boolean pointwiseFloating(DataType type) {
-        return floating(type) || type == DataType.BFLOAT16;
+        return floating(type) || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
     }
 
     private static boolean supportedPointwiseNumeric(DataType type) {
@@ -1610,7 +1627,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
 
     private static boolean supportedCast(DataType type) {
         return type == DataType.FLOAT64 || type == DataType.FLOAT32 || type == DataType.BFLOAT16
-                || type == DataType.INT64 || type == DataType.INT32 || type == DataType.BOOL;
+                || type == DataType.FLOAT16 || type == DataType.INT64
+                || type == DataType.INT32 || type == DataType.BOOL;
     }
 
     private static boolean sameNumeric(java.util.List<TensorDescriptor> inputs,

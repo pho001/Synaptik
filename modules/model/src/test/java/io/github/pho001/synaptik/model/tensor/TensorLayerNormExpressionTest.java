@@ -62,7 +62,8 @@ class TensorLayerNormExpressionTest {
     void retainsNoAffineMetadataAndExactOneOutputProvenanceForEveryFloatingType() {
         Shape inputShape = Shape.of(2, 3, 4);
         Shape normalizedShape = Shape.of(3, 4);
-        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+        for (DataType type : List.of(
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
             Tensor input = tensor(type, inputShape, true);
             ScalarValue epsilon = epsilon(type);
             Tensor result = input.layerNorm(normalizedShape, epsilon);
@@ -220,6 +221,7 @@ class TensorLayerNormExpressionTest {
     private static ScalarValue epsilon(DataType dataType) {
         return switch (dataType) {
             case BFLOAT16 -> ScalarValue.bfloat16(1.0e-2f);
+            case FLOAT16 -> ScalarValue.float32(1.0e-5f);
             case FLOAT32 -> ScalarValue.float32(1.0e-5f);
             case FLOAT64 -> ScalarValue.float64(1.0e-5);
             case INT32 -> ScalarValue.int32(1);

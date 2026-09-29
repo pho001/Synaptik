@@ -20,7 +20,7 @@ import java.util.Optional;
  * Generates complete, stable, budget-bounded Metal supported-operation route candidates.
  *
  * <p>The workload fingerprint uses only versioned semantics and structural positions, including the
- * cold numerical profile, schema-eighteen program image and execution plan, exact logical
+ * cold numerical profile, schema-nineteen program image and execution plan, exact logical
  * descriptors, ordered edges, explicit value states, compact materialized set, target sets,
  * dense represented-order geometry, ABI identity, typed splats,
  * and the scalar-composition source wire, exact raw constant, rank-one {@code [1]} shape, operand
@@ -30,15 +30,15 @@ import java.util.Optional;
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 27;
-    private static final int EXACT_DEFAULT_POLICY = 27;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 28;
+    private static final int EXACT_DEFAULT_POLICY = 28;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.
      *
      * @param context non-null current validated Prepare projection
      * @param plan non-null plan containing the validated structural lowering facts; its retained
-     *     route does not restrict otherwise valid candidates, and it must belong to     {@code context}
+     *     route does not restrict otherwise valid candidates, and it must belong to {@code context}
      * @param budget positive maximum number of candidates
      * @return non-null immutable batch whose first candidate is the existing safe heuristic
      * @throws NullPointerException if a reference is {@code null}
@@ -99,8 +99,12 @@ final class MetalNegRouteCandidateGenerator {
     }
 
     /**
-   * Returns whether one exact non-Task-0066 custom occurrence keeps a direct MPSGraph candidate. */
+     * Returns whether one exact custom occurrence keeps a direct MPSGraph candidate: either the
+     * legacy singleton graph-safe operation or an exact certified raw-preserving image. */
     private static boolean directCustomProgramCandidateIsValid(MetalNegPreparationPlan plan) {
+        if (MetalLowPrecisionRouteCertification.find(plan).isPresent()) {
+            return true;
+        }
         if (plan.partitionDag().nodes().size() != 1
                 || plan.graphProgram().nodes().size() != 1
                 || plan.targetValueIds().size() != 1
@@ -236,6 +240,7 @@ final class MetalNegRouteCandidateGenerator {
                     case FLOAT32 ->
                             updateInt(digest, Float.floatToRawIntBits(scalar.float32Value()));
                     case BFLOAT16 -> updateInt(digest, scalar.bfloat16Bits() & 0xffff);
+                    case FLOAT16 -> updateInt(digest, scalar.float16Bits() & 0xffff);
                     case INT64 -> updateLong(digest, scalar.int64Value());
                     case INT32 -> updateInt(digest, scalar.int32Value());
                     case BOOL -> updateBoolean(digest, scalar.booleanValue());

@@ -328,7 +328,7 @@ final class ReductionGradientRules {
         }
         return restored.descriptor().shape().equals(targetShape)
                 ? restored
-                : restored.expand(targetShape);
+                : restored.expand(targetShape).contiguous();
     }
 
     private static Axes axes(TensorProducer producer) {

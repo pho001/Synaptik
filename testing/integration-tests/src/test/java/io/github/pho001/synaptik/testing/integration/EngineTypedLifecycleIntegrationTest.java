@@ -347,6 +347,7 @@ final class EngineTypedLifecycleIntegrationTest {
             case INT64 -> MemorySegment.ofArray((long[]) values);
             case INT32 -> MemorySegment.ofArray((int[]) values);
             case BOOL -> MemorySegment.ofArray((byte[]) values);
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 integration fixture is unsupported");
         };
         MemorySegment segment = arena.allocate(source.byteSize(), dataType.byteWidth());
         MemorySegment.copy(source, 0, segment, 0, source.byteSize());

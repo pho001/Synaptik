@@ -26,8 +26,9 @@ import java.util.List;
  * {@code ACCELERATOR FLOAT32}, scores use query/key multiply-contractions then scale
  * multiplication; an absent scale adds exact embedding-extent conversion, square root, and
  * typed-one division. Exact guards precede exponential/sum/division softmax sites, and outputs use
- * value/weight multiply-contractions. Each site uses its recursive floor; the composite gains no
- * final-output envelope and non-FLOAT32 behavior stays strict. See the
+ * value/weight multiply-contractions. Each site uses its recursive floor and the composite gains
+ * no final-output envelope. Every current non-FLOAT32 occurrence remains strict; the inactive
+ * low-precision reservation changes none of them. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */

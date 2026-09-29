@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.model.operation.elementwise.scalar;
 
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import java.util.Objects;
@@ -11,9 +12,10 @@ import java.util.Objects;
  *
  * <p>The lower bound precedes the upper bound. Both values must have the same numeric data type
  * and are retained by exact reference. Construction compares them with that type's primitive
- * {@code >} operation, converting only raw BFLOAT16 bits to binary32 for comparison. Equal
- * bounds, either ordering of signed zeros, ordered infinities, and one or two floating NaN
- * endpoints are accepted. INT64 comparison never passes through a floating representation.</p>
+ * {@code >} operation, expanding raw BFLOAT16 or FLOAT16 bits to their exact binary32 value only
+ * for comparison. Equal bounds, either ordering of signed zeros, ordered infinities, and one or
+ * two floating NaN endpoints are accepted. INT64 comparison never passes through a floating
+ * representation.</p>
  *
  * <p>The record is immutable and owns no mutable input. Record-generated equality and hashing use
  * exact typed-bit value semantics, so signed floating zeros and distinct NaN payloads remain
@@ -62,6 +64,8 @@ public record ClampRangeAttrs(ScalarValue minValue, ScalarValue maxValue) implem
             case FLOAT32 -> minValue.float32Value() > maxValue.float32Value();
             case BFLOAT16 -> BFloat16Bits.toFloat(minValue.bfloat16Bits())
                     > BFloat16Bits.toFloat(maxValue.bfloat16Bits());
+            case FLOAT16 -> Float16Bits.toFloat(minValue.float16Bits())
+                    > Float16Bits.toFloat(maxValue.float16Bits());
             case INT32 -> minValue.int32Value() > maxValue.int32Value();
             case INT64 -> minValue.int64Value() > maxValue.int64Value();
             case BOOL -> throw new AssertionError("BOOL handled above");

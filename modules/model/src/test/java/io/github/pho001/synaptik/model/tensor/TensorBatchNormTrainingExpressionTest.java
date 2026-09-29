@@ -174,6 +174,25 @@ final class TensorBatchNormTrainingExpressionTest {
     }
 
     @Test
+    void float16OperandsRetainFloat16ResultsWithFloat32ScalarMetadata() {
+        Tensor input = tensor(DataType.FLOAT16, Shape.of(2, 3), false);
+        Tensor vector = tensor(DataType.FLOAT16, Shape.of(3), false);
+        ScalarValue momentum = ScalarValue.float32(0.25f);
+        ScalarValue epsilon = ScalarValue.float32(1.0e-5f);
+
+        TensorProducer producer = input.batchNormTraining(
+                1, vector, vector, vector, vector, momentum, epsilon)
+                .output().provenance().orElseThrow().producer();
+        BatchNormTrainingAttrs attrs = (BatchNormTrainingAttrs) producer.operation().attrs();
+
+        assertAll(
+                () -> assertTrue(producer.outputDescriptors().stream()
+                        .allMatch(descriptor -> descriptor.dataType() == DataType.FLOAT16)),
+                () -> assertSame(momentum, attrs.momentum()),
+                () -> assertSame(epsilon, attrs.epsilon()));
+    }
+
+    @Test
     void acceptsEmptyChannelsDeferredEqualityDynamicCountsAndOverflowingPositiveCounts() {
         Tensor empty = tensor(DataType.FLOAT32, Shape.of(0, 1), false);
         Tensor emptyVector = tensor(DataType.FLOAT32, Shape.of(0), false);

@@ -77,7 +77,8 @@ public final class CpuAggregateEmitter {
                 : identity.startsWith("aggregate:MEAN:") ? 5 : 6;
         boolean sumToShapeCopy = identity.contains(":SUM_TO_SHAPE:axes=[]:");
         boolean exactFloating = !sumToShapeCopy && kind >= 4 && (type == DataType.FLOAT64
-                || type == DataType.FLOAT32 || type == DataType.BFLOAT16);
+                || type == DataType.FLOAT32 || type == DataType.BFLOAT16
+                || type == DataType.FLOAT16);
         int exactLimbs = exactFloating ? identityNumber(identity, ":limbs=") : 0;
         if (specialization.scratchParameter() != exactFloating)
             throw new IllegalArgumentException("aggregate scratch shape disagrees with numerical kind");
@@ -253,7 +254,7 @@ public final class CpuAggregateEmitter {
         switch (type) {
             case FLOAT64 -> code.daload().dstore(value);
             case FLOAT32 -> code.faload().fstore(value);
-            case BFLOAT16 -> code.saload().istore(value);
+            case BFLOAT16, FLOAT16 -> code.saload().istore(value);
             case INT32 -> code.iaload().istore(value);
             case INT64 -> code.laload().lstore(value);
             default -> throw new IllegalArgumentException("unsupported SUM-to-Shape data type");
@@ -1310,24 +1311,26 @@ public final class CpuAggregateEmitter {
 
     private static TypeKind localKind(DataType type) { return switch (type) {
         case FLOAT64 -> TypeKind.DOUBLE; case FLOAT32 -> TypeKind.FLOAT;
-        case INT64 -> TypeKind.LONG; case BFLOAT16, INT32, BOOL -> TypeKind.INT;
+        case INT64 -> TypeKind.LONG; case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
     }; }
     private static void emitFloatingZero(CodeBuilder code, DataType type) { switch (type) {
         case FLOAT64 -> code.loadConstant(0.0d); case FLOAT32 -> code.loadConstant(0.0f);
-        case BFLOAT16 -> code.loadConstant(0); default -> throw new IllegalArgumentException();
+        case BFLOAT16, FLOAT16 -> code.loadConstant(0);
+        default -> throw new IllegalArgumentException();
     } }
     private static void store(CodeBuilder code, DataType type, int local) { switch (type) {
         case FLOAT64 -> code.dstore(local); case FLOAT32 -> code.fstore(local);
-        case INT64 -> code.lstore(local); case BFLOAT16, INT32, BOOL -> code.istore(local);
+        case INT64 -> code.lstore(local); case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(local);
     } }
     private static void load(CodeBuilder code, DataType type, int local) { switch (type) {
         case FLOAT64 -> code.dload(local); case FLOAT32 -> code.fload(local);
-        case INT64 -> code.lload(local); case BFLOAT16, INT32, BOOL -> code.iload(local);
+        case INT64 -> code.lload(local); case BFLOAT16, FLOAT16, INT32, BOOL -> code.iload(local);
     } }
     private static void emitIdentity(CodeBuilder code, DataType type, int kind) { switch (type) {
         case FLOAT64 -> code.loadConstant(kind == 0 ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY);
         case FLOAT32 -> code.loadConstant(kind == 0 ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY);
         case BFLOAT16 -> code.loadConstant(kind == 0 ? 0x7f80 : 0xff80);
+        case FLOAT16 -> code.loadConstant(kind == 0 ? 0x7c00 : 0xfc00);
         case INT32 -> code.loadConstant(kind == 4 ? 0 : kind == 6 ? 1
                 : kind == 0 ? Integer.MAX_VALUE : Integer.MIN_VALUE);
         case INT64 -> code.loadConstant(kind == 4 ? 0L : kind == 6 ? 1L
@@ -1347,7 +1350,8 @@ public final class CpuAggregateEmitter {
         switch (type) {
             case FLOAT64 -> emitFloatingSelection(code, true, kind == 0, accumulator, value);
             case FLOAT32 -> emitFloatingSelection(code, false, kind == 0, accumulator, value);
-            case BFLOAT16 -> emitBfloatSelection(code, kind == 0, accumulator, value);
+            case BFLOAT16, FLOAT16 -> emitShortFloatSelection(code, type, kind == 0,
+                    accumulator, value);
             case INT32 -> emitIntSelection(code, kind == 0, accumulator, value);
             case INT64 -> emitLongSelection(code, kind == 0, accumulator, value);
             case BOOL -> emitBooleanCombination(code, kind == 2, accumulator, value);
@@ -1434,34 +1438,45 @@ public final class CpuAggregateEmitter {
         }
     }
 
-    private static void emitBfloatSelection(CodeBuilder code, boolean minimum, int left, int right) {
+    private static void emitShortFloatSelection(CodeBuilder code, DataType type,
+            boolean minimum, int left, int right) {
+        int exponentMask = type == DataType.FLOAT16 ? 0x7c00 : 0x7f80;
+        int fractionMask = type == DataType.FLOAT16 ? 0x03ff : 0x007f;
         var leftNumber = code.newLabel(); var rightNumber = code.newLabel();
         var ordinary = code.newLabel(); var chooseRight = code.newLabel(); var chooseLeft = code.newLabel();
         var done = code.newLabel();
         code.iload(left).loadConstant(0xffff).iand().istore(left);
         code.iload(right).loadConstant(0xffff).iand().istore(right);
-        code.iload(left).loadConstant(0x7f80).iand().loadConstant(0x7f80)
+        code.iload(left).loadConstant(exponentMask).iand().loadConstant(exponentMask)
                 .branch(Opcode.IF_ICMPNE, leftNumber);
-        code.iload(left).loadConstant(0x7f).iand().branch(Opcode.IFEQ, leftNumber);
+        code.iload(left).loadConstant(fractionMask).iand().branch(Opcode.IFEQ, leftNumber);
         code.iload(left).branch(Opcode.GOTO, done).labelBinding(leftNumber);
-        code.iload(right).loadConstant(0x7f80).iand().loadConstant(0x7f80)
+        code.iload(right).loadConstant(exponentMask).iand().loadConstant(exponentMask)
                 .branch(Opcode.IF_ICMPNE, rightNumber);
-        code.iload(right).loadConstant(0x7f).iand().branch(Opcode.IFEQ, rightNumber);
+        code.iload(right).loadConstant(fractionMask).iand().branch(Opcode.IFEQ, rightNumber);
         code.iload(right).branch(Opcode.GOTO, done).labelBinding(rightNumber);
         code.iload(left).loadConstant(0x7fff).iand().branch(Opcode.IFNE, ordinary);
         code.iload(right).loadConstant(0x7fff).iand().branch(Opcode.IFNE, ordinary);
         code.iload(left).i2s().branch(minimum ? Opcode.IFLT : Opcode.IFGE, chooseLeft);
         code.branch(Opcode.GOTO, chooseRight).labelBinding(ordinary);
-        code.iload(right).loadConstant(16).ishl().invokestatic(ClassDescHolder.FLOAT,
-                "intBitsToFloat", java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_float,
-                        ConstantDescs.CD_int));
-        code.iload(left).loadConstant(16).ishl().invokestatic(ClassDescHolder.FLOAT,
-                "intBitsToFloat", java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_float,
-                        ConstantDescs.CD_int));
+        emitShortFloatDecode(code, type, right);
+        emitShortFloatDecode(code, type, left);
         code.fcmpg().branch(minimum ? Opcode.IFLT : Opcode.IFGT, chooseRight);
         code.labelBinding(chooseLeft).iload(left).branch(Opcode.GOTO, done);
         code.labelBinding(chooseRight).iload(right);
         code.labelBinding(done).istore(left);
+    }
+
+    private static void emitShortFloatDecode(CodeBuilder code, DataType type, int local) {
+        if (type == DataType.FLOAT16) {
+            code.iload(local).i2s().invokestatic(ClassDescHolder.FLOAT, "float16ToFloat",
+                    java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_float,
+                            ConstantDescs.CD_short));
+        } else {
+            code.iload(local).loadConstant(16).ishl().invokestatic(ClassDescHolder.FLOAT,
+                    "intBitsToFloat", java.lang.constant.MethodTypeDesc.of(
+                            ConstantDescs.CD_float, ConstantDescs.CD_int));
+        }
     }
 
     private static final class ClassDescHolder {
@@ -1673,6 +1688,7 @@ public final class CpuAggregateEmitter {
             case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(kind == 0
                     ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY));
             case BFLOAT16 -> kind == 0 ? 0x7f80L : 0xff80L;
+            case FLOAT16 -> kind == 0 ? 0x7c00L : 0xfc00L;
             case INT32 -> kind == 0 ? Integer.MAX_VALUE : Integer.MIN_VALUE;
             case INT64 -> kind == 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
             case BOOL -> kind == 2 ? 1 : 0;
@@ -1699,6 +1715,7 @@ public final class CpuAggregateEmitter {
             case FLOAT64 -> Double.isNaN(Double.longBitsToDouble(bits));
             case FLOAT32 -> Float.isNaN(Float.intBitsToFloat((int) bits));
             case BFLOAT16 -> ((bits & 0x7f80L) == 0x7f80L) && (bits & 0x7fL) != 0;
+            case FLOAT16 -> ((bits & 0x7c00L) == 0x7c00L) && (bits & 0x3ffL) != 0;
             default -> false;
         };
     }
@@ -1707,6 +1724,7 @@ public final class CpuAggregateEmitter {
             case FLOAT64 -> Double.longBitsToDouble(bits);
             case FLOAT32 -> Float.intBitsToFloat((int) bits);
             case BFLOAT16 -> Float.intBitsToFloat((int) bits << 16);
+            case FLOAT16 -> Float.float16ToFloat((short) bits);
             default -> throw new AssertionError("non-floating aggregate type");
         };
     }
@@ -1714,7 +1732,7 @@ public final class CpuAggregateEmitter {
         return switch (type) {
             case FLOAT64 -> bits < 0;
             case FLOAT32 -> ((int) bits) < 0;
-            case BFLOAT16 -> ((short) bits) < 0;
+            case BFLOAT16, FLOAT16 -> ((short) bits) < 0;
             default -> false;
         };
     }
@@ -1728,7 +1746,7 @@ public final class CpuAggregateEmitter {
         return switch (type) {
             case FLOAT64 -> Double.doubleToRawLongBits(carrier instanceof double[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_DOUBLE, address * 8));
             case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(carrier instanceof float[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_FLOAT, address * 4)));
-            case BFLOAT16 -> Short.toUnsignedLong(carrier instanceof short[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_SHORT, address * 2));
+            case BFLOAT16, FLOAT16 -> Short.toUnsignedLong(carrier instanceof short[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_SHORT, address * 2));
             case INT32 -> carrier instanceof int[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_INT, address * 4);
             case INT64 -> carrier instanceof long[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_LONG, address * 8);
             case BOOL -> carrier instanceof byte[] a ? Byte.toUnsignedLong(a[Math.toIntExact(address)]) : Byte.toUnsignedLong(((MemorySegment) carrier).get(ValueLayout.JAVA_BYTE, address));
@@ -1738,7 +1756,7 @@ public final class CpuAggregateEmitter {
         switch (type) {
             case FLOAT64 -> { double v = Double.longBitsToDouble(bits); if (carrier instanceof double[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_DOUBLE, address * 8, v); }
             case FLOAT32 -> { float v = Float.intBitsToFloat((int) bits); if (carrier instanceof float[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_FLOAT, address * 4, v); }
-            case BFLOAT16 -> { short v = (short) bits; if (carrier instanceof short[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_SHORT, address * 2, v); }
+            case BFLOAT16, FLOAT16 -> { short v = (short) bits; if (carrier instanceof short[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_SHORT, address * 2, v); }
             case INT32 -> { int v = (int) bits; if (carrier instanceof int[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_INT, address * 4, v); }
             case INT64 -> { if (carrier instanceof long[] a) a[Math.toIntExact(address)] = bits; else ((MemorySegment) carrier).set(ValueLayout.JAVA_LONG, address * 8, bits); }
             case BOOL -> { byte v = (byte) (bits == 0 ? 0 : 1); if (carrier instanceof byte[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_BYTE, address, v); }

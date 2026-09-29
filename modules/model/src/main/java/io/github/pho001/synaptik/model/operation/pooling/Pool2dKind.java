@@ -17,7 +17,8 @@ import java.util.List;
  * {@code ACCELERATOR FLOAT32}, average pooling preserves every kernel position and its exact
  * divisor while allowing any binary tree, per-step FLOAT32 rounding, DAZ/FTZ, and only
  * corresponding multiply/add fusion. It may not drop padding or another contributor and gains no
- * final-output envelope. Non-FLOAT32 behavior stays strict. See the
+ * final-output envelope. Every current non-FLOAT32 occurrence remains strict; the inactive
+ * low-precision reservation changes none of them. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */
@@ -35,8 +36,9 @@ public enum Pool2dKind implements OperationKind {
      * NCHW average pooling with a fixed kernel-position divisor and literal floor or ceiling grid.
      *
      * <p>Every logical kernel position counts in the divisor. Out-of-bounds positions contribute
-     * positive zero, so an all-padding window produces positive zero. BFLOAT16 and FLOAT32 use a
-     * FLOAT32 accumulator and one final division; FLOAT64 uses FLOAT64. NaN propagates, opposing
+     * positive zero, so an all-padding window produces positive zero. FLOAT16, BFLOAT16, and
+     * FLOAT32 use a FLOAT32 accumulator and one final division; FLOAT64 uses FLOAT64. Low results
+     * narrow once after division. NaN propagates, opposing
      * infinities produce NaN, and one infinity sign is retained. Finite reassociation is
      * permitted, and exact zero is negative only when every contribution is an in-bounds negative
      * zero.</p>

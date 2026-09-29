@@ -107,10 +107,11 @@ final class CpuScalarEmitter {
         }
         if (opcode == CpuPointwiseOpcode.CAST) {
             casts.emit(inputType, outputType, locals[instruction.inputs().getFirst()]);
-            // CAST to BFLOAT16 already leaves its raw represented short bits on the stack.
-            // Other BFLOAT16-producing pointwise operators leave FLOAT32 and use store's RNE edge.
-            if (outputType == DataType.BFLOAT16) code.istore(locals[instruction.output()]);
-            else store(outputType, locals[instruction.output()]);
+            // CAST to a 16-bit float already leaves raw represented short bits on the stack.
+            // Other 16-bit-float-producing operators leave FLOAT32 and use store's RNE edge.
+            if (outputType == DataType.BFLOAT16 || outputType == DataType.FLOAT16) {
+                code.istore(locals[instruction.output()]);
+            } else store(outputType, locals[instruction.output()]);
             return;
         }
         load(inputType, locals[instruction.inputs().getFirst()]);
@@ -143,7 +144,7 @@ final class CpuScalarEmitter {
         switch (type) {
             case FLOAT64 -> { if (add) code.dadd(); else if (sub) code.dsub();
                 else if (div) code.ddiv(); else code.dmul(); }
-            case FLOAT32, BFLOAT16 -> { if (add) code.fadd(); else if (sub) code.fsub();
+            case FLOAT32, BFLOAT16, FLOAT16 -> { if (add) code.fadd(); else if (sub) code.fsub();
                 else if (div) code.fdiv(); else code.fmul(); }
             case INT32 -> { if (div) throw new IllegalArgumentException("integral division unsupported");
                 if (add) code.iadd(); else if (sub) code.isub(); else code.imul(); }
@@ -169,7 +170,7 @@ final class CpuScalarEmitter {
         ClassDesc primitive;
         switch (type) {
             case FLOAT64 -> { owner = MATH; primitive = ConstantDescs.CD_double; }
-            case FLOAT32, BFLOAT16 -> { owner = MATH; primitive = ConstantDescs.CD_float; }
+            case FLOAT32, BFLOAT16, FLOAT16 -> { owner = MATH; primitive = ConstantDescs.CD_float; }
             case INT32 -> { owner = INTEGER; primitive = ConstantDescs.CD_int; }
             case INT64 -> { owner = LONG; primitive = ConstantDescs.CD_long; }
             default -> throw new IllegalArgumentException("unsupported extrema type");
@@ -453,7 +454,7 @@ final class CpuScalarEmitter {
         var whenFalse = code.newLabel();
         var done = code.newLabel();
         code.iload(locals[instruction.inputs().get(0)]).branch(Opcode.IFEQ, whenFalse);
-        if (resultType == DataType.BFLOAT16) {
+        if (resultType == DataType.BFLOAT16 || resultType == DataType.FLOAT16) {
             code.iload(locals[instruction.inputs().get(1)]).istore(locals[instruction.output()]);
             code.branch(Opcode.GOTO, done).labelBinding(whenFalse);
             code.iload(locals[instruction.inputs().get(2)]).istore(locals[instruction.output()]);
@@ -475,6 +476,9 @@ final class CpuScalarEmitter {
             case BFLOAT16 -> code.loadConstant((int) immediate.bits()).loadConstant(16).ishl()
                     .invokestatic(FLOAT, "intBitsToFloat", MethodTypeDesc.of(
                             ConstantDescs.CD_float, ConstantDescs.CD_int));
+            case FLOAT16 -> code.loadConstant((int) immediate.bits()).i2s()
+                    .invokestatic(FLOAT, "float16ToFloat", MethodTypeDesc.of(
+                            ConstantDescs.CD_float, ConstantDescs.CD_short));
             case INT32 -> code.loadConstant((int) immediate.bits());
             case INT64 -> code.loadConstant(immediate.bits());
             default -> throw new IllegalArgumentException("unsupported scalar immediate");
@@ -487,6 +491,8 @@ final class CpuScalarEmitter {
             case BFLOAT16 -> code.iload(local).loadConstant(16).ishl().invokestatic(FLOAT,
                     "intBitsToFloat", MethodTypeDesc.of(ConstantDescs.CD_float,
                             ConstantDescs.CD_int));
+            case FLOAT16 -> code.iload(local).i2s().invokestatic(FLOAT, "float16ToFloat",
+                    MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
             case INT32, BOOL -> code.iload(local); case INT64 -> code.lload(local);
             default -> throw new IllegalArgumentException("unsupported value type");
         }
@@ -496,13 +502,15 @@ final class CpuScalarEmitter {
         switch (type) {
             case FLOAT64 -> code.dstore(local); case FLOAT32 -> code.fstore(local);
             case BFLOAT16 -> encodeBfloat(local);
+            case FLOAT16 -> encodeFloat16(local);
             case INT32, BOOL -> code.istore(local); case INT64 -> code.lstore(local);
             default -> throw new IllegalArgumentException("unsupported value type");
         }
     }
 
     private static boolean floatLike(DataType type) {
-        return type == DataType.FLOAT32 || type == DataType.BFLOAT16;
+        return type == DataType.FLOAT32 || type == DataType.BFLOAT16
+                || type == DataType.FLOAT16;
     }
 
     /** Emits the established inline RNE/canonical-NaN FLOAT32-to-BFLOAT16 boundary. */
@@ -517,5 +525,18 @@ final class CpuScalarEmitter {
                 .branch(Opcode.GOTO, rounded).labelBinding(finite).iload(bits)
                 .loadConstant(0x7fff).iadd().iload(bits).loadConstant(16).iushr().loadConstant(1)
                 .iand().iadd().loadConstant(16).iushr().istore(local).labelBinding(rounded);
+    }
+
+    /** Emits direct FLOAT32-to-binary16 RNE with canonical positive NaN. */
+    private void encodeFloat16(int local) {
+        int value = code.allocateLocal(TypeKind.FLOAT);
+        var finite = code.newLabel(); var done = code.newLabel();
+        code.fstore(value).fload(value).invokestatic(FLOAT, "isNaN",
+                MethodTypeDesc.of(ConstantDescs.CD_boolean, ConstantDescs.CD_float))
+                .branch(Opcode.IFEQ, finite).loadConstant(0x7e00).istore(local)
+                .branch(Opcode.GOTO, done).labelBinding(finite).fload(value)
+                .invokestatic(FLOAT, "floatToFloat16",
+                        MethodTypeDesc.of(ConstantDescs.CD_short, ConstantDescs.CD_float))
+                .istore(local).labelBinding(done);
     }
 }

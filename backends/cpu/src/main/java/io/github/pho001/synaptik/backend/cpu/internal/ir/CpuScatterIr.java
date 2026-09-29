@@ -80,7 +80,7 @@ public record CpuScatterIr(Family family, ScatterReduction reduction,
         }
         boolean floatingProduct = reduction == ScatterReduction.MUL
                 && (dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
-                    || dataType == DataType.BFLOAT16);
+                    || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16);
         if (scratchSignature < 0 || scratchSignature > 1
                 || scratchSignature > 0 && !floatingProduct) {
             throw new IllegalArgumentException("scatter scratch signature is inconsistent");

@@ -40,9 +40,9 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through documentation-only 0006B10; 0006C and 0007 Draft; profile artifact cutover Complete through Engine 0018 | No Compiler task is Ready. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through documentation-only 0008; profile projection cutover Complete through Engine 0018 | No Prepare task is Ready. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
-| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through out-of-order 0019; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0019 removes the whole-partition eight-node cap while preserving bounded fusion units. No next CPU task is Ready. |
+| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0018 Blocked; 0007A1D Review needed; 0010D1 and 0011 Blocked | [CPU 0018](backends/cpu/tasks/0018-shared-external-read-recognition-validation.md) is partial; independent Class C review found a P2 forged virtual-output/shared-weight boundary position. User must choose authenticated `ValueId` binding or safe nonfused fallback. Separate >8-node decision remains open; no CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0071; 0053 Blocked | [Metal 0071](backends/metal/tasks/0071-anchor-epilogue-fusion.md) adds authenticated ACCELERATOR MATMUL/Conv2d anchor epilogues and bounded structural PREPARE/planned RUN tracing. Task 0069 Slices 1–3 and Task 0070 are complete with their retained proof, source, compiled-AIR, and device evidence. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through P13 documentation and local qualification closure; 0053 Blocked | P13 locally qualifies the P12 boundary at ABI 6, schema 19, type wires `1..7`, identity 28, and fourteen exports with a fresh ad-hoc-signed package and local ZIP; no publication, notarization, or public release occurred. Homogeneous BFLOAT16/FLOAT16 arithmetic remains custom, while exactly certified raw-preserving routes require the full environment key plus separate accuracy and determinism records. MPS and MPP remain qualified-negative. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -57,6 +57,13 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 23 | [`tools/cli`](tools/cli/master-plan.md) | Draft | Define commands only after their Engine and diagnostic contracts are stable. |
 
 ## Authorized frontiers
+
+CPU public regression hotfix: [CPU 0018](backends/cpu/tasks/0018-shared-external-read-recognition-validation.md)
+is `Blocked`, not an authorized implementation frontier. Its P2 requires a user topology decision
+  and renewed validation/review; the separate >8-node choice does not widen 0018.
+  [CPU 0019](backends/cpu/tasks/0019-unbounded-cpu-partition-bounded-fusion-units.md) is Complete:
+  long CPU partitions now execute as bounded local units. No next CPU task is Ready;
+  CPU 0007A1D remains independently `Review needed`.
 
 Model numerical profiles
 
@@ -173,7 +180,7 @@ obligations and remains historical. Task 0053 retained its integer-only candidat
 certificate, but is now Blocked on an unavailable pinned no-axiom constructive-real exponential
 bridge; its checkpoint review granted no `DOMAIN-PASS`. Tasks 0057 and 0058 are Complete without
 Task-0053 scope. Task 0051 reserved no production vocabulary; Task 0052 later
-consumed wires `20..34`, and current schema 18 still registers `EXP=55`/`SIGMOID=64` without making
+consumed wires `20..34`, and current schema 19 still registers `EXP=55`/`SIGMOID=64` without making
 them executable or importing their evidence-only candidate source.
 CPU requires no migration because its exact realizations remain valid members of the widened result
 set.
@@ -197,8 +204,8 @@ custom candidates proved `DOMAIN-PASS` and passed the sole numerical oracle. Fou
 rows had one survivor. Fused CLAMP is fixed solely because its one dispatch/zero route bytes
 strictly dominate composed CLAMP's two dispatches/4,194,304 bytes; all 128 local timing samples
 remain diagnostic history. The original cutover landed schema 12/identity 13; Complete Task 0055
-later migrated current production to ABI 5/schema 13 and identity 14 without changing capability
-or routes.
+later migrated then-current production to ABI 5/schema 13 and identity 14 without changing
+capability or routes.
 
 [Metal 0054](backends/metal/tasks/0054-current-accelerator-115-kind-completeness-audit.md) remains
 the exact Complete read-only audit of base `93b3d379`: 40 enums, 115 constants, and
@@ -514,37 +521,35 @@ no production, native, test, or probe changes remain.
 is `Complete` at `42c4cfbf` plus `fb102a46` after the operation-by-operation DAZ/FTZ oracle, focused
 validation, combined serial checkpoint, and independent Class C approval all passed.
 
-Current Metal uses ABI 5, exactly thirteen exports, and one bounded schema-18 route-bearing program
-image with the exact numerical-profile wire. Its common exact domain includes the documented unary,
-BOOL, Task-0059 movement, Task-0060 replacement/fold/aggregate, promoted integral MATMUL,
-Task-0063 ordering/top-K/arg-extrema, exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d, and
-Task-0065 raw zero-input INITIAL_STATE rows. Accelerator additionally admits the documented
-FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows; every positive-static FLOAT32
-MATMUL vector, matrix, batched, and broadcast geometry; no-gradient BFLOAT16/FLOAT32 mixed MATMUL
-with FLOAT32 result; same-type canonical positive-rank FLOAT32 MSE forward execution for `NONE`,
-`SUM`, and `MEAN`; exact rank-one no-gradient FLOAT32 `L1_NORM` over ordered axis `[0]`; exact
-rank-one no-gradient FLOAT32 `SCATTER_ADD` over axis zero and materialized INT32/INT64 indices;
-exact singleton no-gradient FLOAT32 `VARIANCE` over input `[1]`, axis `[0]`, correction zero, and
-scalar or retained `[1]` output; FLOAT32-result grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles;
-FLOAT32 average Pool2d/Pool3d; and canonical FLOAT32 explicit-state dropout. Existing all-FLOAT32
-rank-two matrix products retain MPSGraph; all other admitted MATMUL forms, all six Task-0064 rows,
-both Task-0065 random rows, and all three Task-0069 occurrences use the fixed custom program.
-Non-domain VARIANCE retains its existing direct structural recipe but remains production-false.
-MSE remains the fixed nested MPSGraph composition when a containing partition selects the custom
-program. Task-0063 through Task-0065 production rows, every selected Task-0066 occurrence, and all
-three exact Task-0069 occurrences are custom-only.
+Current Metal uses ABI 6, fourteen exports, and one bounded schema-19 route-bearing program image.
+The common exact domain includes seven-carrier movement, affine, indexing, ordering, selection,
+predicate, cast, replacement, non-overlapping window, maximum-pool, promoted integral MATMUL, and
+raw INITIAL_STATE occurrences. Accelerator additionally admits qualified homogeneous
+FLOAT32/BFLOAT16/FLOAT16 arithmetic, scalar, reduction, scan, MATMUL, MSE, convolution,
+average-pool, dropout, L1, ScatterAdd, and singleton-VARIANCE occurrences. Direct
+BFLOAT16/FLOAT16 mixed-low operations remain false except explicit CAST; explicit FLOAT32 casts are
+the mixed-low boundary.
 
-A custom program declares only its compact authenticated materialized set. Eligible linear
-canonical no-gradient FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use deterministic bounded
-generated units of length `2..8`, with no intermediate slot. Eligible ACCELERATOR MATMUL/Conv2d
-suffixes use one typed anchor dispatch and final store without a suffix slot; all barriers retain
-fixed custom or MPSGraph steps. Schema 18 carries type wires `1..6`, operation wires `1..115`,
-attribute wires `0..41`, route wire `2` or `3`, the exact numerical-profile wire, complete
-storage-layout geometry, and only for the custom route its canonical execution extension and
-manifest digest. Exactly 101 operation kinds are structurally executable and 86 are
-production-capable. Workload, policy, candidate, compatibility, route, and codec identities are
-version twenty-seven; every other identity fails closed while candidate wires and the complete-plan
-wrapper remain stable.
+Every low occurrence selects one fixed authenticated custom whole-program route with FLOAT32
+working values/accumulators and one final ties-to-even narrowing. MPSGraph, MPS, CPU fallback,
+retry, generated-pointwise, and anchor-epilogue alternatives are unavailable to low partitions.
+Admitted generated gradients preserve saved values and close first order plus owned higher order;
+non-overlapping maximum-pool backward is active, while overlap accumulation and Conv3d backward
+remain fail-closed.
+
+The active image carries type wires `1..7`, operation wires `1..115`, attribute wires `0..41`,
+route wires `1..3`, the exact numerical-profile wire, complete storage-layout geometry, and the
+custom execution extension/manifest digest. Exactly 101 operation kinds are structurally
+executable and 86 are production-capable. Workload, policy, candidate, compatibility, route, and
+codec identities are version 28; every other identity fails closed. Candidate wires and the
+complete-plan wrapper remain stable.
+
+P9 closes the low-precision capability ledger without adding an operation kind, attribute, route,
+export, or ABI. Canonical/current targets preserve every true row; each supported accelerator
+FLOAT32 witness has true homogeneous BFLOAT16 and FLOAT16 rows, and strict low support never exceeds
+the current strict FLOAT32 predicate. Real Apple-GPU coverage includes low broadcast backward,
+explicit mixed-low casts, scan backward, saved-mask dropout/replay, non-overlapping maximum-pool
+backward, and FLOAT16 second-order differentiation.
 
 Metal 0025 remains Complete at reviewed revision `f88066e3`; its schema-11/version-twelve facts are
 historical. Blocked 0026–0027/0030–0037/0039–0040 changed no executable capability. Complete 0041
@@ -652,12 +657,11 @@ matrix with narrowing, or infer capability from registered schema.
   compute, configured/available parallelism `1`/`1`, minimum elements per worker `1`, no worker
   group, and all existing fallbacks/thresholds. The report-only protocol is hardened; a future
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
-Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
-0017, Trace 0003, and Metal
+The FLOAT16 Model/backend cutover and Metal P9 closure are active. Model 0027–0029, Config 0006,
+Engine 0018, CPU 0017, Trace 0003, and Metal
 0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045/0046/0048/0049/0050/0054/
-0055/0056/0057/0058/0059/0060/0061/0062/0063/0064/0065 are Complete. Metal 0016–0018, 0026–0027,
-0030–0037, planning-only 0039, failed-gate 0040, provider-gated 0047, historical consumed-oracle
-0051, and proof-blocked 0053 remain Blocked under their recorded contracts. Task 0052 is Complete;
+0055/0056/0057/0058/0059/0060/0061/0062/0063/0064/0065 are Complete. Historical blocked tasks
+retain their recorded contracts and do not narrow the active P9 capability. Task 0052 is Complete;
 Task 0054 remains its exact historical pre-cutover inventory. Tasks 0055–0061 remain completed
 foundation/catalog and operation-family prerequisites, Complete Task 0062 owns the bounded MSE
 forward cutover, Complete Task 0063 owns the exact ordering/top-K/arg-extrema cutover, Complete
@@ -766,7 +770,7 @@ Task 0071 adds authenticated accelerator MATMUL/Conv2d anchor-epilogue steps, st
 PREPARE and planned RUN trace payloads, a Lean order/store/broadcast/DAZ-FTZ proof, compiled AIR
 instruction/site evidence, real-device one-dispatch coverage, and public Engine smoke coverage.
 The current ledger is capability `86/29`, structural `101/14`, MPSGraph `75/35/5`, custom
-`73/42/0`, schema 18, ABI 5, thirteen exports, and identity 27. Every other identity fails closed.
+`73/42/0`, schema 19, ABI 6, fourteen exports, and identity 28. Every other identity fails closed.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -875,21 +879,24 @@ canonical positive static FLOAT32 no-grad bias-free FORWARD RNN_TANH over the co
 valid-length domain. Complete Model 0030 now recursively reaches `ACCELERATOR` contractions,
 additions, tanh/sigmoid sites, and state arithmetic. The macOS-12.3 direct selector nevertheless
 has no INT64 valid-length input, atomic validation, skipped padded work, positive-zero padding
-contract, or `finalHidden`; its optional training output has the wrong role. Schema 18 now carries
-the complete variable-cardinality, multi-output, INT64, numerical-profile, and custom execution-plan
+contract, or `finalHidden`; its optional training output has the wrong role. Schema 19 carries the
+complete variable-cardinality, multi-output, INT64, numerical-profile, and custom execution-plan
 vocabulary, but no custom recurrent loop or complete TANH/EXP/SIGMOID proof exists and Compiler
 still rejects BPTT.
 Task 0065 keeps all
 three recurrent rows fail-closed rather than advertising a no-work or selected-value special case.
 
-Schema 18, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
-version-twenty-seven identities are current after Task 0071; every other schema or identity fails
-closed. Complete Tasks 0055–0068 provide the prerequisites, Task 0069 advances only the authorized
-L1, ScatterAdd, and singleton VARIANCE boundaries, Task 0070 owns pointwise generation, and Task
-0071 owns only authenticated anchor epilogues and bounded structural tracing. Blocked Metal 0053 remains
-fail-closed without production capability. Metal 0026/0027 remain separately finalized Blocked.
-Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model
-0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit gate. Metal 0041 is
+After Task 0071, schema 18, operation wires `1..115`, attributes `0..41`, local types `1..6`,
+ABI 5, and version-twenty-seven identities were current; the P12 FP16 cutover superseded that
+snapshot with schema 19, local types `1..7`, ABI 6, fourteen exports, and version-twenty-eight
+identities. Complete Tasks 0055–0068 provide the prerequisites, Task 0069 advances only the
+authorized L1, ScatterAdd, and singleton VARIANCE boundaries, Task 0070 owns pointwise generation,
+and Task 0071 owns only authenticated anchor epilogues and bounded structural tracing. Blocked
+Metal 0053 remains fail-closed without production capability. Metal 0026/0027 remain separately
+finalized Blocked.
+Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 remains a historical
+Blocked prerequisite record superseded by P12; Metal 0040 remains Blocked by its failed
+one-execution BFLOAT16 raw-bit gate. Metal 0041 is
 Complete at implementation `ba16d942` plus remediation `386705ca`; Metal 0042 is Complete at
 `9feb2505705263b6efb417d606678c606c2b9598`; Metal 0043 is Complete at remediation `77e6091b`;
 Metal 0044 is Complete; Metal 0045 is Complete at remediation `26c6c911`; Metal 0046 is Complete at

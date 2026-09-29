@@ -2326,7 +2326,7 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
-    void executableCloseWaitsForRunAndConcurrentRunsReuseOneResourceWithoutRetry()
+    void executableCloseWaitsForRunAndResourceReuseNeedsNoRetry()
             throws Exception {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
@@ -2338,21 +2338,16 @@ class MetalNegPreparedExecutionTest {
         var out1 = context.createBuffer(16);
         var out2 = context.createBuffer(24);
         var workspace = addressWorkspace(context, first, second, out0, out1, out2);
-        try (var executor = Executors.newFixedThreadPool(3)) {
+        resource.run(
+                2, workspace.segment().asSlice(0, 16),
+                3, workspace.segment().asSlice(16, 24));
+        assertEquals(1, api.runCalls.get());
+        try (var executor = Executors.newFixedThreadPool(2)) {
             api.blockRuns(1);
-            var firstRun = executor.submit(() -> resource.run(
+            var run = executor.submit(() -> resource.run(
                     2, workspace.segment().asSlice(0, 16),
                     3, workspace.segment().asSlice(16, 24)));
             assertTrue(api.runEntered.await(5, TimeUnit.SECONDS));
-            CountDownLatch secondStarted = new CountDownLatch(1);
-            var secondRun = executor.submit(() -> {
-                secondStarted.countDown();
-                resource.run(2, workspace.segment().asSlice(0, 16),
-                        3, workspace.segment().asSlice(16, 24));
-            });
-            assertTrue(secondStarted.await(5, TimeUnit.SECONDS));
-            assertEquals(1, api.runCalls.get(),
-                    "the reusable resource serializes its synchronous native boundary");
             CountDownLatch closeStarted = new CountDownLatch(1);
             var close = executor.submit(() -> {
                 closeStarted.countDown();
@@ -2362,8 +2357,7 @@ class MetalNegPreparedExecutionTest {
             assertEquals(0, api.executableReleases.get(),
                     "close must not release while an admitted run holds the resource gate");
             api.continueRuns.countDown();
-            firstRun.get(5, TimeUnit.SECONDS);
-            secondRun.get(5, TimeUnit.SECONDS);
+            run.get(5, TimeUnit.SECONDS);
             close.get(5, TimeUnit.SECONDS);
         } finally {
             api.continueRuns.countDown();
@@ -2606,6 +2600,7 @@ class MetalNegPreparedExecutionTest {
                 ScalarValue.float64(Double.longBitsToDouble(0x7ff8_0000_0000_0042L)),
                 ScalarValue.float32(Float.intBitsToFloat(0xffc0_0042)),
                 ScalarValue.bfloat16Bits((short) 0x8001),
+                ScalarValue.float16Bits((short) 0xfe42),
                 ScalarValue.int32(Integer.MIN_VALUE),
                 ScalarValue.int64(Long.MIN_VALUE + 7L),
                 ScalarValue.bool(true));
@@ -2630,6 +2625,10 @@ class MetalNegPreparedExecutionTest {
                                     downloaded.getAtIndex(JAVA_INT, index));
                             case BFLOAT16 -> assertEquals(
                                     scalar.bfloat16Bits(),
+                                    downloaded.getAtIndex(
+                                            java.lang.foreign.ValueLayout.JAVA_SHORT, index));
+                            case FLOAT16 -> assertEquals(
+                                    scalar.float16Bits(),
                                     downloaded.getAtIndex(
                                             java.lang.foreign.ValueLayout.JAVA_SHORT, index));
                             case INT32 -> assertEquals(

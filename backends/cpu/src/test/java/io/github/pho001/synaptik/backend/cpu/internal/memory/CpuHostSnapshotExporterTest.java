@@ -31,6 +31,10 @@ final class CpuHostSnapshotExporterTest {
                         .putShort((short) 0x3f80).array(),
                 copy(DataType.BFLOAT16, new short[] {(short) 0x7fc1, (short) 0x8000,
                         (short) 0x3f80}, 3));
+        assertArrayEquals(bytes(6).putShort((short) 0x7e01).putShort((short) 0x8000)
+                        .putShort((short) 0x3c00).array(),
+                copy(DataType.FLOAT16, new short[] {(short) 0x7e01, (short) 0x8000,
+                        (short) 0x3c00}, 3));
         assertArrayEquals(bytes(16).putLong(Long.MIN_VALUE).putLong(Long.MAX_VALUE).array(),
                 copy(DataType.INT64, new long[] {Long.MIN_VALUE, Long.MAX_VALUE}, 2));
         assertArrayEquals(bytes(8).putInt(Integer.MIN_VALUE).putInt(Integer.MAX_VALUE).array(),
@@ -50,6 +54,9 @@ final class CpuHostSnapshotExporterTest {
         assertNative(DataType.BFLOAT16, 2, segment -> segment.set(
                 ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), 0,
                 (short) 0xff80), bytes(2).putShort((short) 0xff80).array());
+        assertNative(DataType.FLOAT16, 2, segment -> segment.set(
+                ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), 0,
+                (short) 0xfc01), bytes(2).putShort((short) 0xfc01).array());
         assertNative(DataType.INT64, 8, segment -> segment.set(
                 ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder()), 0,
                 0x0102_0304_0506_0708L), bytes(8).putLong(0x0102_0304_0506_0708L).array());

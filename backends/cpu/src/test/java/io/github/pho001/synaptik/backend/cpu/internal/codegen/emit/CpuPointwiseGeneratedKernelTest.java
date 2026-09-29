@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPrepar
 import io.github.pho001.synaptik.backend.cpu.internal.reference.CpuScalarReferenceKernel;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import jdk.incubator.vector.DoubleVector;
@@ -311,25 +312,31 @@ class CpuPointwiseGeneratedKernelTest {
         var cases = new ArrayList<Case>();
         for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.ADD, CpuPointwiseOpcode.SUB,
                 CpuPointwiseOpcode.MUL)) for (DataType type : numericTypes()) cases.add(new Case(opcode, type));
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.FLOAT16))
             cases.add(new Case(CpuPointwiseOpcode.DIV, type));
         for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.MIN, CpuPointwiseOpcode.MAX))
             for (DataType type : numericTypes()) cases.add(new Case(opcode, type));
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.FLOAT16))
             cases.add(new Case(CpuPointwiseOpcode.POW, type));
         for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.SCALAR_ADD,
                 CpuPointwiseOpcode.SCALAR_SUB, CpuPointwiseOpcode.SCALAR_MUL))
             for (DataType type : numericTypes()) cases.add(new Case(opcode, type));
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.FLOAT16))
             cases.add(new Case(CpuPointwiseOpcode.SCALAR_DIV, type));
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.FLOAT16))
             cases.add(new Case(CpuPointwiseOpcode.SCALAR_POW, type));
         for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.SCALAR_MIN,
                 CpuPointwiseOpcode.SCALAR_MAX)) for (DataType type : numericTypes())
             cases.add(new Case(opcode, type));
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.FLOAT16))
             cases.add(new Case(CpuPointwiseOpcode.SCALAR_CLAMP, type));
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.FLOAT16)) {
             for (CpuPointwiseOpcode opcode : CpuPointwiseOpcode.values())
                 if (opcode.family() == CpuPointwiseOpcode.Family.UNARY) cases.add(new Case(opcode, type));
             for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.IS_FINITE,
@@ -343,14 +350,16 @@ class CpuPointwiseGeneratedKernelTest {
         cases.add(new Case(CpuPointwiseOpcode.WHERE, DataType.FLOAT64));
         cases.add(new Case(CpuPointwiseOpcode.WHERE, DataType.FLOAT32));
         cases.add(new Case(CpuPointwiseOpcode.WHERE, DataType.BFLOAT16));
+        cases.add(new Case(CpuPointwiseOpcode.WHERE, DataType.FLOAT16));
         cases.add(new Case(CpuPointwiseOpcode.LOGICAL_AND, DataType.BOOL));
         cases.add(new Case(CpuPointwiseOpcode.LOGICAL_OR, DataType.BOOL));
         cases.add(new Case(CpuPointwiseOpcode.LOGICAL_NOT, DataType.BOOL));
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.INT32,
-                DataType.INT64, DataType.BOOL)) cases.add(new Case(CpuPointwiseOpcode.CAST, type));
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.FLOAT16,
+                DataType.INT32, DataType.INT64, DataType.BOOL))
+            cases.add(new Case(CpuPointwiseOpcode.CAST, type));
 
         for (Case one : cases) assertCase(one);
-        assertEquals(172, cases.size());
+        assertEquals(217, cases.size());
     }
 
     @Test void float64NumericSubsetUsesVectorBodiesWithScalarTails() throws Throwable {
@@ -927,7 +936,7 @@ class CpuPointwiseGeneratedKernelTest {
         ir.instructions().stream()
                 .filter(instruction -> instruction.opcode() == CpuPointwiseOpcode.SCALAR_POW)
                 .map(CpuKernelIr.Instruction::powerRealization).toList(), false,
-        types.contains(DataType.BFLOAT16) ? 59 : 52);
+        types.contains(DataType.FLOAT16) ? 68 : types.contains(DataType.BFLOAT16) ? 59 : 52);
         var generator = new CpuClassFileKernelGenerator();
         return generator.defineClassBytes(specialization,
                 generator.generateClassBytes(specialization, ir));
@@ -1397,6 +1406,8 @@ class CpuPointwiseGeneratedKernelTest {
                 case FLOAT32 -> segment.set(ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, i - 1.5f);
                 case BFLOAT16 -> segment.set(ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.nativeOrder()),
                         offset, BFloat16Bits.fromFloat(i - 1.5f));
+                case FLOAT16 -> segment.set(ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.nativeOrder()),
+                        offset, Float16Bits.fromFloat(i - 1.5f));
                 case INT32 -> segment.set(ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, i * 17);
                 case INT64 -> segment.set(ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, (long) i * Long.MAX_VALUE);
                 case BOOL -> segment.set(ValueLayout.JAVA_BYTE, offset, (byte) (i & 1));
@@ -1415,7 +1426,7 @@ class CpuPointwiseGeneratedKernelTest {
         ir.instructions().stream().filter(instruction -> instruction.opcode()
                 == CpuPointwiseOpcode.SCALAR_POW)
                 .map(CpuKernelIr.Instruction::powerRealization).toList(), false,
-        types.contains(DataType.BFLOAT16) ? 59 : 52);
+        types.contains(DataType.FLOAT16) ? 68 : types.contains(DataType.BFLOAT16) ? 59 : 52);
         var artifact = new CpuClassFileKernelGenerator().defineClassBytes(specialization,
                 new CpuClassFileKernelGenerator().generateClassBytes(specialization, ir));
         List<Object> inputArrays = inputs(one);
@@ -1513,6 +1524,9 @@ class CpuPointwiseGeneratedKernelTest {
             case BFLOAT16 -> second ? new short[] {(short) 0x8000, (short) 0x7fc1,
                     (short) 0x4040, (short) 0xc080}
                     : new short[] {0, (short) 0x7f80, (short) 0xc000, 1};
+            case FLOAT16 -> second ? new short[] {(short) 0x8000, (short) 0x7e01,
+                    (short) 0x4200, (short) 0xc400}
+                    : new short[] {0, (short) 0x7c00, (short) 0xc000, 1};
             case INT32 -> second ? new int[] {1, -1, Integer.MAX_VALUE, 3}
                     : new int[] {Integer.MAX_VALUE, Integer.MIN_VALUE, -2, 7};
             case INT64 -> second ? new long[] {1, -1, Long.MAX_VALUE, 3}
@@ -1525,7 +1539,7 @@ class CpuPointwiseGeneratedKernelTest {
     private static Object array(DataType type, int size, boolean ignored) {
         return switch (type) {
             case FLOAT64 -> new double[size]; case FLOAT32 -> new float[size];
-            case BFLOAT16 -> new short[size];
+            case BFLOAT16, FLOAT16 -> new short[size];
             case INT32 -> new int[size]; case INT64 -> new long[size]; case BOOL -> new byte[size];
             default -> throw new IllegalArgumentException("unsupported test type");
         };
@@ -1536,6 +1550,7 @@ class CpuPointwiseGeneratedKernelTest {
             case FLOAT64 -> Double.doubleToRawLongBits(-0.0d);
             case FLOAT32 -> Float.floatToRawIntBits(-0.0f) & 0xffff_ffffL;
             case BFLOAT16 -> 0x8000L;
+            case FLOAT16 -> 0x8000L;
             case INT32 -> 0xffff_ffffL; case INT64 -> -1L;
             default -> throw new IllegalArgumentException("unsupported immediate");
         });
@@ -1543,7 +1558,7 @@ class CpuPointwiseGeneratedKernelTest {
 
     private static long negativeZero(DataType type) {
         return type == DataType.FLOAT64 ? Double.doubleToRawLongBits(-0.0d)
-                : type == DataType.BFLOAT16 ? 0x8000L
+                : type == DataType.BFLOAT16 || type == DataType.FLOAT16 ? 0x8000L
                 : Float.floatToRawIntBits(-0.0f) & 0xffff_ffffL;
     }
 
@@ -1581,7 +1596,7 @@ class CpuPointwiseGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> new CpuBufferArgument.Doubles((double[]) value, 0, bytes, false);
             case FLOAT32 -> new CpuBufferArgument.Floats((float[]) value, 0, bytes, false);
-            case BFLOAT16 -> new CpuBufferArgument.Shorts((short[]) value, 0, bytes, false);
+            case BFLOAT16, FLOAT16 -> new CpuBufferArgument.Shorts((short[]) value, 0, bytes, false);
             case INT32 -> new CpuBufferArgument.Ints((int[]) value, 0, bytes, false);
             case INT64 -> new CpuBufferArgument.Longs((long[]) value, 0, bytes, false);
             case BOOL -> new CpuBufferArgument.Bytes((byte[]) value, 0, bytes, false);
@@ -1593,7 +1608,7 @@ class CpuPointwiseGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY;
             case FLOAT32 -> CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY;
-            case BFLOAT16 -> CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY;
+            case BFLOAT16, FLOAT16 -> CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY;
             case INT32 -> CpuKernelSpecialization.CarrierAccess.INT_ARRAY;
             case INT64 -> CpuKernelSpecialization.CarrierAccess.LONG_ARRAY;
             case BOOL -> CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY;
@@ -1602,7 +1617,7 @@ class CpuPointwiseGeneratedKernelTest {
     }
 
     private static List<DataType> numericTypes() {
-        return List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+        return List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16,
                 DataType.INT32, DataType.INT64);
     }
 

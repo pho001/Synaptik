@@ -25,8 +25,9 @@ import java.util.List;
  * max addition, logit subtraction, optional target multiplication, aggregation, negation, and any
  * exact divisor. Every contributor participates once; arithmetic sites use DAZ/FTZ and one-round
  * operations, and each irreducible logarithmic or exponential site uses the inclusive
- * ordered-binary32 distance ceiling of five. The composites gain no final-output envelope and
- * non-FLOAT32 behavior stays strict. See the
+ * ordered-binary32 distance ceiling of five. The composites gain no final-output envelope. Every
+ * current non-FLOAT32 occurrence remains strict; the inactive low-precision reservation changes
+ * none of them. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */
@@ -61,9 +62,10 @@ public enum LossKind implements OperationKind {
      * <p>A target equal to the optional ignore index contributes positive zero before bounds or
      * logits evaluation. Every other target selects one class from its stable log-softmax slice;
      * mean reduction divides by the number of non-ignored targets. INT32 and INT64 targets are
-     * exact indices, while floating computation and result type follow the logits: BFLOAT16 and
-     * FLOAT32 use at least FLOAT32 computation, and FLOAT64 uses FLOAT64. NaN, infinity, empty,
-     * and all-ignored behavior is part of the semantic contract, not eager evaluation.</p>
+     * exact indices, while floating computation and result type follow the logits: FLOAT16,
+     * BFLOAT16, and FLOAT32 use at least FLOAT32 computation, and FLOAT64 uses FLOAT64.
+     * NaN, infinity, empty, and all-ignored behavior is part of the semantic contract, not eager
+     * evaluation.</p>
      */
     INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS;
 

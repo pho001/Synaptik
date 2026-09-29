@@ -99,6 +99,8 @@ public final class CpuRepresentationRecipes {
                             value.float32Value());
                     case BFLOAT16 -> segment.setAtIndex(ValueLayout.JAVA_SHORT, index,
                             value.bfloat16Bits());
+                    case FLOAT16 -> segment.setAtIndex(ValueLayout.JAVA_SHORT, index,
+                            value.float16Bits());
                     case INT64 -> segment.setAtIndex(ValueLayout.JAVA_LONG, index,
                             value.int64Value());
                     case INT32 -> segment.setAtIndex(ValueLayout.JAVA_INT, index,

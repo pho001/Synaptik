@@ -122,7 +122,7 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
     }
 
     /* BOOL inputs are canonical 0/1 representations. WHERE follows the production scalar
-       branch order exactly: nonzero selects ordered input one, otherwise input two. BFLOAT16
+       branch order exactly: nonzero selects ordered input one, otherwise input two. Low-precision
        branches are copied as raw represented short bits, never decoded and repacked. */
     private static void logicalOrSelectionBody(StringBuilder java, Row row, int parameterCount) {
         List<String> parameters = parameters(row.descriptor());
@@ -186,7 +186,8 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
                 ).append("long out=p2[3]+(cursor-p3)*p2[5];");
         String loaded = load(source, inputSegment, "in");
         String value = source.equals("FLOAT64") ? loaded
-                : source.equals("BFLOAT16") ? "Float.intBitsToFloat(((" + loaded + ")&65535)<<16)" : loaded;
+                : source.equals("BFLOAT16") ? "Float.intBitsToFloat(((" + loaded + ")&65535)<<16)"
+                : source.equals("FLOAT16") ? "Float.float16ToFloat((short)(" + loaded + "))" : loaded;
         if (row.operation().startsWith("IS_")) {
             String predicate = switch (row.operation()) {
                 case "IS_FINITE" -> "Float.isFinite(" + value + ")";
@@ -214,6 +215,8 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
                 }
                 if (source.equals("BFLOAT16")) {
                     java.append("float narrowed=computed;int bits=Float.floatToRawIntBits(narrowed);int converted=((bits&0x7fffffff)>0x7f800000)?0x7fc0:((bits+0x7fff+((bits>>>16)&1))>>>16);");
+                } else if (source.equals("FLOAT16")) {
+                    java.append("int converted=Float.isNaN(computed)?0x7e00:(Float.floatToFloat16(computed)&65535);");
                 } else java.append("float converted=computed;");
                 java.append(store(source, outputSegment, "out", "converted"));
                 java.append("}}\n");
@@ -250,6 +253,8 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
             String converted = source.equals("FLOAT64") ? "computed" : "(float)computed";
             if (source.equals("BFLOAT16")) {
                 java.append("float narrowed=(float)computed;int bits=Float.floatToRawIntBits(narrowed);int converted=((bits&0x7fffffff)>0x7f800000)?0x7fc0:((bits+0x7fff+((bits>>>16)&1))>>>16);");
+            } else if (source.equals("FLOAT16")) {
+                java.append("int converted=Float.isNaN((float)computed)?0x7e00:(Float.floatToFloat16((float)computed)&65535);");
             } else java.append(javaTypeFor(source)).append(" converted=").append(converted).append(';');
             java.append(store(source, outputSegment, "out", "converted"));
         }
@@ -285,9 +290,11 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
                 || row.operation().equals("EQUAL") || row.operation().equals("NOT_EQUAL")) {
             String comparisonType = type;
             String comparisonLeft = comparisonType.equals("BFLOAT16")
-                    ? "Float.intBitsToFloat(((" + left + ")&65535)<<16)" : left;
+                    ? "Float.intBitsToFloat(((" + left + ")&65535)<<16)"
+                    : comparisonType.equals("FLOAT16") ? "Float.float16ToFloat((short)(" + left + "))" : left;
             String comparisonRight = comparisonType.equals("BFLOAT16")
-                    ? "Float.intBitsToFloat(((" + right + ")&65535)<<16)" : right;
+                    ? "Float.intBitsToFloat(((" + right + ")&65535)<<16)"
+                    : comparisonType.equals("FLOAT16") ? "Float.float16ToFloat((short)(" + right + "))" : right;
             String operator = switch (row.operation()) {
                 case "GREATER_THAN" -> ">"; case "GREATER_OR_EQUAL" -> ">=";
                 case "LESS_THAN" -> "<"; case "LESS_OR_EQUAL" -> "<=";
@@ -299,9 +306,11 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
         } else {
             String valueType = type;
             String arithmeticLeft = valueType.equals("BFLOAT16")
-                    ? "Float.intBitsToFloat(((" + left + ")&65535)<<16)" : left;
+                    ? "Float.intBitsToFloat(((" + left + ")&65535)<<16)"
+                    : valueType.equals("FLOAT16") ? "Float.float16ToFloat((short)(" + left + "))" : left;
             String arithmeticRight = valueType.equals("BFLOAT16")
-                    ? "Float.intBitsToFloat(((" + right + ")&65535)<<16)" : right;
+                    ? "Float.intBitsToFloat(((" + right + ")&65535)<<16)"
+                    : valueType.equals("FLOAT16") ? "Float.float16ToFloat((short)(" + right + "))" : right;
             String expression = switch (row.operation()) {
                 case "ADD" -> arithmeticLeft + "+" + arithmeticRight;
                 case "SUB" -> arithmeticLeft + "-" + arithmeticRight;
@@ -316,6 +325,9 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
             if (valueType.equals("BFLOAT16")) {
                 java.append("float computed=").append(expression).append(";int bits=Float.floatToRawIntBits(computed);")
                         .append("int converted=((bits&0x7fffffff)>0x7f800000)?0x7fc0:((bits+0x7fff+((bits>>>16)&1))>>>16);");
+            } else if (valueType.equals("FLOAT16")) {
+                java.append("float computed=").append(expression)
+                        .append(";int converted=Float.isNaN(computed)?0x7e00:(Float.floatToFloat16(computed)&65535);");
             } else java.append(javaTypeFor(valueType)).append(" converted=").append(expression).append(';');
             java.append(storeTo(valueType, outputSegment, "p2", "out", "converted"));
         }
@@ -341,7 +353,8 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
     }
 
     private static String javaTypeFor(String type) { return switch (type) {
-        case "FLOAT64" -> "double"; case "FLOAT32" -> "float"; case "BFLOAT16", "INT32", "BOOL" -> "int";
+        case "FLOAT64" -> "double"; case "FLOAT32" -> "float";
+        case "BFLOAT16", "FLOAT16", "INT32", "BOOL" -> "int";
         case "INT64" -> "long"; default -> throw new AssertionError(type); }; }
     private static String load(String type, boolean segment, String address) {
         return loadFrom(type, segment, "p0", address);
@@ -349,12 +362,13 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
     private static String loadFrom(String type, boolean segment, String carrier, String address) {
         String layout = switch (type) { case "FLOAT64" -> "java.lang.foreign.ValueLayout.JAVA_DOUBLE_UNALIGNED";
             case "FLOAT32" -> "java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED";
-            case "BFLOAT16" -> "java.lang.foreign.ValueLayout.JAVA_SHORT_UNALIGNED";
+            case "BFLOAT16", "FLOAT16" -> "java.lang.foreign.ValueLayout.JAVA_SHORT_UNALIGNED";
             case "INT64" -> "java.lang.foreign.ValueLayout.JAVA_LONG_UNALIGNED";
             case "INT32" -> "java.lang.foreign.ValueLayout.JAVA_INT_UNALIGNED";
             case "BOOL" -> "java.lang.foreign.ValueLayout.JAVA_BYTE"; default -> throw new AssertionError(type); };
         String array = switch (type) { case "FLOAT64" -> "((double[])" + carrier + ")[(int)" + address + "]";
-            case "FLOAT32" -> "((float[])" + carrier + ")[(int)" + address + "]"; case "BFLOAT16" -> "((short[])" + carrier + ")[(int)" + address + "]";
+            case "FLOAT32" -> "((float[])" + carrier + ")[(int)" + address + "]";
+            case "BFLOAT16", "FLOAT16" -> "((short[])" + carrier + ")[(int)" + address + "]";
             case "INT64" -> "((long[])" + carrier + ")[(int)" + address + "]"; case "INT32" -> "((int[])" + carrier + ")[(int)" + address + "]";
             case "BOOL" -> "((byte[])" + carrier + ")[(int)" + address + "]"; default -> throw new AssertionError(type); };
         return segment ? "((java.lang.foreign.MemorySegment)" + carrier + ").getAtIndex(" + layout + "," + address + ")" : array;
@@ -364,14 +378,16 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
     }
     private static String storeTo(String type, boolean segment, String carrier, String address, String value) {
         String layout = switch (type) { case "FLOAT64" -> "java.lang.foreign.ValueLayout.JAVA_DOUBLE_UNALIGNED";
-            case "FLOAT32" -> "java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED"; case "BFLOAT16" -> "java.lang.foreign.ValueLayout.JAVA_SHORT_UNALIGNED";
+            case "FLOAT32" -> "java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED";
+            case "BFLOAT16", "FLOAT16" -> "java.lang.foreign.ValueLayout.JAVA_SHORT_UNALIGNED";
             case "INT64" -> "java.lang.foreign.ValueLayout.JAVA_LONG_UNALIGNED"; case "INT32" -> "java.lang.foreign.ValueLayout.JAVA_INT_UNALIGNED";
             case "BOOL" -> "java.lang.foreign.ValueLayout.JAVA_BYTE"; default -> throw new AssertionError(type); };
         String array = switch (type) { case "FLOAT64" -> "((double[])" + carrier + ")[(int)" + address + "]=" + value + ";";
-            case "FLOAT32" -> "((float[])" + carrier + ")[(int)" + address + "]=" + value + ";"; case "BFLOAT16" -> "((short[])" + carrier + ")[(int)" + address + "]=(short)" + value + ";";
+            case "FLOAT32" -> "((float[])" + carrier + ")[(int)" + address + "]=" + value + ";";
+            case "BFLOAT16", "FLOAT16" -> "((short[])" + carrier + ")[(int)" + address + "]=(short)" + value + ";";
             case "INT64" -> "((long[])" + carrier + ")[(int)" + address + "]=" + value + ";"; case "INT32" -> "((int[])" + carrier + ")[(int)" + address + "]=" + value + ";";
             case "BOOL" -> "((byte[])" + carrier + ")[(int)" + address + "]=(byte)" + value + ";"; default -> throw new AssertionError(type); };
-        String segmentValue = switch (type) { case "BFLOAT16" -> "(short)" + value;
+        String segmentValue = switch (type) { case "BFLOAT16", "FLOAT16" -> "(short)" + value;
             case "BOOL" -> "(byte)" + value; default -> value; };
         return segment ? "((java.lang.foreign.MemorySegment)" + carrier + ").setAtIndex(" + layout + "," + address + "," + segmentValue + ");" : array;
     }
@@ -379,17 +395,24 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
     /* These snippets are emitted into each hot method (not dispatched through an oracle). */
     private static void appendConversion(StringBuilder s, String source, String target) {
         if (source.equals(target)) { s.append(javaTypeFor(target)).append(" converted=value;"); return; }
-        if (target.equals("BOOL")) { s.append(source.equals("BFLOAT16")
-                ? "int converted=(Float.intBitsToFloat((value&65535)<<16)==0f?0:1);"
-                : "int converted=(value==0?0:1);"); return; }
+        if (target.equals("BOOL")) {
+            if (source.equals("BFLOAT16")) s.append("int converted=(Float.intBitsToFloat((value&65535)<<16)==0f?0:1);");
+            else if (source.equals("FLOAT16")) s.append("int converted=(Float.float16ToFloat((short)value)==0f?0:1);");
+            else s.append("int converted=(value==0?0:1);");
+            return;
+        }
         if (target.equals("BFLOAT16")) { appendBfloat(s, source); return; }
-        String numeric = source.equals("BFLOAT16") ? "Float.intBitsToFloat((value&65535)<<16)" : "value";
+        if (target.equals("FLOAT16")) { appendHalf(s, source); return; }
+        String numeric = source.equals("BFLOAT16") ? "Float.intBitsToFloat((value&65535)<<16)"
+                : source.equals("FLOAT16") ? "Float.float16ToFloat((short)value)" : "value";
         if (target.equals("FLOAT64")) {
             if (source.equals("FLOAT32")) s.append("int nb=Float.floatToRawIntBits(value);double converted=((nb&0x7f800000)==0x7f800000&&(nb&0x7fffff)!=0)?Double.longBitsToDouble(((long)(nb&0x80000000)<<32)|0x7ff0000000000000L|((long)(nb&0x7fffff)<<29)):(double)value;");
             else if (source.equals("BFLOAT16")) s.append("int nb=value&65535;double converted=((nb&0x7f80)==0x7f80&&(nb&0x7f)!=0)?Double.longBitsToDouble(((long)(nb&0x8000)<<48)|0x7ff0000000000000L|((long)(nb&0x7f)<<45)):(double)Float.intBitsToFloat(nb<<16);");
+            else if (source.equals("FLOAT16")) s.append("int nb=value&65535;double converted=((nb&0x7c00)==0x7c00&&(nb&0x3ff)!=0)?Double.longBitsToDouble(((long)(nb&0x8000)<<48)|0x7ff0000000000000L|((long)(nb&0x3ff)<<42)):(double)Float.float16ToFloat((short)value);");
             else s.append("double converted=(double)").append(numeric).append(";");
         } else if (target.equals("FLOAT32")) {
             if (source.equals("FLOAT64")) s.append("long db=Double.doubleToRawLongBits(value);float converted=((db&0x7ff0000000000000L)==0x7ff0000000000000L&&(db&0xfffffffffffffL)!=0)?Float.NaN:(float)value;");
+            else if (source.equals("FLOAT16")) s.append("int nb=value&65535;float converted=((nb&0x7c00)==0x7c00&&(nb&0x3ff)!=0)?Float.intBitsToFloat(((nb&0x8000)<<16)|0x7f800000|((nb&0x3ff)<<13)):Float.float16ToFloat((short)value);");
             else s.append("float converted=(float)").append(numeric).append(";");
         } else if (target.equals("INT64")) s.append("long converted=(long)").append(numeric).append(";");
         else s.append("int converted=(int)").append(numeric).append(";");
@@ -410,10 +433,29 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
                     + "if(de>=897&&q==256){q=128;de++;}converted=de>=897?(ds|((de-896)<<7)|((int)q&127)):(ds|((int)q));}");
             return;
         }
-        String f = source.equals("FLOAT64") ? "(float)value" : source.equals("BFLOAT16") ? "Float.intBitsToFloat((value&65535)<<16)" : "(float)value";
+        String f = source.equals("BFLOAT16") ? "Float.intBitsToFloat((value&65535)<<16)"
+                : source.equals("FLOAT16") ? "Float.float16ToFloat((short)value)" : "(float)value";
         // F32 input and integral inputs use the contract's RNE packing.  The direct F64 row
         // intentionally evaluates binary64 first; the expression is not routed through any API.
         s.append("float cv=").append(f).append(";int cb=Float.floatToRawIntBits(cv);int converted=((cb&0x7fffffff)>0x7f800000)?0x7fc0:((cb+0x7fff+((cb>>>16)&1))>>>16);");
+    }
+    private static void appendHalf(StringBuilder s, String source) {
+        if (source.equals("BOOL")) { s.append("int converted=value==0?0:0x3c00;"); return; }
+        if (source.equals("FLOAT32")) {
+            s.append("int converted=Float.isNaN(value)?0x7e00:(Float.floatToFloat16(value)&65535);");
+            return;
+        }
+        if (source.equals("BFLOAT16")) {
+            s.append("float hv=Float.intBitsToFloat(value<<16);int converted=Float.isNaN(hv)?0x7e00:(Float.floatToFloat16(hv)&65535);");
+            return;
+        }
+        doubleValueToHalf(s, source.equals("FLOAT64") ? "value"
+                : source.equals("INT64") ? "(double)value" : "(double)value");
+    }
+    private static void doubleValueToHalf(StringBuilder s, String expression) {
+        s.append("double hv=").append(expression)
+                .append(";long hb=Double.doubleToRawLongBits(hv);int hs=(int)(hb>>>48)&0x8000;int he=(int)(hb>>>52)&0x7ff;long hm=hb&0xfffffffffffffL;int converted;")
+                .append("if(he==0x7ff){converted=hm==0?(hs|0x7c00):0x7e00;}else if(he>1038){converted=hs|0x7c00;}else if(he<998){converted=hs;}else{int hsh=he<1009?1051-he:42;long hsig=(1L<<52)|hm;long hq=(hsig+(1L<<(hsh-1))-1+((hsig>>>hsh)&1))>>>hsh;if(he>=1009&&hq==0x800L){hq=0x400L;he++;}converted=he>1038?(hs|0x7c00):(he>=1009?(hs|((he-1008)<<10)|((int)hq&0x3ff)):(hs|(int)hq));}");
     }
 
     private static List<String> parameters(String descriptor) {

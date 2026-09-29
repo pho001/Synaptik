@@ -43,22 +43,23 @@ class CpuSpecializedSemanticClosureGapTest {
             assertFalse(row[4].isBlank() || row[5].isBlank(), form + " concrete existing witness identity");
             if (form.equals("MATMUL")) {
                 assertEquals("CpuMatmulSemanticClosureTest#everyMatmulInventoryRowDefinesAndInvokesItsActualGeneratedEntryAgainstIndependentOracle", row[4]);
-                assertEquals("MATMUL_390_EXACT_ROW_WITNESSES", row[5]);
+                assertEquals("MATMUL_600_EXACT_ROW_WITNESSES", row[5]);
                 assertEquals("SEALED_EXACT_ROW_WITNESSES", row[6]);
-                assertEquals(390, counts.rows); assertEquals(325, counts.groups);
+                assertEquals(600, counts.rows); assertEquals(500, counts.groups);
             } else if (form.equals("BATCH_NORM_INFERENCE") || form.equals("BATCH_NORM_TRAINING")) {
                 String method = form.equals("BATCH_NORM_INFERENCE")
                         ? "everyBatchNormInferenceInventoryRowDefinesAndInvokesItsActualGeneratedEntryAgainstIndependentOracle"
                         : "everyBatchNormTrainingInventoryRowDefinesAndInvokesItsActualGeneratedEntryAgainstIndependentOracle";
                 assertEquals("CpuBatchNormSemanticClosureTest#" + method, row[4]);
-                assertEquals(form + "_2430_EXACT_ROW_WITNESSES", row[5]);
+                assertEquals(form + "_10240_EXACT_ROW_WITNESSES", row[5]);
                 assertEquals("SEALED_EXACT_ROW_WITNESSES", row[6]);
-                assertEquals(2430, counts.rows); assertEquals(2430, counts.groups);
+                assertEquals(10240, counts.rows); assertEquals(10240, counts.groups);
             } else if (form.endsWith("CROSS_ENTROPY_WITH_LOGITS") || form.equals("MEAN_SQUARED_ERROR")) {
                 assertEquals("CpuLossSemanticClosureTest#everyLossInventoryRowDefinesAndInvokesItsActualGeneratedEntryAgainstIndependentOracle", row[4]);
-                assertEquals("LOSS_180_EXACT_ROW_WITNESSES", row[5]);
+                int expected = form.equals("INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS") ? 240 : 300;
+                assertEquals("LOSS_" + expected + "_EXACT_ROW_WITNESSES", row[5]);
                 assertEquals("SEALED_EXACT_ROW_WITNESSES", row[6]);
-                assertEquals(180, counts.rows); assertEquals(180, counts.groups);
+                assertEquals(expected, counts.rows); assertEquals(expected, counts.groups);
             } else if (form.equals("CONV1D_COMPOSITION") || form.equals("CONV2D")
                     || form.equals("CONV3D")) {
                 assertEquals("CpuConvolutionSemanticClosureTest#every" + switch (form) {
@@ -68,48 +69,48 @@ class CpuSpecializedSemanticClosureGapTest {
                     default -> throw new AssertionError(form);
                 } + "InventoryRowDefinesAndInvokesItsActual" + (form.equals("CONV1D_COMPOSITION")
                         ? "LoweredEntry" : "GeneratedEntry"), row[4]);
-                assertEquals(form + "_540_EXACT_ROW_WITNESSES", row[5]);
+                assertEquals(form + "_1200_EXACT_ROW_WITNESSES", row[5]);
                 assertEquals("SEALED_EXACT_ROW_WITNESSES", row[6]);
-                assertEquals(540, counts.rows);
-                assertEquals(form.equals("CONV1D_COMPOSITION") ? 540 : 360, counts.groups);
+                assertEquals(1200, counts.rows);
+                assertEquals(form.equals("CONV1D_COMPOSITION") ? 1200 : 800, counts.groups);
             } else if (form.equals("SCALED_DOT_PRODUCT_ATTENTION")) {
                 assertEquals("CpuAttentionSemanticClosureTest#everyAttentionInventoryRowDefinesAndInvokesItsActualGeneratedEntryAgainstIndependentOracle", row[4]);
-                assertEquals("SCALED_DOT_PRODUCT_ATTENTION_4560_EXACT_ROW_WITNESSES", row[5]);
+                assertEquals("SCALED_DOT_PRODUCT_ATTENTION_9280_EXACT_ROW_WITNESSES", row[5]);
                 assertEquals("SEALED_EXACT_ROW_WITNESSES", row[6]);
             } else if (form.equals("ARG_MIN") || form.equals("ARG_MAX")) {
                 assertEquals("CpuArgExtremaSemanticClosureTest#everyArgExtremaInventoryRowDefinesAndInvokesItsActualGeneratedEntryAgainstIndependentOracle", row[4]);
-                assertEquals(form + "_200_EXACT_ROW_WITNESSES", row[5]);
+                assertEquals(form + "_240_EXACT_ROW_WITNESSES", row[5]);
                 assertEquals("SEALED_EXACT_ROW_WITNESSES", row[6]);
-                assertEquals(200, counts.rows); assertEquals(200, counts.groups);
+                assertEquals(240, counts.rows); assertEquals(240, counts.groups);
             } else if (Set.of("MASKED_SUM", "MASKED_MEAN", "LOG_SUM_EXP", "L1_NORM", "L2_NORM",
                     "VARIANCE", "STANDARD_DEVIATION").contains(form)) {
                 assertEquals("CpuMaskedAdvancedReductionSemanticClosureTest#everyMaskedAndAdvancedInventoryOwnerDefinesAndInvokesItsActualGeneratedEntryAgainstIndependentOracle", row[4]);
-                assertEquals(form + "_90_EXACT_ROW_WITNESSES", row[5]);
+                assertEquals(form + "_120_EXACT_ROW_WITNESSES", row[5]);
                 assertEquals("SEALED_EXACT_ROW_WITNESSES", row[6]);
-                assertEquals(90, counts.rows); assertEquals(90, counts.groups);
+                assertEquals(120, counts.rows); assertEquals(120, counts.groups);
             } else if (Set.of("SOFTMAX", "LOG_SOFTMAX", "LAYER", "LAYER_AFFINE", "RMS",
                     "RMS_SCALED").contains(form)) {
                 assertEquals("CpuNormalizationSemanticClosureTest#everyNormalizationInventoryOwnerDefinesAndInvokesItsActualGeneratedEntryAgainstIndependentOracle", row[4]);
                 assertEquals(form + "_EXACT_ROW_WITNESSES", row[5]);
                 assertEquals("SEALED_EXACT_ROW_WITNESSES", row[6]);
                 assertEquals(switch (form) {
-                    case "SOFTMAX", "LOG_SOFTMAX" -> 30;
-                    case "LAYER", "RMS" -> 15;
-                    case "LAYER_AFFINE" -> 135;
-                    case "RMS_SCALED" -> 45;
+                    case "SOFTMAX", "LOG_SOFTMAX" -> 40;
+                    case "LAYER", "RMS" -> 20;
+                    case "LAYER_AFFINE" -> 320;
+                    case "RMS_SCALED" -> 80;
                     default -> throw new AssertionError(form);
                 }, counts.rows);
                 assertEquals(counts.rows, counts.groups, form + " has no projected prepared group");
             } else if (Set.of("AVERAGE_POOL2D", "MAX_POOL2D", "AVERAGE_POOL3D", "MAX_POOL3D").contains(form)) {
                 assertEquals("CpuPool2d3dSemanticClosureTest#everyExactGeneratedPoolOwnerDefinesAndInvokesItsSpecializedEntry", row[4]);
-                assertEquals(form + "_30_EXACT_ROW_WITNESSES", row[5]);
+                assertEquals(form + "_40_EXACT_ROW_WITNESSES", row[5]);
                 assertEquals("SEALED_EXACT_ROW_WITNESSES", row[6]);
-                assertEquals(30, counts.rows);
-                assertEquals(15, counts.groups, form + " has byte-identical floor/ceil projections but keeps exact row witnesses");
+                assertEquals(40, counts.rows);
+                assertEquals(20, counts.groups, form + " has byte-identical floor/ceil projections but keeps exact row witnesses");
             } else assertEquals("EXPLICIT_GAP_NO_EXACT_GROUP_WITNESS", row[6], form);
         }
         Counts attention = actual.get("SCALED_DOT_PRODUCT_ATTENTION");
-        assertEquals(4560, attention.rows); assertEquals(2280, attention.groups);
+        assertEquals(9280, attention.rows); assertEquals(4640, attention.groups);
         assertThrows(AssertionError.class, () -> manifestRows(manifest + manifest.lines().skip(1)
                 .findFirst().orElseThrow() + "\n"),
                 "mutation negative: a duplicate owner must be rejected");

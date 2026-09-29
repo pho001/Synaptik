@@ -8,6 +8,7 @@ import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.training.Sgd;
 import io.github.pho001.synaptik.training.TrainingSession;
 import io.github.pho001.synaptik.training.TrainingState;
+import java.nio.ByteBuffer;
 
 /** Compile-only witness whose sole declared dependency is extensions:training. */
 final class TrainingApiConsumer {
@@ -23,5 +24,9 @@ final class TrainingApiConsumer {
 
     static Shape shape(TrainingState.ParameterState state) {
         return state.shape();
+    }
+
+    static ByteBuffer masterParameterBytes(TrainingState.ParameterState state) {
+        return state.masterParameterBytes();
     }
 }

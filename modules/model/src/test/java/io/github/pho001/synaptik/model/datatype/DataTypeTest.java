@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 
 class DataTypeTest {
     @Test
-    void definesExactlyTheInitialDataTypesInStableOrder() {
+    void definesAllModelDataTypesWithoutChangingExistingOrdinals() {
         assertArrayEquals(
                 new DataType[] {
                     DataType.FLOAT64,
@@ -19,7 +19,8 @@ class DataTypeTest {
                     DataType.BFLOAT16,
                     DataType.INT32,
                     DataType.INT64,
-                    DataType.BOOL
+                    DataType.BOOL,
+                    DataType.FLOAT16
                 },
                 DataType.values());
     }
@@ -39,6 +40,7 @@ class DataTypeTest {
     void exposesExactMetadataForEveryDataType() {
         assertMetadata(DataType.FLOAT64, DataTypeCategory.FLOATING, 64, 8, true);
         assertMetadata(DataType.FLOAT32, DataTypeCategory.FLOATING, 32, 4, true);
+        assertMetadata(DataType.FLOAT16, DataTypeCategory.FLOATING, 16, 2, true);
         assertMetadata(DataType.BFLOAT16, DataTypeCategory.FLOATING, 16, 2, true);
         assertMetadata(DataType.INT32, DataTypeCategory.INTEGRAL, 32, 4, false);
         assertMetadata(DataType.INT64, DataTypeCategory.INTEGRAL, 64, 8, false);
@@ -63,6 +65,7 @@ class DataTypeTest {
         assertAll(
                 () -> assertTrue(DataType.FLOAT64.isDifferentiable()),
                 () -> assertTrue(DataType.FLOAT32.isDifferentiable()),
+                () -> assertTrue(DataType.FLOAT16.isDifferentiable()),
                 () -> assertTrue(DataType.BFLOAT16.isDifferentiable()),
                 () -> assertFalse(DataType.INT32.isDifferentiable()),
                 () -> assertFalse(DataType.INT64.isDifferentiable()),

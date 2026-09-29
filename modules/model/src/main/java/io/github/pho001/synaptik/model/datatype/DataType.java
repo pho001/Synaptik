@@ -6,7 +6,8 @@ package io.github.pho001.synaptik.model.datatype;
  * <p>Each constant exposes backend-independent semantic metadata: its value category, logical bit
  * width, storage byte width, and whether values of the type may participate in automatic
  * differentiation. The enum deliberately contains no backend support, device format, storage
- * carrier, or kernel-selection information.</p>
+ * carrier, or kernel-selection information. Backend wires, schemas, generators, routes, and
+ * executable capabilities remain separately versioned and qualified for every type.</p>
  */
 public enum DataType {
     /** IEEE-754 binary64 floating-point values. */
@@ -25,7 +26,10 @@ public enum DataType {
     INT64(DataTypeCategory.INTEGRAL, 64, false),
 
     /** Logical false-or-true values with one byte of logical storage width. */
-    BOOL(DataTypeCategory.BOOLEAN, 8, false);
+    BOOL(DataTypeCategory.BOOLEAN, 8, false),
+
+    /** IEEE-754 binary16 floating-point values. */
+    FLOAT16(DataTypeCategory.FLOATING, 16, true);
 
     private final DataTypeCategory category;
     private final int bitWidth;
@@ -82,8 +86,8 @@ public enum DataType {
     /**
      * Reports whether this data type represents floating-point values.
      *
-     * @return {@code true} for {@link #FLOAT64}, {@link #FLOAT32}, and {@link #BFLOAT16}; otherwise
-     *     {@code false}
+     * @return {@code true} for {@link #FLOAT64}, {@link #FLOAT32}, {@link #BFLOAT16}, and
+     *     {@link #FLOAT16}; otherwise {@code false}
      */
     public boolean isFloating() {
         return category == DataTypeCategory.FLOATING;

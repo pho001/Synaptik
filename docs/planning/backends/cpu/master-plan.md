@@ -67,7 +67,7 @@ backends, inferred relaxed numerics, or platform-label-selected vendor routes.
 - Generated identity covers every bytecode/compatibility fact but excludes compatible instance
   facts. Verified process-local reuse is required; trusted-root persistence remains optional and
   disabled. Generated-class storage and the persistent tuning cache remain separate.
-- The six Model types retain exact represented carriers, but storage never implies arithmetic,
+- The seven Model types retain exact represented carriers, but storage never implies arithmetic,
   vector, native, or numerical support; [0009](tasks/0009-portable-generated-coverage-closure-checkpoint.md)
   owns the checked inventory. Run-owned buffers are aligned native off-heap; borrowed inputs are
   non-owning, and selected materializations are explicit, declared, costed, and reusable.
@@ -246,7 +246,8 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0015 | Optional AMD ZenDNN partition peer routes | Draft | 0014; 0005A; 0009; stable common CPU lowering; concrete ZenDNN use case and integration evidence | Optional ZenDNN route waits for 0014 plus a concrete use case and integration evidence. |
 | 0016 | Cross-route CPU tuning-cache integration | Draft | 0010E; Prepare 0004; tools/tuning 0001; 0011–0015 as implemented | Generalize the proved tuning contract only across vendor peers that are actually implemented. |
 | 0017 | [Explicit ACCELERATOR numerical-profile realization](tasks/0017-explicit-accelerator-numerical-profile-realization.md) | Complete | Model 0027; Config 0006; Engine 0018; current exact portable/OpenBLAS routes and profile-keyed plans/caches | Delivered identical exact CPU semantics and routes under both profiles with profile-separated plans, generated artifacts, OpenBLAS workloads, and tuning/cache identities. |
-| 0019 | [CPU partition size independent of fusion-unit size](tasks/0019-unbounded-cpu-partition-bounded-fusion-units.md) | Complete | CPU 0008B/0008D/0008E/0008F/0017; Engine 0018; independent of unfinished CPU 0018 | Long maximal CPU partitions execute as bounded local units; 1,039 CPU tests and focused Engine execution passed. |
+| 0018 | [Shared external-read recognition validation](tasks/0018-shared-external-read-recognition-validation.md) | Blocked | CPU 0008C/0008D/0008F/0017; Engine 0018 (all Complete); user topology decision open | Partial hotfix failed independent Class C review: P2 virtualized output can forge the shared weight's relative boundary position; choose authenticated `ValueId` binding or safe nonfused fallback. |
+| 0019 | [CPU partition size independent of fusion-unit size](tasks/0019-unbounded-cpu-partition-bounded-fusion-units.md) | Complete | CPU 0008B/0008D/0008E/0008F/0017; Engine 0018 (Complete); independent of Blocked 0018 | Long maximal CPU partitions now execute as bounded local units; 1,039 CPU tests and focused Engine execution passed. |
 
 ## Milestones and current frontier
 
@@ -256,11 +257,18 @@ The table owns order and status; linked tasks own detailed evidence.
   scalar with configured/available parallelism `1`/`1` and minimum elements per worker `1`; the
   invalid broad vector candidate was reverted and its reports removed.
 - 0007A1D is Review needed; 0010D1 and 0011 are Blocked; 0012–0016 are Draft.
+- [0019](tasks/0019-unbounded-cpu-partition-bounded-fusion-units.md) is Complete by explicit
+  user-authorized exception to table order. No next CPU implementation task is Ready.
+  [0018](tasks/0018-shared-external-read-recognition-validation.md)
+  is `Blocked` after partial implementation from clean `e42d938d`: independent Class C review
+  found a P2 forged virtual-output/shared-weight boundary position. Resumption requires the
+  user's authenticated-`ValueId`-binding versus safe-nonfused-fallback decision, a fix, affected
+  validation, and renewed independent review. It remains serial on CPU recognition/preparation
+  and affected guide scopes, and independent of 0007A1D's performance review.
 - Documentation-only 0010K and 0010L and profile realization
   [0017](tasks/0017-explicit-accelerator-numerical-profile-realization.md) are Complete. CPU 0017
   landed at `372a8b98`; its independent Class C review and the combined numerical-profile backend
   integration checkpoint passed with zero findings or failures.
-- [0019](tasks/0019-unbounded-cpu-partition-bounded-fusion-units.md) is Complete by the user-authorized out-of-order exception. Long CPU partitions have no eight-node partition cap; the eight-node fused-unit ceiling remains. CPU 0018 is a separate unfinished task.
 
 ## Completed numerical-profile integration
 
@@ -277,6 +285,11 @@ capability/preparer, and glossary documents now describe the combined current be
 
 ## Live gates and decisions
 
+- CPU 0018's virtualized recognized output lacks an authenticated `ValueId` in current
+  CPU-preparation facts; its claimed relative position can alias a producerless external weight.
+  The user must choose CPU-private binding or safe nonfused fallback before implementation resumes.
+  The separate >8-node CPU graph-size choice is now fixed by 0019: retain maximal same-owner
+  partitions and bound only local computation units; 0018 remains independently Blocked.
 - [OpenBLAS provider 0004](../openblas-provider/tasks/0004-optional-direct-bfloat16-output-gemm-capability.md)
   and CPU 0010D1 resume only after proving an exported direct BFLOAT16-input/output ABI and full
   FLOAT32 contraction with one final narrowing. Existing portable BFLOAT16 and FLOAT32/FLOAT64

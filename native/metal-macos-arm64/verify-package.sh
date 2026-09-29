@@ -161,6 +161,7 @@ done
 EXPECTED_EXPORTS="$(printf '%s\n' \
     synaptik_metal_foundation_abi_version \
     synaptik_metal_context_create \
+    synaptik_metal_context_certification_environment \
     synaptik_metal_context_release \
     synaptik_metal_buffer_create \
     synaptik_metal_buffer_release \
@@ -174,7 +175,7 @@ EXPECTED_EXPORTS="$(printf '%s\n' \
     synaptik_metal_neg_kernel_pipeline_run \
     | sort)"
 ACTUAL_EXPORTS="$(nm -gUj "${LIBRARY}" | sed 's/^_//' | sort)"
-[[ "${ACTUAL_EXPORTS}" == "${EXPECTED_EXPORTS}" ]] || fail "export set is not the exact ABI-v5 set"
+[[ "${ACTUAL_EXPORTS}" == "${EXPECTED_EXPORTS}" ]] || fail "export set is not the exact ABI-v6 set"
 
 if ! codesign --verify --strict --verbose=4 "${LIBRARY}" >/dev/null 2>&1; then
     fail "strict code-signature verification failed"
@@ -200,7 +201,7 @@ trap cleanup EXIT
 
 EXPECTED_MANIFEST="${TEMP_DIR}/${MANIFEST_NAME}"
 printf '%s\n' \
-    "{\"schemaVersion\":1,\"artifact\":{\"file\":\"${LIBRARY_NAME}\",\"size\":${LIBRARY_SIZE},\"sha256\":\"${LIBRARY_SHA256}\"},\"platform\":\"macos\",\"architecture\":\"arm64\",\"minimumMacosVersion\":\"26.0\",\"installName\":\"${INSTALL_NAME}\",\"rpaths\":[],\"nativeAbiVersion\":5,\"nodeSchemaVersion\":18,\"linkedFrameworks\":[\"Foundation\",\"Metal\",\"MetalPerformanceShadersGraph\"],\"signature\":{\"kind\":\"adhoc\",\"identifier\":\"${SIGNATURE_IDENTIFIER}\"}}" \
+    "{\"schemaVersion\":1,\"artifact\":{\"file\":\"${LIBRARY_NAME}\",\"size\":${LIBRARY_SIZE},\"sha256\":\"${LIBRARY_SHA256}\"},\"platform\":\"macos\",\"architecture\":\"arm64\",\"minimumMacosVersion\":\"26.0\",\"installName\":\"${INSTALL_NAME}\",\"rpaths\":[],\"nativeAbiVersion\":6,\"nodeSchemaVersion\":19,\"linkedFrameworks\":[\"Foundation\",\"Metal\",\"MetalPerformanceShadersGraph\"],\"signature\":{\"kind\":\"adhoc\",\"identifier\":\"${SIGNATURE_IDENTIFIER}\"}}" \
     > "${EXPECTED_MANIFEST}"
 cmp -s "${EXPECTED_MANIFEST}" "${MANIFEST}" || fail "manifest is not canonical or does not match the dylib"
 

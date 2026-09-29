@@ -356,7 +356,7 @@ class MetalTraceProducerTest {
                 fusedStructure.epilogueOrder());
         assertEquals(MetalPreparationStructure.EpilogueTerminal.RELU,
                 fusedStructure.terminal());
-        assertEquals(18, fusedStructure.schemaVersion());
+        assertEquals(19, fusedStructure.schemaVersion());
         assertEquals(2, fusedStructure.generatorVersion());
         assertEquals(1, fusedStructure.anchorCount());
         assertEquals(2, fusedStructure.anchorMemberCount());

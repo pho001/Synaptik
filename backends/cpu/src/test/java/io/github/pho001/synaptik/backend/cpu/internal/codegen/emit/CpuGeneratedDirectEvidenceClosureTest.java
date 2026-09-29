@@ -213,7 +213,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
         // These are explicit Model occurrences. They neither infer support from opcode labels nor
         // project the complete typed witness basis across untested carriers, layouts, or strategies.
         List<PointwiseFixture> fixtures = generalPointwiseFixtures();
-        assertEquals(169, fixtures.size());
+        assertEquals(205, fixtures.size());
         for (PointwiseFixture fixture : fixtures) {
             var context = fixture.context();
             assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, fixture.operation(), fixture.inputDescriptors(), List.of(fixture.outputDescriptor()))),
@@ -249,9 +249,9 @@ class CpuGeneratedDirectEvidenceClosureTest {
         // checkpoint test.  Every row has a stable id and an owner-defined disposition before
         // CpuCapabilityProvider, preparation, or generation is called.
         var candidates = pointwiseCandidates();
-        assertEquals(845, candidates.size());
+        assertEquals(1_025, candidates.size());
         assertEquals(48, CpuPointwiseOpcode.values().length);
-        assertEquals(169, candidates.stream().map(candidate -> candidate.form()).distinct().count());
+        assertEquals(205, candidates.stream().map(candidate -> candidate.form()).distinct().count());
         assertEquals(Set.of("HEAP", "SEGMENT", "MIXED"), candidates.stream()
                 .map(candidate -> candidate.carrierAxis()).collect(java.util.stream.Collectors.toSet()));
         assertEquals(Set.of("CONTIGUOUS", "GENERAL"), candidates.stream()
@@ -262,15 +262,15 @@ class CpuGeneratedDirectEvidenceClosureTest {
         assertEquals(Set.of("SCALAR", "VECTOR", "PARALLEL_SCALAR", "PARALLEL_VECTOR"), candidates.stream()
                 .map(candidate -> candidate.requestedStrategy())
                 .collect(java.util.stream.Collectors.toSet()));
-        assertEquals(Map.of("HEAP", 507L, "SEGMENT", 169L, "MIXED", 169L), counts(candidates,
+        assertEquals(Map.of("HEAP", 615L, "SEGMENT", 205L, "MIXED", 205L), counts(candidates,
                 PointwiseCandidate::carrierAxis), "every requested carrier mode has one finite owner");
-        assertEquals(Map.of("CONTIGUOUS", 507L, "GENERAL", 338L), counts(candidates,
+        assertEquals(Map.of("CONTIGUOUS", 615L, "GENERAL", 410L), counts(candidates,
                 PointwiseCandidate::layoutAxis), "every requested layout class has one finite owner");
-        assertEquals(Map.of("DIRECT", 676L, "MATERIALIZATION_CANDIDATE", 169L), counts(candidates,
+        assertEquals(Map.of("DIRECT", 820L, "MATERIALIZATION_CANDIDATE", 205L), counts(candidates,
                 PointwiseCandidate::materializationAxis),
                 "materialization candidates remain distinct from direct selection");
-        assertEquals(Map.of("SCALAR", 338L, "VECTOR", 169L, "PARALLEL_SCALAR", 169L,
-                "PARALLEL_VECTOR", 169L), counts(candidates, PointwiseCandidate::requestedStrategy),
+        assertEquals(Map.of("SCALAR", 410L, "VECTOR", 205L, "PARALLEL_SCALAR", 205L,
+                "PARALLEL_VECTOR", 205L), counts(candidates, PointwiseCandidate::requestedStrategy),
                 "every requested execution variant has one finite owner");
 
         var selectedStrategies = new java.util.TreeMap<String, Long>();
@@ -304,18 +304,18 @@ class CpuGeneratedDirectEvidenceClosureTest {
                     .methods().getFirst().methodType().stringValue(), candidate.id());
             assertFalse(route.specialization().structuralKey().isBlank(), candidate.id());
             assertClosedClass(first);
-            // This is the canonical owner for the finite 845-row execution matrix.  Keeping
+            // This is the canonical owner for the finite 1,025-row execution matrix. Keeping
             // the candidate id (rather than its opcode/form) makes carrier, layout, request,
             // and materialization distinctions independently joinable by the checkpoint.
             CpuGeneratedCoverageEvidenceRegistry.generated("pointwise-matrix:" + candidate.id(),
                     context, plan);
         }
         assertEquals(Map.of(
-                "SCALAR->scalar", 338L,
-                "VECTOR->scalar", 95L,
+                "SCALAR->scalar", 410L,
+                "VECTOR->scalar", 131L,
                 "VECTOR->vector", 74L,
-                "PARALLEL_SCALAR->parallel-scalar", 169L,
-                "PARALLEL_VECTOR->parallel-scalar", 95L,
+                "PARALLEL_SCALAR->parallel-scalar", 205L,
+                "PARALLEL_VECTOR->parallel-scalar", 131L,
                 "PARALLEL_VECTOR->parallel-vector", 74L), selectedStrategies,
                 "requested strategy and actual selected strategy are independently closed");
     }
@@ -331,7 +331,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
         // mixed same-category operands, WHERE promotes floating branches, and each family fixes
         // its BOOL/numeric result role.  They deliberately do not copy CPU provider predicates.
         var candidates = rejectedPointwiseCandidates();
-        assertEquals(152, candidates.size());
+        assertEquals(236, candidates.size());
         assertEquals(candidates.size(), candidates.stream().map(PointwiseRejectedCandidate::id).distinct().count());
         assertEquals(Set.of("MIXED_NUMERIC_INPUTS", "MIXED_FLOATING_BRANCHES", "INVALID_RESULT_ROLE",
                 "INVALID_BOOLEAN_NUMERIC_ROLE", "SHAPE_INCOMPATIBLE"), candidates.stream()
@@ -714,7 +714,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
                         CpuScatterLoweringTest.desc(DataType.FLOAT32, Shape.of(2, 5, 2, 4))),
                 CpuScatterLoweringTest.desc(DataType.FLOAT32, Shape.of(2, 3, 4)))));
         List<DataType> scanTypes = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
-                DataType.INT64, DataType.INT32);
+                DataType.FLOAT16, DataType.INT64, DataType.INT32);
         int scanType = 0;
         for (CumulativeScanKind kind : CumulativeScanKind.values()) for (boolean exclusive : List.of(false, true))
             for (boolean reverse : List.of(false, true)) {
@@ -885,14 +885,16 @@ class CpuGeneratedDirectEvidenceClosureTest {
         for (DataType type : floatingTypes()) forms.add(fixture("WHERE_" + type,
                 new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE), List.of(DataType.BOOL, type, type), type,
                 CpuPointwiseOpcode.WHERE, shape));
-        for (DataType source : DataType.values()) for (DataType target : DataType.values()) forms.add(fixture(
+        for (DataType source : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) for (DataType target : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) forms.add(fixture(
                 "CAST_" + source + "_" + target, new Operation(CastKind.CAST, new CastAttrs(target)),
                 List.of(source), target, CpuPointwiseOpcode.CAST, shape));
         return List.copyOf(forms);
     }
 
-    private static List<DataType> floatingTypes() { return List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16); }
-    private static List<DataType> numericTypes() { return List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.INT64, DataType.INT32); }
+    private static List<DataType> floatingTypes() { return List.of(
+            DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16); }
+    private static List<DataType> numericTypes() { return List.of(DataType.FLOAT64, DataType.FLOAT32,
+            DataType.BFLOAT16, DataType.FLOAT16, DataType.INT64, DataType.INT32); }
 
     static List<PointwiseRejectedCandidate> rejectedPointwiseCandidates() {
         Shape shape = Shape.of(8); Shape incompatible = Shape.of(7);
@@ -1015,7 +1017,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
     }
 
     /**
-     * Exhaustive carrier-role witnesses derived from the same Model occurrences as the 845-row
+     * Exhaustive carrier-role witnesses derived from the same Model occurrences as the 1025-row
      * selected matrix.  They are execution witnesses, not additional inventory owners: each
      * ordered input/output position may use its typed heap carrier or a MemorySegment.  Keeping
      * them separate preserves the selected-matrix denominator while making unsupported role
@@ -1052,7 +1054,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
                 PointwiseDisposition.SUPPORTED, carrier, layout, materialization, strategy,
                 carriers, inputLayout, execution, policy, materialization.equals("MATERIALIZATION_CANDIDATE")
                         && (fixture.operation().kind() == WhereSelectionKind.WHERE || fixture.inputTypes().stream()
-                                .noneMatch(type -> type == DataType.BFLOAT16)));
+                                .noneMatch(type -> type == DataType.BFLOAT16 || type == DataType.FLOAT16)));
     }
 
     private static List<CpuKernelSpecialization.CarrierAccess> carrierPattern(PointwiseFixture fixture,
@@ -1068,7 +1070,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
         return switch (type) {
             case FLOAT64 -> CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY;
             case FLOAT32 -> CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY;
-            case BFLOAT16 -> CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY;
+            case BFLOAT16, FLOAT16 -> CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY;
             case INT64 -> CpuKernelSpecialization.CarrierAccess.LONG_ARRAY;
             case INT32 -> CpuKernelSpecialization.CarrierAccess.INT_ARRAY;
             case BOOL -> CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY;

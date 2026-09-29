@@ -81,7 +81,7 @@ prevents new runs and is the final cleanup boundary for a handle the caller leav
 |---|---|---|
 | Preparation rejects a handle from another Engine | Owner identity is part of the lifecycle contract. | Compile and prepare with the same open Engine. |
 | Preparation rejects a zero-node graph | Current composition requires a non-empty partition plan. | Compile an operation supported by a registered owner, not a leaf-only publication. |
-| Preparation rejects mixed-owner transfer | One required edge is outside the exact all-six-carrier rank-0..16 static canonical or positive-stride non-overlapping CPU/Metal transfer domain, or an owner is not registered. | Register both integrations and keep cross-owner values inside the checked physical-span and native-storage boundary; there is no fallback or conversion. |
+| Preparation rejects mixed-owner transfer | One required edge is outside the exact all-seven-carrier rank-0..16 static canonical or positive-stride non-overlapping CPU/Metal transfer domain, or an owner is not registered. | Register both integrations and keep cross-owner values inside the checked physical-span and native-storage boundary; there is no fallback or conversion. |
 | A prepared recipe is rebuilt for every run | One-shot and reusable lifecycles were confused. | Open one session for ordinary reuse; retain a standalone prepared handle only when direct ownership is required. |
 
 ## Related documentation

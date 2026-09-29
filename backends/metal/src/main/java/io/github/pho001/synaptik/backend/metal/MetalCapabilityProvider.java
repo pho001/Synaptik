@@ -4,6 +4,9 @@ import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
@@ -99,88 +102,55 @@ import java.util.Objects;
 /**
  * Reports the exact operation-occurrence capability of the current Metal backend.
  *
+ * <p>The canonical capability ledger calls this unchanged boolean predicate over a stable
+ * representative basis and freezes both true and false answers. Target columns are architecture
+ * mapping, not provider output; the ledger contains no route, runtime, device, certificate, or
+ * generated-backward fact.</p>
+ *
  * <p>This provider is immutable and performs no native loading, device discovery, allocation,
- * registration, or caching. Both profiles admit the Task-0066 exact movement closure: all six
- * represented carriers across {@code RESHAPE}, {@code EXPAND}, {@code PERMUTE}, {@code
- * EXPAND_DIMS}, {@code SQUEEZE}, {@code CONTIGUOUS}, axis/ND gather and replacement scatter,
- * select/slice/pad/composition/tile, and the declared non-overlapping window rows. Reads may use
- * authenticated static affine or transferred materialized layouts; outputs use the operation's
- * exact logical view or a canonical materialization. Scalar Shapes compose where the Model permits
- * them. External zero-stride aliases, negative strides, overlap, empty or dynamic geometry, and
- * accumulation-requiring folds remain unsupported.
+ * registration, or caching. Both profiles admit the exact seven-carrier movement, affine,
+ * canonicalization, indexing, replacement, selection, ordering, state, predicate, cast, and
+ * non-overlapping window occurrences declared below. Reads may use authenticated static affine or
+ * transferred materialized layouts; outputs use the operation's exact logical view or canonical
+ * materialization. External unsafe aliases, negative strides, overlap, empty or dynamic geometry,
+ * and accumulation-requiring folds remain unsupported.</p>
  *
- * <p>Both profiles also admit all 36 ordered {@code CAST} pairs. The nine floating-to-floating
- * pairs preserve the Model gradient relation; integral and BOOL roles remain non-differentiable.
- * FLOAT64/ FLOAT32/BFLOAT16 classification, scalar/affine BOOL logic, and all nine promoted floating
- * {@code WHERE} signatures use exact right-aligned broadcasting and branch- gradient OR metadata.
- * {@code ACCELERATOR} additionally admits tensor {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV},
- * canonical FLOAT32 {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}, same-type canonical positive-
- * rank FLOAT32 {@code MEAN_SQUARED_ERROR} with {@code NONE}/{@code SUM}/{@code MEAN}, every
- * positive-static FLOAT32 {@code MATMUL} vector, matrix, batched, and right-aligned broadcast
- * geometry, and canonical positive-rank FLOAT32 no-gradient scalar {@code ADD}/{@code SUB}/ {@code
- * MUL}/{@code DIV} and {@code RECIPROCAL}. MSE preserves the exact input Shape for {@code NONE},
- * publishes a scalar for {@code SUM}/{@code MEAN}, and propagates the input-gradient logical OR as
- * output metadata without claiming generated backward ownership. Scalar arithmetic retains the
- * exact FLOAT32 raw attribute and operand order; reciprocal is exact {@code 1 / input}. Both
- * profiles admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant promotion and modular
- * result arithmetic. Accelerator also admits no-gradient BFLOAT16/FLOAT32 and FLOAT32/BFLOAT16
- * operands with a FLOAT32 result. BFLOAT16/BFLOAT16 and every FLOAT64-result pair remain
- * unsupported. Each MATMUL operand is canonical or the exact identity-prefix, last-two-axis
- * transpose layout that complete-partition analysis authenticates to a local {@code PERMUTE} from a
- * canonical source. FLOAT32 output gradient metadata is the exact operand OR; integral and
- * mixed-carrier rows are no-grad. Accelerator reductions admit full, normalized single-axis,
- * ordered normalized multi-axis (including empty-axis identity), and binding-resolved sum-to-Shape
- * forms. The exact Task-0060 integral PROD and BOOL ALL/ANY domain below is profile- common. Other
- * strict reductions remain unsupported. Reduction and MSE inputs are canonical with positive
- * dimensions; canonical outputs may be rank zero only as locally produced results. Binary inputs
- * and outputs are canonical dense non-views with exact right-aligned broadcasting. Selected
- * Task-0066 inputs may be canonical or exact authenticated affine/materialized reads; preparation
- * proves local zero-stride provenance and rejects external zero-stride aliases. Every admitted
- * occurrence has checked positive extents and rank {@code 0..16} where its Model signature allows
- * scalars. GATHER/ONE_HOT and every replacement index role accept INT32 or INT64, and all index
- * values are bounds-checked before execution. Replacement scatter destinations are additionally
- * proved unique before any write. {@code UNFOLD_AXIS} accepts exact static windows without the
- * former selector-size cap; {@code FOLD_AXIS} accepts every non-BOOL carrier only when {@code step
- * >= windowSize}. Image unfolds/folds retain the three floating carriers and reject overlap.
+ * <p>For every current accelerator FLOAT32 occurrence, this predicate admits the corresponding
+ * homogeneous BFLOAT16 and FLOAT16 descriptor/attribute projection. The strict low domain is the
+ * exact valid subset of the current strict FLOAT32 domain. Direct BFLOAT16/FLOAT16 mixed-low
+ * operations are rejected except explicit {@code CAST}; explicit FLOAT32 casts are the sole
+ * mixed-low arithmetic boundary. Route selection is separate, but every admitted occurrence
+ * containing a low carrier is required by preparation to use the fixed custom program.</p>
  *
- * <p>Legal forward gradient metadata is distinct from a CPU-free generated backward graph. Inverse
- * affine moves, floating casts, same-shape WHERE, positive-step select/slice/update,
- * pad/composition, unique replacement scatter/gather, non-overlapping unfold/fold, and the exact
- * Task-0069 rank-one Gather data cotangent can close. Broadcast reductions, positive-rank tile
- * adjoints, overlapping windows, multi-path cotangent addition, and every non-floating derivative
- * remain blocked. Integral PROD admits INT32/INT64 modular multiplication; ALL and ANY admit
- * canonical BOOL. LOG_SUM_EXP, STANDARD_DEVIATION, and L2_NORM remain production-false. VARIANCE
- * admits only the source-certified singleton domain.
+ * <p>All 49 ordered casts use the Model conversion and preserve legal floating gradient metadata.
+ * Floating classification covers all four floating carriers. BOOL logic and the fourteen
+ * non-mixed-low promoted floating {@code WHERE} signatures use exact right-aligned broadcasting;
+ * WHERE differentiability is the branch-role OR. Accelerator arithmetic, scalar, reciprocal,
+ * reduction, scan, MATMUL, MSE, convolution, pooling, dropout, L1, ScatterAdd, and singleton
+ * variance occurrences retain the exact FLOAT32 predicate after homogeneous low projection.
+ * Binary arithmetic output differentiability is the operand OR; scalar, reciprocal, reductions,
+ * scans, and pooling preserve their declared input/output relation; comparisons publish
+ * no-gradient BOOL while permitting differentiable floating inputs.</p>
  *
- * <p>Task 0063 admits profile-common canonical dense {@code SORT}, {@code ARGSORT}, and positive-K
- * {@code TOP_K} for all six carriers and {@code ARG_MAX}/{@code ARG_MIN} for the five numeric
- * carriers. Task 0064 admits exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d under both
- * profiles. Accelerator additionally admits FLOAT32-result grouped Conv2d/Conv3d over
- * FLOAT32/BFLOAT16 operands with at least one FLOAT32 role, plus FLOAT32 average Pool2d/Pool3d.
- * Mixed convolution is no-gradient; all-FLOAT32 convolution and every pooling row require exact
- * input/output gradient metadata. Every Task-0063/0064 geometry, count, coordinate, and dispatch
- * width is fully static, positive where required, and bounded to unsigned 32 bits. Strict
- * convolution/average pooling, alternate layouts, dynamic or empty geometry, attention, convolution
- * transpose, generated Conv3d or maximum-pool backward, mixed convolution gradients, and
- * overlap-accumulating generated folds remain unsupported.
+ * <p>MATMUL accepts canonical operands or authenticated local identity-prefix last-two-axis
+ * transposes. Both profiles admit no-gradient INT32/INT64 pairs; accelerator admits every qualified
+ * homogeneous floating geometry plus the existing one-low-plus-FLOAT32 widening rows. Direct
+ * BFLOAT16/FLOAT16 mixing, FLOAT64 results, and disallowed gradient metadata remain false.
+ * Reductions support the exact full, normalized-axis, keep-dimension, and binding-resolved
+ * sum-to-Shape forms below. Index roles accept INT32 or INT64; complete bounds and replacement
+ * destination uniqueness are proved before any write.</p>
  *
- * <p>Task 0065 additionally admits canonical no-gradient {@code INITIAL_STATE} under both profiles
- * and accelerator-only canonical FLOAT32 {@code DROPOUT}. The initializer has no inputs and
- * publishes one INT64 {@code Shape[2]} state. Dropout consumes ordered value/state inputs and
- * publishes ordered value, BOOL mask, and next-state outputs; value gradient eligibility is
- * preserved while mask and state roles are non-differentiable. Rank {@code 0..16}, each extent,
- * element count, referenced span, and dispatch width must fit unsigned 32 bits. Every recurrent
- * kind and every non-FLOAT32, strict, dynamic, malformed-state, or over-limit dropout occurrence
- * remains unsupported.
+ * <p>Stable SORT, ARGSORT, and positive-K TOP_K accept all seven carriers; ARG_MAX and ARG_MIN
+ * accept the six numeric carriers. Convolution and pooling require fully static positive geometry,
+ * exact layouts and result Shape, unsigned-32-bit bounds, and the pooling-kernel cap. Generated
+ * input cotangents are admitted only for non-overlapping effective windows. Conv3d backward,
+ * overlapping generated folds, attention, recurrent execution, and convolution transpose remain
+ * unsupported.</p>
  *
- * <p>Task 0069 admits accelerator-only no-gradient FLOAT32 rank-one {@code L1_NORM}, axis-zero
- * {@code SCATTER_ADD}, and the exact singleton {@code VARIANCE} occurrence. Scatter requires
- * positive static data/update extents, canonical base/index/update/output roles, and a materialized
- * INT32/INT64 index feed. Complete index validation precedes every dispatch and mutation;
- * duplicates retain source order, unaddressed cells preserve the raw base word, and one output
- * thread owns each target. Variance requires input {@code [1]}, axis {@code [0]}, correction zero,
- * and canonical scalar or retained {@code [1]} output; every other variance occurrence remains on
- * its previously supported direct structural path and remains production-false.
+ * <p>INITIAL_STATE is profile-common and no-gradient. Accelerator DROPOUT preserves value
+ * differentiability and publishes no-gradient mask/state roles. L1, ScatterAdd, and singleton
+ * VARIANCE retain their narrow no-gradient accelerator predicates. LOG_SUM_EXP,
+ * STANDARD_DEVIATION, L2_NORM, and every unlisted occurrence remain production-false.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     private static final long UINT32_MAX = 0xffff_ffffL;
@@ -237,6 +207,35 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
      * @return whether the occurrence is supported
      */
     static boolean supportsOccurrence(
+            NumericalProfile numericalProfile,
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            List<TensorDescriptor> outputs) {
+        Objects.requireNonNull(numericalProfile, "numericalProfile");
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(outputs, "outputs");
+        if (mixedLowPrecision(inputs, outputs) && operation.kind() != CastKind.CAST) {
+            return false;
+        }
+        if (supportsBaselineOccurrence(numericalProfile, operation, inputs, outputs)) {
+            return true;
+        }
+        DataType lowType = homogeneousLowPrecision(inputs, outputs);
+        if (lowType == null || !lowScalarAttrsMatch(operation.attrs(), lowType)) {
+            return false;
+        }
+        Operation proxy =
+                new Operation(operation.kind(), float32ProxyAttrs(operation.attrs()));
+        List<TensorDescriptor> proxyInputs =
+                inputs.stream().map(MetalCapabilityProvider::float32Proxy).toList();
+        List<TensorDescriptor> proxyOutputs =
+                outputs.stream().map(MetalCapabilityProvider::float32Proxy).toList();
+        return supportsBaselineOccurrence(
+                numericalProfile, proxy, proxyInputs, proxyOutputs);
+    }
+
+    private static boolean supportsBaselineOccurrence(
             NumericalProfile numericalProfile,
             Operation operation,
             List<TensorDescriptor> inputs,
@@ -370,18 +369,18 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             if (operation.kind() == MatmulKind.MATMUL) {
                 return supportsMatmul(numericalProfile, operation, inputs, output);
             }
+            if (operation.kind() instanceof BinaryComparisonKind comparison) {
+                return supportsComparison(operation, inputs, output, comparison);
+            }
             if (numericalProfile == NumericalProfile.ACCELERATOR) {
                 if (operation.kind() == LossKind.MEAN_SQUARED_ERROR) {
                     return supportsMeanSquaredError(operation, inputs, output);
-                }
-                if (operation.kind() instanceof BinaryComparisonKind comparison) {
-                    return supportsComparison(operation, inputs, output, comparison);
                 }
                 if (operation.kind() instanceof ScalarElementwiseKind scalar) {
                     return supportsScalar(operation, inputs, output, scalar);
                 }
                 if (operation.kind() == UnaryElementwiseKind.RECIPROCAL) {
-                    return supportsNoGradReciprocal(operation, inputs, output);
+                    return supportsReciprocal(operation, inputs, output);
                 }
                 if (operation.kind() instanceof CumulativeScanKind scan) {
                     return supportsScan(operation, inputs, output, scan);
@@ -402,6 +401,112 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
     }
+    private static boolean mixedLowPrecision(
+            List<TensorDescriptor> inputs, List<TensorDescriptor> outputs) {
+        boolean bfloat16 = false;
+        boolean float16 = false;
+        for (TensorDescriptor descriptor : concat(inputs, outputs)) {
+            bfloat16 |= descriptor.dataType() == DataType.BFLOAT16;
+            float16 |= descriptor.dataType() == DataType.FLOAT16;
+        }
+        return bfloat16 && float16;
+    }
+
+    private static DataType homogeneousLowPrecision(
+            List<TensorDescriptor> inputs, List<TensorDescriptor> outputs) {
+        DataType selected = null;
+        for (TensorDescriptor descriptor : concat(inputs, outputs)) {
+            DataType type = descriptor.dataType();
+            if (type == DataType.BFLOAT16 || type == DataType.FLOAT16) {
+                if (selected != null && selected != type) {
+                    return null;
+                }
+                selected = type;
+            } else if (type.isFloating()) {
+                return null;
+            }
+        }
+        return selected;
+    }
+
+    private static List<TensorDescriptor> concat(
+            List<TensorDescriptor> inputs, List<TensorDescriptor> outputs) {
+        var descriptors =
+                new java.util.ArrayList<TensorDescriptor>(inputs.size() + outputs.size());
+        descriptors.addAll(inputs);
+        descriptors.addAll(outputs);
+        return descriptors;
+    }
+
+    private static TensorDescriptor float32Proxy(TensorDescriptor descriptor) {
+        DataType type = descriptor.dataType() == DataType.BFLOAT16
+                        || descriptor.dataType() == DataType.FLOAT16
+                ? DataType.FLOAT32
+                : descriptor.dataType();
+        return new TensorDescriptor(
+                type, descriptor.shape(), descriptor.layout(), descriptor.requiresGrad());
+    }
+
+    private static io.github.pho001.synaptik.model.operation.OperationAttrs float32ProxyAttrs(
+            io.github.pho001.synaptik.model.operation.OperationAttrs attrs) {
+        if (attrs instanceof ScalarValueAttrs scalar) {
+            return new ScalarValueAttrs(float32Proxy(scalar.value()));
+        }
+        if (attrs instanceof ClampRangeAttrs clamp) {
+            return new ClampRangeAttrs(
+                    float32Proxy(clamp.minValue()), float32Proxy(clamp.maxValue()));
+        }
+        if (attrs instanceof PadAttrs pad) {
+            return new PadAttrs(
+                    pad.before(), pad.after(), float32Proxy(pad.constantValue()));
+        }
+        if (attrs instanceof Unfold2dAttrs unfold) {
+            return new Unfold2dAttrs(
+                    unfold.window(), float32Proxy(unfold.paddingValue()));
+        }
+        if (attrs instanceof Unfold3dAttrs unfold) {
+            return new Unfold3dAttrs(
+                    unfold.window(), float32Proxy(unfold.paddingValue()));
+        }
+        if (attrs instanceof CastAttrs cast) {
+            DataType target = cast.targetDataType() == DataType.BFLOAT16
+                            || cast.targetDataType() == DataType.FLOAT16
+                    ? DataType.FLOAT32
+                    : cast.targetDataType();
+            return new CastAttrs(target);
+        }
+        return attrs;
+    }
+
+    private static ScalarValue float32Proxy(ScalarValue value) {
+        return switch (value.dataType()) {
+            case BFLOAT16 -> ScalarValue.float32(BFloat16Bits.toFloat(value.bfloat16Bits()));
+            case FLOAT16 -> ScalarValue.float32(Float16Bits.toFloat(value.float16Bits()));
+            default -> value;
+        };
+    }
+
+    private static boolean lowScalarAttrsMatch(
+            io.github.pho001.synaptik.model.operation.OperationAttrs attrs, DataType selected) {
+        if (attrs instanceof ScalarValueAttrs scalar) {
+            return scalar.value().dataType() == selected;
+        }
+        if (attrs instanceof ClampRangeAttrs clamp) {
+            return clamp.minValue().dataType() == selected
+                    && clamp.maxValue().dataType() == selected;
+        }
+        if (attrs instanceof PadAttrs pad) {
+            return pad.constantValue().dataType() == selected;
+        }
+        if (attrs instanceof Unfold2dAttrs unfold) {
+            return unfold.paddingValue().dataType() == selected;
+        }
+        if (attrs instanceof Unfold3dAttrs unfold) {
+            return unfold.paddingValue().dataType() == selected;
+        }
+        return true;
+    }
+
 
     private static boolean supportsInitialState(
             Operation operation,
@@ -1443,44 +1548,14 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         }
         TensorDescriptor left = inputs.get(0);
         TensorDescriptor right = inputs.get(1);
-        boolean scalarAdd = binary == BinaryArithmeticKind.ADD
-                && left.shape().rank() == 0
-                && right.shape().rank() == 0
-                && output.shape().rank() == 0;
-        boolean scalarVectorMultiply = binary == BinaryArithmeticKind.MUL
-                && output.shape().rank() == 1
-                && ((left.shape().rank() == 0 && right.shape().rank() == 1)
-                        || (right.shape().rank() == 0 && left.shape().rank() == 1));
-        boolean tensorScalarDivide = binary == BinaryArithmeticKind.DIV
-                && left.shape().rank() > 0
-                && right.shape().rank() == 0
-                && !left.requiresGrad()
-                && !right.requiresGrad()
-                && !output.requiresGrad();
-        boolean gradientsValid = binary == BinaryArithmeticKind.MIN
-                        || binary == BinaryArithmeticKind.MAX
-                ? !left.requiresGrad() && !right.requiresGrad() && !output.requiresGrad()
-                : scalarVectorMultiply
-                        ? output.requiresGrad() == (left.requiresGrad() || right.requiresGrad())
-                        : tensorScalarDivide
-                                || left.requiresGrad() == right.requiresGrad()
-                                        && left.requiresGrad() == output.requiresGrad();
-        boolean storageValid = scalarAdd
-                ? left.dataType() == DataType.FLOAT32
-                        && right.dataType() == DataType.FLOAT32
-                        && output.dataType() == DataType.FLOAT32
-                        && canonicalAny(left, true)
-                        && canonicalAny(right, true)
-                        && canonicalAny(output, true)
-                : scalarVectorMultiply
-                        ? canonicalReductionOutput(left)
-                                && canonicalReductionOutput(right)
-                                && canonical(output)
-                        : tensorScalarDivide
-                                ? canonical(left)
-                                        && canonicalReductionOutput(right)
-                                        && canonical(output)
-                                : canonical(left) && canonical(right) && canonical(output);
+        boolean gradientsValid =
+                output.requiresGrad() == (left.requiresGrad() || right.requiresGrad());
+        boolean storageValid = left.dataType() == DataType.FLOAT32
+                && right.dataType() == DataType.FLOAT32
+                && output.dataType() == DataType.FLOAT32
+                && selectedAffineRead(left, true)
+                && selectedAffineRead(right, true)
+                && canonicalAny(output, true);
         return storageValid
                 && gradientsValid
                 && ShapeBroadcast.broadcast(left.shape(), right.shape()).equals(output.shape());
@@ -1498,11 +1573,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         }
         TensorDescriptor left = inputs.get(0);
         TensorDescriptor right = inputs.get(1);
-        return canonical(left)
-                && canonical(right)
+        return selectedAffineRead(left, true)
+                && selectedAffineRead(right, true)
                 && canonicalTyped(output, DataType.BOOL)
-                && !left.requiresGrad()
-                && !right.requiresGrad()
                 && !output.requiresGrad()
                 && ShapeBroadcast.broadcast(left.shape(), right.shape()).equals(output.shape());
     }
@@ -1539,12 +1612,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 && output.dataType() == DataType.FLOAT32
                 && canonicalAny(input, allowScalar)
                 && canonicalAny(output, allowScalar)
-                && !input.requiresGrad()
-                && !output.requiresGrad()
+                && input.requiresGrad() == output.requiresGrad()
                 && input.shape().equals(output.shape());
     }
 
-    private static boolean supportsNoGradReciprocal(
+    private static boolean supportsReciprocal(
             Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
         if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 1) {
             return false;
@@ -1552,8 +1624,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         TensorDescriptor input = inputs.getFirst();
         return canonical(input)
                 && canonical(output)
-                && !input.requiresGrad()
-                && !output.requiresGrad()
+                && input.requiresGrad() == output.requiresGrad()
                 && input.shape().equals(output.shape());
     }
 
@@ -1570,8 +1641,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         TensorDescriptor input = inputs.getFirst();
         return canonical(input)
                 && canonical(output)
-                && !input.requiresGrad()
-                && !output.requiresGrad()
+                && input.requiresGrad() == output.requiresGrad()
                 && input.shape().equals(output.shape())
                 && attrs.axis() < input.shape().rank();
     }
@@ -1668,6 +1738,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return false;
             }
             contributors = Math.multiplyExact(contributors, kernel[axis + 2]);
+            if (input.requiresGrad()
+                    && !nonOverlapping(
+                            kernel[axis + 2], dilation[axis], strides[axis])) {
+                return false;
+            }
         }
         return contributors <= UINT32_MAX;
     }
@@ -1760,6 +1835,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return false;
             }
             divisor *= kernel[axis];
+            if (input.requiresGrad()
+                    && !nonOverlapping(kernel[axis], dilation[axis], stride[axis])) {
+                return false;
+            }
         }
         return true;
     }
@@ -2106,10 +2185,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         TensorDescriptor input = inputs.getFirst();
-        boolean gradientsValid = kind == AggregateReductionKind.MIN
-                        || kind == AggregateReductionKind.MAX
-                ? !input.requiresGrad() && !output.requiresGrad()
-                : input.requiresGrad() == output.requiresGrad();
+        boolean gradientsValid = input.requiresGrad() == output.requiresGrad();
         if (!canonical(input) || !canonicalReductionOutput(output) || !gradientsValid) {
             return false;
         }
@@ -2339,7 +2415,8 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     private static boolean isFloating(DataType dataType) {
         return dataType == DataType.FLOAT64
                 || dataType == DataType.FLOAT32
-                || dataType == DataType.BFLOAT16;
+                || dataType == DataType.BFLOAT16
+                || dataType == DataType.FLOAT16;
     }
 
     private static boolean canonical(TensorDescriptor descriptor) {

@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
@@ -54,6 +55,8 @@ class TensorFactoryConstantTest {
                 TensorConstants.class.getDeclaredMethod(
                         "scalarBFloat16", float.class, Optional.class, boolean.class),
                 TensorConstants.class.getDeclaredMethod(
+                        "scalarFloat16", float.class, Optional.class, boolean.class),
+                TensorConstants.class.getDeclaredMethod(
                         "scalar", int.class, Optional.class, boolean.class),
                 TensorConstants.class.getDeclaredMethod(
                         "scalar", long.class, Optional.class, boolean.class),
@@ -70,6 +73,8 @@ class TensorFactoryConstantTest {
                 "full", Shape.class, float.class, Optional.class, boolean.class));
         entries.add(TensorConstants.class.getDeclaredMethod(
                 "fullBFloat16", Shape.class, float.class, Optional.class, boolean.class));
+        entries.add(TensorConstants.class.getDeclaredMethod(
+                "fullFloat16", Shape.class, float.class, Optional.class, boolean.class));
         entries.add(TensorConstants.class.getDeclaredMethod(
                 "full", Shape.class, int.class, Optional.class, boolean.class));
         entries.add(TensorConstants.class.getDeclaredMethod(
@@ -109,10 +114,12 @@ class TensorFactoryConstantTest {
         double doubleValue = Double.longBitsToDouble(0x7ff8_0000_0000_0042L);
         float floatValue = Float.intBitsToFloat(0x8000_0000);
         float bfloatValue = Float.intBitsToFloat(0x3f80_8000);
+        float float16Value = 1.0009766f;
 
         Tensor float64 = TensorFactory.scalar(doubleValue, Optional.of("  d  "), true);
         Tensor float32 = TensorFactory.scalar(floatValue, Optional.empty(), true);
         Tensor bfloat16 = TensorFactory.scalarBFloat16(bfloatValue, Optional.empty(), true);
+        Tensor float16 = TensorFactory.scalarFloat16(float16Value, Optional.empty(), true);
         Tensor int32 = TensorFactory.scalar(Integer.MIN_VALUE, Optional.empty(), false);
         Tensor int64 = TensorFactory.scalar(Long.MAX_VALUE, Optional.empty(), false);
         Tensor boolFalse = TensorFactory.scalar(false, Optional.empty(), false);
@@ -132,6 +139,10 @@ class TensorFactoryConstantTest {
                 () -> assertArrayEquals(
                         new short[] {BFloat16Bits.fromFloat(bfloatValue)},
                         heapArray(bfloat16, short[].class)),
+                () -> assertScalar(float16, DataType.FLOAT16, true),
+                () -> assertArrayEquals(
+                        new short[] {Float16Bits.fromFloat(float16Value)},
+                        heapArray(float16, short[].class)),
                 () -> assertScalar(int32, DataType.INT32, false),
                 () -> assertArrayEquals(
                         new int[] {Integer.MIN_VALUE}, heapArray(int32, int[].class)),
@@ -416,6 +427,9 @@ class TensorFactoryConstantTest {
                     filledFloat(length, one ? 1.0f : 0.0f), heapArray(tensor, float[].class));
             case BFLOAT16 -> assertArrayEquals(
                     filledShort(length, one ? BFloat16Bits.fromFloat(1.0f) : (short) 0),
+                    heapArray(tensor, short[].class));
+            case FLOAT16 -> assertArrayEquals(
+                    filledShort(length, one ? (short) 0x3C00 : (short) 0),
                     heapArray(tensor, short[].class));
             case INT32 -> assertArrayEquals(
                     filledInt(length, one ? 1 : 0), heapArray(tensor, int[].class));

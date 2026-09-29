@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 
 /** Executes each finite loss inventory row against a test-local clean-Java semantic oracle. */
 class CpuLossSemanticClosureTest {
-    private static final List<DataType> FLOATING = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16);
+    private static final List<DataType> FLOATING = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16);
     private static final Shape LOGITS = Shape.of(2, 3, 4);
     private static final Shape SAMPLES = Shape.of(2, 4);
     private static final CpuPartitionAnalysisInputs.MaterializationPolicy MATERIALIZATION =
@@ -52,7 +52,7 @@ class CpuLossSemanticClosureTest {
                 raw++;
             }
         }
-        assertEquals(540, raw, "one exact generated definition/invocation per scoped inventory row");
+        assertEquals(840, raw, "one exact generated definition/invocation per scoped inventory row");
         assertEquals(inventoryLossOwners(), owners, "complete non-projecting inventory-owner join");
     }
 
@@ -70,7 +70,8 @@ class CpuLossSemanticClosureTest {
                     if (left == right) result.add(new Fixture(kind, left, right, reduction, false, true, request));
                 }
         }
-        assertEquals(180, result.size(), kind.toString());
+        assertEquals(kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS ? 240 : 300,
+                result.size(), kind.toString());
         return result;
     }
 
@@ -224,16 +225,17 @@ class CpuLossSemanticClosureTest {
             for (int line = 1; line < lines.length - 1; line++) { String[] fields = lines[line].split("\\t", -1);
                 if (fields[2].equals("MEAN_SQUARED_ERROR") || fields[2].equals("DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS")
                         || fields[2].equals("INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS")) assertTrue(owners.add(fields[0]), "duplicate inventory owner " + fields[0]); }
-            assertEquals(540, owners.size()); return owners;
+            assertEquals(840, owners.size()); return owners;
         }
     }
     private static void assertStorage(double[] expected, Storage actual, Fixture f) {
         for (int i = 0; i < expected.length; i++) assertEquals(quantize(actual.type, expected[i]), actual.get(i),
-                actual.type == DataType.BFLOAT16 ? .02 : actual.type == DataType.FLOAT32 ? 2e-5 : 1e-12,
+                actual.type == DataType.BFLOAT16 ? .02 : actual.type == DataType.FLOAT16 ? .003 : actual.type == DataType.FLOAT32 ? 2e-5 : 1e-12,
                 f + " physical " + i);
     }
     private static double quantize(DataType type, double value) { return switch (type) {
         case BFLOAT16 -> Float.intBitsToFloat((ScalarValue.bfloat16((float) value).bfloat16Bits() & 0xffff) << 16);
+        case FLOAT16 -> Float.float16ToFloat(Float.floatToFloat16((float) value));
         case FLOAT32 -> (float) value;
         default -> value;
     }; }
@@ -261,10 +263,10 @@ class CpuLossSemanticClosureTest {
     private static final class Storage {
         final DataType type; final CarrierAccess carrier; final Object heap; final MemorySegment segment;
         Storage(DataType type, CarrierAccess carrier) { this.type = type; this.carrier = carrier; this.heap = switch (type) {
-            case FLOAT64 -> new double[64]; case FLOAT32 -> new float[64]; case BFLOAT16 -> new short[64];
+            case FLOAT64 -> new double[64]; case FLOAT32 -> new float[64]; case BFLOAT16, FLOAT16 -> new short[64];
             case INT32 -> new int[64]; case INT64 -> new long[64]; default -> throw new AssertionError(type); };
             this.segment = switch (type) { case FLOAT64 -> MemorySegment.ofArray((double[]) heap);
-                case FLOAT32 -> MemorySegment.ofArray((float[]) heap); case BFLOAT16 -> MemorySegment.ofArray((short[]) heap);
+                case FLOAT32 -> MemorySegment.ofArray((float[]) heap); case BFLOAT16, FLOAT16 -> MemorySegment.ofArray((short[]) heap);
                 case INT32 -> MemorySegment.ofArray((int[]) heap); case INT64 -> MemorySegment.ofArray((long[]) heap);
                 default -> throw new AssertionError(type); }; }
         Object argument() { return carrier == CarrierAccess.MEMORY_SEGMENT ? segment : heap; }
@@ -273,12 +275,14 @@ class CpuLossSemanticClosureTest {
             case FLOAT64 -> ((double[]) heap)[(int) index] = value;
             case FLOAT32 -> ((float[]) heap)[(int) index] = (float) value;
             case BFLOAT16 -> ((short[]) heap)[(int) index] = ScalarValue.bfloat16((float) value).bfloat16Bits();
+            case FLOAT16 -> ((short[]) heap)[(int) index] = Float.floatToFloat16((float) value);
             case INT32 -> ((int[]) heap)[(int) index] = (int) value;
             case INT64 -> ((long[]) heap)[(int) index] = (long) value;
             default -> throw new AssertionError(type); } }
         double get(long index) { return switch (type) {
             case FLOAT64 -> ((double[]) heap)[(int) index]; case FLOAT32 -> ((float[]) heap)[(int) index];
             case BFLOAT16 -> Float.intBitsToFloat((((short[]) heap)[(int) index] & 0xffff) << 16);
+            case FLOAT16 -> Float.float16ToFloat(((short[]) heap)[(int) index]);
             case INT32 -> ((int[]) heap)[(int) index]; case INT64 -> ((long[]) heap)[(int) index]; default -> throw new AssertionError(type); }; }
         double[] snapshot() { double[] copy = new double[64]; for (int i = 0; i < copy.length; i++) copy[i] = get(i); return copy; }
     }

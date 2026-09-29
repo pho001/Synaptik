@@ -22,8 +22,10 @@ import java.util.Optional;
  * exact rows and no-gradient promoted INT32/INT64 MATMUL, while accelerator additionally admits its
  * arithmetic/reduction rows, general positive-static FLOAT32 MATMUL, and no-gradient mixed
  * BFLOAT16/FLOAT32 MATMUL. Task-0066 selected occurrences retain all-carrier logical layout,
- * physical materialization, type, index, and exact gradient-role facts and always select the fixed
- * custom whole-program route. An affine MATMUL input must be the exact local identity-prefix,
+ * physical materialization, type, index, and exact gradient-role facts. Low arithmetic remains on
+ * the fixed custom whole-program route; the six homogeneous no-gradient raw-preserving kinds may
+ * instead retain MPSGraph only with an exact context-bound certificate. An affine MATMUL input must
+ * be the exact local identity-prefix,
  * last-two-axis transpose authenticated on that consuming edge; the same affine value may otherwise
  * be consumed or published normally. Value indices, explicit canonical/affine-view states, typed
  * nodes, feeds, targets, and declarations are already in their stable ABI order. The route is fixed
@@ -42,7 +44,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     private final MetalPreparedRoute route;
     private final List<ValueId> valueIds;
     private final List<TensorDescriptor> descriptors;
-  private final List<LayoutDescriptor> physicalLayouts;
+    private final List<LayoutDescriptor> physicalLayouts;
     private final List<MetalMpsGraphProgram.ValueDescriptor> programValueDescriptors;
     private final List<MetalMpsGraphProgram.ValueState> valueStates;
     private final MetalMpsGraphProgram graphProgram;
@@ -241,14 +243,37 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                 this.graphProgram,
                 this.programValueDescriptors,
                 this.targetValueIndices).isEmpty();
-        boolean containsCustomOperation = containsAnchorEpilogue || this.graphProgram.nodes().stream()
-                .anyMatch(node -> node.kind().isCustomProgramOperation()
-                        || usesCustomMatmul(node, this.descriptors));
-        boolean containsCustomOnlyOperation = containsAnchorEpilogue || this.graphProgram.nodes().stream()
-                .anyMatch(node ->
-                    node.kind().isTask0066Selected()
-                        || ( node.kind().wireIdentity() >= 20 && node.kind().wireIdentity() <= 34)
-                            || usesCustomMatmul(node, this.descriptors));
+        boolean containsLowPrecision = this.descriptors.stream()
+                .anyMatch(descriptor -> descriptor.dataType() == DataType.BFLOAT16
+                        || descriptor.dataType() == DataType.FLOAT16);
+        boolean containsCertifiedRawLowPrecision = containsLowPrecision
+                && MetalLowPrecisionRouteCertification.find(this).isPresent();
+        boolean containsCustomOperation = containsAnchorEpilogue
+                || containsLowPrecision
+                || this.graphProgram.nodes().stream()
+                        .anyMatch(node -> node.kind().isCustomProgramOperation()
+                                || usesCustomMatmul(node, this.descriptors));
+        boolean containsCustomOnlyOperation = containsAnchorEpilogue
+                || (containsLowPrecision && !containsCertifiedRawLowPrecision)
+                || this.graphProgram.nodes().stream()
+                        .anyMatch(node ->
+                            (node.kind().isTask0066Selected()
+                                    && !(containsCertifiedRawLowPrecision
+                                            && (node.kind()
+                                                    == MetalMpsGraphProgram.NodeKind.RESHAPE
+                                                || node.kind()
+                                                    == MetalMpsGraphProgram.NodeKind.PERMUTE
+                                                || node.kind()
+                                                    == MetalMpsGraphProgram.NodeKind.CONTIGUOUS
+                                                || node.kind()
+                                                    == MetalMpsGraphProgram.NodeKind.SLICE
+                                                || node.kind()
+                                                    == MetalMpsGraphProgram.NodeKind.CONCAT
+                                                || node.kind()
+                                                    == MetalMpsGraphProgram.NodeKind.TILE)))
+                                || (node.kind().wireIdentity() >= 20
+                                        && node.kind().wireIdentity() <= 34)
+                                || usesCustomMatmul(node, this.descriptors));
         if ((this.route == MetalPreparedRoute.CUSTOM_SINGLE_NEG
                         && (partitionDag.nodes().size() != 1
                                 || this.graphProgram.nodes().getFirst().kind()

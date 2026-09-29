@@ -26,7 +26,7 @@ profile-qualified routes plus explicit native configuration, host ingress, mater
 close. `Engine.builder()` currently registers opened CPU and/or Metal integrations and composes
 their non-empty partition sets through one shared preparation. It preflights every owner and
 required directed transfer before backend analysis, then captures direct per-input, executable,
-transfer, and publication references. Current CPU/Metal transfer covers all six model data types
+transfer, and publication references. Current CPU/Metal transfer covers all seven model data types
 over exact rank-0..16 static canonical or positive-stride non-overlapping storage layouts with a
 checked physical span; CUDA and conversion-based transfer composition remain later work. The
 lifecycle flow therefore combines current foundations with selected later stages, and each focused
@@ -299,7 +299,7 @@ publication suffix.
 
 A missing owner, no planned partition, or an unsupported transfer fails before backend analysis.
 The current CPU/Metal path supports exact native-host-staged transfer in both directions for all
-six carriers over rank-0..16 fully static canonical or positive-stride non-overlapping layouts with
+seven carriers over rank-0..16 fully static canonical or positive-stride non-overlapping layouts with
 checked physical byte spans. It performs no conversion, retry, fallback, heap staging, or owner
 substitution.
 
@@ -646,26 +646,26 @@ profile/operation pair before route selection, preserve strict capability as an 
 subset, prove its complete route results fall inside Model's recursive set, and retain profile
 identity in every reusable plan/cache boundary. CPU admits both profiles through identical exact
 routes. Metal's common exact occurrence domain under both profiles contains exact unary rows, all
-36 casts, FLOAT64/FLOAT32/BFLOAT16 classification and promoted WHERE, scalar/broadcast BOOL,
+49 casts, four-carrier floating classification and promoted WHERE, scalar/broadcast BOOL,
 all-carrier affine/index/replacement/movement, the admitted non-overlapping fold/window subsets,
 unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema, no-gradient promoted INT32/INT64
 MATMUL, exact maximum pooling, and raw initial state. Accelerator additionally admits the
-documented FLOAT32 arithmetic, extrema, scalar, reduction, scan, MSE, general MATMUL,
-average-pooling, convolution, explicit-state dropout, and the exact rank-one FLOAT32 L1,
-ScatterAdd, and singleton VARIANCE occurrences. Every Task-0066 selected occurrence and all three
-Task-0069 occurrences use one fixed custom whole-program route; ScatterAdd performs complete index
-validation before encoding or mutation and closes the existing rank-one Gather data cotangent.
-The singleton variance requires input `[1]`, axis `[0]`, correction zero, and scalar or retained
-`[1]` output; other variance geometry retains its descriptive direct structural recipe but is not
-production-capable. Every other unsupported occurrence fails closed before route selection.
-Eligible linear canonical FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use bounded generated
-custom units with compact materialized slots. Eligible ACCELERATOR MATMUL/Conv2d suffixes instead
-use one typed anchor dispatch and final store without a materialized suffix slot. ABI 5 retains
-thirteen exports and consumes one bounded schema-18 route-bearing image over type wires `1..6`,
-operation wires `1..115`, attribute wires `0..41`, and route wires `1..3`; backend identities are
-version twenty-seven. Structural coverage is `101 / 14`, production capability is `86 / 29`, and
-the MPSGraph/custom catalogs are `75 / 35 / 5` and `73 / 42 / 0`. Every identity other than
-version twenty-seven fails closed.
+documented FLOAT32/BFLOAT16/FLOAT16 arithmetic, extrema, scalar, reduction, scan, MSE, general
+MATMUL, average-pooling, convolution, explicit-state dropout, and the exact rank-one FLOAT32 L1,
+ScatterAdd, and singleton VARIANCE occurrences. Low arithmetic and all three Task-0069 occurrences
+use one fixed custom whole-program route. Exact no-gradient homogeneous low raw-preserving
+RESHAPE/PERMUTE/CONTIGUOUS/SLICE/CONCAT/TILE images retain custom first and may add MPSGraph only
+after an exact immutable-environment and schema-19-program certificate match. ScatterAdd validates
+all indices before encoding or mutation and closes the existing rank-one Gather data cotangent.
+Every other unsupported occurrence fails closed before route selection. Eligible linear canonical
+FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use bounded generated custom units with compact
+materialized slots. Eligible ACCELERATOR MATMUL/Conv2d suffixes instead use one typed anchor
+dispatch and final store without a materialized suffix slot. ABI 6 has fourteen exports and
+consumes one bounded schema-19 route-bearing image over type wires `1..7`, operation wires
+`1..115`, attribute wires `0..41`, and route wires `1..3`; backend identities are version
+twenty-eight. Structural coverage is `101 / 14`, production capability is `86 / 29`, and the
+MPSGraph/custom catalogs are `75 / 35 / 5` and `73 / 42 / 0`. Every other schema or identity fails
+closed.
 CPU/Metal transfer accepts canonical or resolved
 positive-stride non-overlapping all-carrier storage layouts without widening operation
 capability.

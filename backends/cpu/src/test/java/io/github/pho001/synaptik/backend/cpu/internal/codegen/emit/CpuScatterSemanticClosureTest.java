@@ -20,9 +20,9 @@ import org.junit.jupiter.api.Test;
 class CpuScatterSemanticClosureTest {
     @Test void everyOrdinaryScatterInventoryCandidateExecutesAgainstTheIndependentOracle() throws Throwable {
         var candidates = CpuOrdinaryNonPointwiseGeneratedMatrixTest.scatterCandidates();
-        assertEquals(416, candidates.size());
-        assertEquals(208, candidates.stream().filter(c -> c.ownerId().startsWith("scatter-elements-")).count());
-        assertEquals(208, candidates.stream().filter(c -> c.ownerId().startsWith("scatter-nd-")).count());
+        assertEquals(496, candidates.size());
+        assertEquals(248, candidates.stream().filter(c -> c.ownerId().startsWith("scatter-elements-")).count());
+        assertEquals(248, candidates.stream().filter(c -> c.ownerId().startsWith("scatter-nd-")).count());
         for (var candidate : candidates) execute(candidate);
     }
 
@@ -88,20 +88,20 @@ class CpuScatterSemanticClosureTest {
         double x = number(type, a), y = number(type, b); double z = switch (r) { case ADD -> x + y; case MUL -> x * y; case MIN -> Math.min(x, y); case MAX -> Math.max(x, y); case NONE -> y; };
         return represented(type, z);
     }
-    private static double number(DataType t, Object v) { return t == DataType.BFLOAT16 ? Float.intBitsToFloat(((Short)v & 0xffff) << 16) : ((Number)v).doubleValue(); }
-    private static Object represented(DataType t, double v) { return switch (t) { case FLOAT64 -> v; case FLOAT32 -> (float)v; case BFLOAT16 -> bfloat((float)v); case INT64 -> (long)v; case INT32 -> (int)v; case BOOL -> (byte)((int)v); }; }
+    private static double number(DataType t, Object v) { return t == DataType.BFLOAT16 ? Float.intBitsToFloat(((Short)v & 0xffff) << 16) : t == DataType.FLOAT16 ? Float.float16ToFloat((Short)v) : ((Number)v).doubleValue(); }
+    private static Object represented(DataType t, double v) { return switch (t) { case FLOAT64 -> v; case FLOAT32 -> (float)v; case BFLOAT16 -> bfloat((float)v); case FLOAT16 -> Float.floatToFloat16((float)v); case INT64 -> (long)v; case INT32 -> (int)v; case BOOL -> (byte)((int)v); }; }
     private static short bfloat(float value) { int bits = Float.floatToRawIntBits(value), upper = bits >>> 16, lower = bits & 0xffff; if ((bits & 0x7f800000) == 0x7f800000 && (bits & 0x7fffff) != 0) upper |= 0x40; else if (lower > 0x8000 || lower == 0x8000 && (upper & 1) != 0) upper++; return (short) upper; }
     private static long asLong(Object v) { return ((Number)v).longValue(); }
     private static long capacity(io.github.pho001.synaptik.prepare.analysis.PrepareContext<?> c, int i) { var d=c.values().get(i).descriptor(); long max=d.layout().orElseThrow().storageOffset(); long[] s=d.layout().orElseThrow().strides(), q=dimensions(d.shape()); for(int x=0;x<s.length;x++) max+=s[x]*(q[x]-1); return max+3; }
     private static long address(io.github.pho001.synaptik.prepare.analysis.PrepareContext<?> c, int i, long[] p) { var l=c.values().get(i).descriptor().layout().orElseThrow(); long x=l.storageOffset(); long[] s=l.strides(); for(int j=0;j<p.length;j++) x+=s[j]*p[j]; return x; }
     private static long elements(long[] s) { long n=1; for(long x:s)n*=x; return n; }
     private static long[] coordinates(long n,long[] s) { long[] p=new long[s.length]; for(int i=s.length-1;i>=0;i--){p[i]=n%s[i];n/=s[i];} return p; }
-    private static Object storage(DataType t,long n) { return switch(t){case FLOAT64->new double[(int)n];case FLOAT32->new float[(int)n];case BFLOAT16->new short[(int)n];case INT64->new long[(int)n];case INT32->new int[(int)n];case BOOL->new byte[(int)n];}; }
+    private static Object storage(DataType t,long n) { return switch(t){case FLOAT64->new double[(int)n];case FLOAT32->new float[(int)n];case BFLOAT16,FLOAT16->new short[(int)n];case INT64->new long[(int)n];case INT32->new int[(int)n];case BOOL->new byte[(int)n];}; }
     private static void fill(Object a,DataType t,int seed){for(int i=0;i<Array.getLength(a);i++)set(a,t,i,represented(t,seed));}
     private static void fillIndexes(io.github.pho001.synaptik.prepare.analysis.PrepareContext<?> c,Object x,DataType t){long[] s=dimensions(c.values().get(1).descriptor().shape());for(long i=0,n=elements(s);i<n;i++){long[] p=coordinates(i,s); set(x,t,address(c,1,p),represented(t,p[p.length-1]%3));}}
     private static long[] dimensions(io.github.pho001.synaptik.model.shape.Shape shape) { return shape.dimensions().stream().mapToLong(d -> ((io.github.pho001.synaptik.model.shape.StaticDimension) d).size()).toArray(); }
-    private static Object get(Object a,DataType t,long i){return switch(t){case FLOAT64->((double[])a)[(int)i];case FLOAT32->((float[])a)[(int)i];case BFLOAT16->((short[])a)[(int)i];case INT64->((long[])a)[(int)i];case INT32->((int[])a)[(int)i];case BOOL->((byte[])a)[(int)i];};}
-    private static void set(Object a,DataType t,long i,Object v){switch(t){case FLOAT64->((double[])a)[(int)i]=(Double)v;case FLOAT32->((float[])a)[(int)i]=(Float)v;case BFLOAT16->((short[])a)[(int)i]=(Short)v;case INT64->((long[])a)[(int)i]=(Long)v;case INT32->((int[])a)[(int)i]=(Integer)v;case BOOL->((byte[])a)[(int)i]=(Byte)v;}}
+    private static Object get(Object a,DataType t,long i){return switch(t){case FLOAT64->((double[])a)[(int)i];case FLOAT32->((float[])a)[(int)i];case BFLOAT16,FLOAT16->((short[])a)[(int)i];case INT64->((long[])a)[(int)i];case INT32->((int[])a)[(int)i];case BOOL->((byte[])a)[(int)i];};}
+    private static void set(Object a,DataType t,long i,Object v){switch(t){case FLOAT64->((double[])a)[(int)i]=(Double)v;case FLOAT32->((float[])a)[(int)i]=(Float)v;case BFLOAT16,FLOAT16->((short[])a)[(int)i]=(Short)v;case INT64->((long[])a)[(int)i]=(Long)v;case INT32->((int[])a)[(int)i]=(Integer)v;case BOOL->((byte[])a)[(int)i]=(Byte)v;}}
     private static MemorySegment segment(Object a){if(a instanceof double[] x)return MemorySegment.ofArray(x);if(a instanceof float[] x)return MemorySegment.ofArray(x);if(a instanceof short[] x)return MemorySegment.ofArray(x);if(a instanceof long[] x)return MemorySegment.ofArray(x);if(a instanceof int[] x)return MemorySegment.ofArray(x);return MemorySegment.ofArray((byte[])a);}
     private static void assertRaw(Object e,Object a,String m){if(e instanceof double[] x)assertArrayEquals(x,(double[])a,m);else if(e instanceof float[] x)assertArrayEquals(x,(float[])a,m);else if(e instanceof short[] x)assertArrayEquals(x,(short[])a,m);else if(e instanceof long[] x)assertArrayEquals(x,(long[])a,m);else if(e instanceof int[] x)assertArrayEquals(x,(int[])a,m);else assertArrayEquals((byte[])e,(byte[])a,m);}
 }

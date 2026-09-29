@@ -71,7 +71,8 @@ final class CpuExactSumEmitter {
      */
     CpuExactSumEmitter(CodeBuilder code, DataType type, boolean mean, boolean infinityIsNan,
             int scratch, int geometry, int exactLimbCount) {
-        if (type != DataType.FLOAT64 && type != DataType.FLOAT32 && type != DataType.BFLOAT16)
+        if (type != DataType.FLOAT64 && type != DataType.FLOAT32
+                && type != DataType.BFLOAT16 && type != DataType.FLOAT16)
             throw new IllegalArgumentException("exact sum requires a floating type");
         if (exactLimbCount <= 0) throw new IllegalArgumentException("exact limb count must be positive");
         this.code = code; this.type = type; this.mean = mean;
@@ -400,7 +401,7 @@ final class CpuExactSumEmitter {
         case FLOAT32 -> code.fload(value).invokestatic(FLOAT_CLASS, "floatToRawIntBits",
                 MethodTypeDesc.of(ConstantDescs.CD_int, ConstantDescs.CD_float)).i2l()
                 .loadConstant(0xffffffffL).land();
-        case BFLOAT16 -> code.iload(value).i2l().loadConstant(0xffffL).land();
+        case BFLOAT16, FLOAT16 -> code.iload(value).i2l().loadConstant(0xffffL).land();
         default -> throw new IllegalArgumentException("not floating");
     } }
     private void storeResult(int value) { switch (type) {
@@ -408,7 +409,7 @@ final class CpuExactSumEmitter {
                 MethodTypeDesc.of(ConstantDescs.CD_double, ConstantDescs.CD_long)).dstore(value);
         case FLOAT32 -> code.lload(result).l2i().invokestatic(FLOAT_CLASS, "intBitsToFloat",
                 MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int)).fstore(value);
-        case BFLOAT16 -> code.lload(result).l2i().istore(value);
+        case BFLOAT16, FLOAT16 -> code.lload(result).l2i().istore(value);
         default -> throw new IllegalArgumentException("not floating");
     } }
     private CodeBuilder geometry(int index) { return code.aload(geometry).loadConstant(index).laload(); }
@@ -428,19 +429,25 @@ final class CpuExactSumEmitter {
             "JAVA_LONG", LONG_LAYOUT).lload(offset); if (delta != 0) code.loadConstant((long) delta).ladd(); }
     private void limbOffset(int index) { code.lload(offset).loadConstant(8L).ladd().iload(index)
             .i2l().loadConstant(8L).lmul().ladd(); }
-    private int fractionBits() { return type == DataType.FLOAT64 ? 52 : type == DataType.FLOAT32 ? 23 : 7; }
+    private int fractionBits() { return type == DataType.FLOAT64 ? 52
+            : type == DataType.FLOAT32 ? 23 : type == DataType.FLOAT16 ? 10 : 7; }
     private int precision() { return fractionBits() + 1; }
-    private int bias() { return type == DataType.FLOAT64 ? 1023 : 127; }
+    private int bias() { return type == DataType.FLOAT64 ? 1023
+            : type == DataType.FLOAT16 ? 15 : 127; }
     private int minimumUnitExponent() { return type == DataType.FLOAT64 ? -1074
-            : type == DataType.FLOAT32 ? -149 : -133; }
+            : type == DataType.FLOAT32 ? -149 : type == DataType.FLOAT16 ? -24 : -133; }
     private int minimumNormal() { return 1 - bias(); }
-    private int maximumExponent() { return type == DataType.FLOAT64 ? 1023 : 127; }
+    private int maximumExponent() { return type == DataType.FLOAT64 ? 1023
+            : type == DataType.FLOAT16 ? 15 : 127; }
     private long fractionMask() { return (1L << fractionBits()) - 1; }
-    private long exponentMask() { return type == DataType.FLOAT64 ? 0x7ffL : 0xffL; }
+    private long exponentMask() { return type == DataType.FLOAT64 ? 0x7ffL
+            : type == DataType.FLOAT16 ? 0x1fL : 0xffL; }
     private long signMask() { return type == DataType.FLOAT64 ? Long.MIN_VALUE
             : type == DataType.FLOAT32 ? 1L << 31 : 1L << 15; }
     private long canonicalNan() { return type == DataType.FLOAT64 ? 0x7ff8000000000000L
-            : type == DataType.FLOAT32 ? 0x7fc00000L : 0x7fc0L; }
+            : type == DataType.FLOAT32 ? 0x7fc00000L
+            : type == DataType.FLOAT16 ? 0x7e00L : 0x7fc0L; }
     private long positiveInfinity() { return type == DataType.FLOAT64 ? 0x7ff0000000000000L
-            : type == DataType.FLOAT32 ? 0x7f800000L : 0x7f80L; }
+            : type == DataType.FLOAT32 ? 0x7f800000L
+            : type == DataType.FLOAT16 ? 0x7c00L : 0x7f80L; }
 }

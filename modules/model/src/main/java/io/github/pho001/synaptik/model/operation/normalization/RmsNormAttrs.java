@@ -12,9 +12,9 @@ import java.util.Objects;
  *
  * <p>The normalized Shape has positive rank and identifies exact trailing input axes. Epsilon is
  * a finite, strictly positive BFLOAT16, FLOAT32, or FLOAT64 value added to the uncentered mean
- * square inside the square root. Input cardinality identifies whether explicit scale is present.
- * This record retains both immutable references unchanged and owns no operand, statistic,
- * gradient, compiler, backend, runtime, or execution state.</p>
+ * square inside the square root; FLOAT32 is the scalar metadata format for a FLOAT16 result.
+ * Input cardinality identifies whether explicit scale is present. This record retains both
+ * immutable references unchanged and owns no operand, statistic, gradient, compiler, backend, runtime, or execution state.</p>
  *
  * @param normalizedShape non-null positive-rank Shape corresponding to exact trailing input axes;
  *     retained unchanged

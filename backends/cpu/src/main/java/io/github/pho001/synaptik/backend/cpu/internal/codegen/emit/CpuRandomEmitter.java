@@ -17,7 +17,9 @@ import java.util.List;
  * Emits direct typed explicit-state initializer and dropout bodies into generated CPU classes.
  * Family, represented type, carrier form, access regime, probability, initializer words, and
  * counter policies are resolved while the class is generated. Invocation state is primitive and
- * local. Dense arrays use integer loops. One guarded rank-one {@code 1 << 20} FLOAT32 mixed-
+ * local. Dropout expands BFLOAT16 input exactly, divides in binary64, and uses the same direct
+ * Model round-to-nearest-even narrowing as generated CAST, including canonical NaN and signed-zero
+ * behavior. Dense arrays use integer loops. One guarded rank-one {@code 1 << 20} FLOAT32 mixed-
  * carrier dropout form uses primitive integer cursors after complete cold proof. It preserves the
  * exact SplitMix64 V1 key, counter, mixing, uniform, threshold, mask, and widen/divide/narrow
  * value order, including the dedicated {@code [0,0)} state prologue and arbitrary legal
@@ -27,9 +29,11 @@ import java.util.List;
  */
 public final class CpuRandomEmitter {
     private static final ClassDesc SEGMENT = ClassDesc.of("java.lang.foreign.MemorySegment");
+    private static final ClassDesc FLOAT = ClassDesc.of(Float.class.getName());
     private static final ClassDesc VALUE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout");
     private static final ClassDesc DOUBLE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfDouble");
     private static final ClassDesc FLOAT_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfFloat");
+    private static final ClassDesc SHORT_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfShort");
     private static final ClassDesc LONG_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfLong");
     private static final ClassDesc BYTE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfByte");
 
@@ -109,7 +113,7 @@ public final class CpuRandomEmitter {
         int denominator = code.allocateLocal(TypeKind.DOUBLE);
         int keep = code.allocateLocal(TypeKind.INT);
         int result = code.allocateLocal(p.valueType == DataType.FLOAT64
-                ? TypeKind.DOUBLE : TypeKind.FLOAT);
+                ? TypeKind.DOUBLE : p.valueType == DataType.FLOAT32 ? TypeKind.FLOAT : TypeKind.INT);
         loadCarrier(code, DataType.INT64, s.carrierPattern().get(1), 1, bases[1], true);
         code.lstore(key);
         loadOffset(code, DataType.INT64, s.carrierPattern().get(1), 1, bases[1], 1, true);
@@ -268,7 +272,7 @@ public final class CpuRandomEmitter {
         int denominator = code.allocateLocal(TypeKind.DOUBLE);
         int keep = code.allocateLocal(TypeKind.INT);
         int result = code.allocateLocal(p.valueType == DataType.FLOAT64
-                ? TypeKind.DOUBLE : TypeKind.FLOAT);
+                ? TypeKind.DOUBLE : p.valueType == DataType.FLOAT32 ? TypeKind.FLOAT : TypeKind.INT);
         loadCarrier(code, DataType.INT64, s.carrierPattern().get(1), 1,
                 layouts[1].base, false);
         code.lstore(key);
@@ -358,11 +362,30 @@ public final class CpuRandomEmitter {
         var store = code.newLabel();
         code.iload(keep).branch(Opcode.IFEQ, dropped);
         loadCarrier(code, type, s.carrierPattern().get(0), 0, inputAddress, ints);
-        if (type == DataType.FLOAT64) code.dload(denominator).ddiv().dstore(result);
-        else code.f2d().dload(denominator).ddiv().d2f().fstore(result);
+        if (type == DataType.FLOAT64) {
+            code.dload(denominator).ddiv().dstore(result);
+        } else if (type == DataType.FLOAT32) {
+            code.f2d().dload(denominator).ddiv().d2f().fstore(result);
+        } else {
+            code.istore(result);
+            if (type == DataType.FLOAT16) {
+                code.iload(result).i2s().invokestatic(FLOAT, "float16ToFloat",
+                        MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
+            } else {
+                code.iload(result).loadConstant(16).ishl()
+                        .invokestatic(FLOAT, "intBitsToFloat",
+                                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int));
+            }
+            code.f2d().dload(denominator).ddiv();
+            int quotient = code.allocateLocal(TypeKind.DOUBLE);
+            code.dstore(quotient);
+            new CpuCastEmitter(code).emit(DataType.FLOAT64, type, quotient);
+            code.istore(result);
+        }
         code.branch(Opcode.GOTO, store).labelBinding(dropped);
         if (type == DataType.FLOAT64) code.loadConstant(0.0d).dstore(result);
-        else code.loadConstant(0.0f).fstore(result);
+        else if (type == DataType.FLOAT32) code.loadConstant(0.0f).fstore(result);
+        else code.loadConstant(0).istore(result);
         code.labelBinding(store);
         storeCarrier(code, type, s.carrierPattern().get(2), 2, outputAddress, result, ints);
     }
@@ -435,7 +458,7 @@ public final class CpuRandomEmitter {
             if (ints) code.iload(address); else code.lload(address).l2i();
             switch (type) {
                 case FLOAT64 -> code.daload(); case FLOAT32 -> code.faload();
-                case INT64 -> code.laload();
+                case BFLOAT16, FLOAT16 -> code.saload(); case INT64 -> code.laload();
                 default -> throw new IllegalArgumentException("unsupported random load type");
             }
             return;
@@ -454,7 +477,8 @@ public final class CpuRandomEmitter {
             loadValue(code, type, value);
             switch (type) {
                 case FLOAT64 -> code.dastore(); case FLOAT32 -> code.fastore();
-                case INT64 -> code.lastore(); case BOOL -> code.bastore();
+                case BFLOAT16, FLOAT16 -> code.sastore(); case INT64 -> code.lastore();
+                case BOOL -> code.bastore();
                 default -> throw new IllegalArgumentException("unsupported random store type");
             }
             return;
@@ -474,7 +498,7 @@ public final class CpuRandomEmitter {
     private static void loadValue(CodeBuilder code, DataType type, int value) {
         switch (type) {
             case FLOAT64 -> code.dload(value); case FLOAT32 -> code.fload(value);
-            case INT64 -> code.lload(value); case BOOL -> code.iload(value);
+            case BFLOAT16, FLOAT16, BOOL -> code.iload(value); case INT64 -> code.lload(value);
             default -> throw new IllegalArgumentException("unsupported random value type");
         }
     }
@@ -482,7 +506,8 @@ public final class CpuRandomEmitter {
     private static String layoutField(DataType type) {
         return switch (type) {
             case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED"; case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
-            case INT64 -> "JAVA_LONG_UNALIGNED"; case BOOL -> "JAVA_BYTE";
+            case BFLOAT16, FLOAT16 -> "JAVA_SHORT_UNALIGNED"; case INT64 -> "JAVA_LONG_UNALIGNED";
+            case BOOL -> "JAVA_BYTE";
             default -> throw new IllegalArgumentException("unsupported random layout type");
         };
     }
@@ -490,7 +515,7 @@ public final class CpuRandomEmitter {
     private static ClassDesc layoutClass(DataType type) {
         return switch (type) {
             case FLOAT64 -> DOUBLE_LAYOUT; case FLOAT32 -> FLOAT_LAYOUT;
-            case INT64 -> LONG_LAYOUT; case BOOL -> BYTE_LAYOUT;
+            case BFLOAT16, FLOAT16 -> SHORT_LAYOUT; case INT64 -> LONG_LAYOUT; case BOOL -> BYTE_LAYOUT;
             default -> throw new IllegalArgumentException("unsupported random layout type");
         };
     }
@@ -498,7 +523,8 @@ public final class CpuRandomEmitter {
     private static ClassDesc primitive(DataType type) {
         return switch (type) {
             case FLOAT64 -> ConstantDescs.CD_double; case FLOAT32 -> ConstantDescs.CD_float;
-            case INT64 -> ConstantDescs.CD_long; case BOOL -> ConstantDescs.CD_byte;
+            case BFLOAT16, FLOAT16 -> ConstantDescs.CD_short; case INT64 -> ConstantDescs.CD_long;
+            case BOOL -> ConstantDescs.CD_byte;
             default -> throw new IllegalArgumentException("unsupported random primitive type");
         };
     }

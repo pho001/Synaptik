@@ -1,31 +1,49 @@
-# Debugging with traces (planned workflow)
+# Debugging with traces
 
 ## What you will learn
 
-This guide explains how typed traces will help locate a problem in compile, prepare, or run. The trace DTOs, emitters, sinks, and tooling are not implemented yet.
+This guide explains the implemented typed trace DTO boundary and the current Metal observer. There
+is no repository-wide trace capture command, serializer, viewer, or export format.
 
 ## Mental model
 
 ```text
-producer-owned state -> typed trace payload -> sink/tool -> human diagnosis
+producer-owned state -> typed trace payload -> caller-owned observer -> human diagnosis
 ```
 
-The trace module owns data-transfer objects (DTOs), not graph traversal or execution. A producer translates local objects into trace-local identifiers and typed fields.
+The trace module owns data-transfer objects (DTOs), not graph traversal or execution. A producer
+translates local objects into trace-local identifiers and typed fields. Metal callers opt in through
+`MetalBackendIntegration.open(configuration, observer)`; the ordinary overload performs no trace
+work.
 
-## Planned investigation
+## Metal low-precision investigation
 
-Suppose a graph region unexpectedly receives CPU ownership. A useful trace sequence would show capability candidates, typed scoring factors, the selected backend identity, partition creation, CPU prepare route, and run steps. Follow the same trace-local node or partition identifier across events.
+For a BFLOAT16 or FLOAT16 raw-preserving occurrence, inspect `LowPrecisionTraceMetadata` emitted
+during PREPARE. `selectedRoute` is the route actually fixed by preparation, not every available
+candidate. A custom selection has `NOT_CERTIFIED` status and empty certificate-key, accuracy, and
+determinism optionals. An exactly certified MPSGraph selection has `GRAPH_EXECUTABLE`, the complete
+certificate key, the accuracy record, and the independently associated determinism record. The key
+itself identifies `MPSGRAPH_CERTIFIED_RAW_V1`; classic MPS and MPP have no selectable trace
+identity.
 
-The interpretation boundary matters: a compile event can explain ownership, a prepare event can explain a selected CPU route, and a run event can explain invocation timing. A run event must not claim that runtime performed ownership scoring.
+Preparation and invocation outcome payloads correlate through the prepared-unit ID and report the
+same route. Metal performs no executable or preparation cache lookup, so its preparation cache
+status is `NOT_QUERIED`.
 
 ## Typical mistakes
 
 | Symptom | Cause | Correction |
 |---|---|---|
-| Consumers parse numeric facts from strings | The primary payload is unstructured. | Add an appropriate typed field or typed trace attribute. |
-| Trace imports model/runtime/backend objects | DTOs depend on producer domains. | Translate to trace-local identifiers and values. |
-| Enabling trace changes execution decisions | Diagnostics became business logic. | Keep emission observational and producer-owned. |
+| A custom event is displayed with an MPSGraph certificate. | Candidate evidence was confused with the selected route. | Treat empty certificate optionals on `NOT_CERTIFIED` as authoritative. |
+| Accuracy and reproducibility are collapsed into one verdict. | The certificate fields were flattened. | Display `accuracy` and `determinism` independently. |
+| Consumers parse numeric facts from strings. | The primary payload is unstructured. | Add an appropriate typed field or typed trace attribute. |
+| Trace imports model/runtime/backend objects. | DTOs depend on producer domains. | Translate to trace-local identifiers and values. |
+| Enabling trace changes execution decisions. | Diagnostics became business logic. | Keep emission observational and producer-owned. |
 
 ## Limitations
 
-No capture command, file format, schema version, or UI exists yet. See [Tracing architecture](../architecture/tracing.md), [typed trace ADR](../design/decisions/0003-typed-trace-dtos.md), and the [trace master plan](../planning/modules/trace/master-plan.md).
+No generic capture command, file format, viewer, or export exists. The public surface is the typed
+event stream delivered to the caller-owned observer. See
+[Tracing architecture](../architecture/tracing.md),
+[typed trace ADR](../design/decisions/0003-typed-trace-dtos.md), and the
+[trace master plan](../planning/modules/trace/master-plan.md).

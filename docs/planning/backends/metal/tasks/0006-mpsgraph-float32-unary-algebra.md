@@ -94,7 +94,7 @@ Do not alter ABI-v4 symbols/signatures, existing NEG/binary mappings, or custom 
 - [`ARCHITECTURE.md` — Run lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#run-lifecycle)
   — cold bindings and direct typed hot execution.
 - [Metal backend guide](../../../../backend-guide/metal-backend.md) and
-  [native guide](../../../../native/metal-macos-arm64/README.md) — current ABI and validation.
+  [native guide](../../../../../native/metal-macos-arm64/README.md) — current ABI and validation.
 
 If a typed scalar carrier or another shared contract is required, stop and report it rather than
 expanding this task.

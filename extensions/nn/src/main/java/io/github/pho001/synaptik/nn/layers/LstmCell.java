@@ -135,7 +135,7 @@ public final class LstmCell extends Module {
      * @param inputSize strictly positive input-feature count
      * @param hiddenSize strictly positive hidden-feature and per-gate count
      * @param bias whether to create one deterministic all-zero packed input-side bias
-     * @param dataType non-null floating parameter type: FLOAT64, FLOAT32, or BFLOAT16
+     * @param dataType non-null floating parameter type: FLOAT64, FLOAT32, BFLOAT16, or FLOAT16
      * @param randomGenerator non-null transient caller-owned source used by both weights and
      *     never retained
      * @throws NullPointerException if {@code dataType} or {@code randomGenerator} is null, checked

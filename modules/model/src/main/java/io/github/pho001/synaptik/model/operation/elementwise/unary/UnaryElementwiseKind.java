@@ -27,17 +27,18 @@ import java.util.List;
  *
  * <p>Under the Model-owned numerical-profile contract, {@code STRICT_IEEE} has a complete
  * backend-independent allowed-result baseline for all nineteen kinds and each accepted {@code
- * BFLOAT16}, {@code FLOAT32}, and {@code FLOAT64} type. Exact/discrete kinds use their exact
- * represented results. Against correctly rounded exact same-format references, {@code LOG},
- * {@code LOG1P}, {@code EXP}, and {@code EXPM1} permit at most two ordered representations,
- * {@code SQRT} one, and {@code TANH} five. {@code ERF} uses the inclusive absolute/relative
- * coefficients {@code 2^-7}, {@code 2e-5}, and {@code 2e-7} for BFLOAT16, FLOAT32, and FLOAT64
- * respectively. Domain, class, range, subnormal, and signed-zero rules remain separate.</p>
+ * BFLOAT16}, {@code FLOAT16}, {@code FLOAT32}, and {@code FLOAT64} type. Exact/discrete kinds use
+ * their exact represented results. Against correctly rounded exact same-format references,
+ * {@code LOG}, {@code LOG1P}, {@code EXP}, and {@code EXPM1} permit at most two ordered
+ * representations, {@code SQRT} one, and {@code TANH} five. {@code ERF} uses the inclusive
+ * absolute/relative coefficients {@code 2^-7}, {@code 2^-10}, {@code 2e-5}, and {@code 2e-7} for
+ * BFLOAT16, FLOAT16, FLOAT32, and FLOAT64 respectively. Domain, class, range, subnormal, and
+ * signed-zero rules remain separate.</p>
  *
  * <p>{@code RSQRT}, {@code SIGMOID}, and the three composite activations recurse through those
  * primitive result sets and explicitly rounded arithmetic sites. Strict results are the union of
  * native-format evaluation and one-wider evaluation followed by one final ties-to-even narrowing
- * for BFLOAT16 and FLOAT32; FLOAT64 uses native evaluation. For {@code ACCELERATOR FLOAT32}, only
+ * for BFLOAT16, FLOAT16, and FLOAT32; FLOAT64 uses native evaluation.
  * {@code LOG}, {@code LOG1P}, {@code EXP}, {@code EXPM1}, {@code ERF}, {@code SQRT}, and {@code
  * TANH} are irreducible elementary sites. {@code RSQRT} expands through square root and division;
  * sigmoid expands through its exact sign guard and exponential/add/divide branch. GELU and SiLU
@@ -130,9 +131,9 @@ public enum UnaryElementwiseKind implements OperationKind {
      * {@code 2/sqrt(pi) * integral[0,x](exp(-t*t)) dt}. It is odd, preserves signed zero, maps
      * signed infinity to the same-signed unit value, and maps NaN to NaN. For finite nonzero input,
      * strict results are finite, nonzero, same-signed, in {@code [-1,1]}, and satisfy the normative
-     * inclusive absolute/relative bound with coefficients {@code 2^-7}, {@code 2e-5}, or {@code
-     * 2e-7} for BFLOAT16, FLOAT32, or FLOAT64. It selects no algorithm, coefficient table, gradient
-     * rule, execution route, or backend availability.</p>
+     * inclusive absolute/relative bound with coefficients {@code 2^-7}, {@code 2^-10}, {@code
+     * 2e-5}, or {@code 2e-7} for BFLOAT16, FLOAT16, FLOAT32, or FLOAT64. It selects no algorithm,
+     * coefficient table, gradient rule, execution route, or backend availability.</p>
      */
     ERF,
 
@@ -154,8 +155,8 @@ public enum UnaryElementwiseKind implements OperationKind {
      * same-signed infinity, positive infinity maps to positive zero, negative finite values and
      * negative infinity produce NaN, and NaN remains NaN. Its strict result set recursively chooses
      * a strict square-root result and performs one rounded division in either the native format or,
-     * for BFLOAT16/FLOAT32, one wider format followed by one final narrowing. The kind stores
-     * neither primitive operation and selects no algorithm, gradient rule, route, or backend
+     * for BFLOAT16, FLOAT16, and FLOAT32, one wider format followed by one final narrowing. The
+     * kind stores neither primitive operation and selects no algorithm, gradient rule, route, or backend
      * availability.</p>
      */
     RSQRT,

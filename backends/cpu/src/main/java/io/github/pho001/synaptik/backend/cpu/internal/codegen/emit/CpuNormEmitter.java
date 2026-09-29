@@ -253,7 +253,7 @@ public final class CpuNormEmitter {
     }
 
     /**
-     * Emits exact represented FLOAT64/FLOAT32/BFLOAT16 decoding to binary64.
+     * Emits exact represented FLOAT64/FLOAT32/BFLOAT16/FLOAT16 decoding to binary64.
      * @param code non-null method builder
      * @param type represented floating type
      * @param represented source local in its carrier-compatible primitive kind
@@ -263,6 +263,10 @@ public final class CpuNormEmitter {
             int target) {
         if (type == DataType.FLOAT64) code.dload(represented).dstore(target);
         else if (type == DataType.FLOAT32) code.fload(represented).f2d().dstore(target);
+        else if (type == DataType.FLOAT16) code.iload(represented).i2s()
+                .invokestatic(FLOAT, "float16ToFloat",
+                        MethodTypeDesc.of(TypeKind.FLOAT.upperBound(), TypeKind.SHORT.upperBound()))
+                .f2d().dstore(target);
         else code.iload(represented).loadConstant(16).ishl().invokestatic(FLOAT, "intBitsToFloat",
                 MethodTypeDesc.of(TypeKind.FLOAT.upperBound(), TypeKind.INT.upperBound()))
                 .f2d().dstore(target);
@@ -373,6 +377,11 @@ public final class CpuNormEmitter {
                     .iload(bits).loadConstant(0x7fff).iadd().iload(bits).loadConstant(16).iushr()
                     .loadConstant(1).iand().iadd().loadConstant(16).iushr()
                     .istore(represented).labelBinding(rounded);
+        }
+        else if (type == DataType.FLOAT16) {
+            represented = code.allocateLocal(TypeKind.INT);
+            CpuCastEmitter.emitDoubleToHalf(code, result);
+            code.istore(represented);
         }
         if (frozenLayout) carriers.storeFrozen(type,
                 specialization.carrierPattern().get(outputBoundary), outputBoundary,

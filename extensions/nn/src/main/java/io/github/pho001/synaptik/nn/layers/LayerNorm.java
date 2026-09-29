@@ -16,10 +16,11 @@ import java.util.Objects;
  *
  * <p>The positive-rank, fully static Shape of {@code scale} identifies the trailing input axes
  * normalized by this layer. {@code bias} has the same structural Shape and exact floating data
- * type. The layer retains the selected exact Shape and one exact typed positive epsilon, without
- * exposing either as a second configuration surface, and declares the parameters under stable
- * local names {@code scale} then {@code bias}. Both affine parameters are mandatory because the
- * Model layer-normalization operation accepts either no affine state or the exact ordered pair.</p>
+ * type. The layer retains the selected exact Shape and one exact positive epsilon with the
+ * parameter arithmetic type: the parameter type except FLOAT32 for FLOAT16 parameters. It
+ * declares the parameters under stable local names {@code scale} then {@code bias}. Both affine
+ * parameters are mandatory because the Model layer-normalization operation accepts either no
+ * affine state or the exact ordered pair.</p>
  *
  * <p>{@link #forward(Tensor)} reads both current parameter bindings once and delegates directly
  * to the affine Model {@link Tensor#layerNorm(Shape, Tensor, Tensor, ScalarValue)} expression.
@@ -45,24 +46,25 @@ public final class LayerNorm extends UnaryTensorModule {
      * <p>The normalized Shape is the exact immutable Shape reference of {@code scale}. Both
      * parameters must be floating, gradient-eligible, structurally Shape-equal, and have the same
      * exact data type. The Shape must have positive rank, be fully static, and have a positive
-     * extent on every axis. Epsilon must satisfy the Model finite-positive contract and have that
-     * same exact data type. All validation completes before either parameter is declared. The
-     * supplied Tensor references, scale Shape reference, and epsilon reference are retained
-     * without copying, mutation, or evaluation.</p>
+     * extent on every axis. Epsilon must satisfy the Model finite-positive contract and have the
+     * parameter arithmetic type: the parameter type except FLOAT32 for FLOAT16 parameters. All
+     * validation completes before either parameter is declared. The supplied Tensor references,
+     * scale Shape reference, and epsilon reference are retained without copying, mutation, or
+     * evaluation.</p>
      *
      * @param scale non-null floating Tensor with {@code requiresGrad == true} and a positive,
      *     fully static, positive-rank normalized Shape; retained exactly
      * @param bias non-null floating Tensor with {@code requiresGrad == true}, the exact scale data
      *     type, and Shape structurally equal to the scale Shape; retained exactly
-     * @param epsilon non-null finite strictly positive floating value with the exact parameter
-     *     data type; retained exactly
+     * @param epsilon non-null finite strictly positive floating value with the parameter arithmetic
+     *     type; retained exactly
      * @throws NullPointerException if {@code scale}, {@code bias}, or {@code epsilon} is null,
      *     checked in that order
      * @throws IllegalArgumentException if scale floating type, gradient eligibility, positive
      *     rank, static Shape, or positive extents fail; if bias floating type, gradient
      *     eligibility, exact data-type equality, or structural Shape equality fail; or if epsilon
-     *     is not finite, strictly positive, floating, and exactly parameter-typed, checked in that
-     *     order
+     *     is not finite, strictly positive, floating, and parameter-arithmetic-typed, checked in
+     *     that order
      */
     public LayerNorm(Tensor scale, Tensor bias, ScalarValue epsilon) {
         Tensor suppliedScale = Objects.requireNonNull(scale, "scale");
@@ -97,9 +99,9 @@ public final class LayerNorm extends UnaryTensorModule {
      *
      * @param normalizedShape non-null positive-rank fully static Shape with every extent positive;
      *     retained exactly and used for both parameters
-     * @param dataType non-null floating parameter type: FLOAT64, FLOAT32, or BFLOAT16
-     * @param epsilon non-null finite strictly positive floating value with the exact parameter
-     *     data type; retained exactly
+     * @param dataType non-null floating parameter type: FLOAT64, FLOAT32, BFLOAT16, or FLOAT16
+     * @param epsilon non-null finite strictly positive floating value with the parameter arithmetic
+     *     type: exact parameter type except FLOAT32 for FLOAT16 parameters; retained exactly
      * @throws NullPointerException if {@code normalizedShape}, {@code dataType}, or
      *     {@code epsilon} is null, checked in that order
      * @throws IllegalArgumentException if the Shape has rank zero, is not fully static, or has a
@@ -158,10 +160,10 @@ public final class LayerNorm extends UnaryTensorModule {
      * <p>The input null check occurs before either binding read. Scale and bias are then read once
      * in declaration order and passed unchanged with the retained exact normalized Shape and
      * epsilon to Model. The inherited Model contract validates trailing Shape, floating input and
-     * promotion, exact result-typed epsilon, metadata, and producer provenance. In particular, a
-     * higher-precision input can promote the result beyond the stored epsilon type and fail; this
-     * method inserts no cast or epsilon conversion. It is mode-insensitive and performs no value
-     * evaluation, compilation, lowering, storage access, or execution.</p>
+     * promotion, and compatible result-arithmetic epsilon metadata. In particular, a
+     * higher-precision input can promote the result beyond the retained epsilon type and fail;
+     * this method inserts no cast or epsilon conversion. It is mode-insensitive and performs no
+     * value evaluation, compilation, lowering, storage access, or execution.</p>
      *
      * @param input non-null Tensor accepted by the affine Model layer-normalization expression for
      *     the retained configuration and current parameter bindings
@@ -171,7 +173,7 @@ public final class LayerNorm extends UnaryTensorModule {
      *     from the bindings observed by this call
      * @throws NullPointerException if {@code input} is null, with message {@code input}
      * @throws IllegalArgumentException if inherited Model floating-type, trailing-Shape,
-     *     promotion, affine-Shape, or exact epsilon-type validation fails
+     *     promotion, affine-Shape, or result-arithmetic epsilon-type validation fails
      * @throws IllegalStateException if Tensor identifier space is exhausted
      */
     @Override
@@ -243,10 +245,13 @@ public final class LayerNorm extends UnaryTensorModule {
     }
 
     private static void validateEpsilonType(ScalarValue epsilon, DataType parameterType) {
-        if (epsilon.dataType() != parameterType) {
+        DataType expectedType =
+                parameterType == DataType.FLOAT16 ? DataType.FLOAT32 : parameterType;
+        if (epsilon.dataType() != expectedType) {
             throw new IllegalArgumentException(
-                    "layer normalization epsilon data type must equal parameter data type: epsilon="
-                            + epsilon.dataType() + ", parameter=" + parameterType);
+                    "layer normalization epsilon data type must equal parameter arithmetic type: "
+                            + "epsilon=" + epsilon.dataType() + ", parameter=" + parameterType
+                            + ", arithmetic=" + expectedType);
         }
     }
 }

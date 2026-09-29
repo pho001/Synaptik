@@ -459,7 +459,7 @@ final class MetalNegPreparedScheduleAssembler
     }
     private static boolean task0059Carrier(DataType dataType) {
         return switch (dataType) {
-            case FLOAT64, FLOAT32, BFLOAT16, INT64, INT32, BOOL -> true;
+            case FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT64, INT32, BOOL -> true;
         };
     }
 

@@ -13,6 +13,7 @@ import java.lang.classfile.Label;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;
+import java.lang.constant.ConstantDescs;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.reflect.AccessFlag;
 
@@ -188,7 +189,8 @@ public final class CpuLossEmitter {
             // zero-weight branch.
             int inputAddress = -1;
             int predictionRepresented = kind == LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS
-                    && (predictionType == DataType.BFLOAT16 || predictionType != resultType)
+                    && (predictionType == DataType.BFLOAT16
+                            || predictionType == DataType.FLOAT16 || predictionType != resultType)
                             ? code.allocateLocal(representedKind(predictionType)) : -1;
             int targetRepresented = kind == LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS
                     ? code.allocateLocal(representedKind(targetType)) : -1;
@@ -841,9 +843,9 @@ public final class CpuLossEmitter {
             code.iload(outputAddress).iload(ordinal).iadd();
             carriers.endFrozenStoreAtStackIntAddress(resultType,
                     specialization.carrierPattern().get(outputBoundary));
-            if (resultType == DataType.BFLOAT16) {
+            if (resultType == DataType.BFLOAT16 || resultType == DataType.FLOAT16) {
                 multiply(code, f64, loss, loss, loss);
-                emitBfloat16StoreValue(code, loss);
+                emitLowPrecisionStoreValue(code, resultType, loss);
             } else if (f64) code.dload(loss).dload(loss).dmul();
             else code.fload(loss).fload(loss).fmul();
             carriers.endFrozenStoreAtStackValue(resultType,
@@ -1473,8 +1475,12 @@ public final class CpuLossEmitter {
             if (f64) code.f2d();
             return;
         }
-        if (type != DataType.BFLOAT16) throw new IllegalArgumentException("loss floating type");
-        code.loadConstant(16).ishl().invokestatic(FLOAT, "intBitsToFloat", floatFromBits());
+        if (type == DataType.BFLOAT16) {
+            code.loadConstant(16).ishl().invokestatic(FLOAT, "intBitsToFloat", floatFromBits());
+        } else if (type == DataType.FLOAT16) {
+            code.i2s().invokestatic(FLOAT, "float16ToFloat",
+                    MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
+        } else throw new IllegalArgumentException("loss floating type");
         if (f64) code.f2d();
     }
 
@@ -1607,6 +1613,10 @@ public final class CpuLossEmitter {
         if (f64) {
             if (type == DataType.FLOAT64) code.dload(represented).dstore(destination);
             else if (type == DataType.FLOAT32) code.fload(represented).f2d().dstore(destination);
+            else if (type == DataType.FLOAT16) code.iload(represented).i2s()
+                    .invokestatic(FLOAT, "float16ToFloat",
+                            MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short))
+                    .f2d().dstore(destination);
             else code.iload(represented).loadConstant(16).ishl().invokestatic(FLOAT,
                     "intBitsToFloat", floatFromBits()).f2d().dstore(destination);
         } else if (type == DataType.FLOAT32) {
@@ -1614,6 +1624,10 @@ public final class CpuLossEmitter {
         } else if (type == DataType.BFLOAT16) {
             code.iload(represented).loadConstant(16).ishl().invokestatic(FLOAT, "intBitsToFloat",
                     floatFromBits()).fstore(destination);
+        } else if (type == DataType.FLOAT16) {
+            code.iload(represented).i2s().invokestatic(FLOAT, "float16ToFloat",
+                    MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short))
+                    .fstore(destination);
         } else {
             throw new IllegalArgumentException("binary32 loss cannot decode FLOAT64 input");
         }
@@ -1657,19 +1671,23 @@ public final class CpuLossEmitter {
                     .loadConstant(0x7fff).iadd().iload(bits).loadConstant(16).iushr().loadConstant(1)
                     .iand().iadd().loadConstant(16).iushr().istore(represented)
                     .labelBinding(rounded);
+        } else if (type == DataType.FLOAT16) {
+            represented = code.allocateLocal(TypeKind.INT);
+            code.fload(result).invokestatic(FLOAT, "floatToFloat16",
+                    MethodTypeDesc.of(ConstantDescs.CD_short, ConstantDescs.CD_float))
+                    .istore(represented);
         }
         carriers.storeFrozen(type, specialization.carrierPattern().get(boundary), boundary, address,
                 represented, intAddress);
     }
 
-    /**
-     * Narrows the floating loss local to canonical BFLOAT16 bits on the operand stack.
-     *
-     * <p>The carrier and proved output address remain below that value.  Keeping the conversion
-     * stack-local lets the contiguous MSE {@code NONE} loop retain the clean Java body's direct
-     * address/load/store dataflow instead of allocating a per-element rounding temporary.</p>
-     */
-    private static void emitBfloat16StoreValue(CodeBuilder code, int result) {
+    /** Narrows one binary32 loss local to the requested low-precision raw short value. */
+    private static void emitLowPrecisionStoreValue(CodeBuilder code, DataType type, int result) {
+        if (type == DataType.FLOAT16) {
+            code.fload(result).invokestatic(FLOAT, "floatToFloat16",
+                    MethodTypeDesc.of(ConstantDescs.CD_short, ConstantDescs.CD_float));
+            return;
+        }
         int bits = code.allocateLocal(TypeKind.INT);
         int represented = code.allocateLocal(TypeKind.INT);
         code.fload(result).invokestatic(FLOAT, "floatToRawIntBits", bitsFromFloat()).istore(bits);
@@ -1759,7 +1777,7 @@ public final class CpuLossEmitter {
         switch (type) {
             case FLOAT64 -> code.dstore(local);
             case FLOAT32 -> code.fstore(local);
-            case BFLOAT16, INT32 -> code.istore(local);
+            case BFLOAT16, FLOAT16, INT32 -> code.istore(local);
             case INT64 -> code.lstore(local);
             default -> throw new IllegalArgumentException("loss type");
         }
@@ -1769,7 +1787,7 @@ public final class CpuLossEmitter {
         return switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
-            case BFLOAT16, INT32 -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, INT32 -> TypeKind.INT;
             case INT64 -> TypeKind.LONG;
             default -> throw new IllegalArgumentException("loss type");
         };
@@ -1780,7 +1798,8 @@ public final class CpuLossEmitter {
     }
 
     private static boolean floating(DataType type) {
-        return type == DataType.BFLOAT16 || type == DataType.FLOAT32 || type == DataType.FLOAT64;
+        return type == DataType.BFLOAT16 || type == DataType.FLOAT16
+                || type == DataType.FLOAT32 || type == DataType.FLOAT64;
     }
 
     private static boolean integral(DataType type) {

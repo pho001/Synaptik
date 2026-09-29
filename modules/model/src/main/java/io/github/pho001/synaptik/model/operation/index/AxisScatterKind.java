@@ -57,7 +57,8 @@ import java.util.List;
  * {@code ACCELERATOR FLOAT32}, ADD/MUL reductions combine the base and every addressed update
  * exactly once using any binary tree, per-step FLOAT32 rounding, DAZ/FTZ, and only corresponding
  * multiply/add fusion; MIN/MAX retain exact original-candidate selection under their documented
- * NaN, signed-zero, and tie rules. Non-FLOAT32 behavior stays strict. See the
+ * NaN, signed-zero, and tie rules. Every current non-FLOAT32 occurrence remains strict; the
+ * inactive low-precision reservation changes none of them. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */

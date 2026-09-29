@@ -203,6 +203,8 @@ final class ForwardConstantFoldingTest {
                 DataType.INT32, Shape.of(3), Optional.empty());
         TensorDescriptor floatDescriptor = descriptor(
                 DataType.FLOAT32, Shape.of(3), Optional.empty());
+        TensorDescriptor float16Descriptor = descriptor(
+                DataType.FLOAT16, Shape.of(3), Optional.empty());
         TensorDescriptor indexDescriptor = descriptor(
                 DataType.INT64, Shape.of(1), Optional.empty());
 
@@ -223,6 +225,14 @@ final class ForwardConstantFoldingTest {
                 List.of(ScalarValue.float32(-0.0f),
                         ScalarValue.float32(Float.intBitsToFloat(0x7fc0_0042))),
                 floatDescriptor,
+                GraphPhase.FORWARD,
+                false);
+        CompileTimeConstantGraph float16 = oneNodeSidecar(
+                operation(BinaryArithmeticKind.ADD),
+                List.of(
+                        ScalarValue.float16Bits((short) 0x8000),
+                        ScalarValue.float16Bits((short) 0xFE55)),
+                float16Descriptor,
                 GraphPhase.FORWARD,
                 false);
         CompileTimeConstantGraph scalarDiv = oneNodeSidecar(
@@ -251,6 +261,7 @@ final class ForwardConstantFoldingTest {
                         foldedBackward.graph().nodePhases().get(new NodeId(0))),
                 () -> assertEquals(3, foldedBackward.constants().size()),
                 () -> assertSame(floating, ForwardConstantFolding.fold(floating)),
+                () -> assertSame(float16, ForwardConstantFolding.fold(float16)),
                 () -> assertSame(scalarDiv, ForwardConstantFolding.fold(scalarDiv)),
                 () -> assertSame(multi, ForwardConstantFolding.fold(multi)));
     }
@@ -354,7 +365,7 @@ final class ForwardConstantFoldingTest {
             case INT64 -> new Operation(
                     ScalarElementwiseKind.ADD,
                     new ScalarValueAttrs(ScalarValue.int64(0)));
-            case FLOAT64, FLOAT32, BFLOAT16 -> operation(UnaryElementwiseKind.NEG);
+            case FLOAT64, FLOAT32, BFLOAT16, FLOAT16 -> operation(UnaryElementwiseKind.NEG);
         };
     }
 

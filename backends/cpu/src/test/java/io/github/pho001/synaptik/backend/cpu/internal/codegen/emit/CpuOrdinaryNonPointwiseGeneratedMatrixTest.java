@@ -30,6 +30,8 @@ import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
 import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
+import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
+import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -55,11 +57,11 @@ import org.junit.jupiter.api.Test;
  */
 class CpuOrdinaryNonPointwiseGeneratedMatrixTest {
     private static final List<DataType> ALL = List.of(DataType.FLOAT64, DataType.FLOAT32,
-            DataType.BFLOAT16, DataType.INT64, DataType.INT32, DataType.BOOL);
+            DataType.BFLOAT16, DataType.FLOAT16, DataType.INT64, DataType.INT32, DataType.BOOL);
     private static final List<DataType> NUMERIC = List.of(DataType.FLOAT64, DataType.FLOAT32,
-            DataType.BFLOAT16, DataType.INT64, DataType.INT32);
+            DataType.BFLOAT16, DataType.FLOAT16, DataType.INT64, DataType.INT32);
     private static final List<DataType> FLOATING = List.of(DataType.FLOAT64, DataType.FLOAT32,
-            DataType.BFLOAT16);
+            DataType.BFLOAT16, DataType.FLOAT16);
     private static final List<DataType> INDICES = List.of(DataType.INT64, DataType.INT32);
 
     @Test void everyModelValidOrdinaryBaseRoleTypeAndRuntimeRequestUsesProductionBoundaries()
@@ -119,6 +121,11 @@ class CpuOrdinaryNonPointwiseGeneratedMatrixTest {
                 new io.github.pho001.synaptik.model.operation.index.OneHotAttrs(3)),
                 List.of(desc(DataType.INT32, Shape.of(2))), List.of(desc(DataType.FLOAT32, Shape.of(2, 3))),
                 "INVALID_OUTPUT_ROLE"));
+        result.add(rejected("dropout-bfloat16-mask-role",
+                new Operation(DropoutKind.DROPOUT, new DropoutAttrs(0.25d)),
+                List.of(desc(DataType.BFLOAT16, Shape.of(2, 3)), desc(DataType.INT64, Shape.of(2))),
+                List.of(desc(DataType.BFLOAT16, Shape.of(2, 3)), desc(DataType.INT32, Shape.of(2, 3)),
+                        desc(DataType.INT64, Shape.of(2))), "INVALID_MASK_ROLE"));
         result.add(rejected("scan-bool", new Operation(CumulativeScanKind.CUM_SUM,
                 new io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs(0, false, false)),
                 List.of(desc(DataType.BOOL, Shape.of(2))), List.of(desc(DataType.BOOL, Shape.of(2))), "BOOL_INAPPLICABLE"));
@@ -139,17 +146,6 @@ class CpuOrdinaryNonPointwiseGeneratedMatrixTest {
                 CpuGeneratedDirectEvidenceClosureTest.descriptors(integralFold2d, foldNode.inputs()),
                 CpuGeneratedDirectEvidenceClosureTest.descriptors(integralFold2d, foldNode.outputs()),
                 "INTEGRAL_FOLD2D_INAPPLICABLE"));
-        // Model permits BFLOAT16 dropout, but the current ordinary CPU route intentionally
-        // admits only FLOAT64 and FLOAT32; this is provider inapplicability, not a role error.
-        var dropout = CpuGeneratedDirectEvidenceClosureTest.ordinaryFixtureSeeds().stream()
-                .filter(seed -> seed.id().equals("dropout-f32")).findFirst().orElseThrow().context();
-        var bfloat16Dropout = retarget(dropout,
-                List.of(DataType.BFLOAT16, DataType.INT64, DataType.BFLOAT16, DataType.BOOL, DataType.INT64));
-        var dropoutNode = bfloat16Dropout.nodes().getFirst();
-        result.add(rejected("dropout-bfloat16-provider-inapplicable", dropoutNode.operation(),
-                CpuGeneratedDirectEvidenceClosureTest.descriptors(bfloat16Dropout, dropoutNode.inputs()),
-                CpuGeneratedDirectEvidenceClosureTest.descriptors(bfloat16Dropout, dropoutNode.outputs()),
-                "BFLOAT16_DROPOUT_INAPPLICABLE"));
         return List.copyOf(result);
     }
 
@@ -185,7 +181,8 @@ class CpuOrdinaryNonPointwiseGeneratedMatrixTest {
                     : seed.id().equals("unfold2d") ? List.of(DataType.FLOAT64)
                     : seed.id().equals("fold-axis") ? NUMERIC
                     : seed.id().equals("fold2d") ? FLOATING
-                    : kind.name().equals("DROPOUT") ? List.of(DataType.FLOAT64, DataType.FLOAT32) : ALL;
+                    : kind.name().equals("DROPOUT")
+                            ? List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.FLOAT16) : ALL;
             for (DataType type : types)
                 result.add(new Base(seed.id() + "/" + type, retarget(seed.context(),
                         seed.id().startsWith("dropout-")
@@ -241,7 +238,7 @@ class CpuOrdinaryNonPointwiseGeneratedMatrixTest {
     }
 
     /**
-     * Returns the finite aggregate and scan universe that owns the 460 direct semantic rows.
+     * Returns the finite aggregate and scan universe that owns the 552 direct semantic rows.
      *
      * <p>This deliberately retains the four requested carrier/layout/strategy contexts instead
      * of projecting a result from a representative artifact.  The closure test reconstructs and

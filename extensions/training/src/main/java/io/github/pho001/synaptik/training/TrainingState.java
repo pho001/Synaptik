@@ -13,11 +13,13 @@ import java.util.Objects;
  *
  * <p>The snapshot contains exact SGD configuration, including dampening, successful execution and
  * optimizer-step counters, pending accumulation count, and one stable-path entry for every
- * parameter. Each entry owns canonical big-endian parameter, momentum, and accumulated-gradient
- * bytes. Successful session snapshots contain only finite represented payload values; restore
- * revalidates this invariant before installation. The snapshot retains no Module, Parameter,
- * Tensor, storage, Engine, prepared execution, backend resource, or closeable owner and remains
- * readable after the originating session closes.</p>
+ * parameter. Each entry owns canonical big-endian logical-parameter, master-parameter, momentum,
+ * and accumulated-gradient bytes. Logical payloads use the parameter's declared type; master,
+ * momentum, and accumulation payloads use {@code FLOAT64} for {@code FLOAT64} parameters and
+ * {@code FLOAT32} otherwise. Successful session snapshots contain only finite represented payload
+ * values; restore revalidates this invariant before installation. The snapshot retains no Module,
+ * Parameter, Tensor, storage, Engine, prepared execution, backend resource, or closeable owner and
+ * remains readable after the originating session closes.</p>
  *
  * <p>This is an in-memory validate-before-install handoff, not a durable checkpoint format. It
  * defines no codec, version migration, file publication, graph/random state, data cursor, epoch,
@@ -117,6 +119,7 @@ public final class TrainingState {
         private final DataType dataType;
         private final Shape shape;
         private final byte[] parameterBytes;
+        private final byte[] masterParameterBytes;
         private final byte[] momentumBytes;
         private final byte[] accumulatedGradientBytes;
 
@@ -125,6 +128,7 @@ public final class TrainingState {
                 DataType dataType,
                 Shape shape,
                 byte[] parameterBytes,
+                byte[] masterParameterBytes,
                 byte[] momentumBytes,
                 byte[] accumulatedGradientBytes) {
             this.path = Objects.requireNonNull(path, "path");
@@ -132,25 +136,50 @@ public final class TrainingState {
                 throw new IllegalArgumentException("path must not be blank");
             }
             this.dataType = Objects.requireNonNull(dataType, "dataType");
-            if (dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64) {
+            if (!dataType.isFloating()) {
                 throw new IllegalArgumentException(
-                        "training state requires FLOAT32 or FLOAT64: " + dataType);
+                        "training state requires floating data type: " + dataType);
             }
             this.shape = Objects.requireNonNull(shape, "shape");
             if (!shape.isFullyStatic()) {
                 throw new IllegalArgumentException("training state shape must be fully static");
             }
-            long byteCount = Math.multiplyExact(
-                    shape.knownElementCount().orElseThrow(), dataType.byteWidth());
-            if (byteCount > Integer.MAX_VALUE) {
+            long elements = shape.knownElementCount().orElseThrow();
+            long logicalBytes = Math.multiplyExact(elements, dataType.byteWidth());
+            long optimizerBytes = Math.multiplyExact(
+                    elements,
+                    dataType == DataType.FLOAT64 ? Double.BYTES : Float.BYTES);
+            if (logicalBytes > Integer.MAX_VALUE || optimizerBytes > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException(
-                        "training state payload exceeds JVM byte[] limit: " + byteCount);
+                        "training state payload exceeds JVM byte[] limit");
             }
-            int expected = (int) byteCount;
-            this.parameterBytes = copyExact(parameterBytes, "parameterBytes", expected);
-            this.momentumBytes = copyExact(momentumBytes, "momentumBytes", expected);
+            this.parameterBytes =
+                    copyExact(parameterBytes, "parameterBytes", (int) logicalBytes);
+            this.masterParameterBytes = copyExact(
+                    masterParameterBytes, "masterParameterBytes", (int) optimizerBytes);
+            this.momentumBytes =
+                    copyExact(momentumBytes, "momentumBytes", (int) optimizerBytes);
             this.accumulatedGradientBytes = copyExact(
-                    accumulatedGradientBytes, "accumulatedGradientBytes", expected);
+                    accumulatedGradientBytes,
+                    "accumulatedGradientBytes",
+                    (int) optimizerBytes);
+        }
+
+        ParameterState(
+                String path,
+                DataType dataType,
+                Shape shape,
+                byte[] parameterBytes,
+                byte[] momentumBytes,
+                byte[] accumulatedGradientBytes) {
+            this(
+                    path,
+                    dataType,
+                    shape,
+                    parameterBytes,
+                    compatibilityMaster(dataType, parameterBytes),
+                    momentumBytes,
+                    accumulatedGradientBytes);
         }
 
         /**
@@ -163,9 +192,10 @@ public final class TrainingState {
         }
 
         /**
-         * Returns the exact parameter element type.
+         * Returns the exact logical parameter element type.
          *
-         * @return {@link DataType#FLOAT32} or {@link DataType#FLOAT64}
+         * @return {@link DataType#FLOAT64}, {@link DataType#FLOAT32},
+         *     {@link DataType#BFLOAT16}, or {@link DataType#FLOAT16}
          */
         public DataType dataType() {
             return dataType;
@@ -181,12 +211,28 @@ public final class TrainingState {
         }
 
         /**
-         * Returns an independent read-only big-endian view of canonical parameter bytes.
+         * Returns an independent read-only big-endian view of canonical logical parameter bytes.
          *
-         * @return a fresh view with position zero and exact payload limit
+         * @return a fresh view with position zero and exact logical payload limit
          */
         public ByteBuffer parameterBytes() {
             return view(parameterBytes);
+        }
+
+        /**
+         * Returns an independent read-only big-endian view of canonical master parameter bytes.
+         *
+         * <p>The payload uses {@code FLOAT64} elements for a {@code FLOAT64} parameter and
+         * {@code FLOAT32} elements for every other supported floating parameter type.</p>
+         *
+         * @return a fresh view with position zero and exact optimizer-width payload limit
+         */
+        public ByteBuffer masterParameterBytes() {
+            return view(masterParameterBytes);
+        }
+
+        byte[] masterParameterBytesInternal() {
+            return masterParameterBytes;
         }
 
         /**
@@ -217,6 +263,15 @@ public final class TrainingState {
 
         byte[] accumulatedGradientBytesInternal() {
             return accumulatedGradientBytes;
+        }
+
+        private static byte[] compatibilityMaster(DataType dataType, byte[] parameterBytes) {
+            DataType type = Objects.requireNonNull(dataType, "dataType");
+            if (type != DataType.FLOAT32 && type != DataType.FLOAT64) {
+                throw new IllegalArgumentException(
+                        "compatibility ParameterState constructor supports only FLOAT32 or FLOAT64");
+            }
+            return parameterBytes;
         }
 
         private static byte[] copyExact(byte[] source, String name, int expected) {

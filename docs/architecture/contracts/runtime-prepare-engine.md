@@ -434,7 +434,7 @@ Before analysis, Engine derives every cross-owner edge from `LogicalMemoryRequir
 and consumer partitions and validates the exact ordered source/destination adapter pair, tensor
 descriptor, layout, data type, and byte geometry. Unsupported direction, representation, layout,
 data type, or size fails closed before backend analysis or persistent-resource acquisition. The
-currently supported heterogeneous transfer domain is CPU to Metal and Metal to CPU for all six
+currently supported heterogeneous transfer domain is CPU to Metal and Metal to CPU for all seven
 carriers over rank-0..16 fully static canonical or positive-stride non-overlapping layouts with
 checked physical spans. It performs no conversion. The CPU run-owned native representation is the
 reusable host staging storage: CPU to Metal uploads its exact physical bytes, while Metal to CPU

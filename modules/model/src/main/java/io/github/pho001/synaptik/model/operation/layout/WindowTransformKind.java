@@ -33,7 +33,8 @@ import java.util.List;
  * contributor membership, and empty behavior; for {@code ACCELERATOR FLOAT32} overlapping
  * additions include every addressed contributor exactly once and may use any binary tree,
  * per-step FLOAT32 rounding, DAZ/FTZ, and only corresponding multiply/add fusion. Nonoverlapping
- * copies stay exact and non-FLOAT32 behavior stays strict. See the
+ * copies stay exact. Every current non-FLOAT32 occurrence remains strict; the inactive low-
+ * precision reservation changes none of them. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  *

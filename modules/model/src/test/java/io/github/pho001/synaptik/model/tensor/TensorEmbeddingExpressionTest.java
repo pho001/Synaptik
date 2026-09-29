@@ -61,7 +61,7 @@ class TensorEmbeddingExpressionTest {
     @Test
     void acceptsEveryFloatingWeightAndIntegralIndexTypeWithWeightOnlyEligibility() {
         for (DataType weightType : List.of(
-                DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
             for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
                 Tensor weights = tensor(weightType, Shape.of(10, 4), true);
                 Tensor indices = tensor(indexType, Shape.of(2, 3), false);
@@ -198,7 +198,7 @@ class TensorEmbeddingExpressionTest {
                         "embedding weights rank must be 2: actual=1",
                         rankBeforeTypes.getMessage()),
                 () -> assertEquals(
-                        "embedding weights data type must be BFLOAT16, FLOAT32, or FLOAT64: INT64",
+                        "embedding weights data type must be BFLOAT16, FLOAT16, FLOAT32, or FLOAT64: INT64",
                         weightTypeBeforeIndexType.getMessage()),
                 () -> assertEquals(
                         "embedding indices data type must be INT32 or INT64: BOOL",
@@ -231,7 +231,7 @@ class TensorEmbeddingExpressionTest {
                     () -> tensor(weightType, Shape.of(0, 0), false).embedding(
                             tensor(DataType.INT32, Shape.of(0), false)));
             assertEquals(
-                    "embedding weights data type must be BFLOAT16, FLOAT32, or FLOAT64: "
+                    "embedding weights data type must be BFLOAT16, FLOAT16, FLOAT32, or FLOAT64: "
                             + weightType,
                     failure.getMessage());
         }

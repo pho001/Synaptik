@@ -62,7 +62,7 @@ public final class CpuMatmulReferenceKernel {
                         }
                         ((double[]) result)[Math.toIntExact(output)] = sum;
                     }
-                    case BFLOAT16, FLOAT32 -> {
+                    case BFLOAT16, FLOAT16, FLOAT32 -> {
                         float sum = 0.0f;
                         for (long k = 0; k < geometry.k(); k++) {
                             float x = (float) floating(geometry.leftType(), left, a);
@@ -74,6 +74,8 @@ public final class CpuMatmulReferenceKernel {
                         }
                         int address = Math.toIntExact(output);
                         if (geometry.resultType() == DataType.FLOAT32) ((float[]) result)[address] = sum;
+                        else if (geometry.resultType() == DataType.FLOAT16)
+                            ((short[]) result)[address] = Float.floatToFloat16(sum);
                         else ((short[]) result)[address] = BFloat16Bits.fromFloat(sum);
                     }
                     case INT32 -> {
@@ -118,6 +120,7 @@ public final class CpuMatmulReferenceKernel {
             case FLOAT64 -> ((double[]) carrier)[index];
             case FLOAT32 -> ((float[]) carrier)[index];
             case BFLOAT16 -> BFloat16Bits.toFloat(((short[]) carrier)[index]);
+            case FLOAT16 -> Float.float16ToFloat(((short[]) carrier)[index]);
             default -> throw new IllegalArgumentException("floating MATMUL carrier type disagrees");
         };
     }
@@ -139,7 +142,7 @@ public final class CpuMatmulReferenceKernel {
         boolean valid = switch (type) {
             case FLOAT64 -> carrier instanceof double[];
             case FLOAT32 -> carrier instanceof float[];
-            case BFLOAT16 -> carrier instanceof short[];
+            case BFLOAT16, FLOAT16 -> carrier instanceof short[];
             case INT32 -> carrier instanceof int[];
             case INT64 -> carrier instanceof long[];
             case BOOL -> false;

@@ -35,8 +35,8 @@ Run these commands from the repository root:
 ```
 
 A successful command ends with `BUILD SUCCESSFUL`. The build verifies the repository under the
-active JDK. It does not exercise the opt-in real-device Metal path or imply that CUDA,
-mixed-backend, persistence, or training capabilities are available.
+active JDK. It does not exercise the opt-in real-device Metal path, publish a release, or turn
+planned CUDA and durable-persistence work into current capabilities.
 
 ## Run one CPU computation
 
@@ -103,7 +103,7 @@ Engine and arena close. Every `compute(...)` call compiles and prepares afresh.
 | A detached result exceeds the caller limit | The canonical payload is larger than `maximumTotalBytes`. | Increase the explicit bound after checking the expected output shape and data type. |
 | A Metal example fails | Real Metal execution requires Apple silicon, a built native bridge, explicit `MetalBackendConfiguration` plus `Engine.builder()` ownership, and an operation inside the selected profile's exact capability matrix. | Build the native bridge, supply its absolute path, choose the required numerical profile, and keep the graph inside the documented Metal domain. |
 | A CUDA example fails | CUDA has no current public lifecycle integration. | Use fixed CPU or explicitly registered CPU/Metal integrations. |
-| A mixed CPU/Metal example fails | The required edge, descriptor, or host carrier is outside the exact all-six-carrier rank-0..16 static canonical or positive-stride non-overlapping storage-layout transfer domain. | Keep cross-owner values inside the documented checked physical-span boundary; there is no conversion or fallback. |
+| A mixed CPU/Metal example fails | The required edge, descriptor, or host carrier is outside the exact all-seven-carrier rank-0..16 static canonical or positive-stride non-overlapping storage-layout transfer domain. | Keep cross-owner values inside the documented checked physical-span boundary; there is no conversion or fallback. |
 
 Java preview features are disabled by default. Incubator or preview APIs are configured only by
 focused module tasks when stable Java 26 APIs are insufficient.

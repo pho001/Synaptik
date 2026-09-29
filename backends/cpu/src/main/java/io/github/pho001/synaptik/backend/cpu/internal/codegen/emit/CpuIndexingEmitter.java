@@ -893,7 +893,7 @@ public final class CpuIndexingEmitter {
             case FLOAT64 -> code.dstore(local);
             case FLOAT32 -> code.fstore(local);
             case INT64 -> code.lstore(local);
-            case BFLOAT16, INT32, BOOL -> code.istore(local);
+            case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(local);
         }
     }
     private static TypeKind localKind(DataType type) {
@@ -901,7 +901,7 @@ public final class CpuIndexingEmitter {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
             case INT64 -> TypeKind.LONG;
-            case BFLOAT16, INT32, BOOL -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
         };
     }
 

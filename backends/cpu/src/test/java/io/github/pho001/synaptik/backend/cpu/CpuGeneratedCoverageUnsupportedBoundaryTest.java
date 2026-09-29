@@ -14,8 +14,6 @@ import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
-import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
-import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -38,26 +36,21 @@ public class CpuGeneratedCoverageUnsupportedBoundaryTest {
     }
 
     /**
-     * Keeps CPU 0009C's four adjacent provider rejections distinct from generated coverage.
+     * Keeps CPU 0009C's three adjacent provider rejections distinct from generated coverage.
      *
-     * <p>These are the exact ordinary inventory boundaries: a non-integral GATHER index role,
-     * a non-BOOL ONE_HOT result role, BOOL SCATTER_ADD, and BFLOAT16 DROPOUT. They deliberately
-     * remain outside {@link #rejectedFixtures()}, whose independent generic rejections are used
-     * by the cross-category checkpoint accounting.</p>
+     * <p>These are the exact remaining ordinary inventory boundaries: a non-integral GATHER
+     * index role, a non-BOOL ONE_HOT result role, and BOOL SCATTER_ADD. They deliberately remain
+     * outside {@link #rejectedFixtures()}, whose independent generic rejections are used by the
+     * cross-category checkpoint accounting.</p>
      */
-    @Test void providerRejectsTheFourExactCpu0009cAdjacentBoundaries() {
+    @Test void providerRejectsTheThreeExactCpu0009cAdjacentBoundaries() {
         CpuCapabilityProvider provider = new CpuCapabilityProvider();
         TensorDescriptor f32_2x3 = descriptor(DataType.FLOAT32, Shape.of(2, 3));
         TensorDescriptor int32_2 = descriptor(DataType.INT32, Shape.of(2));
         TensorDescriptor bool_2 = descriptor(DataType.BOOL, Shape.of(2));
-        TensorDescriptor state = descriptor(DataType.INT64, Shape.of(2));
         assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(1)), List.of(f32_2x3, descriptor(DataType.FLOAT32, Shape.of(2))), List.of(descriptor(DataType.FLOAT32, Shape.of(2, 2))))), "INVALID_INDEX_ROLE");
         assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(3)), List.of(int32_2), List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3))))), "INVALID_OUTPUT_ROLE");
         assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(0)), List.of(bool_2, int32_2, bool_2), List.of(bool_2))), "BOOL_INAPPLICABLE");
-        TensorDescriptor bf16_2x3 = descriptor(DataType.BFLOAT16, Shape.of(2, 3));
-        assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(DropoutKind.DROPOUT, new DropoutAttrs(.2d)), List.of(bf16_2x3, state), List.of(bf16_2x3,
-                descriptor(DataType.BOOL, Shape.of(2, 3)), state))),
-                "BFLOAT16_DROPOUT_INAPPLICABLE");
     }
 
     /** Exact independently-owned provider rejections, exposed to the inventory checkpoint. */

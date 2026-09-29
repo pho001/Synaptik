@@ -50,7 +50,7 @@ public record CpuMaskedReductionIr(Kind kind, DataType dataType, int axis, int m
         Objects.requireNonNull(maskAccess, "maskAccess");
         Objects.requireNonNull(outputAccess, "outputAccess");
         boolean floating = dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
-                || dataType == DataType.BFLOAT16;
+                || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16;
         if (!floating || axis < 0 || axis >= dataAccess.iterationRank()
                 || maskRank < 0 || maskRank > dataAccess.iterationRank()
                 || singletonMaskAxes.length != dataAccess.iterationRank()

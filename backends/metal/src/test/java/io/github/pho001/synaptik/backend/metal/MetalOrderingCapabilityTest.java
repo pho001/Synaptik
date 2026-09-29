@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.backend.metal;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -34,18 +35,18 @@ class MetalOrderingCapabilityTest {
                 boolean gradient = type.isDifferentiable();
                 TensorDescriptor input = descriptor(type, inputShape, gradient);
                 assertTrue(supports(profile,
-                        new Operation(OrderingKind.SORT, new SortAttrs(1, true)),
-                        List.of(input), List.of(descriptor(type, inputShape, gradient))),
+                                new Operation(OrderingKind.SORT, new SortAttrs(1, true)),
+                                List.of(input), List.of(descriptor(type, inputShape, gradient))),
                         profile + " SORT " + type);
                 assertTrue(supports(profile,
-                        new Operation(OrderingKind.ARGSORT, new SortAttrs(1, false)),
-                        List.of(input), List.of(descriptor(DataType.INT64, inputShape, false))),
+                                new Operation(OrderingKind.ARGSORT, new SortAttrs(1, false)),
+                                List.of(input), List.of(descriptor(DataType.INT64, inputShape, false))),
                         profile + " ARGSORT " + type);
                 assertTrue(supports(profile,
-                        new Operation(TopKKind.TOP_K, new TopKAttrs(1, 2, true, false)),
-                        List.of(input), List.of(
-                                descriptor(type, topShape, gradient),
-                                descriptor(DataType.INT64, topShape, false))),
+                                new Operation(TopKKind.TOP_K, new TopKAttrs(1, 2, true, false)),
+                                List.of(input), List.of(
+                                        descriptor(type, topShape, gradient),
+                                        descriptor(DataType.INT64, topShape, false))),
                         profile + " TOP_K " + type);
                 for (AggregateReductionKind kind : List.of(
                         AggregateReductionKind.ARG_MAX, AggregateReductionKind.ARG_MIN)) {

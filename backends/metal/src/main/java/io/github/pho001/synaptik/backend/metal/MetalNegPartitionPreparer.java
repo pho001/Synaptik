@@ -1,12 +1,15 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
@@ -103,30 +106,32 @@ import java.util.Optional;
  *
  * <p>The deterministic analysis assigns stable native value indices, retains every node kind and
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
- * For both profiles, it walks explicit unavailable/canonical/affine-view/materialized-layout states
- * in node order for the retained exact unary, affine, canonicalization, movement/indexing,
+ * It walks in node order through the retained exact unary, affine, canonicalization,
+ * movement/indexing,
  * replacement/fold/aggregate, BOOL, ordering/arg-extrema, maximum-pooling, promoted integral
- * MATMUL, and zero-input {@code INITIAL_STATE} domains. Task 0066 admits all six carriers through
- * exact affine movement, INT32/INT64 index roles, all 36 cast pairs, floating classification and
- * promotion, and the precise legal first-order saved-role relations. Authenticated local
- * zero-stride descendants retain their logical layouts while preparation assigns independently safe
- * physical buffers. Under {@code ACCELERATOR}, analysis additionally accepts the documented FLOAT32
- * arithmetic/reduction/MSE/MATMUL/convolution/average-pooling rows, no-gradient BFLOAT16/FLOAT32
- * mixed MATMUL, canonical FLOAT32 {@code DROPOUT}, and the exact rank-one no-gradient FLOAT32
- * {@code L1_NORM}, {@code SCATTER_ADD}, and singleton {@code VARIANCE} occurrences. Scatter
- * requires canonical base/index/update/output representations; the compiler inserts explicit
- * {@code CONTIGUOUS} between its generated zero-base {@code EXPAND} and Scatter. Its INT32/INT64
- * indices must remain
- * a materialized partition feed. Random lowering preserves initializer key/counter words, dropout's
+ * MATMUL, and zero-input {@code INITIAL_STATE} domains. The schema-nineteen execution cutover
+ * carries all seven types through exact affine movement, INT32/INT64 index roles, all 49 cast pairs,
+ * floating classification and promotion, and the precise legal first-order saved-role relations.
+ * Authenticated local zero-stride descendants retain their logical layouts while preparation
+ * assigns independently safe physical buffers. For every frozen ACCELERATOR FLOAT32 occurrence,
+ * homogeneous BFLOAT16 and FLOAT16 descriptors are admitted with the same geometry and attributes
+ * and lowered to a fixed custom implementation. That closure includes arithmetic, reductions and
+ * scans, MSE, MATMUL, convolution/pooling, ordering, dropout, L1, ScatterAdd, and singleton
+ * variance. Exact low-precision operations remain available under STRICT_IEEE only where their
+ * represented result is exact; relaxed arithmetic is ACCELERATOR-only. Scatter requires canonical
+ * base/index/update/output representations; the compiler inserts explicit {@code CONTIGUOUS}
+ * between its generated zero-base {@code EXPAND} and Scatter. Its INT32/INT64 indices must remain a
+ * materialized partition feed. Random lowering preserves initializer key/counter words, dropout's
  * raw binary64 probability, and all ordered value, mask, and state edges; recurrent nodes remain
  * rejected. An affine MATMUL operand is authenticated to the exact earlier local identity-prefix,
- * last-two-axis {@code PERMUTE} on that consuming edge. Schema-eighteen lowering emits one
- * bounded self-describing image over stable type wires 1..6, complete operation registry 1..115,
- * attribute registry 0..41, the explicit prepared route, and its authenticated execution plan.
- * Production capability is exactly 86 operation kinds; additional structural recipes remain
- * inaccessible to this analysis. Every selected
- * Task-0066 or Task-0069 occurrence fixes the whole partition to {@code CUSTOM_PROGRAM}, with no
- * MPSGraph candidate, retry, fallback, timing, or autotuning.
+ * last-two-axis {@code PERMUTE} on that consuming edge. Schema-nineteen lowering emits one bounded
+ * self-describing image over stable type wires 1..7, complete operation registry 1..115, attribute
+ * registry 0..41, the explicit prepared route, and its authenticated execution plan. Production
+ * capability remains bounded by the provider predicate and its low-precision proxy. Every selected
+ * exact custom or Task-0069 occurrence and every low arithmetic occurrence fixes the whole
+ * partition to {@code CUSTOM_PROGRAM}. Homogeneous no-gradient low raw-preserving candidates keep
+ * that route first and add {@code MPSGRAPH} only after exact immutable-environment certificate
+ * qualification. Neither path permits retry, CPU fallback, timing, or autotuning.
  * Rank-zero values participate only where exact capability permits them. Analysis freshly
  * regenerates the complete candidate batch. Every supplied handoff authenticates its exact
  * partition, schema, workload, profile, and session target; an absent decision preserves the
@@ -250,10 +255,15 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 outputDescriptors.add(outputValue.descriptor());
             }
             if (!MetalCapabilityProvider.supportsOccurrence(
-                    numericalProfile,
-                    node.operation(),
-                    inputDescriptors,
-                    outputDescriptors)) {
+                            numericalProfile,
+                            node.operation(),
+                            inputDescriptors,
+                            outputDescriptors)
+                    && !supportsLowPrecisionBaseline(
+                            numericalProfile,
+                            node.operation(),
+                            inputDescriptors,
+                            outputDescriptors)) {
                 throw new IllegalArgumentException(
                         "Metal occurrence is outside the capability domain");
             }
@@ -317,7 +327,9 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                             inputStates.size(), outputIndices.length)
                     || inputStates.stream().anyMatch(state -> !lowered.kind().accepts(state))) {
                 throw new IllegalArgumentException(
-                        "Metal node input value state is unavailable or incompatible");
+                        "Metal node " + lowered.kind()
+                                + " input value state is unavailable or incompatible: "
+                                + inputStates);
             }
             programNodes.add(lowered);
             boolean exactLocalTranspose = outputIndices.length == 1
@@ -422,8 +434,11 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 graphProgram,
                 programValueDescriptors,
                 targetIndices).isEmpty();
-        boolean containsCustomProgram = graphProgram.nodes().stream()
-                .anyMatch(node -> usesCustomProgram(node, descriptors));
+        boolean containsLowPrecision = descriptors.stream()
+                .anyMatch(descriptor -> isLowPrecision(descriptor.dataType()));
+        boolean containsCustomProgram = containsLowPrecision
+                || graphProgram.nodes().stream()
+                        .anyMatch(node -> usesCustomProgram(node, descriptors));
         long singletonElements = feedBytes.length == 1 ? feedBytes[0] / Float.BYTES : 0L;
         MetalPreparedRoute route = containsCustomProgram || containsAnchorEpilogue
                 ? MetalPreparedRoute.CUSTOM_PROGRAM
@@ -436,15 +451,16 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         && singletonElements <= UINT32_MAX
                         ? MetalPreparedRoute.CUSTOM_SINGLE_NEG
                         : MetalPreparedRoute.MPSGRAPH;
-        MetalPointwiseFusionPlan fusionPlan = route == MetalPreparedRoute.CUSTOM_PROGRAM
-                ? MetalPointwiseFusionPlanner.plan(
-                        context.numericalProfile(),
-                        graphProgram,
-                        programValueDescriptors,
-                        feedIndices,
-                        targetIndices,
-                        route)
-                : null;
+        MetalPointwiseFusionPlan fusionPlan =
+                route == MetalPreparedRoute.CUSTOM_PROGRAM
+                        ? MetalPointwiseFusionPlanner.plan(
+                                context.numericalProfile(),
+                                graphProgram,
+                                programValueDescriptors,
+                                feedIndices,
+                                targetIndices,
+                                route)
+                        : null;
         var internalValues = new ArrayList<ValueId>();
         if (fusionPlan != null) {
             for (int value : fusionPlan.materializedProgramValueIndices()) {
@@ -525,8 +541,21 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             route = forcedRoute;
         }
 
+        List<ValueId> selectedInternalValues = route == MetalPreparedRoute.CUSTOM_PROGRAM
+                ? internalValues : List.of();
+        int[] selectedInternalIndices = route == MetalPreparedRoute.CUSTOM_PROGRAM
+                ? internalIndices : new int[0];
+        long[] selectedInternalBytes = route == MetalPreparedRoute.CUSTOM_PROGRAM
+                ? internalBytes : new long[0];
+        List<PreparationResourceRequirement.Buffer> selectedDeclarations =
+                route == MetalPreparedRoute.CUSTOM_PROGRAM
+                        ? declarations
+                        : List.copyOf(declarations.subList(0, feeds.size() + targets.size()));
+        int selectedMaterializedCount = route == MetalPreparedRoute.CUSTOM_PROGRAM
+                ? materializedCount : valueIds.size();
+
         Optional<PreparationResourceRequirement.Workspace> selectedWorkspace = workspace(
-                route, feeds.size(), targets.size(), materializedCount);
+                route, feeds.size(), targets.size(), selectedMaterializedCount);
         MetalTraceProducer traceProducer = context.backendInputs().traceProducer();
         MetalTraceProducer.PreparedUnit traceUnit =
                 traceProducer == null || !traceProducer.enabled()
@@ -538,7 +567,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         programValueDescriptors,
                         feedIndices,
                         targetIndices,
-                        internalValues.size());
+                        selectedInternalValues.size(),
+                        heuristicPlan);
         MetalNegPreparationPlan plan;
         if (traceUnit == null || !traceUnit.enabled()) {
             if (route == heuristicPlan.route()) {
@@ -551,8 +581,9 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         valueIds, descriptors,
                 physicalValueLayouts, valueStates, graphProgram,
                         feeds, feedIndices, targets, targetIndices,
-                        internalValues, internalIndices, internalBytes, declarations, feedSplats,
-                        feedSplatSources, selectedWorkspace, feedBytes, targetBytes);
+                        selectedInternalValues, selectedInternalIndices, selectedInternalBytes,
+                        selectedDeclarations, feedSplats, feedSplatSources, selectedWorkspace,
+                        feedBytes, targetBytes);
             }
         } else {
             plan = new MetalNegPreparationPlan(
@@ -562,10 +593,12 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     valueIds, descriptors,
             physicalValueLayouts, valueStates, graphProgram,
                     feeds, feedIndices, targets, targetIndices,
-                    internalValues, internalIndices, internalBytes, declarations, feedSplats,
-                    feedSplatSources, selectedWorkspace, feedBytes, targetBytes, traceUnit);
+                    selectedInternalValues, selectedInternalIndices, selectedInternalBytes,
+                    selectedDeclarations, feedSplats, feedSplatSources, selectedWorkspace,
+                    feedBytes, targetBytes, traceUnit);
         }
-        var allDeclarations = new ArrayList<PreparationResourceRequirement>(declarations);
+        var allDeclarations =
+                new ArrayList<PreparationResourceRequirement>(selectedDeclarations);
         plan.addressWorkspace().ifPresent(allDeclarations::add);
         return new BackendPartitionAnalysis<>(context.partition(), plan, allDeclarations);
     }
@@ -736,6 +769,124 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     values.get(id).descriptor().dataType().byteWidth());
         }
         return result;
+    }
+
+    private static boolean supportsLowPrecisionBaseline(
+            NumericalProfile numericalProfile,
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            List<TensorDescriptor> outputs) {
+        DataType selected = null;
+        for (TensorDescriptor descriptor : concat(inputs, outputs)) {
+            DataType type = descriptor.dataType();
+            if (isLowPrecision(type)) {
+                if (operation.kind() != CastKind.CAST
+                        && selected != null
+                        && selected != type) {
+                    return false;
+                }
+                selected = type;
+            } else if (type.isFloating() && operation.kind() != CastKind.CAST) {
+                return false;
+            }
+        }
+        if (selected == null || !lowScalarAttrsMatch(operation.attrs(), selected)) return false;
+
+        Operation proxy = new Operation(operation.kind(), float32ProxyAttrs(operation.attrs()));
+        List<TensorDescriptor> proxyInputs = inputs.stream()
+                .map(MetalNegPartitionPreparer::float32Proxy)
+                .toList();
+        List<TensorDescriptor> proxyOutputs = outputs.stream()
+                .map(MetalNegPartitionPreparer::float32Proxy)
+                .toList();
+        return MetalCapabilityProvider.supportsOccurrence(
+                numericalProfile, proxy, proxyInputs, proxyOutputs);
+    }
+
+    private static List<TensorDescriptor> concat(
+            List<TensorDescriptor> inputs, List<TensorDescriptor> outputs) {
+        var descriptors = new ArrayList<TensorDescriptor>(inputs.size() + outputs.size());
+        descriptors.addAll(inputs);
+        descriptors.addAll(outputs);
+        return descriptors;
+    }
+
+    private static TensorDescriptor float32Proxy(TensorDescriptor descriptor) {
+        DataType type = isLowPrecision(descriptor.dataType())
+                ? DataType.FLOAT32 : descriptor.dataType();
+        return new TensorDescriptor(
+                type, descriptor.shape(), descriptor.layout(), descriptor.requiresGrad());
+    }
+
+    private static OperationAttrs float32ProxyAttrs(OperationAttrs attrs) {
+        if (attrs instanceof ScalarValueAttrs scalar) {
+            return new ScalarValueAttrs(float32Proxy(scalar.value()));
+        }
+        if (attrs instanceof ClampRangeAttrs clamp) {
+            return new ClampRangeAttrs(
+                    float32Proxy(clamp.minValue()), float32Proxy(clamp.maxValue()));
+        }
+        if (attrs instanceof PadAttrs pad) {
+            return new PadAttrs(
+                    pad.before(), pad.after(), float32Proxy(pad.constantValue()));
+        }
+        if (attrs instanceof Unfold2dAttrs unfold) {
+            return new Unfold2dAttrs(
+                    unfold.window(), float32Proxy(unfold.paddingValue()));
+        }
+        if (attrs instanceof Unfold3dAttrs unfold) {
+            return new Unfold3dAttrs(
+                    unfold.window(), float32Proxy(unfold.paddingValue()));
+        }
+        if (attrs instanceof CastAttrs cast) {
+            DataType target = isLowPrecision(cast.targetDataType())
+                    ? DataType.FLOAT32 : cast.targetDataType();
+            return new CastAttrs(target);
+        }
+        return attrs;
+    }
+
+    private static ScalarValue float32Proxy(ScalarValue value) {
+        return switch (value.dataType()) {
+            case BFLOAT16 -> ScalarValue.float32(BFloat16Bits.toFloat(value.bfloat16Bits()));
+            case FLOAT16 -> ScalarValue.float32(Float16Bits.toFloat(value.float16Bits()));
+            default -> value;
+        };
+    }
+
+    private static boolean lowScalarAttrsMatch(OperationAttrs attrs, DataType selected) {
+        if (attrs instanceof ScalarValueAttrs scalar) {
+            return scalar.value().dataType() == selected;
+        }
+        if (attrs instanceof ClampRangeAttrs clamp) {
+            return clamp.minValue().dataType() == selected
+                    && clamp.maxValue().dataType() == selected;
+        }
+        if (attrs instanceof PadAttrs pad) {
+            return pad.constantValue().dataType() == selected;
+        }
+        if (attrs instanceof Unfold2dAttrs unfold) {
+            return unfold.paddingValue().dataType() == selected;
+        }
+        if (attrs instanceof Unfold3dAttrs unfold) {
+            return unfold.paddingValue().dataType() == selected;
+        }
+        return true;
+    }
+
+    private static long scalarRawBits(ScalarValue value) {
+        return switch (value.dataType()) {
+            case FLOAT32 -> Integer.toUnsignedLong(
+                    Float.floatToRawIntBits(value.float32Value()));
+            case BFLOAT16 -> value.bfloat16Bits() & 0xffffL;
+            case FLOAT16 -> value.float16Bits() & 0xffffL;
+            default -> throw new IllegalArgumentException(
+                    "Metal executable scalar must be FLOAT32, BFLOAT16, or FLOAT16");
+        };
+    }
+
+    private static boolean isLowPrecision(DataType type) {
+        return type == DataType.BFLOAT16 || type == DataType.FLOAT16;
     }
 
     private static boolean usesCustomProgram(
@@ -1256,11 +1407,13 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         if (kind instanceof ScalarElementwiseKind scalar) {
             if (scalar == ScalarElementwiseKind.CLAMP) {
                 ClampRangeAttrs attrs = (ClampRangeAttrs) operation.attrs();
+                DataType type = attrs.minValue().dataType();
                 return MetalMpsGraphProgram.Node.clamp(
                         inputs[0],
                         output,
-                        Float.floatToRawIntBits(attrs.minValue().float32Value()),
-                        Float.floatToRawIntBits(attrs.maxValue().float32Value()));
+                        type,
+                        scalarRawBits(attrs.minValue()),
+                        scalarRawBits(attrs.maxValue()));
             }
             ScalarValueAttrs attrs = (ScalarValueAttrs) operation.attrs();
             MetalMpsGraphProgram.NodeKind nodeKind = switch (scalar) {
@@ -1278,7 +1431,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     nodeKind,
                     inputs[0],
                     output,
-                    Float.floatToRawIntBits(attrs.value().float32Value()));
+                    attrs.value().dataType(),
+                    scalarRawBits(attrs.value()));
         }
         if (kind instanceof CumulativeScanKind scan) {
             CumulativeScanAttrs attrs = (CumulativeScanAttrs) operation.attrs();
@@ -1473,6 +1627,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             case FLOAT32 -> Integer.toUnsignedLong(
                     Float.floatToRawIntBits(value.float32Value()));
             case BFLOAT16 -> Short.toUnsignedLong(value.bfloat16Bits());
+            case FLOAT16 -> Short.toUnsignedLong(value.float16Bits());
             case INT32 -> Integer.toUnsignedLong(value.int32Value());
             case INT64 -> value.int64Value();
             case BOOL -> value.booleanValue() ? 1L : 0L;

@@ -26,8 +26,8 @@ import java.util.Set;
  * This keeps existing one-output order stable while allowing several selected public outputs of
  * one batch-normalization occurrence to contribute to the same input. Each selected output uses
  * its validated explicit cotangent seed or an implicit exact typed positive one for an eligible
- * scalar output. Request-local BFLOAT16, FLOAT32, or FLOAT64 scalar leaves are cached by exact
- * {@link ScalarValue} type and represented bits, remain storage-free, and are registered
+ * scalar output. Request-local BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 scalar leaves are cached by
+ * exact {@link ScalarValue} type and represented bits, remain storage-free, and are registered
  * explicitly as logical splats in deterministic first-use order. Shape-specific values are
  * ordinary public {@code expand} expressions.</p>
  *
@@ -133,6 +133,11 @@ final class FirstOrderAutograd {
                     if (inputGradient == null) {
                         throw new IllegalStateException(
                                 "preflight selected a non-differentiable input role " + input);
+                    }
+                    DataType inputDataType =
+                            producer.inputs().get(input).descriptor().dataType();
+                    if (inputGradient.descriptor().dataType() != inputDataType) {
+                        inputGradient = inputGradient.cast(inputDataType);
                     }
                     append(contributions, producer.inputs().get(input), inputGradient);
                 }
@@ -370,7 +375,7 @@ final class FirstOrderAutograd {
         /**
          * Returns the request-local scalar positive-zero leaf for one floating data type.
          *
-         * @param dataType non-null BFLOAT16, FLOAT32, or FLOAT64 type
+         * @param dataType non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type
          * @return the exact cached leaf, created and bound on first request
          * @throws IllegalArgumentException if {@code dataType} is not floating
          */
@@ -381,7 +386,7 @@ final class FirstOrderAutograd {
         /**
          * Returns the request-local scalar positive-one leaf for one floating data type.
          *
-         * @param dataType non-null BFLOAT16, FLOAT32, or FLOAT64 type
+         * @param dataType non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type
          * @return the exact cached leaf, created and bound on first request
          * @throws IllegalArgumentException if {@code dataType} is not floating
          */
@@ -392,13 +397,14 @@ final class FirstOrderAutograd {
         /**
          * Returns the exact fixed typed scalar-operation value {@code 2}.
          *
-         * @param dataType non-null BFLOAT16, FLOAT32, or FLOAT64 type
+         * @param dataType non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type
          * @return the exact represented coefficient selected by Compiler 0005A
          * @throws IllegalArgumentException if {@code dataType} is not floating
          */
         ScalarValue two(DataType dataType) {
             return switch (dataType) {
                 case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x4000);
+                case FLOAT16 -> ScalarValue.float16Bits((short) 0x4000);
                 case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0x40000000));
                 case FLOAT64 ->
                         ScalarValue.float64(Double.longBitsToDouble(0x4000000000000000L));
@@ -410,13 +416,14 @@ final class FirstOrderAutograd {
         /**
          * Returns the exact fixed typed scalar-operation value {@code -2}.
          *
-         * @param dataType non-null BFLOAT16, FLOAT32, or FLOAT64 type
+         * @param dataType non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type
          * @return the exact represented negative coefficient selected for loss formulas
          * @throws IllegalArgumentException if {@code dataType} is not floating
          */
         ScalarValue negativeTwo(DataType dataType) {
             return switch (dataType) {
                 case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0xC000);
+                case FLOAT16 -> ScalarValue.float16Bits((short) 0xC000);
                 case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0xC0000000));
                 case FLOAT64 ->
                         ScalarValue.float64(Double.longBitsToDouble(0xC000000000000000L));
@@ -428,13 +435,14 @@ final class FirstOrderAutograd {
         /**
          * Returns the exact fixed typed scalar-operation value {@code -0.5}.
          *
-         * @param dataType non-null BFLOAT16, FLOAT32, or FLOAT64 type
+         * @param dataType non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type
          * @return the exact represented coefficient selected by Compiler 0005A
          * @throws IllegalArgumentException if {@code dataType} is not floating
          */
         ScalarValue negativeHalf(DataType dataType) {
             return switch (dataType) {
                 case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0xBF00);
+                case FLOAT16 -> ScalarValue.float16Bits((short) 0xB800);
                 case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0xBF000000));
                 case FLOAT64 ->
                         ScalarValue.float64(Double.longBitsToDouble(0xBFE0000000000000L));
@@ -446,7 +454,7 @@ final class FirstOrderAutograd {
         /**
          * Returns the request-local scalar leaf for one exact floating typed value.
          *
-         * @param value non-null exact BFLOAT16, FLOAT32, or FLOAT64 scalar
+         * @param value non-null exact BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 scalar
          * @return the exact cached leaf, created and explicitly bound on first request
          * @throws IllegalArgumentException if {@code value} is not floating
          */
@@ -480,6 +488,8 @@ final class FirstOrderAutograd {
             return switch (dataType) {
                 case BFLOAT16 ->
                         ScalarValue.bfloat16Bits((short) (one ? 0x3F80 : 0x0000));
+                case FLOAT16 ->
+                        ScalarValue.float16Bits((short) (one ? 0x3C00 : 0x0000));
                 case FLOAT32 -> ScalarValue.float32(one ? 1.0f : 0.0f);
                 case FLOAT64 -> ScalarValue.float64(one ? 1.0d : 0.0d);
                 case INT32, INT64, BOOL ->

@@ -37,6 +37,8 @@ import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastValueConversions;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import java.util.List;
 
@@ -132,6 +134,34 @@ class CpuReferenceDifferentialTest {
                         mask[3], mask[4]}).allMatch(value -> value == 0 || value == 1)),
                 () -> assertEquals(0L, Float.floatToRawIntBits(output[0]) == 0
                         ? 0L : Integer.toUnsignedLong(Float.floatToRawIntBits(output[0]))));
+    }
+
+    @Test void independentBfloat16RandomReferenceUsesModelNarrowingAndExactState() {
+        var lowered = new CpuPartitionLowering().lower(CpuRandomLoweringTest.dropoutContext(
+                DataType.BFLOAT16, Shape.of(5), .25d));
+        short[] input = {(short) 0x8000, (short) 0x3f80, (short) 0xc010,
+                (short) 0x7fa1, (short) 0x0001};
+        long[] state = {0x1234, 7}, next = new long[2];
+        short[] output = new short[5];
+        byte[] mask = new byte[5];
+        CpuScalarReferenceKernel.execute((CpuRandomIr) lowered.portableKernelIr(),
+                lowered.randomGeometry().orElseThrow(), List.of(
+                        argument(DataType.BFLOAT16, input, true),
+                        argument(DataType.INT64, state, true),
+                        argument(DataType.BFLOAT16, output, false),
+                        argument(DataType.BOOL, mask, false),
+                        argument(DataType.INT64, next, false)));
+        for (int logical = 0; logical < input.length; logical++) {
+            boolean keep = randomUniform(randomWord(state[0], state[1], logical)) >= .25d;
+            double expanded = CastValueConversions.convert(
+                    ScalarValue.bfloat16Bits(input[logical]), DataType.FLOAT64).float64Value();
+            short expected = keep ? CastValueConversions.convert(
+                    ScalarValue.float64(expanded / .75d),
+                    DataType.BFLOAT16).bfloat16Bits() : 0;
+            assertEquals(keep ? (byte) 1 : (byte) 0, mask[logical]);
+            assertEquals(expected, output[logical]);
+        }
+        assertArrayEquals(new long[]{state[0], state[1] + input.length}, next);
     }
 
     @Test void independentRandomReferenceHonorsBroadcastReadsAndStridedWrites() {
@@ -236,7 +266,7 @@ class CpuReferenceDifferentialTest {
     }
 
     @Test void gatherReferenceMatchesRepresentedBitsForEveryDataAndIndexType() {
-        for (DataType dataType : DataType.values()) {
+        for (DataType dataType : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
             for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
                 var lowered = new io.github.pho001.synaptik.backend.cpu.internal.lowering
                         .CpuPartitionLowering().lower(CpuIndexingLoweringTest.context(
@@ -379,6 +409,7 @@ class CpuReferenceDifferentialTest {
             case BOOL -> { byte[] result = new byte[values.length];
                 for (int i = 0; i < values.length; i++) result[i] = (byte) (values[i] & 1);
                 yield result; }
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU reference unsupported");
         };
     }
 
@@ -396,6 +427,7 @@ class CpuReferenceDifferentialTest {
                     ((long[]) carrier).length * 8L, readOnly);
             case BOOL -> new CpuBufferArgument.Bytes((byte[]) carrier, 0,
                     ((byte[]) carrier).length, readOnly);
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU reference unsupported");
         };
     }
 

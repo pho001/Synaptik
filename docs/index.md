@@ -19,20 +19,21 @@ fixed CPU ownership, while `Engine.builder()` explicitly owns opened CPU and/or 
 and composes their partitions into one prepared schedule. Tensor expressions can be compiled,
 prepared once, run repeatedly with isolated invocation state, and materialized as detached host
 values. One-shot forward computation and a bounded scalar-objective backward convenience are also
-current. The public Training extension now adds one reusable Engine-backed scalar training
-session, persistent SGD, gradient accumulation, and detached in-memory state over its bounded
-shareable-native parameter domain. Metal executes its exact profile-qualified static domains:
-common capability includes exact movement, affine, indexing, classification, BOOL logic, WHERE,
-raw-bit elementwise rows, Task-0060 rows, and no-gradient promoted INT32/INT64 MATMUL. Accelerator
-adds the admitted arithmetic, reduction, scan, every positive-static FLOAT32 MATMUL geometry, and
-no-gradient BFLOAT16/FLOAT32 mixed MATMUL rows. Existing rank-two FLOAT32 matrix products retain
-direct MPSGraph; newly admitted MATMUL forms use the fixed custom program. Eligible singleton NEG
-may use its custom route, while other exact custom nodes select the shared custom-program route.
-Mixed CPU/Metal plans use explicit bidirectional transfer for all six model data types over exact
-rank-0..16 static canonical or positive-stride non-overlapping layouts with checked physical spans.
-A standard-Metal convenience, generic plugin registration/discovery, CUDA, broader optimizers,
-durable persistence, and generic graph/plan tuning remain planned. Each focused page distinguishes
-current contracts from those future capabilities.
+current. The public Training extension adds one reusable backend-neutral Engine session,
+persistent SGD, gradient accumulation, and detached in-memory state over its bounded shareable-
+native parameter domain. BFLOAT16 and FLOAT16 parameters retain private FLOAT32 master, momentum,
+and accumulation values and publish one narrowed logical value only after a successful update.
+Metal executes an exact occurrence- and profile-qualified static domain. Under `ACCELERATOR`, every
+supported homogeneous FLOAT32 occurrence has BFLOAT16 and FLOAT16 counterparts with FLOAT32
+working values and accumulators and one final ties-to-even narrowing. Low arithmetic uses the fixed
+custom program. Only the six exact homogeneous no-gradient raw-preserving program forms may add
+MPSGraph after a complete environment/program certificate match; classic MPS and MPP remain
+qualified-negative and own no candidate or fallback. Mixed CPU/Metal plans use explicit
+bidirectional transfer for all seven model data types over exact rank-0..16 static canonical or
+positive-stride non-overlapping layouts with checked physical spans. A standard-Metal convenience,
+generic plugin registration/discovery, CUDA, broader optimizers, durable persistence, and generic
+graph/plan tuning remain planned. Each focused page distinguishes current contracts from those
+future capabilities.
 
 ## Contributor guides
 

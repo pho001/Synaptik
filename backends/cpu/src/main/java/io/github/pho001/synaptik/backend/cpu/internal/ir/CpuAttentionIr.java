@@ -132,6 +132,7 @@ public record CpuAttentionIr(
   }
 
   private static boolean floating(DataType type) {
-    return type == DataType.BFLOAT16 || type == DataType.FLOAT32 || type == DataType.FLOAT64;
+    return type == DataType.BFLOAT16 || type == DataType.FLOAT16
+        || type == DataType.FLOAT32 || type == DataType.FLOAT64;
   }
 }

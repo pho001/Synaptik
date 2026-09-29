@@ -481,6 +481,105 @@ final class TrainingSessionFailureContractTest {
         }
     }
 
+    @Test
+    void restoreRejectsNonFiniteLowLogicalAndMasterPayloadsAtomically() {
+        Tensor parameter = scalarLow(DataType.BFLOAT16, (short) 0x3F80, true);
+        NamedParameters module = new NamedParameters("value", parameter);
+        Tensor objective = parameter.cast(DataType.FLOAT32).sum();
+        try (Engine engine = Engine.standard();
+                TrainingSession session =
+                        TrainingSession.open(engine, module, objective, new Sgd(0.1d))) {
+            TrainingState initial = session.state();
+            TrainingState.ParameterState current = initial.parameters().getFirst();
+
+            TrainingState.ParameterState badLogical = new TrainingState.ParameterState(
+                    current.path(),
+                    current.dataType(),
+                    current.shape(),
+                    shortBytes((short) 0x7F80),
+                    bytes(current.masterParameterBytes()),
+                    bytes(current.momentumBytes()),
+                    bytes(current.accumulatedGradientBytes()));
+            TrainingState nonFiniteLogical = new TrainingState(
+                    initial.optimizer(), 0, 0, 0, List.of(badLogical));
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> session.restore(nonFiniteLogical));
+            assertStateEquals(initial, session.state());
+
+            TrainingState.ParameterState badMaster = new TrainingState.ParameterState(
+                    current.path(),
+                    current.dataType(),
+                    current.shape(),
+                    bytes(current.parameterBytes()),
+                    floatBytes(Float.NaN),
+                    bytes(current.momentumBytes()),
+                    bytes(current.accumulatedGradientBytes()));
+            TrainingState nonFiniteMaster = new TrainingState(
+                    initial.optimizer(), 0, 0, 0, List.of(badMaster));
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> session.restore(nonFiniteMaster));
+            assertStateEquals(initial, session.state());
+        }
+    }
+
+    @Test
+    void lowPrecisionRepresentedOverflowFailsBeforePublication() {
+        short maximumFinite = (short) 0x7BFF;
+        Tensor parameter = scalarLow(DataType.FLOAT16, maximumFinite, true);
+        NamedParameters module = new NamedParameters("value", parameter);
+        Tensor objective = parameter.cast(DataType.FLOAT32).neg();
+        try (Engine engine = Engine.standard();
+                TrainingSession session =
+                        TrainingSession.open(engine, module, objective, new Sgd(32.0d))) {
+            TrainingState initial = session.state();
+            assertThrows(
+                    ArithmeticException.class,
+                    () -> session.run(List.of(), GradientMode.RESET_AND_STEP));
+            assertEquals(maximumFinite, parameter.hostStorage().orElseThrow().segment()
+                    .get(ValueLayout.JAVA_SHORT, 0));
+            assertStateEquals(initial, session.state());
+            assertEquals(0, session.executions());
+            assertEquals(0, session.optimizerSteps());
+        }
+    }
+
+    @Test
+    void lowPrecisionRollbackRestoresRawLogicalBitsAndMasterState() {
+        short negativeZero = (short) 0x8000;
+        short one = (short) 0x3F80;
+        Tensor first = scalarLow(DataType.BFLOAT16, negativeZero, true);
+        Tensor second = scalarLow(DataType.BFLOAT16, one, true);
+        NamedParameters module = new NamedParameters(first, second);
+        Tensor objective = first.cast(DataType.FLOAT32).add(second.cast(DataType.FLOAT32));
+        InjectedFailure observed = new InjectedFailure("second low parameter write");
+        TrainingSession.Hooks hooks = new TrainingSession.Hooks() {
+            @Override
+            void beforeParameterWrite(int parameterIndex) {
+                if (parameterIndex == 1) {
+                    throw observed;
+                }
+            }
+        };
+
+        try (Engine engine = Engine.standard();
+                TrainingSession session = TrainingSession.openForTesting(
+                        engine, module, objective, new Sgd(0.1d), hooks)) {
+            TrainingState initial = session.state();
+            assertSame(observed, assertThrows(
+                    InjectedFailure.class,
+                    () -> session.run(List.of(), GradientMode.RESET_AND_STEP)));
+            assertEquals(negativeZero, first.hostStorage().orElseThrow().segment()
+                    .get(ValueLayout.JAVA_SHORT, 0));
+            assertEquals(one, second.hostStorage().orElseThrow().segment()
+                    .get(ValueLayout.JAVA_SHORT, 0));
+            assertStateEquals(initial, session.state());
+            assertEquals(0, session.executions());
+            assertEquals(0, session.optimizerSteps());
+        }
+    }
+
     private static void assertInjectedRunFailureIsAtomic(
             TrainingSession.Hooks hooks, String message) {
         NamedParameters module = new NamedParameters("value", scalar32(2.0f, true));
@@ -561,6 +660,22 @@ final class TrainingSessionFailureContractTest {
                 Optional.of(new MemorySegmentStorage(DataType.FLOAT32, 1, segment)));
     }
 
+    private static Tensor scalarLow(
+            DataType dataType, short rawBits, boolean requiresGrad) {
+        Shape shape = Shape.scalar();
+        TensorDescriptor descriptor = new TensorDescriptor(
+                dataType,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                requiresGrad);
+        MemorySegment segment = Arena.global().allocate(Short.BYTES, Short.BYTES);
+        segment.set(ValueLayout.JAVA_SHORT, 0, rawBits);
+        return TensorFactory.create(
+                descriptor,
+                Optional.empty(),
+                Optional.of(new MemorySegmentStorage(dataType, 1, segment)));
+    }
+
     private static Tensor scalar64(double value, boolean requiresGrad) {
         Shape shape = Shape.scalar();
         TensorDescriptor descriptor = new TensorDescriptor(
@@ -585,6 +700,13 @@ final class TrainingSessionFailureContractTest {
         return ByteBuffer.allocate(Float.BYTES).order(ByteOrder.BIG_ENDIAN).putFloat(value).array();
     }
 
+    private static byte[] shortBytes(short value) {
+        return ByteBuffer.allocate(Short.BYTES)
+                .order(ByteOrder.BIG_ENDIAN)
+                .putShort(value)
+                .array();
+    }
+
     private static byte[] bytes(ByteBuffer buffer) {
         byte[] result = new byte[buffer.remaining()];
         buffer.get(result);
@@ -604,6 +726,9 @@ final class TrainingSessionFailureContractTest {
             assertEquals(left.dataType(), right.dataType());
             assertEquals(left.shape(), right.shape());
             assertArrayEquals(bytes(left.parameterBytes()), bytes(right.parameterBytes()));
+            assertArrayEquals(
+                    bytes(left.masterParameterBytes()),
+                    bytes(right.masterParameterBytes()));
             assertArrayEquals(bytes(left.momentumBytes()), bytes(right.momentumBytes()));
             assertArrayEquals(
                     bytes(left.accumulatedGradientBytes()),

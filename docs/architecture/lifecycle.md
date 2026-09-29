@@ -5,7 +5,7 @@ This document explains the compile, prepare, run, and training lifecycles define
 The ordinary public lifecycle is runnable through `Engine.standard()` for fixed CPU ownership and
 through `Engine.builder()` for explicit CPU/Metal ownership. Builder preparation composes
 single-owner or mixed-owner partitions through deterministic owner-indexed representations and
-explicit bidirectional transfer for all six model data types over exact rank-0..16 static
+explicit bidirectional transfer for all seven model data types over exact rank-0..16 static
 canonical or positive-stride non-overlapping storage layouts. The public Training extension now
 layers one optimizer/session owner over that same Engine compile, prepare, run, publication, and
 materialization path. CUDA execution remains planned.
@@ -252,7 +252,7 @@ frozen registry. Before any backend analysis, it rejects a missing owner or unsu
 transfer pair. Shared Prepare then analyzes and finalizes every partition, assigns one logical slot
 plus one deterministic representation position per participating owner, collects backend physical
 creation contributions, and assembles explicit execution, transfer, and publication occurrences.
-Current CPU/Metal transfers cover all six carriers over exact rank-0..16 static canonical or
+Current CPU/Metal transfers cover all seven carriers over exact rank-0..16 static canonical or
 positive-stride non-overlapping layouts with checked physical spans; there is no retry, owner
 substitution, conversion, heap staging, or CPU fallback.
 
@@ -405,23 +405,23 @@ The same graph-wide `NumericalProfile` crosses these cold stages unchanged. Mode
 unchanged strict set and total recursive `FLOAT32` accelerator superset; every downstream stage
 transports, queries, or realizes that meaning without reinterpreting it. CPU realizes both profiles
 identically. Metal's common exact occurrence domain under both profiles contains exact unary rows,
-all 36 casts, FLOAT64/FLOAT32/BFLOAT16 classification and promoted WHERE, scalar/broadcast BOOL,
+all 49 casts, four-carrier floating classification and promoted WHERE, scalar/broadcast BOOL,
 all-carrier affine/index/replacement/movement, the admitted non-overlapping fold/window subsets,
 unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema, no-gradient promoted INT32/INT64
 MATMUL, exact maximum pooling, and raw initial state. `ACCELERATOR` additionally admits the
-documented FLOAT32 arithmetic, extrema, scalar, reduction, scan, MSE, general MATMUL,
-average-pooling, convolution, explicit-state dropout, and the exact rank-one FLOAT32 L1,
-ScatterAdd, and singleton VARIANCE occurrences. Every Task-0066 selected occurrence and all three
-Task-0069 occurrences use one fixed custom whole-program route; ScatterAdd completes its index scan
-before any encoding or mutation and closes the existing rank-one Gather data cotangent. The
-singleton variance requires input `[1]`, axis `[0]`, correction zero, and scalar or retained `[1]`
-output; other variance geometry retains its descriptive direct structural recipe but is not
-production-capable. Every other unlisted occurrence fails closed before route selection. Eligible
-linear canonical FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use bounded generated custom units
-with compact materialized slots. Eligible ACCELERATOR MATMUL/Conv2d suffixes instead use one typed
-anchor dispatch and final store with no suffix slot. ABI 5 retains thirteen exports and accepts one
-bounded schema-18 route-bearing program image over type wires `1..6`, operation wires `1..115`,
-attribute wires `0..41`, and route wires `1..3`; backend identities are version twenty-seven.
-Structural coverage is `101 / 14`, production capability is `86 / 29`, and the MPSGraph/custom
-catalogs are `75 / 35 / 5` and `73 / 42 / 0`. Every identity other than version twenty-seven fails closed.
+documented FLOAT32/BFLOAT16/FLOAT16 arithmetic, extrema, scalar, reduction, scan, MSE, general
+MATMUL, average-pooling, convolution, explicit-state dropout, and the exact rank-one FLOAT32 L1,
+ScatterAdd, and singleton VARIANCE occurrences. Low arithmetic and all three Task-0069 occurrences
+use one fixed custom whole-program route. Exact no-gradient homogeneous low raw-preserving
+RESHAPE/PERMUTE/CONTIGUOUS/SLICE/CONCAT/TILE images retain custom first and may add MPSGraph only
+after an exact immutable-environment and schema-19-program certificate match. ScatterAdd completes
+its index scan before encoding or mutation and closes the existing rank-one Gather data cotangent.
+Every other unlisted occurrence fails closed before route selection. Eligible linear canonical
+FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use bounded generated custom units with compact
+materialized slots. Eligible ACCELERATOR MATMUL/Conv2d suffixes instead use one typed anchor
+dispatch and final store with no suffix slot. ABI 6 has fourteen exports and accepts one bounded
+schema-19 route-bearing program image over type wires `1..7`, operation wires `1..115`, attribute
+wires `0..41`, and route wires `1..3`; backend identities are version twenty-eight. Structural
+coverage is `101 / 14`, production capability is `86 / 29`, and the MPSGraph/custom catalogs are
+`75 / 35 / 5` and `73 / 42 / 0`. Every other schema or identity fails closed.
 Runtime executes the prepared result with no profile branch.

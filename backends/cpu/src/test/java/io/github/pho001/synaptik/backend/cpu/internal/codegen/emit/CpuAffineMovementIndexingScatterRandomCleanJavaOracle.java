@@ -256,7 +256,7 @@ final class CpuAffineMovementIndexingScatterRandomCleanJavaOracle {
         return '(' + replacement + descriptor.substring(end);
     }
     private static String arrayDescriptor(String type) { return switch (type) {
-        case "FLOAT64" -> "[D"; case "FLOAT32" -> "[F"; case "BFLOAT16" -> "[S";
+        case "FLOAT64" -> "[D"; case "FLOAT32" -> "[F"; case "BFLOAT16", "FLOAT16" -> "[S";
         case "INT64" -> "[J"; case "INT32" -> "[I"; case "BOOL" -> "[B";
         default -> throw new AssertionError(type);
     }; }
@@ -300,7 +300,9 @@ final class CpuAffineMovementIndexingScatterRandomCleanJavaOracle {
                 .append(BINARY, 0, BINARY.lastIndexOf('.')).append("; public final class AffineMovementIndexingScatterRandomCleanJava {")
                 .append("private static void helper(long value){}")
                 .append("private static short bf16(float value){int bits=Float.floatToRawIntBits(value),upper=bits>>>16,lower=bits&65535;if((bits&2139095040)==2139095040&&(bits&8388607)!=0)upper|=64;else if(lower>32768||(lower==32768&&(upper&1)!=0))upper++;return(short)upper;}")
-                .append("private static float bf16f(short value){return Float.intBitsToFloat((value&65535)<<16);}");
+                .append("private static float bf16f(short value){return Float.intBitsToFloat((value&65535)<<16);}")
+                .append("private static short f16(float value){return Float.floatToFloat16(value);}")
+                .append("private static float f16f(short value){return Float.float16ToFloat(value);}");
         for (int row = 0; row < rows.size(); row++) {
             List<String> parameters = parameters(rows.get(row).descriptor());
             if (parameters.size() < 2 || !parameters.get(parameters.size() - 1).equals("long")
@@ -430,6 +432,12 @@ final class CpuAffineMovementIndexingScatterRandomCleanJavaOracle {
             b.append("float value;").append(loadAt(p.get(0), 0, "input", type))
                     .append("float result=keep?(float)(value/denominator):0.0F;")
                     .append(storeAt(p.get(2), 2, "output", "result", type));
+        } else if (type.equals("FLOAT16")) {
+            b.append("int raw;").append(loadAt(p.get(0), 0, "input", type).replace("value=", "raw="))
+                    .append("double computed=keep?((double)Float.float16ToFloat((short)raw))/denominator:0.0D;")
+                    .append("long hb=Double.doubleToRawLongBits(computed);int hs=(int)(hb>>>48)&0x8000;int he=(int)(hb>>>52)&0x7ff;long hm=hb&0xfffffffffffffL;int result;")
+                    .append("if(he==0x7ff){result=hm==0?(hs|0x7c00):0x7e00;}else if(he>1038){result=hs|0x7c00;}else if(he<998){result=hs;}else{int hsh=he<1009?1051-he:42;long hsig=(1L<<52)|hm;long hq=(hsig+(1L<<(hsh-1))-1+((hsig>>>hsh)&1))>>>hsh;if(he>=1009&&hq==0x800L){hq=0x400L;he++;}result=he>1038?(hs|0x7c00):(he>=1009?(hs|((he-1008)<<10)|((int)hq&0x3ff)):(hs|(int)hq));}")
+                    .append(storeAt(p.get(2), 2, "output", "(short)result", type));
         } else throw new AssertionError("dropout value type: " + type);
         return b.append("}}").toString();
     }
@@ -537,6 +545,10 @@ final class CpuAffineMovementIndexingScatterRandomCleanJavaOracle {
             case "BFLOAT16" -> switch (reduction) {
                 case "ADD" -> "value=bf16(bf16f(value)+bf16f(right));"; case "MUL" -> "value=bf16(bf16f(value)*bf16f(right));";
                 case "MIN" -> "value=bf16(Math.min(bf16f(value),bf16f(right)));"; case "MAX" -> "value=bf16(Math.max(bf16f(value),bf16f(right)));";
+                default -> throw new AssertionError(reduction); };
+            case "FLOAT16" -> switch (reduction) {
+                case "ADD" -> "value=f16(f16f(value)+f16f(right));"; case "MUL" -> "value=f16(f16f(value)*f16f(right));";
+                case "MIN" -> "value=f16(Math.min(f16f(value),f16f(right)));"; case "MAX" -> "value=f16(Math.max(f16f(value),f16f(right)));";
                 default -> throw new AssertionError(reduction); };
             case "BOOL" -> throw new AssertionError("non-replacement BOOL scatter");
             default -> throw new AssertionError(type);
@@ -1059,7 +1071,8 @@ final class CpuAffineMovementIndexingScatterRandomCleanJavaOracle {
 
     private static int byteWidth(String type) { return switch (type) {
         case "FLOAT64", "INT64" -> 8; case "FLOAT32", "INT32" -> 4;
-        case "BFLOAT16" -> 2; case "BOOL" -> 1; default -> throw new AssertionError(type);
+        case "BFLOAT16", "FLOAT16" -> 2; case "BOOL" -> 1;
+        default -> throw new AssertionError(type);
     }; }
 
     private static String stackBody(List<String> parameters, int start, Row row) {
@@ -1170,7 +1183,7 @@ final class CpuAffineMovementIndexingScatterRandomCleanJavaOracle {
     private static String literal(String type, long bits) { return switch (type) {
         case "FLOAT64" -> "Double.longBitsToDouble(" + bits + "L)";
         case "FLOAT32" -> "Float.intBitsToFloat(" + (int) bits + ")";
-        case "BFLOAT16" -> "(short)" + (short) bits;
+        case "BFLOAT16", "FLOAT16" -> "(short)" + (short) bits;
         case "INT64" -> bits + "L"; case "INT32" -> "(int)" + (int) bits;
         case "BOOL" -> "(byte)" + (byte) bits; default -> throw new AssertionError(type);
     }; }
@@ -1192,11 +1205,13 @@ final class CpuAffineMovementIndexingScatterRandomCleanJavaOracle {
                 + "," + address + ");";
     }
     private static String valueType(String type) { return switch (type) {
-        case "FLOAT64" -> "double"; case "FLOAT32" -> "float"; case "BFLOAT16" -> "short";
+        case "FLOAT64" -> "double"; case "FLOAT32" -> "float";
+        case "BFLOAT16", "FLOAT16" -> "short";
         case "INT64" -> "long"; case "INT32" -> "int"; case "BOOL" -> "byte";
         default -> throw new AssertionError(type); }; }
     private static String zero(String type) { return switch (type) {
-        case "FLOAT64" -> "0D"; case "FLOAT32" -> "0F"; case "BFLOAT16" -> "(short)0";
+        case "FLOAT64" -> "0D"; case "FLOAT32" -> "0F";
+        case "BFLOAT16", "FLOAT16" -> "(short)0";
         case "INT64" -> "0L"; case "INT32" -> "0"; case "BOOL" -> "(byte)0";
         default -> throw new AssertionError(type); }; }
 
@@ -1220,7 +1235,7 @@ final class CpuAffineMovementIndexingScatterRandomCleanJavaOracle {
                 case "FLOAT32" -> "JAVA_FLOAT_UNALIGNED";
                 case "INT64" -> "JAVA_LONG_UNALIGNED";
                 case "INT32" -> "JAVA_INT_UNALIGNED";
-                case "BFLOAT16" -> "JAVA_SHORT_UNALIGNED";
+                case "BFLOAT16", "FLOAT16" -> "JAVA_SHORT_UNALIGNED";
                 case "BOOL" -> "JAVA_BYTE";
                 default -> throw new AssertionError("unknown affine data type: " + dataType);
             };

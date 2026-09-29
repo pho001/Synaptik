@@ -14,6 +14,12 @@ public enum NumericalProfile {
     /** Identifies every operation's unchanged current Model-owned allowed-result set. */
     STRICT_IEEE,
 
-    /** Identifies the strict set plus Model's total recursive FLOAT32 accelerator floors. */
+    /**
+     * Identifies the strict set plus the current recursive accelerator floors.
+     *
+     * <p>Those Model-owned floors include the active FLOAT32 and explicitly admitted
+     * BFLOAT16/FLOAT16 occurrence contracts. Config still owns only this identity vocabulary, not
+     * their capability, route, or result semantics.</p>
+     */
     ACCELERATOR
 }

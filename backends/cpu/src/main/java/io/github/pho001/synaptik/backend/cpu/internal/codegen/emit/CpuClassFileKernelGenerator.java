@@ -410,7 +410,8 @@ public final class CpuClassFileKernelGenerator {
         for (CpuKernelIr.Value value : ir.values()) result[value.ordinal()] = code.allocateLocal(
                 switch (value.dataType()) {
                     case FLOAT64 -> TypeKind.DOUBLE; case FLOAT32 -> TypeKind.FLOAT;
-                    case BFLOAT16, INT32, BOOL -> TypeKind.INT; case INT64 -> TypeKind.LONG;
+                    case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
+                    case INT64 -> TypeKind.LONG;
                     default -> throw new IllegalArgumentException("unsupported generated type");
                 });
         return result;
@@ -656,7 +657,8 @@ public final class CpuClassFileKernelGenerator {
     private static void store(java.lang.classfile.CodeBuilder code, DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dstore(local); case FLOAT32 -> code.fstore(local);
-            case BFLOAT16, INT32, BOOL -> code.istore(local); case INT64 -> code.lstore(local);
+            case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(local);
+            case INT64 -> code.lstore(local);
             default -> throw new IllegalArgumentException("unsupported generated type");
         }
     }
@@ -673,6 +675,8 @@ public final class CpuClassFileKernelGenerator {
         boolean pointwise = kernelIr.familyIdentity().equals("pointwise");
         boolean bfloatPointwise = pointwise && kernelIr.values().stream().anyMatch(value ->
                 value.dataType() == io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16);
+        boolean float16Pointwise = pointwise && kernelIr.values().stream().anyMatch(value ->
+                value.dataType() == io.github.pho001.synaptik.model.datatype.DataType.FLOAT16);
         boolean crossTypeCast = pointwise && kernelIr.instructions().stream().anyMatch(instruction ->
                 instruction.opcode() == CpuPointwiseOpcode.CAST
                         && kernelIr.values().get(instruction.inputs().getFirst()).dataType()
@@ -682,10 +686,12 @@ public final class CpuClassFileKernelGenerator {
                 : kernelIr.familyIdentity().contains(":outputs=2:") ? 2 : 1;
         if (!boundaryTypes.equals(specialization.boundaryDataTypes())
                 || kernelIr.instructions().size() > 8
-                || crossTypeCast && specialization.classIdentitySchema() != 60
-                || pointwise && !crossTypeCast && bfloatPointwise
+                || pointwise && float16Pointwise && specialization.classIdentitySchema() != 68
+                || pointwise && !float16Pointwise && crossTypeCast
+                    && specialization.classIdentitySchema() != 60
+                || pointwise && !float16Pointwise && !crossTypeCast && bfloatPointwise
                     && specialization.classIdentitySchema() != 59
-                || pointwise && !crossTypeCast && !bfloatPointwise
+                || pointwise && !float16Pointwise && !crossTypeCast && !bfloatPointwise
                     && specialization.classIdentitySchema()
                         != pointwiseSchema(specialization, kernelIr)
                 || (pointwise ? kernelIr.stores().isEmpty()
@@ -754,8 +760,10 @@ public final class CpuClassFileKernelGenerator {
             return;
         }
         if (!kernelIr.familyIdentity().equals("pointwise")
-                || (kernelIr.values().stream().anyMatch(value -> value.dataType()
-                        == io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16)
+                || (kernelIr.values().stream().anyMatch(value ->
+                        value.dataType() == io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16
+                        || value.dataType()
+                            == io.github.pho001.synaptik.model.datatype.DataType.FLOAT16)
                     || crossTypeCast)
                     && specialization.executionStrategy().compute()
                         != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR) {

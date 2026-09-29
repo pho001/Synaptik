@@ -263,6 +263,8 @@ public final class CpuAttentionReferenceKernel {
         case FLOAT32 -> s.segment().get(ValueLayout.JAVA_FLOAT_UNALIGNED, byteAddress);
         case BFLOAT16 ->
             BFloat16Bits.toFloat(s.segment().get(ValueLayout.JAVA_SHORT_UNALIGNED, byteAddress));
+        case FLOAT16 ->
+            Float.float16ToFloat(s.segment().get(ValueLayout.JAVA_SHORT_UNALIGNED, byteAddress));
         case BOOL -> s.segment().get(ValueLayout.JAVA_BYTE, byteAddress);
         default -> throw new AssertionError(t);
       };
@@ -272,6 +274,7 @@ public final class CpuAttentionReferenceKernel {
       case FLOAT64 -> ((CpuBufferArgument.Doubles) a).carrier()[i];
       case FLOAT32 -> ((CpuBufferArgument.Floats) a).carrier()[i];
       case BFLOAT16 -> BFloat16Bits.toFloat(((CpuBufferArgument.Shorts) a).carrier()[i]);
+      case FLOAT16 -> Float.float16ToFloat(((CpuBufferArgument.Shorts) a).carrier()[i]);
       case BOOL -> ((CpuBufferArgument.Bytes) a).carrier()[i];
       default -> throw new AssertionError(t);
     };
@@ -290,6 +293,10 @@ public final class CpuAttentionReferenceKernel {
                     ValueLayout.JAVA_SHORT_UNALIGNED,
                     byteAddress,
                     BFloat16Bits.fromFloat((float) value));
+        case FLOAT16 ->
+            s.segment()
+                .set(ValueLayout.JAVA_SHORT_UNALIGNED, byteAddress,
+                    Float.floatToFloat16((float) value));
         default -> throw new AssertionError(t);
       }
       return;
@@ -300,6 +307,8 @@ public final class CpuAttentionReferenceKernel {
       case FLOAT32 -> ((CpuBufferArgument.Floats) a).carrier()[i] = (float) value;
       case BFLOAT16 ->
           ((CpuBufferArgument.Shorts) a).carrier()[i] = BFloat16Bits.fromFloat((float) value);
+      case FLOAT16 ->
+          ((CpuBufferArgument.Shorts) a).carrier()[i] = Float.floatToFloat16((float) value);
       default -> throw new AssertionError(t);
     }
   }

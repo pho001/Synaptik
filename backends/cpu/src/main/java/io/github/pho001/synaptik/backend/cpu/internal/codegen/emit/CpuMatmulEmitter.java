@@ -138,7 +138,7 @@ public final class CpuMatmulEmitter {
         if (resultType == DataType.INT32 || resultType == DataType.INT64) {
             storeIntegral(code, carriers, specialization, resultType, outputBoundary,
                     outputAddress, accumulator, intAddress);
-        } else if(resultType==DataType.BFLOAT16) {
+        } else if(resultType==DataType.BFLOAT16||resultType==DataType.FLOAT16) {
             int binary64=code.allocateLocal(TypeKind.DOUBLE);
             code.fload(accumulator).f2d().dstore(binary64);
             CpuNormEmitter.emitStore(code,carriers,specialization,resultType,outputBoundary,
@@ -275,7 +275,7 @@ public final class CpuMatmulEmitter {
         int outputBoundary=specialization.carrierPattern().size()-1;
         if(type==DataType.INT32||type==DataType.INT64)
             storeIntegral(code,carriers,specialization,type,outputBoundary,address,value,intAddress);
-        else if(type==DataType.BFLOAT16) {
+        else if(type==DataType.BFLOAT16||type==DataType.FLOAT16) {
             int binary64=code.allocateLocal(TypeKind.DOUBLE);code.fload(value).f2d().dstore(binary64);
             CpuNormEmitter.emitStore(code,carriers,specialization,type,outputBoundary,address,
                     binary64,intAddress,true);
@@ -845,7 +845,7 @@ public final class CpuMatmulEmitter {
     private static void zero(CodeBuilder code, DataType type, int target) {
         switch (type) {
             case FLOAT64 -> code.loadConstant(0.0).dstore(target);
-            case FLOAT32, BFLOAT16 -> code.loadConstant(0.0f).fstore(target);
+            case FLOAT32, BFLOAT16, FLOAT16 -> code.loadConstant(0.0f).fstore(target);
             case INT32 -> code.loadConstant(0).istore(target);
             case INT64 -> code.loadConstant(0L).lstore(target);
             case BOOL -> throw new AssertionError();
@@ -867,22 +867,29 @@ public final class CpuMatmulEmitter {
         switch (source) {
             case FLOAT64 -> code.dstore(represented);
             case FLOAT32 -> code.fstore(represented);
-            case BFLOAT16, INT32 -> code.istore(represented);
+            case BFLOAT16, FLOAT16, INT32 -> code.istore(represented);
             case INT64 -> code.lstore(represented);
             case BOOL -> throw new AssertionError();
         }
         if (result == DataType.FLOAT64) {
             if (source == DataType.FLOAT64) {
                 if(represented!=value)code.dload(represented).dstore(value);
-            }
-            else if (source == DataType.FLOAT32) code.fload(represented).f2d().dstore(value);
+            } else if (source == DataType.FLOAT32) code.fload(represented).f2d().dstore(value);
+            else if (source == DataType.FLOAT16) code.iload(represented).i2s()
+                    .invokestatic(FLOAT, "float16ToFloat",
+                            MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short))
+                    .f2d().dstore(value);
             else code.iload(represented).loadConstant(16).ishl().invokestatic(FLOAT,
                     "intBitsToFloat", MethodTypeDesc.of(ConstantDescs.CD_float,
                             ConstantDescs.CD_int)).f2d().dstore(value);
-        } else if (result == DataType.FLOAT32 || result == DataType.BFLOAT16) {
+        } else if (result == DataType.FLOAT32 || result == DataType.BFLOAT16
+                || result == DataType.FLOAT16) {
             if (source == DataType.FLOAT32) {
                 if(represented!=value)code.fload(represented).fstore(value);
-            }
+            } else if (source == DataType.FLOAT16) code.iload(represented).i2s()
+                    .invokestatic(FLOAT, "float16ToFloat",
+                            MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short))
+                    .fstore(value);
             else code.iload(represented).loadConstant(16).ishl().invokestatic(FLOAT,
                     "intBitsToFloat", MethodTypeDesc.of(ConstantDescs.CD_float,
                             ConstantDescs.CD_int)).fstore(value);
@@ -896,7 +903,7 @@ public final class CpuMatmulEmitter {
     private static void accumulate(CodeBuilder code, DataType type, int sum, int left, int right) {
         switch (type) {
             case FLOAT64 -> code.dload(sum).dload(left).dload(right).dmul().dadd().dstore(sum);
-            case FLOAT32, BFLOAT16 -> code.fload(sum).fload(left).fload(right).fmul().fadd().fstore(sum);
+            case FLOAT32, BFLOAT16, FLOAT16 -> code.fload(sum).fload(left).fload(right).fmul().fadd().fstore(sum);
             case INT32 -> code.iload(sum).iload(left).iload(right).imul().iadd().istore(sum);
             case INT64 -> code.lload(sum).lload(left).lload(right).lmul().ladd().lstore(sum);
             case BOOL -> throw new AssertionError();

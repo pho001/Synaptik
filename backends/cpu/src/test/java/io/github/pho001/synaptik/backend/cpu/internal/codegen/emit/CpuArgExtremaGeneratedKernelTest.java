@@ -200,6 +200,7 @@ class CpuArgExtremaGeneratedKernelTest {
             case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY;
             case BOOL -> throw new AssertionError();
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU arg extrema unsupported");
         };
     }
 

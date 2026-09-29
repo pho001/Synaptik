@@ -113,13 +113,14 @@ public final class CpuBatchNormInferenceLowering {
         var boundaryIds = new ArrayList<>(uniqueIds); boundaryIds.add(outputId);
         List<DataType> semanticTypes = node.inputs().stream()
                 .map(id -> require(values, id).descriptor().dataType()).toList();
+        long epsilonBits = scalarBits(output.descriptor().dataType(), attrs.epsilon());
         var ir = new CpuBatchNormInferenceIr(semanticTypes, output.descriptor().dataType(),
-                epsilonBits(attrs.epsilon()), inputLayout.extents.length, axis, 1,
+                epsilonBits, inputLayout.extents.length, axis, 1,
                 CpuBatchNormInferenceIr.RangeForm.CHANNEL_RANGE, map,
                 bindings.subList(0, uniqueIds.size()).stream().map(CpuAccessPlan.Binding::plan)
                         .toList(), outputBinding.plan());
         var geometry = new Geometry(semanticTypes, output.descriptor().dataType(),
-                epsilonBits(attrs.epsilon()), axis, prefix, channels, suffix, nonChannel,
+                epsilonBits, axis, prefix, channels, suffix, nonChannel,
                 outputCount, CpuBatchNormInferenceIr.RangeForm.CHANNEL_RANGE, map, layouts,
                 outputLayout);
         return new CpuPartitionLowering.LoweredPartition(ir, boundaryIds, bindings, spans,
@@ -131,12 +132,17 @@ public final class CpuBatchNormInferenceLowering {
                 Optional.empty(), Optional.of(geometry), Optional.empty());
     }
 
-    private static long epsilonBits(ScalarValue epsilon) {
-        return switch (epsilon.dataType()) {
-            case FLOAT64 -> Double.doubleToRawLongBits(epsilon.float64Value());
-            case FLOAT32 -> Float.floatToRawIntBits(epsilon.float32Value()) & 0xffff_ffffL;
-            case BFLOAT16 -> epsilon.bfloat16Bits() & 0xffffL;
-            default -> throw new IllegalArgumentException("batch-normalization epsilon is not floating");
+    private static long scalarBits(DataType resultType, ScalarValue value) {
+        if (resultType == DataType.FLOAT16 && value.dataType() == DataType.FLOAT32) {
+            return Float.floatToFloat16(value.float32Value()) & 0xffffL;
+        }
+        return switch (value.dataType()) {
+            case FLOAT64 -> Double.doubleToRawLongBits(value.float64Value());
+            case FLOAT32 -> Float.floatToRawIntBits(value.float32Value()) & 0xffff_ffffL;
+            case BFLOAT16 -> value.bfloat16Bits() & 0xffffL;
+            case FLOAT16 -> value.float16Bits() & 0xffffL;
+            default -> throw new IllegalArgumentException(
+                    "batch-normalization epsilon is not floating");
         };
     }
 
@@ -198,7 +204,8 @@ public final class CpuBatchNormInferenceLowering {
     }
 
     private static boolean supported(DataType type) {
-        return type == DataType.BFLOAT16 || type == DataType.FLOAT32 || type == DataType.FLOAT64;
+        return type == DataType.BFLOAT16 || type == DataType.FLOAT16
+                || type == DataType.FLOAT32 || type == DataType.FLOAT64;
     }
 
     private static void validateInjective(Layout layout) {

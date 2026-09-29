@@ -9,7 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
@@ -49,6 +51,34 @@ class MetalScatterAddNativeTest {
                 assertTrue(Float.isNaN(Float.intBitsToFloat(actual[4])));
             } finally {
                 execution.close();
+            }
+        }
+    }
+
+    @Test
+    void raw16ScatterAddWidensDuplicatesAndNarrowsEachDestinationOnce() {
+        Path library = configuredLibrary();
+        for (DataType valueType : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
+                Execution execution = open(library, indexType, valueType);
+                try {
+                    upload(execution.api(), execution.buffers().get(0),
+                            lowWords(valueType, 1, 2, 3, 4, 5));
+                    uploadIndices(
+                            execution.api(), execution.buffers().get(1), indexType, 0, 0, 4);
+                    upload(execution.api(), execution.buffers().get(2),
+                            lowWords(valueType, -1, 3, 1));
+                    run(execution);
+                    assertArrayEquals(
+                            lowWords(valueType, 3, 2, 3, 4, 6),
+                            download(
+                                    execution.api(),
+                                    execution.buffers().get(3),
+                                    5L * valueType.byteWidth()),
+                            valueType + "/" + indexType);
+                } finally {
+                    execution.close();
+                }
             }
         }
     }
@@ -196,6 +226,11 @@ class MetalScatterAddNativeTest {
     }
 
     private static Execution open(Path library, DataType indexType) {
+        return open(library, indexType, DataType.FLOAT32);
+    }
+
+    private static Execution open(
+            Path library, DataType indexType, DataType valueType) {
         MetalNativeApi api = MetalNativeApi.open(library);
         MetalNativeApi.Handle context = null;
         MetalNativeApi.Handle executable = null;
@@ -205,15 +240,15 @@ class MetalScatterAddNativeTest {
             executable = api.createMpsGraphExecutable(
                     context,
                     NumericalProfile.ACCELERATOR,
-                    values(indexType, false),
+                    values(indexType, valueType, false),
                     program(0, 1, 2, 3),
                     new int[] {0, 1, 2},
                     new int[] {3},
                     MetalPreparedRoute.CUSTOM_PROGRAM);
-            buffers.add(api.createBuffer(context, 5L * Float.BYTES));
+            buffers.add(api.createBuffer(context, 5L * valueType.byteWidth()));
             buffers.add(api.createBuffer(context, 3L * indexType.byteWidth()));
-            buffers.add(api.createBuffer(context, 3L * Float.BYTES));
-            buffers.add(api.createBuffer(context, 5L * Float.BYTES));
+            buffers.add(api.createBuffer(context, 3L * valueType.byteWidth()));
+            buffers.add(api.createBuffer(context, 5L * valueType.byteWidth()));
             return new Execution(api, context, executable, buffers);
         } catch (RuntimeException failure) {
             for (int index = buffers.size(); index-- > 0;) api.releaseBuffer(buffers.get(index));
@@ -231,15 +266,20 @@ class MetalScatterAddNativeTest {
 
     private static List<MetalMpsGraphProgram.ValueDescriptor> values(
             DataType indexType, boolean dataGradient) {
+        return values(indexType, DataType.FLOAT32, dataGradient);
+    }
+
+    private static List<MetalMpsGraphProgram.ValueDescriptor> values(
+            DataType indexType, DataType valueType, boolean dataGradient) {
         return List.of(
                 new MetalMpsGraphProgram.ValueDescriptor(
-                        DataType.FLOAT32, new long[] {5}, dataGradient),
+                        valueType, new long[] {5}, dataGradient),
                 new MetalMpsGraphProgram.ValueDescriptor(
                         indexType, new long[] {3}, false),
                 new MetalMpsGraphProgram.ValueDescriptor(
-                        DataType.FLOAT32, new long[] {3}, false),
+                        valueType, new long[] {3}, false),
                 new MetalMpsGraphProgram.ValueDescriptor(
-                        DataType.FLOAT32, new long[] {5}, false));
+                        valueType, new long[] {5}, false));
     }
 
     private static void run(Execution execution) {
@@ -283,6 +323,28 @@ class MetalScatterAddNativeTest {
             MemorySegment source = arena.allocate(bytes.length, 1L);
             MemorySegment.copy(bytes, 0, source, JAVA_BYTE, 0L, bytes.length);
             api.upload(buffer, 0L, source, bytes.length);
+        }
+    }
+
+    private static byte[] lowWords(DataType type, float... values) {
+        ByteBuffer bytes = ByteBuffer.allocate(values.length * Short.BYTES)
+                .order(ByteOrder.nativeOrder());
+        for (float value : values) {
+            bytes.putShort(switch (type) {
+                case BFLOAT16 -> BFloat16Bits.fromFloat(value);
+                case FLOAT16 -> Float16Bits.fromFloat(value);
+                default -> throw new AssertionError(type);
+            });
+        }
+        return bytes.array();
+    }
+
+    private static byte[] download(
+            MetalNativeApi api, MetalNativeApi.Handle buffer, long byteCount) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment target = arena.allocate(byteCount, 1L);
+            api.download(buffer, 0L, target, byteCount);
+            return target.toArray(JAVA_BYTE);
         }
     }
 

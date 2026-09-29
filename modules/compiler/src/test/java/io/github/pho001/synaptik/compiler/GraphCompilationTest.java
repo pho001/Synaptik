@@ -11,6 +11,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.graph.NodeId;
+import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -65,8 +66,8 @@ final class GraphCompilationTest {
     }
 
     @Test
-    void graphCompilationCarriesOneExactRemappedSidecarForBothDerivativeOrders() {
-        Tensor target = scalar();
+    void graphCompilationCarriesOneExactRemappedSidecarAndClosesFloat16DerivativeOrders() {
+        Tensor target = scalar(DataType.FLOAT16);
         Tensor objective = target.mul(target);
         FunctionalGradientRequest.Stage first = new FunctionalGradientRequest.Stage(
                 List.of(new FunctionalGradientRequest.ForwardTensorReference(objective)),
@@ -95,14 +96,56 @@ final class GraphCompilationTest {
                 compilation.gradientResults().stream()
                         .map(GradientPublicationBinding::derivativeOrder)
                         .toList());
+        assertTrue(compilation.validatedGraph().graph().values().stream()
+                .allMatch(value -> value.descriptor().dataType() == DataType.FLOAT16));
         compilation.derivatives().derivativeOrderByNode().forEach((nodeId, order) ->
                 assertEquals(
                         order == 0 ? GraphPhase.FORWARD : GraphPhase.BACKWARD,
                         compilation.validatedGraph().graph().nodePhases().get(nodeId)));
     }
 
+    @Test
+    void float16ForwardOnlyComparisonRemainsForwardWhileBranchesDifferentiate() {
+        Tensor target = tensor(DataType.FLOAT16, Shape.of(2), true);
+        Tensor threshold = tensor(DataType.FLOAT16, Shape.of(2), false);
+        Tensor condition = target.greaterThan(threshold);
+        Tensor objective = Tensor.where(condition, target, target.neg()).sum();
+
+        GraphCompilation compilation = GraphCompiler.compile(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                Optional.of(FunctionalGradientTestSupport.request(
+                        objective, List.of(target))),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.disabled());
+
+        List<io.github.pho001.synaptik.model.graph.CompiledNode> comparisons =
+                compilation.validatedGraph().graph().nodes().stream()
+                        .filter(node -> node.operation().kind()
+                                == BinaryComparisonKind.GREATER_THAN)
+                        .toList();
+        assertEquals(1, comparisons.size());
+        assertEquals(
+                GraphPhase.FORWARD,
+                compilation.validatedGraph().graph().nodePhases()
+                        .get(comparisons.getFirst().id()));
+        assertTrue(compilation.validatedGraph().graph().values().stream()
+                .map(value -> value.descriptor().dataType())
+                .allMatch(dataType ->
+                        dataType == DataType.FLOAT16 || dataType == DataType.BOOL));
+    }
+
     private static Tensor scalar() {
+        return scalar(DataType.FLOAT32);
+    }
+
+    private static Tensor scalar(DataType dataType) {
         return TensorFactory.create(new TensorDescriptor(
-                DataType.FLOAT32, Shape.scalar(), Optional.empty(), true));
+                dataType, Shape.scalar(), Optional.empty(), true));
+    }
+
+    private static Tensor tensor(DataType dataType, Shape shape, boolean requiresGrad) {
+        return TensorFactory.create(new TensorDescriptor(
+                dataType, shape, Optional.empty(), requiresGrad));
     }
 }

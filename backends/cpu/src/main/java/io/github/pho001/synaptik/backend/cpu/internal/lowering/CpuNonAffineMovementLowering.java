@@ -40,8 +40,8 @@ import java.util.Optional;
  * value once in first-occurrence order. Exact extents, layout offsets and strides, padding,
  * repeats, composition prefixes, and window facts remain in compact immutable {@link Geometry};
  * no prepared address or selector table is retained per output element. General-axis unfold
- * copies all six represented types. NCHW two-dimensional unfold copies only FLOAT64, FLOAT32,
- * and BFLOAT16 and retains exact configured padding bits; direct attributes use represented
+ * copies all seven represented types. NCHW/NCDHW window transforms copy FLOAT64, FLOAT32,
+ * BFLOAT16, and FLOAT16 and retain exact configured padding bits; direct attributes use represented
  * positive zero. Functional slice update normalizes either signed finite-coordinate or
  * target-relative attributes to rank-sized start, length, and step arrays. Its result-domain
  * mapping has the semantic effect of copying the base and replacing selected positions while
@@ -257,7 +257,8 @@ public final class CpuNonAffineMovementLowering {
                 && (attrs instanceof Window2dAttrs || attrs instanceof Unfold2dAttrs)) {
             requireUnary(occurrences, "UNFOLD2D");
             DataType type = output.descriptor().dataType();
-            if (type != DataType.FLOAT64 && type != DataType.FLOAT32 && type != DataType.BFLOAT16) {
+            if (type != DataType.FLOAT64 && type != DataType.FLOAT32
+                    && type != DataType.BFLOAT16 && type != DataType.FLOAT16) {
                 throw new IllegalArgumentException("UNFOLD2D requires a floating represented type");
             }
             Window2dAttrs window;
@@ -362,6 +363,7 @@ public final class CpuNonAffineMovementLowering {
             case FLOAT64 -> Double.doubleToRawLongBits(value.float64Value());
             case FLOAT32 -> Float.floatToRawIntBits(value.float32Value()) & 0xffff_ffffL;
             case BFLOAT16 -> value.bfloat16Bits() & 0xffffL;
+            case FLOAT16 -> value.float16Bits() & 0xffffL;
             case INT32 -> value.int32Value() & 0xffff_ffffL;
             case INT64 -> value.int64Value();
             case BOOL -> value.booleanValue() ? 1L : 0L;

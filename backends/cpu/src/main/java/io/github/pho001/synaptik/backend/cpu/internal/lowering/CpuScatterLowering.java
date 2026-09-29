@@ -118,7 +118,8 @@ public final class CpuScatterLowering {
         long updateCount = elementCount(layouts.get(occurrenceMap.get(2)).extents());
         boolean floatingMul = reduction == ScatterReduction.MUL
                 && (types.getFirst() == DataType.FLOAT64 || types.getFirst() == DataType.FLOAT32
-                    || types.getFirst() == DataType.BFLOAT16)
+                    || types.getFirst() == DataType.BFLOAT16
+                    || types.getFirst() == DataType.FLOAT16)
                 && outputCount != 0 && updateCount != 0;
         long maximumUpdates = maximumUpdates(family, layouts, occurrenceMap, axis, batch);
         long sliceBytes = floatingMul ? scratchSliceBytes(types.getFirst(), maximumUpdates) : 0;
@@ -145,7 +146,8 @@ public final class CpuScatterLowering {
     }
 
     private static long scratchSliceBytes(DataType type, long maximumUpdates) {
-        int precision = type == DataType.FLOAT64 ? 53 : type == DataType.FLOAT32 ? 24 : 8;
+        int precision = type == DataType.FLOAT64 ? 53 : type == DataType.FLOAT32 ? 24
+                : type == DataType.FLOAT16 ? 11 : 8;
         long factorCount = Math.addExact(maximumUpdates, 1);
         Math.multiplyExact(factorCount, maximumExponentMagnitude(type));
         long bits = Math.multiplyExact((long) precision, factorCount);
@@ -154,7 +156,8 @@ public final class CpuScatterLowering {
     }
 
     private static long maximumExponentMagnitude(DataType type) {
-        return type == DataType.FLOAT64 ? 1074 : type == DataType.FLOAT32 ? 149 : 133;
+        return type == DataType.FLOAT64 ? 1074 : type == DataType.FLOAT32 ? 149
+                : type == DataType.FLOAT16 ? 24 : 133;
     }
 
     private static GraphValue require(Map<ValueId, GraphValue> values, ValueId id) {
@@ -314,7 +317,7 @@ public final class CpuScatterLowering {
                     axis, batchDimensions);
             boolean floatingProduct = reduction == ScatterReduction.MUL
                     && (dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
-                        || dataType == DataType.BFLOAT16)
+                        || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16)
                     && elementCount(boundaries.getLast().extents) != 0
                     && elementCount(boundaries.get(updateBoundary).extents) != 0;
             long expectedSlice = floatingProduct

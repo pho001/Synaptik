@@ -52,6 +52,7 @@ public record CpuPool3dIr(
         Objects.requireNonNull(inputAccess, "inputAccess");
         Objects.requireNonNull(outputAccess, "outputAccess");
         if (dataType != DataType.BFLOAT16
+                        && dataType != DataType.FLOAT16
                         && dataType != DataType.FLOAT32
                         && dataType != DataType.FLOAT64
                 || inputAccess.accessKind() != CpuAccessPlan.AccessKind.READ

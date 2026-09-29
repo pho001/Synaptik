@@ -95,6 +95,27 @@ final class GraphCaptureTest {
     }
 
     @Test
+    void preservesExactRawFloat16LogicalSplatPayloadDuringCapture() {
+        Tensor source = tensor(DataType.FLOAT16, Shape.of(2), false);
+        ScalarValue payload = ScalarValue.float16Bits((short) 0xFE55);
+        CompileTimeConstantGraph captured = GraphCapture.capture(
+                List.of(source),
+                new CompileTimeConstantGraph.Ingress(List.of(
+                        new CompileTimeConstantGraph.Binding(
+                                source, new CompileTimeConstantGraph.Splat(payload)))));
+
+        assertAll(
+                () -> assertEquals(DataType.FLOAT16,
+                        captured.graph().values().getFirst().descriptor().dataType()),
+                () -> assertEquals(
+                        (short) 0xFE55,
+                        captured.constants().get(new ValueId(0)).value().float16Bits()),
+                () -> assertSame(
+                        payload,
+                        captured.constants().get(new ValueId(0)).value()));
+    }
+
+    @Test
     void coalescesRepeatedExactLeavesButKeepsEqualDescriptorLeavesDistinct() {
         Tensor first = tensor(DataType.FLOAT32, Shape.of(2), false);
         Tensor second = tensor(DataType.FLOAT32, Shape.of(2), false);

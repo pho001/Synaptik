@@ -119,14 +119,17 @@ public record CpuBatchNormTrainingIr(List<DataType> inputTypes, DataType resultT
     @Override public String structuralKey() { return encodedKernelIr().structuralKey(); }
 
     private static boolean supported(DataType t) {
-        return t == DataType.BFLOAT16 || t == DataType.FLOAT32 || t == DataType.FLOAT64;
+        return t == DataType.BFLOAT16 || t == DataType.FLOAT16
+                || t == DataType.FLOAT32 || t == DataType.FLOAT64;
     }
     private static double value(DataType t, long bits) { return switch (t) {
         case FLOAT64 -> Double.longBitsToDouble(bits); case FLOAT32 -> Float.intBitsToFloat((int) bits);
-        case BFLOAT16 -> Float.intBitsToFloat((int) bits << 16); default -> Double.NaN; }; }
+        case BFLOAT16 -> Float.intBitsToFloat((int) bits << 16);
+        case FLOAT16 -> Float.float16ToFloat((short) bits);
+        default -> Double.NaN; }; }
     private static boolean bitsFit(DataType t, long bits) { return t == DataType.FLOAT64
             || t == DataType.FLOAT32 && (bits & ~0xffff_ffffL) == 0
-            || t == DataType.BFLOAT16 && (bits & ~0xffffL) == 0; }
+            || (t == DataType.BFLOAT16 || t == DataType.FLOAT16) && (bits & ~0xffffL) == 0; }
     private static boolean unitInterval(DataType t, long bits) { double v = value(t, bits);
         return bitsFit(t, bits) && Double.isFinite(v) && v >= 0 && v <= 1; }
     private static boolean positiveFinite(DataType t, long bits) { double v = value(t, bits);

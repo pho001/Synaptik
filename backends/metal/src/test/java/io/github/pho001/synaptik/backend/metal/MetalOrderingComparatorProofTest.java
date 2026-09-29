@@ -275,7 +275,7 @@ class MetalOrderingComparatorProofTest {
             case FLOAT32 -> Integer.toUnsignedLong(
                     (int) word < 0 ? ~(int) word : (int) word ^ Integer.MIN_VALUE);
             case INT32 -> Integer.toUnsignedLong((int) word ^ Integer.MIN_VALUE);
-            case BFLOAT16 -> {
+            case BFLOAT16, FLOAT16 -> {
                 int narrowed = (int) word & 0xffff;
                 yield ((narrowed & 0x8000) != 0 ? ~narrowed : narrowed ^ 0x8000) & 0xffffL;
             }
@@ -290,6 +290,7 @@ class MetalOrderingComparatorProofTest {
             case FLOAT32 -> (word & 0x7f80_0000L) == 0x7f80_0000L
                     && (word & 0x007f_ffffL) != 0;
             case BFLOAT16 -> (word & 0x7f80L) == 0x7f80L && (word & 0x007fL) != 0;
+            case FLOAT16 -> (word & 0x7c00L) == 0x7c00L && (word & 0x03ffL) != 0;
             case INT32, INT64, BOOL -> false;
         };
     }
@@ -306,6 +307,7 @@ class MetalOrderingComparatorProofTest {
                 0x3f80_0000L, 0x7f80_0001L
             };
             case BFLOAT16 -> new long[] {0xffc1, 0x8000, 0, 0xbf80, 0x3f80, 0x7f81};
+            case FLOAT16 -> new long[] {0xfe01, 0x8000, 0, 0xbc00, 0x3c00, 0x7c01};
             case INT32 -> new long[] {Integer.MIN_VALUE, -1, 0, 1, Integer.MAX_VALUE};
             case INT64 -> new long[] {Long.MIN_VALUE, -1, 0, 1, Long.MAX_VALUE};
             case BOOL -> new long[] {0, 1};

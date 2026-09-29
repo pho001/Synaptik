@@ -35,7 +35,7 @@ import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
 
 class CpuKernelSpecializationTest {
-    @Test void schema67ProfileCompatibilityRetainsSchema52BodyContract()
+    @Test void schema68ProfileCompatibilityRetainsSchema52BodyContract()
             throws Exception {
         Shape shape = Shape.of(64, 64);
         var descriptor = new TensorDescriptor(DataType.FLOAT64, shape,
@@ -47,7 +47,7 @@ class CpuKernelSpecializationTest {
                 route.specialization(), route.kernelIr());
         assertAll(
                 () -> assertTrue(new String(route.specialization().compatibilityBytes(),
-                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("67|")),
+                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("68|")),
                 () -> assertTrue(new String(route.specialization().classIdentityBytes(),
                         java.nio.charset.StandardCharsets.US_ASCII).startsWith("52|")),
                 () -> assertEquals(
@@ -298,27 +298,49 @@ class CpuKernelSpecializationTest {
                         base.vectorSpeciesBitSize(), base.materializedSourcePosition(), null)));
     }
 
-    @Test void shortArrayIsTheSeventhCarrierAndOnlyMatchesBfloat16() {
+    @Test void shortArrayCarrierMatchesBothRaw16DtypesWithoutIdentityCollision() {
         var fingerprint = CpuLoweringFingerprint.fromHex("0".repeat(64));
-        var bfloat = new CpuKernelSpecialization(fingerprint, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan
-                .ExecutionStrategy.SCALAR,
-        List.of(DataType.BFLOAT16, DataType.BFLOAT16),
-        List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT), 0, -1, List.of());
+        var bfloat = new CpuKernelSpecialization(
+                fingerprint,
+                io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
+                io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan
+                        .ExecutionStrategy.SCALAR,
+                List.of(DataType.BFLOAT16, DataType.BFLOAT16),
+                List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT),
+                0, -1, List.of());
+        var float16 = new CpuKernelSpecialization(
+                fingerprint,
+                io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
+                io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan
+                        .ExecutionStrategy.SCALAR,
+                List.of(DataType.FLOAT16, DataType.FLOAT16),
+                List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT),
+                0, -1, List.of());
         assertAll(
                 () -> assertEquals(7, CarrierAccess.values().length),
                 () -> assertEquals(short[].class, bfloat.entryType().parameterType(0)),
+                () -> assertEquals(bfloat.entryType(), float16.entryType()),
+                () -> assertNotEquals(bfloat.structuralKey(), float16.structuralKey()),
+                () -> assertFalse(java.util.Arrays.equals(
+                        bfloat.compatibilityBytes(), float16.compatibilityBytes())),
                 () -> assertThrows(IllegalArgumentException.class,
-                        () -> new CpuKernelSpecialization(fingerprint, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, io.github.pho001.synaptik.backend.cpu.internal.prepare
-                                .CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                        List.of(DataType.FLOAT32, DataType.FLOAT32),
-                        List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.FLOAT_ARRAY),
-                        0, -1, List.of())),
+                        () -> new CpuKernelSpecialization(
+                                fingerprint,
+                                io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
+                                io.github.pho001.synaptik.backend.cpu.internal.prepare
+                                        .CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                                List.of(DataType.FLOAT32, DataType.FLOAT32),
+                                List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.FLOAT_ARRAY),
+                                0, -1, List.of())),
                 () -> assertThrows(IllegalArgumentException.class,
-                        () -> new CpuKernelSpecialization(fingerprint, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, io.github.pho001.synaptik.backend.cpu.internal.prepare
-                                .CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
-                        List.of(DataType.BFLOAT16, DataType.BFLOAT16),
-                        List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.SHORT_ARRAY),
-                        128, -1, List.of(), false, 59)));
+                        () -> new CpuKernelSpecialization(
+                                fingerprint,
+                                io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
+                                io.github.pho001.synaptik.backend.cpu.internal.prepare
+                                        .CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+                                List.of(DataType.BFLOAT16, DataType.BFLOAT16),
+                                List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.SHORT_ARRAY),
+                                128, -1, List.of(), false, 59)));
     }
 
     @Test void indexingIdentityIncludesStructureAndExcludesCompatibleColdGeometry() {
@@ -352,7 +374,7 @@ class CpuKernelSpecializationTest {
                                 otherExtents.kernelIr())),
                 () -> assertNotEquals(axisZero.specialization(), otherFamily.specialization()),
                 () -> assertNotEquals(axisZero.specialization(), otherCarrier.specialization()),
-                () -> assertEquals(67, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(68, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertEquals(-1, axisZero.specialization().materializedSourcePosition()));
     }
 

@@ -31,13 +31,13 @@ class CpuGeneratedStructuralOracleCatalogTest {
     private static final String BASE = "/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/";
     private static final Pattern VALUE_IDS = Pattern.compile("ValueId\\[value=\\d+\\]:");
     private static final String INVENTORY_SHA256 =
-            "6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2";
+            "9c06f9898dc287c6d2c3805088460c699052d14dbe707de146845659ce5450eb";
 
     /**
      * The actual number is fixed below after the source-derived inventory is checked.  Keeping
      * it explicit makes an added material generated shape a reviewable catalog change.
      */
-    private static final int EXPECTED_CATEGORY_COUNT = 6_016;
+    private static final int EXPECTED_CATEGORY_COUNT = 15_804;
 
     @Test void everyExactGeneratedOwnerProjectsOnceToAFiniteMaterialStructuralCategory() throws Throwable {
         // This executes the only source-derived fixture universe.  It also proves every stored
@@ -61,9 +61,9 @@ class CpuGeneratedStructuralOracleCatalogTest {
             assertFalse(row[19].isBlank() || row[20].isBlank(), "missing class/body SHA " + owner);
             partitionCounts.merge(owner.substring(0, owner.indexOf(':')), 1L, Long::sum);
         }
-        assertEquals(17_470, ownerCategories.size());
-        assertEquals(Map.of("specialized", 12_850L, "affine-matrix", 1_536L,
-                "ordinary", 1_400L, "pointwise-matrix", 845L, "composition", 576L,
+        assertEquals(41_336, ownerCategories.size());
+        assertEquals(Map.of("specialized", 35_600L, "affine-matrix", 1_536L,
+                "ordinary", 1_664L, "pointwise-matrix", 1_025L, "composition", 1_248L,
                 "scalar-immediate", 263L), partitionCounts);
         assertEquals(EXPECTED_CATEGORY_COUNT, catalog.size(),
                 "a new material structural category needs an explicit catalog review");
@@ -199,7 +199,7 @@ class CpuGeneratedStructuralOracleCatalogTest {
             assertEquals(27, row.length, "inventory line " + (line + 1));
             assertNull(rows.put(row[0], row), "duplicate owner " + row[0]);
         }
-        assertEquals(17_643, rows.size());
+        assertEquals(41_601, rows.size());
         return rows;
     }
 

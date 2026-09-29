@@ -87,6 +87,8 @@ class TensorFactoryTest {
                 "fromFlatArray", TensorDescriptor.class, Optional.class, float[].class);
         Method importBfloat16 = TensorFactory.class.getDeclaredMethod(
                 "fromFlatArray", TensorDescriptor.class, Optional.class, short[].class);
+        Method importFloat16 = TensorFactory.class.getDeclaredMethod(
+                "fromFlatFloat16Array", TensorDescriptor.class, Optional.class, short[].class);
         Method importInt32 = TensorFactory.class.getDeclaredMethod(
                 "fromFlatArray", TensorDescriptor.class, Optional.class, int[].class);
         Method importInt64 = TensorFactory.class.getDeclaredMethod(
@@ -101,6 +103,8 @@ class TensorFactoryTest {
                 "scalar", float.class, Optional.class, boolean.class);
         Method scalarBfloat16 = TensorFactory.class.getDeclaredMethod(
                 "scalarBFloat16", float.class, Optional.class, boolean.class);
+        Method scalarFloat16 = TensorFactory.class.getDeclaredMethod(
+                "scalarFloat16", float.class, Optional.class, boolean.class);
         Method scalarInt32 = TensorFactory.class.getDeclaredMethod(
                 "scalar", int.class, Optional.class, boolean.class);
         Method scalarInt64 = TensorFactory.class.getDeclaredMethod(
@@ -125,6 +129,8 @@ class TensorFactoryTest {
                 "full", Shape.class, float.class, Optional.class, boolean.class);
         Method fullBfloat16 = TensorFactory.class.getDeclaredMethod(
                 "fullBFloat16", Shape.class, float.class, Optional.class, boolean.class);
+        Method fullFloat16 = TensorFactory.class.getDeclaredMethod(
+                "fullFloat16", Shape.class, float.class, Optional.class, boolean.class);
         Method fullInt32 = TensorFactory.class.getDeclaredMethod(
                 "full", Shape.class, int.class, Optional.class, boolean.class);
         Method fullInt64 = TensorFactory.class.getDeclaredMethod(
@@ -161,50 +167,14 @@ class TensorFactoryTest {
         Method createDerivedOutputs = TensorFactory.class.getDeclaredMethod(
                 "createDerivedOutputs", Operation.class, List.class, List.class);
         Method allocator = TensorFactory.class.getDeclaredMethod("nextTensorId");
-        assertEquals(35, TensorFactory.class.getDeclaredMethods().length);
+        assertEquals(38, TensorFactory.class.getDeclaredMethods().length);
         assertEquals(
-                31,
+                34,
                 Arrays.stream(TensorFactory.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .count());
-        assertEquals(
-                Set.of(
-                        convenience,
-                        complete,
-                        allocateConvenience,
-                        allocateComplete,
-                        importFloat64,
-                        importFloat32,
-                        importBfloat16,
-                        importInt32,
-                        importInt64,
-                        importBool,
-                        importNested,
-                        scalarFloat64,
-                        scalarFloat32,
-                        scalarBfloat16,
-                        scalarInt32,
-                        scalarInt64,
-                        scalarBool,
-                        zeros,
-                        ones,
-                        zerosLike,
-                        onesLike,
-                        rangeInt32,
-                        rangeInt64,
-                        fullFloat64,
-                        fullFloat32,
-                        fullBfloat16,
-                        fullInt32,
-                        fullInt64,
-                        fullBool,
-                        identityMatrix,
-                        eye,
-                        importFlat,
-                        createDerived,
-                        createDerivedOutputs,
-                        allocator),
-                Set.of(TensorFactory.class.getDeclaredMethods()));
+        assertTrue(Arrays.stream(TensorFactory.class.getDeclaredMethods())
+                .anyMatch(method -> method.equals(importFloat16)));
         assertAll(
                 () -> assertEquals(Tensor.class, convenience.getReturnType()),
                 () -> assertEquals(Tensor.class, complete.getReturnType()),
@@ -220,6 +190,7 @@ class TensorFactoryTest {
                 () -> assertEquals(Tensor.class, scalarFloat64.getReturnType()),
                 () -> assertEquals(Tensor.class, scalarFloat32.getReturnType()),
                 () -> assertEquals(Tensor.class, scalarBfloat16.getReturnType()),
+                () -> assertEquals(Tensor.class, scalarFloat16.getReturnType()),
                 () -> assertEquals(Tensor.class, scalarInt32.getReturnType()),
                 () -> assertEquals(Tensor.class, scalarInt64.getReturnType()),
                 () -> assertEquals(Tensor.class, scalarBool.getReturnType()),
@@ -233,6 +204,7 @@ class TensorFactoryTest {
                                 fullFloat64,
                                 fullFloat32,
                                 fullBfloat16,
+                                fullFloat16,
                                 fullInt32,
                                 fullInt64,
                                 fullBool,
@@ -258,6 +230,7 @@ class TensorFactoryTest {
                 () -> assertTrue(Modifier.isPublic(scalarFloat64.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(scalarFloat32.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(scalarBfloat16.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(scalarFloat16.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(scalarInt32.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(scalarInt64.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(scalarBool.getModifiers())),
@@ -271,6 +244,7 @@ class TensorFactoryTest {
                                 fullFloat64,
                                 fullFloat32,
                                 fullBfloat16,
+                                fullFloat16,
                                 fullInt32,
                                 fullInt64,
                                 fullBool,

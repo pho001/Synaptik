@@ -12,7 +12,7 @@ import java.util.Objects;
  * fallback.  The binary64 overloads use binary64 accumulator operations.  The binary32 overloads
  * deliberately keep every accumulator, contribution, and stable-log-sum-exp narrowing in
  * {@code float}, while calling {@link StrictMath} through its available binary64 signatures;
- * that is the same typed clean-Java oracle shape used by FLOAT32 and BFLOAT16 generated bodies.</p>
+ * that is the same typed clean-Java oracle shape used by FLOAT32, BFLOAT16, and FLOAT16 generated bodies.</p>
  */
 public final class CpuLossReferenceKernel {
     /** Creates a stateless loss oracle. */

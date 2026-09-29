@@ -16,8 +16,8 @@ import java.util.Optional;
  * {@code j} for a query position {@code i} exactly when {@code j <= i}. These attributes contain
  * no Tensor, dropout state, backend choice, execution algorithm, or gradient rule.</p>
  *
- * @param scale non-null optional exact FLOAT64, FLOAT32, or BFLOAT16 positive finite scale; empty
- *     selects the embedding-derived default
+ * @param scale non-null optional exact FLOAT64, FLOAT32, or BFLOAT16 positive finite scale; FLOAT32
+ *     is the scalar metadata format for a FLOAT16 result, and empty selects the embedding-derived default
  * @param causal whether top-left-aligned causal eligibility is combined with any explicit mask
  */
 public record ScaledDotProductAttentionAttrs(Optional<ScalarValue> scale, boolean causal)

@@ -31,17 +31,17 @@ import org.junit.jupiter.api.Test;
 class CpuRandomOneHotSemanticClosureTest {
     private static final String INVENTORY = "generated-coverage-inventory.tsv";
     private static final String INVENTORY_SHA256 =
-            "6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2";
+            "9c06f9898dc287c6d2c3805088460c699052d14dbe707de146845659ce5450eb";
     private static final Set<String> FORMS = Set.of("DROPOUT", "ONE_HOT", "INITIAL_STATE");
     private static final Map<String, Long> FORM_COUNTS = Map.of(
-            "DROPOUT", 16L, "ONE_HOT", 8L, "INITIAL_STATE", 4L);
+            "DROPOUT", 24L, "ONE_HOT", 8L, "INITIAL_STATE", 4L);
     private static final long KEY_BIAS = 0x9e3779b97f4a7c15L;
     private static final long MIX_1 = 0xbf58476d1ce4e5b9L;
     private static final long MIX_2 = 0x94d049bb133111ebL;
 
     @Test void everyOrdinaryRandomAndOneHotOwnerDefinesAndExecutesItsActualEntry() throws Throwable {
         var candidates = CpuOrdinaryNonPointwiseGeneratedMatrixTest.randomOrOneHotCandidates();
-        assertEquals(28, candidates.size());
+        assertEquals(36, candidates.size());
         assertEquals(FORM_COUNTS, counts(candidates));
         assertEquals(candidateIds(candidates), projection(inventoryBytes()).keySet());
         for (var candidate : candidates) execute(candidate);
@@ -51,7 +51,7 @@ class CpuRandomOneHotSemanticClosureTest {
             throws Exception {
         byte[] bytes = inventoryBytes();
         var owners = projection(bytes);
-        assertEquals(28, owners.size());
+        assertEquals(36, owners.size());
         String text = new String(bytes, StandardCharsets.UTF_8);
         String owner = owners.keySet().iterator().next();
         String row = Arrays.stream(text.split("\\R")).filter(line -> line.startsWith(owner + "\t"))
@@ -173,6 +173,7 @@ class CpuRandomOneHotSemanticClosureTest {
         Object raw = store.raw();
         if (raw instanceof double[] array) return MemorySegment.ofArray(array);
         if (raw instanceof float[] array) return MemorySegment.ofArray(array);
+        if (raw instanceof short[] array) return MemorySegment.ofArray(array);
         if (raw instanceof long[] array) return MemorySegment.ofArray(array);
         if (raw instanceof int[] array) return MemorySegment.ofArray(array);
         return MemorySegment.ofArray((byte[]) raw);
@@ -209,7 +210,7 @@ class CpuRandomOneHotSemanticClosureTest {
     private static long mix(long value) { value = (value ^ value >>> 30) * MIX_1; value = (value ^ value >>> 27) * MIX_2; return value ^ value >>> 31; }
     private static double uniform(long word) { return (word >>> 11) * 0x1.0p-53; }
     private static void assertRaw(Object expected, Object actual, String message) {
-        if (expected instanceof double[] x) assertArrayEquals(x, (double[]) actual, message); else if (expected instanceof float[] x) assertArrayEquals(x, (float[]) actual, message); else if (expected instanceof long[] x) assertArrayEquals(x, (long[]) actual, message); else if (expected instanceof int[] x) assertArrayEquals(x, (int[]) actual, message); else assertArrayEquals((byte[]) expected, (byte[]) actual, message);
+        if (expected instanceof double[] x) assertArrayEquals(x, (double[]) actual, message); else if (expected instanceof float[] x) assertArrayEquals(x, (float[]) actual, message); else if (expected instanceof short[] x) assertArrayEquals(x, (short[]) actual, message); else if (expected instanceof long[] x) assertArrayEquals(x, (long[]) actual, message); else if (expected instanceof int[] x) assertArrayEquals(x, (int[]) actual, message); else assertArrayEquals((byte[]) expected, (byte[]) actual, message);
     }
 
     private static final class Store {
@@ -218,14 +219,14 @@ class CpuRandomOneHotSemanticClosureTest {
         Object raw() { return raw; } long elements() { return descriptor.shape().knownElementCount().orElseThrow(); }
         void fill(long value) { for (int i = 0; i < java.lang.reflect.Array.getLength(raw); i++) put(i, value); }
         void set(long logical, long value) { put(address(logical), value); }
-        void setFloating(long logical, double value) { int at = address(logical); if (descriptor.dataType() == DataType.FLOAT64) ((double[]) raw)[at] = value; else ((float[]) raw)[at] = (float) value; }
+        void setFloating(long logical, double value) { int at = address(logical); if (descriptor.dataType() == DataType.FLOAT64) ((double[]) raw)[at] = value; else if (descriptor.dataType() == DataType.FLOAT16) ((short[]) raw)[at] = Float.floatToFloat16((float) value); else ((float[]) raw)[at] = (float) value; }
         long get(long logical) { return getRaw(address(logical)); }
-        double floating(long logical) { int at = address(logical); return descriptor.dataType() == DataType.FLOAT64 ? ((double[]) raw)[at] : ((float[]) raw)[at]; }
+        double floating(long logical) { int at = address(logical); return descriptor.dataType() == DataType.FLOAT64 ? ((double[]) raw)[at] : descriptor.dataType() == DataType.FLOAT16 ? Float.float16ToFloat(((short[]) raw)[at]) : ((float[]) raw)[at]; }
         Object copy() { int n = java.lang.reflect.Array.getLength(raw); Object copy = java.lang.reflect.Array.newInstance(raw.getClass().componentType(), n); System.arraycopy(raw, 0, copy, 0, n); return copy; }
         private int address(long logical) { long[] shape = descriptor.shape().toLongArray(); long[] strides = descriptor.layout().orElseThrow().strides(); long at = descriptor.layout().orElseThrow().storageOffset(); for (int axis = shape.length - 1; axis >= 0; axis--) { long coordinate = logical % shape[axis]; logical /= shape[axis]; at += coordinate * strides[axis]; } return Math.toIntExact(at); }
         private long getRaw(int at) { return switch (descriptor.dataType()) { case INT64 -> ((long[]) raw)[at]; case INT32 -> ((int[]) raw)[at]; case BOOL -> ((byte[]) raw)[at]; default -> throw new AssertionError("not an index/state store"); }; }
-        private void put(int at, long value) { switch (descriptor.dataType()) { case FLOAT64 -> ((double[]) raw)[at] = value; case FLOAT32 -> ((float[]) raw)[at] = value; case INT64 -> ((long[]) raw)[at] = value; case INT32 -> ((int[]) raw)[at] = (int) value; case BOOL -> ((byte[]) raw)[at] = (byte) value; default -> throw new AssertionError("unexpected type"); } }
+        private void put(int at, long value) { switch (descriptor.dataType()) { case FLOAT64 -> ((double[]) raw)[at] = value; case FLOAT32 -> ((float[]) raw)[at] = value; case FLOAT16 -> ((short[]) raw)[at] = Float.floatToFloat16(value); case INT64 -> ((long[]) raw)[at] = value; case INT32 -> ((int[]) raw)[at] = (int) value; case BOOL -> ((byte[]) raw)[at] = (byte) value; default -> throw new AssertionError("unexpected type"); } }
         private static int capacity(TensorDescriptor d) { long max = d.layout().orElseThrow().storageOffset(); long[] shape = d.shape().toLongArray(), strides = d.layout().orElseThrow().strides(); for (int i = 0; i < shape.length; i++) if (shape[i] != 0) max += (shape[i] - 1) * strides[i]; return Math.toIntExact(max + 1); }
-        private static Object array(DataType type, int n) { return switch (type) { case FLOAT64 -> new double[n]; case FLOAT32 -> new float[n]; case INT64 -> new long[n]; case INT32 -> new int[n]; case BOOL -> new byte[n]; default -> throw new AssertionError("unexpected type"); }; }
+        private static Object array(DataType type, int n) { return switch (type) { case FLOAT64 -> new double[n]; case FLOAT32 -> new float[n]; case FLOAT16 -> new short[n]; case INT64 -> new long[n]; case INT32 -> new int[n]; case BOOL -> new byte[n]; default -> throw new AssertionError("unexpected type"); }; }
     }
 }

@@ -128,10 +128,10 @@ import java.util.Set;
  * they do not create a gradient-specific arithmetic, cast, comparison, exceptional-value,
  * validation, or optimization contract.
  *
- * <p>Compiler 0005A completes the exact current 48-kind elementwise and activation inventory: seven
- * binary arithmetic kinds, eight scalar elementwise kinds, nineteen unary kinds, one {@code WHERE},
- * one {@code CAST}, six comparisons, three Boolean logical kinds, and three floating-classification
- * kinds. Floating binary {@code MIN}/{@code MAX}/{@code POW}, scalar {@code MIN}/{@code MAX}/{@code
+ * <p>The current inventory contains 48 elementwise and activation kinds: seven binary arithmetic
+ * kinds, eight scalar elementwise kinds, nineteen unary kinds, one {@code WHERE}, one {@code
+ * CAST}, six comparisons, three Boolean logical kinds, and three floating-classification kinds.
+ * Floating binary {@code MIN}/{@code MAX}/{@code POW}, scalar {@code MIN}/{@code MAX}/{@code
  * POW}/{@code CLAMP}, and the remaining unary and activation formulas are accepted only with their
  * exact current signatures and same-type or promoted floating descriptors. Comparisons, Boolean
  * logic, classifications, the {@code WHERE} condition, scalar attributes and bounds, and

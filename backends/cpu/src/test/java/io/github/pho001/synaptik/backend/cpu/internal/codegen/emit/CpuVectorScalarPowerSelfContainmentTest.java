@@ -43,7 +43,7 @@ class CpuVectorScalarPowerSelfContainmentTest {
             CpuKernelIr.PowerRealization.RECIPROCAL);
 
     @Test void everyTypeRealizationAndOrderedCarrierPairIsSelfContained() {
-        assertEquals(67, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(68, CpuGeneratorSchema.CURRENT_VERSION);
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
             CpuKernelSpecialization.CarrierAccess array = arrayCarrier(type);
             for (CpuKernelIr.PowerRealization realization : REALIZATIONS) {

@@ -318,6 +318,7 @@ final class CpuMatmulGeneratedKernelTest {
             case BFLOAT16 -> CarrierAccess.SHORT_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> throw new AssertionError();
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU matmul unsupported");
         };
     }
 
@@ -330,6 +331,7 @@ final class CpuMatmulGeneratedKernelTest {
             case INT32 -> values.clone();
             case INT64 -> { long[] result=new long[values.length]; for(int i=0;i<values.length;i++)result[i]=values[i]; yield result; }
             case BOOL -> throw new AssertionError();
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU matmul unsupported");
         };
     }
 
@@ -339,6 +341,7 @@ final class CpuMatmulGeneratedKernelTest {
             case FLOAT32 -> ((float[])values)[0]; case FLOAT64 -> ((double[])values)[0];
             case INT32 -> ((int[])values)[0]; case INT64 -> ((long[])values)[0];
             case BOOL -> throw new AssertionError();
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU matmul unsupported");
         };
     }
 

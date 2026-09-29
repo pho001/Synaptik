@@ -180,12 +180,12 @@ public record CpuAggregateIr(Kind kind, DataType dataType, Form form, int[] sele
             throw new IllegalArgumentException("aggregate axes must be increasing and distinct");
         boolean bool = kind == Kind.ALL || kind == Kind.ANY;
         boolean floating = dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
-                || dataType == DataType.BFLOAT16;
+                || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16;
         boolean reduction = form != Form.SUM_TO_SHAPE || selectedAxes.length != 0;
         boolean exact = reduction && (kind == Kind.SUM || kind == Kind.MEAN || kind == Kind.PROD);
         boolean numeric = dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
-                || dataType == DataType.BFLOAT16 || dataType == DataType.INT32
-                || dataType == DataType.INT64;
+                || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16
+                || dataType == DataType.INT32 || dataType == DataType.INT64;
         if (bool != (dataType == DataType.BOOL) || !bool && !numeric
                 || kind == Kind.MEAN && !floating || domainCount < 0
                 || exact && floating && (stateLimbCount <= 0 || scratchSliceBytes <= 0

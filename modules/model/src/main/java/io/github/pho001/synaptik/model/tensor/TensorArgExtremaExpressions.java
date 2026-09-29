@@ -15,8 +15,8 @@ import java.util.Optional;
 /**
  * Constructs locally validated, storage-free, single-axis arg-min and arg-max expressions.
  *
- * <p>Both families accept FLOAT64, FLOAT32, BFLOAT16, INT32, or INT64 input and produce a fresh
- * fixed-INT64, false-gradient result. Integral candidates use signed order. Floating candidates
+ * <p>Both families accept FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, or INT64 input and produce a
+ * fresh fixed-INT64, false-gradient result. Integral candidates use signed order. Floating candidates
  * prefer NaN over every non-NaN for both extrema directions, treat multiple NaNs as ties, order
  * negative zero below positive zero, and order infinities normally. The explicit policy then
  * selects the smallest or largest logical coordinate among equal candidates. A statically empty

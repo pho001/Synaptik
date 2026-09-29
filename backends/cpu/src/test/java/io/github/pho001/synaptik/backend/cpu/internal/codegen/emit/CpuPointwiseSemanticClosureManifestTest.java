@@ -27,7 +27,7 @@ class CpuPointwiseSemanticClosureManifestTest {
     private static final String INVENTORY = "generated-coverage-inventory.tsv";
     private static final String MANIFEST = "generated-pointwise-semantic-closure.tsv";
     private static final String INVENTORY_SHA256 =
-            "6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2";
+            "9c06f9898dc287c6d2c3805088460c699052d14dbe707de146845659ce5450eb";
 
     @Test void manifestIsCurrentExactAndAccountsForEveryGeneratedPointwiseRow() throws Exception {
         Closure closure = parseManifest(resource(MANIFEST));
@@ -38,10 +38,10 @@ class CpuPointwiseSemanticClosureManifestTest {
         Map<CpuPointwiseOpcode, Integer> actual = generatedPointwiseCounts(inventory);
         assertEquals(EnumSet.allOf(CpuPointwiseOpcode.class), actual.keySet());
         assertEquals(actual, closure.counts(), "orphan, stale, or unowned generated pointwise row");
-        assertEquals(1_108, actual.values().stream().mapToInt(Integer::intValue).sum());
-        assertEquals(845, closure.countFor("pointwise") + closure.countFor("cast"));
+        assertEquals(1_288, actual.values().stream().mapToInt(Integer::intValue).sum());
+        assertEquals(1_025, closure.countFor("pointwise") + closure.countFor("cast"));
         assertEquals(263, closure.countFor("scalar-immediate"));
-        assertEquals(1_108, closure.declaredGeneratedRows());
+        assertEquals(1_288, closure.declaredGeneratedRows());
     }
 
     @Test void manifestParserFailsClosedForDuplicateOrphanStaleAndMutatedEntries() throws Exception {
@@ -49,11 +49,11 @@ class CpuPointwiseSemanticClosureManifestTest {
         assertThrows(AssertionError.class, () -> parseManifest(canonical.replaceFirst(
                 "# source-inventory-sha256=[0-9a-f]{64}", "# source-inventory-sha256=" + "0".repeat(64))));
         assertThrows(AssertionError.class, () -> parseManifest(canonical.replaceFirst(
-                "ABS\\t15\\tpointwise", "ABS\\t16\\tpointwise")));
+                "ABS\\t20\\tpointwise", "ABS\\t21\\tpointwise")));
         assertThrows(AssertionError.class, () -> parseManifest(canonical.replaceFirst(
-                "WHERE\\t15\\tpointwise\\n", "WHERE\\t15\\tpointwise\\nWHERE\\t15\\tpointwise\\n")));
+                "WHERE\\t20\\tpointwise\\n", "WHERE\\t20\\tpointwise\\nWHERE\\t20\\tpointwise\\n")));
         assertThrows(AssertionError.class, () -> parseManifest(canonical.replaceFirst(
-                "ABS\\t15\\tpointwise", "UNKNOWN\\t15\\tpointwise")));
+                "ABS\\t20\\tpointwise", "UNKNOWN\\t20\\tpointwise")));
         assertThrows(AssertionError.class, () -> parseManifest(canonical.replaceFirst(
                 "CAST\\t180\\tcast", "CAST\\t180\\tunknown-owner")));
     }
@@ -89,7 +89,7 @@ class CpuPointwiseSemanticClosureManifestTest {
         assertTrue(text.endsWith("\n") && !text.contains("\r"), "canonical LF manifest");
         String[] lines = text.split("\\n", -1);
         assertEquals("# source-inventory-sha256=" + INVENTORY_SHA256, lines[0]);
-        assertEquals("# source-inventory-generated-rows=1108", lines[1]);
+        assertEquals("# source-inventory-generated-rows=1288", lines[1]);
         assertEquals("operation\traw-generated-rows\tsemantic-owner", lines[2]);
         Map<CpuPointwiseOpcode, Integer> counts = new EnumMap<>(CpuPointwiseOpcode.class);
         Map<CpuPointwiseOpcode, String> owners = new EnumMap<>(CpuPointwiseOpcode.class);
@@ -113,7 +113,7 @@ class CpuPointwiseSemanticClosureManifestTest {
             owners.put(opcode, row[2]);
         }
         assertEquals(EnumSet.allOf(CpuPointwiseOpcode.class), counts.keySet(), "missing manifest operation");
-        return new Closure(INVENTORY_SHA256, 1_108, Map.copyOf(counts), Map.copyOf(owners));
+        return new Closure(INVENTORY_SHA256, 1_288, Map.copyOf(counts), Map.copyOf(owners));
     }
 
     private static String resource(String name) throws Exception {

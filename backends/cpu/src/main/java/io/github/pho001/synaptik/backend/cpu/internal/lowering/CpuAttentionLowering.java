@@ -121,12 +121,17 @@ public final class CpuAttentionLowering {
             : align8(Math.multiplyExact(s, result == DataType.FLOAT64 ? 8L : 4L));
     double scale =
         attrs.scale().isPresent()
-            ? switch (result) {
-              case FLOAT64 -> attrs.scale().orElseThrow().float64Value();
-              case FLOAT32 -> attrs.scale().orElseThrow().float32Value();
-              case BFLOAT16 -> BFloat16Bits.toFloat(attrs.scale().orElseThrow().bfloat16Bits());
-              default -> throw new AssertionError();
-            }
+            ? result == DataType.FLOAT16
+                && attrs.scale().orElseThrow().dataType() == DataType.FLOAT32
+                    ? Float.float16ToFloat(
+                        Float.floatToFloat16(attrs.scale().orElseThrow().float32Value()))
+                    : switch (result) {
+                      case FLOAT64 -> attrs.scale().orElseThrow().float64Value();
+                      case FLOAT32 -> attrs.scale().orElseThrow().float32Value();
+                      case BFLOAT16 -> BFloat16Bits.toFloat(attrs.scale().orElseThrow().bfloat16Bits());
+                      case FLOAT16 -> Float.float16ToFloat(attrs.scale().orElseThrow().float16Bits());
+                      default -> throw new AssertionError();
+                    }
             : result == DataType.FLOAT64
                 ? 1.0d / StrictMath.sqrt((double) e)
                 : (float) (1.0d / StrictMath.sqrt((double) e));

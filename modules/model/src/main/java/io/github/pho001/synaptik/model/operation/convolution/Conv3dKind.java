@@ -19,8 +19,9 @@ import java.util.List;
  * Every declared term participates exactly once; each cell may use any binary tree, per-step
  * FLOAT32 rounding, DAZ/FTZ, and corresponding product/add fusion. It may not drop, duplicate,
  * invent, pretruncate, or replace a term, and convolution gains no MATMUL-specific final-zero
- * freedom. This is recursive construction freedom, not a final-output tolerance; non-FLOAT32
- * behavior stays strict. See the
+ * freedom. This is recursive construction freedom, not a final-output tolerance. Every current
+ * non-FLOAT32 occurrence remains strict; the inactive low-precision reservation changes none of
+ * them. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */
@@ -28,9 +29,10 @@ public enum Conv3dKind implements OperationKind {
     /**
      * Grouped NCDHW cross-correlation with optional per-output-channel bias.
      *
-     * <p>FLOAT64 output accumulates in FLOAT64. FLOAT32 and BFLOAT16 output accumulate in
-     * FLOAT32, with final BFLOAT16 conversion when selected. Reassociation and fused multiply-add
-     * are permitted. Conceptual padding is positive zero and participates in ordinary IEEE-754
+     * <p>FLOAT64 output accumulates in FLOAT64. FLOAT32, FLOAT16, and BFLOAT16 output accumulate
+     * in FLOAT32, with one final low-type conversion when selected. Reassociation and fused
+     * multiply-add are permitted. Conceptual padding is positive zero and participates in ordinary
+     * IEEE-754
      * multiplication, including multiplication by infinity. An empty channel contraction begins
      * from positive zero before optional bias.</p>
      */

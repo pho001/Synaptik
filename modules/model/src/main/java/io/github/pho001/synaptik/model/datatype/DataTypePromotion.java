@@ -15,10 +15,9 @@ public final class DataTypePromotion {
     }
 
     /**
-     * Promotes two floating data types to the widest precision required by either input.
-     *
-     * <p>The stable order is {@link DataType#BFLOAT16} &lt; {@link DataType#FLOAT32} &lt;
-     * {@link DataType#FLOAT64}. The operation is symmetric and idempotent.</p>
+     * Promotes two floating data types to a common operation precision. BFLOAT16 and FLOAT16 are
+     * incomparable formats: mixed pairs promote to FLOAT32 rather than pretending one 16-bit
+     * format can represent the other. The operation is symmetric and idempotent.
      *
      * @param left non-null floating data type of the left operand
      * @param right non-null floating data type of the right operand
@@ -36,7 +35,10 @@ public final class DataTypePromotion {
         if (checkedLeft == DataType.FLOAT32 || checkedRight == DataType.FLOAT32) {
             return DataType.FLOAT32;
         }
-        return DataType.BFLOAT16;
+        if (checkedLeft == checkedRight) {
+            return checkedLeft;
+        }
+        return DataType.FLOAT32;
     }
 
     /**

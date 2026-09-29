@@ -364,10 +364,14 @@ public final class CpuArgExtremaEmitter {
     }
 
     private static void normalizeLoaded(CodeBuilder code, DataType type) {
-        if (type != DataType.BFLOAT16) return;
-        code.loadConstant(0xffff).iand().loadConstant(16).ishl()
-                .invokestatic(FLOAT, "intBitsToFloat",
-                        MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int));
+        if (type == DataType.BFLOAT16) {
+            code.loadConstant(0xffff).iand().loadConstant(16).ishl()
+                    .invokestatic(FLOAT, "intBitsToFloat",
+                            MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int));
+        } else if (type == DataType.FLOAT16) {
+            code.i2s().invokestatic(FLOAT, "float16ToFloat",
+                    MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
+        }
     }
 
     private static void loadCarrier(CodeBuilder code, CpuCarrierEmitter carriers, DataType type,
@@ -407,7 +411,7 @@ public final class CpuArgExtremaEmitter {
         return switch (type) {
             case FLOAT64 -> ConstantDescs.CD_double;
             case FLOAT32 -> ConstantDescs.CD_float;
-            case BFLOAT16 -> ConstantDescs.CD_short;
+            case BFLOAT16, FLOAT16 -> ConstantDescs.CD_short;
             case INT32 -> ConstantDescs.CD_int;
             case INT64 -> ConstantDescs.CD_long;
             case BOOL -> throw new AssertionError();
@@ -418,7 +422,7 @@ public final class CpuArgExtremaEmitter {
         return ClassDesc.of("java.lang.foreign.ValueLayout$Of" + switch (type) {
             case FLOAT64 -> "Double";
             case FLOAT32 -> "Float";
-            case BFLOAT16 -> "Short";
+            case BFLOAT16, FLOAT16 -> "Short";
             case INT32 -> "Int";
             case INT64 -> "Long";
             case BOOL -> throw new AssertionError();
@@ -429,7 +433,7 @@ public final class CpuArgExtremaEmitter {
         return "JAVA_" + switch (type) {
             case FLOAT64 -> "DOUBLE";
             case FLOAT32 -> "FLOAT";
-            case BFLOAT16 -> "SHORT";
+            case BFLOAT16, FLOAT16 -> "SHORT";
             case INT32 -> "INT";
             case INT64 -> "LONG";
             case BOOL -> throw new AssertionError();
@@ -439,7 +443,7 @@ public final class CpuArgExtremaEmitter {
     private static TypeKind localKind(DataType type) {
         return switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
-            case FLOAT32, BFLOAT16 -> TypeKind.FLOAT;
+            case FLOAT32, BFLOAT16, FLOAT16 -> TypeKind.FLOAT;
             case INT32 -> TypeKind.INT;
             case INT64 -> TypeKind.LONG;
             case BOOL -> throw new AssertionError();
@@ -449,7 +453,7 @@ public final class CpuArgExtremaEmitter {
     private static void store(CodeBuilder code, DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dstore(local);
-            case FLOAT32, BFLOAT16 -> code.fstore(local);
+            case FLOAT32, BFLOAT16, FLOAT16 -> code.fstore(local);
             case INT32 -> code.istore(local);
             case INT64 -> code.lstore(local);
             case BOOL -> throw new AssertionError();
@@ -459,7 +463,7 @@ public final class CpuArgExtremaEmitter {
     private static void load(CodeBuilder code, DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dload(local);
-            case FLOAT32, BFLOAT16 -> code.fload(local);
+            case FLOAT32, BFLOAT16, FLOAT16 -> code.fload(local);
             case INT32 -> code.iload(local);
             case INT64 -> code.lload(local);
             case BOOL -> throw new AssertionError();

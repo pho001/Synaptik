@@ -41,7 +41,7 @@ import org.junit.jupiter.api.Test;
 /** Directly executes each inventoried softmax and trailing-normalization generated owner. */
 class CpuNormalizationSemanticClosureTest {
     private static final List<DataType> FLOATING = List.of(DataType.FLOAT64, DataType.FLOAT32,
-            DataType.BFLOAT16);
+            DataType.BFLOAT16, DataType.FLOAT16);
     private static final Shape INPUT = Shape.of(2, 3);
     private static final Shape NORMALIZED = Shape.of(3);
     private static final CpuPartitionAnalysisInputs.MaterializationPolicy MATERIALIZATION =
@@ -74,9 +74,9 @@ class CpuNormalizationSemanticClosureTest {
                         List.of(input, scale, bias), request);
                 invoke(fixture); add(invoked, fixture.form(), fixture.owner());
             }
-        assertCounts(invoked, "SOFTMAX", 30); assertCounts(invoked, "LOG_SOFTMAX", 30);
-        assertCounts(invoked, "LAYER", 15); assertCounts(invoked, "LAYER_AFFINE", 135);
-        assertCounts(invoked, "RMS", 15); assertCounts(invoked, "RMS_SCALED", 45);
+        assertCounts(invoked, "SOFTMAX", 40); assertCounts(invoked, "LOG_SOFTMAX", 40);
+        assertCounts(invoked, "LAYER", 20); assertCounts(invoked, "LAYER_AFFINE", 320);
+        assertCounts(invoked, "RMS", 20); assertCounts(invoked, "RMS_SCALED", 80);
         assertEquals(inventoryOwners(), invoked, "exact inventory owner and current SHA join");
     }
 
@@ -204,8 +204,8 @@ class CpuNormalizationSemanticClosureTest {
         DataType result = types.getFirst();
         for (int index = 1; index < types.size(); index++) result = DataTypePromotion.promoteFloating(result, types.get(index));
         ScalarValue epsilon = result == DataType.FLOAT64 ? ScalarValue.float64(1e-5)
-                : result == DataType.FLOAT32 ? ScalarValue.float32(1e-5f)
-                : ScalarValue.bfloat16Bits((short) 0x3728);
+                : result == DataType.BFLOAT16 ? ScalarValue.bfloat16Bits((short) 0x3728)
+                : ScalarValue.float32(1e-5f);
         var attrs = form == CpuTrailingNormalizationIr.Form.LAYER ? new LayerNormAttrs(NORMALIZED, epsilon)
                 : form == CpuTrailingNormalizationIr.Form.LAYER_AFFINE ? new AffineLayerNormAttrs(NORMALIZED, epsilon)
                 : new RmsNormAttrs(NORMALIZED, epsilon);
@@ -246,12 +246,14 @@ class CpuNormalizationSemanticClosureTest {
 
     private static double epsilon(DataType type) {
         return type == DataType.FLOAT64 ? 1e-5 : type == DataType.FLOAT32 ? 1e-5f
+                : type == DataType.FLOAT16 ? Float.float16ToFloat(Float.floatToFloat16(1e-5f))
                 : Float.intBitsToFloat(0x3728 << 16);
     }
 
     private static long raw(DataType type, double value) {
         return type == DataType.FLOAT64 ? Double.doubleToRawLongBits(value)
                 : type == DataType.FLOAT32 ? Integer.toUnsignedLong(Float.floatToRawIntBits((float) value))
+                : type == DataType.FLOAT16 ? Short.toUnsignedLong(Float.floatToFloat16((float) value))
                 : Integer.toUnsignedLong(Float.floatToRawIntBits((float) value) >>> 16);
     }
 
@@ -330,11 +332,13 @@ class CpuNormalizationSemanticClosureTest {
         void set(long index, double value) {
             if (type == DataType.FLOAT64) ((double[]) heap)[(int) index] = value;
             else if (type == DataType.FLOAT32) ((float[]) heap)[(int) index] = (float) value;
+            else if (type == DataType.FLOAT16) ((short[]) heap)[(int) index] = Float.floatToFloat16((float) value);
             else ((short[]) heap)[(int) index] = ScalarValue.bfloat16((float) value).bfloat16Bits();
         }
         double get(long index) {
             return type == DataType.FLOAT64 ? ((double[]) heap)[(int) index]
                     : type == DataType.FLOAT32 ? ((float[]) heap)[(int) index]
+                    : type == DataType.FLOAT16 ? Float.float16ToFloat(((short[]) heap)[(int) index])
                     : Float.intBitsToFloat(Short.toUnsignedInt(((short[]) heap)[(int) index]) << 16);
         }
         double[] decoded() {

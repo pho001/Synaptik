@@ -117,6 +117,7 @@ public record CpuConv2dIr(List<DataType> inputTypes, DataType resultType,
     @Override public String structuralKey() { return encodedKernelIr().structuralKey(); }
 
     private static boolean floating(DataType type) {
-        return type == DataType.FLOAT64 || type == DataType.FLOAT32 || type == DataType.BFLOAT16;
+        return type == DataType.FLOAT64 || type == DataType.FLOAT32
+                || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
     }
 }

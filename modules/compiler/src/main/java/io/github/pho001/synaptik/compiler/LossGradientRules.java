@@ -223,6 +223,7 @@ final class LossGradientRules {
         if (reduction == LossReduction.MEAN) {
             Tensor count = constants.oneBase(gradient.descriptor().dataType())
                     .expand(domain)
+                    .contiguous()
                     .sum();
             restored = restored.div(count);
         }
@@ -276,7 +277,7 @@ final class LossGradientRules {
         return switch (dataType) {
             case INT32 -> ScalarValue.int32((int) value);
             case INT64 -> ScalarValue.int64(value);
-            case BFLOAT16, FLOAT32, FLOAT64, BOOL ->
+            case BFLOAT16, FLOAT16, FLOAT32, FLOAT64, BOOL ->
                     throw new IllegalArgumentException("index target must be signed integral");
         };
     }

@@ -340,11 +340,11 @@ SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_met
 The environment variable must contain an absolute regular-file path. The benchmark neither
 discovers nor packages the dylib. It first opens a separate traced integration with a synchronized
 thread-safe event collector, prepares and runs both candidates, and exact-byte-checks their outputs.
-After each candidate run it takes one immutable event snapshot before checking the unchanged prefix,
-exactly appended PREPARE/RUN pair, order, indices, and route facts. It requires successful
-`CUSTOM_KERNEL`/`GRAPH_EXECUTABLE` outcomes with `NOT_QUERIED`, then closes that integration before
-opening the ordinary no-trace integration used for every retained timing. Candidate identity bytes
-must match across the two integrations.
+After each candidate run it takes one immutable event snapshot before checking the unchanged
+prefix and exactly appended PREPARE structure/outcome plus RUN plan/outcome events in order. It
+requires successful `CUSTOM_KERNEL`/`GRAPH_EXECUTABLE` outcomes with `NOT_QUERIED`, then closes
+that integration before opening the ordinary no-trace integration used for every retained timing.
+Candidate identities must match across the two integrations.
 
 Timed execution is exactly `PreparedExecutionRunner.run(...) + RunResult.close()`. It includes
 fresh Runtime output/workspace allocation, synchronous native invocation/wait, and run-owned

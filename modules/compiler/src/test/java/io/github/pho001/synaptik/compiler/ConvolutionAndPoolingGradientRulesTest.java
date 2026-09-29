@@ -168,7 +168,7 @@ final class ConvolutionAndPoolingGradientRulesTest {
     @Test
     void pool3dGradientFormulasPreserveEveryFloatingTypeAndSymbolicShape() {
         for (DataType dataType : List.of(
-                DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
             DynamicDimension depth = new DynamicDimension("D" + dataType);
             Tensor input = tensor(
                     dataType,

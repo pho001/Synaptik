@@ -86,7 +86,8 @@ public final class CpuBatchNormTrainingLowering {
             types.add(value.descriptor().dataType()); boundaryIds.add(id);
         }
         DataType result = require(values, node.outputs().getFirst()).descriptor().dataType();
-        DataType exact = result == DataType.BFLOAT16 ? DataType.FLOAT32 : result;
+        DataType exact = result == DataType.BFLOAT16 || result == DataType.FLOAT16
+                ? DataType.FLOAT32 : result;
         long slice = channels == 0 ? 0 : exactStateSliceBytes(exact, reduction);
         int limbs = slice == 0 ? 0 : Math.toIntExact(slice / Long.BYTES - 1);
         List<DataType> semanticTypes = node.inputs().stream()
@@ -95,10 +96,12 @@ public final class CpuBatchNormTrainingLowering {
                 .map(CpuAccessPlan.Binding::plan).toList();
         List<CpuAccessPlan> outputPlans = bindings.subList(uniqueIds.size(), bindings.size()).stream()
                 .map(CpuAccessPlan.Binding::plan).toList();
-        var ir = new CpuBatchNormTrainingIr(semanticTypes, result, bits(attrs.momentum()),
-                bits(attrs.epsilon()), input.extents.length, axis, 1, 3, reduction,
+        long momentumBits = bits(result, attrs.momentum());
+        long epsilonBits = bits(result, attrs.epsilon());
+        var ir = new CpuBatchNormTrainingIr(semanticTypes, result, momentumBits,
+                epsilonBits, input.extents.length, axis, 1, 3, reduction,
                 limbs, slice, map, inputPlans, outputPlans);
-        var geometry = new Geometry(semanticTypes, result, bits(attrs.momentum()), bits(attrs.epsilon()),
+        var geometry = new Geometry(semanticTypes, result, momentumBits, epsilonBits,
                 axis, prefix, channels, suffix, reduction, count, map, inputLayouts, outputLayouts,
                 slice, limbs);
         return new CpuPartitionLowering.LoweredPartition(ir, boundaryIds, bindings, spans, types,
@@ -118,10 +121,17 @@ public final class CpuBatchNormTrainingLowering {
     }
     private static GraphValue require(Map<ValueId, GraphValue> values, ValueId id) {
         GraphValue v = values.get(id); if (v == null) throw new IllegalArgumentException("value is not projected: " + id); return v; }
-    private static long bits(ScalarValue v) { return switch (v.dataType()) {
-        case FLOAT64 -> Double.doubleToRawLongBits(v.float64Value());
-        case FLOAT32 -> Float.floatToRawIntBits(v.float32Value()) & 0xffff_ffffL;
-        case BFLOAT16 -> v.bfloat16Bits() & 0xffffL; default -> throw new IllegalArgumentException("scalar"); }; }
+    private static long bits(DataType result, ScalarValue v) {
+        if (result == DataType.FLOAT16 && v.dataType() == DataType.FLOAT32)
+            return Float.floatToFloat16(v.float32Value()) & 0xffffL;
+        return switch (v.dataType()) {
+            case FLOAT64 -> Double.doubleToRawLongBits(v.float64Value());
+            case FLOAT32 -> Float.floatToRawIntBits(v.float32Value()) & 0xffff_ffffL;
+            case BFLOAT16 -> v.bfloat16Bits() & 0xffffL;
+            case FLOAT16 -> v.float16Bits() & 0xffffL;
+            default -> throw new IllegalArgumentException("scalar");
+        };
+    }
     private static Layout layout(GraphValue v) { LayoutDescriptor l = v.descriptor().layout().orElseThrow();
         if (l.storageOffset() < 0 || Arrays.stream(l.strides()).anyMatch(x -> x < 0))
             throw new IllegalArgumentException("training requires non-negative layouts");

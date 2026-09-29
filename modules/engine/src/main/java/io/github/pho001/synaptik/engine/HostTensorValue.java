@@ -11,7 +11,8 @@ import java.util.Objects;
  *
  * <p>The value retains the exact logical data type and immutable Shape from the final publication
  * descriptor plus canonical dense row-major bytes. {@code FLOAT64} and {@code FLOAT32} preserve
- * raw represented bits, {@code BFLOAT16} preserves its stored 16 bits, {@code INT64} and
+ * raw represented bits, {@code BFLOAT16} and {@code FLOAT16} preserve their stored 16 bits,
+ * {@code INT64} and
  * {@code INT32} preserve their two's-complement patterns, and {@code BOOL} is one byte
  * {@code 0} or {@code 1}; every multi-byte element is big-endian. The source layout is not part
  * of this detached value.</p>

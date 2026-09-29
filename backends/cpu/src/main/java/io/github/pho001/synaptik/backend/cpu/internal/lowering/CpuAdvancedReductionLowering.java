@@ -110,8 +110,9 @@ public final class CpuAdvancedReductionLowering {
     }
 
     private static long exactStateSliceBytes(DataType type, long count) {
-        int emin = type == DataType.FLOAT64 ? -1074 : type == DataType.FLOAT32 ? -149 : -133;
-        int emax = type == DataType.FLOAT64 ? 1023 : 127;
+        int emin = type == DataType.FLOAT64 ? -1074 : type == DataType.FLOAT32 ? -149
+                : type == DataType.FLOAT16 ? -24 : -133;
+        int emax = type == DataType.FLOAT64 ? 1023 : type == DataType.FLOAT16 ? 15 : 127;
         int countBits = count <= 1 ? 0 : 64 - Long.numberOfLeadingZeros(count - 1);
         long bits = Math.addExact((long) emax + 1 - emin, Math.addExact(countBits, 1));
         long limbs = Math.addExact(bits, 63) / 64;

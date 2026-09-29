@@ -109,6 +109,7 @@ public final class CpuTrailingNormalizationLowering {
         types.add(output.descriptor().dataType());
         var boundaryIds = new ArrayList<>(uniqueIds); boundaryIds.add(outputId);
         DataType exactType = output.descriptor().dataType() == DataType.BFLOAT16
+                || output.descriptor().dataType() == DataType.FLOAT16
                 ? DataType.FLOAT32 : output.descriptor().dataType();
         long scratch = kind == CpuTrailingNormalizationIr.Kind.LAYER && outputCount > 0
                 ? exactStateSliceBytes(exactType, normalizedCount) : 0;
@@ -117,12 +118,13 @@ public final class CpuTrailingNormalizationLowering {
                 .toList();
         var inputPlans = bindings.subList(0, uniqueIds.size()).stream()
                 .map(CpuAccessPlan.Binding::plan).toList();
+        long epsilonBits = epsilonBits(output.descriptor().dataType(), epsilon);
         var ir = new CpuTrailingNormalizationIr(kind, form, semanticTypes,
-                output.descriptor().dataType(), epsilonBits(epsilon), normalizedRank, 1,
+                output.descriptor().dataType(), epsilonBits, normalizedRank, 1,
                 kind == CpuTrailingNormalizationIr.Kind.LAYER ? 3 : 2, normalizedCount,
                 limbs, scratch, positionMap, inputPlans, outputBinding.plan());
         var geometry = new Geometry(kind, form, semanticTypes, output.descriptor().dataType(),
-                epsilonBits(epsilon), normalizedRank, normalizedCount, leadingCount,
+                epsilonBits, normalizedRank, normalizedCount, leadingCount,
                 positionMap, layouts, outputLayout, scratch);
         return new CpuPartitionLowering.LoweredPartition(ir, boundaryIds, bindings, spans, types,
                 List.of(), new long[] {outputCount == 0 ? 0 : leadingCount},
@@ -133,12 +135,16 @@ public final class CpuTrailingNormalizationLowering {
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(geometry));
     }
 
-    private static long epsilonBits(ScalarValue epsilon) {
+    private static long epsilonBits(DataType resultType, ScalarValue epsilon) {
+        if (resultType == DataType.FLOAT16 && epsilon.dataType() == DataType.FLOAT32)
+            return Float.floatToFloat16(epsilon.float32Value()) & 0xffffL;
         return switch (epsilon.dataType()) {
             case FLOAT64 -> Double.doubleToRawLongBits(epsilon.float64Value());
             case FLOAT32 -> Float.floatToRawIntBits(epsilon.float32Value()) & 0xffff_ffffL;
             case BFLOAT16 -> epsilon.bfloat16Bits() & 0xffffL;
-            default -> throw new IllegalArgumentException("normalization epsilon must be floating");
+            case FLOAT16 -> epsilon.float16Bits() & 0xffffL;
+            default -> throw new IllegalArgumentException(
+                    "normalization epsilon must be floating");
         };
     }
     private static long exactStateSliceBytes(DataType type, long count) {
@@ -199,7 +205,8 @@ public final class CpuTrailingNormalizationLowering {
         return result;
     }
     private static boolean supported(DataType type) {
-        return type == DataType.BFLOAT16 || type == DataType.FLOAT32 || type == DataType.FLOAT64;
+        return type == DataType.BFLOAT16 || type == DataType.FLOAT16
+                || type == DataType.FLOAT32 || type == DataType.FLOAT64;
     }
     private static void validateInjective(Layout layout) {
         long count = elementCount(layout.extents); if (count == 0) return;

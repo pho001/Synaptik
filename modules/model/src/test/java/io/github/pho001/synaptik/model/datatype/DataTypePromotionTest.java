@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 
 class DataTypePromotionTest {
     private static final DataType[] FLOATING_TYPES = {
-        DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64
+        DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT32, DataType.FLOAT64
     };
 
     @Test
@@ -36,11 +36,12 @@ class DataTypePromotionTest {
     }
 
     @Test
-    void promotesEveryFloatingPairToTheWidestPrecision() {
+    void promotesEveryFloatingPairToItsCommonOperationType() {
         DataType[][] expected = {
-            {DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64},
-            {DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT64},
-            {DataType.FLOAT64, DataType.FLOAT64, DataType.FLOAT64}
+            {DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT64},
+            {DataType.FLOAT32, DataType.FLOAT16, DataType.FLOAT32, DataType.FLOAT64},
+            {DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT64},
+            {DataType.FLOAT64, DataType.FLOAT64, DataType.FLOAT64, DataType.FLOAT64}
         };
 
         for (int left = 0; left < FLOATING_TYPES.length; left++) {

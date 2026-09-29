@@ -464,7 +464,7 @@ class CpuFoldGeneratedKernelTest {
             case BFLOAT16 -> "JAVA_SHORT_UNALIGNED";
             case INT32 -> "JAVA_INT_UNALIGNED";
             case INT64 -> "JAVA_LONG_UNALIGNED";
-            case BOOL -> throw new AssertionError();
+            case BOOL, FLOAT16 -> throw new AssertionError();
         };
     }
 
@@ -472,7 +472,7 @@ class CpuFoldGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> Opcode.DADD; case FLOAT32, BFLOAT16 -> Opcode.FADD;
             case INT32 -> Opcode.IADD; case INT64 -> Opcode.LADD;
-            case BOOL -> throw new AssertionError();
+            case BOOL, FLOAT16 -> throw new AssertionError();
         };
     }
 
@@ -480,7 +480,7 @@ class CpuFoldGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> Opcode.DALOAD; case FLOAT32 -> Opcode.FALOAD;
             case BFLOAT16 -> Opcode.SALOAD; case INT32 -> Opcode.IALOAD;
-            case INT64 -> Opcode.LALOAD; case BOOL -> throw new AssertionError();
+            case INT64 -> Opcode.LALOAD; case BOOL, FLOAT16 -> throw new AssertionError();
         };
     }
 
@@ -488,7 +488,7 @@ class CpuFoldGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> Opcode.DASTORE; case FLOAT32 -> Opcode.FASTORE;
             case BFLOAT16 -> Opcode.SASTORE; case INT32 -> Opcode.IASTORE;
-            case INT64 -> Opcode.LASTORE; case BOOL -> throw new AssertionError();
+            case INT64 -> Opcode.LASTORE; case BOOL, FLOAT16 -> throw new AssertionError();
         };
     }
 
@@ -496,7 +496,7 @@ class CpuFoldGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
             case BFLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
-            case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> CarrierAccess.BYTE_ARRAY;
+            case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL, FLOAT16 -> throw new AssertionError();
         };
     }
 
@@ -504,7 +504,7 @@ class CpuFoldGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> new double[count]; case FLOAT32 -> new float[count];
             case BFLOAT16 -> new short[count]; case INT32 -> new int[count];
-            case INT64 -> new long[count]; case BOOL -> new byte[count];
+            case INT64 -> new long[count]; case BOOL, FLOAT16 -> throw new AssertionError();
         };
     }
 
@@ -516,7 +516,7 @@ class CpuFoldGeneratedKernelTest {
                     0x40c0, 0x40e0, 0x4100, 0x4110};
             case INT32 -> new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9};
             case INT64 -> new long[]{1, 2, 3, 4, 5, 6, 7, 8, 9};
-            case BOOL -> throw new AssertionError();
+            case BOOL, FLOAT16 -> throw new AssertionError();
         };
     }
 
@@ -538,7 +538,7 @@ class CpuFoldGeneratedKernelTest {
             case BFLOAT16 -> assertArrayEquals((short[]) expected, (short[]) actual);
             case INT32 -> assertArrayEquals((int[]) expected, (int[]) actual);
             case INT64 -> assertArrayEquals((long[]) expected, (long[]) actual);
-            case BOOL -> throw new AssertionError();
+            case BOOL, FLOAT16 -> throw new AssertionError();
         }
     }
 
@@ -550,7 +550,7 @@ class CpuFoldGeneratedKernelTest {
             case BFLOAT16 -> new CpuBufferArgument.Shorts((short[]) carrier, 0, bytes, readOnly);
             case INT32 -> new CpuBufferArgument.Ints((int[]) carrier, 0, bytes, readOnly);
             case INT64 -> new CpuBufferArgument.Longs((long[]) carrier, 0, bytes, readOnly);
-            case BOOL -> new CpuBufferArgument.Bytes((byte[]) carrier, 0, bytes, readOnly);
+            case BOOL, FLOAT16 -> throw new AssertionError();
         };
     }
 

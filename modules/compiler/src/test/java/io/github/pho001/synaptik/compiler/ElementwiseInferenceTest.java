@@ -38,6 +38,28 @@ final class ElementwiseInferenceTest {
     }
 
     @Test
+    void float16ForwardInferencePreservesHomogeneousAndPromotesMixedLowPrecision() {
+        Tensor float16 = tensor(DataType.FLOAT16);
+        Tensor bfloat16 = tensor(DataType.BFLOAT16);
+        Tensor condition = tensor(DataType.BOOL);
+        Tensor sameType = float16.add(float16).exp()
+                .mul(ScalarValue.float16Bits((short) 0x3C00));
+        Tensor mixed = float16.add(bfloat16);
+        Tensor selected = Tensor.where(condition, float16, bfloat16);
+        Tensor cast = float16.cast(DataType.BFLOAT16);
+
+        assertAll(
+                () -> assertEquals(DataType.FLOAT16, sameType.descriptor().dataType()),
+                () -> assertEquals(DataType.FLOAT32, mixed.descriptor().dataType()),
+                () -> assertEquals(DataType.FLOAT32, selected.descriptor().dataType()),
+                () -> assertEquals(DataType.BFLOAT16, cast.descriptor().dataType()));
+        for (Tensor output : List.of(sameType, mixed, selected, cast)) {
+            assertDoesNotThrow(() -> CapturedGraphInference.inferAndValidate(
+                    GraphCapture.capture(List.of(output))));
+        }
+    }
+
+    @Test
     void coversEveryKindAndAttributesVariant() {
         TensorDescriptor floating = descriptor(DataType.FLOAT32);
         TensorDescriptor bool = descriptor(DataType.BOOL);

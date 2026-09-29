@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.model.tensor;
 
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import java.util.Arrays;
@@ -96,6 +97,27 @@ final class TensorConstants {
     }
 
     /**
+     * Creates a rank-zero FLOAT16 constant by explicitly rounding a binary32 semantic value.
+     *
+     * @param value binary32 value converted with {@link Float16Bits#fromFloat(float)}
+     * @param label non-null optional label already checked by the public boundary
+     * @param requiresGrad explicit model-level gradient request
+     * @return a non-null fresh independent rank-zero dense tensor containing the converted
+     *     FLOAT16 bits
+     * @throws NullPointerException if the internal {@code label} precondition is violated
+     * @throws IllegalArgumentException if descriptor eligibility fails before source allocation or
+     *     delegated label validation fails after destination and ID allocation
+     * @throws ArithmeticException if checked scalar geometry overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     * @throws OutOfMemoryError if source or destination allocation fails
+     */
+    static Tensor scalarFloat16(float value, Optional<String> label, boolean requiresGrad) {
+        TensorDescriptor descriptor = descriptor(Shape.scalar(), DataType.FLOAT16, requiresGrad);
+        return TensorFactory.fromFlatFloat16Array(
+                descriptor, label, new short[] {Float16Bits.fromFloat(value)});
+    }
+
+    /**
      * Creates a rank-zero INT32 constant through exact signed-integer flat import.
      *
      * @param value exact signed 32-bit value
@@ -180,9 +202,10 @@ final class TensorConstants {
      * Creates a caller-shaped dense tensor by filling one exact typed carrier and importing it.
      *
      * <p>The fill values are {@code 1.0d}, {@code 1.0f}, converted BFLOAT16 {@code 0x3F80},
-     * {@code 1}, {@code 1L}, and BOOL byte {@code 1}. Exactly one carrier is created, filled, and
-     * passed to exactly one matching flat-import overload. Scalar shapes have one value; empty
-     * shapes use an empty carrier. The carrier is not retained.</p>
+     * converted FLOAT16 {@code 0x3C00}, {@code 1}, {@code 1L}, and BOOL byte {@code 1}. Exactly
+     * one carrier is created, filled, and passed to exactly one matching flat-import overload.
+     * Scalar shapes have one value; empty shapes use an empty carrier. The carrier is not
+     * retained.</p>
      *
      * @param shape non-null fully static logical shape; scalar and empty shapes are accepted
      * @param dataType non-null exact element type selecting carrier and one representation
@@ -284,6 +307,36 @@ final class TensorConstants {
         short[] source = new short[elementCount(descriptor)];
         Arrays.fill(source, BFloat16Bits.fromFloat(value));
         return TensorFactory.fromFlatArray(descriptor, label, source);
+    }
+
+    /**
+     * Creates a dense FLOAT16 tensor by converting and repeating one binary32 semantic value.
+     *
+     * <p>After descriptor validation, the semantic value is converted once with
+     * {@link Float16Bits#fromFloat(float)}, one {@code short[]} source is filled with those raw
+     * bits, and one matching flat import copies it. Scalar and empty static shapes are supported;
+     * the raw source carrier is neither exposed nor retained.</p>
+     *
+     * @param shape non-null fully static shape; scalar and empty shapes are accepted
+     * @param value binary32 value converted once with {@link Float16Bits#fromFloat(float)}
+     * @param label non-null optional label already checked by the public boundary
+     * @param requiresGrad explicit model-level gradient request
+     * @return a non-null fresh independent provenance-free dense tensor filled with converted bits
+     * @throws NullPointerException if an internal non-null shape or label precondition is violated
+     * @throws IllegalArgumentException if the shape is dynamic, its count exceeds the Java array
+     *     limit, the gradient request is ineligible, or delegated label validation rejects blank
+     *     text
+     * @throws ArithmeticException if checked element-count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after destination
+     *     allocation
+     * @throws OutOfMemoryError if source or destination allocation fails before ID allocation
+     */
+    static Tensor fullFloat16(
+            Shape shape, float value, Optional<String> label, boolean requiresGrad) {
+        TensorDescriptor descriptor = descriptor(shape, DataType.FLOAT16, requiresGrad);
+        short[] source = new short[elementCount(descriptor)];
+        Arrays.fill(source, Float16Bits.fromFloat(value));
+        return TensorFactory.fromFlatFloat16Array(descriptor, label, source);
     }
 
     /**
@@ -486,6 +539,11 @@ final class TensorConstants {
                 Arrays.fill(source, BFloat16Bits.fromFloat(1.0f));
                 yield TensorFactory.fromFlatArray(descriptor, label, source);
             }
+            case FLOAT16 -> {
+                short[] source = new short[length];
+                Arrays.fill(source, Float16Bits.fromFloat(1.0f));
+                yield TensorFactory.fromFlatFloat16Array(descriptor, label, source);
+            }
             case INT32 -> {
                 int[] source = new int[length];
                 Arrays.fill(source, 1);
@@ -545,6 +603,11 @@ final class TensorConstants {
                 fillIdentityDiagonal(source, diagonalLength, columns);
                 yield TensorFactory.fromFlatArray(descriptor, label, source);
             }
+            case FLOAT16 -> {
+                short[] source = new short[length];
+                fillIdentityFloat16(source, diagonalLength, columns);
+                yield TensorFactory.fromFlatFloat16Array(descriptor, label, source);
+            }
             case INT32 -> {
                 int[] source = new int[length];
                 fillIdentityDiagonal(source, diagonalLength, columns);
@@ -598,6 +661,20 @@ final class TensorConstants {
      */
     private static void fillIdentityDiagonal(short[] values, int diagonalLength, long columns) {
         short one = BFloat16Bits.fromFloat(1.0f);
+        for (int index = 0; index < diagonalLength; index++) {
+            values[(int) (index * columns + index)] = one;
+        }
+    }
+
+    /**
+     * Writes FLOAT16 one bits at every validated row-major main-diagonal position.
+     *
+     * @param values non-null default-zero raw-bit carrier; off-diagonal bits remain zero
+     * @param diagonalLength non-negative number of diagonal positions to write
+     * @param columns non-negative matrix column count used as the row-major stride
+     */
+    private static void fillIdentityFloat16(short[] values, int diagonalLength, long columns) {
+        short one = Float16Bits.fromFloat(1.0f);
         for (int index = 0; index < diagonalLength; index++) {
             values[(int) (index * columns + index)] = one;
         }

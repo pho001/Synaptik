@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -122,13 +123,14 @@ class TensorFactoryRandomTest {
     }
 
     @Test
-    void convertsScriptedSamplesExactlyForAllThreeFloatingCarriersInOrder() {
-        double[] gaussians = {-1.25d, 0.5d, 3.0d, -0.0d};
-        double mean = 0x1.0000000000001p20;
-        double deviation = 0x1.0000000000001p-20;
+    void convertsScriptedSamplesExactlyForAllFourFloatingCarriersInOrder() {
+        double[] gaussians = {1.0d, -1.0d, 3.0d, -0.0d};
+        double mean = 1.0d + Math.scalb(1.0d, -11);
+        double deviation = Math.scalb(1.0d, -25);
         ScriptedGenerator float64Source = new ScriptedGenerator(gaussians);
         ScriptedGenerator float32Source = new ScriptedGenerator(gaussians);
         ScriptedGenerator bfloat16Source = new ScriptedGenerator(gaussians);
+        ScriptedGenerator float16Source = new ScriptedGenerator(gaussians);
         Shape float64Shape = Shape.of(2, 2);
         Shape vectorShape = Shape.of(4);
 
@@ -156,28 +158,41 @@ class TensorFactoryRandomTest {
                 bfloat16Source,
                 Optional.empty(),
                 true);
+        Tensor float16 = TensorRandoms.randomNormal(
+                vectorShape,
+                DataType.FLOAT16,
+                mean,
+                deviation,
+                float16Source,
+                Optional.empty(),
+                true);
 
         double[] expected64 = new double[gaussians.length];
         float[] expected32 = new float[gaussians.length];
         short[] expectedBfloat16 = new short[gaussians.length];
+        short[] expectedFloat16 = new short[gaussians.length];
         for (int index = 0; index < gaussians.length; index++) {
             double sample = mean + gaussians[index] * deviation;
             expected64[index] = sample;
             expected32[index] = (float) sample;
             expectedBfloat16[index] = BFloat16Bits.fromFloat((float) sample);
+            expectedFloat16[index] = Float16Bits.fromDouble(sample);
         }
 
         assertAll(
                 () -> assertArrayEquals(expected64, heapArray(float64, double[].class)),
                 () -> assertArrayEquals(expected32, heapArray(float32, float[].class)),
                 () -> assertArrayEquals(expectedBfloat16, heapArray(bfloat16, short[].class)),
+                () -> assertArrayEquals(expectedFloat16, heapArray(float16, short[].class)),
                 () -> assertEquals(gaussians.length, float64Source.calls()),
                 () -> assertEquals(gaussians.length, float32Source.calls()),
                 () -> assertEquals(gaussians.length, bfloat16Source.calls()),
+                () -> assertEquals(gaussians.length, float16Source.calls()),
                 () -> assertEquals(Optional.of("normal"), float64.label()),
                 () -> assertDescriptor(float64, float64Shape, DataType.FLOAT64, true),
                 () -> assertDescriptor(float32, vectorShape, DataType.FLOAT32, true),
                 () -> assertDescriptor(bfloat16, vectorShape, DataType.BFLOAT16, true),
+                () -> assertDescriptor(float16, vectorShape, DataType.FLOAT16, true),
                 () -> assertNotSame(float64.hostStorage().orElseThrow(),
                         float32.hostStorage().orElseThrow()),
                 () -> assertNotEquals(float64.id(), float32.id()));

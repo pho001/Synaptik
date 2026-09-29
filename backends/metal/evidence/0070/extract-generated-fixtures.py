@@ -25,7 +25,7 @@ HELPERS = {
     b"sign_bits": "sign",
     b"relu_bits": "relu",
 }
-FIXED_BYTES = 84_541
+FIXED_BYTES = 84_603
 
 
 def extract_component(relative_path: str, symbol: str) -> bytes:

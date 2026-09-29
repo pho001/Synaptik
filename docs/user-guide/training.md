@@ -2,16 +2,20 @@
 
 ## Outcome
 
-This guide runs the implemented public CPU training lifecycle: one scalar objective, one reusable
-compiled/prepared session, repeated SGD updates, optional gradient accumulation, and detached
-state. The session uses the ordinary Engine path rather than a training-specific executor.
+This guide runs the implemented public backend-neutral training lifecycle: one scalar objective,
+one reusable compiled/prepared session, repeated SGD updates, optional gradient accumulation, and
+detached state. The worked example uses CPU through `Engine.standard()`; the session itself uses
+the ordinary Engine path rather than a training-specific executor. Supported Metal or mixed
+preparation follows the same lifecycle, but the low-parameter CPU qualification described here is
+not a claim of BFLOAT16/FLOAT16 Metal training support.
 
 ## Build a runnable scalar problem
 
 The first optimizer domain requires exact-capacity writable **shareable native** parameter storage.
-The example therefore gives the parameter and input an `Arena.ofShared()` lifetime. JVM-heap
-storage created by convenience Tensor factories is not an accepted parameter carrier in this
-initial lifecycle.
+Parameters may use `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16`; the scalar objective remains
+`FLOAT32` or `FLOAT64`. The example uses `FLOAT32` for both parameter and input and therefore gives
+them an `Arena.ofShared()` lifetime. JVM-heap storage created by convenience Tensor factories is not
+an accepted parameter carrier in this lifecycle.
 
 ```java
 final class ScalarModel extends Module {
@@ -94,7 +98,8 @@ first update without applying dampening. Later updates store
 `momentum * previous + (1 - dampening) * adjusted`. Ordinary momentum uses the new slot; Nesterov
 uses `adjusted + momentum * newSlot`. Dampening is in `[0, 1]`; Nesterov requires positive momentum
 and exactly zero dampening. The selected update is subtracted as `learningRate * selected`.
-FLOAT32 sessions validate the coefficients after narrowing as well as before it.
+FLOAT32, BFLOAT16, and FLOAT16 parameter sessions validate coefficients after narrowing to their
+private FLOAT32 arithmetic domain as well as before it; FLOAT64 uses the configured binary64 values.
 
 ## Accumulate and clear gradients
 
@@ -115,12 +120,15 @@ successful updates and are absent from an accumulate-only `TrainingStep`.
 
 ## Snapshot and restore
 
-`TrainingState snapshot = training.state()` owns canonical parameter, momentum, and pending-
-gradient bytes keyed by stable recursive parameter paths. `training.restore(snapshot)` validates
-the complete optimizer configuration, including dampening, counters, paths, data types, Shapes,
-finite payload values, and payload lengths before installing any state. The snapshot remains
-readable after session and Engine close. It is an in-memory recovery handoff, not a file or
-checkpoint format.
+`TrainingState snapshot = training.state()` owns canonical logical-parameter, master-parameter,
+momentum, and pending-gradient bytes keyed by stable recursive parameter paths. Logical payloads
+use the declared parameter width: two bytes per BFLOAT16/FLOAT16 element, four for FLOAT32, and
+eight for FLOAT64. Master, momentum, and accumulation payloads use four bytes per element for
+BFLOAT16, FLOAT16, and FLOAT32 parameters and eight for FLOAT64. `training.restore(snapshot)`
+validates the complete optimizer configuration, including dampening, counters, paths, data types,
+Shapes, finite payload values, and exact payload lengths before installing any state. The snapshot
+remains readable after session and Engine close. It is an in-memory recovery handoff, not a file
+or checkpoint format.
 
 ## Lifetimes and concurrency
 
@@ -133,18 +141,19 @@ Training work to finish, attempts all owned cleanup once, and never closes calle
 Repeated close calls replay the retained cleanup result.
 
 A failed validation, Engine run, publication check, materialization, decode, non-finite arithmetic,
-represented overflow, or candidate calculation changes no parameter bytes, optimizer slots,
-counters, or pending gradients. Current parameters, gradients, accumulation, momentum, arithmetic
-intermediates, and candidates must stay finite in their parameter precision; NaN and infinity are
-rejected, while negative and positive zero are both finite. Callers must not replace or
-concurrently mutate captured parameter wrappers, Tensor storage associations, or parameter bytes
-while the session is open.
+represented overflow, or candidate calculation changes no parameter bytes, private masters,
+optimizer slots, counters, or pending gradients. BFLOAT16, FLOAT16, and FLOAT32 parameters use
+finite FLOAT32 masters, gradients, accumulation, momentum, intermediates, and candidates; FLOAT64
+uses FLOAT64. A successful low-precision update narrows the validated master candidate once to the
+declared logical type before commit. NaN and infinity are rejected, while negative and positive
+zero are both finite. Callers must not replace or concurrently mutate captured parameter wrappers,
+Tensor storage associations, or parameter bytes while the session is open.
 
 ## Common errors
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Open rejects parameter storage | It is heap, read-only, thread-confined, wrong-sized, a view, or not native/aligned. | Use exact-capacity writable shareable native `FLOAT32`/`FLOAT64` storage with a dense offset-zero non-view layout. |
+| Open rejects parameter storage | It is heap, read-only, thread-confined, wrong-sized, a view, or not native/aligned. | Use exact-capacity writable shareable native `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` storage with a dense offset-zero non-view layout. |
 | Open rejects an empty/non-finite parameter | Its element count is zero or an initial value is NaN/infinite. | Supply a non-empty parameter with finite values before opening; rejection precedes compile. |
 | Run rejects non-finite optimizer arithmetic | A gradient, accumulation, momentum term, or candidate is NaN/infinite or overflowed. | Correct the objective/input scale; the failed run committed no parameter, optimizer state, or counter. |
 | Open rejects a target as disconnected | A discovered Module parameter does not contribute to the scalar objective. | Build the objective from the Module's complete intended trainable parameter set or use a Module containing only this session's parameters. |

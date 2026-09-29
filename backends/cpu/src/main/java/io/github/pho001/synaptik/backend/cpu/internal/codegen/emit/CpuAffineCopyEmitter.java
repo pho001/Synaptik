@@ -202,7 +202,7 @@ final class CpuAffineCopyEmitter {
         int value = code.allocateLocal(switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
-            case BFLOAT16, INT32, BOOL -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
             case INT64 -> TypeKind.LONG;
         });
         int index = code.allocateLocal(TypeKind.LONG);
@@ -228,7 +228,7 @@ final class CpuAffineCopyEmitter {
             switch (type) {
                 case FLOAT64 -> code.dstore(value);
                 case FLOAT32 -> code.fstore(value);
-                case BFLOAT16, INT32, BOOL -> code.istore(value);
+                case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(value);
                 case INT64 -> code.lstore(value);
             }
             emitDirectStore(code, type, specialization.carrierPattern().get(1), 1,
@@ -249,7 +249,7 @@ final class CpuAffineCopyEmitter {
         switch (type) {
             case FLOAT64 -> code.dstore(value);
             case FLOAT32 -> code.fstore(value);
-            case BFLOAT16, INT32, BOOL -> code.istore(value);
+            case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(value);
             case INT64 -> code.lstore(value);
         }
         carriers.store(type, specialization.carrierPattern().get(1), 1,
@@ -267,7 +267,7 @@ final class CpuAffineCopyEmitter {
             switch (type) {
                 case FLOAT64 -> code.dload(value).dastore();
                 case FLOAT32 -> code.fload(value).fastore();
-                case BFLOAT16 -> code.iload(value).sastore();
+                case BFLOAT16, FLOAT16 -> code.iload(value).sastore();
                 case INT32 -> code.iload(value).iastore();
                 case INT64 -> code.lload(value).lastore();
                 case BOOL -> code.iload(value).bastore();
@@ -282,7 +282,7 @@ final class CpuAffineCopyEmitter {
         switch (type) {
             case FLOAT64 -> code.dload(value);
             case FLOAT32 -> code.fload(value);
-            case BFLOAT16, INT32, BOOL -> code.iload(value);
+            case BFLOAT16, FLOAT16, INT32, BOOL -> code.iload(value);
             case INT64 -> code.lload(value);
         }
         code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(TypeKind.VOID.upperBound(),
@@ -297,7 +297,7 @@ final class CpuAffineCopyEmitter {
             switch (type) {
                 case FLOAT64 -> code.daload();
                 case FLOAT32 -> code.faload();
-                case BFLOAT16 -> code.saload();
+                case BFLOAT16, FLOAT16 -> code.saload();
                 case INT32 -> code.iaload();
                 case INT64 -> code.laload();
                 case BOOL -> code.baload();
@@ -317,7 +317,8 @@ final class CpuAffineCopyEmitter {
                 || access == switch (type) {
                     case FLOAT64 -> CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY;
                     case FLOAT32 -> CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY;
-                    case BFLOAT16 -> CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY;
+                    case BFLOAT16, FLOAT16 ->
+                            CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY;
                     case INT32 -> CpuKernelSpecialization.CarrierAccess.INT_ARRAY;
                     case INT64 -> CpuKernelSpecialization.CarrierAccess.LONG_ARRAY;
                     case BOOL -> CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY;
@@ -328,7 +329,7 @@ final class CpuAffineCopyEmitter {
         return switch (type) {
             case FLOAT64 -> DOUBLE_LAYOUT;
             case FLOAT32 -> FLOAT_LAYOUT;
-            case BFLOAT16 -> SHORT_LAYOUT;
+            case BFLOAT16, FLOAT16 -> SHORT_LAYOUT;
             case INT32 -> INT_LAYOUT;
             case INT64 -> LONG_LAYOUT;
             case BOOL -> BYTE_LAYOUT;
@@ -339,7 +340,7 @@ final class CpuAffineCopyEmitter {
         return switch (type) {
             case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED";
             case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
-            case BFLOAT16 -> "JAVA_SHORT_UNALIGNED";
+            case BFLOAT16, FLOAT16 -> "JAVA_SHORT_UNALIGNED";
             case INT32 -> "JAVA_INT_UNALIGNED";
             case INT64 -> "JAVA_LONG_UNALIGNED";
             case BOOL -> "JAVA_BYTE";
@@ -350,7 +351,7 @@ final class CpuAffineCopyEmitter {
         return switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE.upperBound();
             case FLOAT32 -> TypeKind.FLOAT.upperBound();
-            case BFLOAT16 -> TypeKind.SHORT.upperBound();
+            case BFLOAT16, FLOAT16 -> TypeKind.SHORT.upperBound();
             case INT32 -> TypeKind.INT.upperBound();
             case INT64 -> TypeKind.LONG.upperBound();
             case BOOL -> TypeKind.BYTE.upperBound();
@@ -363,7 +364,7 @@ final class CpuAffineCopyEmitter {
         int value = code.allocateLocal(switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
-            case BFLOAT16, INT32, BOOL -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
             case INT64 -> TypeKind.LONG;
         });
         int index = code.allocateLocal(TypeKind.INT);
@@ -384,7 +385,7 @@ final class CpuAffineCopyEmitter {
         switch (type) {
             case FLOAT64 -> code.dstore(value);
             case FLOAT32 -> code.fstore(value);
-            case BFLOAT16, INT32, BOOL -> code.istore(value);
+            case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(value);
             case INT64 -> code.lstore(value);
         }
         carriers.store(type, specialization.carrierPattern().get(1), 1, resultAddress, value, true);

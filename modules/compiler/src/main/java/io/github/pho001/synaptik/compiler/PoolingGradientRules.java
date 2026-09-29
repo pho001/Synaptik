@@ -173,6 +173,7 @@ final class PoolingGradientRules {
                 constants.zeroLike(candidates));
         Tensor columns = routed
                 .permute(0, 1, 3, 2)
+                .contiguous()
                 .reshape(Shape.ofDimensions(
                         batch,
                         DimensionExpressions.multiply(channels, kernelElements),
@@ -291,6 +292,7 @@ final class PoolingGradientRules {
                 constants.zeroLike(candidates));
         Tensor columns = routed
                 .permute(0, 1, 3, 2)
+                .contiguous()
                 .reshape(Shape.ofDimensions(
                         batch,
                         DimensionExpressions.multiply(channels, kernelElements),
@@ -375,13 +377,14 @@ final class PoolingGradientRules {
     /**
      * Returns exact typed positive-zero scalar metadata for padding in the in-bounds probe.
      *
-     * @param dataType non-null BFLOAT16, FLOAT32, or FLOAT64 type
+     * @param dataType non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type
      * @return exact positive-zero scalar metadata of the requested floating type
      * @throws IllegalArgumentException if {@code dataType} is not floating
      */
     private static ScalarValue positiveZero(DataType dataType) {
         return switch (dataType) {
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x0000);
+            case FLOAT16 -> ScalarValue.float16Bits((short) 0x0000);
             case FLOAT32 -> ScalarValue.float32(0.0f);
             case FLOAT64 -> ScalarValue.float64(0.0d);
             case INT32, INT64, BOOL ->
@@ -392,13 +395,14 @@ final class PoolingGradientRules {
     /**
      * Returns exact typed negative-infinity scalar metadata for maximum-pool padding.
      *
-     * @param dataType non-null BFLOAT16, FLOAT32, or FLOAT64 type
+     * @param dataType non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type
      * @return exact negative-infinity scalar metadata of the requested floating type
      * @throws IllegalArgumentException if {@code dataType} is not floating
      */
     private static ScalarValue negativeInfinity(DataType dataType) {
         return switch (dataType) {
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0xFF80);
+            case FLOAT16 -> ScalarValue.float16Bits((short) 0xFC00);
             case FLOAT32 -> ScalarValue.float32(Float.NEGATIVE_INFINITY);
             case FLOAT64 -> ScalarValue.float64(Double.NEGATIVE_INFINITY);
             case INT32, INT64, BOOL ->

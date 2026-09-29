@@ -464,7 +464,9 @@ public final class CpuRepresentationPlanner {
                 var values = ir.values().stream()
                         .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL).toList();
                 CpuKernelIr.Value value = values.get(local);
-                if (value.kind() != CpuKernelIr.Value.Kind.INPUT || value.dataType() == DataType.BFLOAT16
+                if (value.kind() != CpuKernelIr.Value.Kind.INPUT
+                        || value.dataType() == DataType.BFLOAT16
+                        || value.dataType() == DataType.FLOAT16
                         || !admitted(value.dataType())) { compatible = false; break; }
                 long uses=unit.portablePlan().specialization().matmulIr().isPresent()?1:ir.instructions().stream()
                         .flatMap(instruction->instruction.inputs().stream())

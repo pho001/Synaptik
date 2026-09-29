@@ -48,17 +48,17 @@ import org.junit.jupiter.api.Test;
 class CpuOrdinaryMovementFoldSemanticClosureTest {
     private static final String INVENTORY = "generated-coverage-inventory.tsv";
     private static final String INVENTORY_SHA256 =
-            "6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2";
+            "9c06f9898dc287c6d2c3805088460c699052d14dbe707de146845659ce5450eb";
     private static final Set<String> FORMS = Set.of("CONCAT", "STACK", "TILE", "SLICE_UPDATE",
             "UNFOLD_AXIS", "FOLD_AXIS", "FOLD2D", "UNFOLD2D", "PAD");
-    private static final Map<String, Long> FORM_COUNTS = Map.of("CONCAT", 24L, "STACK", 24L,
-            "TILE", 24L, "SLICE_UPDATE", 24L, "UNFOLD_AXIS", 24L, "FOLD_AXIS", 20L,
-            "FOLD2D", 12L, "UNFOLD2D", 4L, "PAD", 4L);
+    private static final Map<String, Long> FORM_COUNTS = Map.of("CONCAT", 28L, "STACK", 28L,
+            "TILE", 28L, "SLICE_UPDATE", 28L, "UNFOLD_AXIS", 28L, "FOLD_AXIS", 24L,
+            "FOLD2D", 16L, "UNFOLD2D", 4L, "PAD", 4L);
 
     @Test void everyExactOrdinaryMovementAndFoldOwnerExecutesAgainstIndependentOracle()
             throws Throwable {
         var candidates = CpuOrdinaryNonPointwiseGeneratedMatrixTest.movementOrFoldCandidates();
-        assertEquals(160, candidates.size());
+        assertEquals(188, candidates.size());
         assertEquals(FORM_COUNTS, counts(candidates));
         var inventory = projection(inventoryBytes());
         assertEquals(candidateIds(candidates), inventory.keySet(), "exact checked owner projection");
@@ -102,7 +102,7 @@ class CpuOrdinaryMovementFoldSemanticClosureTest {
             throws Exception {
         byte[] bytes = inventoryBytes();
         var projection = projection(bytes);
-        assertEquals(160, projection.size());
+        assertEquals(188, projection.size());
         String text = new String(bytes, StandardCharsets.UTF_8);
         String owner = projection.keySet().iterator().next();
         String row = Arrays.stream(text.split("\\R")).filter(line -> line.startsWith(owner + "\t"))
@@ -240,7 +240,7 @@ class CpuOrdinaryMovementFoldSemanticClosureTest {
     private static long windows(long size, long kernel, long stride, long pad, long dilation, boolean ceil) { long numerator = size + 2 * pad - (dilation * (kernel - 1) + 1); return (ceil ? Math.floorDiv(numerator + stride - 1, stride) : Math.floorDiv(numerator, stride)) + 1; }
 
     private static TensorDescriptor descriptor(PrepareContext<CpuPartitionAnalysisInputs> c, ValueId id) { return c.values().stream().filter(value -> value.id().equals(id)).findFirst().orElseThrow().descriptor(); }
-    private static long scalarRaw(io.github.pho001.synaptik.model.datatype.ScalarValue value) { return switch (value.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits(value.float64Value()); case FLOAT32 -> Float.floatToRawIntBits(value.float32Value()) & 0xffffffffL; case BFLOAT16 -> value.bfloat16Bits() & 0xffffL; case INT32 -> value.int32Value() & 0xffffffffL; case INT64 -> value.int64Value(); case BOOL -> value.booleanValue() ? 1L : 0L; }; }
+    private static long scalarRaw(io.github.pho001.synaptik.model.datatype.ScalarValue value) { return switch (value.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits(value.float64Value()); case FLOAT32 -> Float.floatToRawIntBits(value.float32Value()) & 0xffffffffL; case BFLOAT16 -> value.bfloat16Bits() & 0xffffL; case FLOAT16 -> value.float16Bits() & 0xffffL; case INT32 -> value.int32Value() & 0xffffffffL; case INT64 -> value.int64Value(); case BOOL -> value.booleanValue() ? 1L : 0L; }; }
     private static long[] coordinates(Shape shape, long linear) { long[] dims = shape.toLongArray(), result = new long[dims.length]; for (int i = dims.length - 1; i >= 0; i--) { result[i] = linear % dims[i]; linear /= dims[i]; } return result; }
     private static void assertUntouchedOutsideRange(Storage output, long start, long end, String label) { for (long i = 0; i < output.elements(); i++) if (i < start || i >= end) assertEquals(output.sentinel(), output.get(coordinates(output.descriptor.shape(), i)), label + " untouched " + i); }
     private static void assertRawEquals(Object expected, Object actual, String label) { if (expected instanceof double[] a) assertArrayEquals(a, (double[]) actual, label); else if (expected instanceof float[] a) assertArrayEquals(a, (float[]) actual, label); else if (expected instanceof short[] a) assertArrayEquals(a, (short[]) actual, label); else if (expected instanceof int[] a) assertArrayEquals(a, (int[]) actual, label); else if (expected instanceof long[] a) assertArrayEquals(a, (long[]) actual, label); else assertArrayEquals((byte[]) expected, (byte[]) actual, label); }
@@ -248,15 +248,15 @@ class CpuOrdinaryMovementFoldSemanticClosureTest {
 
     private static final class Storage {
         private final TensorDescriptor descriptor; private final Object array; private final Object carrier;
-        Storage(TensorDescriptor descriptor, boolean segment) { this.descriptor = descriptor; int length = Math.toIntExact(maxAddress(descriptor) + 1); array = switch (descriptor.dataType()) { case FLOAT64 -> new double[length]; case FLOAT32 -> new float[length]; case BFLOAT16 -> new short[length]; case INT32 -> new int[length]; case INT64 -> new long[length]; case BOOL -> new byte[length]; }; carrier = segment ? segment(array) : array; }
-        long elements() { return descriptor.shape().knownElementCount().orElseThrow(); } long extent(int axis) { return descriptor.shape().toLongArray()[axis]; } long sentinel() { return switch (descriptor.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits(-991.25); case FLOAT32 -> Float.floatToRawIntBits(-991.25f); case BFLOAT16 -> 0xc47d; case INT32 -> 0x55aa55aaL; case INT64 -> 0x55aa55aa55aa55aaL; case BOOL -> 0x5a; }; } long zero() { return 0; }
+        Storage(TensorDescriptor descriptor, boolean segment) { this.descriptor = descriptor; int length = Math.toIntExact(maxAddress(descriptor) + 1); array = switch (descriptor.dataType()) { case FLOAT64 -> new double[length]; case FLOAT32 -> new float[length]; case BFLOAT16, FLOAT16 -> new short[length]; case INT32 -> new int[length]; case INT64 -> new long[length]; case BOOL -> new byte[length]; }; carrier = segment ? segment(array) : array; }
+        long elements() { return descriptor.shape().knownElementCount().orElseThrow(); } long extent(int axis) { return descriptor.shape().toLongArray()[axis]; } long sentinel() { return switch (descriptor.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits(-991.25); case FLOAT32 -> Float.floatToRawIntBits(-991.25f); case BFLOAT16 -> 0xc47d; case FLOAT16 -> Float.floatToFloat16(-991.25f) & 0xffffL; case INT32 -> 0x55aa55aaL; case INT64 -> 0x55aa55aa55aa55aaL; case BOOL -> 0x5a; }; } long zero() { return 0; }
         void fillInput() { for (long i = 0; i < elements(); i++) set(coordinates(descriptor.shape(), i), sample(i)); }
         void restoreSentinel() { for (long i = 0; i < elements(); i++) set(coordinates(descriptor.shape(), i), sentinel()); }
         Object carrier() { return carrier; } Object copy() { if (array instanceof double[] a) return a.clone(); if (array instanceof float[] a) return a.clone(); if (array instanceof short[] a) return a.clone(); if (array instanceof int[] a) return a.clone(); if (array instanceof long[] a) return a.clone(); return ((byte[]) array).clone(); }
-        long get(long[] c) { int p = Math.toIntExact(address(descriptor, c)); return switch (descriptor.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits(((double[]) array)[p]); case FLOAT32 -> Float.floatToRawIntBits(((float[]) array)[p]); case BFLOAT16 -> ((short[]) array)[p] & 0xffffL; case INT32 -> ((int[]) array)[p] & 0xffffffffL; case INT64 -> ((long[]) array)[p]; case BOOL -> ((byte[]) array)[p] & 0xffL; }; }
-        void set(long[] c, long raw) { int p = Math.toIntExact(address(descriptor, c)); switch (descriptor.dataType()) { case FLOAT64 -> ((double[]) array)[p] = Double.longBitsToDouble(raw); case FLOAT32 -> ((float[]) array)[p] = Float.intBitsToFloat((int) raw); case BFLOAT16 -> ((short[]) array)[p] = (short) raw; case INT32 -> ((int[]) array)[p] = (int) raw; case INT64 -> ((long[]) array)[p] = raw; case BOOL -> ((byte[]) array)[p] = (byte) raw; } }
-        long sample(long i) { return switch (descriptor.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits((i % 7 - 3) * 1.25); case FLOAT32 -> Float.floatToRawIntBits((float) ((i % 7 - 3) * 1.25)); case BFLOAT16 -> bfloat((float) ((i % 7 - 3) * 1.25)); case INT32 -> (i % 7 - 3) * 0x40000001L; case INT64 -> (i % 7 - 3) * 0x4000000000000001L; case BOOL -> i & 1; }; }
-        long add(long left, long right) { return switch (descriptor.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits(Double.longBitsToDouble(left) + Double.longBitsToDouble(right)); case FLOAT32 -> Float.floatToRawIntBits(Float.intBitsToFloat((int) left) + Float.intBitsToFloat((int) right)); case BFLOAT16 -> bfloat(Float.intBitsToFloat((int) left << 16) + Float.intBitsToFloat((int) right << 16)); case INT32 -> (int) left + (int) right; case INT64 -> left + right; case BOOL -> throw new AssertionError(); }; }
+        long get(long[] c) { int p = Math.toIntExact(address(descriptor, c)); return switch (descriptor.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits(((double[]) array)[p]); case FLOAT32 -> Float.floatToRawIntBits(((float[]) array)[p]); case BFLOAT16, FLOAT16 -> ((short[]) array)[p] & 0xffffL; case INT32 -> ((int[]) array)[p] & 0xffffffffL; case INT64 -> ((long[]) array)[p]; case BOOL -> ((byte[]) array)[p] & 0xffL; }; }
+        void set(long[] c, long raw) { int p = Math.toIntExact(address(descriptor, c)); switch (descriptor.dataType()) { case FLOAT64 -> ((double[]) array)[p] = Double.longBitsToDouble(raw); case FLOAT32 -> ((float[]) array)[p] = Float.intBitsToFloat((int) raw); case BFLOAT16, FLOAT16 -> ((short[]) array)[p] = (short) raw; case INT32 -> ((int[]) array)[p] = (int) raw; case INT64 -> ((long[]) array)[p] = raw; case BOOL -> ((byte[]) array)[p] = (byte) raw; } }
+        long sample(long i) { return switch (descriptor.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits((i % 7 - 3) * 1.25); case FLOAT32 -> Float.floatToRawIntBits((float) ((i % 7 - 3) * 1.25)); case BFLOAT16 -> bfloat((float) ((i % 7 - 3) * 1.25)); case FLOAT16 -> Float.floatToFloat16((float) ((i % 7 - 3) * 1.25)) & 0xffffL; case INT32 -> (i % 7 - 3) * 0x40000001L; case INT64 -> (i % 7 - 3) * 0x4000000000000001L; case BOOL -> i & 1; }; }
+        long add(long left, long right) { return switch (descriptor.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits(Double.longBitsToDouble(left) + Double.longBitsToDouble(right)); case FLOAT32 -> Float.floatToRawIntBits(Float.intBitsToFloat((int) left) + Float.intBitsToFloat((int) right)); case BFLOAT16 -> bfloat(Float.intBitsToFloat((int) left << 16) + Float.intBitsToFloat((int) right << 16)); case FLOAT16 -> Float.floatToFloat16(Float.float16ToFloat((short) left) + Float.float16ToFloat((short) right)) & 0xffffL; case INT32 -> (int) left + (int) right; case INT64 -> left + right; case BOOL -> throw new AssertionError(); }; }
         private static long bfloat(float value) { int bits = Float.floatToRawIntBits(value); int upper = bits >>> 16, lower = bits & 0xffff; return (lower > 0x8000 || lower == 0x8000 && (upper & 1) != 0 ? upper + 1 : upper) & 0xffffL; }
     }
     private static long address(TensorDescriptor d, long[] coordinates) { long[] strides = d.layout().orElseThrow().strides(); long result = d.layout().orElseThrow().storageOffset(); for (int i = 0; i < coordinates.length; i++) result += coordinates[i] * strides[i]; return result; }

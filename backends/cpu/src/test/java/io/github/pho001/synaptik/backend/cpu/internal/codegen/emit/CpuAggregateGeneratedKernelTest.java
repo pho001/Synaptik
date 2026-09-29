@@ -967,7 +967,8 @@ class CpuAggregateGeneratedKernelTest {
     private static CarrierAccess carrier(DataType type) { return switch(type) {
         case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
         case BFLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
-        case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> CarrierAccess.BYTE_ARRAY; }; }
+        case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> CarrierAccess.BYTE_ARRAY;
+        case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU aggregate unsupported"); }; }
     private static CpuBufferArgument argument(DataType type,Object value,boolean readOnly) {
         return switch(type) {
             case FLOAT64 -> new CpuBufferArgument.Doubles((double[])value,0,((double[])value).length*8L,readOnly);
@@ -976,6 +977,7 @@ class CpuAggregateGeneratedKernelTest {
             case INT32 -> new CpuBufferArgument.Ints((int[])value,0,((int[])value).length*4L,readOnly);
             case INT64 -> new CpuBufferArgument.Longs((long[])value,0,((long[])value).length*8L,readOnly);
             case BOOL -> new CpuBufferArgument.Bytes((byte[])value,0,((byte[])value).length,readOnly);
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU aggregate unsupported");
         };
     }
 
@@ -1018,6 +1020,7 @@ class CpuAggregateGeneratedKernelTest {
         short[] values = new short[count];
         for (int index = 0; index < count; index++)
             values[index] = (short) bfloatBits[index % bfloatBits.length];
+        if (type == DataType.FLOAT16) throw new IllegalArgumentException("FLOAT16 CPU aggregate unsupported");
         return values;
     }
 
@@ -1035,6 +1038,7 @@ class CpuAggregateGeneratedKernelTest {
         String carrierDescriptor = switch (type) {
             case FLOAT64 -> "[D"; case FLOAT32 -> "[F"; case BFLOAT16 -> "[S";
             case INT32 -> "[I"; case INT64 -> "[J"; case BOOL -> "[B";
+            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU aggregate unsupported");
         };
         assertAll(kind + " " + type,
                 () -> assertEquals("(" + carrierDescriptor + carrierDescriptor + "[JJJ)V",

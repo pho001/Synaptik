@@ -31,7 +31,7 @@ class BatchNormInitializationTest {
     void initializesOneZeroZeroOneInExactOrderForEveryFloatingType()
             throws ReflectiveOperationException {
         for (DataType dataType : List.of(
-                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
             ScalarValue momentum = momentum(dataType);
             ScalarValue epsilon = epsilon(dataType);
             AtomicLong next = nextTensorIdState();
@@ -230,7 +230,7 @@ class BatchNormInitializationTest {
     private static ScalarValue momentum(DataType dataType) {
         return switch (dataType) {
             case BFLOAT16 -> ScalarValue.bfloat16(0.25f);
-            case FLOAT32 -> ScalarValue.float32(0.25f);
+            case FLOAT16, FLOAT32 -> ScalarValue.float32(0.25f);
             case FLOAT64 -> ScalarValue.float64(0.25);
             default -> throw new IllegalArgumentException("floating data type required");
         };
@@ -239,7 +239,7 @@ class BatchNormInitializationTest {
     private static ScalarValue epsilon(DataType dataType) {
         return switch (dataType) {
             case BFLOAT16 -> ScalarValue.bfloat16(1.0e-2f);
-            case FLOAT32 -> ScalarValue.float32(1.0e-5f);
+            case FLOAT16, FLOAT32 -> ScalarValue.float32(1.0e-5f);
             case FLOAT64 -> ScalarValue.float64(1.0e-5);
             default -> throw new IllegalArgumentException("floating data type required");
         };
@@ -263,6 +263,11 @@ class BatchNormInitializationTest {
                 Arrays.fill(expected, (short) 0x3F80);
                 assertArrayEquals(expected, (short[]) array);
             }
+            case FLOAT16 -> {
+                short[] expected = new short[java.lang.reflect.Array.getLength(array)];
+                Arrays.fill(expected, (short) 0x3C00);
+                assertArrayEquals(expected, (short[]) array);
+            }
             default -> throw new AssertionError("unexpected data type");
         }
     }
@@ -274,7 +279,7 @@ class BatchNormInitializationTest {
                     new double[java.lang.reflect.Array.getLength(array)], (double[]) array);
             case FLOAT32 -> assertArrayEquals(
                     new float[java.lang.reflect.Array.getLength(array)], (float[]) array);
-            case BFLOAT16 -> assertArrayEquals(
+            case BFLOAT16, FLOAT16 -> assertArrayEquals(
                     new short[java.lang.reflect.Array.getLength(array)], (short[]) array);
             default -> throw new AssertionError("unexpected data type");
         }

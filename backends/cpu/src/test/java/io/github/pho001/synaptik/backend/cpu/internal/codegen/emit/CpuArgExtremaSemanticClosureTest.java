@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
 /** Executes every generated ARG_MIN and ARG_MAX inventory owner against a local scalar oracle. */
 class CpuArgExtremaSemanticClosureTest {
     private static final List<DataType> INPUT_TYPES = List.of(DataType.FLOAT64, DataType.FLOAT32,
-            DataType.BFLOAT16, DataType.INT64, DataType.INT32);
+            DataType.BFLOAT16, DataType.FLOAT16, DataType.INT64, DataType.INT32);
     private static final Shape INPUT = Shape.of(2, 3);
     private static final CpuPartitionAnalysisInputs.MaterializationPolicy MATERIALIZATION =
             new CpuPartitionAnalysisInputs.MaterializationPolicy(true, 0, 1, 20, 1, 3,
@@ -52,9 +52,9 @@ class CpuArgExtremaSemanticClosureTest {
                         invokeAndCompare(fixture);
                         if (kind == AggregateReductionKind.ARG_MIN) min++; else max++;
                     }
-        assertEquals(200, min, "ARG_MIN direct generated invocations");
-        assertEquals(200, max, "ARG_MAX direct generated invocations");
-        assertEquals(400, owners.size(), "one exact generated definition/invocation per arg-extrema owner");
+        assertEquals(240, min, "ARG_MIN direct generated invocations");
+        assertEquals(240, max, "ARG_MAX direct generated invocations");
+        assertEquals(480, owners.size(), "one exact generated definition/invocation per arg-extrema owner");
         assertEquals(inventoryOwners(), owners, "complete non-projecting arg-extrema inventory-owner join");
     }
 
@@ -230,8 +230,8 @@ class CpuArgExtremaSemanticClosureTest {
                         && (fields[2].equals("ARG_MIN") || fields[2].equals("ARG_MAX")))
                     assertTrue(result.add(fields[0]), "duplicate inventory owner " + fields[0]);
             }
-            assertEquals(200, result.stream().filter(value -> value.startsWith("specialized:arg/ARG_MIN/")).count());
-            assertEquals(200, result.stream().filter(value -> value.startsWith("specialized:arg/ARG_MAX/")).count());
+            assertEquals(240, result.stream().filter(value -> value.startsWith("specialized:arg/ARG_MIN/")).count());
+            assertEquals(240, result.stream().filter(value -> value.startsWith("specialized:arg/ARG_MAX/")).count());
             return result;
         }
     }
@@ -266,20 +266,21 @@ class CpuArgExtremaSemanticClosureTest {
         Storage(DataType type, CarrierAccess carrier, int capacity) {
             this.type = type; this.carrier = carrier;
             heap = switch (type) { case FLOAT64 -> new double[capacity]; case FLOAT32 -> new float[capacity];
-                case BFLOAT16 -> new short[capacity]; case INT64 -> new long[capacity]; case INT32 -> new int[capacity];
+                case BFLOAT16, FLOAT16 -> new short[capacity]; case INT64 -> new long[capacity]; case INT32 -> new int[capacity];
                 default -> throw new AssertionError(type); };
             segment = switch (type) { case FLOAT64 -> MemorySegment.ofArray((double[]) heap); case FLOAT32 -> MemorySegment.ofArray((float[]) heap);
-                case BFLOAT16 -> MemorySegment.ofArray((short[]) heap); case INT64 -> MemorySegment.ofArray((long[]) heap);
+                case BFLOAT16, FLOAT16 -> MemorySegment.ofArray((short[]) heap); case INT64 -> MemorySegment.ofArray((long[]) heap);
                 case INT32 -> MemorySegment.ofArray((int[]) heap); default -> throw new AssertionError(type); };
         }
         Object argument() { return carrier == CarrierAccess.MEMORY_SEGMENT ? segment : heap; }
         void fill(long value) { Arrays.fill((long[]) heap, value); }
         void set(long index, double value) { switch (type) { case FLOAT64 -> ((double[]) heap)[(int) index] = value;
             case FLOAT32 -> ((float[]) heap)[(int) index] = (float) value; case BFLOAT16 -> ((short[]) heap)[(int) index] = ScalarValue.bfloat16((float) value).bfloat16Bits();
+            case FLOAT16 -> ((short[]) heap)[(int) index] = Float.floatToFloat16((float) value);
             case INT64 -> ((long[]) heap)[(int) index] = (long) value; case INT32 -> ((int[]) heap)[(int) index] = (int) value; default -> throw new AssertionError(type); } }
         double get(long index) { return switch (type) { case FLOAT64 -> ((double[]) heap)[(int) index]; case FLOAT32 -> ((float[]) heap)[(int) index];
-            case BFLOAT16 -> Float.intBitsToFloat((((short[]) heap)[(int) index] & 0xffff) << 16); case INT64 -> ((long[]) heap)[(int) index]; case INT32 -> ((int[]) heap)[(int) index]; default -> throw new AssertionError(type); }; }
+            case BFLOAT16 -> Float.intBitsToFloat((((short[]) heap)[(int) index] & 0xffff) << 16); case FLOAT16 -> Float.float16ToFloat(((short[]) heap)[(int) index]); case INT64 -> ((long[]) heap)[(int) index]; case INT32 -> ((int[]) heap)[(int) index]; default -> throw new AssertionError(type); }; }
         long[] longSnapshot() { return ((long[]) heap).clone(); }
-        long[] rawBits() { long[] result = new long[java.lang.reflect.Array.getLength(heap)]; for (int i = 0; i < result.length; i++) result[i] = switch (type) { case FLOAT64 -> Double.doubleToRawLongBits(((double[]) heap)[i]); case FLOAT32 -> Float.floatToRawIntBits(((float[]) heap)[i]); case BFLOAT16 -> ((short[]) heap)[i] & 0xffffL; case INT64 -> ((long[]) heap)[i]; case INT32 -> ((int[]) heap)[i]; default -> throw new AssertionError(type); }; return result; }
+        long[] rawBits() { long[] result = new long[java.lang.reflect.Array.getLength(heap)]; for (int i = 0; i < result.length; i++) result[i] = switch (type) { case FLOAT64 -> Double.doubleToRawLongBits(((double[]) heap)[i]); case FLOAT32 -> Float.floatToRawIntBits(((float[]) heap)[i]); case BFLOAT16, FLOAT16 -> ((short[]) heap)[i] & 0xffffL; case INT64 -> ((long[]) heap)[i]; case INT32 -> ((int[]) heap)[i]; default -> throw new AssertionError(type); }; return result; }
     }
 }

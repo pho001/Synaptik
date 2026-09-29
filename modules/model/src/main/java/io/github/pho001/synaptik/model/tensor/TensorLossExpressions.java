@@ -53,8 +53,8 @@ final class TensorLossExpressions {
      * <p>The selected meaning is {@code (prediction - target)^2}. None retains every coordinate,
      * sum reduces the complete logical domain, and mean divides that sum by the complete logical
      * element count. A scalar count is one; a zero-extent domain has empty none, positive-zero sum,
-     * and NaN mean. BFLOAT16/FLOAT32 use FLOAT32 computation and FLOAT64 uses FLOAT64. NaN,
-     * infinity, signed-zero, overflow, reassociation, and determinism follow the public
+     * and NaN mean. BFLOAT16, FLOAT16, and FLOAT32 use FLOAT32 computation; FLOAT64 uses FLOAT64.
+     * NaN, infinity, signed-zero, overflow, reassociation, and determinism follow the public
      * {@link Tensor#meanSquaredError(Tensor, LossReduction)} contract.</p>
      *
      * @param prediction non-null floating prediction retained at producer input position zero
@@ -112,9 +112,9 @@ final class TensorLossExpressions {
      *
      * <p>On the dense branch, logits and target participate in floating promotion and gradient
      * eligibility. On the index branch, result type and gradient eligibility come only from
-     * logits; the integral target is neither promoted nor cast. BFLOAT16 and FLOAT32 index results
-     * use at least FLOAT32 log-sum-exp, subtraction, accumulation, and division, while FLOAT64
-     * uses FLOAT64. These are semantic requirements, not eager evaluation or backend-algorithm
+     * logits; the integral target is neither promoted nor cast. BFLOAT16, FLOAT16, and FLOAT32
+     * index results use at least FLOAT32 log-sum-exp, subtraction, accumulation, and division,
+     * while FLOAT64 uses FLOAT64. These are semantic requirements, not eager evaluation or backend-algorithm
      * selection.</p>
      *
      * @param logits non-null floating logits retained at producer input position zero
@@ -167,12 +167,12 @@ final class TensorLossExpressions {
      * extent retains the later obligation that the sample domain is empty or every target is
      * ignored; dynamic Shape equality and bounds also remain deferred.</p>
      *
-     * <p>BFLOAT16 and FLOAT32 use at least FLOAT32 computation; FLOAT64 uses FLOAT64. Ignored
-     * positions stay positive zero without propagating their logits' NaN or infinity. For a
-     * non-ignored slice, NaN or positive infinity and an all-negative-infinity slice produce NaN;
+     * <p>BFLOAT16, FLOAT16, and FLOAT32 use at least FLOAT32 computation; FLOAT64 uses FLOAT64.
+     * Ignored positions stay positive zero without propagating their logits' NaN or infinity. For
+     * a non-ignored slice, NaN or positive infinity and an all-negative-infinity slice produce NaN;
      * selecting negative infinity when another class is finite produces positive infinity.</p>
      *
-     * @param logits non-null BFLOAT16, FLOAT32, or FLOAT64 logits retained at input zero
+     * @param logits non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 logits retained at input zero
      * @param target non-null exact INT32 or INT64 class-index target retained at input one
      * @param classAxis positive or negative logits class axis normalized exactly once
      * @param reduction non-null explicit none, sum, or non-ignored-count mean reduction

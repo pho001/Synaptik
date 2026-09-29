@@ -182,37 +182,81 @@ The following invariants must remain true:
   path.
 - `STRICT_IEEE` retains every current per-operation promise and freedom. Its unary contract owns
   exact-reference primitive bounds, special/domain rules, and recursive native/one-wider results
-  for every accepted BFLOAT16/FLOAT32/FLOAT64 type, independent of backend algorithms.
-  `ACCELERATOR` is its total recursive `FLOAT32` superset: exact mapping/selection/state, DAZ/FTZ
-  and one-round primitives, an inclusive ordered-binary32 distance-at-most-five ceiling only at
-  irreducible elementary-function sites, and all-declared-contributors-once aggregate freedom.
-  Composite Model and generated-gradient formulas inherit those floors at their sites and gain no
-  final-output tolerance; non-FLOAT32 behavior remains strict.
+  for every accepted FLOAT16/BFLOAT16/FLOAT32/FLOAT64 type, independent of backend algorithms.
+  `ACCELERATOR` adds its total recursive `FLOAT32` superset and the corresponding homogeneous
+  `BFLOAT16`/`FLOAT16` occurrences: exact mapping/selection/state, DAZ/FTZ and one-round
+  primitives, an inclusive ordered-binary32 distance-at-most-five ceiling only at irreducible
+  elementary-function sites, and all-declared-contributors-once aggregate freedom. Composite Model
+  and generated-gradient formulas inherit those floors at their sites and gain no final-output
+  tolerance.
+- Model-level `FLOAT16` value, promotion, cast, factory, backend, and execution semantics are active
+  at appended ordinal 6. `FLOAT16` and `BFLOAT16` are distinct storage types; direct mixed-low
+  execution is unavailable, and explicit casts establish a `FLOAT32` boundary. Homogeneous low
+  arithmetic uses `FLOAT32` working/accumulator values and one final ties-to-even narrowing. Raw
+  storage/movement, mapping, guards, predicates, indices, masks, state, selection, casts,
+  public/saved values, and final conversion remain exact. The family declares DAZ/FTZ, arithmetic
+  zero-sign, and NaN class/domain rules; NaN payload/sign are not accuracy requirements.
+  Operation-local reassociation/FMA and fusion across only unobservable single-use intermediates
+  are permitted, never across public, saved, fan-out, predicate, index, mask, selection, or state
+  boundaries.
+- A Model-owned public per-family envelope gives a cancellation- and size-aware forward-error
+  bound for transformed algorithms. Low opaque routes qualify by deductive proof or versioned
+  certification against that envelope; an operation name, examples, or generic `allclose` does
+  not qualify them. Determinism metadata is separate from accuracy evidence.
+- Canonical checked-in capability ledgers are generated from actual CPU and Metal provider queries
+  and record provider query identity plus boolean answers; separate target columns are not provider
+  facts. Provider evidence contains no route, runtime, device, certificate, or generated-backward
+  ownership. Active certificate schema 1 separately keys profile, family, dtype tuple, accumulator,
+  Shape/layout domain, route, exact GPU/OS/SDK/framework/compiler environment, native-binary and
+  schema-19 program digests, graph options, and capability-manifest hash. Metal native ABI 6 adds
+  the context environment-identity export; program schema 19, identities 28, CPU generator schema
+  68, and route/type/operation/attribute wires retain their allocations.
+  Low-precision PREPARE trace reports the selected custom or MPSGraph route. Only a selected,
+  exactly certified MPSGraph route carries the complete certificate key and distinct accuracy and
+  determinism evidence; selected custom carries `NOT_CERTIFIED` and no borrowed certificate
+  evidence. Metal has no executable/compilation/preparation cache. Tuning compatibility is
+  session-only and binds identity versions, profile, ABI, a random context nonce, schema-19
+  program/plan semantics, explicit dtype wires and descriptors; candidate and complete-plan bytes
+  additionally bind the selected route and phase-one decision. Certificate/environment bytes are
+  outside the workload digest because they are immutable per context, qualification is regenerated,
+  and a new context has a new nonce; tools never persist session-scoped decisions.
 - Engine construction captures one exact graph-wide profile, defaulting to `STRICT_IEEE`.
   Planning queries, Compiler artifacts, Prepare contexts, and backend plan/cache identities retain
   it unchanged. For a fixed occurrence domain, every backend's `STRICT_IEEE` capability and allowed
   behavior are subsets of its `ACCELERATOR` capability and allowed behavior. CPU realizes both
-  profiles with identical exact behavior. Metal's common domain includes its exact unary, affine,
-  canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060 replacement/fold/
-  aggregate, ordering/top-K/arg-extrema, and exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d
-  rows. Both profiles also realize no-gradient INT32/INT64 `MATMUL` pairs with INT64-dominant
-  promotion and modular result arithmetic. Under `ACCELERATOR`, Metal additionally realizes the
-  documented FLOAT32 arithmetic, scalar, reduction, and scan rows; every positive-static FLOAT32
-  `MATMUL` vector, matrix, batched, and right-aligned broadcast geometry; no-gradient
-  BFLOAT16/FLOAT32 mixed `MATMUL` with FLOAT32 result; same-type canonical positive-rank FLOAT32
-  MSE forward execution for `NONE`, `SUM`, and `MEAN`; FLOAT32-result grouped Conv2d/Conv3d over
-  FLOAT32/BFLOAT16 roles; and FLOAT32 average Pool2d/Pool3d. MATMUL operands are canonical or
-  authenticated local identity-prefix, last-two-axis transposes. Conv1d and Pool1d use only
-  authenticated local singleton-height compositions. Existing rank-two FLOAT32 matrix products
-  retain direct MPSGraph; all newly admitted MATMUL forms and convolution/pooling rows use the
-  fixed custom program. MSE uses fixed MPSGraph subtraction, self-multiplication, and its optional
-  qualified full reduction. Strict floating MATMUL, MSE, convolution, and average pooling;
-  generated MSE, Conv3d, and maximum-pool backward; attention; convolution transpose; and every
-  other unsupported profile/operation pair fail closed.
-  Metal indexing validates complete bounds and scatter target
-  uniqueness before dispatch or target writes and leaves targets unchanged on failure. Canonical
-  cross-owner transfer supports all six current data types at ranks `0..16`; transfer coverage does
-  not widen operation capability. Runtime and Trace remain profile-free.
+  profiles with identical exact behavior. Metal's common domain includes exact unary, affine,
+  canonicalization, indexing, BOOL-domain, movement, replacement/fold/aggregate,
+  ordering/top-K/arg-extrema, comparison, and maximum-pooling occurrences. Both profiles also
+  realize no-gradient INT32/INT64 `MATMUL` pairs with INT64-dominant promotion and modular result
+  arithmetic. Under `ACCELERATOR`, every supported homogeneous FLOAT32 occurrence has corresponding
+  BFLOAT16 and FLOAT16 ownership. This includes the documented arithmetic, scalar, reduction, scan,
+  MATMUL, MSE, convolution, average-pooling, dropout, L1, ScatterAdd, and singleton-variance
+  domains. Direct BFLOAT16/FLOAT16 mixed-low operations remain unsupported; explicit casts to
+  FLOAT32 are the sole mixed-low path. All admitted low arithmetic occurrences select one fixed
+  custom program. Homogeneous no-gradient BFLOAT16/FLOAT16 raw-preserving `RESHAPE`, simple
+  `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and `TILE` images may additionally expose
+  MPSGraph only when a schema-1 certificate exactly matches the immutable context environment and
+  exact schema-19 program digest. Custom remains the first baseline candidate; malformed, unknown,
+  stale, incomplete, or mismatched evidence leaves it as the only candidate. No low route may use
+  MPS, CPU, retry, generated-pointwise, or fusion fallback.
+  The store contains exactly 24 positive MPSGraph raw certificates. Classic MPS and MPP have only
+  checked-in environment-bound qualified-negative rows: MPS passes its device, FLOAT16 convolution,
+  and FLOAT accumulator-option gates but lacks complete exact layout/domain proof and BFLOAT16
+  guarantees; MPP compiles target `matmul2d`/`convolution2d` pipelines with
+  `__HAVE_TENSOR__`, `relaxed_precision=false`, and FLOAT32 destinations but exposes no public
+  internal-accumulator type. A FLOAT32 destination is not a FLOAT32-accumulation guarantee. Neither
+  family owns a candidate, route wire, certificate, or fallback.
+  MATMUL operands are canonical or authenticated local identity-prefix, last-two-axis transposes.
+  Conv1d and Pool1d use only authenticated local singleton-height compositions. Existing rank-two
+  FLOAT32 matrix products retain direct MPSGraph; newly admitted MATMUL forms and
+  convolution/pooling rows use the fixed custom program. Gradient-bearing low arithmetic, scalar,
+  reduction, scan, dropout, non-overlapping maximum-pool, and other admitted differentiable
+  occurrences retain compiler-generated first-order and owned higher-order closure. Overlapping
+  generated folds, Conv3d backward, attention, convolution transpose, and every unsupported
+  profile/operation occurrence remain fail-closed. Metal indexing validates complete bounds and
+  scatter target uniqueness before dispatch or target writes and leaves targets unchanged on
+  failure. Canonical cross-owner transfer supports all seven current data types at ranks `0..16`;
+  transfer coverage does not widen operation capability. Runtime and Trace remain profile-free.
 - `CompiledGraphModel` is immutable compile-time graph state.
 - `CompileArtifacts` are immutable compile-time output.
 - `PreparedExecution`, its prepared memory/schedule/executable recipes, and immutable persistent

@@ -18,7 +18,7 @@ import java.util.Objects;
  * Values use topology-local ordinals, so graph identities, extents, slots, routes, generator
  * versions, segment instances, and invocation bindings cannot enter canonical identity.
  * CAST remains one opcode; its source and target types come from the ordered input and output
- * values, allowing all 36 Model pairs while keeping each conversion boundary explicit in a
+ * values, allowing all 49 Model pairs while keeping each conversion boundary explicit in a
  * bounded pointwise DAG.
  * When analysis selects one contiguous input copy, it derives a second canonical consumer form
  * whose copied input has dense access; that structural change belongs to the lowering fingerprint,
@@ -212,7 +212,7 @@ public record CpuKernelIr(
      * Exact ordered typed primitive bounds retained by one first-class clamp instruction.
      *
      * @param lower non-null exact lower bound
-     * @param upper non-null exact upper bound of the same BFLOAT16, FLOAT32, or FLOAT64 type
+     * @param upper non-null exact upper bound of the same FLOAT16, BFLOAT16, FLOAT32, or FLOAT64 type
      */
     public record ClampImmediate(ScalarImmediate lower, ScalarImmediate upper) {
         /**
@@ -220,13 +220,15 @@ public record CpuKernelIr(
          * @param lower non-null exact lower bound
          * @param upper non-null exact upper bound
          * @throws NullPointerException if either bound is {@code null}
-         * @throws IllegalArgumentException if their types differ or are not BFLOAT16/FLOAT32/FLOAT64
+         * @throws IllegalArgumentException if their types differ or are not a supported floating type
          */
         public ClampImmediate {
             Objects.requireNonNull(lower, "lower");
             Objects.requireNonNull(upper, "upper");
             if (lower.dataType() != upper.dataType()
-                    || lower.dataType() != DataType.FLOAT32 && lower.dataType() != DataType.FLOAT64
+                    || lower.dataType() != DataType.FLOAT16
+                    && lower.dataType() != DataType.FLOAT32
+                    && lower.dataType() != DataType.FLOAT64
                     && lower.dataType() != DataType.BFLOAT16) {
                 throw new IllegalArgumentException("clamp bounds must have one floating data type");
             }
@@ -345,9 +347,10 @@ public record CpuKernelIr(
         boolean same = inputs.stream().allMatch(inputs.getFirst()::equals);
         boolean numeric = inputs.stream().allMatch(type -> type == DataType.FLOAT64
                 || type == DataType.FLOAT32 || type == DataType.BFLOAT16
-                || type == DataType.INT32 || type == DataType.INT64);
+                || type == DataType.FLOAT16 || type == DataType.INT32
+                || type == DataType.INT64);
         boolean floating = output == DataType.FLOAT64 || output == DataType.FLOAT32
-                || output == DataType.BFLOAT16;
+                || output == DataType.BFLOAT16 || output == DataType.FLOAT16;
         boolean valid = switch (opcode.family()) {
             case BINARY_ARITHMETIC -> same && numeric && output == inputs.getFirst()
                     && (opcode != CpuPointwiseOpcode.DIV && opcode != CpuPointwiseOpcode.POW
@@ -366,20 +369,25 @@ public record CpuKernelIr(
                     && floating;
             case CLASSIFICATION -> (inputs.getFirst() == DataType.FLOAT64
                     || inputs.getFirst() == DataType.FLOAT32
-                    || inputs.getFirst() == DataType.BFLOAT16) && output == DataType.BOOL;
+                    || inputs.getFirst() == DataType.BFLOAT16
+                    || inputs.getFirst() == DataType.FLOAT16) && output == DataType.BOOL;
             case COMPARISON -> same && numeric && output == DataType.BOOL;
             case LOGICAL -> inputs.stream().allMatch(type -> type == DataType.BOOL)
                     && output == DataType.BOOL;
             case SELECTION -> inputs.get(0) == DataType.BOOL
                     && inputs.get(1) == inputs.get(2) && output == inputs.get(1)
                     && (output == DataType.FLOAT64 || output == DataType.FLOAT32
-                        || output == DataType.BFLOAT16);
-            case CAST -> (inputs.getFirst() == DataType.FLOAT64 || inputs.getFirst() == DataType.FLOAT32
-                    || inputs.getFirst() == DataType.BFLOAT16 || inputs.getFirst() == DataType.INT32
+                        || output == DataType.BFLOAT16 || output == DataType.FLOAT16);
+            case CAST -> (inputs.getFirst() == DataType.FLOAT64
+                    || inputs.getFirst() == DataType.FLOAT32
+                    || inputs.getFirst() == DataType.BFLOAT16
+                    || inputs.getFirst() == DataType.FLOAT16
+                    || inputs.getFirst() == DataType.INT32
                     || inputs.getFirst() == DataType.INT64 || inputs.getFirst() == DataType.BOOL)
                     && (output == DataType.FLOAT64 || output == DataType.FLOAT32
-                    || output == DataType.BFLOAT16 || output == DataType.INT32
-                    || output == DataType.INT64 || output == DataType.BOOL);
+                    || output == DataType.BFLOAT16 || output == DataType.FLOAT16
+                    || output == DataType.INT32 || output == DataType.INT64
+                    || output == DataType.BOOL);
         };
         if (!valid) throw new IllegalArgumentException("instruction data types do not match opcode");
     }
@@ -394,6 +402,13 @@ public record CpuKernelIr(
                     : bits == 0x3f80L ? PowerRealization.IDENTITY
                     : bits == 0x4000L ? PowerRealization.SQUARE
                     : bits == 0xbf80L ? PowerRealization.RECIPROCAL
+                    : PowerRealization.DIRECT;
+        } else if (immediate.dataType() == DataType.FLOAT16) {
+            bits &= 0xffffL;
+            expected = bits == 0L || bits == 0x8000L ? PowerRealization.POSITIVE_ONE
+                    : bits == 0x3c00L ? PowerRealization.IDENTITY
+                    : bits == 0x4000L ? PowerRealization.SQUARE
+                    : bits == 0xbc00L ? PowerRealization.RECIPROCAL
                     : PowerRealization.DIRECT;
         } else if (immediate.dataType() == DataType.FLOAT32) {
             bits &= 0xffff_ffffL;

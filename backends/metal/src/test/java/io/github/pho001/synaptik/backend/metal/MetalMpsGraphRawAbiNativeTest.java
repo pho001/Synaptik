@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphRawAbiNativeTest {
     @Test
-    void nativeAbiFiveAcceptsCanonicalSchemaEighteenAndRejectsMalformedImages() throws Throwable {
+    void nativeAbiFiveAcceptsCanonicalSchemaNineteenAndRejectsMalformedImages() throws Throwable {
         Path library = configuredLibrary();
         try (RawAbi abi = new RawAbi(library)) {
             byte[] valid = validNegImage();
@@ -45,10 +45,10 @@ class MetalMpsGraphRawAbiNativeTest {
                             valid.length));
 
             assertEquals(1, abi.create(rewriteInt(valid, 0, 0), valid.length));
-            assertEquals(1, abi.create(rewriteInt(valid, 0, 0x37314d53), valid.length));
-            for (int schema = 12; schema <= 17; schema++)
+            assertEquals(1, abi.create(rewriteInt(valid, 0, 0x38314d53), valid.length));
+            for (int schema = 12; schema <= 18; schema++)
                 assertEquals(1, abi.create(rewriteInt(valid, 4, schema), valid.length));
-            assertEquals(1, abi.create(rewriteInt(valid, 4, 19), valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, 4, 20), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 8, 0), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 8, 64), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 8, 132), valid.length));
@@ -76,7 +76,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void schemaEighteenRejectsCorruptFusionRecordsManifestAndDigest() throws Throwable {
+    void schemaNineteenRejectsCorruptFusionRecordsManifestAndDigest() throws Throwable {
         Path library = configuredLibrary();
         var program = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.generic(
@@ -132,8 +132,8 @@ class MetalMpsGraphRawAbiNativeTest {
         malformed.add(digestForgery);
         malformed.add(rewriteManifest(
                 valid,
-                "fixed-corpus-bytes 84541\n",
-                "fixed-corpus-bytes 84542\n"));
+                "fixed-corpus-bytes 84603\n",
+                "fixed-corpus-bytes 84604\n"));
 
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(0, abi.create(valid, valid.length));
@@ -160,6 +160,48 @@ class MetalMpsGraphRawAbiNativeTest {
                     "valid ABS node cannot inhabit a generated member range");
             for (byte[] image : malformed)
                 assertEquals(1, abi.create(image, image.length));
+        }
+    }
+
+    @Test
+    void schemaNineteenExecutesFloat16OnlyThroughAuthenticatedCustomRoute() throws Throwable {
+        Path library = configuredLibrary();
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.neg(0, 1)));
+        var float16 = new MetalMpsGraphProgram.ValueDescriptor(
+                DataType.FLOAT16, new long[] {3}, false);
+        byte[] custom = program.encodedProgramImage(
+                NumericalProfile.STRICT_IEEE,
+                List.of(float16, float16),
+                new int[] {0},
+                new int[] {1},
+                MetalPreparedRoute.CUSTOM_PROGRAM);
+        byte[] mpsGraph = program.encodedProgramImage(
+                NumericalProfile.STRICT_IEEE,
+                List.of(float16, float16),
+                new int[] {0},
+                new int[] {1},
+                MetalPreparedRoute.MPSGRAPH);
+
+        assertEquals(6L, float16.byteCount());
+        assertEquals(7, readInt(custom, MetalMpsGraphProgram.HEADER_BYTES));
+        try (RawAbi abi = new RawAbi(library)) {
+            assertEquals(0, abi.create(custom, custom.length));
+            assertEquals(0, abi.createUnaligned(custom));
+            assertEquals(13, abi.create(mpsGraph, mpsGraph.length));
+            assertEquals(
+                    1,
+                    abi.create(
+                            rewriteInt(custom, MetalMpsGraphProgram.HEADER_BYTES, 8),
+                            custom.length));
+            assertEquals(
+                    1,
+                    abi.create(
+                            rewriteLong(
+                                    custom,
+                                    MetalMpsGraphProgram.HEADER_BYTES + 32,
+                                    4L),
+                            custom.length));
         }
     }
 
@@ -341,7 +383,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void schemaEighteenAuthenticatesCapStopPrecedenceAndFirstRejectedNode() throws Throwable {
+    void schemaNineteenAuthenticatesCapStopPrecedenceAndFirstRejectedNode() throws Throwable {
         Path library = configuredLibrary();
         var nodes = new ArrayList<MetalMpsGraphProgram.Node>();
         MetalMpsGraphProgram.NodeKind[] kinds = {
@@ -386,7 +428,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void schemaEighteenRejectsFunctionCapAndCompactVirtualValueForgeries() throws Throwable {
+    void schemaNineteenRejectsFunctionCapAndCompactVirtualValueForgeries() throws Throwable {
         Path library = configuredLibrary();
         var program = new MetalMpsGraphProgram(List.of(
                 unaryNode(MetalMpsGraphProgram.NodeKind.FLOOR, 0, 1),
@@ -891,7 +933,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void javaAndNativeRejectGradAndDisallowedScalarShapesForScalarRecipes() throws Throwable {
+    void javaAndNativeAcceptMatchingGradButRejectDisallowedScalarShapes() throws Throwable {
         Path library = configuredLibrary();
         try (RawAbi abi = new RawAbi(library)) {
             for (MetalMpsGraphProgram.NodeKind kind : List.of(
@@ -915,19 +957,17 @@ class MetalMpsGraphRawAbiNativeTest {
                                 DataType.FLOAT32, new long[] {4}, true),
                         new MetalMpsGraphProgram.ValueDescriptor(
                                 DataType.FLOAT32, new long[] {4}, true));
-                assertThrows(
-                        IllegalArgumentException.class,
-                        () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                                NumericalProfile.ACCELERATOR,
-                                grad,
-                                program,
-                                new int[] {0},
-                                new int[] {1},
-                                MetalPreparedRoute.MPSGRAPH));
+                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        NumericalProfile.ACCELERATOR,
+                        grad,
+                        program,
+                        new int[] {0},
+                        new int[] {1},
+                        MetalPreparedRoute.MPSGRAPH);
                 byte[] gradImage = program.encodedProgramImage(
                         NumericalProfile.ACCELERATOR,
                         grad, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
-                assertEquals(1, abi.create(gradImage, gradImage.length), kind + " grad");
+                assertEquals(0, abi.create(gradImage, gradImage.length), kind + " grad");
 
                 List<MetalMpsGraphProgram.ValueDescriptor> rankZero =
                         List.of(scalarDescriptor(DataType.FLOAT32), scalarDescriptor(DataType.FLOAT32));
@@ -2911,7 +2951,16 @@ class MetalMpsGraphRawAbiNativeTest {
         }
 
         private int create(byte[] image, int byteCount) throws Throwable {
-            MemorySegment program = arena.allocate(image.length, Long.BYTES);
+            return create(image, byteCount, 0);
+        }
+
+        private int createUnaligned(byte[] image) throws Throwable {
+            return create(image, image.length, 1);
+        }
+
+        private int create(byte[] image, int byteCount, int leadingBytes) throws Throwable {
+            MemorySegment allocation = arena.allocate(image.length + leadingBytes, Long.BYTES);
+            MemorySegment program = allocation.asSlice(leadingBytes, image.length);
             MemorySegment.copy(MemorySegment.ofArray(image), 0, program, 0, image.length);
             MemorySegment output = arena.allocate(ADDRESS);
             output.set(ADDRESS, 0, MemorySegment.NULL);

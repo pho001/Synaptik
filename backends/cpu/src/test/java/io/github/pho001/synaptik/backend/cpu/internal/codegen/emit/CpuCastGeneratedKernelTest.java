@@ -54,6 +54,23 @@ class CpuCastGeneratedKernelTest {
         assertEquals(0x7fc0, Short.toUnsignedInt(output[3]), "NaNs are canonical target NaNs");
     }
 
+    @Test void directF64ToFloat16KeepsRawDoubleRoundingSpecialsAndSubnormalTies()
+            throws Throwable {
+        double midpoint = 1.0d + 0x1.0p-11;
+        double[] input = {Math.nextUp(midpoint), midpoint, -0.0d,
+                Double.longBitsToDouble(0xfff0000000000042L), 0x1.0p-24, 0x1.0p-25};
+        short[] output = new short[input.length];
+        entry(DataType.FLOAT64, DataType.FLOAT16, CarrierForm.ARRAY_ARRAY, Form.DENSE)
+                .invokeWithArguments(input, output, new long[] {6, 0, 0, 0, 1, 1, 6, 6},
+                        0L, 6L);
+        assertEquals(0x3c01, Short.toUnsignedInt(output[0]), "no F32 double rounding");
+        assertEquals(0x3c00, Short.toUnsignedInt(output[1]), "ties round to even");
+        assertEquals(0x8000, Short.toUnsignedInt(output[2]), "signed zero");
+        assertEquals(0x7e00, Short.toUnsignedInt(output[3]), "canonical NaN");
+        assertEquals(0x0001, Short.toUnsignedInt(output[4]), "minimum subnormal");
+        assertEquals(0x0000, Short.toUnsignedInt(output[5]), "subnormal ties round to even");
+    }
+
     @Test void denseArrayF64ToBfloat16KeepsTheCompactSingleEntryControlFlow() {
         CpuKernelIr ir = ir(DataType.FLOAT64, DataType.BFLOAT16, Form.DENSE);
         var specification = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
@@ -149,7 +166,9 @@ class CpuCastGeneratedKernelTest {
 
     @Test void generatedTypedCastMatrixCoversAll1296LegalCells() throws Throwable {
         int cells = 0;
-        for (DataType source : DataType.values()) for (DataType target : DataType.values())
+        List<DataType> types = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.FLOAT16, DataType.INT64, DataType.INT32, DataType.BOOL);
+        for (DataType source : types) for (DataType target : types)
             for (CarrierForm carriers : CarrierForm.values()) {
                 for (Form form : Form.MULTI) {
                     cell(source, target, carriers, form, false);
@@ -159,7 +178,7 @@ class CpuCastGeneratedKernelTest {
                 cell(source, target, carriers, Form.SCALAR, false);
                 cells++;
             }
-        assertEquals(1_296, cells);
+        assertEquals(1_764, cells);
     }
 
     private static void cell(DataType source, DataType target, CarrierForm forms, Form form,
@@ -243,9 +262,11 @@ class CpuCastGeneratedKernelTest {
 
     private static MethodHandle entry(DataType source, DataType target, CarrierForm forms, Form form) {
         CpuKernelIr ir = ir(source, target, form);
+        int schema = source == DataType.FLOAT16 || target == DataType.FLOAT16 ? 68
+                : source == target ? source == DataType.BFLOAT16 ? 59 : 52 : 60;
         var spec = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
         List.of(source, target), List.of(carrier(source, forms.inputSegment), carrier(target, forms.outputSegment)),
-        0, -1, List.of(), false, source == target ? source == DataType.BFLOAT16 ? 59 : 52 : 60);
+        0, -1, List.of(), false, schema);
         var generator = new CpuClassFileKernelGenerator();
         return generator.defineClassBytes(spec, generator.generateClassBytes(spec, ir)).entryPoint();
     }
@@ -284,17 +305,18 @@ class CpuCastGeneratedKernelTest {
     private static int capacity(Form form) { return switch (form) { case DENSE -> 10; case OFFSET -> 14; case BLOCK -> 16; case GENERAL -> 20; case SCALAR -> 4; }; }
     private static CpuKernelSpecialization.CarrierAccess carrier(DataType t, boolean segment) {
         if (segment) return CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT;
-        return switch (t) { case FLOAT64 -> CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY; case BFLOAT16 -> CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY; case INT64 -> CpuKernelSpecialization.CarrierAccess.LONG_ARRAY; case INT32 -> CpuKernelSpecialization.CarrierAccess.INT_ARRAY; case BOOL -> CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY; };
+        return switch (t) { case FLOAT64 -> CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY; case BFLOAT16, FLOAT16 -> CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY; case INT64 -> CpuKernelSpecialization.CarrierAccess.LONG_ARRAY; case INT32 -> CpuKernelSpecialization.CarrierAccess.INT_ARRAY; case BOOL -> CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY; };
     }
     private static Object storage(DataType t, boolean segment, int n, Arena arena) {
         if (segment) return arena.allocate((long) n * t.byteWidth(), t.byteWidth());
-        return switch (t) { case FLOAT64 -> new double[n]; case FLOAT32 -> new float[n]; case BFLOAT16 -> new short[n]; case INT64 -> new long[n]; case INT32 -> new int[n]; case BOOL -> new byte[n]; };
+        return switch (t) { case FLOAT64 -> new double[n]; case FLOAT32 -> new float[n]; case BFLOAT16, FLOAT16 -> new short[n]; case INT64 -> new long[n]; case INT32 -> new int[n]; case BOOL -> new byte[n]; };
     }
     private static void fill(Object a, DataType t, int n, ScalarValue v) { for (int i = 0; i < n; i++) write(a, t, i, v); }
     private static void write(Object a, DataType t, long i, ScalarValue v) { switch (t) {
         case FLOAT64 -> { if (a instanceof MemorySegment s) s.setAtIndex(DOUBLE, i, v.float64Value()); else ((double[]) a)[(int) i] = v.float64Value(); }
         case FLOAT32 -> { if (a instanceof MemorySegment s) s.setAtIndex(FLOAT, i, v.float32Value()); else ((float[]) a)[(int) i] = v.float32Value(); }
         case BFLOAT16 -> { if (a instanceof MemorySegment s) s.setAtIndex(SHORT, i, v.bfloat16Bits()); else ((short[]) a)[(int) i] = v.bfloat16Bits(); }
+        case FLOAT16 -> { if (a instanceof MemorySegment s) s.setAtIndex(SHORT, i, v.float16Bits()); else ((short[]) a)[(int) i] = v.float16Bits(); }
         case INT64 -> { if (a instanceof MemorySegment s) s.setAtIndex(LONG, i, v.int64Value()); else ((long[]) a)[(int) i] = v.int64Value(); }
         case INT32 -> { if (a instanceof MemorySegment s) s.setAtIndex(INT, i, v.int32Value()); else ((int[]) a)[(int) i] = v.int32Value(); }
         case BOOL -> { byte b = (byte) (v.booleanValue() ? 1 : 0); if (a instanceof MemorySegment s) s.setAtIndex(ValueLayout.JAVA_BYTE, i, b); else ((byte[]) a)[(int) i] = b; }
@@ -303,20 +325,22 @@ class CpuCastGeneratedKernelTest {
         case FLOAT64 -> ScalarValue.float64(a instanceof MemorySegment s ? s.getAtIndex(DOUBLE, i) : ((double[]) a)[(int) i]);
         case FLOAT32 -> ScalarValue.float32(a instanceof MemorySegment s ? s.getAtIndex(FLOAT, i) : ((float[]) a)[(int) i]);
         case BFLOAT16 -> ScalarValue.bfloat16Bits(a instanceof MemorySegment s ? s.getAtIndex(SHORT, i) : ((short[]) a)[(int) i]);
+        case FLOAT16 -> ScalarValue.float16Bits(a instanceof MemorySegment s ? s.getAtIndex(SHORT, i) : ((short[]) a)[(int) i]);
         case INT64 -> ScalarValue.int64(a instanceof MemorySegment s ? s.getAtIndex(LONG, i) : ((long[]) a)[(int) i]);
         case INT32 -> ScalarValue.int32(a instanceof MemorySegment s ? s.getAtIndex(INT, i) : ((int[]) a)[(int) i]);
         case BOOL -> ScalarValue.bool((a instanceof MemorySegment s ? s.getAtIndex(ValueLayout.JAVA_BYTE, i) : ((byte[]) a)[(int) i]) != 0);
     }; }
     private static long bits(ScalarValue v) { return switch (v.dataType()) {
-        case FLOAT64 -> Double.doubleToRawLongBits(v.float64Value()); case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(v.float32Value())); case BFLOAT16 -> Short.toUnsignedLong(v.bfloat16Bits()); case INT64 -> v.int64Value(); case INT32 -> Integer.toUnsignedLong(v.int32Value()); case BOOL -> v.booleanValue() ? 1 : 0;
+        case FLOAT64 -> Double.doubleToRawLongBits(v.float64Value()); case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(v.float32Value())); case BFLOAT16 -> Short.toUnsignedLong(v.bfloat16Bits()); case FLOAT16 -> Short.toUnsignedLong(v.float16Bits()); case INT64 -> v.int64Value(); case INT32 -> Integer.toUnsignedLong(v.int32Value()); case BOOL -> v.booleanValue() ? 1 : 0;
     }; }
     private static ScalarValue sentinel(DataType t) { return switch (t) {
-        case FLOAT64 -> ScalarValue.float64(Double.longBitsToDouble(0x7ff80000000000a5L)); case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0x7fc000a5)); case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x7fc5); case INT64 -> ScalarValue.int64(0x5a5a5a5a5a5a5a5aL); case INT32 -> ScalarValue.int32(0x5a5a5a5a); case BOOL -> ScalarValue.bool(true);
+        case FLOAT64 -> ScalarValue.float64(Double.longBitsToDouble(0x7ff80000000000a5L)); case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0x7fc000a5)); case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x7fc5); case FLOAT16 -> ScalarValue.float16Bits((short) 0x7e55); case INT64 -> ScalarValue.int64(0x5a5a5a5a5a5a5a5aL); case INT32 -> ScalarValue.int32(0x5a5a5a5a); case BOOL -> ScalarValue.bool(true);
     }; }
     private static ScalarValue[] values(DataType t) { return switch (t) {
         case FLOAT64 -> new ScalarValue[] {ScalarValue.float64(-0d), ScalarValue.float64(Double.MIN_VALUE), ScalarValue.float64(Double.longBitsToDouble(0x7ff0000000000042L)), ScalarValue.float64(Double.NEGATIVE_INFINITY), ScalarValue.float64(Double.MAX_VALUE), ScalarValue.float64(2_147_483_647.75d), ScalarValue.float64(-2_147_483_648.75d), ScalarValue.float64(1.0d + 0x1.0p-8)};
         case FLOAT32 -> new ScalarValue[] {ScalarValue.float32(-0f), ScalarValue.float32(Float.MIN_VALUE), ScalarValue.float32(Float.intBitsToFloat(0x7fa12345)), ScalarValue.float32(Float.NEGATIVE_INFINITY), ScalarValue.float32(Float.MAX_VALUE), ScalarValue.float32(2_147_483_647f), ScalarValue.float32(-2_147_483_648f), ScalarValue.float32(1.0f + 0x1.0p-8f)};
         case BFLOAT16 -> new ScalarValue[] {ScalarValue.bfloat16Bits((short) 0x8000), ScalarValue.bfloat16Bits((short) 1), ScalarValue.bfloat16Bits((short) 0x7f81), ScalarValue.bfloat16Bits((short) 0xff80), ScalarValue.bfloat16Bits((short) 0x7f7f), ScalarValue.bfloat16Bits((short) 0x4f00), ScalarValue.bfloat16Bits((short) 0xcf00), ScalarValue.bfloat16Bits((short) 0x3f81)};
+        case FLOAT16 -> new ScalarValue[] {ScalarValue.float16Bits((short) 0x8000), ScalarValue.float16Bits((short) 1), ScalarValue.float16Bits((short) 0x7c01), ScalarValue.float16Bits((short) 0xfc00), ScalarValue.float16Bits((short) 0x7bff), ScalarValue.float16Bits((short) 0x7c00), ScalarValue.float16Bits((short) 0xfc00), ScalarValue.float16Bits((short) 0x3c01)};
         case INT64 -> new ScalarValue[] {ScalarValue.int64(0), ScalarValue.int64(1), ScalarValue.int64(-1), ScalarValue.int64(Long.MIN_VALUE), ScalarValue.int64(Long.MAX_VALUE), ScalarValue.int64(2_155_872_257L), ScalarValue.int64(-2_155_872_257L), ScalarValue.int64(16_777_217L)};
         case INT32 -> new ScalarValue[] {ScalarValue.int32(0), ScalarValue.int32(1), ScalarValue.int32(-1), ScalarValue.int32(Integer.MIN_VALUE), ScalarValue.int32(Integer.MAX_VALUE), ScalarValue.int32(0x80000001), ScalarValue.int32(0x7fffffff), ScalarValue.int32(16_777_217)};
         case BOOL -> new ScalarValue[] {ScalarValue.bool(false), ScalarValue.bool(true), ScalarValue.bool(false), ScalarValue.bool(true), ScalarValue.bool(false), ScalarValue.bool(true), ScalarValue.bool(false), ScalarValue.bool(true)};

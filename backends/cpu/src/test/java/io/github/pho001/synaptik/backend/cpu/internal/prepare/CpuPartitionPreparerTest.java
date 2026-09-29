@@ -13,6 +13,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecision;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFusionDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph.BaselineExecutionFact;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph.BaselineUnitFact;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph.ReductionEpilogue;
@@ -32,6 +33,7 @@ import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -84,6 +86,254 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
+    @Test
+    void sharedExternalWeightRemainsAnExternalReadInChainedMatmulBaseline() {
+        var plan = new CpuPartitionPreparer().analyze(matmulChainContext(true, false)).plan();
+        var selection = plan.fusionDecisions().stream()
+                .filter(CpuFusionDecision.Selection.class::isInstance)
+                .map(CpuFusionDecision.Selection.class::cast).findFirst().orElseThrow();
+        int weight = plan.boundaryValues().indexOf(new ValueId(1));
+        assertEquals(2, selection.compatibilityBaseline().units().stream()
+                .flatMap(unit -> unit.boundaries().stream())
+                .filter(boundary -> boundary.relativeBoundaryPosition() == weight
+                        && boundary.role() == CpuFusionDecision.BoundaryRole.EXTERNAL_READ)
+                .count());
+        int intermediate = plan.boundaryValues().indexOf(new ValueId(2));
+        assertEquals(2, selection.compatibilityBaseline().units().stream()
+                .flatMap(unit -> unit.boundaries().stream())
+                .filter(boundary -> boundary.relativeBoundaryPosition() == intermediate
+                        && boundary.role() == CpuFusionDecision.BoundaryRole.CROSS_UNIT)
+                .count());
+        assertEquals(2, plan.specializedSubgraphs().size());
+        for (var fact : plan.specializedSubgraphs()) {
+            for (int local = 0; local < fact.baselineUnitIndices().size(); local++) {
+                var recognized = fact.structuralIdentity().baselineUnits().get(local);
+                var selected = selection.compatibilityBaseline().units().get(
+                        fact.baselineUnitIndices().get(local));
+                assertEquals(CpuFusionDecision.StructuralKey.fromHex(
+                        recognized.structuralKey()), selected.portableIrStructuralKey());
+                assertEquals(recognized.execution().specialization(), selected.specialization());
+                assertEquals(recognized.dependencies(), selected.dependencyUnitPositions());
+            }
+        }
+        assertThrows(IllegalArgumentException.class, () -> copyRetainedRecognitionPlan(plan,
+                withCompatibilityRole(plan, intermediate,
+                        CpuFusionDecision.BoundaryRole.EXTERNAL_READ)));
+        assertThrows(IllegalArgumentException.class, () -> copyRetainedRecognitionPlan(plan,
+                withCompatibilityRole(plan, weight,
+                        CpuFusionDecision.BoundaryRole.CROSS_UNIT)));
+        assertEquals("retained recognition baseline IR or resource topology disagrees",
+                assertThrows(IllegalArgumentException.class,
+                        () -> copyRetainedRecognitionPlan(plan,
+                                withForgedProducedRoles(plan, intermediate))).getMessage());
+    }
+
+    @Test
+    void sharedWeightReluAndDistinctAndSingleMatmulControlsPrepare() {
+        for (boolean shared : List.of(true, false)) {
+            for (boolean relu : List.of(true, false)) {
+                var plan = new CpuPartitionPreparer().analyze(
+                        matmulChainContext(shared, relu)).plan();
+                assertEquals(2, plan.specializedSubgraphs().stream()
+                        .filter(CpuSpecializedSubgraph.MatmulEpilogue.class::isInstance)
+                        .count());
+                int intermediate = plan.boundaryValues().indexOf(
+                        new ValueId(shared ? 2 : 3));
+                var selection = (CpuFusionDecision.Selection) plan.fusionDecisions().getLast();
+                assertEquals(2, selection.compatibilityBaseline().units().stream()
+                        .flatMap(unit -> unit.boundaries().stream())
+                        .filter(boundary -> boundary.relativeBoundaryPosition() == intermediate
+                                && boundary.role() == CpuFusionDecision.BoundaryRole.CROSS_UNIT)
+                        .count());
+            }
+        }
+        var matrix = descriptor(DataType.FLOAT32, Shape.of(2, 2));
+        assertFalse(new CpuPartitionPreparer().analyze(oneNodeContext(
+                new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
+                List.of(matrix, matrix), matrix,
+                new PortableExecutionConfig(ComputePreference.SCALAR, 1, 1, 1)))
+                .plan().specializedSubgraphs().isEmpty());
+    }
+
+    @Test
+    void forgedCompatibilityPositionsCannotTurnExternalWeightIntoCrossUnitValue() {
+        var plan = new CpuPartitionPreparer().analyze(matmulChainContext(true, true)).plan();
+        var selection = (CpuFusionDecision.Selection) plan.fusionDecisions().getLast();
+        assertNotEquals(selection.selected(), selection.compatibilityBaseline());
+        int weight = plan.boundaryValues().indexOf(new ValueId(1));
+        int intermediate = plan.boundaryValues().indexOf(new ValueId(2));
+        assertEquals("retained recognition baseline IR or resource topology disagrees",
+                assertThrows(IllegalArgumentException.class,
+                        () -> copyRetainedRecognitionPlan(plan,
+                                withForgedCompatibilityPositions(plan, weight, intermediate)))
+                        .getMessage());
+        int virtualizedOutput = selection.compatibilityBaseline().units().get(1)
+                .boundaries().getLast().relativeBoundaryPosition();
+        assertEquals("retained recognition baseline IR or resource topology disagrees",
+                assertThrows(IllegalArgumentException.class,
+                        () -> copyRetainedRecognitionPlan(plan,
+                                withForgedCompatibilityPositions(plan, weight,
+                                        virtualizedOutput))).getMessage());
+    }
+
+    @Test
+    void virtualizedBaselineOutputMayRemainUnboundToRetainedValuePosition() {
+        var plan = new CpuPartitionPreparer().analyze(matmulChainContext(true, true)).plan();
+        var selection = (CpuFusionDecision.Selection) plan.fusionDecisions().getLast();
+        assertNotEquals(selection.selected(), selection.compatibilityBaseline());
+        int weight = plan.boundaryValues().indexOf(new ValueId(1));
+        int virtualizedOutput = selection.compatibilityBaseline().units().get(1)
+                .boundaries().getLast().relativeBoundaryPosition();
+        assertNotEquals(weight, virtualizedOutput);
+        assertDoesNotThrow(() -> copyRetainedRecognitionPlan(plan,
+                withForgedCompatibilityPositions(plan, virtualizedOutput, weight)));
+    }
+
+    private static List<CpuFusionDecision> withForgedCompatibilityPositions(
+            CpuPartitionPreparationPlan plan, int external, int produced) {
+        var selection = (CpuFusionDecision.Selection) plan.fusionDecisions().getLast();
+        var original = selection.compatibilityBaseline();
+        var units = new ArrayList<CpuFusionDecision.UnitIdentity>();
+        for (var unit : original.units()) {
+            var boundaries = unit.boundaries().stream().map(boundary ->
+                    boundary.relativeBoundaryPosition() == external
+                            ? new CpuFusionDecision.BoundaryFact(produced,
+                                    boundary.unitBoundaryPosition(),
+                                    CpuFusionDecision.BoundaryRole.CROSS_UNIT,
+                                    boundary.regime(), boundary.referencedBytes(),
+                                    boundary.byteAlignment())
+                            : boundary).toList();
+            units.add(new CpuFusionDecision.UnitIdentity(unit.memberNodePositions(),
+                    unit.dependencyUnitPositions(), unit.portableIrStructuralKey(),
+                    unit.specialization(), unit.strategy(), boundaries, unit.workspace(),
+                    unit.topology()));
+        }
+        var forged = new CpuFusionDecision.CandidateIdentity(units);
+        var decisions = new ArrayList<CpuFusionDecision>();
+        for (var decision : plan.fusionDecisions()) {
+            if (decision instanceof CpuFusionDecision.LegalCandidate legal) {
+                decisions.add(new CpuFusionDecision.LegalCandidate(
+                        legal.identity().equals(original) ? forged : legal.identity(),
+                        legal.facts(), legal.score(), legal.stableRank(),
+                        legal.canonicalSplit(), legal.compatibilityBaseline()));
+            } else if (decision instanceof CpuFusionDecision.LegalityRejection rejection) {
+                decisions.add(new CpuFusionDecision.LegalityRejection(
+                        rejection.sourceTopology().equals(original) ? forged
+                                : rejection.sourceTopology(),
+                        rejection.attemptedPair(), rejection.failedHardFact(),
+                        rejection.reason()));
+            } else if (decision instanceof CpuFusionDecision.ProfitabilityRejection rejection) {
+                decisions.add(new CpuFusionDecision.ProfitabilityRejection(
+                        rejection.candidate().equals(original) ? forged : rejection.candidate(),
+                        rejection.reason(), rejection.canonicalSplitScore(),
+                        rejection.candidateScore(), rejection.requiredMargin()));
+            } else if (decision instanceof CpuFusionDecision.Selection selected) {
+                decisions.add(new CpuFusionDecision.Selection(selected.selected(),
+                        selected.canonicalSplit().equals(original) ? forged
+                                : selected.canonicalSplit(),
+                        forged, selected.stableRank(), selected.selectedScore(),
+                        selected.canonicalSplitScore(), selected.achievedMargin(),
+                        selected.reason()));
+            }
+        }
+        return decisions;
+    }
+
+    private static List<CpuFusionDecision> withCompatibilityRole(
+            CpuPartitionPreparationPlan plan, int relative,
+            CpuFusionDecision.BoundaryRole replacement) {
+        var original = (CpuFusionDecision.Selection) plan.fusionDecisions().getLast();
+        var units = new ArrayList<CpuFusionDecision.UnitIdentity>();
+        for (var unit : original.compatibilityBaseline().units()) {
+            var boundaries = unit.boundaries().stream().map(boundary ->
+                    boundary.relativeBoundaryPosition() == relative
+                            ? new CpuFusionDecision.BoundaryFact(relative,
+                                    boundary.unitBoundaryPosition(), replacement,
+                                    boundary.regime(), boundary.referencedBytes(),
+                                    boundary.byteAlignment())
+                            : boundary).toList();
+            units.add(new CpuFusionDecision.UnitIdentity(unit.memberNodePositions(),
+                    unit.dependencyUnitPositions(), unit.portableIrStructuralKey(),
+                    unit.specialization(), unit.strategy(), boundaries, unit.workspace(),
+                    unit.topology()));
+        }
+        var decisions = new ArrayList<>(plan.fusionDecisions());
+        decisions.set(decisions.size() - 1, new CpuFusionDecision.Selection(original.selected(),
+                original.canonicalSplit(), new CpuFusionDecision.CandidateIdentity(units),
+                original.stableRank(), original.selectedScore(), original.canonicalSplitScore(),
+                original.achievedMargin(), original.reason()));
+        return decisions;
+    }
+
+    private static List<CpuFusionDecision> withForgedProducedRoles(
+            CpuPartitionPreparationPlan plan, int relative) {
+        var original = (CpuFusionDecision.Selection) plan.fusionDecisions().getLast();
+        var units = new ArrayList<CpuFusionDecision.UnitIdentity>();
+        for (var unit : original.compatibilityBaseline().units()) {
+            var boundaries = unit.boundaries().stream().map(boundary -> {
+                if (boundary.relativeBoundaryPosition() != relative) return boundary;
+                var role = unit.memberNodePositions().contains(0)
+                        ? CpuFusionDecision.BoundaryRole.PARTITION_WRITE
+                        : CpuFusionDecision.BoundaryRole.EXTERNAL_READ;
+                return new CpuFusionDecision.BoundaryFact(relative,
+                        boundary.unitBoundaryPosition(), role, boundary.regime(),
+                        boundary.referencedBytes(), boundary.byteAlignment());
+            }).toList();
+            units.add(new CpuFusionDecision.UnitIdentity(unit.memberNodePositions(),
+                    unit.dependencyUnitPositions(), unit.portableIrStructuralKey(),
+                    unit.specialization(), unit.strategy(), boundaries, unit.workspace(),
+                    unit.topology()));
+        }
+        var decisions = new ArrayList<>(plan.fusionDecisions());
+        decisions.set(decisions.size() - 1, new CpuFusionDecision.Selection(original.selected(),
+                original.canonicalSplit(), new CpuFusionDecision.CandidateIdentity(units),
+                original.stableRank(), original.selectedScore(), original.canonicalSplitScore(),
+                original.achievedMargin(), original.reason()));
+        return decisions;
+    }
+
+    private static CpuPartitionPreparationPlan copyRetainedRecognitionPlan(
+            CpuPartitionPreparationPlan plan, List<CpuFusionDecision> decisions) {
+        return new CpuPartitionPreparationPlan(plan.numericalProfile(), plan.units(), plan.route(),
+                plan.executionStrategy(), plan.bufferDeclarations(), plan.boundaryValues(),
+                plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
+                plan.extents(), plan.elementCount(), plan.affineAddressPairs(),
+                plan.selectedRangeCount(), plan.minimumElementsPerWorker(),
+                plan.vectorSpeciesBitSize(), plan.loweringManifest(), plan.materialization(),
+                plan.workspaceDeclaration(), plan.workspaceUse(), plan.specializationBudget(),
+                plan.movementGeometry(), plan.indexingGeometry(), plan.scatterGeometry(),
+                plan.foldGeometry(), plan.orderingGeometry(), plan.randomGeometry(),
+                plan.scanGeometry(), plan.aggregateGeometry(), plan.argExtremaGeometry(),
+                plan.maskedReductionGeometry(), plan.advancedReductionGeometry(),
+                plan.softmaxGeometry(), plan.trailingNormalizationGeometry(),
+                plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
+                plan.conv2dGeometry(), plan.specializedSubgraphs(), decisions,
+                plan.publicationBoundaryPositions(), plan.materializations(),
+                plan.representationUnits(), plan.representationDecisions());
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> matmulChainContext(
+            boolean sharedWeight, boolean relu) {
+        var matrix = descriptor(DataType.FLOAT32, Shape.of(2, 2));
+        int secondWeight = sharedWeight ? 1 : 2;
+        int intermediate = sharedWeight ? 2 : 3;
+        int result = intermediate + 1;
+        var nodes = new ArrayList<CompiledNode>();
+        nodes.add(new CompiledNode(new NodeId(0),
+                new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
+                List.of(new ValueId(0), new ValueId(1)), List.of(new ValueId(intermediate))));
+        nodes.add(new CompiledNode(new NodeId(1),
+                new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
+                List.of(new ValueId(intermediate), new ValueId(secondWeight)),
+                List.of(new ValueId(result))));
+        if (relu) nodes.add(new CompiledNode(new NodeId(2),
+                new Operation(UnaryElementwiseKind.RELU, NoOperationAttrs.INSTANCE),
+                List.of(new ValueId(result)), List.of(new ValueId(result + 1))));
+        return arbitraryContext(nodes, java.util.Collections.nCopies(result + (relu ? 2 : 1),
+                matrix), new CpuPartitionAnalysisInputs(false, List.of(),
+                        new PortableExecutionConfig(ComputePreference.SCALAR, 1, 1, 1)));
+    }
+
     @Test
     void bothProfilesPrepareIdenticalPointwiseAndReductionPlansWithSeparatedIdentity() {
         assertProfileParity(context(Shape.of(2)));
@@ -676,7 +926,7 @@ public class CpuPartitionPreparerTest {
                 () -> assertTrue(initial.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()),
-                () -> assertEquals(67, io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION));
+                () -> assertEquals(68, io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION));
     }
     @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {
         var base = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
