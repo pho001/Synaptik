@@ -44,8 +44,12 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool2dLowering
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering;
 
 /**
- * <p>Route-neutral immutable selected CPU partition plan. General plans retain one through eight
- * topologically ordered units and a deduplicated partition resource view; legacy top-level
+ * <p>Route-neutral immutable selected CPU partition plan. General plans retain one or more
+ * topologically ordered units and a deduplicated partition resource view. A direct plan may have
+ * more than eight units because the per-unit ceiling does not cap the complete CPU partition;
+ * complete-candidate enumeration and representation-copy selection remain bounded to partitions
+ * of at most eight compiled nodes. Long direct plans retain only unit-intrinsic workspaces, each
+ * identified by its final unit index. Legacy top-level
  * geometry components remain authoritative only for the established one-unit form. Unit-local
  * runtime and specialized-family geometry lives in each {@link ExecutionUnitPlan}. General-plan
  * validation compares generated access plans with boundary bindings except for structural
@@ -54,7 +58,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering
  *
  * @param numericalProfile non-null immutable graph-wide numerical-profile identity retained
  *     exactly and shared by every unit specialization
- * @param units non-null computation-oriented units; copied defensively
+ * @param units non-null computation-oriented units in stable topological order; copied
+ *     defensively, with no eight-unit ceiling for a direct long plan
  * @param route non-null route selected after common lowering
  * @param executionStrategy non-null selected compute/orchestration strategy for a one-unit plan;
  *     the neutral scalar value is retained only for compatibility on a general plan
@@ -125,7 +130,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering
  * @param representationUnits non-null representation-adjusted generated consumer plans in
  *     semantic-unit order, empty exactly when this plan realizes no copy candidate
  * @param representationDecisions non-null bounded closed representation variants and final
- *     ordinary selection; copied defensively; materialized variants remain candidate-only unless
+ *     ordinary selection; copied defensively and empty for a long direct plan; materialized
+ *     variants remain candidate-only unless
  *     a later owner explicitly supplies a compatible complete choice before finalization
  * @param partialReductionRecipe non-null optional private partial-reduction finalization handoff;
  *     current production preparation keeps it empty until trusted complete evidence exists
@@ -325,7 +331,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
      * Creates a plan carrying 0008C recognition but no 0008D decision facts. This compatibility
      * constructor is used while complete candidates are being ranked.
      *
-     * @param units non-null one-through-eight unit snapshot
+     * @param units non-null, non-empty topologically ordered unit snapshot
      * @param route non-null selected route
      * @param executionStrategy non-null selected or general-plan compatibility strategy
      * @param bufferDeclarations non-null exact buffer declarations
@@ -785,7 +791,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
     /** Validated whole-partition cardinality form. */
     public enum PlanForm {
         /** One established or newly fused computation unit. */ ONE_UNIT,
-        /** General deterministic one-through-eight-unit partition topology. */
+        /** General deterministic multi-unit partition topology. */
         GENERAL_PARTITION
     }
 
@@ -1405,8 +1411,9 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
     /**
      * Validates and snapshots one complete selected plan.
      *
-     * @param units non-null one-through-eight computation-unit list in stable topological order;
-     *     copied defensively
+     * @param units non-null, non-empty computation-unit list in stable topological order; copied
+     *     defensively. Direct long partitions may retain more than eight units while bounded
+     *     complete-plan alternatives remain limited to eight compiled nodes
      * @param route non-null selected portable or narrow OpenBLAS route
      * @param executionStrategy non-null selected compute/orchestration strategy
      * @param bufferDeclarations non-null derived-boundary declarations; copied defensively
@@ -1457,7 +1464,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
      * @param selectedOpenBlasTuningCandidate non-null optional immutable selected identity,
      *     present exactly when {@code openBlasTuningBatch} is present and naming one of its members
      * @throws NullPointerException if a required component is {@code null}
-     * @throws IllegalArgumentException if the plan is not one through eight valid CPU units with
+     * @throws IllegalArgumentException if the plan lacks valid CPU units with
      *     matching route, boundary, dependency, strategy, range, materialization, workspace,
      *     species, specialization, and optional OpenBLAS facts
      */
@@ -1533,7 +1540,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
             throw new IllegalArgumentException("CPU representation plan facts disagree");
         }
         boolean split = units.size() > 1;
-        if (units.isEmpty() || units.size() > 8
+        if (units.isEmpty()
                 || bufferDeclarations.isEmpty()
                 || boundaryValues.size() != bufferDeclarations.size()
                 || accessBindings.size() != bufferDeclarations.size()

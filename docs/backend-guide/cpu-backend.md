@@ -19,14 +19,19 @@ canonical geometry. Caller-bindable input descriptors remain exact. This complet
 capability: the provider and complete-partition lowering still reject unsupported semantics, data
 types, Shapes, resolved geometry, topology, carriers, and resource requirements.
 
-A CPU-owned partition directed acyclic graph (DAG) contains one through eight supported compiled
-nodes. CPU analysis first decomposes it into established computation-unit seeds, then performs
-bounded deterministic vertical and horizontal fusion only among ordinary pointwise units. The
-result is one through eight topologically ordered units behind one partition-level prepared
-executable. Eligible unpublished single-use pointwise results remain virtual inside a fused unit;
-every value crossing units, every published result, and every external read is an ordinary
-declared buffer. One pointwise unit may therefore have multiple ordered output stores. A static
-affine unit remains one connected one-input/one-output chain of at most eight resolved-layout view
+A CPU-owned partition directed acyclic graph (DAG) has no fixed eight-node partition cap. Its
+compiled nodes must be supported and remain in stable producer-before-consumer order; checked
+geometry and resource requirements must still be valid. CPU analysis decomposes the complete
+partition into established computation-unit seeds, then considers deterministic vertical and
+horizontal fusion only among ordinary pointwise units. A single fused pointwise or affine unit
+still contains at most eight compiled nodes; a long partition can contain more than eight
+topologically ordered units behind one partition-level prepared executable. For example, nine
+separately published pointwise results can remain nine units in one CPU partition and run in
+publication order; the eight-node limit is not a Compiler partition boundary. Eligible
+unpublished single-use pointwise results remain virtual inside a fused unit; every value crossing
+units, every published result, and every external read is an ordinary declared buffer. One
+pointwise unit may therefore have multiple ordered output stores. A static affine unit remains
+one connected one-input/one-output chain of at most eight resolved-layout view
 occurrences. A static movement unit is exactly one resolved-layout PAD, TILE, CONCAT, STACK,
 UNFOLD_AXIS, or UNFOLD2D occurrence. It declares each distinct input once in first-occurrence
 order plus one distinct injective output while preserving every semantic composition occurrence.
@@ -796,8 +801,9 @@ The current CPU-private flow is:
 ```text
 complete CPU-owned partition
   -> computation-oriented execution units
-  -> bounded complete legal-topology enumeration
-  -> deterministic profitability selection or canonical split fallback
+  -> for at most eight nodes: bounded complete legal-topology enumeration
+     and deterministic profitability selection or canonical split fallback
+  -> for longer partitions: deterministic direct local fusion, no complete candidates
   -> route-independent canonical kernel IR and normalized access-plan form
   -> exact post-fusion buffer declarations
   -> portable Class-File/Vector baseline or eligible peer native route
@@ -807,7 +813,7 @@ complete CPU-owned partition
 
 ### General partition DAG and bounded pointwise fusion
 
-CPU preparation treats the complete CPU-owned partition as a bounded directed acyclic graph
+CPU preparation treats the complete CPU-owned partition as a directed acyclic graph
 (DAG), not as a promise that every node belongs in one generated loop. It first selects the
 longest already-established seed at each stable node position. Affine chains and specialized
 movement, indexing, scatter, fold, ordering, random, scan, reduction, normalization, and
@@ -830,15 +836,19 @@ stable operation order and emits one store for each materialized branch result. 
 fan-out, state/random transitions, affine or specialized families, numerical-order-sensitive
 families, incompatible access geometry, and any unproved alias relation remain unit barriers.
 
-The compatibility decomposition remains deterministic: vertical pairs precede horizontal pairs,
-and the first legal pair within all CPU 0008B hard ceilings is accepted. Those ceilings are eight
-partition nodes, eight final units, 28 attempted pairs, eight nodes per newly fused pointwise
-unit, 16 materialized boundaries, 16 simultaneously live IR values, 32 indexing-complexity units,
-and 64 estimated generated-code units. CPU 0008D reuses the same typed contraction result and
-structural calculation while enumerating complete alternatives; it does not weaken these
-correctness and resource gates. An illegal, unsupported, or over-budget contraction therefore
-leaves a complete materialized topology available, and failure still occurs only when an
-individual seed is unsupported or the complete context is malformed.
+For partitions of at most eight nodes, the compatibility decomposition remains deterministic:
+vertical pairs precede horizontal pairs, and the first legal pair within the 28-attempt search
+ceiling is accepted. Bounded complete-topology enumeration and profitability selection remain in
+this domain. A longer partition instead takes a direct path that examines adjacent local pairs
+in stable order, including at the tail, without spending one partition-wide attempt budget. It
+does not enumerate all legal complete topologies or promise fusion across non-adjacent units.
+Both paths keep the hard ceiling of eight compiled nodes per fused pointwise unit, 16 materialized
+boundaries, 16 simultaneously live IR values, 32 indexing-complexity units, and 64 estimated
+generated-code units. CPU 0008D reuses the same typed contraction result and structural
+calculation for bounded complete alternatives; it does not weaken these correctness and resource
+gates. An illegal, unsupported, or over-budget contraction leaves a complete materialized split
+topology available; failure occurs when an individual seed is unsupported or the complete context
+is malformed.
 
 ```text
 input -> pointwise producer -> split buffer -> pointwise left  --\
@@ -858,7 +868,7 @@ eligible copies whose consumers are disjoint at instruction level, and one copy 
 compatible repeated or cross-unit uses. Each intrinsic family workspace in a multi-unit plan has
 the final unit index as its partition-unique requirement ID and stays run-owned. Ordinary
 preparation selects direct, so Shared Prepare receives none of the candidate-only copy resources;
-an explicitly selected current complete-plan candidate declares them before assignment without
+an explicitly selected bounded complete-plan candidate declares them before assignment without
 asking Shared Prepare to interpret CPU topology.
 
 Finalization resolves the complete buffer and workspace assignment sets before looking up or
@@ -1169,13 +1179,15 @@ output; another legal chain derives a different count. The BOOL store is canonic
 demonstrates family lowering, virtuality, and derived boundary cardinality; it does not by itself
 demonstrate cross-type conversion, general DAG fusion, or another operation family.
 
-Complete-partition analysis admits one through eight supported stored occurrences in acyclic
-producer-before-consumer order. Side inputs become external boundaries. Eligible unpublished
-single-use pointwise results may remain virtual within a fused unit, while publications, fan-out,
+Complete-partition analysis has no fixed eight-node cap on supported stored occurrences in acyclic
+producer-before-consumer order. Checked geometry and resource requirements still apply. Side
+inputs become external boundaries. Eligible unpublished single-use pointwise results may remain
+virtual within a fused unit, while publications, fan-out,
 and all cross-unit values materialize. Disconnected same-domain pointwise branches may form one
 multi-store unit; other disconnected or mixed-family work remains separate supported units.
-Malformed topology, more than eight occurrences, or an independently unsupported seed fails
-before declaration or artifact access.
+The eight-node limit applies to each fused pointwise or affine unit, not to the complete CPU
+partition. Malformed topology or an independently unsupported seed fails before declaration or
+artifact access.
 
 CAST follows the Model-owned 36-pair value contract. Same-type pairs preserve represented bits,
 including signed zero and every NaN pattern. Cross-type conversion uses these categories:

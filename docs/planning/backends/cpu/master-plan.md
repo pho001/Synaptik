@@ -246,6 +246,7 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0015 | Optional AMD ZenDNN partition peer routes | Draft | 0014; 0005A; 0009; stable common CPU lowering; concrete ZenDNN use case and integration evidence | Optional ZenDNN route waits for 0014 plus a concrete use case and integration evidence. |
 | 0016 | Cross-route CPU tuning-cache integration | Draft | 0010E; Prepare 0004; tools/tuning 0001; 0011–0015 as implemented | Generalize the proved tuning contract only across vendor peers that are actually implemented. |
 | 0017 | [Explicit ACCELERATOR numerical-profile realization](tasks/0017-explicit-accelerator-numerical-profile-realization.md) | Complete | Model 0027; Config 0006; Engine 0018; current exact portable/OpenBLAS routes and profile-keyed plans/caches | Delivered identical exact CPU semantics and routes under both profiles with profile-separated plans, generated artifacts, OpenBLAS workloads, and tuning/cache identities. |
+| 0019 | [CPU partition size independent of fusion-unit size](tasks/0019-unbounded-cpu-partition-bounded-fusion-units.md) | Complete | CPU 0008B/0008D/0008E/0008F/0017; Engine 0018; independent of unfinished CPU 0018 | Long maximal CPU partitions execute as bounded local units; 1,039 CPU tests and focused Engine execution passed. |
 
 ## Milestones and current frontier
 
@@ -259,6 +260,7 @@ The table owns order and status; linked tasks own detailed evidence.
   [0017](tasks/0017-explicit-accelerator-numerical-profile-realization.md) are Complete. CPU 0017
   landed at `372a8b98`; its independent Class C review and the combined numerical-profile backend
   integration checkpoint passed with zero findings or failures.
+- [0019](tasks/0019-unbounded-cpu-partition-bounded-fusion-units.md) is Complete by the user-authorized out-of-order exception. Long CPU partitions have no eight-node partition cap; the eight-node fused-unit ceiling remains. CPU 0018 is a separate unfinished task.
 
 ## Completed numerical-profile integration
 

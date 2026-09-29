@@ -35,8 +35,11 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 /**
- * Whole-partition CPU analysis entry for the current bounded static portable families.
- * Analysis retains complete direct, eligible single-copy, and eligible disjoint-consumer pair
+ * Whole-partition CPU analysis entry for static portable families. Complete-plan alternative
+ * enumeration remains bounded to eight compiled nodes; longer partitions take a direct,
+ * deterministic multi-unit path with no complete-plan candidate enumeration or representation-
+ * copy alternatives. For partitions within that bounded domain, analysis retains complete direct,
+ * eligible single-copy, and eligible disjoint-consumer pair
  * representation candidates for FLOAT64, FLOAT32, INT32, INT64, and canonical BOOL pointwise
  * work. It rejects a pair when one represented instruction consumes both copied sources, and one
  * compatible copy identity may serve repeated or cross-unit consumers. Ordinary preparation
@@ -117,16 +120,19 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     }
 
     /**
-     * Lowers, fuses, selects one bounded complete plan, and declares exact post-fusion resources.
+     * Lowers and fuses one complete CPU-owned partition, selects a bounded complete plan when
+     * available or a direct long plan, and declares exact post-fusion resources. The direct path
+     * has no whole-partition node ceiling and makes no complete-candidate or copy-tuning claim.
      * @param context non-null complete CPU analysis context
-     * @return one immutable analysis with one through eight topologically ordered units, one exact
+     * @return one immutable analysis with non-empty topologically ordered units, one exact
      *     deduplicated declaration per materialized value, and each unit's already-selected
      *     portable strategy and optional exact workspace; never {@code null}. Multi-unit workspace
      *     declarations are rebased to the final unit index before they enter the partition
      *     requirement list. A one-unit plan may retain the established optional external-read
      *     materialization, while a multi-unit plan disables it and retains only family-intrinsic
-     *     unit workspaces. The returned plan also carries ordered CPU-private recognition facts
-     *     only after their exact baseline-unit IR and resource snapshot has been validated;
+     *     unit workspaces. In the bounded candidate domain, the returned plan also carries ordered
+     *     CPU-private recognition facts only after their exact baseline-unit IR and resource
+     *     snapshot has been validated;
      *     those facts do not alter declarations, artifact identity, finalization, or execution.
      *     The plan also retains the authoritative logical-memory graph-publication boundary
      *     positions solely so its selected boundary roles can be independently recomputed.
@@ -140,7 +146,28 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      */
     @Override public BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(
             PrepareContext<CpuPartitionAnalysisInputs> context) {
+        Objects.requireNonNull(context, "context");
+        if (context.nodes().size() > 8) return analyzeLongPartition(context);
         return finishOpenBlas(context, selectPlan(context, Optional.empty()).analysis());
+    }
+
+    /**
+     * Analyzes a long complete partition directly without bounded complete-plan enumeration or
+     * representation copies. The selected portable units preserve the full partition topology;
+     * all distinct buffer and unit-indexed intrinsic-workspace declarations are assembled before
+     * shared slot assignment.
+     *
+     * @param context non-null CPU partition context containing more than eight compiled nodes
+     * @return immutable portable analysis with exact distinct buffers and unit-indexed workspaces;
+     *     never {@code null}
+     * @throws IllegalArgumentException if any node, projection, or declaration is unsupported
+     * @throws ArithmeticException if exact resource geometry overflows
+     */
+    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeLongPartition(
+            PrepareContext<CpuPartitionAnalysisInputs> context) {
+        List<CpuPartitionDagDecomposer.Unit> units = decomposer.decompose(context, lowering);
+        var analysis = analyzeTopology(context, units, null);
+        return withMetadata(context, analysis, List.of(), List.of());
     }
 
     /**
@@ -150,13 +177,20 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      * measurement, ranking, execution, or resource allocation.</p>
      *
      * @param context non-null complete CPU analysis context; inspected but not mutated
-     * @return a new immutable candidate-identity snapshot and its exact completeness outcome
+     * @return a new immutable candidate-identity snapshot and its exact completeness outcome;
+     *     above eight compiled nodes, the valid direct plan is analyzed but the identity list is
+     *     empty and completeness is false
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if analysis facts are unsupported or inconsistent
      * @throws ArithmeticException if exact candidate or resource arithmetic overflows
      */
     public CompletePlanCandidates completePlanCandidates(
             PrepareContext<CpuPartitionAnalysisInputs> context) {
+        Objects.requireNonNull(context, "context");
+        if (context.nodes().size() > 8) {
+            analyzeLongPartition(context);
+            return new CompletePlanCandidates(List.of(), false);
+        }
         SelectionAnalysis selected = selectPlan(Objects.requireNonNull(context, "context"),
                 Optional.empty());
         List<CpuRepresentationDecision.Variant>
@@ -186,13 +220,17 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      * @return a new exact immutable analysis with complete declarations for the selected retained
      *     plan
      * @throws NullPointerException if an argument is {@code null}
-     * @throws IllegalArgumentException if the selected identity is no longer retained
+     * @throws IllegalArgumentException if the selected identity is no longer retained or the
+     *     complete partition exceeds the eight-node selection domain
      * @throws ArithmeticException if exact plan or resource arithmetic overflows
      */
     public BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeSelected(
             PrepareContext<CpuPartitionAnalysisInputs> context,
             SelectedCompletePlan selectedPlan) {
         Objects.requireNonNull(selectedPlan, "selectedPlan");
+        Objects.requireNonNull(context, "context");
+        if (context.nodes().size() > 8) throw new IllegalArgumentException(
+                "complete CPU plan selection is unavailable above eight nodes");
         return finishOpenBlas(context, selectPlan(Objects.requireNonNull(context, "context"),
                 Optional.of(selectedPlan)).analysis());
     }
@@ -240,10 +278,12 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     }
 
     /**
-     * Complete bounded retained candidates; an incomplete result must not escape publicly.
+     * Bounded retained complete-plan candidates. An incomplete result cannot form a public
+     * tuning batch; a long direct partition reports an empty identity list and {@code false}.
      * @param identities non-null ordered retained topology/representation identities;
      *     defensively snapshotted
-     * @param complete whether every bounded alternative was proved complete
+     * @param complete whether every bounded alternative was proved complete; false for a long
+     *     partition outside the complete-candidate domain
      */
     public record CompletePlanCandidates(
             List<CpuRepresentationDecision.VariantIdentity> identities,

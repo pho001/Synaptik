@@ -21,6 +21,8 @@ import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElemen
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
+import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -30,6 +32,7 @@ import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
+import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -59,12 +62,14 @@ class CpuPartitionDagDecomposerTest {
                 () -> assertFalse(CpuPartitionDagDecomposer.withinBudgets(codeIr(true))));
     }
 
-    @Test void oneAndEightNodeAndUnitEdgesAreStableAndTheImmediateExcessFailsClosed() {
+    @Test void oneAndEightNodeIdentitiesStayStableWhileNineNodesUseBoundedUnits() {
         var one = new CpuPartitionPreparer().analyze(
                 CpuPointwisePartitionLoweringTest.chain(1)).plan();
         var fusedEight = new CpuPartitionPreparer().analyze(
                 CpuPointwisePartitionLoweringTest.chain(8)).plan();
         var splitEight = new CpuPartitionPreparer().analyze(publishedChain(8)).plan();
+        var nine = new CpuPartitionPreparer().analyze(
+                CpuPointwisePartitionLoweringTest.chain(9)).plan();
         assertAll(
                 () -> assertEquals(1, one.units().size()),
                 () -> assertEquals(8, fusedEight.units().size()),
@@ -76,9 +81,10 @@ class CpuPartitionDagDecomposerTest {
                         .findFirst().orElseThrow().compatibilityBaseline().units().size()),
                 () -> assertEquals(8, splitEight.units().size()),
                 () -> assertEquals(28, CpuPartitionDagDecomposer.MAX_ATTEMPTS),
-                () -> assertThrows(IllegalArgumentException.class, () ->
-                        new CpuPartitionPreparer().analyze(
-                                CpuPointwisePartitionLoweringTest.chain(9))));
+                () -> assertEquals(List.of(0, 1, 2, 3, 4, 5, 6, 7, 8), nine.units().stream()
+                        .flatMap(unit -> unit.memberNodeOrdinals().stream()).sorted().toList()),
+                () -> assertTrue(nine.units().stream().allMatch(unit ->
+                        unit.memberNodeOrdinals().size() <= 8)));
     }
 
     @Test void diamondMaterializesTheFanOutAndFusesOnlyTheConsumerSiblings() {
@@ -94,14 +100,91 @@ class CpuPartitionDagDecomposerTest {
                         plan.boundaryValues().stream().filter(new ValueId(1)::equals).count()));
     }
 
-    @Test void sevenWayFanOutIsMaterializedAndTheEighthConsumerCannotEnterThePartition() {
+    @Test void sevenWayFanOutIsMaterializedAndTheEighthConsumerStillEntersThePartition() {
         var atCeiling = new CpuPartitionPreparer().analyze(fanOut(7)).plan();
+        var larger = new CpuPartitionPreparer().analyze(fanOut(8)).plan();
         assertAll(
                 () -> assertTrue(atCeiling.units().size() >= 2),
                 () -> assertTrue(atCeiling.units().size() <= 8),
                 () -> assertTrue(atCeiling.boundaryValues().contains(new ValueId(1))),
-                () -> assertThrows(IllegalArgumentException.class,
-                        () -> new CpuPartitionPreparer().analyze(fanOut(8))));
+                () -> assertEquals(9, larger.units().stream()
+                        .mapToInt(unit -> unit.memberNodeOrdinals().size()).sum()));
+    }
+
+    @Test void localFusionAtTailIsNotStarvedByEarlierPublishedUnits() {
+        var base = publishedChain(32);
+        var requirements = new ArrayList<>(base.memoryRequirements());
+        var tail = new ValueId(31);
+        for (int index = 0; index < requirements.size(); index++) {
+            var requirement = requirements.get(index);
+            if (requirement.valueId().equals(tail)) requirements.set(index,
+                    new LogicalMemoryRequirement(tail, requirement.descriptor(),
+                            requirement.producerPartition(), requirement.consumerPartitions(), false));
+        }
+        var context = new PrepareContext<>(base.numericalProfile(), base.partition(),
+                base.nodes(), base.values(), requirements, base.constants(), base.backendInputs());
+        var units = new CpuPartitionDagDecomposer().decompose(context,
+                new CpuPartitionLowering());
+        assertEquals(List.of(30, 31), units.getLast().memberNodeOrdinals());
+        assertTrue(units.stream().allMatch(unit -> unit.memberNodeOrdinals().size() <= 8));
+    }
+
+    @Test void longMixedFamilyPlanKeepsLateWorkspaceAndRejectsCompleteSelection() {
+        var context = longMixedFamily();
+        var preparer = new CpuPartitionPreparer();
+        var analysis = preparer.analyze(context);
+        var plan = analysis.plan();
+        var candidates = preparer.completePlanCandidates(context);
+        var boundedIdentity = preparer.completePlanCandidates(
+                CpuPointwisePartitionLoweringTest.chain(1)).identities().getFirst();
+        assertAll(
+                () -> assertEquals(11, plan.units().size()),
+                () -> assertEquals(List.of(10, 11), plan.units().getLast().memberNodeOrdinals()),
+                () -> assertEquals(12, plan.units().stream()
+                        .mapToInt(unit -> unit.memberNodeOrdinals().size()).sum()),
+                () -> assertEquals(9, plan.units().get(9).runtimeFacts()
+                        .workspaceDeclaration().orElseThrow().requirementId()),
+                () -> assertEquals(List.of(9L), analysis.requirements().stream()
+                        .filter(PreparationResourceRequirement.Workspace.class::isInstance)
+                        .map(PreparationResourceRequirement.Workspace.class::cast)
+                        .map(PreparationResourceRequirement.Workspace::requirementId).toList()),
+                () -> assertTrue(plan.materializations().isEmpty()),
+                () -> assertFalse(candidates.complete()),
+                () -> assertTrue(candidates.identities().isEmpty()),
+                () -> assertThrows(IllegalArgumentException.class, () -> preparer.analyzeSelected(
+                        context, new CpuPartitionPreparer.SelectedCompletePlan(1,
+                                boundedIdentity, List.of(1)))));
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> longMixedFamily() {
+        var nodes = new ArrayList<CompiledNode>();
+        for (int index = 0; index < 9; index++) nodes.add(scalar(index,
+                new ValueId(index), new ValueId(index + 1L), ScalarElementwiseKind.ADD));
+        nodes.add(new CompiledNode(new NodeId(9),
+                new Operation(OrderingKind.SORT, new SortAttrs(0, false)),
+                List.of(new ValueId(9)), List.of(new ValueId(10))));
+        nodes.add(scalar(10, new ValueId(10), new ValueId(11), ScalarElementwiseKind.ADD));
+        nodes.add(scalar(11, new ValueId(11), new ValueId(12), ScalarElementwiseKind.MUL));
+        var descriptors = java.util.stream.IntStream.rangeClosed(0, 12)
+                .mapToObj(ignored -> descriptor(DataType.FLOAT32, Shape.of(4))).toList();
+        var publications = java.util.stream.LongStream.rangeClosed(1, 9)
+                .mapToObj(ValueId::new)
+                .collect(java.util.stream.Collectors.toCollection(HashSet::new));
+        publications.add(new ValueId(12));
+        return context(nodes, descriptors, publications);
+    }
+
+    @Test void unsupportedLateNodeInLongPartitionFailsDuringAnalysis() {
+        var base = publishedChain(9);
+        var nodes = new ArrayList<>(base.nodes());
+        nodes.set(8, new CompiledNode(new NodeId(8),
+                new Operation(ScalarElementwiseKind.ADD,
+                        new ScalarValueAttrs(ScalarValue.float64(2))),
+                List.of(new ValueId(8)), List.of(new ValueId(9))));
+        var invalid = new PrepareContext<>(base.numericalProfile(), base.partition(), nodes,
+                base.values(), base.memoryRequirements(), base.constants(), base.backendInputs());
+        assertThrows(IllegalArgumentException.class, () -> new CpuPartitionPreparer()
+                .analyze(invalid));
     }
 
     @Test void publicationAffineNumericalAndStateEdgesRemainMaterializedBarriers() {

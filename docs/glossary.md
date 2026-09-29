@@ -1753,21 +1753,23 @@ artifact.
 ### CPU portable preparation plan
 
 The implemented backend-private immutable result of route-neutral CPU analysis before shared slot
-assignment. `CpuPartitionPreparationPlan` retains one through eight stable computation units,
-their direct producer indices and original member-node ordinals, each unit's canonical kernel IR,
+assignment. `CpuPartitionPreparationPlan` retains one or more stable computation units, including
+more than eight for a long direct CPU partition. It records their direct producer indices and
+original member-node ordinals, each unit's canonical kernel IR,
 portable specialization, execution strategy, boundary/carrier facts, and optional exact workspace
 or specialized-family geometry, plus one deduplicated whole-partition buffer declaration view and
 an optional cold lowering manifest. The top-level legacy geometry remains authoritative only for
 an established one-unit plan.
 
-CPU analysis validates that Planning selected CPU ownership and that the complete one-through-
-eight-node context is acyclic in producer-before-consumer order. It selects established affine or
-specialized seeds, performs bounded deterministic vertical and horizontal contraction only for
-ordinary pointwise IR, and retains the complete split topology whenever a contraction is illegal,
+CPU analysis validates that Planning selected CPU ownership and that the complete partition is
+acyclic in producer-before-consumer order. It selects established affine or specialized seeds,
+performs deterministic vertical and horizontal contraction only for ordinary pointwise IR, and
+retains the complete split topology whenever a contraction is illegal,
 unsupported, or over budget. Every cross-unit or published value is one ordinary buffer keyed by
 its existing `ValueId`; family-intrinsic workspaces use partition-unique final-unit IDs.
-CPU-private representation facts additionally retain bounded direct, eligible single-copy, and
-eligible disjoint-consumer pair candidates across FLOAT64, FLOAT32, INT32, INT64, and canonical
+For partitions of at most eight compiled nodes, CPU-private representation facts additionally
+retain bounded direct, eligible single-copy, and eligible disjoint-consumer pair candidates across
+FLOAT64, FLOAT32, INT32, INT64, and canonical
 BOOL pointwise work. A materialized candidate uses one anonymous workspace per copied external
 read, not an ordinary graph-split `Buffer(ValueId)`. Compatible repeated and cross-unit uses reuse
 one copy. Shared Prepare sees the selected plan opaquely and later validates declarations against
@@ -1776,13 +1778,15 @@ none of the candidate-only copy workspaces.
 
 The plan is not a generated artifact, assigned slot, executable, physical resource, per-run
 binding, capability claim, tuning result, registry, or public route API. It fails closed before
-artifact work for malformed topology, independently unsupported seeds, invalid resource geometry,
-or more than eight occurrences; a rejected pointwise contraction alone does not fail the split
-plan.
+artifact work for malformed topology, independently unsupported seeds, or invalid resource
+geometry; a rejected pointwise contraction alone does not fail the split plan. A long direct plan
+is supported, but bounded complete-plan enumeration, explicit candidate
+selection, and representation-copy alternatives are unavailable for it.
 
-Complete CPU 0008D additionally retains closed legality, profitability, and selection facts in
-the plan as CPU-private cold metadata. Their topology identities use relative positions and typed
-structural/resource facts rather than graph, value, slot, class-loader, cache, or Runtime identity.
+For partitions of at most eight compiled nodes, CPU 0008D additionally retains closed legality,
+profitability, and selection facts in the plan as CPU-private cold metadata. Their topology
+identities use relative positions and typed structural/resource facts rather than graph, value,
+slot, class-loader, cache, or Runtime identity.
 The plan also stores an immutable projection of boundary positions whose authoritative logical-
 memory requirements have `graphOutput() == true`; validation uses that projection to recompute
 `PUBLICATION` versus `PARTITION_WRITE` instead of trusting the claimed decision role. These facts

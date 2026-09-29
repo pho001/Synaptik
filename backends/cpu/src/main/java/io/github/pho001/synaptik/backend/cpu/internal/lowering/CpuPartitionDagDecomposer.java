@@ -44,18 +44,22 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Deterministically decomposes one complete CPU-owned partition DAG into bounded computation
- * units. Complete-partition order, producer, consumer, edge, and port-occurrence facts come from
+ * Deterministically decomposes one complete CPU-owned partition DAG into computation units.
+ * There is no fixed eight-node partition cap: every node and its checked topology, geometry, and
+ * resources must still be supported. Above eight partition nodes, the direct path examines local
+ * adjacent pointwise pairs through the tail without the bounded complete-topology search or a
+ * partition-wide attempt cap;
+ * each accepted contraction still obeys the per-unit structural and resource ceilings.
+ * Complete-partition order, producer, consumer, edge, and port-occurrence facts come from
  * {@link PrepareContext#partitionDag()}; unit membership, contracted topology, lowering, and
  * candidate dependencies and their unit-index accounting remain CPU-owned. Established affine
- * and numerical-family lowerings
- * remain indivisible seeds; only the ordinary pointwise IR is contracted, and a rejected
- * contraction leaves the split topology unchanged.
+ * and numerical-family lowerings remain indivisible seeds; only the ordinary pointwise IR is
+ * contracted, and a rejected contraction leaves the split topology unchanged.
  */
 public final class CpuPartitionDagDecomposer {
-    /** Maximum compiled nodes admitted by one complete CPU partition. */
+    /** Maximum compiled nodes admitted by one contracted pointwise or affine unit. */
     static final int MAX_NODES = 8;
-    /** Maximum contraction pairs examined for one unchanged analysis. */
+    /** Maximum contraction pairs examined by one bounded at-most-eight-node decomposition. */
     static final int MAX_ATTEMPTS = 28;
     /** Maximum materialized input/output values in a newly contracted pointwise unit. */
     static final int MAX_BOUNDARIES = 16;
@@ -137,7 +141,8 @@ public final class CpuPartitionDagDecomposer {
      */
     public record TopologyIdentity(List<List<Integer>> memberNodeOrdinals) {
         /**
-         * Validates and snapshots the complete unit membership.
+         * Validates and snapshots a bounded complete-candidate topology identity. This identity
+         * is not used to represent the direct plan for a partition above eight nodes.
          *
          * @throws NullPointerException if the outer list, an inner list, or a member is null
          * @throws IllegalArgumentException if there are no units, more than eight units, or an
@@ -248,7 +253,8 @@ public final class CpuPartitionDagDecomposer {
      * @return bounded deterministic complete-topology enumeration
      * @throws NullPointerException if an argument or recognition fact is {@code null}
      * @throws IllegalArgumentException if the complete context, recognition association,
-     *     canonical seed topology, or retained compatibility baseline is inconsistent
+     *     canonical seed topology, or retained compatibility baseline is inconsistent, or the
+     *     complete partition exceeds the eight-node enumeration domain
      * @throws ArithmeticException if exact topology or lowering arithmetic overflows
      */
     public Enumeration enumerate(PrepareContext<CpuPartitionAnalysisInputs> context,
@@ -257,6 +263,8 @@ public final class CpuPartitionDagDecomposer {
         Objects.requireNonNull(lowering, "lowering");
         recognition = List.copyOf(recognition);
         validate(context);
+        if (context.partitionDag().nodes().size() > MAX_NODES) throw new IllegalArgumentException(
+                "complete CPU topology enumeration is unavailable above eight nodes");
         PartitionDag dag = context.partitionDag();
         var ordinals = ordinals(dag);
         List<Unit> baseline = decompose(context, lowering);
@@ -341,13 +349,18 @@ public final class CpuPartitionDagDecomposer {
     }
 
     /**
-     * Builds the maximally split supported baseline and applies bounded deterministic pointwise
-     * contractions.
+     * Builds the maximally split supported baseline and applies deterministic pointwise
+     * contractions. For at most eight partition nodes, the established bounded vertical-then-
+     * horizontal search is unchanged. For longer partitions, only adjacent local pairs are
+     * considered in stable order, including pairs near the tail; an unsuccessful contraction
+     * leaves the supported split units intact.
      *
      * @param context complete non-null CPU analysis context whose shared partition DAG supplies
      *     stable node order and exact producer, consumer, edge, and port occurrences
      * @param lowering current non-null family lowering owner
-     * @return one through eight immutable units in stable topological order
+     * @return non-empty immutable units in stable topological order, with no fixed eight-node
+     *     complete-partition ceiling; each contracted pointwise or affine unit contains at most
+     *     eight compiled nodes
      * @throws NullPointerException if either argument is {@code null}
      * @throws IllegalArgumentException if ownership, topology, projection, seed support, or a
      *     selected unit contract is invalid
@@ -361,6 +374,26 @@ public final class CpuPartitionDagDecomposer {
         PartitionDag dag = context.partitionDag();
         var ordinals = ordinals(dag);
         var working = seeds(context, lowering, ordinals);
+        if (dag.nodes().size() > MAX_NODES) {
+            // The complete-candidate search is bounded to eight nodes. A long partition instead
+            // examines each local opportunity, including the tail, without a partition-wide cap.
+            int index = 0;
+            while (index + 1 < working.size()) {
+                MutableUnit left = working.get(index);
+                MutableUnit right = working.get(index + 1);
+                if (vertical(context, left, right)
+                        || horizontal(dag, working, left, right)) {
+                    MutableUnit fused = contract(context, lowering, left, right, ordinals);
+                    if (fused != null) {
+                        replace(working, index, index + 1, fused);
+                        if (index > 0) index--;
+                        continue;
+                    }
+                }
+                index++;
+            }
+            return finish(working, ordinals, dag);
+        }
         int attempts = 0;
         boolean changed;
         do {
@@ -428,9 +461,8 @@ public final class CpuPartitionDagDecomposer {
 
     private static void validate(PrepareContext<CpuPartitionAnalysisInputs> context) {
         if (!context.partition().owner().equals(CpuCapabilityProvider.CPU_BACKEND_ID)
-                || context.partitionDag().nodes().isEmpty()
-                || context.partitionDag().nodes().size() > MAX_NODES) {
-            throw new IllegalArgumentException("CPU partition requires one through eight nodes");
+                || context.partitionDag().nodes().isEmpty()) {
+            throw new IllegalArgumentException("CPU partition requires at least one node");
         }
         var values = new HashSet<ValueId>();
         context.values().forEach(value -> values.add(value.id()));
@@ -457,7 +489,8 @@ public final class CpuPartitionDagDecomposer {
         while (index < partitionNodes.size()) {
             MutableUnit selected = null;
             IllegalArgumentException lastFailure = null;
-            for (int end = partitionNodes.size(); end > index; end--) {
+            for (int end = Math.min(partitionNodes.size(), index + MAX_NODES);
+                    end > index; end--) {
                 List<CompiledNode> nodes = partitionNodes.subList(index, end);
                 if (nodes.size() > 1 && !establishedMultiNodeCandidate(nodes)) continue;
                 try {
