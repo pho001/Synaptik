@@ -42,9 +42,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
-/** Direct, test-local semantic closure for the exact ordinary movement and fold owner projection. */
+/**
+ * Direct, test-local semantic closure for the exact ordinary movement and fold owner projection.
+ * Large negative inventory fixtures and projections are processed one row at a time to bound
+ * test-worker memory.
+ */
 class CpuOrdinaryMovementFoldSemanticClosureTest {
     private static final String INVENTORY = "generated-coverage-inventory.tsv";
     private static final String INVENTORY_SHA256 =
@@ -105,13 +110,17 @@ class CpuOrdinaryMovementFoldSemanticClosureTest {
         assertEquals(188, projection.size());
         String text = new String(bytes, StandardCharsets.UTF_8);
         String owner = projection.keySet().iterator().next();
-        String row = Arrays.stream(text.split("\\R")).filter(line -> line.startsWith(owner + "\t"))
+        String row = text.lines().filter(line -> line.startsWith(owner + "\t"))
                 .findFirst().orElseThrow();
-        byte[] duplicate = (text + "\n" + row).getBytes(StandardCharsets.UTF_8);
-        assertThrows(AssertionError.class, () -> projectionIgnoringHash(duplicate));
+        String header = text.lines().findFirst().orElseThrow();
+        byte[] duplicate = (header + "\n" + row + "\n" + row + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+        AssertionError duplicateFailure = assertThrows(AssertionError.class,
+                () -> projectionIgnoringHash(duplicate));
+        assertTrue(duplicateFailure.getMessage().contains("duplicate owner"));
         assertThrows(AssertionError.class, () -> projection(duplicate));
-        String orphaned = Arrays.stream(text.split("\\R")).filter(line -> !line.startsWith(owner + "\t"))
-                .reduce((left, right) -> left + "\n" + right).orElseThrow();
+        String orphaned = text.lines().filter(line -> !line.startsWith(owner + "\t"))
+                .collect(Collectors.joining("\n"));
         assertThrows(AssertionError.class, () -> projectionIgnoringHash(orphaned.getBytes(StandardCharsets.UTF_8)));
         assertThrows(AssertionError.class, () -> projection(orphaned.getBytes(StandardCharsets.UTF_8)));
         assertThrows(AssertionError.class, () -> projection(bytes, "0".repeat(64)));
@@ -147,13 +156,23 @@ class CpuOrdinaryMovementFoldSemanticClosureTest {
         return projectionIgnoringHash(bytes);
     }
 
+    /**
+     * Checks the full inventory's row shape and exact selected-owner projection without retaining
+     * an array of every encoded row in addition to the inventory bytes.
+     *
+     * @param bytes UTF-8 inventory bytes; never {@code null}
+     * @return immutable selected owner-to-form projection; never {@code null}
+     * @throws AssertionError if the header, row shape, owner uniqueness, or counts are invalid
+     */
     private static Map<String, String> projectionIgnoringHash(byte[] bytes) {
         var rows = new LinkedHashMap<String, String>();
-        String[] lines = new String(bytes, StandardCharsets.UTF_8).split("\\R");
-        if (lines.length == 0 || !lines[0].startsWith("owner-id\t")) throw new AssertionError("inventory header");
-        for (int line = 1; line < lines.length; line++) {
-            if (lines[line].isEmpty()) continue;
-            String[] fields = lines[line].split("\\t", -1);
+        var lines = new String(bytes, StandardCharsets.UTF_8).lines().iterator();
+        if (!lines.hasNext() || !lines.next().startsWith("owner-id\t"))
+            throw new AssertionError("inventory header");
+        for (int line = 1; lines.hasNext(); line++) {
+            String encoded = lines.next();
+            if (encoded.isEmpty()) continue;
+            String[] fields = encoded.split("\\t", -1);
             if (fields.length != 27) throw new AssertionError("inventory columns at " + line);
             if (!fields[0].startsWith("ordinary:") || !FORMS.contains(fields[2])
                     || !fields[21].equals("GENERATED")) continue;

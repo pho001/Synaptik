@@ -19,15 +19,19 @@ import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
-/** Direct generated-entry semantics for every ordinary random and one-hot inventory owner. */
+/**
+ * Direct generated-entry semantics for every ordinary random and one-hot inventory owner.
+ * Large negative inventory fixtures and projections are processed one row at a time to bound
+ * test-worker memory.
+ */
 class CpuRandomOneHotSemanticClosureTest {
     private static final String INVENTORY = "generated-coverage-inventory.tsv";
     private static final String INVENTORY_SHA256 =
@@ -54,12 +58,16 @@ class CpuRandomOneHotSemanticClosureTest {
         assertEquals(36, owners.size());
         String text = new String(bytes, StandardCharsets.UTF_8);
         String owner = owners.keySet().iterator().next();
-        String row = Arrays.stream(text.split("\\R")).filter(line -> line.startsWith(owner + "\t"))
+        String row = text.lines().filter(line -> line.startsWith(owner + "\t"))
                 .findFirst().orElseThrow();
-        assertThrows(AssertionError.class, () -> projectionIgnoringHash((text + '\n' + row)
-                .getBytes(StandardCharsets.UTF_8)));
-        String orphaned = Arrays.stream(text.split("\\R")).filter(line -> !line.startsWith(owner + "\t"))
-                .reduce((left, right) -> left + '\n' + right).orElseThrow();
+        String header = text.lines().findFirst().orElseThrow();
+        byte[] duplicate = (header + "\n" + row + "\n" + row + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+        AssertionError duplicateFailure = assertThrows(AssertionError.class,
+                () -> projectionIgnoringHash(duplicate));
+        assertTrue(duplicateFailure.getMessage().contains("duplicate owner"));
+        String orphaned = text.lines().filter(line -> !line.startsWith(owner + "\t"))
+                .collect(Collectors.joining("\n"));
         assertThrows(AssertionError.class, () -> projectionIgnoringHash(orphaned.getBytes(StandardCharsets.UTF_8)));
         assertThrows(AssertionError.class, () -> projection(bytes, "0".repeat(64)));
         byte[] mutated = bytes.clone(); mutated[mutated.length - 2] ^= 1;
@@ -195,15 +203,33 @@ class CpuRandomOneHotSemanticClosureTest {
     private static Map<String, String> projection(byte[] bytes, String hash) {
         if (!hash.equals(sha256(bytes))) throw new AssertionError("stale or mutated inventory"); return projectionIgnoringHash(bytes);
     }
+    /**
+     * Checks every inventory row and the selected-owner counts without retaining all encoded rows.
+     *
+     * @param bytes UTF-8 inventory bytes; never {@code null}
+     * @return immutable selected owner-to-form projection; never {@code null}
+     * @throws AssertionError if the header, row shape, owner uniqueness, or counts are invalid
+     */
     private static Map<String, String> projectionIgnoringHash(byte[] bytes) {
-        var rows = new LinkedHashMap<String, String>(); String[] lines = new String(bytes, StandardCharsets.UTF_8).split("\\R");
-        if (lines.length == 0 || !lines[0].startsWith("owner-id\t")) throw new AssertionError("inventory header");
-        for (int line = 1; line < lines.length; line++) { if (lines[line].isEmpty()) continue; String[] f = lines[line].split("\t", -1);
-            if (f.length != 27) throw new AssertionError("inventory columns at " + line);
-            if (!f[0].startsWith("ordinary:") || !FORMS.contains(f[2]) || !f[21].equals("GENERATED")) continue;
-            if (rows.putIfAbsent(f[0], f[2]) != null) throw new AssertionError("duplicate owner " + f[0]); }
-        var actual = new TreeMap<String, Long>(); rows.values().forEach(form -> actual.merge(form, 1L, Long::sum));
-        if (!FORM_COUNTS.equals(actual)) throw new AssertionError("orphan or stale owner projection: " + actual); return Map.copyOf(rows);
+        var rows = new LinkedHashMap<String, String>();
+        var lines = new String(bytes, StandardCharsets.UTF_8).lines().iterator();
+        if (!lines.hasNext() || !lines.next().startsWith("owner-id\t"))
+            throw new AssertionError("inventory header");
+        for (int line = 1; lines.hasNext(); line++) {
+            String encoded = lines.next();
+            if (encoded.isEmpty()) continue;
+            String[] fields = encoded.split("\t", -1);
+            if (fields.length != 27) throw new AssertionError("inventory columns at " + line);
+            if (!fields[0].startsWith("ordinary:") || !FORMS.contains(fields[2])
+                    || !fields[21].equals("GENERATED")) continue;
+            if (rows.putIfAbsent(fields[0], fields[2]) != null)
+                throw new AssertionError("duplicate owner " + fields[0]);
+        }
+        var actual = new TreeMap<String, Long>();
+        rows.values().forEach(form -> actual.merge(form, 1L, Long::sum));
+        if (!FORM_COUNTS.equals(actual))
+            throw new AssertionError("orphan or stale owner projection: " + actual);
+        return Map.copyOf(rows);
     }
     private static String sha256(byte[] bytes) { try { return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)); } catch (Exception exception) { throw new AssertionError(exception); } }
     private static long word(long key, long counter, long index) { return mix(counter + index + mix(key + KEY_BIAS)); }

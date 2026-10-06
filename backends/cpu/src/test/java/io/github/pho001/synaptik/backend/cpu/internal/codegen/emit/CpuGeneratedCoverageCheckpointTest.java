@@ -22,7 +22,8 @@ import org.junit.jupiter.api.Test;
  * <p>Every row is the complete fact set emitted by one actual provider-to-preparer-to-generator
  * fixture execution. The owner and evidence key are foreign keys to that execution; operation
  * form is an inspectable attribute, never a join key. Oracle and performance are resolved by
- * canonical predicates over those facts; a partial disposition is an explicit gap, not a pass.</p>
+ * canonical predicates over those facts; a partial disposition is an explicit gap, not a pass.
+ * Duplicate-owner checks use bounded fixtures so they do not retain another full inventory copy.</p>
  */
 class CpuGeneratedCoverageCheckpointTest {
     private static final String BASE = "/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/";
@@ -481,8 +482,7 @@ class CpuGeneratedCoverageCheckpointTest {
         assertNotEquals(inventory, mutated);
         assertNotEquals(hex(MessageDigest.getInstance("SHA-256").digest(inventory.getBytes(StandardCharsets.UTF_8))),
                 hex(MessageDigest.getInstance("SHA-256").digest(mutated.getBytes(StandardCharsets.UTF_8))));
-        String duplicate = inventory + scatter.getFirst().getKey() + "\t" + String.join("\t", scatter.getFirst().getValue()) + "\n";
-        assertThrows(AssertionError.class, () -> parse(duplicate));
+        assertDuplicateOwnerRejected(scatter.getFirst().getValue());
     }
 
     /**
@@ -517,9 +517,7 @@ class CpuGeneratedCoverageCheckpointTest {
         assertNotEquals(inventory, stale);
         assertNotEquals(hex(MessageDigest.getInstance("SHA-256").digest(inventory.getBytes(StandardCharsets.UTF_8))),
                 hex(MessageDigest.getInstance("SHA-256").digest(stale.getBytes(StandardCharsets.UTF_8))));
-        String duplicate = inventory + projected.iterator().next() + "\t"
-                + String.join("\t", rows.get(projected.iterator().next())) + "\n";
-        assertThrows(AssertionError.class, () -> parse(duplicate));
+        assertDuplicateOwnerRejected(rows.get(projected.iterator().next()));
         assertEquals(551, projected.stream().filter(owner -> !owner.equals(projected.iterator().next())).count(),
                 "removing one owner is an observable stale projection");
     }
@@ -559,9 +557,7 @@ class CpuGeneratedCoverageCheckpointTest {
         }
         String stale = inventory.replaceFirst("ordinary:gather/BFLOAT16/INT32", "ordinary:gather/STALE");
         assertNotEquals(digest, hex(MessageDigest.getInstance("SHA-256").digest(stale.getBytes(StandardCharsets.UTF_8))));
-        String duplicate = inventory + projected.iterator().next() + "\t"
-                + String.join("\t", rows.get(projected.iterator().next())) + "\n";
-        assertThrows(AssertionError.class, () -> parse(duplicate));
+        assertDuplicateOwnerRejected(rows.get(projected.iterator().next()));
         Set<String> orphaned = new java.util.HashSet<>(projected);
         orphaned.remove(projected.iterator().next());
         assertNotEquals(executable, orphaned, "one stale omission must fail the owner join");
@@ -647,6 +643,19 @@ class CpuGeneratedCoverageCheckpointTest {
             assertNull(rows.put(row[0], row), "duplicate owner: " + row[0]);
         }
         return rows;
+    }
+
+    /**
+     * Checks that two valid copies of one canonical row fail on owner identity rather than on
+     * field count, without duplicating the full inventory in the test worker heap.
+     *
+     * @param row a complete 27-field row from the parsed canonical inventory; never {@code null}
+     */
+    private static void assertDuplicateOwnerRejected(String[] row) {
+        String encoded = String.join("\t", row) + "\n";
+        AssertionError failure = assertThrows(AssertionError.class,
+                () -> parse(HEADER + encoded + encoded));
+        assertTrue(failure.getMessage().contains("duplicate owner"), failure.getMessage());
     }
 
     private static String resource(String name) throws Exception {
