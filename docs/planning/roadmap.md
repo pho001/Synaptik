@@ -31,7 +31,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 
 | Order | Project area | Current status | Entry or next gate |
 |---:|---|---|---|
-| 1 | [`modules/model`](modules/model/master-plan.md) | Complete through 0032A; 0026 Draft | [Model 0032A](modules/model/tasks/0032a-stored-subnormal-provider-regressions.md) completed the test-only provider gate. No Model task is Ready. |
+| 1 | [`modules/model`](modules/model/master-plan.md) | Complete through 0032A; 0026 and 0032 Draft | [Model 0032A](modules/model/tasks/0032a-stored-subnormal-provider-regressions.md) completed the test-only provider gate; [Model 0032](modules/model/tasks/0032-profile-free-numerical-semantics-reset.md) remains unapproved. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | Complete through 0003; 0004–0008 Draft | [Trace 0003](modules/trace/tasks/0003-backend-preparation-and-invocation-diagnostic-dtos.md) completed its JDK-only DTO/ID surface and validation; no Trace task is Ready. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete through 0004 | Reopen only for a concrete shared-contract need. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress, interleaved; 0001–0003, 0006, and 0006A–0006B Complete; 0004–0005 and 0007–0008 Draft | 0006 completed at `314e049` plus `37e9e9db`; no Config task is Ready. |
@@ -78,7 +78,13 @@ changed executable behavior or capability.
 [Model 0032A](modules/model/tasks/0032a-stored-subnormal-provider-regressions.md) is `Complete`.
 Its focused CPU and verified-package Metal tests passed for current-provider stored-value
 subnormal behavior. This records provider observations, not a stronger Model rule or semantic
-cutover. No new Model task is Ready.
+cutover.
+
+[Model 0032](modules/model/tasks/0032-profile-free-numerical-semantics-reset.md) is `Draft` only.
+It proposes a coordinated Class C profile-free cutover without changing current profile-based
+authority, capability, or code. No interim `ACCELERATOR` rename is planned. No implementation
+frontier is authorized until architecture and evidence gates pass, a stable base and integration
+owner are recorded, and the brief becomes `Ready`.
 
 Trace and Metal diagnostics
 
