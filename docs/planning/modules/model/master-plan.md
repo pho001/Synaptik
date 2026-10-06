@@ -92,9 +92,8 @@ loss own no mode, session, or hidden mutable statistics.
 
 ## Task list
 
-The table is the ordered queue and status source. Task 0031 is Complete and Task 0030 remains
-`Review needed` after remediation against that prerequisite, pending independent rereview; no
-Model/repository task is Ready. Task 0026 remains an independent Draft.
+The table is the ordered queue and status source. Tasks 0030 and 0031 are Complete after independent
+rereview. Task 0032A is Complete; no new Model task is Ready. Task 0026 remains Draft.
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
@@ -241,6 +240,7 @@ Model/repository task is Ready. Task 0026 remains an independent Draft.
 | 0029 | [ACCELERATOR MATMUL exact-zero sign freedom](tasks/0029-accelerator-matmul-exact-zero-sign-freedom.md) | Complete | 0027; 0028; retained Metal 0018 blocker evidence | Split the contraction row and established only final-publication either-zero-sign freedom for a complete nonempty exact-zero FLOAT32 ACCELERATOR MATMUL result; implementation `30826783`, proof and 23-task validation passed, and Class C review approved with zero findings. |
 | 0030 | [Total recursive ACCELERATOR numerical floor](tasks/0030-total-recursive-accelerator-numerical-floor.md) | Complete | 0031; 0027–0029; completed profile spine and backend realizations; retained Metal blocker evidence through 0040; approved minimal recursive redesign | Completed the documentation-only total recursive contract at remediation `2d95ab71` plus strict-baseline remediation `97cb9d11`; preserved the two-value API and all capability/identity behavior; independent Class C rereview after `97cb9d11` returned `APPROVE` with zero findings. |
 | 0031 | [STRICT unary numerical baseline](tasks/0031-strict-unary-numerical-baseline.md) | Complete | 0018T1; 0019A; 0027–0029; completed CPU 0005H/0005I evidence | Owns exact-reference primitive bounds, special/domain rules, and recursive native/one-wider results for all nineteen kinds and every accepted BFLOAT16/FLOAT32/FLOAT64 type; remediation `97cb9d11` passed independent Class C rereview with zero findings and changed no executable behavior or capability. |
+| 0032A | [Stored-subnormal provider regressions](tasks/0032a-stored-subnormal-provider-regressions.md) | Complete | 0030/0031, CPU 0017, Metal 0063 Complete; verified native package at execution | CPU/Metal backend-local stored-subnormal regressions passed; no stronger Model contract or behavior change. |
 
 ## Milestones and current frontier
 
@@ -275,8 +275,10 @@ Model/repository task is Ready. Task 0026 remains an independent Draft.
   references and per-type bounds for all nineteen unary kinds, including BFLOAT16 without implying
   capability. Its initial baseline is `a08db430f2d01f8250b74b65bea488bbc06b5860`; remediation
   `97cb9d116bd85ee6a0dfbf2e9b70d32604633c85` passed independent Class C rereview with zero
-  findings. No executable statement or capability changed. Metal 0051 is the first authorized
-  successor; no other repository task is Ready.
+  findings. No executable statement or capability changed.
+- Task 0032A is `Complete`: backend-local regressions record the current CPU/Metal stored-value
+  subnormal realization, with focused CPU and verified-package Metal tests passed. This does not
+  change Model semantics or provider behavior. No new Model task is Ready.
 - Task 0026 remains an independent `Draft` with no detailed brief or dependency relationship to
   0027–0031. It is selected only when IEEE-754 binary16 `FLOAT16` becomes current.
 

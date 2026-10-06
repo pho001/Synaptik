@@ -31,7 +31,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 
 | Order | Project area | Current status | Entry or next gate |
 |---:|---|---|---|
-| 1 | [`modules/model`](modules/model/master-plan.md) | Complete through independently reviewed 0031; 0026 Draft | Model 0030/0031 completed the total recursive profiles and backend-independent strict unary baseline; remediation `97cb9d11` received independent `APPROVE` with zero findings. No Model task is Ready. |
+| 1 | [`modules/model`](modules/model/master-plan.md) | Complete through 0032A; 0026 Draft | [Model 0032A](modules/model/tasks/0032a-stored-subnormal-provider-regressions.md) completed the test-only provider gate. No Model task is Ready. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | Complete through 0003; 0004–0008 Draft | [Trace 0003](modules/trace/tasks/0003-backend-preparation-and-invocation-diagnostic-dtos.md) completed its JDK-only DTO/ID surface and validation; no Trace task is Ready. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete through 0004 | Reopen only for a concrete shared-contract need. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress, interleaved; 0001–0003, 0006, and 0006A–0006B Complete; 0004–0005 and 0007–0008 Draft | 0006 completed at `314e049` plus `37e9e9db`; no Config task is Ready. |
@@ -74,6 +74,11 @@ sets and total recursive accelerator contract. The recursive-contract remediatio
 the complete strict-result-set remediation is `97cb9d11`. Focused validation passed, and
 independent Class C rereview after `97cb9d11` returned `APPROVE` with zero findings. Neither task
 changed executable behavior or capability.
+
+[Model 0032A](modules/model/tasks/0032a-stored-subnormal-provider-regressions.md) is `Complete`.
+Its focused CPU and verified-package Metal tests passed for current-provider stored-value
+subnormal behavior. This records provider observations, not a stronger Model rule or semantic
+cutover. No new Model task is Ready.
 
 Trace and Metal diagnostics
 
