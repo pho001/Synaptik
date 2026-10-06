@@ -315,9 +315,8 @@ class MetalOrderingNativeTest {
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
-            executable = api.createMpsGraphExecutable(
-                    context, NumericalProfile.STRICT_IEEE, values, program, feeds, targets,
-                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context, NumericalProfile.STRICT_IEEE, values, program, feeds, targets,
+            MetalPreparedRoute.CUSTOM_PROGRAM);
             for (var value : values) {
                 buffers.add(api.createBuffer(context, value.byteCount()));
             }

@@ -2,12 +2,11 @@
 
 ## Status
 
-Accepted — 2026-09-29
+Superseded — 2026-09-29 by
+[ADR 0025](0025-custom-only-metal-low-precision.md).
 
-Activates the certificate schema frozen by
-[ADR 0023](0023-low-precision-accelerator-parity.md) for a narrow Metal raw-preserving route. ADR
-0023 remains authoritative for low arithmetic, provider evidence, and the separation of accuracy
-from determinism.
+This document retains the historical decision and evidence narrative. Its certificate store,
+environment export, probes, and alternate low MPSGraph route are no longer active.
 
 ## Context
 

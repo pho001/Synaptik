@@ -39,19 +39,15 @@ import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.trace.TraceEvent;
 import io.github.pho001.synaptik.trace.TracePayload;
-import io.github.pho001.synaptik.trace.certificate.LowPrecisionAccuracy;
-import io.github.pho001.synaptik.trace.certificate.LowPrecisionCertificate;
-import io.github.pho001.synaptik.trace.certificate.LowPrecisionCertificateKey;
-import io.github.pho001.synaptik.trace.certificate.LowPrecisionDeterminism;
 import io.github.pho001.synaptik.trace.payload.LowPrecisionTraceMetadata;
 import io.github.pho001.synaptik.trace.payload.TraceRouteKind;
+import io.github.pho001.synaptik.trace.payload.TraceNumericalProfile;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -59,7 +55,7 @@ import org.junit.jupiter.api.Test;
 
 class MetalFloat16ProtocolTest {
     @Test
-    void schemaTraceAndPreflightKeepArithmeticCustomAndAllowRawMovementGraph() {
+    void schemaTraceAndPreflightKeepEveryLowPrecisionRouteCustomOnly() {
         var program = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.neg(0, 1)));
         var float16 = new MetalMpsGraphProgram.ValueDescriptor(
@@ -81,7 +77,7 @@ class MetalFloat16ProtocolTest {
                         + MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES));
         assertEquals(3L, float16.elementCount());
         assertEquals(6L, float16.byteCount());
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
                 NumericalProfile.STRICT_IEEE,
                 float16Values,
                 program,
@@ -90,7 +86,7 @@ class MetalFloat16ProtocolTest {
                 MetalPreparedRoute.CUSTOM_PROGRAM);
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.STRICT_IEEE,
                         float16Values,
                         program,
@@ -99,20 +95,22 @@ class MetalFloat16ProtocolTest {
                         MetalPreparedRoute.MPSGRAPH));
         var movementProgram = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.contiguous(0, 1)));
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
                 NumericalProfile.STRICT_IEEE,
                 float16Values,
                 movementProgram,
                 new int[] {0},
                 new int[] {1},
                 MetalPreparedRoute.CUSTOM_PROGRAM);
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                NumericalProfile.STRICT_IEEE,
-                float16Values,
-                movementProgram,
-                new int[] {0},
-                new int[] {1},
-                MetalPreparedRoute.MPSGRAPH);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                        NumericalProfile.STRICT_IEEE,
+                        float16Values,
+                        movementProgram,
+                        new int[] {0},
+                        new int[] {1},
+                        MetalPreparedRoute.MPSGRAPH));
         var wrongScalarType = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.scalarValue(
                         MetalMpsGraphProgram.NodeKind.SCALAR_ADD,
@@ -122,7 +120,7 @@ class MetalFloat16ProtocolTest {
                         lowWord(DataType.BFLOAT16, 1.0f))));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         float16Values,
                         wrongScalarType,
@@ -144,7 +142,7 @@ class MetalFloat16ProtocolTest {
                                         MetalMpsGraphProgram.dataTypeWire(DataType.BFLOAT16),
                                         lowWord(DataType.BFLOAT16, 1.0f)
                                     })));
-                    MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                    MetalNativeApi.ProgramExecutableAbi.validateCreate(
                             NumericalProfile.ACCELERATOR,
                             float16Values,
                             splitClamp,
@@ -199,23 +197,11 @@ class MetalFloat16ProtocolTest {
         MetalPreparationStructure float16Structure =
                 (MetalPreparationStructure) events.get(0).payload();
         MetalPreparationStructure bfloat16Structure =
-                (MetalPreparationStructure) events.get(1).payload();
+                (MetalPreparationStructure) events.get(2).payload();
         assertEquals(19, float16Structure.schemaVersion());
         assertNotEquals(
                 bfloat16Structure.canonicalDigest(),
                 float16Structure.canonicalDigest());
-    }
-
-    @Test
-    void certifiedRawBoundaryAdmitsOddDenseStorageAndRejectsOffsetsHolesAndZeroCounts() {
-        assertTrue(MetalLowPrecisionRouteCertification.isCanonicalNonEmptyBoundary(
-                LayoutDescriptor.contiguous(Shape.of(257))));
-        assertFalse(MetalLowPrecisionRouteCertification.isCanonicalNonEmptyBoundary(
-                LayoutDescriptor.of(Shape.of(257), new long[] {1}, 1L, true)));
-        assertFalse(MetalLowPrecisionRouteCertification.isCanonicalNonEmptyBoundary(
-                LayoutDescriptor.of(Shape.of(257), new long[] {2}, 0L, true)));
-        assertFalse(MetalLowPrecisionRouteCertification.isCanonicalNonEmptyBoundary(
-                LayoutDescriptor.contiguous(Shape.of(0))));
     }
 
     @Test
@@ -285,7 +271,7 @@ class MetalFloat16ProtocolTest {
             int[] targets = {2, 3, 4, 5, 8, 11, 12, 14, 16};
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                    () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                             NumericalProfile.STRICT_IEEE,
                             values,
                             program,
@@ -294,7 +280,7 @@ class MetalFloat16ProtocolTest {
                             MetalPreparedRoute.CUSTOM_PROGRAM));
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                    () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                             NumericalProfile.ACCELERATOR,
                             values,
                             program,
@@ -525,122 +511,95 @@ class MetalFloat16ProtocolTest {
     }
 
     @Test
-    void exactEnvironmentCertificateAddsGraphWithoutRemovingCustomBaseline() {
+    void rawAndArithmeticPreparationEmitCustomOnlyExecutionFacts() {
+        var preparer = new MetalNegPartitionPreparer();
+        try (MetalDeviceContext context =
+                MetalDeviceContext.open(new MetalNegRouteCandidateGeneratorTest.TestNativeApi())) {
+            for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+                List<TraceEvent<? extends TracePayload>> rawEvents = new ArrayList<>();
+                PrepareContext<MetalNegAnalysisInputs> rawContext =
+                        rawReshapePrepareContext(
+                                context, type, new MetalTraceProducer(rawEvents::add));
+                var raw = preparer.analyze(rawContext);
+                assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, raw.plan().route());
+                assertEquals(
+                        List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
+                        new MetalNegRouteCandidateGenerator()
+                                .generate(rawContext, raw.plan(), 3)
+                                .candidates());
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> preparer.analyzeForTesting(
+                                rawContext, MetalPreparedRoute.MPSGRAPH));
+                LowPrecisionTraceMetadata rawTrace = onlyLowPrecisionTrace(rawEvents);
+                assertEquals(TraceRouteKind.CUSTOM_KERNEL, rawTrace.selectedRoute());
+                assertEquals(List.of(type.name(), type.name()), rawTrace.logicalDtypeTuple());
+                assertEquals(TraceNumericalProfile.STRICT_IEEE,
+                        rawTrace.numericalProfile());
+
+                List<TraceEvent<? extends TracePayload>> arithmeticEvents = new ArrayList<>();
+                PrepareContext<MetalNegAnalysisInputs> arithmeticContext =
+                        lowPrecisionPrepareContext(
+                                context, type, new MetalTraceProducer(arithmeticEvents::add));
+                var arithmetic = preparer.analyze(arithmeticContext);
+                assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, arithmetic.plan().route());
+                assertEquals(
+                        List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
+                        new MetalNegRouteCandidateGenerator()
+                                .generate(arithmeticContext, arithmetic.plan(), 3)
+                                .candidates());
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> preparer.analyzeForTesting(
+                                arithmeticContext, MetalPreparedRoute.MPSGRAPH));
+                LowPrecisionTraceMetadata arithmeticTrace =
+                        onlyLowPrecisionTrace(arithmeticEvents);
+                assertEquals(TraceRouteKind.CUSTOM_KERNEL, arithmeticTrace.selectedRoute());
+                assertEquals(
+                        List.of(type.name(), type.name()),
+                        arithmeticTrace.logicalDtypeTuple());
+                assertEquals(TraceNumericalProfile.STRICT_IEEE,
+                        arithmeticTrace.numericalProfile());
+
+                PrepareContext<MetalNegAnalysisInputs> sliceContext =
+                        rawSlicePrepareContext(context, type);
+                var slice = preparer.analyze(sliceContext);
+                assertEquals(
+                        List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
+                        new MetalNegRouteCandidateGenerator()
+                                .generate(sliceContext, slice.plan(), 3)
+                                .candidates());
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> preparer.analyzeForTesting(
+                                sliceContext, MetalPreparedRoute.MPSGRAPH));
+            }
+        }
+    }
+
+    @Test
+    void nativeRawReshapeRunsOnlyThroughCustomProgramForBothRaw16Carriers() {
         Path library = configuredLibrary();
         try (MetalDeviceContext context = MetalDeviceContext.open(library)) {
-            List<TraceEvent<? extends TracePayload>> events = new ArrayList<>();
-            var trace = new MetalTraceProducer(events::add);
-            PrepareContext<MetalNegAnalysisInputs> prepareContext =
-                    certifiedReshapePrepareContext(context, DataType.FLOAT16, trace);
             var preparer = new MetalNegPartitionPreparer();
-            var custom = preparer.analyze(prepareContext);
-            assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, custom.plan().route());
-            MetalNegTuningBatch batch = new MetalNegRouteCandidateGenerator()
-                    .generate(prepareContext, custom.plan(), 3);
-            assertEquals(
-                    List.of(
-                            MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM,
-                            MetalNegTuningBatch.Candidate.MPSGRAPH),
-                    batch.candidates());
-            var codec = new MetalNegTuningCodec();
-            byte[] customCandidate =
-                    codec.encodeCandidate(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM);
-            byte[] graphCandidate =
-                    codec.encodeCandidate(MetalNegTuningBatch.Candidate.MPSGRAPH);
-            assertFalse(Arrays.equals(customCandidate, graphCandidate));
-            byte[] float16GraphDecision = codec.encodeDecision(new MetalNegTuningDecision(
-                    MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
-                    batch.compatibility(),
-                    MetalNegTuningBatch.Candidate.MPSGRAPH));
-
-            PrepareContext<MetalNegAnalysisInputs> bfloat16Context =
-                    certifiedReshapePrepareContext(context, DataType.BFLOAT16);
-            var bfloat16Analysis = preparer.analyze(bfloat16Context);
-            MetalNegTuningBatch bfloat16Batch = new MetalNegRouteCandidateGenerator()
-                    .generate(bfloat16Context, bfloat16Analysis.plan(), 3);
-            assertNotEquals(
-                    batch.compatibility().workload(),
-                    bfloat16Batch.compatibility().workload());
-            assertFalse(Arrays.equals(
-                    codec.encodeCompatibility(batch.compatibility()),
-                    codec.encodeCompatibility(bfloat16Batch.compatibility())));
-            assertTrue(codec.decodeDecision(float16GraphDecision, bfloat16Batch).isEmpty());
-
-            try (MetalDeviceContext otherContext = MetalDeviceContext.open(library)) {
-                PrepareContext<MetalNegAnalysisInputs> otherPrepareContext =
-                        certifiedReshapePrepareContext(otherContext, DataType.FLOAT16);
-                var otherAnalysis = preparer.analyze(otherPrepareContext);
-                MetalNegTuningBatch otherBatch = new MetalNegRouteCandidateGenerator()
-                        .generate(otherPrepareContext, otherAnalysis.plan(), 3);
+            for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+                PrepareContext<MetalNegAnalysisInputs> prepareContext =
+                        rawReshapePrepareContext(context, type);
+                var analysis = preparer.analyze(prepareContext);
+                assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, analysis.plan().route());
                 assertEquals(
-                        batch.compatibility().workload(),
-                        otherBatch.compatibility().workload());
-                assertNotEquals(
-                        batch.compatibility().target(),
-                        otherBatch.compatibility().target());
-                assertTrue(codec.decodeDecision(float16GraphDecision, otherBatch).isEmpty());
-            }
-            var graph = preparer.analyzeForTesting(
-                    prepareContext, MetalPreparedRoute.MPSGRAPH);
-            assertEquals(MetalPreparedRoute.MPSGRAPH, graph.plan().route());
-            assertTrue(graph.plan().internalValueIds().isEmpty());
-            assertEquals(2, graph.plan().declarations().size());
-            MetalLowPrecisionRouteCertification.Qualification qualification =
-                    MetalLowPrecisionRouteCertification.find(graph.plan()).orElseThrow();
+                        List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
+                        new MetalNegRouteCandidateGenerator()
+                                .generate(prepareContext, analysis.plan(), 3)
+                                .candidates());
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> preparer.analyzeForTesting(
+                                prepareContext, MetalPreparedRoute.MPSGRAPH));
 
-            PrepareContext<MetalNegAnalysisInputs> sliceContext =
-                    certifiedSlicePrepareContext(context, DataType.FLOAT16);
-            var sliceCustom = preparer.analyze(sliceContext);
-            assertEquals(
-                    List.of(
-                            MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM,
-                            MetalNegTuningBatch.Candidate.MPSGRAPH),
-                    new MetalNegRouteCandidateGenerator()
-                            .generate(sliceContext, sliceCustom.plan(), 3)
-                            .candidates());
-            var sliceGraph = preparer.analyzeForTesting(
-                    sliceContext, MetalPreparedRoute.MPSGRAPH);
-            assertFalse(sliceGraph.plan().programValueDescriptors().get(1).densePhysical());
-            assertTrue(MetalLowPrecisionRouteCertification.find(sliceGraph.plan()).isPresent());
-
-            List<LowPrecisionTraceMetadata> certificateEvents = events.stream()
-                    .map(TraceEvent::payload)
-                    .filter(LowPrecisionTraceMetadata.class::isInstance)
-                    .map(LowPrecisionTraceMetadata.class::cast)
-                    .toList();
-            assertEquals(2, certificateEvents.size());
-            LowPrecisionTraceMetadata customTrace = certificateEvents.get(0);
-            assertEquals(TraceRouteKind.CUSTOM_KERNEL, customTrace.selectedRoute());
-            assertEquals(LowPrecisionCertificate.Status.NOT_CERTIFIED,
-                    customTrace.certificateStatus());
-            assertTrue(customTrace.certificateKey().isEmpty());
-            assertTrue(customTrace.accuracy().isEmpty());
-            assertTrue(customTrace.determinism().isEmpty());
-
-            LowPrecisionTraceMetadata graphTrace = certificateEvents.get(1);
-            assertEquals(TraceRouteKind.GRAPH_EXECUTABLE, graphTrace.selectedRoute());
-            assertEquals(LowPrecisionCertificateKey.NO_ACCUMULATOR,
-                    graphTrace.accumulatorDtype());
-            assertEquals(LowPrecisionCertificate.Status.CERTIFIED,
-                    graphTrace.certificateStatus());
-            assertEquals(qualification.expected().key(),
-                    graphTrace.certificateKey().orElseThrow());
-            assertEquals(MetalLowPrecisionCertificateStore.ROUTE,
-                    graphTrace.certificateKey().orElseThrow().route());
-            assertEquals(LowPrecisionAccuracy.Verdict.PASS,
-                    graphTrace.accuracy().orElseThrow().verdict());
-            assertEquals(qualification.certificate().accuracy().evidenceDigest(),
-                    graphTrace.accuracy().orElseThrow().evidenceDigest());
-            assertEquals(LowPrecisionDeterminism.Verdict.PASS,
-                    graphTrace.determinism().orElseThrow().verdict());
-            assertEquals(qualification.certificate().determinism().evidenceDigest(),
-                    graphTrace.determinism().orElseThrow().evidenceDigest());
-
-            long byteCount = 65536L * Short.BYTES;
-            for (MetalNegPreparationPlan executionPlan :
-                    List.of(custom.plan(), graph.plan())) {
-                try (MetalMpsGraphExecutableResource executable =
-                                context.createMpsGraphExecutable(executionPlan);
+                long byteCount = 65536L * Short.BYTES;
+                try (MetalProgramExecutableResource executable =
+                                context.createProgramExecutable(analysis.plan());
                         MetalBufferRepresentation input = context.createBuffer(byteCount);
                         MetalBufferRepresentation output = context.createBuffer(byteCount);
                         Arena arena = Arena.ofConfined()) {
@@ -657,18 +616,13 @@ class MetalFloat16ProtocolTest {
                     poison.fill((byte) 0xa5);
                     output.upload(0L, poison, 0L, byteCount);
 
-                    int inputCount = executable.inputRequiredBytes().length;
-                    assertEquals(
-                            executionPlan.route() == MetalPreparedRoute.CUSTOM_PROGRAM ? 2 : 1,
-                            inputCount);
-                    MemorySegment inputHandles = arena.allocate(ADDRESS, inputCount);
+                    assertEquals(2, executable.inputRequiredBytes().length);
+                    MemorySegment inputHandles = arena.allocate(ADDRESS, 2);
                     inputHandles.setAtIndex(ADDRESS, 0, input.executionHandle().carrier());
-                    if (inputCount == 2) {
-                        inputHandles.setAtIndex(ADDRESS, 1, output.executionHandle().carrier());
-                    }
+                    inputHandles.setAtIndex(ADDRESS, 1, output.executionHandle().carrier());
                     MemorySegment outputHandles = arena.allocate(ADDRESS);
                     outputHandles.set(ADDRESS, 0L, output.executionHandle().carrier());
-                    executable.run(inputCount, inputHandles, 1, outputHandles);
+                    executable.run(2, inputHandles, 1, outputHandles);
 
                     MemorySegment actual = arena.allocate(
                             (long) expectedWords.length * Short.BYTES, Short.BYTES);
@@ -709,14 +663,13 @@ class MetalFloat16ProtocolTest {
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
-            executable = api.createMpsGraphExecutable(
-                    context,
-                    NumericalProfile.ACCELERATOR,
-                    values,
-                    program,
-                    feeds,
-                    targets,
-                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context,
+            NumericalProfile.ACCELERATOR,
+            values,
+            program,
+            feeds,
+            targets,
+            MetalPreparedRoute.CUSTOM_PROGRAM);
             for (var value : values) {
                 buffers.add(api.createBuffer(context, value.byteCount()));
             }
@@ -774,6 +727,11 @@ class MetalFloat16ProtocolTest {
 
     private static PrepareContext<MetalNegAnalysisInputs> lowPrecisionPrepareContext(
             MetalDeviceContext context, DataType type) {
+        return lowPrecisionPrepareContext(context, type, null);
+    }
+
+    private static PrepareContext<MetalNegAnalysisInputs> lowPrecisionPrepareContext(
+            MetalDeviceContext context, DataType type, MetalTraceProducer traceProducer) {
         TensorDescriptor descriptor = descriptor(type, Shape.of(3));
         ValueId feed = new ValueId(71_000);
         ValueId internal = new ValueId(71_001);
@@ -817,15 +775,15 @@ class MetalFloat16ProtocolTest {
                                 List.of(),
                                 true)),
                 Map.of(),
-                new MetalNegAnalysisInputs(context));
+                new MetalNegAnalysisInputs(context, traceProducer));
     }
 
-    private static PrepareContext<MetalNegAnalysisInputs> certifiedReshapePrepareContext(
+    private static PrepareContext<MetalNegAnalysisInputs> rawReshapePrepareContext(
             MetalDeviceContext context, DataType type) {
-        return certifiedReshapePrepareContext(context, type, null);
+        return rawReshapePrepareContext(context, type, null);
     }
 
-    private static PrepareContext<MetalNegAnalysisInputs> certifiedReshapePrepareContext(
+    private static PrepareContext<MetalNegAnalysisInputs> rawReshapePrepareContext(
             MetalDeviceContext context, DataType type, MetalTraceProducer traceProducer) {
         Shape inputShape = Shape.of(65536);
         Shape outputShape = Shape.of(256, 256);
@@ -863,7 +821,7 @@ class MetalFloat16ProtocolTest {
                 new MetalNegAnalysisInputs(context, traceProducer));
     }
 
-    private static PrepareContext<MetalNegAnalysisInputs> certifiedSlicePrepareContext(
+    private static PrepareContext<MetalNegAnalysisInputs> rawSlicePrepareContext(
             MetalDeviceContext context, DataType type) {
         Shape shape = Shape.of(65536);
         TensorDescriptor input = descriptor(type, shape);
@@ -895,6 +853,16 @@ class MetalFloat16ProtocolTest {
                                 target, output, Optional.of(partition), List.of(), true)),
                 Map.of(),
                 new MetalNegAnalysisInputs(context));
+    }
+    private static LowPrecisionTraceMetadata onlyLowPrecisionTrace(
+            List<TraceEvent<? extends TracePayload>> events) {
+        List<LowPrecisionTraceMetadata> metadata = events.stream()
+                .map(TraceEvent::payload)
+                .filter(LowPrecisionTraceMetadata.class::isInstance)
+                .map(LowPrecisionTraceMetadata.class::cast)
+                .toList();
+        assertEquals(1, metadata.size());
+        return metadata.getFirst();
     }
 
     private static TensorDescriptor descriptor(DataType dataType, Shape shape) {

@@ -385,6 +385,7 @@ before extracting a package or widening another type.
 | 0067 | [Current 115-kind evidence audit and reconciliation](tasks/0067-current-115-kind-evidence-audit.md) | Complete | 0066 Complete through reviewed documentation `209ba28a`; current 40-family/115-kind Model registry; current Compiler inference/autograd/saved-role contracts; schema-15/identity-22 Metal boundary | Every concurrent Metal or Compiler capability/inference/autograd/schema/native/catalog/route/preparation/test/package/shared-document scope; resumed 0053 production | None | Canonical plans `dbdf8b06`/`4b583efe`/`6b8be016` → implementation/evidence `7f9601e1` → public Engine reconciliation `2541c6f3` → findings `1d52989a` → evidence correction `4e604605` → code-review remediation and cumulative approval `453ecf22` | Permanent 115-wire capability/route/catalog audit; real native alias and public Engine proof; native build; complete Metal/Compiler; Metal conformance/integration; architecture/Javadoc; full test/build; docs/diff | Reconciles all 115 rows at exact `83/32`, `101/14`, MPSGraph `75/35/5`, custom `70/45/0`, and Compiler `38/111/133 + 4 = 40/115/137`; resolves A-001..A-006 and R-001..R-005 with independent code/security/evidence `APPROVE` and no Task-0067 blocker. |
 | 0068 | [Release-grade native integration verification](tasks/0068-release-grade-native-integration-verification.md) | Complete | 0067 Complete and independently approved at `cb830587`; current Tasks 0045–0046 package/archive contract; ABI-5/schema-15/identity-22 native boundary | Every concurrent Metal, Compiler, native, package, Gradle, test, planning, or shared-document edit during verification | None | Registered matrix `6820dd63` → fresh warnings-as-errors native build → fixed signing/package/Gradle ZIP/extracted-dylib verification → complete native/JVM/Engine/Compiler/build matrix → evidence correction `1775081a` → independent code/security/evidence `APPROVE` | Package/ZIP verification; 247 Metal backend + 10 Metal conformance + 47 tests across the five explicitly named Metal integration classes = 304 precisely scoped Metal tests; 282 Compiler and 22 complete conformance tests; 3712 repository tests; architecture/Javadoc; full `76`-task test and `87`-task build; JUnit inventory; artifact hashes; docs/diff/clean; three independent reviews | All gates passed without production-source remediation, relevant skip, environmental blocker, benchmark entry point, production fallback/retry/host repair, or local timing/tuning result used as evidence or decision. Mandatory full-suite tests retained their public tuning/fallback assertions. Independent code/security/evidence review at `1775081a` returned `APPROVE` with zero P0/P1/P2. |
 | 0069 | [Source-owned binary32 aggregate-floor slices](tasks/0069-source-owned-binary32-aggregate-slices.md) | Review needed — Slices 1–2 approved; Slice 3 implemented under fresh checkpoint authorization | 0068 Complete at approved `1775081a`; current Model/Compiler contracts; bounded 0053/0060/0061 evidence | Every concurrent Metal capability/native/custom/catalog/route/identity/package/shared-document edit; Compiler indexing/reduction/autograd edit; resumed 0053 production | None | Proof substrate and L1/ScatterAdd approved; singleton VARIANCE implemented with exact primitive proof, fixed custom route, fresh package, and full validation for independent review | Slice-3 proof/certificate/compiled-MSL audit, raw malformed matrix, native/package/Metal/Compiler/Engine/architecture/Javadoc/full validation; fixed route only, no timing or fallback | Adds only exact accelerator FLOAT32 no-gradient singleton VARIANCE at wire 112 while preserving the existing non-domain direct structural VARIANCE recipe. |
+| 0073 | [Custom-only low-precision cutover](tasks/0073-custom-only-low-precision-cutover.md) | Complete | 0071 Complete; Trace 0003 Complete; active Model low-precision/schema-19 contracts; ADR 0025 | Concurrent Metal/native ABI, Trace low-precision DTO, conformance identity, or shared-contract/docs edits; resumed 0053 production | None | Existing user-authorized dirty cutover → integrated validation → final independent Class C `APPROVE` | Fresh native/package/exports; focused Metal, Trace, conformance, Engine, architecture, Javadoc/docs; one full build with CPU Test heap override | Removes machine-bound certificate/vendor path and fixes every BFLOAT16/FLOAT16 partition to one custom candidate; final rereview `APPROVE` with zero unresolved findings. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -441,6 +442,8 @@ Completed profile spine and serial successors:
 `0066 (Complete) + current 115-kind Model/Compiler/Metal source and behavioral evidence -> 0067 (Complete)`
 `0067 (Complete) + current native/package/archive contracts -> 0068 (Complete)`
 `0068 (Complete) + current Model/Compiler contracts + retained 0053/0060/0061 evidence -> 0069 (Review needed; proof substrate + L1_NORM + SCATTER_ADD approved; singleton VARIANCE implemented under fresh authorization)`
+
+`0071 (Complete) + Trace 0003 (Complete) + active low-precision/schema-19 contracts + ADR 0025 -> 0073 (Complete; integrated validation and independent Class C rereview passed)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -525,14 +528,17 @@ implementation `4f35576c`, conformance correction `4a5cbdef`, and final approved
 `1718b28a`. Its normative
 [per-wire route-evidence audit](tasks/0056-route-evidence-audit.md) cites an exact installed-header
 selector or finite composition and current Model semantic/signature source for every one of the
-115 rows. The current catalogs are MPSGraph
+115 rows. These current cold, per-operation structural catalogs describe implementation
+availability, not admitted capability or a selected partition route: MPSGraph
 `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE` and custom
 `73 AVAILABLE / 42 PENDING / 0 UNAVAILABLE-WITH-PROOF`. The closed route identity retains wires
 `1..3`; schema 19 embeds the fixed route, exact numerical profile, custom execution extension, and
-type wires `1..7`; identities are version 28, and capability is `86 true / 29 false`.
-Package-private forcing remains result-set-only after fresh authentication; every selected
-Task-0066 occurrence and exact Task-0069
-occurrence rejects MPSGraph, while non-domain VARIANCE retains its prior direct structural recipe.
+type wires `1..7`; identities are version 29, and capability is `86 true / 29 false`.
+Package-private forcing remains result-set-only after fresh authentication; every partition
+containing BFLOAT16/FLOAT16 values, every selected Task-0066 occurrence, and every exact Task-0069
+occurrence rejects MPSGraph as a partition route, while non-domain VARIANCE retains its prior direct
+structural recipe. Eligible FLOAT32-only steps inside a low-containing custom partition may still
+use an internal MPSGraph boundary under the existing FLOAT32 policy.
 There is no device, oracle, timing, benchmark, public API, hot fallback, retry, cache, or autotune
 behavior.
 Every other Metal
@@ -620,23 +626,24 @@ zero findings passed. Metal 0021 landed at implementation `ef2c6a1a`, worker-evi
 oracle, ABI/export, focused suites, real Engine forward/seeded-gradient proof, full build,
 documentation/diff evidence, and independent Class C final `APPROVE` with zero findings passed.
 
-Current ABI 6 exposes exactly fourteen exports and accepts one bounded schema-19 route-bearing
+Current ABI 7 exposes exactly thirteen exports and accepts one bounded schema-19 route-bearing
 program image with the exact numerical-profile wire. Type wires are `1..7`, operation wires are
 `1..115`, attribute wires are `0..41`, route wires are `1..3`, and
-workload/exact-policy/candidate/compatibility/route/codec identities are version twenty-eight.
+workload/exact-policy/candidate/compatibility/route/codec identities are version twenty-nine.
 The historical schema/identity cutovers remain prerequisites, but no older identity or image is
 accepted. The current catalog has exactly 86 production kinds and 101 structurally executable
-kinds. Every admitted homogeneous BFLOAT16 or FLOAT16 arithmetic occurrence uses the authenticated
-custom program unless it is one of the six no-gradient raw-preserving families and exact full-key
-environment certificate lookup authorizes MPSGraph. MPS and MPP probes remain qualified-negative;
-they create no candidate, route, fallback, or capability. Identity 28 is monotonic because workload
-compatibility binds profile, schema, complete encoded image and extension, route policy, certificate
-environment, exact accuracy record, and separate determinism record.
-P13 closes documentation and local qualification over that P12 boundary: a fresh native build,
-ad-hoc-signed package, verified local ZIP and extracted archive, actual Apple-GPU tests and
-integration, CPU and Metal smoke benchmarks, affected Javadocs, and the constrained full build
-passed. This is local evidence only; no Developer ID signing, notarization, publication, or public
-release occurred.
+kinds. Every partition containing BFLOAT16 or FLOAT16 values uses the authenticated custom program,
+including all six no-gradient raw-preserving families. MPSGraph, classic MPS, MPP, CPU, retry, and
+fallback are not low-precision route alternatives. The certificate/environment/vendor-probe layer
+is removed. Identity 29 is monotonic because workload compatibility binds profile, schema, complete
+encoded image and extension, route policy, and exact program semantics.
+The custom-only cutover is tracked by [Task 0073](tasks/0073-custom-only-low-precision-cutover.md)
+as Complete. Fresh native/package verification, focused module/identity tests, real Apple-GPU
+execution, and a full build passed; the full build required a one-off CPU Test heap override after
+the stock worker ran out of memory in an unrelated test. Independent Class C review resolved route,
+Javadoc, and trace wording; final narrow rereview returned `APPROVE` with zero unresolved findings,
+including ADR 0023 provider-evidence and glossary observer-`Error` checks against source and tests.
+Developer ID signing, notarization, publication, and public release remain outside scope.
 Complete Model 0028 owns the root-only exact-zero reduction rule. Complete Model 0029 owns the
 MATMUL-only final-publication exact-zero sign rule. Metal 0018 remains Blocked without production
 changes. Complete Metal 0022
@@ -945,15 +952,14 @@ training, backward closure, and Model 0026 remain unauthorized pending complete-
   singleton-NEG route choice, not occurrence capability or partitioning.
 - The caller-supplied macOS arm64 native library uses an Objective-C C ABI reached through JDK 26
   Foreign Function and Memory (FFM). It is not discovered or published by the backend. ABI
-  versions 1 through 5 are historical; ABI 6 adds only the immutable certification-environment
-  query and retains the existing resource/export ownership. Opaque resource kinds are never
-  reinterpreted. ABI 6 exports exactly:
+  versions 1 through 6 are historical; ABI 7 removes the former certification-environment query
+  and retains the existing resource ownership. Opaque resource kinds are never reinterpreted.
+  ABI 7 exports exactly:
 
   ```text
   synaptik_metal_foundation_abi_version
   synaptik_metal_context_create
   synaptik_metal_context_release
-  synaptik_metal_context_certification_environment
   synaptik_metal_buffer_create
   synaptik_metal_buffer_release
   synaptik_metal_buffer_upload

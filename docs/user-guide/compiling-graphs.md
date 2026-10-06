@@ -97,17 +97,16 @@ falls back when an occurrence has no eligible owner.
 Current public composition supports fixed CPU execution and explicit CPU/Metal mixed-owner
 execution. Rank-0..16 fully static cross-owner values may use all seven model data types over
 canonical or positive-stride non-overlapping layouts with checked physical spans. Every supported
-homogeneous accelerator FLOAT32 Metal occurrence has BFLOAT16 and FLOAT16 counterparts. Low
-arithmetic uses one fixed native custom-program call with compact run-owned materialized slots and
-direct targets. Exact homogeneous no-gradient raw-preserving `RESHAPE`, simple `PERMUTE`,
-materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and `TILE` images may additionally expose MPSGraph
-only after an exact schema-1 environment/program certificate match. Eligible linear canonical
-FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use deterministic bounded generated units.
-ABI 6 exports fourteen symbols and consumes one bounded schema-19 program image with type wires
-`1..7`, operation wires `1..115`, attributes `0..41`, and route wires `1..3`. Workload,
-exact-policy, candidate, compatibility, route-policy, and session-codec identities are version 28;
-every other identity fails closed. Registry presence does not widen capability; unsupported
-operations fail closed.
+homogeneous accelerator FLOAT32 Metal occurrence has BFLOAT16 and FLOAT16 counterparts. Every
+partition containing a low-precision value uses one fixed native custom-program call with compact
+run-owned materialized slots and direct targets, including exact homogeneous no-gradient
+raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and
+`TILE`. Eligible linear canonical FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use deterministic
+bounded generated units. ABI 7 exports thirteen symbols and consumes one bounded schema-19 program
+image with type wires `1..7`, operation wires `1..115`, attributes `0..41`, and route wires `1..3`.
+Workload, exact-policy, candidate, compatibility, route-policy, and session-codec identities are
+version 29; every other identity fails closed. Registry presence does not widen capability;
+unsupported operations fail closed.
 
 Model construction leaves Conv2d and Conv3d result layouts unresolved; Compiler closes
 only eligible fully static final convolution

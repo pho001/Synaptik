@@ -9,12 +9,31 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-/** Deterministic schema-1 planner and integer source-size oracle for raw binary32 pointwise fusion. */
+/**
+ * Deterministic schema-2 execution planner and integer source-size oracle for FLOAT32 pointwise
+ * units and anchor epilogues. A partition containing any BFLOAT16 or FLOAT16 value has no
+ * generated-pointwise or anchor-epilogue steps, including for its FLOAT32 nodes.
+ */
 final class MetalPointwiseFusionPlanner {
     private static final int GENERATED_SOURCE_PREAMBLE_UTF8_BYTES = 49;
 
     private MetalPointwiseFusionPlanner() {}
 
+    /**
+     * Plans the authenticated custom-program steps for a whole partition. Generated pointwise and
+     * anchor-epilogue steps are eligible only when every indexed value is non-low-precision.
+     *
+     * @param numericalProfile non-null graph-wide numerical profile
+     * @param program non-null typed program in partition order
+     * @param values non-null descriptors for every indexed program value
+     * @param feeds non-null ordered boundary-feed indices; copied before planning
+     * @param targets non-null ordered boundary-target indices; copied before planning
+     * @param route required {@code CUSTOM_PROGRAM} route
+     * @return immutable execution plan with no generated-pointwise or anchor-epilogue steps when
+     * any value is BFLOAT16 or FLOAT16
+     * @throws NullPointerException if a required reference or value descriptor is {@code null}
+     * @throws IllegalArgumentException if the route or boundary indices are invalid
+     */
     static MetalPointwiseFusionPlan plan(
             NumericalProfile numericalProfile,
             MetalMpsGraphProgram program,
@@ -32,6 +51,7 @@ final class MetalPointwiseFusionPlanner {
         }
         validateIndices(descriptors.size(), feedValues, "feed");
         validateIndices(descriptors.size(), targetValues, "target");
+        boolean containsLowPrecision = containsLowPrecision(descriptors);
 
         List<MetalMpsGraphProgram.Node> nodes = program.nodes();
         int[] consumers = new int[descriptors.size()];
@@ -40,8 +60,9 @@ final class MetalPointwiseFusionPlanner {
         }
         boolean[] target = new boolean[descriptors.size()];
         for (int value : targetValues) target[value] = true;
-        List<MetalAnchorEpilogue> anchors = MetalAnchorEpilogueRecognizer.recognize(
-                numericalProfile, program, descriptors, targetValues);
+        List<MetalAnchorEpilogue> anchors = containsLowPrecision ? List.of()
+                : MetalAnchorEpilogueRecognizer.recognize(
+                        numericalProfile, program, descriptors, targetValues);
         MetalAnchorEpilogue[] anchorAt = new MetalAnchorEpilogue[nodes.size()];
         boolean[] anchorMember = new boolean[nodes.size()];
         for (MetalAnchorEpilogue anchor : anchors) {
@@ -51,8 +72,8 @@ final class MetalPointwiseFusionPlanner {
             }
         }
 
-        List<Candidate> candidates = discoverCandidates(
-                nodes, descriptors, consumers, target, anchorMember);
+        List<Candidate> candidates = containsLowPrecision ? List.of()
+                : discoverCandidates(nodes, descriptors, consumers, target, anchorMember);
         Candidate[] candidateAt = new Candidate[nodes.size()];
         int generatedUnits = 0;
         int generatedInstructions = 0;
@@ -256,6 +277,18 @@ final class MetalPointwiseFusionPlanner {
                 generatedBytes,
                 firstRejected,
                 capReason);
+    }
+
+    /**
+     * Tests the complete indexed value domain, not just the nodes eligible for fusion.
+     *
+     * @param values non-null descriptors for all program values
+     * @return {@code true} when any descriptor is BFLOAT16 or FLOAT16
+     * @throws NullPointerException if the list or an inspected descriptor is {@code null}
+     */
+    static boolean containsLowPrecision(List<MetalMpsGraphProgram.ValueDescriptor> values) {
+        return values.stream().anyMatch(value -> value.dataType() == DataType.BFLOAT16
+                || value.dataType() == DataType.FLOAT16);
     }
 
     private static List<Candidate> discoverCandidates(

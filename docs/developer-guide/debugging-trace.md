@@ -18,13 +18,12 @@ work.
 
 ## Metal low-precision investigation
 
-For a BFLOAT16 or FLOAT16 raw-preserving occurrence, inspect `LowPrecisionTraceMetadata` emitted
-during PREPARE. `selectedRoute` is the route actually fixed by preparation, not every available
-candidate. A custom selection has `NOT_CERTIFIED` status and empty certificate-key, accuracy, and
-determinism optionals. An exactly certified MPSGraph selection has `GRAPH_EXECUTABLE`, the complete
-certificate key, the accuracy record, and the independently associated determinism record. The key
-itself identifies `MPSGRAPH_CERTIFIED_RAW_V1`; classic MPS and MPP have no selectable trace
-identity.
+For any BFLOAT16 or FLOAT16 occurrence, inspect `LowPrecisionTraceMetadata` emitted during PREPARE.
+`selectedRoute` is always the route actually fixed by preparation and must be `CUSTOM_KERNEL`.
+`logicalDtypeTuple` orders boundary feeds before boundary targets. `numericalProfile` reports the
+cold profile. The payload has no accumulator or working-type field: FLOAT32 arithmetic is a
+separate Model guarantee, and raw-preserving programs copy represented words exactly. It contains
+no hypothetical candidate or certificate state.
 
 Preparation and invocation outcome payloads correlate through the prepared-unit ID and report the
 same route. Metal performs no executable or preparation cache lookup, so its preparation cache
@@ -34,8 +33,8 @@ status is `NOT_QUERIED`.
 
 | Symptom | Cause | Correction |
 |---|---|---|
-| A custom event is displayed with an MPSGraph certificate. | Candidate evidence was confused with the selected route. | Treat empty certificate optionals on `NOT_CERTIFIED` as authoritative. |
-| Accuracy and reproducibility are collapsed into one verdict. | The certificate fields were flattened. | Display `accuracy` and `determinism` independently. |
+| A low event is displayed as MPSGraph. | A removed alternate route was assumed. | Treat the DTO's required `CUSTOM_KERNEL` route as authoritative. |
+| A consumer expects `accumulatorDtype`. | An old diagnostic field was mistaken for a numerical-policy requirement. | Read route, logical dtype tuple, and profile from the event; use the Model contract for arithmetic semantics. |
 | Consumers parse numeric facts from strings. | The primary payload is unstructured. | Add an appropriate typed field or typed trace attribute. |
 | Trace imports model/runtime/backend objects. | DTOs depend on producer domains. | Translate to trace-local identifiers and values. |
 | Enabling trace changes execution decisions. | Diagnostics became business logic. | Keep emission observational and producer-owned. |

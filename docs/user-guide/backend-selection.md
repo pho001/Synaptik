@@ -122,11 +122,11 @@ profile explicitly. CPU executes either choice through the same exact capability
 admits a broad exact common domain under both profiles and a larger `ACCELERATOR` domain. Every
 supported homogeneous accelerator FLOAT32 occurrence has BFLOAT16 and FLOAT16 counterparts with
 FLOAT32 working values and accumulators and one final ties-to-even narrowing. Direct
-BFLOAT16/FLOAT16 mixed-low arithmetic remains unsupported; use explicit FLOAT32 casts. Every low
-arithmetic partition uses `CUSTOM_PROGRAM`. Only exact homogeneous no-gradient raw-preserving
-`RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and `TILE` images may
-also expose MPSGraph after a complete schema-1 environment/program certificate match. Classic MPS
-and MPP remain qualified-negative and own no candidate or fallback. Locally produced scalar
+BFLOAT16/FLOAT16 mixed-low arithmetic remains unsupported; use explicit FLOAT32 casts. Every
+partition containing BFLOAT16 or FLOAT16 values uses `CUSTOM_PROGRAM`, including exact homogeneous
+no-gradient raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`,
+`CONCAT`, and `TILE`. It exposes no alternate MPSGraph, classic-MPS, MPP, CPU, retry, or fallback
+route. Locally produced scalar
 reductions may publish and cross the CPU/Metal boundary through the same exact all-seven-carrier
 rank-0..16 transfer contract. There is no fallback to strict or owner substitution after an
 accelerator request; every unsupported occurrence fails closed.

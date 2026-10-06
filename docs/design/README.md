@@ -35,6 +35,8 @@ acceptance date and considered alternatives.
 - [ADR 0021: Total Recursive ACCELERATOR Numerical Floor](decisions/0021-total-recursive-accelerator-numerical-floor.md)
 - [ADR 0022: Auditable Custom Metal Route Cost Evidence](decisions/0022-auditable-custom-metal-route-cost-evidence.md)
 - [ADR 0023: Low-precision ACCELERATOR parity and P0 evidence](decisions/0023-low-precision-accelerator-parity.md)
+- [ADR 0024: Environment-bound Metal raw-route certificates (superseded)](decisions/0024-environment-bound-metal-raw-certificates.md)
+- [ADR 0025: Custom-only Metal low precision](decisions/0025-custom-only-metal-low-precision.md)
 
 ## Design notes
 

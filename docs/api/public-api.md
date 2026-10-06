@@ -38,17 +38,11 @@ both profiles. Common no-gradient INT32/INT64 MATMUL uses INT64-dominant promoti
 modular result arithmetic. Unsupported profile/operation occurrences fail before native resource
 creation.
 
-Every low arithmetic partition selects `CUSTOM_PROGRAM`; it does not use MPS, CPU, retry,
-generated-pointwise, or fusion fallback. Exact homogeneous no-gradient BFLOAT16/FLOAT16
-raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and
-`TILE` program images retain custom first and may additionally expose MPSGraph only when the
-complete schema-1 certificate key matches the immutable device/toolchain environment, loaded
-dylib digest, exact schema-19 program digest, flags/options, and capability-ledger hash. The store
-contains exactly 24 positive MPSGraph rows. Classic MPS and MPP have only qualified-negative
-evidence and own no candidate, route wire, certificate, or fallback. Low-precision PREPARE trace
-reports the selected route; only selected certified MPSGraph reports the complete certificate key
-and separate accuracy and determinism records. Selected custom reports `NOT_CERTIFIED` and no
-borrowed certificate evidence.
+Every partition containing BFLOAT16 or FLOAT16 values selects `CUSTOM_PROGRAM`; this includes
+arithmetic and exact raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`,
+`SLICE`, `CONCAT`, and `TILE`. No low-precision partition exposes MPSGraph, classic MPS, MPP, CPU,
+retry, generated-pointwise, fusion, or fallback as an alternate route. Low-precision PREPARE trace
+reports only the selected custom route and its execution facts.
 
 Metal indexing validates complete bounds and, for replacement scatter, destination uniqueness
 before dispatch or writes. Ordering and pooling use their documented NaN, signed-zero, and stable
@@ -59,12 +53,11 @@ materializing results are canonical. Eligible linear canonical FLOAT32
 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains may use bounded deterministic generated units, but low-
 precision partitions never enter those routes.
 
-Metal ABI 6 exposes fourteen native functions. Its bounded route-bearing program image is schema
+Metal ABI 7 exposes thirteen native functions. Its bounded route-bearing program image is schema
 19 with data-type wires `1..7`, operation wires `1..115`, attribute wires `0..41`, route wires
 `1..3`, and backend-local candidate, compatibility, route-policy, workload, codec, and default-
-decision identities at version 28. Structural coverage is `101 / 14`; production capability is
-`86 / 29`; MPSGraph route catalogs are `75 / 35 / 5`, and custom route catalogs are
-`73 / 42 / 0`. Canonical typed host ingress/publication and CPU/Metal transfer support all seven
+decision identities at version 29. Structural coverage is `101 / 14`; production capability is
+`86 / 29`. Canonical typed host ingress/publication and CPU/Metal transfer support all seven
 carriers. Cross-owner values may use exact rank-0..16 static canonical or positive-stride
 non-overlapping layouts with checked physical spans; transfer performs no conversion or fallback.
 Authenticated `SELECT`/`SLICE` publication gathers logical values from exact physical storage and
@@ -255,7 +248,7 @@ activated BFLOAT16/FLOAT16 occurrence contracts. A fresh `Engine.Builder` select
 callers may replace that selection with `numericalProfile(...)` before building, and the built
 Engine transports the exact cold identity through compile and preparation. CPU supports both
 values identically; Metal applies the fail-closed profile-specific capability matrices described
-above, with its custom low baseline and exact-certificate raw-preserving route exception. No
+above and realizes every admitted BFLOAT16/FLOAT16 partition through its fixed custom program. No
 runtime API reads the profile.
 
 They are immutable requests, not a runnable compiler configuration aggregate. For example:
@@ -1349,13 +1342,11 @@ remains primary and receives a distinct acyclic observer `Error` as a suppressed
 losing earlier rollback suppression. Events contain only the bounded trace DTO fields and expose
 no native path, handle, Tensor value, shape, exception, free-form string, or generic map.
 
-For a low-precision prepared unit, the event's `LowPrecisionTraceMetadata` identifies the selected
-route, ordered operand/output dtype tuple, accumulator dtype, certificate schema, and certification
-status. A certified graph route additionally exposes its full environment-qualified
-`LowPrecisionCertificateKey`, including the capability-ledger hash, plus accuracy evidence and
-separate determinism evidence. A selected custom-kernel route is `NOT_CERTIFIED` and exposes none
-of those certificate evidence fields; it cannot borrow evidence from an unselected MPSGraph
-candidate. Metal exposes no generic trace viewer, serializer, or exporter, so callers consume these
+For a low-precision prepared unit, `LowPrecisionTraceMetadata` identifies the selected custom
+route, ordered feed-then-target logical dtype tuple, and numerical profile. It has no accumulator
+or working-type field; the Model's FLOAT32 low-arithmetic rule is a separate semantic guarantee.
+The DTO contains no hypothetical candidate, certificate, accuracy, determinism, or environment
+state. Metal exposes no generic trace viewer, serializer, or exporter, so callers consume these
 typed DTOs directly through `MetalTraceObserver`.
 
 Metal retains a custom route for an eligible singleton `NEG` under either profile. A supported

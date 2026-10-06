@@ -1159,6 +1159,22 @@ final class MetalMpsGraphProgram {
         }
     }
 
+    /**
+     * Resolves the custom-program extension used by both native encoding and authenticated image
+     * previews. A supplied plan cannot reintroduce fusion into a low-precision partition.
+     *
+     * @param numericalProfile non-null graph-wide numerical profile
+     * @param values non-null indexed value descriptors
+     * @param feeds non-null ordered boundary-feed indices
+     * @param targets non-null ordered boundary-target indices
+     * @param route non-null program route; singleton NEG has no image
+     * @param suppliedPlan optional precomputed custom-program plan, or {@code null} to plan anew
+     * @return custom-program extension, or {@code null} for MPSGraph
+     * @throws NullPointerException if the profile, route, or required value data is {@code null}
+     * @throws IllegalArgumentException if the route is singleton NEG, an MPSGraph image carries a
+     * supplied plan, or a low-precision custom program carries a supplied generated-pointwise or
+     * anchor-epilogue step
+     */
     MetalPointwiseFusionPlan resolvePlan(
             NumericalProfile numericalProfile,
             List<ValueDescriptor> values,
@@ -1177,7 +1193,18 @@ final class MetalMpsGraphProgram {
             }
             return null;
         }
-        return suppliedPlan != null ? suppliedPlan : MetalPointwiseFusionPlanner.plan(
+        if (suppliedPlan != null) {
+            if (MetalPointwiseFusionPlanner.containsLowPrecision(values)
+                    && suppliedPlan.steps().stream().anyMatch(step ->
+                            step.kind() == MetalPointwiseFusionPlan.StepKind.GENERATED_POINTWISE
+                                    || step.kind()
+                                            == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE)) {
+                throw new IllegalArgumentException(
+                        "low-precision Metal program cannot carry a fused step");
+            }
+            return suppliedPlan;
+        }
+        return MetalPointwiseFusionPlanner.plan(
                 numericalProfile, this, values, feeds, targets, route);
     }
 

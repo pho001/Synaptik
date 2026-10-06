@@ -420,7 +420,7 @@ class MetalMpsGraphMatmulNativeTest {
         var outputs = new ArrayList<MetalNativeApi.Handle>();
     var internals = new ArrayList<MetalNativeApi.Handle>();
         try {
-            executable = api.createMpsGraphExecutable(context, NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks, dimensions, program), program, new int[] {0, 1, 2, 3}, new int[] {4, 5, 6, 7}, MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context, NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks, dimensions, program), program, new int[] {0, 1, 2, 3}, new int[] {4, 5, 6, 7}, MetalPreparedRoute.CUSTOM_PROGRAM);
             for (int[] bits : inputBits) {
                 MetalNativeApi.Handle buffer = api.createBuffer(
                         context, Math.multiplyExact((long) bits.length, Integer.BYTES));
@@ -508,7 +508,7 @@ class MetalMpsGraphMatmulNativeTest {
         var inputs = new ArrayList<MetalNativeApi.Handle>();
         MetalNativeApi.Handle output = null;
         try {
-            executable = api.createMpsGraphExecutable(context, NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(new int[] {2, 2, 2}, dimensions(new long[][] {{3, 1}, {1, 2}, {3, 2}}), program), program, new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.MPSGRAPH);
+            executable = api.createProgramExecutable(context, NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(new int[] {2, 2, 2}, dimensions(new long[][] {{3, 1}, {1, 2}, {3, 2}}), program), program, new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.MPSGRAPH);
             for (int[] bits : inputBits) {
                 MetalNativeApi.Handle buffer = api.createBuffer(
                         context, Math.multiplyExact((long) bits.length, Integer.BYTES));
@@ -592,9 +592,8 @@ class MetalMpsGraphMatmulNativeTest {
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
-            executable = api.createMpsGraphExecutable(
-                    context, profile, values, program, feeds, targets,
-                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context, profile, values, program, feeds, targets,
+            MetalPreparedRoute.CUSTOM_PROGRAM);
             for (var value : values) {
                 MetalNativeApi.Handle buffer = api.createBuffer(context, value.byteCount());
                 buffers.add(buffer);

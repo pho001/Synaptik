@@ -39,7 +39,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
     private static final ValueLayout.OfLong NATIVE_LONG =
             ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private final MetalNegPreparationPlan preparationPlan;
-    private final MetalMpsGraphExecutableResource mpsGraphResource;
+    private final MetalProgramExecutableResource programResource;
     private final MetalNegKernelPipelineResource customResource;
     private final List<Optional<MetalPreparedSplatResource>> splatResources;
     private final int inputCount;
@@ -78,7 +78,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             int[] targetRepresentationIndices,
             int[] internalPlanIndices,
             int[] internalRepresentationIndices,
-            MetalMpsGraphExecutableResource resource,
+            MetalProgramExecutableResource resource,
             List<Optional<MetalPreparedSplatResource>> splatResources,
             long[] feedRequiredBytes,
             long[] targetRequiredBytes,
@@ -99,7 +99,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                         targetPlanIndices.length,
                         internalPlanIndices.length));
         this.preparationPlan = Objects.requireNonNull(preparationPlan, "preparationPlan");
-        this.mpsGraphResource = Objects.requireNonNull(resource, "resource");
+        this.programResource = Objects.requireNonNull(resource, "resource");
         this.customResource = null;
         this.splatResources = List.copyOf(splatResources);
         this.inputCount = feedPlanIndices.length;
@@ -176,7 +176,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                 List.of(),
                 List.of(BufferAccess.READ_ONLY, BufferAccess.WRITE_ONLY));
         this.preparationPlan = Objects.requireNonNull(preparationPlan, "preparationPlan");
-        this.mpsGraphResource = null;
+        this.programResource = null;
         this.customResource = Objects.requireNonNull(resource, "resource");
         this.splatResources = List.copyOf(splatResources);
         this.inputCount = 1;
@@ -234,7 +234,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
     protected boolean acceptsBufferRepresentation(
             int selectionIndex, BufferRepresentation representation) {
         MetalDeviceContext context = customResource == null
-                ? mpsGraphResource.context() : customResource.context();
+                ? programResource.context() : customResource.context();
         if (selectionIndex < inputCount
                 && MetalPreparedSplatResource.isBinding(representation)) {
             Optional<io.github.pho001.synaptik.model.datatype.ScalarValue> splat =
@@ -260,9 +260,9 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                                 .materializedProgramValueIndices().length,
                         targetCount)
                 : requiredBytes.length;
-        return mpsGraphResource != null
+        return programResource != null
                 && representation instanceof AddressWorkspace workspace
-                && workspace.belongsTo(mpsGraphResource.context())
+                && workspace.belongsTo(programResource.context())
                 && workspace.pointerCount() == pointerCount;
     }
 
@@ -346,8 +346,8 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         for (int index = 0; index < inputBuffers.length; index++) {
             replayBuffers[feedValues[index]] = inputBuffers[index];
         }
-        return new MpsGraphBoundInvocation(
-                runState, preparationPlan, mpsGraphResource, replayBuffers,
+        return new ProgramBoundInvocation(
+                runState, preparationPlan, programResource, replayBuffers,
                 inputCount, inputs, outputCount, outputs,
                 byteTotals, boundSplatBytes, boundSplatCount, workspaceCount);
     }
@@ -409,10 +409,10 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         MemorySegment outputs = workspace.segment().asSlice(
                 (long) materializedCount * ADDRESS.byteSize(),
                 (long) targetCount * ADDRESS.byteSize());
-        return new MpsGraphBoundInvocation(
+        return new ProgramBoundInvocation(
                 runState,
                 preparationPlan,
-                mpsGraphResource,
+                programResource,
                 replayBuffers,
                 materializedCount,
                 values,
@@ -432,7 +432,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         }
         return MetalPreparedSplatResource.exactReadBuffer(
                 representation,
-                customResource == null ? mpsGraphResource.context() : customResource.context(),
+                customResource == null ? programResource.context() : customResource.context(),
                 requiredBytes[index],
                 preparationPlan.feedSplats().get(index).orElseThrow());
     }
@@ -496,9 +496,9 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         }
     }
 
-    private static final class MpsGraphBoundInvocation extends BoundInvocation {
+    private static final class ProgramBoundInvocation extends BoundInvocation {
         private final MetalNegPreparationPlan preparationPlan;
-        private final MetalMpsGraphExecutableResource resource;
+        private final MetalProgramExecutableResource resource;
         private final MetalBufferRepresentation[] inputBuffers;
         private final int inputCount;
         private final MemorySegment inputs;
@@ -509,10 +509,10 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         private final int splatCount;
         private final int workspaceCount;
 
-        private MpsGraphBoundInvocation(
+        private ProgramBoundInvocation(
                 RunState runState,
                 MetalNegPreparationPlan preparationPlan,
-                MetalMpsGraphExecutableResource resource,
+                MetalProgramExecutableResource resource,
                 MetalBufferRepresentation[] inputBuffers,
                 int inputCount,
                 MemorySegment inputs,

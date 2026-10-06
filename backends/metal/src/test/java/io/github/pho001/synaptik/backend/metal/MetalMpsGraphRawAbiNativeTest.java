@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.backend.metal;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -30,7 +31,7 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphRawAbiNativeTest {
     @Test
-    void nativeAbiFiveAcceptsCanonicalSchemaNineteenAndRejectsMalformedImages() throws Throwable {
+    void nativeAbiSevenAcceptsCanonicalSchemaNineteenAndRejectsMalformedImages() throws Throwable {
         Path library = configuredLibrary();
         try (RawAbi abi = new RawAbi(library)) {
             byte[] valid = validNegImage();
@@ -164,7 +165,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void schemaNineteenExecutesFloat16OnlyThroughAuthenticatedCustomRoute() throws Throwable {
+    void schemaNineteenKeepsArithmeticAndRawFloat16CustomOnly() throws Throwable {
         Path library = configuredLibrary();
         var program = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.neg(0, 1)));
@@ -182,6 +183,20 @@ class MetalMpsGraphRawAbiNativeTest {
                 new int[] {0},
                 new int[] {1},
                 MetalPreparedRoute.MPSGRAPH);
+        var movementProgram = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.contiguous(0, 1)));
+        byte[] movementCustom = movementProgram.encodedProgramImage(
+                NumericalProfile.STRICT_IEEE,
+                List.of(float16, float16),
+                new int[] {0},
+                new int[] {1},
+                MetalPreparedRoute.CUSTOM_PROGRAM);
+        byte[] movementMpsGraph = movementProgram.encodedProgramImage(
+                NumericalProfile.STRICT_IEEE,
+                List.of(float16, float16),
+                new int[] {0},
+                new int[] {1},
+                MetalPreparedRoute.MPSGRAPH);
 
         assertEquals(6L, float16.byteCount());
         assertEquals(7, readInt(custom, MetalMpsGraphProgram.HEADER_BYTES));
@@ -189,6 +204,8 @@ class MetalMpsGraphRawAbiNativeTest {
             assertEquals(0, abi.create(custom, custom.length));
             assertEquals(0, abi.createUnaligned(custom));
             assertEquals(13, abi.create(mpsGraph, mpsGraph.length));
+            assertEquals(0, abi.create(movementCustom, movementCustom.length));
+            assertEquals(13, abi.create(movementMpsGraph, movementMpsGraph.length));
             assertEquals(
                     1,
                     abi.create(
@@ -202,6 +219,144 @@ class MetalMpsGraphRawAbiNativeTest {
                                     MetalMpsGraphProgram.HEADER_BYTES + 32,
                                     4L),
                             custom.length));
+        }
+    }
+
+    @Test
+    void packagedNativeCreatesLowCastThenFloat32NegCustomPartition() throws Throwable {
+        Path library = configuredLibrary();
+        var cast = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.CAST,
+                new int[] {0}, new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
+                new long[] {MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT32)});
+        var mixed = new MetalMpsGraphProgram(List.of(
+                cast, MetalMpsGraphProgram.Node.neg(1, 2)));
+        var floatOnly = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.neg(0, 1)));
+        byte[] floatOnlyImage = floatOnly.encodedProgramImage(
+                NumericalProfile.STRICT_IEEE,
+                List.of(descriptor(4), descriptor(4)),
+                new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
+
+        try (RawAbi abi = new RawAbi(library)) {
+            assertEquals(0, abi.create(floatOnlyImage, floatOnlyImage.length),
+                    "FLOAT32-only MPSGraph route remains available");
+            for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+                List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                        descriptor(low, 4), descriptor(4), descriptor(4));
+                MetalPointwiseFusionPlan plan = mixed.resolvePlan(
+                        NumericalProfile.STRICT_IEEE, values,
+                        new int[] {0}, new int[] {2}, MetalPreparedRoute.CUSTOM_PROGRAM, null);
+                assertEquals(List.of(
+                                MetalPointwiseFusionPlan.StepKind.FIXED_CUSTOM,
+                                MetalPointwiseFusionPlan.StepKind.MPSGRAPH_BOUNDARY),
+                        plan.steps().stream().map(MetalPointwiseFusionPlan.Step::kind).toList(),
+                        low.toString());
+                assertEquals(0, plan.generatedUnitCount(), low.toString());
+                byte[] custom = mixed.encodedProgramImage(
+                        NumericalProfile.STRICT_IEEE, values,
+                        new int[] {0}, new int[] {2}, MetalPreparedRoute.CUSTOM_PROGRAM);
+                assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM.wireIdentity(),
+                        readInt(custom, 16), low.toString());
+                assertEquals(0, abi.create(custom, custom.length), low.toString());
+                byte[] forbidden = mixed.encodedProgramImage(
+                        NumericalProfile.STRICT_IEEE, values,
+                        new int[] {0}, new int[] {2}, MetalPreparedRoute.MPSGRAPH);
+                assertEquals(13, abi.create(forbidden, forbidden.length), low.toString());
+            }
+        }
+    }
+
+    /**
+     * A low feed cast to FLOAT32 does not authorize fused FLOAT32 work later in that partition.
+     * The forged images retain a valid typed fusion extension and a matching manifest digest, so
+     * rejection exercises native low-partition authorization rather than checksum corruption.
+     */
+    @Test
+    void checksumConsistentMixedLowFusionExtensionIsRejected() throws Throwable {
+        Path library = configuredLibrary();
+        var cast = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.CAST,
+                new int[] {0},
+                new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
+                new long[] {MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT32)});
+        var pointwiseProgram = new MetalMpsGraphProgram(List.of(
+                cast,
+                unaryNode(MetalMpsGraphProgram.NodeKind.FLOOR, 1, 2),
+                unaryNode(MetalMpsGraphProgram.NodeKind.CEIL, 2, 3)));
+        var anchorProgram = new MetalMpsGraphProgram(List.of(
+                cast,
+                MetalMpsGraphProgram.Node.matmul(1, 2, 3),
+                MetalMpsGraphProgram.Node.binary(
+                        MetalMpsGraphProgram.NodeKind.ADD, 3, 4, 5)));
+        List<MetalMpsGraphProgram.ValueDescriptor> pointwiseValues = List.of(
+                descriptor(DataType.FLOAT64, 4), descriptor(4), descriptor(4), descriptor(4));
+        List<MetalMpsGraphProgram.ValueDescriptor> anchorValues = List.of(
+                descriptor(DataType.FLOAT64, 3), descriptor(3), descriptor(3, 2),
+                descriptor(2), descriptor(2), descriptor(2));
+        byte[] pointwise = pointwiseProgram.encodedProgramImage(
+                NumericalProfile.STRICT_IEEE, pointwiseValues,
+                new int[] {0}, new int[] {3}, MetalPreparedRoute.CUSTOM_PROGRAM);
+        byte[] anchor = anchorProgram.encodedProgramImage(
+                NumericalProfile.ACCELERATOR, anchorValues,
+                new int[] {0, 2, 4}, new int[] {5}, MetalPreparedRoute.CUSTOM_PROGRAM);
+        assertEquals(3, readInt(pointwise,
+                extensionCoreBytes(pointwise) + MetalMpsGraphProgram.STEP_DESCRIPTOR_BYTES));
+        assertEquals(4, readInt(anchor,
+                extensionCoreBytes(anchor) + MetalMpsGraphProgram.STEP_DESCRIPTOR_BYTES));
+
+        try (RawAbi abi = new RawAbi(library)) {
+            assertEquals(0, abi.create(pointwise, pointwise.length));
+            assertEquals(0, abi.create(anchor, anchor.length));
+            for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+                var lowPointwiseValues = new ArrayList<>(pointwiseValues);
+                lowPointwiseValues.set(0, descriptor(low, 4));
+                byte[] canonicalPointwise = pointwiseProgram.encodedProgramImage(
+                        NumericalProfile.STRICT_IEEE, lowPointwiseValues,
+                        new int[] {0}, new int[] {3}, MetalPreparedRoute.CUSTOM_PROGRAM);
+                assertEquals(0, abi.create(canonicalPointwise, canonicalPointwise.length),
+                        low + " canonical mixed-low pointwise partition");
+
+                var lowAnchorValues = new ArrayList<>(anchorValues);
+                lowAnchorValues.set(0, descriptor(low, 3));
+                byte[] canonicalAnchor = anchorProgram.encodedProgramImage(
+                        NumericalProfile.ACCELERATOR, lowAnchorValues,
+                        new int[] {0, 2, 4}, new int[] {5}, MetalPreparedRoute.CUSTOM_PROGRAM);
+                assertEquals(0, abi.create(canonicalAnchor, canonicalAnchor.length),
+                        low + " canonical mixed-low anchor partition");
+
+                for (byte[] allFloatImage : List.of(pointwise, anchor)) {
+                    int rank = allFloatImage == pointwise ? 4 : 3;
+                    byte[] canonicalLow = allFloatImage == pointwise
+                            ? canonicalPointwise : canonicalAnchor;
+                    byte[] forged = rewriteManifest(
+                            rewriteInt(allFloatImage, MetalMpsGraphProgram.HEADER_BYTES,
+                                    MetalMpsGraphProgram.dataTypeWire(low)),
+                            "value 0 " + MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT64)
+                                    + " 1 0 0 " + rank + "\n",
+                            "value 0 " + MetalMpsGraphProgram.dataTypeWire(low)
+                                    + " 1 0 0 " + rank + "\n");
+                    assertArrayEquals(
+                            Arrays.copyOfRange(canonicalLow, MetalMpsGraphProgram.HEADER_BYTES,
+                                    extensionCoreBytes(canonicalLow)),
+                            Arrays.copyOfRange(forged, MetalMpsGraphProgram.HEADER_BYTES,
+                                    extensionCoreBytes(forged)),
+                            "forgery must preserve the accepted mixed-low core");
+                    int manifestOffset = extensionManifestOffset(forged);
+                    int digestOffset = manifestOffset + readInt(forged, 84);
+                    assertArrayEquals(
+                            MessageDigest.getInstance("SHA-256").digest(
+                                    Arrays.copyOfRange(forged, manifestOffset, digestOffset)),
+                            Arrays.copyOfRange(forged, digestOffset, forged.length));
+                    assertEquals(1, abi.create(forged, forged.length),
+                            low + " must not enter "
+                                    + (allFloatImage == pointwise
+                                            ? "generated-pointwise" : "anchor-epilogue")
+                                    + " execution despite an updated manifest digest");
+                }
+            }
         }
     }
 
@@ -277,7 +432,7 @@ class MetalMpsGraphRawAbiNativeTest {
                 validFeeds,
                 validTargets,
                 MetalPreparedRoute.CUSTOM_PROGRAM);
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
                 NumericalProfile.ACCELERATOR,
                 validValues,
                 validProgram,
@@ -319,7 +474,7 @@ class MetalMpsGraphRawAbiNativeTest {
                 MetalPreparedRoute.CUSTOM_PROGRAM);
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         standaloneMulValues,
                         standaloneMulProgram,
@@ -359,7 +514,7 @@ class MetalMpsGraphRawAbiNativeTest {
                 MetalPreparedRoute.CUSTOM_PROGRAM);
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         standaloneReluValues,
                         standaloneReluProgram,
@@ -567,7 +722,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void nativeAbiFiveRejectsMalformedStorageLayoutDescriptors() throws Throwable {
+    void nativeAbiSevenRejectsMalformedStorageLayoutDescriptors() throws Throwable {
         Path library = configuredLibrary();
         try (RawAbi abi = new RawAbi(library)) {
             byte[] valid = validSelectStorageLayoutImage();
@@ -619,7 +774,7 @@ class MetalMpsGraphRawAbiNativeTest {
         try (RawAbi abi = new RawAbi(library)) {
             for (MetalMpsGraphProgram.NodeKind kind : exactBoolKinds) {
                 ScalarCase scalar = scalarCase(kind);
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate (
+        MetalNativeApi.ProgramExecutableAbi.validateCreate (
             NumericalProfile.STRICT_IEEE,
             scalar.values(),
             scalar.program(),
@@ -627,7 +782,7 @@ class MetalMpsGraphRawAbiNativeTest {
             scalar.targets(),MetalPreparedRoute.CUSTOM_PROGRAM);
                     assertThrows(
                             IllegalArgumentException.class,
-                            () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                            () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                                     NumericalProfile.STRICT_IEEE,
                                     scalar.values(),
                                     scalar.program(),
@@ -672,7 +827,7 @@ class MetalMpsGraphRawAbiNativeTest {
                         List.of(MetalPreparedRoute.CUSTOM_PROGRAM, MetalPreparedRoute.MPSGRAPH)) {
                     assertThrows(
                             IllegalArgumentException.class,
-                            () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                            () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                                     NumericalProfile.STRICT_IEEE,
                                     rankZero,
                                     program,
@@ -692,7 +847,7 @@ class MetalMpsGraphRawAbiNativeTest {
                                 DataType.INT32, new long[] {4}, false));
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                                 NumericalProfile.ACCELERATOR,
                                 wrongType,
                                 program,
@@ -738,7 +893,7 @@ class MetalMpsGraphRawAbiNativeTest {
                 new MetalMpsGraphProgram.ValueDescriptor(
                         DataType.FLOAT32, new long[] {4}, false));
         try (RawAbi abi = new RawAbi(library)) {MetalPreparedRoute route =MetalPreparedRoute.CUSTOM_PROGRAM;
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.STRICT_IEEE,
                         valid,
                         program,
@@ -752,7 +907,7 @@ class MetalMpsGraphRawAbiNativeTest {
 
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                                 NumericalProfile.STRICT_IEEE,
                                 wrongOutput,
                                 program,
@@ -771,7 +926,7 @@ class MetalMpsGraphRawAbiNativeTest {
       assertThrows(
           IllegalArgumentException.class,
           () ->
-              MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+              MetalNativeApi.ProgramExecutableAbi.validateCreate(
                   NumericalProfile.STRICT_IEEE,
                   valid,
                   program,
@@ -807,7 +962,7 @@ class MetalMpsGraphRawAbiNativeTest {
                     List.of(MetalPreparedRoute.CUSTOM_PROGRAM, MetalPreparedRoute.MPSGRAPH)) {
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                                 NumericalProfile.STRICT_IEEE,
                                 integers,
                                 program,
@@ -957,7 +1112,7 @@ class MetalMpsGraphRawAbiNativeTest {
                                 DataType.FLOAT32, new long[] {4}, true),
                         new MetalMpsGraphProgram.ValueDescriptor(
                                 DataType.FLOAT32, new long[] {4}, true));
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         grad,
                         program,
@@ -973,7 +1128,7 @@ class MetalMpsGraphRawAbiNativeTest {
                         List.of(scalarDescriptor(DataType.FLOAT32), scalarDescriptor(DataType.FLOAT32));
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                                 NumericalProfile.ACCELERATOR,
                                 rankZero,
                                 program,
@@ -1015,10 +1170,8 @@ class MetalMpsGraphRawAbiNativeTest {
         }
     }
 
-
-
     @Test
-    void nativeAbiFiveReturnsDedicatedStatusForStructurallyValidUnsupportedOperation()
+    void nativeAbiSevenReturnsDedicatedStatusForStructurallyValidUnsupportedOperation()
             throws Throwable {
         Path library = configuredLibrary();
         var attention = MetalMpsGraphProgram.Node.generic(
@@ -1082,7 +1235,7 @@ class MetalMpsGraphRawAbiNativeTest {
         var program = new MetalMpsGraphProgram(List.of(permute, matmul));
         List<MetalMpsGraphProgram.ValueDescriptor> values =
                 List.of(source, transpose, right, output);
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
                 NumericalProfile.ACCELERATOR,
                 values,
                 program,
@@ -1222,7 +1375,7 @@ class MetalMpsGraphRawAbiNativeTest {
                 true);
         for (MetalMpsGraphProgram.ValueDescriptor forged : List.of(wrongStride, wrongOffset)) {
             assertThrows(IllegalArgumentException.class, () ->
-                    MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                    MetalNativeApi.ProgramExecutableAbi.validateCreate(
                             NumericalProfile.ACCELERATOR,
                             List.of(source, forged, right, output),
                             program,
@@ -1232,7 +1385,7 @@ class MetalMpsGraphRawAbiNativeTest {
         }
         var direct = new MetalMpsGraphProgram(List.of(matmulNode(0, 1, 2)));
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         List.of(
                                 new MetalMpsGraphProgram.ValueDescriptor(
@@ -1262,7 +1415,7 @@ class MetalMpsGraphRawAbiNativeTest {
                         DataType.FLOAT32, new long[] {2, 3}, false),
                 new MetalMpsGraphProgram.ValueDescriptor(
                         DataType.FLOAT32, new long[] {2, 3}, true));
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
                 NumericalProfile.ACCELERATOR,
                 valid,
                 program,
@@ -1305,7 +1458,7 @@ class MetalMpsGraphRawAbiNativeTest {
             for (List<MetalMpsGraphProgram.ValueDescriptor> invalid : invalidValues) {
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                                 NumericalProfile.ACCELERATOR,
                                 invalid,
                                 program,
@@ -1350,7 +1503,7 @@ class MetalMpsGraphRawAbiNativeTest {
                             new long[] {2L})));
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                    () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                             NumericalProfile.ACCELERATOR,
                             List.of(descriptor(2, 3), descriptor(2, 3), descriptor(2, 3)),
                             sumProgram,
@@ -1381,7 +1534,7 @@ class MetalMpsGraphRawAbiNativeTest {
                     new long[] {MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT32)})));
     List<MetalMpsGraphProgram.ValueDescriptor> values =
         List.of(descriptor(DataType.FLOAT64, 2), descriptor(DataType.FLOAT32, 2));
-    MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+    MetalNativeApi.ProgramExecutableAbi.validateCreate(
         NumericalProfile.STRICT_IEEE,
         values,
         program,
@@ -1391,7 +1544,7 @@ class MetalMpsGraphRawAbiNativeTest {
     assertThrows(
         IllegalArgumentException.class,
         () ->
-            MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+            MetalNativeApi.ProgramExecutableAbi.validateCreate(
                 NumericalProfile.STRICT_IEEE,
                 values,
                 program,
@@ -2001,7 +2154,7 @@ class MetalMpsGraphRawAbiNativeTest {
                     MetalMpsGraphProgram.NodeKind.ARG_MAX,
                     MetalMpsGraphProgram.NodeKind.ARG_MIN)) {
                 Task0063Case exact = task0063Case(kind, 1L, uint32Max);
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.STRICT_IEEE,
                         exact.values(),
                         exact.program(),
@@ -2075,7 +2228,7 @@ class MetalMpsGraphRawAbiNativeTest {
                     : malformedCompanions) {
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                                 NumericalProfile.STRICT_IEEE,
                                 values,
                                 topK.program(),
@@ -2301,7 +2454,7 @@ class MetalMpsGraphRawAbiNativeTest {
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             String message) throws Throwable {
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
                 NumericalProfile.STRICT_IEEE,
                 values,
                 program,
@@ -2316,7 +2469,7 @@ class MetalMpsGraphRawAbiNativeTest {
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.STRICT_IEEE,
                         values,
                         program,
@@ -2340,7 +2493,7 @@ class MetalMpsGraphRawAbiNativeTest {
             int[] feeds,
             int[] targets,
             String message) throws Throwable {
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
                 profile, values, program, feeds, targets, MetalPreparedRoute.CUSTOM_PROGRAM);
         byte[] image = program.encodedProgramImage(
                 profile,
@@ -2348,7 +2501,7 @@ class MetalMpsGraphRawAbiNativeTest {
         assertEquals(0, abi.create(image, image.length), message);
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         profile, values, program, feeds, targets, MetalPreparedRoute.MPSGRAPH),
                 message + " Java MPSGraph route");
         byte[] mpsGraphImage = program.encodedProgramImage(
@@ -2368,7 +2521,7 @@ class MetalMpsGraphRawAbiNativeTest {
             String message) throws Throwable {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         profile, values, program, feeds, targets,
                         MetalPreparedRoute.CUSTOM_PROGRAM),
                 message);
@@ -2393,7 +2546,7 @@ class MetalMpsGraphRawAbiNativeTest {
             List<MetalMpsGraphProgram.ValueDescriptor> initialValues =
                     List.of(descriptor(DataType.INT64, 2));
             for (NumericalProfile profile : NumericalProfile.values()) {
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         profile,
                         initialValues,
                         initial,
@@ -2410,7 +2563,7 @@ class MetalMpsGraphRawAbiNativeTest {
             assertEquals(0, abi.create(initialImage, initialImage.length), "zero-feed initializer");
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                    () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                             NumericalProfile.STRICT_IEEE,
                             initialValues,
                             initial,
@@ -2435,7 +2588,7 @@ class MetalMpsGraphRawAbiNativeTest {
                     abi, dropout, exactMaximum, "exact UINT32_MAX dropout");
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                    () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                             NumericalProfile.STRICT_IEEE,
                             exactMaximum,
                             dropout,
@@ -2445,7 +2598,7 @@ class MetalMpsGraphRawAbiNativeTest {
                     "dropout is accelerator-only");
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                    () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                             NumericalProfile.ACCELERATOR,
                             exactMaximum,
                             dropout,
@@ -2528,7 +2681,7 @@ class MetalMpsGraphRawAbiNativeTest {
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             String message) throws Throwable {
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
                 NumericalProfile.ACCELERATOR,
                 values,
                 program,
@@ -2551,7 +2704,7 @@ class MetalMpsGraphRawAbiNativeTest {
             String message) throws Throwable {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         values,
                         program,
@@ -2654,7 +2807,7 @@ class MetalMpsGraphRawAbiNativeTest {
             RawAbi abi, Task0063Case fixture, String message) throws Throwable {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.STRICT_IEEE,
                         fixture.values(),
                         fixture.program(),
@@ -2785,13 +2938,17 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
 
+    /**
+     * Replaces one manifest fragment and rebuilds its SHA-256 digest and image length.
+     *
+     * @param image schema-19 custom-program image with a canonical manifest
+     * @param expected fragment required to occur exactly once
+     * @param replacement ASCII replacement fragment
+     * @return a new image with the replacement manifest and matching digest
+     * @throws IllegalArgumentException if the fragment is absent or repeated
+     */
     private static byte[] rewriteManifest(byte[] image, String expected, String replacement) {
-        int manifestOffset = extensionCoreBytes(image)
-                + readInt(image, 64) * MetalMpsGraphProgram.STEP_DESCRIPTOR_BYTES
-                + readInt(image, 68) * Integer.BYTES
-                + readInt(image, 72) * MetalMpsGraphProgram.BINDING_DESCRIPTOR_BYTES
-                + readInt(image, 76) * Integer.BYTES
-                + readInt(image, 80) * MetalMpsGraphProgram.INSTRUCTION_DESCRIPTOR_BYTES;
+        int manifestOffset = extensionManifestOffset(image);
         int manifestBytes = readInt(image, 84);
         String manifest = new String(
                 image, manifestOffset, manifestBytes, StandardCharsets.US_ASCII);
@@ -2825,6 +2982,21 @@ class MetalMpsGraphRawAbiNativeTest {
         header.putInt(12, result.length);
         header.putInt(84, replacementManifest.length);
         return result;
+    }
+
+    /**
+     * Locates the manifest after all counted custom-program extension records.
+     *
+     * @param image schema-19 custom-program image with complete extension counts
+     * @return byte offset of the manifest in {@code image}
+     */
+    private static int extensionManifestOffset(byte[] image) {
+        return extensionCoreBytes(image)
+                + readInt(image, 64) * MetalMpsGraphProgram.STEP_DESCRIPTOR_BYTES
+                + readInt(image, 68) * Integer.BYTES
+                + readInt(image, 72) * MetalMpsGraphProgram.BINDING_DESCRIPTOR_BYTES
+                + readInt(image, 76) * Integer.BYTES
+                + readInt(image, 80) * MetalMpsGraphProgram.INSTRUCTION_DESCRIPTOR_BYTES;
     }
 
 

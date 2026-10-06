@@ -14,17 +14,6 @@
 #import "synaptik_task0071_anchor_epilogue_kernels.h"
 #import "synaptik_low_precision_kernels.h"
 #import <CommonCrypto/CommonDigest.h>
-#include <sys/sysctl.h>
-
-#ifndef SYNAPTIK_BUILD_MACOS_SDK_VERSION
-#define SYNAPTIK_BUILD_MACOS_SDK_VERSION "UNPINNED"
-#endif
-#ifndef SYNAPTIK_BUILD_XCODE_VERSION
-#define SYNAPTIK_BUILD_XCODE_VERSION "UNPINNED"
-#endif
-#ifndef SYNAPTIK_BUILD_METAL_COMPILER_VERSION
-#define SYNAPTIK_BUILD_METAL_COMPILER_VERSION "UNPINNED"
-#endif
 
 #include <stdint.h>
 #include <stddef.h>
@@ -892,11 +881,39 @@ static BOOL synaptik_validate_pointwise_cap_stop(
         uint32_t target_count,
         const uint32_t *targets,
         const SynaptikPointwisePlan *fusion,
+        BOOL contains_low_precision,
         uint32_t rejected_node,
         uint32_t cap_reason) {
     if (program == NULL || nodes == NULL || ranks == NULL || dimensions == NULL
             || states == NULL || types == NULL || targets == NULL || fusion == NULL)
         return NO;
+    if (contains_low_precision) {
+        // A low-containing partition keeps the serialized extension, but every node is
+        // one fixed step. Topology validation makes every value a feed or node output;
+        // singleton fixed steps therefore materialize every value. Recompute this shape
+        // rather than trusting its digest or counts. create_decoded checks each step kind
+        // against the corresponding node's native custom-kernel classification.
+        if (fusion->step_count != node_count || fusion->member_count != node_count
+                || fusion->materialized_count != value_count
+                || fusion->instruction_count != 0U || fusion->generated_unit_count != 0U
+                || fusion->expected_generated_bytes != 0U
+                || rejected_node != UINT32_MAX || cap_reason != 0U)
+            return NO;
+        for (uint32_t value = 0U; value < value_count; value++)
+            if (fusion->materialized_values[value] != value
+                    || fusion->program_to_slot[value] != value)
+                return NO;
+        for (uint32_t ordinal = 0U; ordinal < node_count; ordinal++) {
+            SynaptikPointwiseStepRecord step = fusion->steps[ordinal];
+            if ((step.kind != 1U && step.kind != 2U)
+                    || step.member_start != ordinal || step.member_count != 1U
+                    || fusion->members[ordinal] != ordinal
+                    || step.instruction_start != 0U || step.instruction_count != 0U
+                    || step.function_bytes != 0U || step.flags != 0U)
+                return NO;
+        }
+        return YES;
+    }
     NSMutableData *consumer_data =
             [NSMutableData dataWithLength:(NSUInteger)value_count * sizeof(uint32_t)];
     NSMutableData *target_data = [NSMutableData dataWithLength:value_count];
@@ -1605,7 +1622,7 @@ typedef struct {
 @end
 @implementation SynaptikMetalNegKernelPipelineBox @end
 
-SYNAPTIK_EXPORT uint32_t synaptik_metal_foundation_abi_version(void) { return 6U; }
+SYNAPTIK_EXPORT uint32_t synaptik_metal_foundation_abi_version(void) { return 7U; }
 
 SYNAPTIK_EXPORT int32_t synaptik_metal_context_create(void **out_context) {
     if (out_context == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
@@ -1623,99 +1640,6 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_context_create(void **out_context) {
     } @catch (__unused NSException *exception) { return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR; }
 }
 
-static NSString *synaptik_certification_gpu_family(id<MTLDevice> device) {
-    static const struct {
-        MTLGPUFamily family;
-        __unsafe_unretained NSString *name;
-    } families[] = {
-        { MTLGPUFamilyApple11, @"APPLE_11" },
-        { MTLGPUFamilyApple10, @"APPLE_10" },
-        { MTLGPUFamilyApple9, @"APPLE_9" },
-        { MTLGPUFamilyApple8, @"APPLE_8" },
-        { MTLGPUFamilyApple7, @"APPLE_7" },
-        { MTLGPUFamilyApple6, @"APPLE_6" },
-        { MTLGPUFamilyApple5, @"APPLE_5" },
-        { MTLGPUFamilyApple4, @"APPLE_4" },
-        { MTLGPUFamilyApple3, @"APPLE_3" },
-        { MTLGPUFamilyApple2, @"APPLE_2" },
-        { MTLGPUFamilyApple1, @"APPLE_1" },
-    };
-    for (NSUInteger index = 0U; index < sizeof(families) / sizeof(families[0]); index++)
-        if ([device supportsFamily:families[index].family]) return families[index].name;
-    return nil;
-}
-
-static NSString *synaptik_certification_os_build(void) {
-    size_t byte_count = 0U;
-    if (sysctlbyname("kern.osversion", NULL, &byte_count, NULL, 0U) != 0
-            || byte_count <= 1U || byte_count > 256U)
-        return nil;
-    char *bytes = calloc(byte_count, 1U);
-    if (bytes == NULL) return nil;
-    NSString *result = nil;
-    if (sysctlbyname("kern.osversion", bytes, &byte_count, NULL, 0U) == 0)
-        result = [[NSString alloc] initWithBytes:bytes
-                length:strnlen(bytes, byte_count)
-                encoding:NSUTF8StringEncoding];
-    free(bytes);
-    return result;
-}
-
-static NSString *synaptik_certification_single_line(NSString *value) {
-    if (value == nil || value.length == 0U) return nil;
-    NSArray<NSString *> *parts = [value componentsSeparatedByCharactersInSet:
-            [NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    NSMutableArray<NSString *> *nonempty = [NSMutableArray arrayWithCapacity:parts.count];
-    if (nonempty == nil) return nil;
-    for (NSString *part in parts)
-        if (part.length != 0U) [nonempty addObject:part];
-    return nonempty.count == 0U ? nil : [nonempty componentsJoinedByString:@" "];
-}
-
-SYNAPTIK_EXPORT int32_t synaptik_metal_context_certification_environment(
-        void *context, uint8_t *destination, uint32_t capacity, uint32_t *out_length) {
-    if (context == NULL || destination == NULL || out_length == NULL || capacity == 0U)
-        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-    *out_length = 0U;
-    @try {
-        SynaptikMetalContextBox *ctx = (__bridge SynaptikMetalContextBox *)context;
-        NSString *gpu = synaptik_certification_gpu_family(ctx.device);
-        NSString *os_build = synaptik_certification_os_build();
-        NSBundle *bundle = [NSBundle bundleForClass:[MPSGraph class]];
-        NSString *framework_short = synaptik_certification_single_line(
-                [bundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"]);
-        NSString *framework_build = synaptik_certification_single_line(
-                [bundle objectForInfoDictionaryKey:@"CFBundleVersion"]);
-        NSString *sdk = framework_short == nil || framework_build == nil ? nil
-                : [NSString stringWithFormat:@"macos-sdk=%s;mpsgraph=%@(%@)",
-                        SYNAPTIK_BUILD_MACOS_SDK_VERSION,
-                        framework_short,
-                        framework_build];
-        NSString *compiler = synaptik_certification_single_line(
-                [NSString stringWithFormat:@"host-clang=%s;xcode=%s;metal=%s",
-                        __clang_version__,
-                        SYNAPTIK_BUILD_XCODE_VERSION,
-                        SYNAPTIK_BUILD_METAL_COMPILER_VERSION]);
-        NSString *flags = @"graph-options=NONE;optimization-level=1;"
-                @"wait-for-compilation=YES;reduced-precision-fast-math=NONE";
-        if (gpu == nil || os_build == nil || sdk == nil || compiler == nil)
-            return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
-        NSString *record = [NSString stringWithFormat:
-                @"SYNAPTIK_METAL_CERTIFICATION_ENVIRONMENT_V1\n%@\n%@\n%@\n%@\n%@",
-                gpu, os_build, sdk, compiler, flags];
-        NSData *encoded = [record dataUsingEncoding:NSUTF8StringEncoding
-                allowLossyConversion:NO];
-        if (encoded == nil || encoded.length == 0U || encoded.length > UINT32_MAX)
-            return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
-        *out_length = (uint32_t)encoded.length;
-        if (encoded.length > capacity)
-            return SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS;
-        memcpy(destination, encoded.bytes, encoded.length);
-        return SYNAPTIK_METAL_STATUS_OK;
-    } @catch (__unused NSException *exception) {
-        return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
-    }
-}
 
 
 SYNAPTIK_EXPORT int32_t synaptik_metal_context_release(void *context) {
@@ -3227,26 +3151,6 @@ static BOOL operation_is_task0066_selected(uint32_t operation) {
                     && operation <= SYNAPTIK_METAL_MPSGRAPH_FOLD3D);
 }
 
-static BOOL task0072_raw_preserving_low_precision_graph(
-        SynaptikMetalDecodedNode node, const uint8_t *value_types) {
-    BOOL operation_allowed =
-            (node.operation >= SYNAPTIK_METAL_CUSTOM_RESHAPE
-                    && node.operation <= SYNAPTIK_METAL_CUSTOM_CONTIGUOUS)
-            || node.operation == SYNAPTIK_METAL_CUSTOM_SLICE
-            || node.operation == SYNAPTIK_METAL_CUSTOM_CONCAT
-            || node.operation == SYNAPTIK_METAL_CUSTOM_TILE;
-    if (!operation_allowed || node.input_count == 0U || node.output_count == 0U)
-        return NO;
-    uint8_t type = value_types[node.inputs[0]];
-    if (type != SYNAPTIK_METAL_TYPE_BFLOAT16
-            && type != SYNAPTIK_METAL_TYPE_FLOAT16)
-        return NO;
-    for (uint32_t input = 0U; input < node.input_count; input++)
-        if (value_types[node.inputs[input]] != type) return NO;
-    for (uint32_t output = 0U; output < node.output_count; output++)
-        if (value_types[node.outputs[output]] != type) return NO;
-    return YES;
-}
 
 
 static BOOL operation_uses_custom_kernel(uint32_t operation) {
@@ -5005,6 +4909,12 @@ static int32_t synaptik_metal_create_decoded(
             local_singleton_height_sources[value] = UINT32_MAX;
         }
         memcpy(value_types, declared_types, value_count);
+        if (route == SYNAPTIK_METAL_ROUTE_MPSGRAPH) {
+            for (uint32_t value = 0U; value < value_count; value++)
+                if (declared_types[value] == SYNAPTIK_METAL_TYPE_BFLOAT16
+                        || declared_types[value] == SYNAPTIK_METAL_TYPE_FLOAT16)
+                    return SYNAPTIK_METAL_STATUS_UNSUPPORTED_OPERATION;
+        }
         BOOL contains_matmul = NO;
         BOOL contains_custom = NO;
         BOOL contains_low_precision = NO;
@@ -5083,10 +4993,7 @@ static int32_t synaptik_metal_create_decoded(
                                     || node.operation > SYNAPTIK_METAL_CUSTOM_RELU)))
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             }
-            BOOL certified_raw_candidate =
-                    task0072_raw_preserving_low_precision_graph(node, value_types);
             if (route == SYNAPTIK_METAL_ROUTE_MPSGRAPH
-                    && !certified_raw_candidate
                     && (!operation_has_direct_mpsgraph(node.operation)
                             || low_precision_custom_function(node, value_types) != nil
                             || operation_is_task0066_selected(node.operation)
@@ -8378,6 +8285,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
 
         uint32_t dimension_cursor = 0U;
         uint32_t stride_cursor = 0U;
+        BOOL contains_declared_low_precision = NO;
         for (uint32_t value = 0U; value < value_count; value++) {
             const uint8_t *descriptor = program + values_offset + (uint64_t)value * 40U;
             uint32_t type = synaptik_read_le32(descriptor);
@@ -8400,6 +8308,9 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             value_ranks[value] = rank;
             declared_types[value] = (uint8_t)type;
+            contains_declared_low_precision |=
+                    type == SYNAPTIK_METAL_TYPE_BFLOAT16
+                    || type == SYNAPTIK_METAL_TYPE_FLOAT16;
             for (uint32_t axis = 0U; axis < rank; axis++) {
                 uint64_t dimension = synaptik_read_le64(
                         program + dimensions_offset + (uint64_t)(dimension_cursor + axis) * 8U);
@@ -9196,6 +9107,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                 };
                 SynaptikPointwiseStepRecord step = steps[ordinal];
                 if (step.kind < 1U || step.kind > SYNAPTIK_ANCHOR_EPILOGUE_STEP
+                        || (contains_declared_low_precision && step.kind > 2U)
                         || step.member_count == 0U
                         || step.member_start != member_cursor
                         || step.binding_start != binding_cursor
@@ -9403,6 +9315,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                         target_count,
                         target_indices,
                         &fusion_plan,
+                        contains_declared_low_precision,
                         rejected_node,
                         cap_reason))
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;

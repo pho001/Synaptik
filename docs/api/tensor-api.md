@@ -110,13 +110,12 @@ defines that distance through a monotonic raw-bit key. Aggregate sites may use a
 while including every declared contributor exactly once. Composite and Compiler-generated
 gradient formulas recurse through those sites and gain no final-output tolerance. Every unlisted
 non-FLOAT32 occurrence remains unchanged. Current low occurrences retain exact
-discrete/raw/cast/public/saved/final-RNE boundaries and a complete custom-program baseline, and may
-use only their declared DAZ/FTZ, arithmetic zero-sign/NaN-class, reassociation/FMA, and
-unobservable-single-use fusion freedoms. The six homogeneous no-gradient raw-preserving Metal
-kinds may add MPSGraph only after exact schema-one environment/program certification; certification
-never widens Model capability or supplies execution fallback. Generic `allclose` does not qualify
-a route. Existing operation-local final exact-zero publication choices remain local to their named
-final results.
+discrete/raw/cast/public/saved/final-RNE boundaries and one custom-program route, and may use only
+their declared DAZ/FTZ, arithmetic zero-sign/NaN-class, reassociation/FMA, and
+unobservable-single-use fusion freedoms. Every BFLOAT16/FLOAT16 Metal partition, including the six
+homogeneous no-gradient raw-preserving kinds, is custom-program-only. Generic `allclose` does not
+qualify an implementation. Existing operation-local final exact-zero publication choices remain
+local to their named final results.
 Tensor construction still performs no numerical evaluation and stores no profile choice.
 
 `NumericalProfile` remains outside Tensor: Tensor has no profile method or stored selection. The
@@ -142,14 +141,13 @@ exactly 86 admitted kinds and 29 remaining false, with 101 structurally executab
 remaining nonexecutable. These are shape-restricted production domains, not whole-kind admission;
 every unlisted occurrence fails closed before route selection.
 
-Metal uses ABI 6 with fourteen exports, including the bounded context certification-environment
-query, and one bounded schema-19 route-bearing program image. Operation wires `1..115`, attribute
-wires `0..41`, and type wires `1..7` cover current structural vocabulary. The custom-program image
-authenticates compact materialized slots, deterministic pointwise units, and exact ACCELERATOR
-MATMUL/Conv2d anchor epilogues; certified raw MPSGraph images omit that extension and require an
-exact bundled certificate. Metal-local workload, exact-policy, candidate, compatibility,
-route-policy, and session codec identities are version 28; every other identity fails closed
-rather than falling back. Model remains the sole semantic owner of profile meaning.
+Metal uses ABI 7 with thirteen exports and one bounded schema-19 route-bearing program image.
+Operation wires `1..115`, attribute wires `0..41`, and type wires `1..7` cover current structural
+vocabulary. The custom-program image authenticates compact materialized slots, deterministic
+pointwise units, and exact ACCELERATOR MATMUL/Conv2d anchor epilogues. Metal-local workload,
+exact-policy, candidate, compatibility, route-policy, and session codec identities are version 29;
+every other identity fails closed rather than falling back. Model remains the sole semantic owner
+of profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 

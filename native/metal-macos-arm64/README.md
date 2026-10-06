@@ -3,9 +3,9 @@
 ## Purpose
 
 This directory builds the local application binary interface (ABI) used by the Synaptik Metal
-backend on Apple-silicon macOS. ABI version 6 exports fourteen context, certification-environment,
-shared-storage buffer, executable, and bounded custom singleton-`NEG` functions. Its graph creator
-accepts one bounded schema-19 program image. The image carries an explicit fixed route and exact
+backend on Apple-silicon macOS. ABI version 7 exports thirteen context, shared-storage buffer,
+executable, and bounded custom singleton-`NEG` functions. Its graph creator accepts one bounded
+schema-19 program image. The image carries an explicit fixed route and exact
 numerical-profile wire plus value types and complete variable-cardinality operation, attribute,
 reference, dimension, gradient, optional storage-layout metadata, and a route-specific
 authenticated execution extension; no native type, shape, layout, or plan inference is part of the
@@ -95,43 +95,23 @@ add, and final-store sites plus NaN, signed-zero, infinity, subnormal DAZ/FTZ, a
 
 The remaining 29 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 28. Java
+rather than masquerading as malformed input. Candidate and route identity are version 29. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
 shared custom-program wire 3. Schema 19 embeds wire 2 or 3 and the exact numerical profile in each
 graph image; every other schema, profile, or route value fails closed. The exhaustive Java
-structural catalog adds no native route selection, capability, autotuning, fallback,
-telemetry, or performance authority.
+structural catalog adds no native route selection, capability, autotuning, fallback, telemetry, or
+performance authority.
 
-BFLOAT16 and FLOAT16 (`7`) arithmetic occurrences use only authenticated custom Metal source.
-Exact homogeneous no-gradient low raw-preserving RESHAPE, simple PERMUTE, materializing CONTIGUOUS,
-SLICE, CONCAT, and TILE may use MPSGraph only after Java cold preparation exactly matches a
-schema-1 environment/program certificate. Custom remains their first candidate. No low occurrence
-is qualified through MPS, pointwise source generation, or anchor-epilogue fusion, and execution
-has no retry or CPU fallback. The complete frozen Metal FLOAT32 ACCELERATOR target set has a
-homogeneous BFLOAT16 and FLOAT16 recipe, while STRICT_IEEE admits only exact-valid movement,
-mapping, selection, ordering, classification, cast, and represented-bit unary rows. Schema 19,
-route wires 2/3, identity 28, native ABI 6, and the existing operation and attribute wires retain
-their allocations.
+BFLOAT16 and FLOAT16 (`7`) occurrences use only authenticated custom Metal source. This includes
+exact homogeneous no-gradient raw-preserving RESHAPE, simple PERMUTE, materializing CONTIGUOUS,
+SLICE, CONCAT, and TILE. The native parser rejects any MPSGraph-route image containing either low
+type before operation lowering. No low occurrence is qualified through MPSGraph, classic MPS, MPP,
+pointwise source generation, or anchor-epilogue fusion, and execution has no retry or CPU fallback.
+The complete frozen Metal FLOAT32 ACCELERATOR target set has a homogeneous BFLOAT16 and FLOAT16
+recipe, while STRICT_IEEE admits only exact-valid movement, mapping, selection, ordering,
+classification, cast, and represented-bit unary rows. Schema 19, route wires 2/3, identity 29,
+native ABI 7, and the existing operation and attribute wires retain their allocations.
 
-The 24 positive low raw certificates belong only to MPSGraph. Classic MPS and MPP are
-qualified-negative on the exact `APPLE_9`/`25G83` environment. Reproduce the checked-in
-`backends/metal/evidence/0072/vendor-route-qualification.tsv` matrix from the repository root with:
-
-```bash
-./native/metal-macos-arm64/qualify-low-precision-vendor-routes.sh \
-  native/metal-macos-arm64/build/package-v1/macos-arm64/libsynaptik_metal_foundation.dylib \
-  backends/metal/evidence/0072/vendor-route-qualification.tsv
-```
-
-The probe requires the installed Xcode 27 toolchain. It executes classic
-`MPSSupportsMTLDevice`, an FP16 `MPSCNNConvolution` with FLOAT accumulator-option readback, and an
-isolated BFLOAT16 construction rejection. It also compiles and links four MPP Metal 4.0 probes,
-requires `__HAVE_TENSOR__`, statically fixes `relaxed_precision=false`, and creates FLOAT16/BFLOAT16
-`matmul2d` and `convolution2d` pipelines with FLOAT32 destinations on the target GPU. Classic MPS
-lacks the complete exact Shape/layout proof and BFLOAT16/public-accumulator contract; MPP does not
-specify its internal accumulator through the destination type. All matrix rows remain `REJECTED`.
-The probes add no ABI export, production framework dependency, candidate, route wire, certificate,
-or fallback.
 
 Raw storage is always an unsigned 16-bit word. Exact kernels copy or select that word, predicates
 classify it as an integer encoding, and casts use the declared bit-exact conversion. Arithmetic
@@ -152,11 +132,11 @@ is zero. Exact paths preserve zero bits; MIN chooses negative zero, MAX chooses 
 SIGN preserves a zero's sign, RELU maps negative zero to positive zero, and average pooling
 preserves negative zero only when every contributor is negative zero and none is padding.
 
-For admitted nodes, the version-28 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-29 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, complete encoded logical storage-layout
 geometry, independently safe physical materialization, and the canonical schema-19 execution
-extension. The schema-19 and identity-28 cutover has no compatibility reader or migration alias;
+extension. The schema-19 and identity-29 cutover has no compatibility reader or migration alias;
 every other schema or identity fails closed.
 
 ```text
@@ -200,7 +180,7 @@ package and independently verify the final signed bytes:
 The ignored `build/package-v1/macos-arm64/` directory contains exactly the signed dylib,
 `manifest.json`, and `SHA256SUMS`. The canonical schema-1 manifest records the final dylib's
 relative name, size, SHA-256, platform, architecture, macOS 26.0 minimum, install name, empty
-rpath set, ABI 6, node schema 19, required frameworks, and fixed ad-hoc identifier. It contains no
+rpath set, ABI 7, node schema 19, required frameworks, and fixed ad-hoc identifier. It contains no
 time, host, absolute path, source revision, product version, SDK version, Team ID, notarization,
 provenance, or release field. Packaging the same exact signed input produces byte-identical
 manifest and checksum files.
@@ -261,15 +241,14 @@ extraction, cleanup, classpath lookup, or runtime discovery. `SYNAPTIK_METAL_TES
 test-only. The archive does not add authentication or redistribution rights, and it deliberately
 does not copy the CPU-only `THIRD_PARTY_NOTICES.md`.
 
-## ABI version 6
+## ABI version 7
 
-The dylib exports exactly these fourteen symbols:
+The dylib exports exactly these thirteen symbols:
 
 ```text
 synaptik_metal_foundation_abi_version
 synaptik_metal_context_create
 synaptik_metal_context_release
-synaptik_metal_context_certification_environment
 synaptik_metal_buffer_create
 synaptik_metal_buffer_release
 synaptik_metal_buffer_upload
@@ -282,24 +261,11 @@ synaptik_metal_neg_kernel_pipeline_release
 synaptik_metal_neg_kernel_pipeline_run
 ```
 
-The version function returns unsigned value `6`. All other functions return a signed 32-bit
-status. Context, buffer, MPSGraph-executable, and custom-pipeline values cross the boundary as
+The version function returns unsigned value `7`. All other functions return a signed 32-bit
+status. Context, buffer, program-executable, and custom-pipeline values cross the boundary as
 separate opaque `void *` handle families. Buffer sizes and offsets are unsigned 64-bit values.
-Created handles use caller-supplied output cells, which remain null on failure. The environment
-query writes one bounded UTF-8 identity and reports its required byte length:
-
-```c
-int32_t synaptik_metal_context_certification_environment(
-    void *context,
-    uint8_t *destination,
-    uint32_t capacity,
-    uint32_t *out_length);
-```
-
-The returned six-line record fixes the highest supported Apple GPU family, Darwin OS build, macOS
-SDK plus loaded MPSGraph framework, host/Xcode/Metal compiler versions, and explicit graph options,
-optimization level, synchronous compilation setting, and reduced-precision-fast-math mode. It has
-no device-selection or compatibility-match semantics.
+Created handles use caller-supplied output cells, which remain null on failure. ABI 7 removes the
+former `synaptik_metal_context_certification_environment` export.
 
 The graph creator's exact signature is:
 
@@ -661,7 +627,7 @@ nm -gUj "$LIB"
 
 The verifier requires exactly one arm64 Mach-O 64-bit `DYLIB`, minimum macOS 26.0, install name
 `@rpath/libsynaptik_metal_foundation.dylib`, no `LC_RPATH`, only Apple system dependencies, all
-three required framework links, and exactly the fourteen exports above. It also requires a strict
+three required framework links, and exactly the thirteen exports above. It also requires a strict
 valid ad-hoc signature with identifier `io.github.pho001.synaptik.metal.foundation` and no Team ID,
 plus the exact three-file schema-1 package, modes, canonical manifest, and checksums. It fails
 closed rather than signing, repairing, normalizing, or accepting an ambiguous package.

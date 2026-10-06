@@ -1130,12 +1130,12 @@ ordering, state, predicate and cast occurrences; strict comparisons; non-overlap
 maximum pooling; and promoted INT32/INT64 MATMUL. Accelerator admits every qualified homogeneous
 FLOAT32/BFLOAT16/FLOAT16 arithmetic, scalar, reduction, scan, MATMUL, MSE, convolution, pooling,
 dropout, L1, ScatterAdd, and singleton-variance occurrence. Direct BFLOAT16/FLOAT16 mixed-low
-operations remain false except explicit CAST. Low arithmetic selects the fixed custom program.
-Exact no-gradient homogeneous low raw-preserving RESHAPE, simple PERMUTE, materializing CONTIGUOUS,
-SLICE, CONCAT, and TILE images retain custom first and may add MPSGraph only after exact
-environment/program certification. Existing rank-two FLOAT32 MATMUL may retain direct MPSGraph.
-Metal's occurrence-level answer is independent of native availability, route evidence, and
-constant provenance; preparation authenticates those private facts and fixes the route.
+operations remain false except explicit CAST. Every partition containing BFLOAT16 or FLOAT16
+values selects the fixed custom program, including exact no-gradient homogeneous raw-preserving
+RESHAPE, simple PERMUTE, materializing CONTIGUOUS, SLICE, CONCAT, and TILE. Existing rank-two
+FLOAT32 MATMUL may retain direct MPSGraph. Metal's occurrence-level answer is independent of native
+availability and route policy; preparation authenticates private structural facts and fixes the
+route.
 Compile-time plans retain `BackendId`, not a provider object.
 
 ### Backend hard eligibility
@@ -2500,15 +2500,14 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The profile-qualified Metal instance is also implemented internally. Its version-twenty-eight
+The profile-qualified Metal instance is also implemented internally. Its version-twenty-nine
 fingerprint covers the exact `NumericalProfile`, bounded route-bearing node schema 19 and
 authenticated execution extension, operation wires `1..115`, attribute wires `0..41`, type wires
 `1..7`, ordered variable-cardinality inputs/outputs, ordered feed/target/value structure,
 descriptors, complete storage layouts, value states, compact materialized slots, exact attribute
 and splat bits, logical-boundary facts, candidate/route schemas, and native ABI. Target
-compatibility includes the exact live `MetalDeviceContext` session nonce; ABI version `6` alone is
-not a stable cross-session device fingerprint. The separate certificate identity binds the exact
-GPU/OS/SDK/framework/compiler/options and loaded dylib. Workload identity supports backend-local
+compatibility includes the exact live `MetalDeviceContext` session nonce; ABI version `7` alone is
+not a stable cross-session device fingerprint. Workload identity supports backend-local
 construction and authentication.
 
 ### Candidate generator
@@ -2527,11 +2526,10 @@ occurrences and broader Compiler/Planning candidate orchestration remain planned
 
 Profile-qualified Metal preparation has a second internal generator. It emits the custom
 singleton-NEG heuristic first, followed by MPSGraph, for an eligible singleton NEG under either
-profile. A low partition emits `CUSTOM_PROGRAM` first. It emits MPSGraph second only for an exact
-schema-1-certified homogeneous no-gradient raw-preserving RESHAPE/PERMUTE/CONTIGUOUS/SLICE/CONCAT/
-TILE image; low arithmetic and every other uncertified selected Task-0066 or Task-0069 occurrence
-remain custom-only. Other partitions retain their established exact candidate sets. Positive
-budgets return stable complete prefixes, and generation performs no native allocation.
+profile. A partition containing BFLOAT16 or FLOAT16 values emits only `CUSTOM_PROGRAM`, including
+exact raw-preserving RESHAPE/PERMUTE/CONTIGUOUS/SLICE/CONCAT/TILE images. Other partitions retain
+their established exact candidate sets. Positive budgets return stable complete prefixes, and
+generation performs no native allocation.
 
 ### Candidate batch
 
@@ -2550,7 +2548,7 @@ batch as a plan batch would incorrectly repeat local route search.
 
 The profile-qualified Metal batch is session-scoped. It contains only the complete
 `CUSTOM_SINGLE_NEG`, `CUSTOM_PROGRAM`, and `MPSGRAPH` configurations valid for the exact partition
-and profile. Compatibility, candidate, and route-policy identities are version twenty-eight; every
+and profile. Compatibility, candidate, and route-policy identities are version twenty-nine; every
 other identity fails closed, and no private field crosses the marker-role boundary.
 
 ### Complete-plan candidate
@@ -2590,10 +2588,10 @@ decision contains no measurement, cache representation, executable, provider, na
 physical resource, or Runtime state.
 
 The profile-qualified Metal decision follows the same owner-defined pattern with a bounded
-checksummed version-twenty-eight session codec. Fresh Metal analysis regenerates current profile/
+checksummed version-twenty-nine session codec. Fresh Metal analysis regenerates current profile/
 topology facts and accepts a selection only when schema, workload, exact context session, and
 candidate identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session,
-version-twenty-seven and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a
+version-twenty-eight and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a
 workload-cache artifact and have no current `tools/tuning` adapter.
 
 The generic Phase-2 tool may persist a decision only when its producer declares persistent reuse,
@@ -2959,13 +2957,12 @@ binary tree only while every declared contributor participates exactly once. Com
 Compiler-generated gradient formulas recurse through those sites and gain no final-output
 envelope. Special classes and domains remain formula-derived; NaN cannot become ordinary, and
 predicate and selection gain no tolerance. The active low-precision contract retains exact
-discrete/raw/cast/public/saved/final-RNE boundaries and a complete FLOAT32-working custom baseline.
+discrete/raw/cast/public/saved/final-RNE boundaries and a complete FLOAT32-working custom route.
 Model declares the family DAZ/FTZ, arithmetic zero-sign/NaN-class freedoms, operation-local
-reassociation/FMA, and unobservable-single-use fusion boundary. Transformed routes may qualify by
-deductive proof or versioned certification against a public cancellation/size-aware family
-envelope; names, examples, and generic `allclose` do not. The current FLOAT32 floor retains its
-stricter literal recursive-site restrictions. `STRICT_IEEE` does not imply universal bitwise
-identity, correct rounding, Java `strictfp`, or fixed instructions.
+reassociation/FMA, and unobservable-single-use fusion boundary. Every implementation must satisfy
+the public cancellation/size-aware family envelope; names, examples, and generic `allclose` do not.
+The current FLOAT32 floor retains its stricter literal recursive-site restrictions. `STRICT_IEEE`
+does not imply universal bitwise identity, correct rounding, Java `strictfp`, or fixed instructions.
 
 The semantic result sets remain Model-owned. The immutable Config identity `NumericalProfile` is
 selected once while constructing an Engine, defaults to `STRICT_IEEE`, and is transported
@@ -2991,17 +2988,6 @@ contains supported and explicit unsupported rows and detects drift, but it is no
 capability-enumeration API and contains no route, runtime, device, certificate, or
 generated-backward fact.
 
-### Route certificate schema
-
-The active versioned field contract for opaque-route accuracy qualification, separate from provider
-capability. Schema 1 keys profile, operation/fusion family, ordered dtype tuple, numeric accumulator
-or canonical `NONE`, Shape/layout domain, route, GPU/OS/SDK/framework/compiler environment,
-native-binary and shader/program digests, flags/options, and exact capability-manifest hash. Its
-accuracy record names the Model-owned family envelope, qualification method, evidence digest, and
-verdict. Determinism metadata is a separate record and never an accuracy field or verdict input.
-The schema alone activates no route and grants no runtime fallback. Metal's backend-owned atomic
-store currently supplies exact environment/program rows for its narrow raw-preserving low
-MPSGraph candidate; every missing, stale, malformed, or mismatched row remains custom-only.
 
 ### Scalar-power realization
 
@@ -4423,9 +4409,11 @@ storage. Current Runtime defines the distinct nominal `BufferRepresentation` and
 `close()`. CPU provides package-private borrowed and run-owned native implementations. Metal
 provides package-private shared-storage buffer and workspace implementations with explicit native
 ownership and context leases. Its prepared elementwise routes borrow caller input buffers and
-create fresh per-run initialized constant buffers and output buffers. An MPSGraph run also owns
-one native-address workspace; a custom-singleton NEG run owns none. The typed persistent MPSGraph
-executable or custom pipeline is a separate prepared resource rather than a representation.
+create fresh per-run initialized constant buffers and output buffers. MPSGraph and custom-program
+runs each own one native-address workspace; a custom-singleton NEG run owns none. The persistent
+`MetalProgramExecutableResource` owns the native executable for either a custom-program or an
+MPSGraph route; the custom-singleton pipeline has a separate prepared resource. Neither resource
+is a runtime representation.
 Runtime owns the logical per-run association, ownership, structural residency, explicit buffer
 validity, and cleanup orchestration. The backend representation owns physical allocation,
 release, transfer, and access mechanics. A
@@ -5251,14 +5239,15 @@ mixed-low operations remain unsupported. Direct transfer moves all seven carrier
 `0..16`; BOOL validation visits logical elements only.
 
 Metal analysis fixes stable value/node/feed/target order, lowers one bounded schema-19 route-bearing
-program image, generates a complete version-28 route batch, authenticates any supplied session
+program image, generates a complete version-29 route batch, authenticates any supplied session
 decision, and fixes one private route before declaring resources. Every other identity fails
-closed. Every low arithmetic partition and every low image without an exact certificate selects
-the fixed shared custom whole-program route. An exact homogeneous no-gradient raw-preserving low
-RESHAPE/PERMUTE/CONTIGUOUS/SLICE/CONCAT/TILE image may additionally select MPSGraph, with custom
-retained as its first candidate. Existing eligible FLOAT32 partitions may retain their direct
-MPSGraph or qualified generated routes. These choices add no fallback, retry, timing selection, or
-partition change.
+closed. Every partition containing BFLOAT16 or FLOAT16 values selects the fixed shared custom
+whole-program route; it has no MPSGraph candidate. Existing eligible FLOAT32 partitions retain
+their direct MPSGraph or qualified generated routes. Within a low-containing custom partition,
+any FLOAT32-only node may still use an internal MPSGraph boundary step under the existing FLOAT32
+policy, whether on an independent branch or after an explicit low-to-FLOAT32 cast. Low-valued nodes
+remain custom, and generated-pointwise/anchor fusion remains disabled throughout that partition.
+These choices add no fallback, retry, timing selection, or partition change.
 
 Finalization compiles one persistent route resource and transfers it to `PreparedExecution`.
 Shared custom-program creation authenticates each frozen component and the ordered 84,541-byte
@@ -6690,17 +6679,21 @@ The implemented public caller-owned callback for one explicitly traced
 `MetalBackendIntegration`. Its sole abstract method accepts
 `TraceEvent<? extends TracePayload>`. Metal retains but never closes the observer, and callbacks
 may be concurrent. One traced integration uses fixed zero backend/device correlations plus
-independent non-negative event, prepared-unit, and invocation sequences. It emits only final
-`PREPARE` and native-invocation `RUN` outcomes while enabled. The existing one-argument Metal open
-path creates no producer or trace work.
+independent non-negative event, prepared-unit, and invocation sequences. While enabled, it emits
+structural `PREPARE` facts, selected-route low-precision `PREPARE` metadata when applicable, a final
+`PREPARE` outcome, and native-invocation `RUN` plan and outcome events. The existing one-argument
+Metal open path creates no producer or trace work.
 
-An observer `RuntimeException`, trace-object construction failure, or ID exhaustion disables later
-events without changing backend work or outward exceptions; an `Error` propagates. Preparation
-reports `NOT_QUERIED`, the fixed profile, and the neutral selected route. Invocation reports the
-same immutable facts and the exact mapped native code when available. These events contain only
-the bounded Trace DTO fields and no path, device/session token, handle/address, Tensor or storage
-value, scalar, shape, byte extent, fingerprint, thread identity, exception, free-form string, or
-map.
+An observer `RuntimeException` on either event kind, a `RuntimeException` while constructing a
+trace object, or ID exhaustion disables later events without changing backend work or outward
+exceptions. An observer `Error` on a structural `PREPARE` or pre-run `RUN` event is contained and
+disables tracing. An observer `Error` on a successful outcome propagates; during failure-outcome
+reporting, the backend failure remains primary and receives a distinct acyclic observer `Error` as
+a suppressed failure without disabling tracing. Preparation reports `NOT_QUERIED`, the fixed
+profile, and the neutral selected route. Invocation reports the same immutable facts and the exact
+mapped native code when available. The outcome events contain only the bounded Trace DTO fields and
+no path, device/session token, handle/address, Tensor or storage value, scalar, shape, byte extent,
+fingerprint, thread identity, exception, free-form string, or map.
 
 ### Trace event envelope
 

@@ -46,7 +46,8 @@ Focused architecture documentation:
 - [ADR 0021: Total recursive ACCELERATOR numerical floor](../design/decisions/0021-total-recursive-accelerator-numerical-floor.md)
 - [ADR 0022: Auditable custom Metal route cost evidence](../design/decisions/0022-auditable-custom-metal-route-cost-evidence.md)
 - [ADR 0023: Low-precision ACCELERATOR parity and P0 evidence](../design/decisions/0023-low-precision-accelerator-parity.md)
-- [ADR 0024: Environment-bound Metal raw-route certificates](../design/decisions/0024-environment-bound-metal-raw-certificates.md)
+- [ADR 0024: Environment-bound Metal raw-route certificates (superseded)](../design/decisions/0024-environment-bound-metal-raw-certificates.md)
+- [ADR 0025: Custom-only Metal low precision](../design/decisions/0025-custom-only-metal-low-precision.md)
 
 ## Status
 
@@ -81,23 +82,26 @@ reduction, scan, MATMUL, MSE, convolution, average-pooling, dropout, rank-one L1
 and singleton-variance domains. Direct BFLOAT16/FLOAT16 mixed-low execution remains unsupported;
 callers establish an explicit FLOAT32 boundary. Every low arithmetic occurrence selects the fixed
 custom program. Exact homogeneous no-gradient low raw-preserving `RESHAPE`, simple `PERMUTE`,
-materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and `TILE` images may additionally expose MPSGraph
-only after a complete schema-1 environment/program certificate match. Classic MPS and MPP have
-qualified-negative evidence only and own no candidate, route wire, certificate, or fallback.
-Every other unlisted occurrence fails closed before route selection.
+materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and `TILE` use the same custom-only route. Classic
+MPS, MPP, MPSGraph, CPU, retry, and fallback are not low-precision partition-route alternatives.
+The custom program executes BFLOAT16/FLOAT16-valued operations with custom kernels; any
+FLOAT32-only node, whether independent or after an explicit cast, may use an internal MPSGraph
+boundary step without changing the partition route. Neither generated-pointwise nor
+anchor-epilogue fusion occurs anywhere in that partition, and BFLOAT16 is never silently
+substituted with FLOAT16. Every other
+unlisted occurrence fails closed before route selection.
 Canonical typed host ingress/publication and direct CPU/Metal transfer support all seven data types at
 ranks `0..16`; transfer also accepts resolved positive-stride non-overlapping physical storage
 layouts and rejects unresolved, zero-stride, negative-stride, or overlapping geometry. BOOL
 validation visits logical elements only. Selected affine view results retain authenticated logical
 Shape, stride, and offset while Java preparation and native preflight independently derive and
 validate the physical storage span before any write; selected materializing results are canonical.
-An eligible singleton NEG retains its dedicated custom route. Every low arithmetic occurrence and
-the exact Task-0069 rank-one FLOAT32 L1/ScatterAdd/VARIANCE occurrences at wires `114`, `70`, and
-`112` use the fixed shared `CUSTOM_PROGRAM` route with compact run-owned materialized slots and one
-Java/native invocation; there is no selected-node execution fallback. Exact no-gradient
-homogeneous BFLOAT16/FLOAT16 `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`,
-`CONCAT`, and `TILE` images retain custom first and may add MPSGraph only after an exact schema-1
-environment/program certificate lookup. ScatterAdd completes its INT32/INT64 index scan before any
+An eligible singleton NEG retains its dedicated custom route. Every partition containing
+BFLOAT16/FLOAT16 values and the exact Task-0069 rank-one FLOAT32 L1/ScatterAdd/VARIANCE occurrences
+at wires `114`, `70`, and `112` use the fixed shared `CUSTOM_PROGRAM` route with compact run-owned
+materialized slots and one Java/native invocation; there is no selected-node execution fallback.
+This includes exact no-gradient homogeneous low raw-preserving movement and layout operations.
+ScatterAdd completes its INT32/INT64 index scan before any
 encoding or mutation, keeps duplicates in source order, raw-copies unaddressed cells, and closes
 the existing rank-one Gather data cotangent. Singleton VARIANCE dispatches one writer through
 exactly `DIV`, `SUB`, `MUL`, `DIV`, yielding positive zero for every finite input and NaN class for
@@ -106,34 +110,26 @@ deterministic generated units without intermediate materialization. Eligible ACC
 MATMUL/Conv2d suffixes use one ordered typed anchor step, one dispatch, and one final store without
 a materialized suffix intermediate.
 
-Current Metal uses ABI 6 with fourteen exports and one bounded schema-19 route-bearing program
+Current Metal uses ABI 7 with thirteen exports and one bounded schema-19 route-bearing program
 image over type wires `1..7`, operation wires `1..115`, attribute wires `0..41`, and route wires
-`1..3`. Structural coverage is `101 / 14`; production capability is exactly `86 / 29`; route
-catalogs are `75 / 35 / 5` MPSGraph and `73 / 42 / 0` custom. Backend-local identities are version
-twenty-eight, and every other identity fails closed. ABI 6 reports the immutable native context
-environment. Java adds the exact loaded-dylib and capability-ledger hashes, and the schema-1 store
-matches the complete key or qualifies nothing.
+`1..3`. Structural coverage is `101 / 14`; production capability is exactly `86 / 29`.
+Backend-local identities are version twenty-nine, and every other identity fails closed.
 
 One canonical 508-row representative capability ledger is generated from the actual CPU and Metal
 providers under both profiles. The ledger retains supported and explicit unsupported FLOAT32
 answers plus independently queried corresponding BFLOAT16 and FLOAT16 answers. Target/exclusion
 columns are architecture mapping, not inferred provider facts, and no row asserts route,
-runtime/device, certificate, or generated-backward ownership. The separate append-only
-identity-allocation ledger records active Model ordinal 6, Metal type wire 7, schema 19, identities
-28, certificate schema 1, CPU generator schema 68, and native ABI 6. The frozen certificate field
-schema permits canonical `NONE` for a non-arithmetic accumulator. Metal's active store contains
-exactly 24 positive raw-preserving MPSGraph certificates. Its environment-bound classic-MPS/MPP
-qualification matrix is negative-only; those families own no candidate, wire, certificate, or
-fallback. Both evidence sets remain backend-owned rather than provider facts.
+runtime/device, or generated-backward ownership. The separate append-only identity-allocation
+ledger records active Model ordinal 6, Metal type wire 7, schema 19, identities 29, CPU generator
+schema 68, and native ABI 7.
 
-Low-precision trace now identifies the selected custom or certified-MPSGraph route rather than the
-candidate set. Only selected MPSGraph carries its complete certificate key plus distinct accuracy
-and determinism evidence; custom carries no borrowed evidence. Metal has no
+Low-precision trace identifies the selected custom route and reports its ordered logical boundary
+dtype tuple and profile. It has no accumulator or working-type field: FLOAT32 working values and
+accumulators remain a separate Model arithmetic guarantee, not a trace fact. The trace carries no
+hypothetical candidate or removed certificate/environment state. Metal has no
 compilation/executable/preparation cache. Its tuning values are session-scoped and bind the dtype,
-ABI, schema/policy, program semantics, route candidate, and random context nonce; certificate and
-environment facts are safely outside the workload digest because they are immutable within that
-context and a reopened context cannot reuse the session value. CPU schema-68 artifact identity
-also distinguishes BFLOAT16 from FLOAT16 despite their shared short carrier.
+ABI, schema/policy, program semantics, route candidate, and random context nonce. CPU schema-68
+artifact identity also distinguishes BFLOAT16 from FLOAT16 despite their shared short carrier.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over

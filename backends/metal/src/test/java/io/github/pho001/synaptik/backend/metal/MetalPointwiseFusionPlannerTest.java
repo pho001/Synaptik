@@ -17,6 +17,98 @@ import org.junit.jupiter.api.Test;
 
 class MetalPointwiseFusionPlannerTest {
     @Test
+    void lowValueAnywhereInPartitionDisablesF32PointwiseFusionAndPreview() {
+        var f32Program = new MetalMpsGraphProgram(List.of(
+                unary(MetalMpsGraphProgram.NodeKind.FLOOR, 0, 1),
+                unary(MetalMpsGraphProgram.NodeKind.CEIL, 1, 2)));
+        List<MetalMpsGraphProgram.ValueDescriptor> f32Values = descriptors(3, 4L);
+        MetalPointwiseFusionPlan f32 = MetalPointwiseFusionPlanner.plan(
+                NumericalProfile.ACCELERATOR, f32Program, f32Values,
+                new int[] {0}, new int[] {2}, MetalPreparedRoute.CUSTOM_PROGRAM);
+        assertEquals(List.of(MetalPointwiseFusionPlan.StepKind.GENERATED_POINTWISE),
+                f32.steps().stream().map(MetalPointwiseFusionPlan.Step::kind).toList());
+
+        for (DataType lowType : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            var program = new MetalMpsGraphProgram(List.of(
+                    unary(MetalMpsGraphProgram.NodeKind.FLOOR, 0, 1),
+                    unary(MetalMpsGraphProgram.NodeKind.CEIL, 1, 2),
+                    MetalMpsGraphProgram.Node.neg(3, 4)));
+            var values = new ArrayList<>(f32Values);
+            values.add(descriptor(lowType, 4L));
+            values.add(descriptor(lowType, 4L));
+            int[] feeds = {0, 3};
+            int[] targets = {2, 4};
+            MetalPointwiseFusionPlan mixed = program.resolvePlan(
+                    NumericalProfile.ACCELERATOR, values, feeds, targets,
+                    MetalPreparedRoute.CUSTOM_PROGRAM, null);
+
+            assertEquals(List.of(
+                            MetalPointwiseFusionPlan.StepKind.FIXED_CUSTOM,
+                            MetalPointwiseFusionPlan.StepKind.FIXED_CUSTOM,
+                            MetalPointwiseFusionPlan.StepKind.FIXED_CUSTOM),
+                    mixed.steps().stream().map(MetalPointwiseFusionPlan.Step::kind).toList());
+            assertArrayEquals(new int[] {0, 1, 2, 3, 4},
+                    mixed.materializedProgramValueIndices());
+            byte[] preview = program.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR, values, feeds, targets,
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            ByteBuffer header = ByteBuffer.wrap(preview).order(ByteOrder.LITTLE_ENDIAN);
+            assertEquals(0, header.getInt(80), "instruction count for " + lowType);
+            assertEquals(0, header.getInt(92), "generated unit count for " + lowType);
+            assertThrows(IllegalArgumentException.class, () -> program.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR, values, feeds, targets,
+                    MetalPreparedRoute.CUSTOM_PROGRAM, f32));
+        }
+    }
+
+    @Test
+    void lowValueAnywhereInPartitionDisablesF32AnchorEpilogueFusion() {
+        var f32Program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.matmul(0, 1, 3),
+                MetalMpsGraphProgram.Node.binary(MetalMpsGraphProgram.NodeKind.ADD, 2, 3, 4)));
+        List<MetalMpsGraphProgram.ValueDescriptor> f32Values = List.of(
+                descriptor(DataType.FLOAT32, 2L, 2L),
+                descriptor(DataType.FLOAT32, 2L, 2L),
+                descriptor(DataType.FLOAT32, 2L),
+                descriptor(DataType.FLOAT32, 2L, 2L),
+                descriptor(DataType.FLOAT32, 2L, 2L));
+        MetalPointwiseFusionPlan f32 = MetalPointwiseFusionPlanner.plan(
+                NumericalProfile.ACCELERATOR, f32Program, f32Values,
+                new int[] {0, 1, 2}, new int[] {4}, MetalPreparedRoute.CUSTOM_PROGRAM);
+        assertEquals(List.of(MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE),
+                f32.steps().stream().map(MetalPointwiseFusionPlan.Step::kind).toList());
+
+        for (DataType lowType : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            var program = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.matmul(0, 1, 3),
+                    MetalMpsGraphProgram.Node.binary(
+                            MetalMpsGraphProgram.NodeKind.ADD, 2, 3, 4),
+                    MetalMpsGraphProgram.Node.neg(5, 6)));
+            var values = new ArrayList<>(f32Values);
+            values.add(descriptor(lowType, 4L));
+            values.add(descriptor(lowType, 4L));
+            int[] feeds = {0, 1, 2, 5};
+            int[] targets = {4, 6};
+            MetalPointwiseFusionPlan mixed = program.resolvePlan(
+                    NumericalProfile.ACCELERATOR, values, feeds, targets,
+                    MetalPreparedRoute.CUSTOM_PROGRAM, null);
+
+            assertEquals(3, mixed.steps().size());
+            assertTrue(mixed.steps().stream().noneMatch(step ->
+                    step.kind() == MetalPointwiseFusionPlan.StepKind.GENERATED_POINTWISE
+                            || step.kind() == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE));
+            assertEquals(0, mixed.instructions().size());
+            byte[] preview = program.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR, values, feeds, targets,
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            assertEquals(0, ByteBuffer.wrap(preview).order(ByteOrder.LITTLE_ENDIAN).getInt(80));
+            assertThrows(IllegalArgumentException.class, () -> program.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR, values, feeds, targets,
+                    MetalPreparedRoute.CUSTOM_PROGRAM, f32));
+        }
+    }
+
+    @Test
     void nineNodeChainUsesSevenThenTwoWithoutVirtualMaterialization() {
         var fixture = chain(9);
         MetalPointwiseFusionPlan plan = plan(fixture);
@@ -283,6 +375,11 @@ class MetalPointwiseFusionPlannerTest {
 
     private static MetalMpsGraphProgram.ValueDescriptor descriptor(long... shape) {
         return new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, shape, false);
+    }
+
+    private static MetalMpsGraphProgram.ValueDescriptor descriptor(
+            DataType type, long... shape) {
+        return new MetalMpsGraphProgram.ValueDescriptor(type, shape, false);
     }
 
     private record Fixture(

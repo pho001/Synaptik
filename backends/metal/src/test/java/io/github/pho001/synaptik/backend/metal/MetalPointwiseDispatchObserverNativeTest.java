@@ -777,23 +777,21 @@ class MetalPointwiseDispatchObserverNativeTest {
         try {
             context = api.createContext();
             executable = supplyFusionPlan
-                    ? api.createMpsGraphExecutable(
-                            context,
-                            profile,
-                            values,
-                            program,
-                            feeds,
-                            targets,
-                            MetalPreparedRoute.CUSTOM_PROGRAM,
-                            fusion)
-                    : api.createMpsGraphExecutable(
-                            context,
-                            profile,
-                            values,
-                            program,
-                            feeds,
-                            targets,
-                            MetalPreparedRoute.CUSTOM_PROGRAM);
+                    ? api.createProgramExecutable(context,
+                    profile,
+                    values,
+                    program,
+                    feeds,
+                    targets,
+                    MetalPreparedRoute.CUSTOM_PROGRAM,
+                    fusion)
+                    : api.createProgramExecutable(context,
+                    profile,
+                    values,
+                    program,
+                    feeds,
+                    targets,
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
             for (int value : fusion.materializedProgramValueIndices())
                 buffers.add(api.createBuffer(context, values.get(value).byteCount()));
             int[] programToSlot = fusion.programToMaterializedSlot();

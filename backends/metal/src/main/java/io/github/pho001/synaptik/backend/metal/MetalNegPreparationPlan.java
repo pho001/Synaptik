@@ -22,18 +22,17 @@ import java.util.Optional;
  * exact rows and no-gradient promoted INT32/INT64 MATMUL, while accelerator additionally admits its
  * arithmetic/reduction rows, general positive-static FLOAT32 MATMUL, and no-gradient mixed
  * BFLOAT16/FLOAT32 MATMUL. Task-0066 selected occurrences retain all-carrier logical layout,
- * physical materialization, type, index, and exact gradient-role facts. Low arithmetic remains on
- * the fixed custom whole-program route; the six homogeneous no-gradient raw-preserving kinds may
- * instead retain MPSGraph only with an exact context-bound certificate. An affine MATMUL input must
- * be the exact local identity-prefix,
- * last-two-axis transpose authenticated on that consuming edge; the same affine value may otherwise
- * be consumed or published normally. Value indices, explicit canonical/affine-view states, typed
- * nodes, feeds, targets, and declarations are already in their stable ABI order. The route is fixed
- * before declarations escape analysis. The plan contains no assigned slot, tuning value, native
- * executable, physical buffer, or per-run state. Affine targets retain exact logical view
- * descriptors alongside their independently safe physical byte extents. The address workspace is
- * absent only for the singleton custom NEG route. Primitive arrays are privately snapshotted and
- * copied when marshalled.
+ * physical materialization, type, index, and exact gradient-role facts. Every partition containing
+ * BFLOAT16 or FLOAT16 values retains the fixed custom whole-program route. An affine MATMUL input
+ * must be the exact local identity-prefix, last-two-axis transpose authenticated on that consuming
+ * edge; the same affine value may otherwise be consumed or published normally. Value indices,
+ * explicit canonical/affine-view states, typed nodes, feeds, and targets are already in their
+ * stable ABI order. Shared buffer declarations cover feeds, targets, then internal materialized
+ * values in that order. The route is fixed before declarations escape analysis. The plan
+ * contains no assigned slot, tuning value, native executable, physical buffer, or per-run state.
+ * Affine targets retain exact logical view descriptors alongside their independently safe physical
+ * byte extents. The address workspace is absent only for the singleton custom NEG route. Primitive
+ * arrays are privately snapshotted and copied when marshalled.
  */
 final class MetalNegPreparationPlan implements BackendPreparationPlan {
 
@@ -75,21 +74,27 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
      * @param valueIds non-null stable indexed value identities
      * @param descriptors non-null descriptors aligned with {@code valueIds}
      * @param physicalLayouts non-null independently derived physical layouts aligned with values
-   * @param valueStates non-null explicit validated states aligned with {@code valueIds}
+     * @param valueStates non-null explicit validated states aligned with {@code valueIds}
+     * @param programValueDescriptors non-null verified ABI descriptors aligned with values
      * @param graphProgram non-null versioned typed node table in partition order
-     * @param feedValueIds non-null unique boundary inputs in stable feed order
-     * @param feedValueIndices non-null value indices aligned with feeds
+     * @param feedValueIds non-null unique feed identities in stable input order
+     * @param feedValueIndices non-null value indices aligned with feeds; copied on entry
      * @param targetValueIds non-null unique boundary outputs in stable target order
      * @param targetValueIndices non-null value indices aligned with targets
-     * @param declarations non-null exact feed-then-target buffer declarations
+     * @param internalValueIds non-null internal materialized values in declaration order
+     * @param internalValueIndices non-null value indices aligned with internals; copied on entry
+     * @param internalRequiredBytes non-null physical referenced-span byte extents aligned with
+     * internals; copied on entry
+     * @param declarations non-null exact feed-then-target-then-internal buffer declarations
      * @param feedSplats non-null optional exact typed splats aligned with feeds
      * @param feedSplatSources non-null source-owner facts aligned with feeds; a true entry requires a
      * present splat
      * @param addressWorkspace non-null optional workspace, absent only for custom singleton NEG
-     * @param feedRequiredBytes non-null required logical byte extents aligned with feeds
-     * @param targetRequiredBytes non-null required logical byte extents aligned with targets
+     * @param feedRequiredBytes non-null physical referenced-span byte extents aligned with feeds
+     * @param targetRequiredBytes non-null physical referenced-span byte extents aligned with targets
      * @throws NullPointerException if a required reference or list element is {@code null}
-     * @throws IllegalArgumentException if aligned cardinalities disagree
+     * @throws IllegalArgumentException if aligned cardinalities, ABI descriptors, route,
+     * materialization, or workspace facts disagree
      */
     MetalNegPreparationPlan(
             NumericalProfile numericalProfile,
@@ -99,8 +104,9 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             MetalPreparedRoute route,
             List<ValueId> valueIds,
             List<TensorDescriptor> descriptors,
-      List<LayoutDescriptor> physicalLayouts,
+            List<LayoutDescriptor> physicalLayouts,
             List<MetalMpsGraphProgram.ValueState> valueStates,
+            List<MetalMpsGraphProgram.ValueDescriptor> programValueDescriptors,
             MetalMpsGraphProgram graphProgram,
             List<ValueId> feedValueIds,
             int[] feedValueIndices,
@@ -123,8 +129,9 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                 route,
                 valueIds,
                 descriptors,
-        physicalLayouts,
+                physicalLayouts,
                 valueStates,
+                programValueDescriptors,
                 graphProgram,
                 feedValueIds,
                 feedValueIndices,
@@ -142,6 +149,42 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                 null);
     }
 
+    /**
+     * Creates the validated snapshot and retains optional advisory trace identity.
+     * Collections are immutable snapshots and primitive arrays are copied; no native resource is
+     * acquired or transferred by this constructor.
+     *
+     * @param numericalProfile non-null graph-wide numerical profile
+     * @param partition non-null planned partition represented by the plan
+     * @param partitionDag non-null topology retaining the exact partition instance
+     * @param context non-null exact device context, retained but not owned
+     * @param route non-null route fixed before shared declarations
+     * @param valueIds non-null indexed value identities
+     * @param descriptors non-null logical descriptors aligned with values
+     * @param physicalLayouts non-null physical layouts aligned with values
+     * @param valueStates non-null available ABI value states aligned with values
+     * @param programValueDescriptors non-null ABI descriptors structurally matching each logical
+     * descriptor and state
+     * @param graphProgram non-null typed program in partition order
+     * @param feedValueIds non-null stable feed identities
+     * @param feedValueIndices non-null feed value indices, copied on entry
+     * @param targetValueIds non-null stable target identities
+     * @param targetValueIndices non-null target value indices, copied on entry
+     * @param internalValueIds non-null internal materialized value identities
+     * @param internalValueIndices non-null internal value indices, copied on entry
+     * @param internalRequiredBytes non-null physical referenced-span internal byte extents, copied
+     * on entry
+     * @param declarations non-null exact feed, target, then internal buffer requirements
+     * @param feedSplats non-null optional typed feed splats
+     * @param feedSplatSources non-null feed-source flags, copied on entry; true requires a splat
+     * @param addressWorkspace non-null workspace option, absent only for custom singleton NEG
+     * @param feedRequiredBytes non-null physical referenced-span feed byte extents, copied on entry
+     * @param targetRequiredBytes non-null physical referenced-span target byte extents, copied on entry
+     * @param traceUnit optional advisory trace identity, nullable when tracing is disabled
+     * @throws NullPointerException if a required reference or list element is null
+     * @throws IllegalArgumentException if topology, aligned descriptors, cardinalities, route,
+     * materialization, or workspace facts disagree
+     */
     MetalNegPreparationPlan(
             NumericalProfile numericalProfile,
             PlannedPartition partition,
@@ -150,8 +193,9 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             MetalPreparedRoute route,
             List<ValueId> valueIds,
             List<TensorDescriptor> descriptors,
-      List<LayoutDescriptor> physicalLayouts,
+            List<LayoutDescriptor> physicalLayouts,
             List<MetalMpsGraphProgram.ValueState> valueStates,
+            List<MetalMpsGraphProgram.ValueDescriptor> programValueDescriptors,
             MetalMpsGraphProgram graphProgram,
             List<ValueId> feedValueIds,
             int[] feedValueIndices,
@@ -180,19 +224,29 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         this.valueIds = List.copyOf(valueIds);
         this.descriptors = List.copyOf(descriptors);
         this.physicalLayouts = List.copyOf(physicalLayouts);
-    this.valueStates = List.copyOf(valueStates);
+        this.valueStates = List.copyOf(valueStates);
+        this.programValueDescriptors = List.copyOf(programValueDescriptors);
         if (this.descriptors.size() != this.valueStates.size()
-        || this.descriptors.size() != this.physicalLayouts.size()) {
+                || this.descriptors.size() != this.physicalLayouts.size()
+                || this.descriptors.size() != this.programValueDescriptors.size()) {
             throw new IllegalArgumentException(
-          "Metal descriptor, physical-layout, and value-state counts must match");
+                    "Metal descriptor, physical-layout, value-state, and ABI counts must match");
         }
-        var encodedValues = new java.util.ArrayList<
-                MetalMpsGraphProgram.ValueDescriptor>(this.descriptors.size());
-        for (int value = 0; value < this.descriptors.size(); value++) {
-            encodedValues.add(MetalMpsGraphProgram.ValueDescriptor.from(
-                    this.descriptors.get(value), this.valueStates.get(value)));
+        for (int index = 0; index < this.descriptors.size(); index++) {
+            MetalMpsGraphProgram.ValueDescriptor expected =
+                    MetalMpsGraphProgram.ValueDescriptor.from(
+                            this.descriptors.get(index), this.valueStates.get(index));
+            MetalMpsGraphProgram.ValueDescriptor actual = this.programValueDescriptors.get(index);
+            if (actual.dataType() != expected.dataType()
+                    || !java.util.Arrays.equals(actual.dimensions(), expected.dimensions())
+                    || !actual.layout().equals(expected.layout())
+                    || actual.requiresGrad() != expected.requiresGrad()
+                    || actual.densePhysical() != expected.densePhysical()) {
+                throw new IllegalArgumentException(
+                        "Metal ABI value descriptor disagrees with logical descriptor and state at "
+                                + index);
+            }
         }
-        this.programValueDescriptors = List.copyOf(encodedValues);
         this.graphProgram = Objects.requireNonNull(graphProgram, "graphProgram");
         this.feedValueIds = List.copyOf(feedValueIds);
         this.feedValueIndices = feedValueIndices.clone();
@@ -246,34 +300,19 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         boolean containsLowPrecision = this.descriptors.stream()
                 .anyMatch(descriptor -> descriptor.dataType() == DataType.BFLOAT16
                         || descriptor.dataType() == DataType.FLOAT16);
-        boolean containsCertifiedRawLowPrecision = containsLowPrecision
-                && MetalLowPrecisionRouteCertification.find(this).isPresent();
         boolean containsCustomOperation = containsAnchorEpilogue
                 || containsLowPrecision
                 || this.graphProgram.nodes().stream()
                         .anyMatch(node -> node.kind().isCustomProgramOperation()
                                 || usesCustomMatmul(node, this.descriptors));
         boolean containsCustomOnlyOperation = containsAnchorEpilogue
-                || (containsLowPrecision && !containsCertifiedRawLowPrecision)
+                || containsLowPrecision
                 || this.graphProgram.nodes().stream()
                         .anyMatch(node ->
-                            (node.kind().isTask0066Selected()
-                                    && !(containsCertifiedRawLowPrecision
-                                            && (node.kind()
-                                                    == MetalMpsGraphProgram.NodeKind.RESHAPE
-                                                || node.kind()
-                                                    == MetalMpsGraphProgram.NodeKind.PERMUTE
-                                                || node.kind()
-                                                    == MetalMpsGraphProgram.NodeKind.CONTIGUOUS
-                                                || node.kind()
-                                                    == MetalMpsGraphProgram.NodeKind.SLICE
-                                                || node.kind()
-                                                    == MetalMpsGraphProgram.NodeKind.CONCAT
-                                                || node.kind()
-                                                    == MetalMpsGraphProgram.NodeKind.TILE)))
-                                || (node.kind().wireIdentity() >= 20
-                                        && node.kind().wireIdentity() <= 34)
-                                || usesCustomMatmul(node, this.descriptors));
+                                node.kind().isTask0066Selected()
+                                        || (node.kind().wireIdentity() >= 20
+                                                && node.kind().wireIdentity() <= 34)
+                                        || usesCustomMatmul(node, this.descriptors));
         if ((this.route == MetalPreparedRoute.CUSTOM_SINGLE_NEG
                         && (partitionDag.nodes().size() != 1
                                 || this.graphProgram.nodes().getFirst().kind()
@@ -355,6 +394,13 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     List<ValueId> internalValueIds() { return internalValueIds; }
     int[] internalValueIndices() { return internalValueIndices.clone(); }
     long[] internalRequiredBytes() { return internalRequiredBytes.clone(); }
+    /**
+     * Derives the native custom-program input extents from ABI value descriptors. The compact
+     * materialized order can differ from the feed-then-target-then-internal declaration order.
+     *
+     * @return a new array of byte extents in compact materialized-value order; never {@code null}
+     * @throws IllegalStateException if this plan does not select {@code CUSTOM_PROGRAM}
+     */
     long[] materializedValueRequiredBytes() {
         if (route != MetalPreparedRoute.CUSTOM_PROGRAM) {
             throw new IllegalStateException("Metal plan is not a custom program");

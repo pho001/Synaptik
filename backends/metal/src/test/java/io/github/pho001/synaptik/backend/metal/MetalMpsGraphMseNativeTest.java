@@ -50,7 +50,7 @@ class MetalMpsGraphMseNativeTest {
                                     DataType.FLOAT32,
                                     outputShape,
                                     predictionGrad || targetGrad));
-                    MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                    MetalNativeApi.ProgramExecutableAbi.validateCreate(
                             NumericalProfile.ACCELERATOR,
                             values,
                             program,
@@ -59,7 +59,7 @@ class MetalMpsGraphMseNativeTest {
                             MetalPreparedRoute.MPSGRAPH);
                     assertThrows(
                             IllegalArgumentException.class,
-                            () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                            () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                                     NumericalProfile.STRICT_IEEE,
                                     values,
                                     program,
@@ -75,7 +75,7 @@ class MetalMpsGraphMseNativeTest {
                                     !(predictionGrad || targetGrad)));
                     assertThrows(
                             IllegalArgumentException.class,
-                            () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                            () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                                     NumericalProfile.ACCELERATOR,
                                     wrongGradient,
                                     program,
@@ -90,7 +90,7 @@ class MetalMpsGraphMseNativeTest {
                 List.of(mseNode(0, 1, 2, 1L)));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         List.of(
                                 descriptor(DataType.FLOAT32, Shape.of(2), false),
@@ -102,7 +102,7 @@ class MetalMpsGraphMseNativeTest {
                         MetalPreparedRoute.MPSGRAPH));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         List.of(
                                 descriptor(DataType.FLOAT32, Shape.scalar(), false),
@@ -114,7 +114,7 @@ class MetalMpsGraphMseNativeTest {
                         MetalPreparedRoute.MPSGRAPH));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         List.of(
                                 descriptor(DataType.FLOAT32, Shape.of(2), false),
@@ -130,7 +130,7 @@ class MetalMpsGraphMseNativeTest {
 
         MetalMpsGraphProgram repeated = new MetalMpsGraphProgram(
                 List.of(mseNode(0, 0, 1, 1L)));
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
                 NumericalProfile.ACCELERATOR,
                 List.of(
                         descriptor(DataType.FLOAT32, Shape.of(2), true),
@@ -213,14 +213,13 @@ class MetalMpsGraphMseNativeTest {
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
-            executable = api.createMpsGraphExecutable(
-                    context,
-                    NumericalProfile.ACCELERATOR,
-                    descriptors,
-                    program,
-                    new int[] {0, 1},
-                    new int[] {3},
-                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context,
+            NumericalProfile.ACCELERATOR,
+            descriptors,
+            program,
+            new int[] {0, 1},
+            new int[] {3},
+            MetalPreparedRoute.CUSTOM_PROGRAM);
             for (int index = 0; index < descriptors.size(); index++) {
                 buffers.add(api.createBuffer(context, 4L * Integer.BYTES));
             }
@@ -285,14 +284,13 @@ class MetalMpsGraphMseNativeTest {
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
-            executable = api.createMpsGraphExecutable(
-                    context,
-                    NumericalProfile.ACCELERATOR,
-                    descriptors,
-                    program,
-                    new int[] {0, 1},
-                    new int[] {2, 3, 4, 5},
-                    MetalPreparedRoute.MPSGRAPH);
+            executable = api.createProgramExecutable(context,
+            NumericalProfile.ACCELERATOR,
+            descriptors,
+            program,
+            new int[] {0, 1},
+            new int[] {2, 3, 4, 5},
+            MetalPreparedRoute.MPSGRAPH);
             for (int elements : new int[] {count, count, count, 1, 1, count}) {
                 buffers.add(api.createBuffer(context, (long) elements * Integer.BYTES));
             }

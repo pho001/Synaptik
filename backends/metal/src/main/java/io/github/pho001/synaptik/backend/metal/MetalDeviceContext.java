@@ -7,10 +7,8 @@ import java.util.UUID;
 /**
  * Owns one native Metal device/command-queue context and leases held by its child resources.
  *
- * <p>A production open hashes the exact dylib before and after native context creation, parses the
- * ABI-six environment record, and loads the atomic schema-one certificate store before publishing
- * the context. Those retained facts are immutable cold-preparation identity. Injected unit-test
- * seams deliberately receive a non-certifiable identity and an empty usable store.</p>
+ * <p>The native seam validates the bridge ABI before a context is published. The context retains
+ * only execution and session-compatibility state; route policy is a Java preparation concern.</p>
  *
  * <p>The context begins with one owner reference. Every successful buffer or workspace allocation
  * adds one child lease. Closing marks the owner closed before releasing its reference, rejects
@@ -22,8 +20,6 @@ final class MetalDeviceContext implements AutoCloseable {
     private final MetalNativeApi api;
     private final MetalNativeApi.Handle handle;
     private final SessionNonce sessionNonce;
-    private final MetalCertificationEnvironment certificationEnvironment;
-    private final MetalLowPrecisionCertificateStore certificateStore;
     private final ResourcePublisher resourcePublisher;
     private boolean closed;
     private boolean nativeReleased;
@@ -33,27 +29,10 @@ final class MetalDeviceContext implements AutoCloseable {
             MetalNativeApi api,
             MetalNativeApi.Handle handle,
             ResourcePublisher resourcePublisher) {
-        this(
-                api,
-                handle,
-                resourcePublisher,
-                MetalCertificationEnvironment.unavailable(),
-                MetalLowPrecisionCertificateStore.emptyForTesting());
-    }
-
-    private MetalDeviceContext(
-            MetalNativeApi api,
-            MetalNativeApi.Handle handle,
-            ResourcePublisher resourcePublisher,
-            MetalCertificationEnvironment certificationEnvironment,
-            MetalLowPrecisionCertificateStore certificateStore) {
         this.api = Objects.requireNonNull(api, "api");
         this.handle = Objects.requireNonNull(handle, "handle");
         this.resourcePublisher = Objects.requireNonNull(
                 resourcePublisher, "resourcePublisher");
-        this.certificationEnvironment = Objects.requireNonNull(
-                certificationEnvironment, "certificationEnvironment");
-        this.certificateStore = Objects.requireNonNull(certificateStore, "certificateStore");
         UUID nonce = UUID.randomUUID();
         this.sessionNonce = new SessionNonce(
                 nonce.getMostSignificantBits(), nonce.getLeastSignificantBits());
@@ -71,25 +50,6 @@ final class MetalDeviceContext implements AutoCloseable {
     SessionNonce sessionNonce() {
         return sessionNonce;
     }
-
-    /**
-     * Returns the immutable environment identity captured before preparation can begin.
-     *
-     * @return non-null exact identity of the loaded bridge, device, platform, and graph options
-     */
-    MetalCertificationEnvironment certificationEnvironment() {
-        return certificationEnvironment;
-    }
-
-    /**
-     * Returns the immutable fail-closed certificate store loaded with this context.
-     *
-     * @return non-null retained schema-one store
-     */
-    MetalLowPrecisionCertificateStore certificateStore() {
-        return certificateStore;
-    }
-
 
     /**
      * Private value representation of one context's session compatibility identity.
@@ -110,28 +70,8 @@ final class MetalDeviceContext implements AutoCloseable {
      * @throws Error if loading, creation, or failure cleanup reports an error
      */
     static MetalDeviceContext open(Path absoluteLibraryPath) {
-        Objects.requireNonNull(absoluteLibraryPath, "absoluteLibraryPath");
-        String beforeDigest = MetalCertificationEnvironment.sha256(absoluteLibraryPath);
-        MetalNativeApi api = MetalNativeApi.open(absoluteLibraryPath);
-        MetalNativeApi.Handle context = null;
-        try {
-            context = Objects.requireNonNull(api.createContext(), "native context handle");
-            String nativeRecord = api.certificationEnvironment(context);
-            String afterDigest = MetalCertificationEnvironment.sha256(absoluteLibraryPath);
-            MetalCertificationEnvironment environment =
-                    MetalCertificationEnvironment.parse(nativeRecord, beforeDigest, afterDigest);
-            MetalLowPrecisionCertificateStore store =
-                    MetalLowPrecisionCertificateStore.loadBundled();
-            return new MetalDeviceContext(
-                    api, context, ResourcePublisher.DEFAULT, environment, store);
-        } catch (RuntimeException | Error failure) {
-            if (context != null) {
-                MetalNativeApi.Handle acquired = context;
-                suppressDistinct(failure, () -> api.releaseContext(acquired));
-            }
-            suppressDistinct(failure, api::close);
-            throw failure;
-        }
+        return open(MetalNativeApi.open(
+                Objects.requireNonNull(absoluteLibraryPath, "absoluteLibraryPath")));
     }
 
     /**
@@ -276,7 +216,7 @@ final class MetalDeviceContext implements AutoCloseable {
     }
 
     /**
-     * Compiles one persistent whole-partition typed MPSGraph executable under a provisional lease.
+     * Compiles one persistent whole-partition program executable under a provisional lease.
      *
      * <p>Lease acquisition is atomic with owner close. Compilation runs outside the lifecycle
      * monitor while the lease keeps the native context alive. Successful wrapper construction
@@ -290,11 +230,11 @@ final class MetalDeviceContext implements AutoCloseable {
      * @throws RuntimeException if native compilation or cleanup fails
      * @throws Error if compilation or cleanup reports an error
      */
-    MetalMpsGraphExecutableResource createMpsGraphExecutable(MetalNegPreparationPlan plan) {
+    MetalProgramExecutableResource createProgramExecutable(MetalNegPreparationPlan plan) {
         Objects.requireNonNull(plan, "plan");
         if (plan.context() != this) {
             throw new IllegalArgumentException(
-                    "Metal MPSGraph executable plan belongs to another device context");
+                    "Metal program executable plan belongs to another device context");
         }
         if (plan.route() != MetalPreparedRoute.MPSGRAPH
                 && plan.route() != MetalPreparedRoute.CUSTOM_PROGRAM) {
@@ -304,21 +244,20 @@ final class MetalDeviceContext implements AutoCloseable {
         ChildLease lease = acquireChildLease();
         MetalNativeApi.Handle executable = null;
         try {
-            executable = api.createMpsGraphExecutable(
-                    handle,
-                    plan.numericalProfile(),
-                    plan.programValueDescriptors(),
-                    plan.graphProgram(),
-                    plan.feedValueIndices(),
-                    plan.targetValueIndices(),
-                    plan.route(),
-                    plan.route() == MetalPreparedRoute.CUSTOM_PROGRAM
-                            ? plan.pointwiseFusionPlan() : null);
+            executable = api.createProgramExecutable(handle,
+            plan.numericalProfile(),
+            plan.programValueDescriptors(),
+            plan.graphProgram(),
+            plan.feedValueIndices(),
+            plan.targetValueIndices(),
+            plan.route(),
+            plan.route() == MetalPreparedRoute.CUSTOM_PROGRAM
+                    ? plan.pointwiseFusionPlan() : null);
             long[] runInputBytes = plan.route()
                     == MetalPreparedRoute.CUSTOM_PROGRAM
                     ? plan.materializedValueRequiredBytes()
                     : plan.feedRequiredBytes();
-            return new MetalMpsGraphExecutableResource(
+            return new MetalProgramExecutableResource(
                     this, api, executable, lease, runInputBytes, plan.targetRequiredBytes(),
                     plan.route() == MetalPreparedRoute.CUSTOM_PROGRAM);
         } catch (RuntimeException | Error failure) {

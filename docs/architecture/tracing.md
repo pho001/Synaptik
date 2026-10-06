@@ -104,13 +104,19 @@ These are nominally distinct from one another and from the model-correlation IDs
 owns allocation and the association with its backend objects; no ID contains a backend name,
 device token, path, pointer, handle, or producer object.
 
-The `io.github.pho001.synaptik.trace.payload` package contains two immutable `TracePayload`
-records:
+Among the immutable `TracePayload` records in `io.github.pho001.synaptik.trace.payload`, the two
+backend outcome records are:
 
 - `BackendPreparationOutcome` correlates backend, device, and prepared unit; it carries a final
   outcome, numerical profile, neutral route kind, cache fact, and optional native status.
 - `BackendInvocationOutcome` additionally correlates one invocation and carries the same outcome,
   profile, route, and optional native status, without a cache claim.
+
+`LowPrecisionTraceMetadata` is a separate PREPARE payload for a selected low-precision custom
+route. It reports that route, the ordered boundary-feed-then-target logical dtype names, and the
+selected numerical profile. It has no accumulator or working-type field: FLOAT32 low-arithmetic
+working values and accumulators belong to Model semantics, while raw-preserving operations copy
+represented words. It carries no certificate or candidate evidence.
 
 The closed vocabulary is deliberately narrow. Outcomes are `SUCCEEDED` or `FAILED`; profiles are
 `STRICT_IEEE` or `ACCELERATOR`; routes are `CUSTOM_KERNEL` or `GRAPH_EXECUTABLE`; and the only
@@ -125,9 +131,9 @@ defines no global numeric mapping. A successful outcome requires present native 
 outcome permits an empty native status when failure occurs before a native status return, or a
 present non-success status.
 
-These records contain no free-form text, generic map, `Throwable`, path, pointer, handle, tensor
-value, shape, byte extent, fingerprint, or producer object. Trace defines the immutable data only;
-it does not allocate these IDs or produce, emit, store, or consume the events.
+The outcome records contain no free-form text, generic map, `Throwable`, path, pointer, handle,
+tensor value, shape, byte extent, fingerprint, or producer object. Trace defines the immutable data
+only; it does not allocate these IDs or produce, emit, store, or consume the events.
 
 ## Lifecycle phase and backend diagnostics
 
@@ -149,13 +155,13 @@ sink policy, logging integration, failure response, or process-exit behavior.
 
 ## Remaining planned payload families
 
-The implemented backend preparation and invocation outcomes are intentionally bounded. The
-following broader payload families remain conceptual:
+The implemented backend outcomes and selected structural/low-precision diagnostics are
+intentionally bounded. The following broader payload families remain conceptual:
 
 - **Compile payloads** for graph capture, transformations, ownership scoring, partition creation,
   logical memory, and publication planning.
-- **Broader prepare payloads** beyond one backend prepared-unit finalization outcome.
-- **Broader run payloads** beyond one backend invocation outcome, including transfers,
+- **Broader prepare payloads** beyond current outcomes and structural/low-precision facts.
+- **Broader run payloads** beyond current outcomes and invocation-plan facts, including transfers,
   materialization, step boundaries, and publication.
 - **Broader backend payloads** for availability, capability, kernels, storage, and other
   backend-owned diagnostic facts during the applicable lifecycle phase.
@@ -202,7 +208,8 @@ be concurrent and Metal never closes it. The existing one-argument `open(configu
 creates no producer, payload, ID, clock read, or callback.
 
 After Metal fixes a profile and route, it emits one structural `PREPARE` event before native
-finalization and then one `PREPARE` outcome while tracing remains enabled. Each route-specific
+finalization. A low-precision program also emits `LowPrecisionTraceMetadata` before the
+`PREPARE` outcome while tracing remains enabled. Each route-specific
 native invocation emits one bounded invocation-plan `RUN` event before native execution and one
 `RUN` outcome afterward. Preparation always reports `NOT_QUERIED` because Metal performs no cache
 lookup, including when an outer owner supplied a decision. A returned native status is translated

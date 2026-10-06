@@ -1,7 +1,6 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
-import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
@@ -17,14 +16,13 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
 import java.nio.file.Path;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Package-private typed seam for the ABI-v6 Metal foundation and bounded graph/custom-program C
+ * Package-private typed seam for the ABI-v7 Metal foundation and bounded graph/custom-program C
  * ABI.
  *
  * <p>Handles remain opaque carrier segments inside this package. Implementations consume each
@@ -33,12 +31,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * still binds every ordered live slot buffer. Java preflight independently authenticates all seven
  * carriers, the 49 ordered casts, logical-versus-physical layouts, saved gradient roles, exact
  * replacement safety, fixed custom routing, and profile constraints before native entry.
- * Low-precision arithmetic remains custom-only; only exact raw-preserving graph images having an
- * exact active certificate may use MPSGraph. Native status failures are unchecked and retain both
- * the operation name and raw status value.
+ * Every BFLOAT16/FLOAT16 value is custom-program-only. Native status failures are unchecked and
+ * retain both the operation name and raw status value.
  */
 abstract class MetalNativeApi implements AutoCloseable {
-    static final int ABI_VERSION = 6;
+    static final int ABI_VERSION = 7;
     static final String EXECUTABLE_CREATE_OPERATION =
             "synaptik_metal_mpsgraph_executable_create";
     static final String EXECUTABLE_RELEASE_OPERATION =
@@ -79,18 +76,6 @@ abstract class MetalNativeApi implements AutoCloseable {
      */
     abstract Handle createContext();
 
-    /**
-     * Returns the canonical certification identity retained by one live context.
-     *
-     * @param context non-null live context whose ownership remains with the caller
-     * @return non-null exact six-line native environment record
-     * @throws UnsupportedOperationException for injected seams that do not implement ABI-v6
-     *     environment identity
-     */
-    String certificationEnvironment(Handle context) {
-        throw new UnsupportedOperationException(
-                "injected Metal native seam has no certification environment");
-    }
 
 
     /**
@@ -145,17 +130,27 @@ abstract class MetalNativeApi implements AutoCloseable {
             Handle buffer, long bufferOffset, MemorySegment destination, long byteCount);
 
     /**
-     * Compiles one shape-specialized whole-partition typed Metal program executable.
+     * Compiles one shape-specialized whole-partition typed Metal program executable. The selected
+     * route is fixed for the whole partition; a custom program may contain an internal FLOAT32-only
+     * MPSGraph boundary step, including after an explicit low-to-FLOAT32 cast. The caller must
+     * release the returned executable exactly once, including when later preparation fails.
      *
      * @param context non-null live context whose ownership remains with the caller
      * @param numericalProfile non-null cold plan profile used by Java fail-closed preflight
-     * @param values non-null explicit schema-nineteen value descriptors
-     * @param graphProgram non-null schema-nineteen typed node program
-     * @param feedValueIndices non-null stable feed value indices
-     * @param targetValueIndices non-null stable target value indices
-     * @return a fresh non-null opaque executable handle owned by the caller
+     * @param values non-null explicit schema-nineteen value descriptors in program-value order
+     * @param graphProgram non-null schema-nineteen typed node program in partition order
+     * @param feedValueIndices non-null ordered boundary-feed value indices, not retained
+     * @param targetValueIndices non-null ordered boundary-target value indices, not retained
+     * @param route non-null selected {@code MPSGRAPH} or {@code CUSTOM_PROGRAM} partition route;
+     *     singleton custom NEG has no program executable
+     * @return a fresh non-null opaque executable handle owned by the caller and requiring release
+     * @throws NullPointerException if a required reference or value descriptor is {@code null}
+     * @throws IllegalArgumentException if the route, typed program, descriptors, indices, or
+     *     encoded plan violate the Java preflight contract
+     * @throws NativeFailure if native creation reports a non-success status
+     * @throws IllegalStateException if native reports success without an executable handle
      */
-    final Handle createMpsGraphExecutable(
+    final Handle createProgramExecutable(
             Handle context,
             NumericalProfile numericalProfile,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
@@ -163,7 +158,7 @@ abstract class MetalNativeApi implements AutoCloseable {
             int[] feedValueIndices,
             int[] targetValueIndices,
             MetalPreparedRoute route) {
-        return createMpsGraphExecutable(
+        return createProgramExecutable(
                 context,
                 numericalProfile,
                 values,
@@ -174,7 +169,29 @@ abstract class MetalNativeApi implements AutoCloseable {
                 null);
     }
 
-    final Handle createMpsGraphExecutable(
+    /**
+     * Compiles a typed Metal program with an optional authenticated custom-step plan. A
+     * {@code null} plan is computed for {@code CUSTOM_PROGRAM} and omitted for {@code MPSGRAPH}.
+     * The caller owns the fresh handle and must release it exactly once, including after later
+     * preparation failure.
+     *
+     * @param context non-null live context retained by the caller
+     * @param numericalProfile non-null cold graph-wide profile
+     * @param values non-null schema-nineteen descriptors in program-value order
+     * @param graphProgram non-null typed node program in partition order
+     * @param feedValueIndices non-null ordered boundary-feed indices, not retained
+     * @param targetValueIndices non-null ordered boundary-target indices, not retained
+     * @param route non-null selected {@code MPSGRAPH} or {@code CUSTOM_PROGRAM} partition route
+     * @param fusionPlan optional plan for {@code CUSTOM_PROGRAM}; {@code null} requests planning,
+     *     while {@code MPSGRAPH} requires {@code null}
+     * @return fresh non-null executable handle owned by the caller and requiring release
+     * @throws NullPointerException if a required reference or value descriptor is {@code null}
+     * @throws IllegalArgumentException if route, program, descriptors, indices, or supplied plan
+     *     violate Java preflight, including any fused step in a low-containing partition
+     * @throws NativeFailure if native creation reports a non-success status
+     * @throws IllegalStateException if native reports success without an executable handle
+     */
+    final Handle createProgramExecutable(
             Handle context,
             NumericalProfile numericalProfile,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
@@ -192,7 +209,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                 targetValueIndices,
                 route,
                 fusionPlan);
-        MpsGraphExecutableAbi.validateCreate(
+        ProgramExecutableAbi.validateCreate(
                 numericalProfile, values, graphProgram, feedValueIndices, targetValueIndices,
                 route, effectiveFusionPlan);
         try (Arena arena = Arena.ofConfined()) {
@@ -205,20 +222,20 @@ abstract class MetalNativeApi implements AutoCloseable {
                     route,
                     effectiveFusionPlan);
             NativeCreateResult result = Objects.requireNonNull(
-                    createMpsGraphExecutableNative(context, image),
+                    createProgramExecutableNative(context, image),
                     "native executable create result");
             return finishExecutableCreate(result);
         }
     }
 
     /**
-     * Performs one already validated ABI-v5 program-image create invocation synchronously.
+     * Performs one already validated ABI-v7 program-image create invocation synchronously.
      *
      * @param context non-null live context whose ownership remains with the caller
      * @param programImage exact readable schema-nineteen image, valid only for this call
      * @return non-null raw status/output-cell result for checked interpretation
      */
-    abstract NativeCreateResult createMpsGraphExecutableNative(
+    abstract NativeCreateResult createProgramExecutableNative(
             Handle context, MemorySegment programImage);
 
     /**
@@ -538,12 +555,12 @@ abstract class MetalNativeApi implements AutoCloseable {
     }
 
     /** Exact Java preflight for the schema-nineteen typed Metal program create contract. */
-    static final class MpsGraphExecutableAbi {
+    static final class ProgramExecutableAbi {
         private static final int MAX_RANK = 16;
         private static final long UINT32_MAX = 0xffff_ffffL;
         private static final long TASK0064_MAX_POOL_KERNEL_POSITIONS = 65_536L;
 
-        private MpsGraphExecutableAbi() {}
+        private ProgramExecutableAbi() {}
 
         static void validateCreate(
                 NumericalProfile numericalProfile,
@@ -635,10 +652,14 @@ abstract class MetalNativeApi implements AutoCloseable {
                     || fusionPlan != null && fusionPlan.steps().stream().anyMatch(
                             step -> step.kind()
                                     == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE);
-            boolean rawPreservingLowPrecisionGraph =
-                    rawPreservingLowPrecisionGraph(graphProgram, values);
             if (route == MetalPreparedRoute.MPSGRAPH
-                    && !rawPreservingLowPrecisionGraph
+                    && values.stream().anyMatch(value ->
+                            value.dataType() == DataType.BFLOAT16
+                                    || value.dataType() == DataType.FLOAT16)) {
+                throw new IllegalArgumentException(
+                        "BFLOAT16/FLOAT16 values require the custom-program route");
+            }
+            if (route == MetalPreparedRoute.MPSGRAPH
                     && graphProgram.nodes().stream()
                             .anyMatch(node -> task0052CustomOnly(node.kind())
                                     || task0063CustomOnly(node.kind())
@@ -1491,22 +1512,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                             overflow);
                 }
             }
-        }
-        private static boolean rawPreservingLowPrecisionGraph(
-                MetalMpsGraphProgram program,
-                List<MetalMpsGraphProgram.ValueDescriptor> values) {
-            if (program.nodes().isEmpty() || values.isEmpty()) return false;
-            DataType type = values.getFirst().dataType();
-            if (type != DataType.BFLOAT16 && type != DataType.FLOAT16) return false;
-            for (MetalMpsGraphProgram.ValueDescriptor value : values) {
-                if (value.dataType() != type || value.requiresGrad() || value.byteCount() == 0L) {
-                    return false;
-                }
-            }
-            return program.nodes().stream().allMatch(node -> switch (node.kind()) {
-                case RESHAPE, PERMUTE, CONTIGUOUS, SLICE, CONCAT, TILE -> true;
-                default -> false;
-            });
         }
         private static RankZeroAnchorRoles authenticatedRankZeroAnchorRoles(
                 NumericalProfile numericalProfile,
@@ -3444,12 +3449,10 @@ abstract class MetalNativeApi implements AutoCloseable {
 
     }
 
-    /** Production JDK Foreign Function and Memory binding of the exact fourteen-symbol ABI. */
+    /** Production JDK Foreign Function and Memory binding of the exact thirteen-symbol ABI. */
     private static final class Ffm extends MetalNativeApi {
         private static final String VERSION = "synaptik_metal_foundation_abi_version";
         private static final String CONTEXT_CREATE = "synaptik_metal_context_create";
-        private static final String CONTEXT_CERTIFICATION_ENVIRONMENT =
-                "synaptik_metal_context_certification_environment";
         private static final String CONTEXT_RELEASE = "synaptik_metal_context_release";
         private static final String BUFFER_CREATE = "synaptik_metal_buffer_create";
         private static final String BUFFER_RELEASE = "synaptik_metal_buffer_release";
@@ -3470,7 +3473,6 @@ abstract class MetalNativeApi implements AutoCloseable {
 
         private final Arena lookupArena;
         private final MethodHandle contextCreate;
-        private final MethodHandle contextCertificationEnvironment;
         private final MethodHandle contextRelease;
         private final MethodHandle bufferCreate;
         private final MethodHandle bufferRelease;
@@ -3487,7 +3489,6 @@ abstract class MetalNativeApi implements AutoCloseable {
         private Ffm(
                 Arena lookupArena,
                 MethodHandle contextCreate,
-                MethodHandle contextCertificationEnvironment,
                 MethodHandle contextRelease,
                 MethodHandle bufferCreate,
                 MethodHandle bufferRelease,
@@ -3500,7 +3501,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                 MethodHandle negKernelPipelineRelease,
                 MethodHandle negKernelPipelineRun) {
             this.lookupArena = lookupArena;
-            this.contextCertificationEnvironment = contextCertificationEnvironment;
             this.contextCreate = contextCreate;
             this.contextRelease = contextRelease;
             this.bufferCreate = bufferCreate;
@@ -3532,10 +3532,6 @@ abstract class MetalNativeApi implements AutoCloseable {
 
                 MethodHandle contextCreate = linker.downcallHandle(
                         require(lookup, CONTEXT_CREATE), FunctionDescriptor.of(JAVA_INT, ADDRESS));
-                MethodHandle contextCertificationEnvironment = linker.downcallHandle(
-                        require(lookup, CONTEXT_CERTIFICATION_ENVIRONMENT),
-                        FunctionDescriptor.of(
-                                JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, ADDRESS));
                 MethodHandle contextRelease = linker.downcallHandle(
                         require(lookup, CONTEXT_RELEASE), FunctionDescriptor.of(JAVA_INT, ADDRESS));
                 MethodHandle bufferCreate = linker.downcallHandle(
@@ -3571,7 +3567,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                 MethodHandle negKernelPipelineRun = linker.downcallHandle(
                         require(lookup, NEG_KERNEL_PIPELINE_RUN),
                         FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS));
-                return new Ffm(arena, contextCreate, contextCertificationEnvironment,
+                return new Ffm(arena, contextCreate,
                         contextRelease, bufferCreate, bufferRelease, bufferUpload, bufferDownload,
                         executableCreate, executableRelease, executableRun,
                         negKernelPipelineCreate, negKernelPipelineRelease, negKernelPipelineRun);
@@ -3586,35 +3582,6 @@ abstract class MetalNativeApi implements AutoCloseable {
             return create(CONTEXT_CREATE, contextCreate, null, 0L, contextRelease);
         }
 
-        @Override
-        String certificationEnvironment(Handle context) {
-            requireOpen();
-            Objects.requireNonNull(context, "context");
-            try (Arena arena = Arena.ofConfined()) {
-                MemorySegment destination = arena.allocate(4096L, 1L);
-                MemorySegment length = arena.allocate(JAVA_INT);
-                length.set(JAVA_INT, 0L, 0);
-                int status = invokeCertificationEnvironment(
-                        contextCertificationEnvironment,
-                        context.carrier(),
-                        destination,
-                        Math.toIntExact(destination.byteSize()),
-                        length);
-                checkStatus(CONTEXT_CERTIFICATION_ENVIRONMENT, status);
-                long byteCount = Integer.toUnsignedLong(length.get(JAVA_INT, 0L));
-                if (byteCount == 0L || byteCount > destination.byteSize()) {
-                    throw new IllegalStateException(
-                            "Metal certification environment byte count is invalid");
-                }
-                byte[] bytes = destination.asSlice(0L, byteCount).toArray(JAVA_BYTE);
-                String record = new String(bytes, StandardCharsets.UTF_8);
-                if (!java.util.Arrays.equals(bytes, record.getBytes(StandardCharsets.UTF_8))) {
-                    throw new IllegalStateException(
-                            "Metal certification environment is not canonical UTF-8");
-                }
-                return record;
-            }
-        }
 
 
         @Override
@@ -3658,7 +3625,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
 
         @Override
-        NativeCreateResult createMpsGraphExecutableNative(
+        NativeCreateResult createProgramExecutableNative(
                 Handle context, MemorySegment programImage) {
             requireOpen();
             Objects.requireNonNull(programImage, "programImage");
@@ -3880,21 +3847,6 @@ abstract class MetalNativeApi implements AutoCloseable {
             }
         }
 
-        private static int invokeCertificationEnvironment(
-                MethodHandle handle,
-                MemorySegment context,
-                MemorySegment destination,
-                int capacity,
-                MemorySegment length) {
-            try {
-                return (int) handle.invokeExact(context, destination, capacity, length);
-            } catch (RuntimeException | Error failure) {
-                throw failure;
-            } catch (Throwable failure) {
-                throw new IllegalStateException(
-                        CONTEXT_CERTIFICATION_ENVIRONMENT + " invocation failed", failure);
-            }
-        }
 
         private static int invokeCreateExecutable(
                 MethodHandle handle,

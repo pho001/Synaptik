@@ -30,8 +30,8 @@ import java.util.Optional;
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 28;
-    private static final int EXACT_DEFAULT_POLICY = 28;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 29;
+    private static final int EXACT_DEFAULT_POLICY = 29;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.
@@ -99,11 +99,14 @@ final class MetalNegRouteCandidateGenerator {
     }
 
     /**
-     * Returns whether one exact custom occurrence keeps a direct MPSGraph candidate: either the
-     * legacy singleton graph-safe operation or an exact certified raw-preserving image. */
+     * Returns whether one exact custom occurrence keeps the legacy direct MPSGraph candidate.
+     * Low-precision values are custom-only regardless of operation family.
+     */
     private static boolean directCustomProgramCandidateIsValid(MetalNegPreparationPlan plan) {
-        if (MetalLowPrecisionRouteCertification.find(plan).isPresent()) {
-            return true;
+        if (plan.descriptors().stream().anyMatch(descriptor ->
+                descriptor.dataType() == DataType.BFLOAT16
+                        || descriptor.dataType() == DataType.FLOAT16)) {
+            return false;
         }
         if (plan.partitionDag().nodes().size() != 1
                 || plan.graphProgram().nodes().size() != 1

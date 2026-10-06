@@ -137,7 +137,7 @@ class MetalNegPreparedExecutionTest {
             assertEquals(3, firstOversized.analysis().requirements().size());
             assertTrue(firstOversized.analysis().plan().addressWorkspace().isPresent());
             assertThrows(IllegalArgumentException.class,
-                    () -> context.createMpsGraphExecutable(maximum.analysis().plan()));
+                    () -> context.createProgramExecutable(maximum.analysis().plan()));
             assertThrows(IllegalArgumentException.class,
                     () -> context.createNegKernelPipeline(firstOversized.analysis().plan()));
 
@@ -184,7 +184,7 @@ class MetalNegPreparedExecutionTest {
                             .finalizePartition(assignment.finalization());
             try {
                 assertTrue(finalized.resources().getFirst()
-                        instanceof MetalMpsGraphExecutableResource);
+                        instanceof MetalProgramExecutableResource);
                 assertEquals(1, api.executableCreates.get());
                 assertEquals(0, api.pipelineCreates.get());
             } finally {
@@ -529,8 +529,7 @@ class MetalNegPreparedExecutionTest {
                     .toList();
             int feedPlanIndex = declarationIds.indexOf(route.feed());
             int targetPlanIndex = declarationIds.indexOf(route.target());
-            var resource = (MetalMpsGraphExecutableResource)
-                    finalized.resources().getFirst();
+            var resource = (MetalProgramExecutableResource) finalized.resources().getFirst();
             // These extents overflow if disabled tracing still attempts byte aggregation.
             new MetalNegPreparedExecutable(
                     plan,
@@ -1233,7 +1232,7 @@ class MetalNegPreparedExecutionTest {
         var finalizer = new MetalNegPartitionFinalizer(context,
                 new MetalNegPartitionFinalizer.FinalizedExecutableFactory() {
                     @Override
-                    public MetalNegPreparedExecutable createMpsGraph(
+                    public MetalNegPreparedExecutable createProgram(
                             MetalNegPreparationPlan plan,
                             PreparedMemoryPlan memoryPlan,
                             int[] feeds,
@@ -1242,13 +1241,13 @@ class MetalNegPreparedExecutionTest {
                             int[] targetRepresentations,
                             int[] internalPlanIndices,
                             int[] internalRepresentationIndices,
-                            MetalMpsGraphExecutableResource resource,
+                            MetalProgramExecutableResource resource,
                             List<Optional<MetalPreparedSplatResource>> splats,
                             long[] feedBytes,
                             long[] targetBytes,
                             long[] internalBytes,
                             int workspace) {
-                        throw new AssertionError("MPSGraph factory must not be called");
+                        throw new AssertionError("program factory must not be called");
                     }
 
                     @Override
@@ -1770,8 +1769,7 @@ class MetalNegPreparedExecutionTest {
                     Float.floatToRawIntBits(
                             plan.feedSplats().get(1).orElseThrow().float32Value()));
 
-            MetalMpsGraphExecutableResource resource =
-                    context.createMpsGraphExecutable(plan);
+            MetalProgramExecutableResource resource = context.createProgramExecutable(plan);
             try {
                 assertEquals(1, api.executableCreates.get());
                 assertArrayEquals(
@@ -1846,7 +1844,7 @@ class MetalNegPreparedExecutionTest {
           var rightViewBuffer = context.createBuffer(48);
                     var output = context.createBuffer(32);
                     var workspace = addressWorkspace(context, left, leftViewBuffer, right, rightViewBuffer, output, output);
-                    var resource = context.createMpsGraphExecutable(plan)) {
+                    var resource = context.createProgramExecutable(plan)) {
                 resource.run(
             5,
                         workspace.segment().asSlice(0, 5L * Long.BYTES),
@@ -1963,7 +1961,7 @@ class MetalNegPreparedExecutionTest {
                     var identity = context.createBuffer(96);
                     var workspace = addressWorkspace(
                             context, input, meanAbs, scalarSum, sumTo, identity);
-                    var resource = context.createMpsGraphExecutable(plan)) {
+                    var resource = context.createProgramExecutable(plan)) {
                 resource.run(1, workspace.segment().asSlice(0, Long.BYTES),
                         4, workspace.segment().asSlice(Long.BYTES, 4L * Long.BYTES));
                 resource.run(1, workspace.segment().asSlice(0, Long.BYTES),
@@ -2032,7 +2030,7 @@ class MetalNegPreparedExecutionTest {
                     var mean = context.createBuffer(4);
                     var workspace =
                             addressWorkspace(context, prediction, target, none, sum, mean);
-                    var resource = context.createMpsGraphExecutable(plan)) {
+                    var resource = context.createProgramExecutable(plan)) {
                 resource.run(
                         2,
                         workspace.segment().asSlice(0, 2L * Long.BYTES),
@@ -2058,8 +2056,7 @@ class MetalNegPreparedExecutionTest {
         Fixture fixture = fixture();
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
-        MetalMpsGraphExecutableResource resource =
-                context.createMpsGraphExecutable(analyze(fixture, context).plan());
+        MetalProgramExecutableResource resource = context.createProgramExecutable(analyze(fixture, context).plan());
         var first = context.createBuffer(24);
         var second = context.createBuffer(16);
         var out0 = context.createBuffer(24);
@@ -2093,7 +2090,7 @@ class MetalNegPreparedExecutionTest {
         MetalDeviceContext context = MetalDeviceContext.open(api);
 
         assertSame(expected, assertThrows(RuntimeException.class,
-                () -> context.createMpsGraphExecutable(analyze(fixture(), context).plan())));
+                () -> context.createProgramExecutable(analyze(fixture(), context).plan())));
         context.close();
 
         assertEquals(0, api.executableReleases.get());
@@ -2110,7 +2107,7 @@ class MetalNegPreparedExecutionTest {
         MetalNegPreparationPlan plan = analyze(fixture(), first).plan();
         try {
             assertThrows(IllegalArgumentException.class,
-                    () -> second.createMpsGraphExecutable(plan));
+                    () -> second.createProgramExecutable(plan));
             assertEquals(0, secondApi.executableCreates.get());
             second.close();
             assertEquals(1, secondApi.contextReleases.get(),
@@ -2200,7 +2197,7 @@ class MetalNegPreparedExecutionTest {
             try {
                 MetalNativeApi.NativeFailure failure = assertThrows(
                         MetalNativeApi.NativeFailure.class,
-                        () -> context.createMpsGraphExecutable(analyze(fixture(), context).plan()));
+                        () -> context.createProgramExecutable(analyze(fixture(), context).plan()));
                 assertNativeFailure(failure,
                         MetalNativeApi.EXECUTABLE_CREATE_OPERATION, status);
                 assertEquals(1, api.executableCreates.get());
@@ -2217,7 +2214,7 @@ class MetalNegPreparedExecutionTest {
         MetalDeviceContext nullContext = MetalDeviceContext.open(nullApi);
         try {
             IllegalStateException failure = assertThrows(IllegalStateException.class,
-                    () -> nullContext.createMpsGraphExecutable(analyze(fixture(), nullContext).plan()));
+                    () -> nullContext.createProgramExecutable(analyze(fixture(), nullContext).plan()));
             assertTrue(failure.getMessage().contains("returned OK with a null handle"));
             assertEquals(1, nullApi.executableCreates.get());
             assertEquals(0, nullApi.executableReleases.get());
@@ -2232,7 +2229,7 @@ class MetalNegPreparedExecutionTest {
         MetalDeviceContext malformedContext = MetalDeviceContext.open(malformedApi);
         try {
             IllegalStateException failure = assertThrows(IllegalStateException.class,
-                    () -> malformedContext.createMpsGraphExecutable(analyze(fixture(), malformedContext).plan()));
+                    () -> malformedContext.createProgramExecutable(analyze(fixture(), malformedContext).plan()));
             assertTrue(failure.getMessage().contains("failure with a non-null handle"));
             assertNativeFailure((MetalNativeApi.NativeFailure) failure.getCause(),
                     MetalNativeApi.EXECUTABLE_CREATE_OPERATION, 9);
@@ -2252,8 +2249,7 @@ class MetalNegPreparedExecutionTest {
     void executableRunAndReleaseMapNativeStatusesWithoutRetryOrFallback() {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
-        MetalMpsGraphExecutableResource resource =
-                context.createMpsGraphExecutable(analyze(fixture(), context).plan());
+        MetalProgramExecutableResource resource = context.createProgramExecutable(analyze(fixture(), context).plan());
         var inputs = List.of(context.createBuffer(24), context.createBuffer(16));
         var outputs = List.of(context.createBuffer(24), context.createBuffer(16),
                 context.createBuffer(24));
@@ -2288,8 +2284,7 @@ class MetalNegPreparedExecutionTest {
 
         RecordingNativeApi unknownApi = new RecordingNativeApi();
         MetalDeviceContext unknownContext = MetalDeviceContext.open(unknownApi);
-        MetalMpsGraphExecutableResource unknownResource =
-                unknownContext.createMpsGraphExecutable(analyze(fixture(), unknownContext).plan());
+        MetalProgramExecutableResource unknownResource = unknownContext.createProgramExecutable(analyze(fixture(), unknownContext).plan());
         unknownContext.close();
         unknownApi.releaseStatus = 83;
         MetalNativeApi.NativeFailure unknownRelease = assertThrows(
@@ -2305,8 +2300,7 @@ class MetalNegPreparedExecutionTest {
     void executableCleanupPreservesReleasePrimaryThenContextAndApiFailures() {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
-        MetalMpsGraphExecutableResource resource =
-                context.createMpsGraphExecutable(analyze(fixture(), context).plan());
+        MetalProgramExecutableResource resource = context.createProgramExecutable(analyze(fixture(), context).plan());
         RuntimeException contextFailure = new RuntimeException("context release");
         RuntimeException closeFailure = new RuntimeException("api close");
         api.releaseStatus = 7;
@@ -2330,8 +2324,7 @@ class MetalNegPreparedExecutionTest {
             throws Exception {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
-        MetalMpsGraphExecutableResource resource =
-                context.createMpsGraphExecutable(analyze(fixture(), context).plan());
+        MetalProgramExecutableResource resource = context.createProgramExecutable(analyze(fixture(), context).plan());
         var first = context.createBuffer(24);
         var second = context.createBuffer(16);
         var out0 = context.createBuffer(24);
@@ -2505,8 +2498,7 @@ class MetalNegPreparedExecutionTest {
     void JavaRunPreflightRejectsAliasAndAddressGeometryBeforeNativeDowncall() {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
-        MetalMpsGraphExecutableResource resource =
-                context.createMpsGraphExecutable(analyze(fixture(), context).plan());
+        MetalProgramExecutableResource resource = context.createProgramExecutable(analyze(fixture(), context).plan());
         var input0 = context.createBuffer(24);
         var input1 = context.createBuffer(16);
         var output0 = context.createBuffer(24);
@@ -2843,14 +2835,14 @@ class MetalNegPreparedExecutionTest {
                 "SYNAPTIK_METAL_TEST_LIBRARY is not set");
         MetalDeviceContext context = MetalDeviceContext.open(
                 Path.of(configured).toAbsolutePath().normalize());
-        MetalMpsGraphExecutableResource resource = null;
+        MetalProgramExecutableResource resource = null;
         MetalBufferRepresentation input0 = null;
         MetalBufferRepresentation input1 = null;
         MetalBufferRepresentation output0 = null;
         MetalBufferRepresentation output1 = null;
         MetalBufferRepresentation output2 = null;
         try {
-            resource = context.createMpsGraphExecutable(analyze(fixture(), context).plan());
+            resource = context.createProgramExecutable(analyze(fixture(), context).plan());
             input0 = context.createBuffer(24);
             input1 = context.createBuffer(16);
             output0 = context.createBuffer(24);
@@ -4914,7 +4906,7 @@ class MetalNegPreparedExecutionTest {
             }
         }
         @Override
-        synchronized NativeCreateResult createMpsGraphExecutableNative(
+        synchronized NativeCreateResult createProgramExecutableNative(
                 Handle context,
                 MemorySegment programImage) {
             executableCreates.incrementAndGet();

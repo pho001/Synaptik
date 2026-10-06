@@ -25,10 +25,9 @@ native parameter domain. BFLOAT16 and FLOAT16 parameters retain private FLOAT32 
 and accumulation values and publish one narrowed logical value only after a successful update.
 Metal executes an exact occurrence- and profile-qualified static domain. Under `ACCELERATOR`, every
 supported homogeneous FLOAT32 occurrence has BFLOAT16 and FLOAT16 counterparts with FLOAT32
-working values and accumulators and one final ties-to-even narrowing. Low arithmetic uses the fixed
-custom program. Only the six exact homogeneous no-gradient raw-preserving program forms may add
-MPSGraph after a complete environment/program certificate match; classic MPS and MPP remain
-qualified-negative and own no candidate or fallback. Mixed CPU/Metal plans use explicit
+working values and accumulators and one final ties-to-even narrowing. Every BFLOAT16/FLOAT16
+partition uses one fixed custom program and exposes no MPSGraph, classic-MPS, MPP, CPU, retry, or
+fallback route. Mixed CPU/Metal plans use explicit
 bidirectional transfer for all seven model data types over exact rank-0..16 static canonical or
 positive-stride non-overlapping layouts with checked physical spans. A standard-Metal convenience,
 generic plugin registration/discovery, CUDA, broader optimizers, durable persistence, and generic

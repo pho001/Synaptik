@@ -276,9 +276,8 @@ class MetalRandomDropoutNativeTest {
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
-            executable = api.createMpsGraphExecutable(
-                    context, profile, values, program, feeds, targets,
-                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context, profile, values, program, feeds, targets,
+            MetalPreparedRoute.CUSTOM_PROGRAM);
             for (var value : values) buffers.add(api.createBuffer(context, value.byteCount()));
             for (int index = 0; index < feeds.length; index++) {
                 upload(api, buffers.get(feeds[index]), inputs.get(index));

@@ -1,13 +1,12 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
+import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.trace.TraceEvent;
 import io.github.pho001.synaptik.trace.TraceEventId;
 import io.github.pho001.synaptik.trace.TraceLevel;
 import io.github.pho001.synaptik.trace.TracePayload;
 import io.github.pho001.synaptik.trace.TracePhase;
-import io.github.pho001.synaptik.trace.certificate.LowPrecisionCertificate;
-import io.github.pho001.synaptik.trace.certificate.LowPrecisionCertificateKey;
 import io.github.pho001.synaptik.trace.id.TraceBackendId;
 import io.github.pho001.synaptik.trace.id.TraceDeviceId;
 import io.github.pho001.synaptik.trace.id.TraceInvocationId;
@@ -55,7 +54,10 @@ final class MetalTraceProducer {
     /**
      * Allocates and maps one prepared unit after route selection is final.
      *
-     * @return immutable trace facts, or {@code null} when tracing is disabled or exhausted
+     * @param numericalProfile selected graph-wide profile to report without interpreting it
+     * @param route selected prepared route to report
+     * @return immutable trace facts, or {@code null} when tracing is disabled, exhausted, or
+     *         fails while mapping the facts
      */
     PreparedUnit prepareUnit(
             NumericalProfile numericalProfile, MetalPreparedRoute route) {
@@ -82,6 +84,21 @@ final class MetalTraceProducer {
         }
     }
 
+    /**
+     * Allocates one prepared trace unit and emits advisory structure. Low-precision programs also
+     * emit the selected custom route, feed-then-target logical dtype tuple, and profile; a trace
+     * failure disables tracing without changing preparation.
+     *
+     * @param numericalProfile selected graph-wide profile to report without interpreting it
+     * @param route selected prepared route, which must be custom if any value is low precision
+     * @param program prepared program used only for structural trace facts
+     * @param values ordered descriptors indexed by the program and boundary arrays
+     * @param feeds ordered boundary-feed indices into {@code values}
+     * @param targets ordered boundary-target indices into {@code values}
+     * @param internalCount number of internal prepared values for structural diagnostics
+     * @return immutable trace facts, or {@code null} when tracing is disabled, exhausted, or
+     *         fails while mapping or emitting facts
+     */
     PreparedUnit prepareUnit(
             NumericalProfile numericalProfile,
             MetalPreparedRoute route,
@@ -90,19 +107,6 @@ final class MetalTraceProducer {
             int[] feeds,
             int[] targets,
             int internalCount) {
-        return prepareUnit(
-                numericalProfile, route, program, values, feeds, targets, internalCount, null);
-    }
-
-    PreparedUnit prepareUnit(
-            NumericalProfile numericalProfile,
-            MetalPreparedRoute route,
-            MetalMpsGraphProgram program,
-            List<MetalMpsGraphProgram.ValueDescriptor> values,
-            int[] feeds,
-            int[] targets,
-            int internalCount,
-            MetalNegPreparationPlan qualificationPlan) {
         if (!enabled.get()) {
             return null;
         }
@@ -123,9 +127,7 @@ final class MetalTraceProducer {
                     facts.plannedCustomSteps(),
                     facts.plannedCustomStepsTruncated());
             emitPreparationStructure(unit, facts);
-            if (qualificationPlan != null) {
-                emitLowPrecisionRoute(unit, route, qualificationPlan);
-            }
+            emitLowPrecisionRoute(unit, route, values, feeds, targets);
             return unit;
         } catch (RuntimeException failure) {
             disable();
@@ -224,46 +226,43 @@ final class MetalTraceProducer {
                         facts.plannedCustomStepsTruncated()));
     }
 
-
-    /** Emits certificate identity only for the narrow raw-preserving low-precision family. */
+    /**
+     * Emits selected-route, boundary dtype, and profile facts only when the prepared values
+     * contain a low-precision type. It does not infer an accumulator from program node kinds.
+     *
+     * @param unit prepared trace unit carrying the selected route and profile
+     * @param route selected backend route, required to be custom for low-precision values
+     * @param values ordered prepared descriptors indexed by {@code feeds} and {@code targets}
+     * @param feeds ordered indices of boundary feeds into {@code values}
+     * @param targets ordered indices of boundary targets into {@code values}
+     * @throws IllegalArgumentException if low-precision values use a non-custom route
+     */
     private void emitLowPrecisionRoute(
             PreparedUnit unit,
             MetalPreparedRoute route,
-            MetalNegPreparationPlan qualificationPlan) {
-        Optional<MetalLowPrecisionRouteCertification.Expected> expected =
-                MetalLowPrecisionRouteCertification.expected(qualificationPlan);
-        if (expected.isEmpty()) {
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            int[] feeds,
+            int[] targets) {
+        boolean containsLowPrecision = values.stream().anyMatch(value ->
+                value.dataType() == DataType.BFLOAT16
+                        || value.dataType() == DataType.FLOAT16);
+        if (!containsLowPrecision) {
             return;
         }
-        LowPrecisionCertificate certificate = route == MetalPreparedRoute.MPSGRAPH
-                ? MetalLowPrecisionRouteCertification.find(qualificationPlan)
-                        .map(MetalLowPrecisionRouteCertification.Qualification::certificate)
-                        .orElse(null)
-                : null;
-        if (route == MetalPreparedRoute.MPSGRAPH && certificate == null) {
+        if (route != MetalPreparedRoute.CUSTOM_PROGRAM) {
             throw new IllegalArgumentException(
-                    "certified low-precision graph route lost its exact certificate");
+                    "low-precision Metal preparation requires CUSTOM_PROGRAM");
         }
-        LowPrecisionCertificateKey key = expected.orElseThrow().key();
-        Optional<LowPrecisionCertificateKey> selectedKey = certificate == null
-                ? Optional.empty() : Optional.of(certificate.key());
+        var dtypeTuple = new ArrayList<String>(feeds.length + targets.length);
+        for (int value : feeds) dtypeTuple.add(values.get(value).dataType().name());
+        for (int value : targets) dtypeTuple.add(values.get(value).dataType().name());
         emitStructural(
                 TracePhase.PREPARE,
                 TraceLevel.INFO,
                 new LowPrecisionTraceMetadata(
                         unit.route,
-                        key.dtypeTuple(),
-                        key.accumulatorDtype(),
-                        unit.profile,
-                        LowPrecisionCertificateKey.SCHEMA_VERSION,
-                        selectedKey,
-                        certificate == null
-                                ? LowPrecisionCertificate.Status.NOT_CERTIFIED
-                                : LowPrecisionCertificate.Status.CERTIFIED,
-                        certificate == null
-                                ? Optional.empty() : Optional.of(certificate.accuracy()),
-                        certificate == null
-                                ? Optional.empty() : Optional.of(certificate.determinism())));
+                        dtypeTuple,
+                        unit.profile));
     }
 
     void preparationSucceeded(PreparedUnit unit) {

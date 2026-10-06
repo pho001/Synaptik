@@ -15,13 +15,12 @@
  * occurrence to homogeneous BFLOAT16 and FLOAT16 descriptors and scalar attributes. STRICT_IEEE
  * admits the corresponding exact-valid subset. Direct BFLOAT16/FLOAT16 mixed-low operations are
  * false except explicit CAST; callers establish mixed-low computation with explicit FLOAT32 casts.
- * Every low arithmetic occurrence uses the fixed authenticated {@code CUSTOM_PROGRAM} route.
- * Homogeneous no-gradient low raw-preserving RESHAPE, simple PERMUTE, materializing CONTIGUOUS,
- * SLICE, CONCAT, and TILE partitions retain custom first and may add MPSGraph only after exact
- * schema-one environment/program certification. MPS, retry, CPU fallback, pointwise generation,
- * and anchor-epilogue fusion are ineligible. Arithmetic decodes represented inputs exactly to
- * FLOAT32, retains FLOAT32 working values and accumulators, and integer-narrows each observable low
- * result exactly once with round-to-nearest, ties-to-even.
+ * Every BFLOAT16/FLOAT16 occurrence uses the fixed authenticated {@code CUSTOM_PROGRAM} route;
+ * no low-precision partition exposes an MPSGraph, MPS, retry, CPU-fallback, pointwise-generation,
+ * or anchor-epilogue candidate. Arithmetic decodes represented inputs exactly to FLOAT32, retains
+ * FLOAT32 working values and accumulators, and integer-narrows each observable low result exactly
+ * once with round-to-nearest, ties-to-even. Raw-preserving operations move represented bits without
+ * a numerical accumulator.
  *
  * <p>ACCELERATOR low closure includes tensor and scalar arithmetic, comparisons, extrema,
  * SUM/MEAN/MIN/MAX and sum-to-Shape reductions, cumulative SUM/PROD, positive-static MATMUL, MSE,
@@ -33,14 +32,13 @@
  * CPU/Metal transfer accept ranks {@code 0..16} for all seven carriers and resolved positive-stride
  * non-overlapping storage layouts.
  *
- * <p>A partition containing low arithmetic or a selected exact custom node uses one fixed custom
+ * <p>A partition containing low values or a selected exact custom node uses one fixed custom
  * whole-program resource: fixed kernels and cold-compiled nested existing-node executables consume
  * the compact materialized-slot table in program order behind one Java/native run call. Only the
  * authenticated materialized set receives run-owned buffers; targets remain direct assigned
- * buffers. An exactly certified low raw partition may instead use one MPSGraph executable with
- * feed/target buffers and an address workspace only. Eligible existing FLOAT32 routes remain
- * separately qualified, including direct rank-two FLOAT32 MATMUL and bounded generated fusion;
- * low values never enter those generated/fused routes. Direct {@code NEG}, {@code ABS},
+ * buffers. Eligible existing FLOAT32 routes remain separately qualified, including direct
+ * rank-two FLOAT32 MATMUL and bounded generated fusion; low values never enter those
+ * MPSGraph/generated/fused routes. Direct {@code NEG}, {@code ABS},
  * {@code FLOOR}, {@code CEIL}, {@code SIGN}, and {@code RELU}
  * operands/outputs and their graph feeds are canonical. Eligible maximal linear canonical
  * FLOAT32 chains of the latter four operations require positive static rank one through sixteen
@@ -217,15 +215,15 @@
  *
  * <p>The selected numerical profile participates in partition-plan, route, tuning, decision-codec,
  * and workload identity. Java rejects profile/schema mismatches before native entry. ABI version
- * six has fourteen exports, adding the immutable context-certification-environment query. Node
- * schema version nineteen is one bounded self-describing route-bearing image over stable type wires
+ * seven has thirteen exports; the former certification-environment query is absent. Node schema
+ * version nineteen is one bounded self-describing route-bearing image over stable type wires
  * {@code 1..7}, operation wires {@code 1..115}, attribute wires {@code 0..41}, and complete
  * optional storage-layout geometry. Its fixed 128-byte header binds the exact numerical-profile
  * wire and, only for the custom-program route, the canonical execution-plan extension and manifest
  * digest. Native structural execution covers exactly 101 wires and leaves 14 nonexecutable.
  * Production capability is exactly 86 operation kinds and 29 remain false. Backend-local workload,
  * exact-policy, candidate, compatibility, route-policy, and codec identities are version
- * twenty-eight. Only schema nineteen and identity twenty-eight are accepted; every other schema or
+ * twenty-nine. Only schema nineteen and identity twenty-nine are accepted; every other schema or
  * identity value fails closed.
  */
 package io.github.pho001.synaptik.backend.metal;

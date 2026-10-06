@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0018 Blocked; 0007A1D Review needed; 0010D1 and 0011 Blocked | [CPU 0018](backends/cpu/tasks/0018-shared-external-read-recognition-validation.md) is partial; independent Class C review found a P2 forged virtual-output/shared-weight boundary position. User must choose authenticated `ValueId` binding or safe nonfused fallback. Separate >8-node decision remains open; no CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through P13 documentation and local qualification closure; 0053 Blocked | P13 locally qualifies the P12 boundary at ABI 6, schema 19, type wires `1..7`, identity 28, and fourteen exports with a fresh ad-hoc-signed package and local ZIP; no publication, notarization, or public release occurred. Homogeneous BFLOAT16/FLOAT16 arithmetic remains custom, while exactly certified raw-preserving routes require the full environment key plus separate accuracy and determinism records. MPS and MPP remain qualified-negative. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | [0073](backends/metal/tasks/0073-custom-only-low-precision-cutover.md) Complete; 0053 Blocked | The custom-only BFLOAT16/FLOAT16 cutover uses ABI 7, schema 19, type wires `1..7`, identity 29, and thirteen exports. Every low-containing partition has one `CUSTOM_PROGRAM` candidate; the certificate/environment/vendor path is removed. Integrated validation and independent Class C rereview passed. The full build required a one-off CPU Test heap override; no publication is claimed. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -521,18 +521,23 @@ no production, native, test, or probe changes remain.
 is `Complete` at `42c4cfbf` plus `fb102a46` after the operation-by-operation DAZ/FTZ oracle, focused
 validation, combined serial checkpoint, and independent Class C approval all passed.
 
-Current Metal uses ABI 6, fourteen exports, and one bounded schema-19 route-bearing program image.
+Current Metal uses ABI 7, thirteen exports, and one bounded schema-19 route-bearing program image.
 The common exact domain includes seven-carrier movement, affine, indexing, ordering, selection,
 predicate, cast, replacement, non-overlapping window, maximum-pool, promoted integral MATMUL, and
-raw INITIAL_STATE occurrences. Accelerator additionally admits qualified homogeneous
+raw INITIAL_STATE occurrences. Accelerator additionally admits supported homogeneous
 FLOAT32/BFLOAT16/FLOAT16 arithmetic, scalar, reduction, scan, MATMUL, MSE, convolution,
 average-pool, dropout, L1, ScatterAdd, and singleton-VARIANCE occurrences. Direct
 BFLOAT16/FLOAT16 mixed-low operations remain false except explicit CAST; explicit FLOAT32 casts are
 the mixed-low boundary.
 
-Every low occurrence selects one fixed authenticated custom whole-program route with FLOAT32
-working values/accumulators and one final ties-to-even narrowing. MPSGraph, MPS, CPU fallback,
-retry, generated-pointwise, and anchor-epilogue alternatives are unavailable to low partitions.
+Every partition containing BFLOAT16 or FLOAT16 selects one fixed `CUSTOM_PROGRAM` candidate.
+Low-valued operations use custom steps; low arithmetic uses FLOAT32 working/accumulator values
+and one final ties-to-even narrowing, while raw movement preserves its exact stored bits.
+MPSGraph is neither a partition-route alternative nor a step for low-valued operations. Eligible
+FLOAT32-only operations may use an internal MPSGraph boundary step under the existing FLOAT32
+policy, whether after an explicit low-to-FLOAT32 cast or on an independent FLOAT32 branch.
+Classic MPS, MPP, CPU fallback, retry, generated-pointwise, and anchor-epilogue alternatives
+remain unavailable throughout low-containing partitions.
 Admitted generated gradients preserve saved values and close first order plus owned higher order;
 non-overlapping maximum-pool backward is active, while overlap accumulation and Conv3d backward
 remain fail-closed.
@@ -541,7 +546,7 @@ The active image carries type wires `1..7`, operation wires `1..115`, attribute 
 route wires `1..3`, the exact numerical-profile wire, complete storage-layout geometry, and the
 custom execution extension/manifest digest. Exactly 101 operation kinds are structurally
 executable and 86 are production-capable. Workload, policy, candidate, compatibility, route, and
-codec identities are version 28; every other identity fails closed. Candidate wires and the
+codec identities are version 29; every other identity fails closed. Candidate wires and the
 complete-plan wrapper remain stable.
 
 P9 closes the low-precision capability ledger without adding an operation kind, attribute, route,
@@ -769,8 +774,8 @@ real-reflection and dispatch-observer evidence, and a separate compiled generate
 Task 0071 adds authenticated accelerator MATMUL/Conv2d anchor-epilogue steps, structural
 PREPARE and planned RUN trace payloads, a Lean order/store/broadcast/DAZ-FTZ proof, compiled AIR
 instruction/site evidence, real-device one-dispatch coverage, and public Engine smoke coverage.
-The current ledger is capability `86/29`, structural `101/14`, MPSGraph `75/35/5`, custom
-`73/42/0`, schema 19, ABI 6, fourteen exports, and identity 28. Every other identity fails closed.
+The current ledger is capability `86/29`, structural `101/14`, schema 19, ABI 7, thirteen exports,
+and identity 29. Every other identity fails closed.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly

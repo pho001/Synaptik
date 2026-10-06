@@ -411,17 +411,16 @@ unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema, no-gradient promoted
 MATMUL, exact maximum pooling, and raw initial state. `ACCELERATOR` additionally admits the
 documented FLOAT32/BFLOAT16/FLOAT16 arithmetic, extrema, scalar, reduction, scan, MSE, general
 MATMUL, average-pooling, convolution, explicit-state dropout, and the exact rank-one FLOAT32 L1,
-ScatterAdd, and singleton VARIANCE occurrences. Low arithmetic and all three Task-0069 occurrences
-use one fixed custom whole-program route. Exact no-gradient homogeneous low raw-preserving
-RESHAPE/PERMUTE/CONTIGUOUS/SLICE/CONCAT/TILE images retain custom first and may add MPSGraph only
-after an exact immutable-environment and schema-19-program certificate match. ScatterAdd completes
-its index scan before encoding or mutation and closes the existing rank-one Gather data cotangent.
-Every other unlisted occurrence fails closed before route selection. Eligible linear canonical
-FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use bounded generated custom units with compact
-materialized slots. Eligible ACCELERATOR MATMUL/Conv2d suffixes instead use one typed anchor
-dispatch and final store with no suffix slot. ABI 6 has fourteen exports and accepts one bounded
-schema-19 route-bearing program image over type wires `1..7`, operation wires `1..115`, attribute
-wires `0..41`, and route wires `1..3`; backend identities are version twenty-eight. Structural
-coverage is `101 / 14`, production capability is `86 / 29`, and the MPSGraph/custom catalogs are
-`75 / 35 / 5` and `73 / 42 / 0`. Every other schema or identity fails closed.
+ScatterAdd, and singleton VARIANCE occurrences. Every partition containing BFLOAT16 or FLOAT16
+values uses one fixed custom whole-program route, including exact no-gradient raw-preserving
+RESHAPE/PERMUTE/CONTIGUOUS/SLICE/CONCAT/TILE. The three Task-0069 occurrences also use the fixed
+custom route. ScatterAdd completes its index scan before encoding or mutation and closes the
+existing rank-one Gather data cotangent. Every other unlisted occurrence fails closed before route
+selection. Eligible linear canonical FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use bounded
+generated custom units with compact materialized slots. Eligible ACCELERATOR MATMUL/Conv2d suffixes
+instead use one typed anchor dispatch and final store with no suffix slot. ABI 7 has thirteen
+exports and accepts one bounded schema-19 route-bearing program image over type wires `1..7`,
+operation wires `1..115`, attribute wires `0..41`, and route wires `1..3`; backend identities are
+version twenty-nine. Structural coverage is `101 / 14`, and production capability is `86 / 29`.
+Every other schema or identity fails closed.
 Runtime executes the prepared result with no profile branch.

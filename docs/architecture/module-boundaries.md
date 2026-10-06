@@ -52,10 +52,9 @@ Admitted low arithmetic retains exact discrete/raw/cast/public/saved/final-RNE b
 complete `FLOAT32`-working custom baseline, and permits only the family-declared DAZ/FTZ,
 arithmetic zero-sign/NaN-class freedoms, operation-local reassociation/FMA, and fusion across
 unobservable single-use intermediates. Model owns the cancellation- and size-aware family
-envelope; opaque transformed routes qualify by deductive proof or versioned certification, not
-names, examples, or generic `allclose`. Determinism metadata is separate from accuracy.
-Provider-derived parity answers remain separate from route, backward, runtime/device, and
-certificate facts.
+envelope; backend implementations qualify by complete-output-set proof, not names, examples, or
+generic `allclose`. Provider-derived parity answers remain separate from route, backward, and
+runtime/device facts.
 
 For any backend and occurrence domain, strict capability and behavior are an accelerator subset.
 CPU supports both profiles identically with exact current behavior. Metal supports the exact
@@ -63,10 +62,10 @@ bounded seven-carrier movement, indexing, replacement, fold, aggregate, ordering
 arg-extrema, and no-gradient promoted INT32/INT64 MATMUL domains under both profiles. Under
 `ACCELERATOR`, Metal additionally supports every qualified homogeneous
 FLOAT32/BFLOAT16/FLOAT16 arithmetic, reduction, scan, MATMUL, MSE, convolution, pooling, dropout,
-L1, ScatterAdd, and singleton-variance occurrence. Low arithmetic is custom-only. Exact
-no-gradient homogeneous low raw-preserving RESHAPE/PERMUTE/CONTIGUOUS/SLICE/CONCAT/TILE images may
-add MPSGraph only after exact environment/program certification. Direct BFLOAT16/FLOAT16 mixing
-and every unsupported occurrence fail closed.
+L1, ScatterAdd, and singleton-variance occurrence. Every partition containing BFLOAT16 or FLOAT16
+values is custom-program-only, including exact no-gradient raw-preserving
+RESHAPE/PERMUTE/CONTIGUOUS/SLICE/CONCAT/TILE. Direct BFLOAT16/FLOAT16 mixing and every unsupported
+occurrence fail closed.
 Rank-zero Metal support is local to produced reduction,
 arg-extrema, or vector/vector MATMUL targets plus explicit scalar-seed ingress for vector/vector
 gradients; it does not widen mixed-owner CPU/Metal transfer. The local explicitly seeded general

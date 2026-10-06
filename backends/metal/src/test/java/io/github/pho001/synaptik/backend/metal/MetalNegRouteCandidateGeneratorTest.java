@@ -68,6 +68,48 @@ import org.junit.jupiter.api.Test;
 
 class MetalNegRouteCandidateGeneratorTest {
     @Test
+    void preparationPlanRejectsForgedAbiValueDescriptorsBeforeRouteUse() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            MetalNegPreparationPlan valid = analyze(workload(
+                    device, 90_000, Shape.of(4), false,
+                    Optional.empty(), true, false, 1).context()).plan();
+            MetalMpsGraphProgram.ValueDescriptor original =
+                    valid.programValueDescriptors().getFirst();
+            long[] changedDimensions = original.dimensions();
+            changedDimensions[0]++;
+            var forged = List.of(
+                    new MetalMpsGraphProgram.ValueDescriptor(
+                            DataType.FLOAT16, original.dimensions(), original.layout(),
+                            original.requiresGrad(), original.densePhysical()),
+                    new MetalMpsGraphProgram.ValueDescriptor(
+                            original.dataType(), changedDimensions, Optional.empty(),
+                            original.requiresGrad(), original.densePhysical()),
+                    new MetalMpsGraphProgram.ValueDescriptor(
+                            original.dataType(), original.dimensions(), Optional.empty(),
+                            original.requiresGrad(), original.densePhysical()),
+                    new MetalMpsGraphProgram.ValueDescriptor(
+                            original.dataType(), original.dimensions(), original.layout(),
+                            !original.requiresGrad(), original.densePhysical()),
+                    new MetalMpsGraphProgram.ValueDescriptor(
+                            original.dataType(), original.dimensions(), original.layout(),
+                            original.requiresGrad(), !original.densePhysical()));
+            for (var mismatch : forged) {
+                var abiValues = new ArrayList<>(valid.programValueDescriptors());
+                abiValues.set(0, mismatch);
+                assertEquals(
+                        "Metal ABI value descriptor disagrees with logical descriptor and state at 0",
+                        assertThrows(IllegalArgumentException.class,
+                                () -> copyPlanWithProgramValues(
+                                        valid, valid.descriptors(), abiValues,
+                                        valid.graphProgram(), valid.targetRequiredBytes()))
+                                .getMessage());
+            }
+            assertEquals(0, api.nativeAllocations.get());
+        }
+    }
+
+    @Test
     void candidateDomainsAndBudgetPrefixesPreserveTheCurrentSafeChoice() {
         TestNativeApi api = new TestNativeApi();
         try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
@@ -283,6 +325,61 @@ class MetalNegRouteCandidateGeneratorTest {
       assertEquals(0, api.nativeAllocations.get());
     }
   }
+
+    @Test
+    void lowCastThenFloat32NegKeepsOneCustomPartitionWithAnInternalMpsGraphBoundary() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+                long base = low == DataType.BFLOAT16 ? 205_100L : 205_200L;
+                ValueId feed = new ValueId(base);
+                ValueId castResult = new ValueId(base + 1);
+                ValueId target = new ValueId(base + 2);
+                TensorDescriptor lowDescriptor = canonical(low, Shape.of(4));
+                TensorDescriptor floatDescriptor = canonical(DataType.FLOAT32, Shape.of(4));
+                CompiledNode cast = new CompiledNode(
+                        new NodeId(base),
+                        new Operation(CastKind.CAST, new CastAttrs(DataType.FLOAT32)),
+                        List.of(feed), List.of(castResult));
+                CompiledNode neg = new CompiledNode(
+                        new NodeId(base + 1),
+                        new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE),
+                        List.of(castResult), List.of(target));
+                PlannedPartition partition = new PlannedPartition(
+                        MetalCapabilityProvider.METAL_BACKEND_ID,
+                        List.of(cast.id(), neg.id()));
+                var context = new PrepareContext<>(
+                        NumericalProfile.STRICT_IEEE,
+                        new PartitionDag(partition, List.of(cast, neg)),
+                        List.of(new GraphValue(feed, lowDescriptor),
+                                new GraphValue(castResult, floatDescriptor),
+                                new GraphValue(target, floatDescriptor)),
+                        List.of(
+                                new LogicalMemoryRequirement(feed, lowDescriptor,
+                                        Optional.empty(), List.of(partition), false),
+                                new LogicalMemoryRequirement(castResult, floatDescriptor,
+                                        Optional.of(partition), List.of(partition), false),
+                                new LogicalMemoryRequirement(target, floatDescriptor,
+                                        Optional.of(partition), List.of(), true)),
+                        Map.of(), new MetalNegAnalysisInputs(device));
+                Generated generated = generated(new Workload(context), 2);
+                MetalNegPreparationPlan plan = generated.analysis().plan();
+                assertSame(MetalPreparedRoute.CUSTOM_PROGRAM, plan.route(), low.toString());
+                assertEquals(List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
+                        generated.batch().candidates(), low.toString());
+                assertEquals(List.of(
+                                MetalPointwiseFusionPlan.StepKind.FIXED_CUSTOM,
+                                MetalPointwiseFusionPlan.StepKind.MPSGRAPH_BOUNDARY),
+                        plan.pointwiseFusionPlan().steps().stream()
+                                .map(MetalPointwiseFusionPlan.Step::kind).toList(),
+                        low.toString());
+                assertThrows(IllegalArgumentException.class,
+                        () -> new MetalNegPartitionPreparer().analyzeForTesting(
+                                context, MetalPreparedRoute.MPSGRAPH));
+            }
+            assertEquals(0, api.nativeAllocations.get());
+        }
+    }
 
   @Test
   void task0066SelectedNodesRejectForcedMpsGraphBeforeNativeAllocation() {
@@ -1075,8 +1172,8 @@ class MetalNegRouteCandidateGeneratorTest {
                     route.wireIdentity()).orElseThrow());
             assertArrayEquals(new byte[] {
                     0x4d, 0x4e, 0x43, 0x41,
-                    0x00, 0x00, 0x00, 0x1c,
-                    0x00, 0x00, 0x00, 0x1c,
+                    0x00, 0x00, 0x00, 0x1d,
+                    0x00, 0x00, 0x00, 0x1d,
                     0x00, 0x00, 0x00, (byte) route.wireIdentity()
             }, codec.encodeCandidate(candidate));
         }
@@ -1098,14 +1195,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(28, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(28, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(28, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(29, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(29, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(29, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(28, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(28, current.batch().compatibility().schemaVersion());
-            assertEquals(28, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(28, current.batch().compatibility().routePolicyVersion());
+            assertEquals(29, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(29, current.batch().compatibility().schemaVersion());
+            assertEquals(29, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(29, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
@@ -1179,6 +1276,9 @@ class MetalNegRouteCandidateGeneratorTest {
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, 4, 24), current.batch()).isEmpty(),
                     "checksummed codec-v24 decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, 4, 28), current.batch()).isEmpty(),
+                    "stale identity-28 decisions must fail closed despite a valid checksum");
             int compatibilityOffset = 4 * Integer.BYTES;
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, compatibilityOffset + Integer.BYTES, 24),
@@ -1355,6 +1455,22 @@ class MetalNegRouteCandidateGeneratorTest {
             List<TensorDescriptor> descriptors,
             MetalMpsGraphProgram graphProgram,
             long[] targetRequiredBytes) {
+        var programValueDescriptors =
+                new java.util.ArrayList<MetalMpsGraphProgram.ValueDescriptor>(descriptors.size());
+        for (int value = 0; value < descriptors.size(); value++) {
+            programValueDescriptors.add(MetalMpsGraphProgram.ValueDescriptor.from(
+                    descriptors.get(value), source.valueStates().get(value)));
+        }
+        return copyPlanWithProgramValues(
+                source, descriptors, programValueDescriptors, graphProgram, targetRequiredBytes);
+    }
+
+    private static MetalNegPreparationPlan copyPlanWithProgramValues(
+            MetalNegPreparationPlan source,
+            List<TensorDescriptor> descriptors,
+            List<MetalMpsGraphProgram.ValueDescriptor> programValueDescriptors,
+            MetalMpsGraphProgram graphProgram,
+            long[] targetRequiredBytes) {
         return new MetalNegPreparationPlan(source.numericalProfile(), source.partition(),
         source.partitionDag(),
         source.context(),
@@ -1363,6 +1479,7 @@ class MetalNegRouteCandidateGeneratorTest {
         descriptors,
         source.physicalLayouts(),
         source.valueStates(),
+        programValueDescriptors,
         graphProgram,
         source.feedValueIds(),
         source.feedValueIndices(),
@@ -1842,7 +1959,7 @@ class MetalNegRouteCandidateGeneratorTest {
         @Override void releaseBuffer(Handle buffer) { }
         @Override void upload(Handle buffer, long offset, MemorySegment source, long count) { }
         @Override void download(Handle buffer, long offset, MemorySegment target, long count) { }
-        @Override NativeCreateResult createMpsGraphExecutableNative(
+        @Override NativeCreateResult createProgramExecutableNative(
                 Handle context, MemorySegment programImage) {
             nativeAllocations.incrementAndGet();
             return new NativeCreateResult(0, handle());

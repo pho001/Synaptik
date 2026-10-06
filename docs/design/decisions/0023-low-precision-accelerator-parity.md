@@ -5,8 +5,18 @@
 Accepted — 2026-09-28
 
 Qualifies the non-`FLOAT32` scope of
-[ADR 0021](0021-total-recursive-accelerator-numerical-floor.md). ADR 0021 remains authoritative for
-its `FLOAT32` recursive floors and for every existing `STRICT_IEEE` result set.
+[ADR 0021](0021-total-recursive-accelerator-numerical-floor.md). ADR 0021 records the rationale
+for its `FLOAT32` recursive floors and existing `STRICT_IEEE` result sets; the current normative
+rules are in the [architecture root](../../../ARCHITECTURE.md#core-invariants) and its incorporated
+[Model contract](../../architecture/contracts/foundational-modules.md#modulesmodel).
+
+[ADR 0025](0025-custom-only-metal-low-precision.md) supersedes this decision's certificate-schema
+and Metal opaque-route qualification provisions. This ADR preserves the historical rationale for
+the Model-owned low-precision result sets, provider ledger, and append-only identity allocation;
+their current obligations are in the architecture root and incorporated
+[Model](../../architecture/contracts/foundational-modules.md#model-low-precision-contract-and-active-accelerator-extension)
+and [backend execution](../../architecture/contracts/backend-execution.md#low-precision-capability-evidence)
+contracts.
 
 ## Context
 
@@ -66,10 +76,12 @@ supported rows and explicit unsupported rows are retained. `BackendCapabilityPro
 existing deterministic boolean predicate; it gains no enumeration or explanation API.
 
 The frozen basis is representative evidence rather than a claim to enumerate every possible
-shape, layout, attribute, gradient, or occurrence. Normal provider tests remain authoritative for
-the complete current predicate domain. Any later low-precision implementation must regenerate the
-same canonical basis through the actual providers, review every diff, and preserve every existing
-true and false row unless another explicit architecture decision changes it.
+shape, layout, attribute, gradient, or occurrence. Normal provider tests provide conformance
+evidence across the complete current predicate domain; neither those tests nor this historical ADR
+are normative authority. Any later low-precision implementation must regenerate the same canonical
+basis through the actual providers, review every diff, and preserve every existing true and false
+row unless a rule change updates the architecture root and the owning incorporated scoped contract
+together. An ADR may record that decision but cannot change the frozen rows on its own.
 
 ### Low-precision target mapping
 

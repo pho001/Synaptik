@@ -11,9 +11,7 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.Arrays;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -25,7 +23,7 @@ final class LowPrecisionIdentityContractTest {
     @Test
     void modelCpuAndMetalFloat16AllocationsAreActive() throws Exception {
         Map<String, String[]> rows = rows(resource(IDENTITIES), 7, 2);
-        assertEquals(14, rows.size());
+        assertEquals(13, rows.size());
         assertArrayEquals(
                 new DataType[] {
                     DataType.FLOAT64,
@@ -46,45 +44,36 @@ final class LowPrecisionIdentityContractTest {
                         "io.github.pho001.synaptik.backend.metal.MetalMpsGraphProgram",
                         "SCHEMA_VERSION"));
         assertEquals(
-                6,
+                7,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNativeApi", "ABI_VERSION"));
-        String capabilityHash = HexFormat.of().formatHex(
-                MessageDigest.getInstance("SHA-256").digest(
-                        resource("/low-precision-capability-ledger-v1.tsv")
-                                .getBytes(StandardCharsets.UTF_8)));
         assertEquals(
-                capabilityHash,
-                staticString(
-                        "io.github.pho001.synaptik.backend.metal.MetalCertificationEnvironment",
-                        "CAPABILITY_MANIFEST_HASH"));
-        assertEquals(
-                28,
+                29,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegTuningBatch",
                         "CANDIDATE_SCHEMA_VERSION"));
         assertEquals(
-                28,
+                29,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegTuningBatch",
                         "COMPATIBILITY_SCHEMA_VERSION"));
         assertEquals(
-                28,
+                29,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegTuningBatch",
                         "ROUTE_POLICY_VERSION"));
         assertEquals(
-                28,
+                29,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegTuningCodec",
                         "CODEC_VERSION"));
         assertEquals(
-                28,
+                29,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegRouteCandidateGenerator",
                         "WORKLOAD_SIGNATURE_VERSION"));
         assertEquals(
-                28,
+                29,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegRouteCandidateGenerator",
                         "EXACT_DEFAULT_POLICY"));
@@ -92,25 +81,29 @@ final class LowPrecisionIdentityContractTest {
         assertAllocation(
                 rows, "generator-schema", "cpu", "68", "NONE", "ACTIVATED_CPU_FLOAT16");
         assertAllocation(rows, "attribute-wires", "metal", "0..41", "UNCHANGED", "FROZEN");
-        assertAllocation(rows, "candidate-schema", "metal", "28", "NONE", "ACTIVATED_METAL_FLOAT16");
         assertAllocation(
-                rows, "certificate-schema", "metal", "1", "NONE",
-                "ACTIVATED_METAL_CERTIFIED_RAW_MPSGRAPH");
-        assertAllocation(rows, "codec-version", "metal", "28", "NONE", "ACTIVATED_METAL_FLOAT16");
+                rows, "candidate-schema", "metal", "29", "NONE",
+                "ACTIVATED_METAL_CUSTOM_ONLY_LOW_PRECISION");
         assertAllocation(
-                rows, "compatibility-schema", "metal", "28", "NONE", "ACTIVATED_METAL_FLOAT16");
+                rows, "codec-version", "metal", "29", "NONE",
+                "ACTIVATED_METAL_CUSTOM_ONLY_LOW_PRECISION");
+        assertAllocation(
+                rows, "compatibility-schema", "metal", "29", "NONE",
+                "ACTIVATED_METAL_CUSTOM_ONLY_LOW_PRECISION");
         assertAllocation(
                 rows, "dtype-wire-FLOAT16", "metal", "7", "NONE", "ACTIVATED_METAL_FLOAT16");
         assertAllocation(
-                rows, "native-abi", "metal", "6", "NONE",
-                "ACTIVATED_METAL_CERTIFIED_RAW_MPSGRAPH");
+                rows, "native-abi", "metal", "7", "NONE",
+                "ACTIVATED_METAL_CUSTOM_ONLY_LOW_PRECISION");
         assertAllocation(rows, "operation-wires", "metal", "1..115", "UNCHANGED", "FROZEN");
         assertAllocation(rows, "program-schema", "metal", "19", "NONE", "ACTIVATED_METAL_FLOAT16");
         assertAllocation(
-                rows, "route-policy-version", "metal", "28", "NONE", "ACTIVATED_METAL_FLOAT16");
+                rows, "route-policy-version", "metal", "29", "NONE",
+                "ACTIVATED_METAL_CUSTOM_ONLY_LOW_PRECISION");
         assertAllocation(rows, "route-wires", "metal", "1..3", "UNCHANGED", "FROZEN");
         assertAllocation(
-                rows, "workload-policy-version", "metal", "28", "NONE", "ACTIVATED_METAL_FLOAT16");
+                rows, "workload-policy-version", "metal", "29", "NONE",
+                "ACTIVATED_METAL_CUSTOM_ONLY_LOW_PRECISION");
         assertAllocation(
                 rows,
                 "DataType-FLOAT16",
@@ -147,13 +140,6 @@ final class LowPrecisionIdentityContractTest {
         Field field = type.getDeclaredField(fieldName);
         field.setAccessible(true);
         return field.getInt(null);
-    }
-
-    private static String staticString(String className, String fieldName) throws Exception {
-        Class<?> type = Class.forName(className);
-        Field field = type.getDeclaredField(fieldName);
-        field.setAccessible(true);
-        return (String) field.get(null);
     }
 
     private static void assertAllocation(

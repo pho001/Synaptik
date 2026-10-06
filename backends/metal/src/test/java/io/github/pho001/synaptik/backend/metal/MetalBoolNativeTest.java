@@ -74,9 +74,8 @@ class MetalBoolNativeTest {
                     value(DataType.BOOL, 3, 4), value(DataType.BOOL, 3, 4));
             int[] feeds = {0, 2, 3, 7, 8};
             int[] targets = {1, 4, 5, 6, 9, 10, 11};
-            executable = api.createMpsGraphExecutable(
-                    context, NumericalProfile.STRICT_IEEE, values, program,
-                    feeds, targets, MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context, NumericalProfile.STRICT_IEEE, values, program,
+            feeds, targets, MetalPreparedRoute.CUSTOM_PROGRAM);
             for (var descriptor : values) {
                 buffers.add(api.createBuffer(context, descriptor.byteCount()));
             }
@@ -131,14 +130,13 @@ class MetalBoolNativeTest {
                     value(DataType.BOOL, 3, 2),
                     value(DataType.FLOAT32, 3, 2),
                     value(DataType.FLOAT32, 3, 2));
-            executable = api.createMpsGraphExecutable(
-                    context,
-                    NumericalProfile.STRICT_IEEE,
-                    values,
-                    program,
-                    new int[] {0, 2, 3},
-                    targets,
-                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context,
+            NumericalProfile.STRICT_IEEE,
+            values,
+            program,
+            new int[] {0, 2, 3},
+            targets,
+            MetalPreparedRoute.CUSTOM_PROGRAM);
             for (var descriptor : values) {
                 buffers.add(api.createBuffer(context, descriptor.byteCount()));
             }
@@ -202,14 +200,13 @@ class MetalBoolNativeTest {
                     value(DataType.BOOL, 2, 3),
                     value(DataType.BOOL, 2),
                     value(DataType.BOOL, 3));
-            executable = api.createMpsGraphExecutable(
-                    context,
-                    NumericalProfile.STRICT_IEEE,
-                    values,
-                    program,
-                    new int[] {0},
-                    targets,
-                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context,
+            NumericalProfile.STRICT_IEEE,
+            values,
+            program,
+            new int[] {0},
+            targets,
+            MetalPreparedRoute.CUSTOM_PROGRAM);
             for (var descriptor : values) {
                 buffers.add(api.createBuffer(context, descriptor.byteCount()));
             }
@@ -296,9 +293,8 @@ class MetalBoolNativeTest {
             var program = new MetalMpsGraphProgram(List.of(node));
             int[] feeds = java.util.stream.IntStream.range(0, feedBytes.size()).toArray();
             int target = values.size() - 1;
-            executable = api.createMpsGraphExecutable(
-                    context, profile, values, program, feeds, new int[] {target},
-                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context, profile, values, program, feeds, new int[] {target},
+            MetalPreparedRoute.CUSTOM_PROGRAM);
             for (int index = 0; index < values.size(); index++) {
                 MetalNativeApi.Handle buffer = api.createBuffer(context, values.get(index).byteCount());
         buffers.add(buffer);

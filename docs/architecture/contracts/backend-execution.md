@@ -171,32 +171,28 @@ reassociation/FMA is permitted only within the qualified implementation; low par
 enter generated-pointwise or anchor-epilogue fusion. Public, saved, fan-out, predicate, index, mask,
 selection, and state boundaries remain barriers.
 
-An opaque or transformed route is eligible by either deductive complete-output-set proof or
-versioned certification against the Model-owned public per-family accuracy envelope. The envelope
-is cancellation- and size-aware; a route name, examples, or generic `allclose` alone is
-insufficient. Active certificate schema 1 freezes profile, operation/fusion family, ordered dtype
-tuple, numeric accumulator dtype or canonical `NONE`, Shape/layout domain, route, GPU family, OS
-build, SDK/framework version, compiler version, exact native-binary and shader/program digests,
-exact flags/options, and capability-manifest hash. The keyed accuracy record retains envelope,
-qualification method, evidence digest, and verdict. Determinism metadata is separate from accuracy
-evidence and never changes route eligibility.
+An opaque or transformed route is eligible only with a complete-output-set proof against the
+Model-owned public per-family accuracy envelope. The envelope is cancellation- and size-aware; a
+route name, examples, or generic `allclose` alone is insufficient.
 
-Metal snapshots that complete immutable identity when its context opens, before preparation:
-highest supported Apple GPU family, OS build, SDK and loaded MPSGraph framework versions, host and
-Metal compiler versions, exact loaded dylib SHA-256, explicit graph/executable optimization and
-reduced-precision options, and the capability-ledger hash. A schema-1 store is accepted atomically;
-missing, malformed, unknown, duplicate, detached, stale, or mismatched rows qualify nothing. Lookup
-is complete-key equality, including the exact schema-19 MPSGraph program digest, and happens only
-during candidate generation and cold preparation.
+Every Metal partition containing BFLOAT16 or FLOAT16 values selects `CUSTOM_PROGRAM` and exposes
+only that candidate. This applies equally to arithmetic and to raw-preserving RESHAPE, simple
+PERMUTE, materializing CONTIGUOUS, SLICE, CONCAT, and TILE. Every operation consuming or producing
+a BFLOAT16 or FLOAT16 value uses a custom kernel step; no such operation enters MPSGraph, and no
+hidden BFLOAT16-to-FLOAT16 substitution is permitted. Any FLOAT32-only operation in the partition
+may use an internal MPSGraph boundary step under existing FLOAT32 policy, whether on an independent
+FLOAT32 branch or after an explicit low-to-FLOAT32 cast. This does not change the enclosing
+`CUSTOM_PROGRAM` route or candidate set. Generated-pointwise and anchor-epilogue fusion are
+unavailable throughout the low-containing partition, including its
+FLOAT32-only nodes. The partition policy is independent of device, OS, SDK, compiler, or
+loaded-binary identity. MPSGraph is not a low-valued operation or whole-partition route
+alternative; classic MPS, MPP, CPU, retry, and fallback are not alternatives either.
 
-Low-precision PREPARE trace metadata names the selected route and the logical dtype tuple,
-accumulator, and profile. A certified selected route carries the complete immutable certificate
-key, its accuracy record, and its separately associated determinism record. An uncertified selected
-route carries none of those certificate fields: the custom baseline cannot borrow the certificate
-or evidence of an unselected MPSGraph candidate. Inconsistent schema, key/profile/dtype/accumulator,
-accuracy, or determinism association is rejected by the trace DTO. The only positive low
-certificate route string is `MPSGRAPH_CERTIFIED_RAW_V1`; classic MPS and MPP cannot appear as
-selected low routes or certificate identities.
+Low-precision PREPARE trace metadata names the selected custom route, ordered feed-then-target
+logical dtype tuple, and numerical profile. It has no accumulator or working-type field; the
+Model's FLOAT32 arithmetic working/accumulator guarantee is separate from diagnostic metadata.
+The DTO contains no candidate, certificate, accuracy, determinism, or environment state and rejects
+a graph selected route.
 
 Metal owns no executable, compilation, or prepared-resource cache: finalization creates fresh
 native resources and its outcome reports `NOT_QUERIED`. The only reusable Metal route artifacts are
@@ -206,11 +202,8 @@ compatibility/candidate/route-policy/workload/codec versions, numerical profile,
 per-context random session nonce, schema-19 program and plan semantics, every descriptor's explicit
 dtype wire and Shape/layout/gradient facts, ordered edges, raw constants, and the selected candidate
 route wire. Complete-plan identity nests the exact phase-one decision. Dtype, ABI, schema, route, or
-semantic changes therefore change the relevant bytes. Certificate rows, evidence digests, and the
-native environment are intentionally not duplicated into the workload digest: they are immutable
-inside one context, candidate generation redoes exact certificate qualification, and every reopened
-context receives a different session nonce, so no decision crosses a certificate or environment
-boundary.
+semantic changes therefore change the relevant bytes. Every reopened context receives a different
+session nonce, so no decision crosses a context boundary.
 
 CPU generated-artifact cache identity is separately closed at generator schema 68. Both BFLOAT16
 and FLOAT16 use the same Java `short` carrier where applicable, but the canonical lowering IR,
@@ -220,23 +213,12 @@ the two raw-16 types have different compatibility bytes and structural keys desp
 method descriptor. Persisted envelopes additionally require the current generator schema, exact
 structural key, exact compatibility bytes, class-shape validation, and checksum before reuse.
 
-The positive Metal store has exactly 24 raw-preserving MPSGraph rows. Classic MPS and MPP have only
-environment-bound qualified-negative evidence in
-`backends/metal/evidence/0072/vendor-route-qualification.tsv`. Classic MPS device support, FLOAT16
-MPSCNN execution, and the FLOAT accumulator option are necessary gates but do not prove the
-complete exact Shape/layout family; its public contract excludes BFLOAT16 convolution data and
-provides no BFLOAT16 accumulator guarantee. MPP target compilation succeeds for FLOAT16/BFLOAT16
-`matmul2d` and `convolution2d` with `__HAVE_TENSOR__`, `relaxed_precision=false`, and FLOAT32
-destinations, but destination type does not specify the internal accumulator type. Every such row
-is rejected under ADR 0023. MPS and MPP own no candidate, route family, route wire, certificate, or
-fallback.
-
 The active allocation appends `DataType.FLOAT16` at ordinal 6 after `BOOL`. Metal type wire 7,
 program schema 19, coordinated Metal candidate/compatibility/route-policy/workload/codec identity
-28, CPU generator schema 68, certificate schema 1, operation wires 1..115, attribute wires 0..41,
-route wires 1..3, and native ABI 6 are active. ABI 6 adds exactly one immutable
-context-certification-environment export; every other export signature and all existing route and
-program wire identities remain unchanged.
+29, CPU generator schema 68, operation wires 1..115, attribute wires 0..41, route wires 1..3, and
+native ABI 7 are active. ABI 7 removes the former certification-environment export and exposes
+exactly thirteen symbols; every remaining export signature and all existing route and program wire
+identities remain unchanged.
 
 ## CPU backend routes
 
@@ -447,16 +429,18 @@ FLOAT32, and each observable low result is narrowed once with round-to-nearest, 
 Conv1d/Pool1d may use only authenticated local singleton-height views. Strict capability remains
 an accelerator subset.
 
-Every accepted low arithmetic occurrence selects the fixed `CUSTOM_PROGRAM` whole-partition route.
-Homogeneous no-gradient BFLOAT16/FLOAT16 raw-preserving `RESHAPE`, simple `PERMUTE`, materializing
-`CONTIGUOUS`, `SLICE`, `CONCAT`, and `TILE` schema-19 images may add `MPSGRAPH` only after an exact
-schema-1 environment/program certificate match. `CUSTOM_PROGRAM` remains the first baseline
-candidate. Certificate absence or rejection never triggers execution fallback, and the selected
-route is immutable before shared declarations escape analysis. Existing eligible FLOAT32
-occurrences retain their qualified direct or composed routes, including direct rank-two FLOAT32
-MATMUL. The shared custom route uses fixed reviewed raw-word/integer/movement/predicate kernels
-behind one whole-program invocation with declared assigned buffers for every logical value and no
-host repair.
+Every partition containing BFLOAT16 or FLOAT16 values selects the fixed `CUSTOM_PROGRAM`
+whole-partition route. This includes homogeneous no-gradient raw-preserving `RESHAPE`, simple
+`PERMUTE`, materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and `TILE` schema-19 images.
+`CUSTOM_PROGRAM` is their only candidate, and the selected route is immutable before shared
+declarations escape analysis. Existing eligible FLOAT32 occurrences retain their qualified direct
+or composed routes, including direct rank-two FLOAT32 MATMUL. Any FLOAT32-only node, including one
+on an independent branch or following an explicit low-to-FLOAT32 cast, may therefore use an
+internal MPSGraph boundary step in the same custom partition; no BFLOAT16/FLOAT16-valued node may
+do so, and no hidden BFLOAT16-to-FLOAT16 substitution is allowed. Generated-pointwise and
+anchor-epilogue fusion remain disabled for the whole low-containing partition. The shared custom
+route uses fixed reviewed raw-word/integer/movement/predicate kernels behind one whole-program invocation with
+declared assigned buffers for every logical value and no host repair.
 
 Task-0069 L1 at wire `114`, ScatterAdd at wire `70`, and singleton VARIANCE at wire `112` are fixed
 `CUSTOM_PROGRAM` under `CA_0069`; Java and native creation reject their direct MPSGraph routes. L1
@@ -490,8 +474,7 @@ resolved positive-stride non-overlapping storage layouts; BOOL validation visits
 only. Local selected publication gathers logical elements from authenticated physical storage and
 preserves exact target-relative offsets and holes without exposing aliases.
 
-The package uses ABI 6 with fourteen exports; the added context-environment query supplies the
-immutable native half of certificate identity. Node schema 19 is one bounded self-describing,
+The package uses ABI 7 with thirteen exports. Node schema 19 is one bounded self-describing,
 route-bearing image over type wires `1..7`, operation wires `1..115`, attribute wires `0..41`,
 route wires `1..3`, an exact numerical-profile wire, and complete optional storage-layout geometry.
 Its fixed 128-byte `SM19` header authenticates the core image and, only for `CUSTOM_PROGRAM`, the
@@ -533,7 +516,6 @@ noncanonical layouts, gradients, fan-out, targets, and cap rejection preserve fi
 MPSGraph boundaries; Task-0069 VARIANCE remains custom only for its exact singleton domain.
 
 Structural execution covers exactly 101 kinds with 14 remaining nonexecutable; production
-capability is exactly 86 kinds with 29 remaining false. Catalog counts are exactly `75/35/5`
-MPSGraph and `73/42/0` custom. Workload, exact-policy, candidate, compatibility, route-policy, and
-codec identities are version twenty-eight; every other identity fails closed. The complete-plan
-wrapper remains version one.
+capability is exactly 86 kinds with 29 remaining false. Workload, exact-policy, candidate,
+compatibility, route-policy, and codec identities are version twenty-nine; every other identity
+fails closed. The complete-plan wrapper remains version one.

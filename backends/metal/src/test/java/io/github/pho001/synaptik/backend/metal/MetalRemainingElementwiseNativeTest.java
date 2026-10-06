@@ -1705,9 +1705,8 @@ class MetalRemainingElementwiseNativeTest {
             context = api.createContext();
             MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
                     profile, program, values, feeds, targets, MetalPreparedRoute.CUSTOM_PROGRAM);
-            executable = api.createMpsGraphExecutable(
-                    context, profile, values, program, feeds, targets,
-                    MetalPreparedRoute.CUSTOM_PROGRAM, fusion);
+            executable = api.createProgramExecutable(context, profile, values, program, feeds, targets,
+            MetalPreparedRoute.CUSTOM_PROGRAM, fusion);
             int[] materialized = fusion.materializedProgramValueIndices();
             int[] programToSlot = fusion.programToMaterializedSlot();
             for (int value : materialized) {
@@ -1781,8 +1780,7 @@ class MetalRemainingElementwiseNativeTest {
             MetalPointwiseFusionPlan fusion = route == MetalPreparedRoute.CUSTOM_PROGRAM
                     ? MetalPointwiseFusionPlanner.plan(profile, program, values, feeds, targets, route)
                     : null;
-            executable = api.createMpsGraphExecutable(
-                    context, profile, values, program, feeds, targets, route, fusion);
+            executable = api.createProgramExecutable(context, profile, values, program, feeds, targets, route, fusion);
             int[] materialized;
             int[] programToSlot;
             if (fusion != null) {
@@ -1845,14 +1843,13 @@ class MetalRemainingElementwiseNativeTest {
             var outputs = new ArrayList<MetalNativeApi.Handle>();
             try {
                 context = api.createContext();
-                executable = api.createMpsGraphExecutable(
-                        context,
-                        profile,
-                        values,
-                        program,
-                        feeds,
-                        targets,
-                        MetalPreparedRoute.MPSGRAPH);
+                executable = api.createProgramExecutable(context,
+                profile,
+                values,
+                program,
+                feeds,
+                targets,
+                MetalPreparedRoute.MPSGRAPH);
                 for (int index = 0; index < feeds.length; index++) {
                     assertEquals(values.get(feeds[index]).byteCount(), feedBytes.get(index).length);
                     MetalNativeApi.Handle input =
@@ -1916,8 +1913,7 @@ class MetalRemainingElementwiseNativeTest {
             node.kind().isTask0066Selected()
                 ? MetalPreparedRoute.CUSTOM_PROGRAM
                 : MetalPreparedRoute.MPSGRAPH;
-                executable = api.createMpsGraphExecutable(
-                        context, profile, values, program, feeds, new int[] {target}, route);
+                executable = api.createProgramExecutable(context, profile, values, program, feeds, new int[] {target}, route);
                 for (int[] words : feedWords) {
                     MetalNativeApi.Handle input = api.createBuffer(
                             context, Math.multiplyExact((long) words.length, Integer.BYTES));

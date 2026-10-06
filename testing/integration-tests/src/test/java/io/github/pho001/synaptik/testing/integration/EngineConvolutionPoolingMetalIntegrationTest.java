@@ -133,13 +133,38 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
                 try (var session = engine.session(compiled)) {
-                    assertEquals(2, events.size(), "structural and outcome preparation events");
-                    ObservedTrace preparation = events.getFirst();
+                    assertEquals(3, events.size(),
+                            "structural, low-precision, and outcome preparation events");
+                    ObservedTrace preparation = events.get(0);
                     assertEquals("PREPARE", preparation.phase());
+                    assertEquals("MetalPreparationStructure",
+                            preparation.payload().getClass().getSimpleName());
                     assertEquals(
                             "CUSTOM_KERNEL",
                             enumName(component(preparation.payload(), "route")),
                             "convolution and pooling graph uses the custom route");
+                    ObservedTrace lowPrecision = events.get(1);
+                    assertEquals("PREPARE", lowPrecision.phase());
+                    assertEquals("LowPrecisionTraceMetadata",
+                            lowPrecision.payload().getClass().getSimpleName());
+                    assertEquals("CUSTOM_KERNEL",
+                            enumName(component(lowPrecision.payload(), "selectedRoute")));
+                    assertEquals(List.of(
+                            "FLOAT32", "FLOAT32", "FLOAT32", // Conv2d feeds
+                            "FLOAT32", "FLOAT32", "FLOAT32", // Conv3d feeds
+                            "BFLOAT16", "FLOAT32",            // Mixed Conv2d feeds
+                            "FLOAT32", "FLOAT32", "FLOAT32", // Conv2d/Pool2d targets
+                            "FLOAT32", "FLOAT32", "FLOAT32", // Conv3d/Pool3d targets
+                            "FLOAT32"),                       // Mixed Conv2d target
+                            component(lowPrecision.payload(), "logicalDtypeTuple"));
+                    assertEquals("ACCELERATOR",
+                            enumName(component(lowPrecision.payload(), "numericalProfile")));
+                    ObservedTrace outcome = events.get(2);
+                    assertEquals("PREPARE", outcome.phase());
+                    assertEquals("BackendPreparationOutcome",
+                            outcome.payload().getClass().getSimpleName());
+                    assertEquals("SUCCEEDED", enumName(component(outcome.payload(), "status")));
+                    assertEquals("CUSTOM_KERNEL", enumName(component(outcome.payload(), "route")));
                     assertResults(session.run(List.of(
                             bias3d,
                             mixedInput,

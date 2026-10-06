@@ -53,14 +53,14 @@ class MetalVarianceNativeTest {
     void customAbiRejectsEveryAlternateProfileRouteAttributeGradientTypeAndGeometry() {
         var valid = program(false, List.of(0), 0L);
         var values = values(new long[] {1L}, false, false, false, DataType.FLOAT32);
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
                 NumericalProfile.ACCELERATOR,
                 values,
                 valid,
                 new int[] {0},
                 new int[] {1},
                 MetalPreparedRoute.CUSTOM_PROGRAM);
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
                 NumericalProfile.ACCELERATOR,
                 values(new long[] {1L}, false, true, false, DataType.FLOAT32),
                 program(true, List.of(0), 0L),
@@ -108,14 +108,13 @@ class MetalVarianceNativeTest {
         MetalNativeApi.Handle buffer = null;
         try {
             context = api.createContext();
-            executable = api.createMpsGraphExecutable(
-                    context,
-                    NumericalProfile.ACCELERATOR,
-                    values(new long[] {1L}, false, false, false, DataType.FLOAT32),
-                    program(false, List.of(0), 0L),
-                    new int[] {0},
-                    new int[] {1},
-                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context,
+            NumericalProfile.ACCELERATOR,
+            values(new long[] {1L}, false, false, false, DataType.FLOAT32),
+            program(false, List.of(0), 0L),
+            new int[] {0},
+            new int[] {1},
+            MetalPreparedRoute.CUSTOM_PROGRAM);
             buffer = api.createBuffer(context, Integer.BYTES);
             upload(api, buffer, 0x3fc00000);
             MetalNativeApi.Handle retainedExecutable = executable;
@@ -146,7 +145,7 @@ class MetalVarianceNativeTest {
             MetalPreparedRoute route) {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         profile, values, program, new int[] {0}, new int[] {1}, route));
     }
 
@@ -157,14 +156,13 @@ class MetalVarianceNativeTest {
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
-            executable = api.createMpsGraphExecutable(
-                    context,
-                    NumericalProfile.ACCELERATOR,
-                    values(new long[] {1L}, false, keepDimensions, false, DataType.FLOAT32),
-                    program(keepDimensions, List.of(0), 0L),
-                    new int[] {0},
-                    new int[] {1},
-                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context,
+            NumericalProfile.ACCELERATOR,
+            values(new long[] {1L}, false, keepDimensions, false, DataType.FLOAT32),
+            program(keepDimensions, List.of(0), 0L),
+            new int[] {0},
+            new int[] {1},
+            MetalPreparedRoute.CUSTOM_PROGRAM);
             buffers.add(api.createBuffer(context, Integer.BYTES));
             buffers.add(api.createBuffer(context, Integer.BYTES));
             upload(api, buffers.getFirst(), word);

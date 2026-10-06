@@ -128,10 +128,9 @@ import java.util.Optional;
  * self-describing image over stable type wires 1..7, complete operation registry 1..115, attribute
  * registry 0..41, the explicit prepared route, and its authenticated execution plan. Production
  * capability remains bounded by the provider predicate and its low-precision proxy. Every selected
- * exact custom or Task-0069 occurrence and every low arithmetic occurrence fixes the whole
- * partition to {@code CUSTOM_PROGRAM}. Homogeneous no-gradient low raw-preserving candidates keep
- * that route first and add {@code MPSGRAPH} only after exact immutable-environment certificate
- * qualification. Neither path permits retry, CPU fallback, timing, or autotuning.
+ * exact custom occurrence and every partition containing BFLOAT16 or FLOAT16 values fixes the
+ * whole partition to {@code CUSTOM_PROGRAM}. No low-precision partition exposes another candidate.
+ * Neither low routes nor existing FLOAT32 routes permit retry, CPU fallback, timing, or autotuning.
  * Rank-zero values participate only where exact capability permits them. Analysis freshly
  * regenerates the complete candidate batch. Every supplied handoff authenticates its exact
  * partition, schema, workload, profile, and session target; an absent decision preserves the
@@ -501,13 +500,29 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         .toList();
         var heuristicPlan = new MetalNegPreparationPlan(
                 context.numericalProfile(),
-                context.partition(), context.partitionDag(), deviceContext,
+                context.partition(),
+                context.partitionDag(),
+                deviceContext,
                 route,
-                valueIds, descriptors,
-            physicalValueLayouts, valueStates, graphProgram,
-                feeds, feedIndices, targets, targetIndices,
-                internalValues, internalIndices, internalBytes, declarations, feedSplats,
-                feedSplatSources, heuristicWorkspace, feedBytes, targetBytes);
+                valueIds,
+                descriptors,
+                physicalValueLayouts,
+                valueStates,
+                programValueDescriptors,
+                graphProgram,
+                feeds,
+                feedIndices,
+                targets,
+                targetIndices,
+                internalValues,
+                internalIndices,
+                internalBytes,
+                declarations,
+                feedSplats,
+                feedSplatSources,
+                heuristicWorkspace,
+                feedBytes,
+                targetBytes);
         MetalNegTuningBatch freshBatch = new MetalNegRouteCandidateGenerator()
                 .generate(context, heuristicPlan, MetalNegTuningBatch.Candidate.values().length);
         var suppliedHandoff = context.backendInputs().tuningHandoff();
@@ -567,8 +582,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         programValueDescriptors,
                         feedIndices,
                         targetIndices,
-                        selectedInternalValues.size(),
-                        heuristicPlan);
+                        selectedInternalValues.size());
         MetalNegPreparationPlan plan;
         if (traceUnit == null || !traceUnit.enabled()) {
             if (route == heuristicPlan.route()) {
@@ -576,26 +590,57 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             } else {
                 plan = new MetalNegPreparationPlan(
                         context.numericalProfile(),
-                        context.partition(), context.partitionDag(), deviceContext,
+                        context.partition(),
+                        context.partitionDag(),
+                        deviceContext,
                         route,
-                        valueIds, descriptors,
-                physicalValueLayouts, valueStates, graphProgram,
-                        feeds, feedIndices, targets, targetIndices,
-                        selectedInternalValues, selectedInternalIndices, selectedInternalBytes,
-                        selectedDeclarations, feedSplats, feedSplatSources, selectedWorkspace,
-                        feedBytes, targetBytes);
+                        valueIds,
+                        descriptors,
+                        physicalValueLayouts,
+                        valueStates,
+                        programValueDescriptors,
+                        graphProgram,
+                        feeds,
+                        feedIndices,
+                        targets,
+                        targetIndices,
+                        selectedInternalValues,
+                        selectedInternalIndices,
+                        selectedInternalBytes,
+                        selectedDeclarations,
+                        feedSplats,
+                        feedSplatSources,
+                        selectedWorkspace,
+                        feedBytes,
+                        targetBytes);
             }
         } else {
             plan = new MetalNegPreparationPlan(
                     context.numericalProfile(),
-                    context.partition(), context.partitionDag(), deviceContext,
+                    context.partition(),
+                    context.partitionDag(),
+                    deviceContext,
                     route,
-                    valueIds, descriptors,
-            physicalValueLayouts, valueStates, graphProgram,
-                    feeds, feedIndices, targets, targetIndices,
-                    selectedInternalValues, selectedInternalIndices, selectedInternalBytes,
-                    selectedDeclarations, feedSplats, feedSplatSources, selectedWorkspace,
-                    feedBytes, targetBytes, traceUnit);
+                    valueIds,
+                    descriptors,
+                    physicalValueLayouts,
+                    valueStates,
+                    programValueDescriptors,
+                    graphProgram,
+                    feeds,
+                    feedIndices,
+                    targets,
+                    targetIndices,
+                    selectedInternalValues,
+                    selectedInternalIndices,
+                    selectedInternalBytes,
+                    selectedDeclarations,
+                    feedSplats,
+                    feedSplatSources,
+                    selectedWorkspace,
+                    feedBytes,
+                    targetBytes,
+                    traceUnit);
         }
         var allDeclarations =
                 new ArrayList<PreparationResourceRequirement>(selectedDeclarations);

@@ -200,26 +200,23 @@ The following invariants must remain true:
   are permitted, never across public, saved, fan-out, predicate, index, mask, selection, or state
   boundaries.
 - A Model-owned public per-family envelope gives a cancellation- and size-aware forward-error
-  bound for transformed algorithms. Low opaque routes qualify by deductive proof or versioned
-  certification against that envelope; an operation name, examples, or generic `allclose` does
-  not qualify them. Determinism metadata is separate from accuracy evidence.
+  bound for transformed algorithms. A backend implementation must satisfy that envelope; an
+  operation name, examples, or generic `allclose` do not qualify it.
 - Canonical checked-in capability ledgers are generated from actual CPU and Metal provider queries
   and record provider query identity plus boolean answers; separate target columns are not provider
-  facts. Provider evidence contains no route, runtime, device, certificate, or generated-backward
-  ownership. Active certificate schema 1 separately keys profile, family, dtype tuple, accumulator,
-  Shape/layout domain, route, exact GPU/OS/SDK/framework/compiler environment, native-binary and
-  schema-19 program digests, graph options, and capability-manifest hash. Metal native ABI 6 adds
-  the context environment-identity export; program schema 19, identities 28, CPU generator schema
-  68, and route/type/operation/attribute wires retain their allocations.
-  Low-precision PREPARE trace reports the selected custom or MPSGraph route. Only a selected,
-  exactly certified MPSGraph route carries the complete certificate key and distinct accuracy and
-  determinism evidence; selected custom carries `NOT_CERTIFIED` and no borrowed certificate
-  evidence. Metal has no executable/compilation/preparation cache. Tuning compatibility is
-  session-only and binds identity versions, profile, ABI, a random context nonce, schema-19
-  program/plan semantics, explicit dtype wires and descriptors; candidate and complete-plan bytes
-  additionally bind the selected route and phase-one decision. Certificate/environment bytes are
-  outside the workload digest because they are immutable per context, qualification is regenerated,
-  and a new context has a new nonce; tools never persist session-scoped decisions.
+  facts. Provider evidence contains no route, runtime, device, or generated-backward ownership.
+  Metal native ABI 7 exposes thirteen symbols. Program schema 19, CPU generator schema 68, and
+  route/type/operation/attribute wires retain their allocations; the coordinated Metal
+  workload/exact-policy/candidate/compatibility/route/codec identities are version 29.
+  Every low-precision PREPARE trace reports the selected custom route, ordered logical boundary
+  dtype tuple, and numerical profile. It has no accumulator or working-type field: those Model
+  arithmetic guarantees are semantic rules, not diagnostic route facts. The trace reports
+  execution facts, not hypothetical candidates or removed certificate state. Metal has no
+  executable/compilation/preparation cache. Tuning compatibility is session-only and binds identity
+  versions, profile, ABI, a random context nonce,
+  schema-19 program/plan semantics, explicit dtype wires and descriptors; candidate and
+  complete-plan bytes additionally bind the selected route and phase-one decision. A new context
+  has a new nonce, and tools never persist session-scoped decisions.
 - Engine construction captures one exact graph-wide profile, defaulting to `STRICT_IEEE`.
   Planning queries, Compiler artifacts, Prepare contexts, and backend plan/cache identities retain
   it unchanged. For a fixed occurrence domain, every backend's `STRICT_IEEE` capability and allowed
@@ -232,20 +229,16 @@ The following invariants must remain true:
   BFLOAT16 and FLOAT16 ownership. This includes the documented arithmetic, scalar, reduction, scan,
   MATMUL, MSE, convolution, average-pooling, dropout, L1, ScatterAdd, and singleton-variance
   domains. Direct BFLOAT16/FLOAT16 mixed-low operations remain unsupported; explicit casts to
-  FLOAT32 are the sole mixed-low path. All admitted low arithmetic occurrences select one fixed
-  custom program. Homogeneous no-gradient BFLOAT16/FLOAT16 raw-preserving `RESHAPE`, simple
-  `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and `TILE` images may additionally expose
-  MPSGraph only when a schema-1 certificate exactly matches the immutable context environment and
-  exact schema-19 program digest. Custom remains the first baseline candidate; malformed, unknown,
-  stale, incomplete, or mismatched evidence leaves it as the only candidate. No low route may use
-  MPS, CPU, retry, generated-pointwise, or fusion fallback.
-  The store contains exactly 24 positive MPSGraph raw certificates. Classic MPS and MPP have only
-  checked-in environment-bound qualified-negative rows: MPS passes its device, FLOAT16 convolution,
-  and FLOAT accumulator-option gates but lacks complete exact layout/domain proof and BFLOAT16
-  guarantees; MPP compiles target `matmul2d`/`convolution2d` pipelines with
-  `__HAVE_TENSOR__`, `relaxed_precision=false`, and FLOAT32 destinations but exposes no public
-  internal-accumulator type. A FLOAT32 destination is not a FLOAT32-accumulation guarantee. Neither
-  family owns a candidate, route wire, certificate, or fallback.
+  FLOAT32 are the sole mixed-low path. Every partition containing BFLOAT16 or FLOAT16 values
+  selects one fixed custom program and exposes only the `CUSTOM_PROGRAM` candidate. This includes
+  raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and
+  `TILE`. The partition route remains `CUSTOM_PROGRAM`: every operation consuming or producing a
+  BFLOAT16 or FLOAT16 value uses a custom step, never MPSGraph or a hidden BFLOAT16-to-FLOAT16
+  substitution. Any FLOAT32-only operation in that same partition may use an internal MPSGraph
+  boundary step under the existing FLOAT32 policy, whether on an independent FLOAT32 branch or
+  after an explicit low-to-FLOAT32 cast; this does not add a partition candidate or change its
+  route. No generated-pointwise or anchor-epilogue fusion occurs anywhere in a low-containing
+  partition. Classic MPS, MPP, CPU, retry, and fallback are not low-precision alternatives.
   MATMUL operands are canonical or authenticated local identity-prefix, last-two-axis transposes.
   Conv1d and Pool1d use only authenticated local singleton-height compositions. Existing rank-two
   FLOAT32 matrix products retain direct MPSGraph; newly admitted MATMUL forms and

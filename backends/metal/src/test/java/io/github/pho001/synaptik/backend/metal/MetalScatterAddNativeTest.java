@@ -176,7 +176,7 @@ class MetalScatterAddNativeTest {
     void JavaPreflightRejectsAlternateProfileRouteGradientFeedAndAliasing() {
         var validProgram = program(0, 1, 2, 3);
         var values = values(DataType.INT32, false);
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
                 NumericalProfile.ACCELERATOR,
                 values,
                 validProgram,
@@ -184,7 +184,7 @@ class MetalScatterAddNativeTest {
                 new int[] {3},
                 MetalPreparedRoute.CUSTOM_PROGRAM);
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.STRICT_IEEE,
                         values,
                         validProgram,
@@ -192,7 +192,7 @@ class MetalScatterAddNativeTest {
                         new int[] {3},
                         MetalPreparedRoute.CUSTOM_PROGRAM));
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         values,
                         validProgram,
@@ -200,7 +200,7 @@ class MetalScatterAddNativeTest {
                         new int[] {3},
                         MetalPreparedRoute.MPSGRAPH));
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         values(DataType.INT32, true),
                         validProgram,
@@ -208,7 +208,7 @@ class MetalScatterAddNativeTest {
                         new int[] {3},
                         MetalPreparedRoute.CUSTOM_PROGRAM));
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         values,
                         validProgram,
@@ -216,7 +216,7 @@ class MetalScatterAddNativeTest {
                         new int[] {3},
                         MetalPreparedRoute.CUSTOM_PROGRAM));
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         values,
                         program(0, 1, 0, 3),
@@ -237,14 +237,13 @@ class MetalScatterAddNativeTest {
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
-            executable = api.createMpsGraphExecutable(
-                    context,
-                    NumericalProfile.ACCELERATOR,
-                    values(indexType, valueType, false),
-                    program(0, 1, 2, 3),
-                    new int[] {0, 1, 2},
-                    new int[] {3},
-                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context,
+            NumericalProfile.ACCELERATOR,
+            values(indexType, valueType, false),
+            program(0, 1, 2, 3),
+            new int[] {0, 1, 2},
+            new int[] {3},
+            MetalPreparedRoute.CUSTOM_PROGRAM);
             buffers.add(api.createBuffer(context, 5L * valueType.byteWidth()));
             buffers.add(api.createBuffer(context, 3L * indexType.byteWidth()));
             buffers.add(api.createBuffer(context, 3L * valueType.byteWidth()));

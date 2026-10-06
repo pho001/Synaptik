@@ -18,6 +18,7 @@ import io.github.pho001.synaptik.trace.TracePayload;
 import io.github.pho001.synaptik.trace.TracePhase;
 import io.github.pho001.synaptik.trace.payload.BackendInvocationOutcome;
 import io.github.pho001.synaptik.trace.payload.BackendPreparationOutcome;
+import io.github.pho001.synaptik.trace.payload.LowPrecisionTraceMetadata;
 import io.github.pho001.synaptik.trace.payload.TraceCacheStatus;
 import io.github.pho001.synaptik.trace.payload.TraceNativeStatusKind;
 import io.github.pho001.synaptik.trace.payload.TraceNumericalProfile;
@@ -407,6 +408,67 @@ class MetalTraceProducerTest {
                 ((MetalPreparationStructure) repeatedEvents.getFirst().payload())
                         .canonicalDigest());
         assertNotNull(composed);
+    }
+
+    @Test
+    void lowPrecisionGatherAndGatherThenAddExposeOnlySelectedBoundaryFacts() {
+        var values = List.of(
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT16, new long[] {2, 3}, false),
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.INT32, new long[] {2}, false),
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT16, new long[] {2, 2}, false),
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT16, new long[] {2, 2}, false),
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT16, new long[] {2, 2}, false));
+        var gather = MetalMpsGraphProgram.Node.gather(0, 1, 2, 1);
+        List<TraceEvent<? extends TracePayload>> rawEvents = new ArrayList<>();
+        var raw = new MetalTraceProducer(rawEvents::add).prepareUnit(
+                NumericalProfile.ACCELERATOR,
+                MetalPreparedRoute.CUSTOM_PROGRAM,
+                new MetalMpsGraphProgram(List.of(gather)),
+                values.subList(0, 3),
+                new int[] {0, 1},
+                new int[] {2},
+                0);
+        assertNotNull(raw);
+        LowPrecisionTraceMetadata rawMetadata = rawEvents.stream()
+                .map(TraceEvent::payload)
+                .filter(LowPrecisionTraceMetadata.class::isInstance)
+                .map(LowPrecisionTraceMetadata.class::cast)
+                .findFirst().orElseThrow();
+        assertEquals(List.of("FLOAT16", "INT32", "FLOAT16"),
+                rawMetadata.logicalDtypeTuple());
+        assertEquals(TraceRouteKind.CUSTOM_KERNEL, rawMetadata.selectedRoute());
+        assertEquals(TraceNumericalProfile.ACCELERATOR, rawMetadata.numericalProfile());
+
+        List<TraceEvent<? extends TracePayload>> mixedEvents = new ArrayList<>();
+        var mixed = new MetalTraceProducer(mixedEvents::add).prepareUnit(
+                NumericalProfile.ACCELERATOR,
+                MetalPreparedRoute.CUSTOM_PROGRAM,
+                new MetalMpsGraphProgram(List.of(
+                        gather,
+                        MetalMpsGraphProgram.Node.binary(
+                                MetalMpsGraphProgram.NodeKind.ADD, 2, 4, 3))),
+                values,
+                new int[] {0, 1, 4},
+                new int[] {3},
+                1);
+        assertNotNull(mixed);
+        LowPrecisionTraceMetadata mixedMetadata = mixedEvents.stream()
+                .map(TraceEvent::payload)
+                .filter(LowPrecisionTraceMetadata.class::isInstance)
+                .map(LowPrecisionTraceMetadata.class::cast)
+                .findFirst().orElseThrow();
+        assertEquals(List.of("FLOAT16", "INT32", "FLOAT16", "FLOAT16"),
+                mixedMetadata.logicalDtypeTuple());
+        assertEquals(TraceRouteKind.CUSTOM_KERNEL, mixedMetadata.selectedRoute());
+        assertEquals(TraceNumericalProfile.ACCELERATOR, mixedMetadata.numericalProfile());
+        assertEquals(List.of("selectedRoute", "logicalDtypeTuple", "numericalProfile"),
+                Arrays.stream(LowPrecisionTraceMetadata.class.getRecordComponents())
+                        .map(component -> component.getName()).toList());
     }
 
     @Test

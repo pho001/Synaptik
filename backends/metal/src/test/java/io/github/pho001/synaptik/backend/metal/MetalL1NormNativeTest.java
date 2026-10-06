@@ -34,7 +34,7 @@ class MetalL1NormNativeTest {
     @Test
     void customAbiRejectsEveryAlternateReductionFormGradientTypeAndGeometry() {
         var valid = program(4, false, MetalMpsGraphProgram.ReductionForm.MULTI_AXIS, List.of(0));
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
                 NumericalProfile.ACCELERATOR,
                 values(4, false, false, DataType.FLOAT32),
                 valid,
@@ -44,7 +44,7 @@ class MetalL1NormNativeTest {
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         values(4, false, false, DataType.FLOAT32),
                         valid,
@@ -57,7 +57,7 @@ class MetalL1NormNativeTest {
                 program(4, false, MetalMpsGraphProgram.ReductionForm.MULTI_AXIS, List.of()))) {
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                    () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                             NumericalProfile.ACCELERATOR,
                             values(4, false, false, DataType.FLOAT32),
                             malformed,
@@ -67,7 +67,7 @@ class MetalL1NormNativeTest {
         }
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         values(4, true, false, DataType.FLOAT32),
                         valid,
@@ -76,7 +76,7 @@ class MetalL1NormNativeTest {
                         MetalPreparedRoute.CUSTOM_PROGRAM));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         values(4, false, false, DataType.FLOAT64),
                         valid,
@@ -85,7 +85,7 @@ class MetalL1NormNativeTest {
                         MetalPreparedRoute.CUSTOM_PROGRAM));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         NumericalProfile.ACCELERATOR,
                         values(0xffff_ffffL / Float.BYTES + 1L, false, false, DataType.FLOAT32),
                         program(
@@ -108,14 +108,13 @@ class MetalL1NormNativeTest {
         try {
             context = api.createContext();
             var program = program(1, false, MetalMpsGraphProgram.ReductionForm.MULTI_AXIS, List.of(0));
-            executable = api.createMpsGraphExecutable(
-                    context,
-                    NumericalProfile.ACCELERATOR,
-                    values(1, false, false, DataType.FLOAT32),
-                    program,
-                    new int[] {0},
-                    new int[] {1},
-                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context,
+            NumericalProfile.ACCELERATOR,
+            values(1, false, false, DataType.FLOAT32),
+            program,
+            new int[] {0},
+            new int[] {1},
+            MetalPreparedRoute.CUSTOM_PROGRAM);
             buffer = api.createBuffer(context, Integer.BYTES);
             upload(api, buffer, 0xc1200000);
             MetalNativeApi.Handle retainedExecutable = executable;
@@ -151,14 +150,13 @@ class MetalL1NormNativeTest {
                     keepDimensions,
                     MetalMpsGraphProgram.ReductionForm.MULTI_AXIS,
                     List.of(0));
-            executable = api.createMpsGraphExecutable(
-                    context,
-                    NumericalProfile.ACCELERATOR,
-                    values(words.length, false, keepDimensions, DataType.FLOAT32),
-                    program,
-                    new int[] {0},
-                    new int[] {1},
-                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context,
+            NumericalProfile.ACCELERATOR,
+            values(words.length, false, keepDimensions, DataType.FLOAT32),
+            program,
+            new int[] {0},
+            new int[] {1},
+            MetalPreparedRoute.CUSTOM_PROGRAM);
             buffers.add(api.createBuffer(context, (long) words.length * Integer.BYTES));
             buffers.add(api.createBuffer(context, Integer.BYTES));
             upload(api, buffers.get(0), words);

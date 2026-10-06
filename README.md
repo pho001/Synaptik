@@ -34,11 +34,10 @@ MSE, convolution, average-pooling, dropout, L1, ScatterAdd, and singleton-varian
 Every supported homogeneous `FLOAT32` accelerator occurrence has corresponding `BFLOAT16` and
 `FLOAT16` ownership with `FLOAT32` working values and accumulators and one final ties-to-even
 narrowing. Direct mixed `BFLOAT16`/`FLOAT16` operations have no low-precision kernel; callers use
-explicit casts to `FLOAT32`. Every low arithmetic partition uses `CUSTOM_PROGRAM`; exact
-homogeneous no-gradient raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`,
-`SLICE`, `CONCAT`, and `TILE` images may additionally use MPSGraph only after an exact schema-1
-environment/program certificate match. Classic MPS and MPP remain qualified-negative. There is no
-MPS, CPU, retry, generated-pointwise, or fusion fallback.
+explicit casts to `FLOAT32`. Every partition containing BFLOAT16 or FLOAT16 values uses
+`CUSTOM_PROGRAM`, including exact homogeneous no-gradient raw-preserving `RESHAPE`, simple
+`PERMUTE`, materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and `TILE`. It exposes no MPSGraph,
+classic-MPS, MPP, CPU, retry, generated-pointwise, fusion, or fallback route.
 
 Canonical or authenticated local last-two-axis transpose MATMUL operands and exact local
 singleton-height Conv1d/Pool1d compositions are allowed. Existing rank-two FLOAT32 matrix products
@@ -49,12 +48,11 @@ first-order and owned higher-order paths. Overlapping generated folds, Conv3d ba
 convolution transpose, and every other unlisted occurrence remain fail-closed. Exact custom nodes
 fix their whole partition to one custom program with compact run-owned materialized slots and
 direct targets; top-K publishes paired values and INT64 indices from one step. Deterministic
-generated Metal units continue to fuse only their qualified FLOAT32 chains; low-precision
-partitions never enter those routes. ABI 6 and fourteen exports are fixed; the route-bearing
-program image is schema 19, data-type wires are `1..7`, and backend-local route, workload, policy,
-and codec identities are version 28. The active certificate store contains exactly 24 positive
-raw-preserving MPSGraph rows; its complete key and separate accuracy and determinism records are
-reported only for the selected certified route.
+generated Metal units continue to fuse only their qualified FLOAT32 chains; every BFLOAT16/FLOAT16
+partition is custom-program-only. ABI 7 exposes thirteen symbols; the route-bearing program image
+remains schema 19, data-type wires remain `1..7`, and backend-local route, workload, policy, and
+codec identities are version 29. Low-precision preparation trace reports the selected custom route,
+ordered logical dtype tuple, and profile; it has no accumulator or working-type field.
 Standard-Metal convenience, generic plugin registration/discovery, CUDA, broader optimizers,
 durable persistence, and generic graph/plan tuning remain planned.
 Focused documentation identifies the exact current boundary for each area.

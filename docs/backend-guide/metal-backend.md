@@ -3,8 +3,8 @@
 ## Outcome and supported scope
 
 The Metal backend executes one whole maximal profile-homogeneous Metal partition. Its active
-protocol is native ABI 6, program schema 19, data-type wires `1..7`, operation wires `1..115`,
-attribute wires `0..41`, route wires `1..3`, and coordinated backend-local identity 28.
+protocol is native ABI 7, program schema 19, data-type wires `1..7`, operation wires `1..115`,
+attribute wires `0..41`, route wires `1..3`, and coordinated backend-local identity 29.
 
 Both profiles expose an exact common domain containing represented-bit unary operations, affine
 movement and canonicalization, indexing, replacement scatter, non-overlapping folds, classification,
@@ -46,10 +46,9 @@ value role while saving a no-gradient mask and state.
 
 Direct BFLOAT16/FLOAT16 mixed-low operations are unsupported. Explicit casts to FLOAT32 are the
 only mixed-low boundary. Existing one-low-plus-FLOAT32 widening occurrences remain permitted where
-the Model result is FLOAT32. Every low arithmetic partition selects the fixed `CUSTOM_PROGRAM`
-route. Exact raw-preserving low partitions use the same first candidate, with the narrow certified
-MPSGraph exception described below. Neither route can select MPS, generated pointwise source,
-anchor-epilogue fusion, CPU fallback, retry, timing, or autotuning.
+the Model result is FLOAT32. Every partition containing BFLOAT16 or FLOAT16 values selects the
+fixed `CUSTOM_PROGRAM` route. It cannot select MPSGraph, classic MPS, MPP, generated pointwise
+source, anchor-epilogue fusion, CPU fallback, retry, timing, or autotuning.
 
 Generated backward graphs reuse the same admitted occurrence predicates. Floating casts, inverse
 affine movement, broadcast sum-to-Shape, arithmetic/scalar/reduction/scan formulas, saved-mask
@@ -86,33 +85,28 @@ capability -> Planning ownership -> Metal analysis and typed candidates
 ```
 
 Capability applies per occurrence. Preparation authenticates the complete maximal partition.
-Existing eligible rank-two FLOAT32 MATMUL may retain direct MPSGraph. Low arithmetic and every
-uncertified low occurrence use the shared custom whole-program route. A homogeneous no-gradient
-BFLOAT16/FLOAT16 raw-preserving partition over only `RESHAPE`, simple `PERMUTE`, materializing
-`CONTIGUOUS`, `SLICE`, `CONCAT`, or `TILE` may additionally expose MPSGraph after an exact schema-1
-certificate lookup. The capability catalog remains `86 true / 29 false` over operation kinds, with
-structural execution `101 / 14` and route catalogs `75/35/5` for MPSGraph and `73/42/0` for custom.
-These kind inventories do not count additional dtype occurrences.
+Existing eligible rank-two FLOAT32 MATMUL may retain direct MPSGraph. Every partition containing
+BFLOAT16 or FLOAT16 values uses the shared custom whole-program route. The capability catalog
+remains `86 true / 29 false` over operation kinds, with structural execution `101 / 14`. These kind
+inventories do not count additional dtype occurrences.
 
 Within that capability domain, Metal analysis generates a typed complete candidate batch and
 selects one of three private routes:
 
-- `CUSTOM_SINGLE_NEG` for exactly one NEG occurrence under either profile, one unique feed, one
-  unique target, and a checked element count in `1..UINT32_MAX`;
-- `CUSTOM_PROGRAM` for a complete partition containing any Task-0052 node, any of the seven
-  BOOL-domain nodes, exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`, an admitted
+- `CUSTOM_SINGLE_NEG` for exactly one FLOAT32 NEG occurrence under either profile, one unique feed,
+  one unique target, and a checked element count in `1..UINT32_MAX`;
+- `CUSTOM_PROGRAM` for every partition containing BFLOAT16/FLOAT16 values, any Task-0052 node, any
+  of the seven BOOL-domain nodes, exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`, an admitted
   Task-0059/Task-0060 exact custom node, any Task-0063 ordering/arg-extrema node, any Task-0064
-  convolution/pooling node, either Task-0065 RNG node, MATMUL outside the retained all-FLOAT32
-  rank-two MPSGraph slice, or any low partition without an exact certificate; or
-- `MPSGRAPH` for every other supported partition and as the second candidate for an exactly
-  certified low raw-preserving image.
+  convolution/pooling node, either Task-0065 RNG node, or MATMUL outside the retained all-FLOAT32
+  rank-two MPSGraph slice; or
+- `MPSGRAPH` for every other supported partition.
 
-The custom baseline remains first when a certificate adds MPSGraph. Route choice is fixed during
-cold preparation before shared declarations escape. Certificate absence, rejection, or mismatch
-does not cause a later retry, fallback, or route replacement. The seven BOOL-domain and four exact
-raw unary nodes retain their package-private structural checks without production graph promotion.
-The singleton NEG decision seam is unchanged. Route choice is a prepare-time implementation-domain
-boundary, not capability narrowing, CPU fallback, retry, repartitioning, or a performance claim.
+Route choice is fixed during cold preparation before shared declarations escape. There is no later
+retry, fallback, or route replacement. The seven BOOL-domain and four exact raw unary nodes retain
+their package-private structural checks without production graph promotion. The singleton NEG
+decision seam is unchanged. Route choice is a prepare-time implementation-domain boundary, not
+capability narrowing, CPU fallback, retry, repartitioning, or a performance claim.
 
 The three identities are one closed package-private prepared-route enum. It owns candidate wires
 `1`, `2`, and `3` and the two-value `CUSTOM_KERNEL`/`MPSGRAPH` family; the candidate batch delegates
@@ -120,60 +114,37 @@ wire encoding to that identity rather than maintaining another wire table. Every
 retains one non-null final identity. Finalization, trace metadata, cold binding, and execution read
 that retained identity and cannot replace it.
 
-### Environment-bound low raw certificates
+### Custom-only low-precision route
 
-The immutable context certification identity combines the highest supported Apple GPU family, OS
-build, macOS SDK and loaded MPSGraph framework versions, host/Xcode/Metal compiler versions, exact
-loaded dylib SHA-256, explicit graph/executable compilation options, and the capability-ledger
-hash. Java hashes the selected dylib immediately before and after context creation; a changed file
-rejects construction. Preparation never reconstructs this identity from ambient state.
+Every BFLOAT16/FLOAT16 partition exposes exactly one candidate: `CUSTOM_PROGRAM`. Raw-preserving
+RESHAPE, simple PERMUTE, materializing CONTIGUOUS, SLICE, CONCAT, and TILE follow the same policy as
+low arithmetic. Route eligibility no longer depends on a device/toolchain environment record,
+loaded-dylib hash, certificate store, program certificate, or vendor probe.
 
-The bundled canonical UTF-8 schema-1 TSV store is accepted atomically when the context opens.
-Missing, malformed, unknown, duplicate, detached, stale, or mismatched data leaves an empty
-eligibility store. The complete key includes the profile, raw-preserving family, homogeneous dtype
-tuple, `NONE` accumulator, exact static Shape/layout domain, route, environment, native-binary
-digest, exact schema-19 MPSGraph program digest, flags/options, and capability-ledger hash.
-Eligibility requires an exact complete-key `PASS`; there is no compatible-device, prefix, shape,
-program-family, or stale-binary match.
+Within that custom partition, each BFLOAT16/FLOAT16-valued operation uses a custom kernel step;
+there is no hidden BFLOAT16-to-FLOAT16 substitution. Any FLOAT32-only node, including an
+independent FLOAT32 branch, may use an internal MPSGraph boundary step under the existing FLOAT32
+policy. For example, a BFLOAT16 feed cast explicitly to FLOAT32 uses a fixed custom cast step,
+then a FLOAT32-only NEG may use an internal MPSGraph boundary step. The partition still has only
+the `CUSTOM_PROGRAM` candidate. No generated-pointwise or anchor-epilogue fusion is allowed
+anywhere in the partition.
 
-External storage offsets, layout holes, zero extents, gradients, mixed low carriers, and arithmetic
-remain custom-only. Accuracy and determinism evidence are distinct trace fields. The checked-in
-real-device evidence exhausts all 65,536 BFLOAT16 and FLOAT16 raw words for all six admitted
-programs under both profiles, repeats each executable three times with poisoned targets, and
-separately covers 257-word odd counts. The production certificate rows cover only those exact
-exhaustive schema-19 images.
-
-The low-precision PREPARE trace is selected-route evidence, not a candidate inventory. A custom
-selection reports `CUSTOM_KERNEL` and `NOT_CERTIFIED` with no certificate key, accuracy, or
-determinism values, even when the same occurrence also has a certified MPSGraph candidate. A
-certified MPSGraph selection reports `GRAPH_EXECUTABLE`, the complete schema-1
-`MPSGRAPH_CERTIFIED_RAW_V1` key, accuracy envelope/method/evidence/verdict, and the separately
-associated determinism contract/evidence/verdict. DTO validation rejects detached or
-profile/dtype/accumulator-inconsistent evidence. No classic-MPS or MPP selected identity exists.
+The low-precision `LowPrecisionTraceMetadata` emitted in PREPARE is selected-route execution
+evidence, not a candidate inventory. It reports `CUSTOM_KERNEL`, the ordered feed-then-target
+logical dtype tuple, and the numerical profile. It has no accumulator or working-type field: the
+FLOAT32 working/accumulator rule above remains a Model arithmetic guarantee, not a diagnostic
+field. It carries no certificate status, key, accuracy, determinism, or environment state. While
+tracing remains enabled, the separate structural PREPARE event and outcome also apply to
+low-containing programs.
 
 Metal performs no executable, compilation, or preparation-cache lookup; each finalization builds
 fresh native resources and trace outcomes retain `NOT_QUERIED`. Its tuning identities are
 session-only. Compatibility bytes bind identity versions, profile, ABI, a random context nonce, the
 schema-19 program/plan digest, explicit dtype wires, Shapes/layouts/gradients, ordered boundaries,
 and raw constants; candidate bytes bind the route wire, and complete-plan identity embeds the exact
-phase-one decision. The tuning tools do not persist session-scoped values. Certificate and
-environment bytes stay outside the workload digest because the store/environment are immutable
-within the context, candidate generation repeats exact qualification, and reopening even the same
-library changes the nonce. Thus BFLOAT16/FLOAT16, route, ABI/schema/policy/semantics, and
-context/certificate boundaries cannot reuse one another's decision.
-
-The store has exactly 24 positive MPSGraph certificates: six exact programs times two low carriers
-times two profiles. Classic MPS and MPP have only qualified-negative results. The sibling
-`vendor-route-qualification.tsv` matrix is reproducible through
-`native/metal-macos-arm64/qualify-low-precision-vendor-routes.sh` and records those results on the
-same environment. Classic MPS passes `MPSSupportsMTLDevice`, FLOAT16 `MPSCNNConvolution`
-execution, and the FLOAT accumulator-option readback, but lacks a complete exact Shape/layout
-family proof; its public data-source contract and runtime probe reject BFLOAT16 and provide no
-BFLOAT16 accumulator guarantee. MPP successfully compiles and creates target pipelines for
-FLOAT16/BFLOAT16 `matmul2d` and `convolution2d` with `__HAVE_TENSOR__`,
-`relaxed_precision=false`, and FLOAT32 destinations, but exposes no public internal-accumulator
-type. A FLOAT32 destination does not establish FLOAT32 internal accumulation. Every matrix row is
-`REJECTED`; neither family owns a candidate, route wire, certificate, or fallback.
+phase-one decision. The tuning tools do not persist session-scoped values. Thus
+BFLOAT16/FLOAT16, route, ABI/schema/policy/semantics, and context boundaries cannot reuse one
+another's decision.
 
 Task 0053 retains proposed integer-only raw-word `EXP` and stable `SIGMOID` sources plus independent
 MPFR/Sollya/Lean evidence. They are evidence-only artifacts: production imports no candidate header,
@@ -209,10 +180,10 @@ device discovery.
 | Opaque tuning handoff | Metal can construct the Prepare-owned marker-role handoff with no decision or one Metal decision. Shared Prepare does not inspect private candidates; the Metal preparer treats a present decision as untrusted. |
 | Shared preparation | `GraphPreparation` projects facts, assigns slots, validates the result, and transfers persistent resources transactionally. It does not inspect the Metal plan or route. |
 | Finalization | Metal validates exact assignments, compiles the fixed singleton pipeline, one shared custom-program recipe, or one shape-specialized MPSGraph executable, then allocates/uploads each source-owned immutable splat in feed order. It never reselects the route. |
-| Persistent resources | The route resource and zero or more immutable splat resources are returned in physical acquisition order. `PreparedExecution` uniquely owns each prepared owner. A splat owner may have already-issued read-only run-binding child leases; owner close rejects new bindings and the last child performs exact-once physical buffer release. Custom-pipeline and MPSGraph handles are never interchangeable. |
+| Persistent resources | The route resource and zero or more immutable splat resources are returned in physical acquisition order. `PreparedExecution` uniquely owns each prepared owner. `MetalProgramExecutableResource` owns the native executable and context child lease for either a `CUSTOM_PROGRAM` or an `MPSGRAPH` route; the custom-singleton pipeline has a separate resource type. A splat owner may have already-issued read-only run-binding child leases; owner close rejects new bindings and the last child performs exact-once physical buffer release. These native handles are not interchangeable across routes. |
 | Per-run state | Runtime borrows exact typed caller buffers, owns one fresh read-only binding object for each persistent source splat, and owns fresh typed output buffers. MPSGraph and custom-program runs own one fresh native-address workspace; singleton custom runs do not. Mutable outputs/workspaces are never shared or pooled. The scatter executable owns bounded primitive coordinate/uniqueness scratch rebuilt under its synchronized run. SELECT/SLICE buffers cover their full physical referenced span; kernels touch only logical positions. A reduction target receives its declared carrier width, including one byte per BOOL element. |
 | Hot invocation | Cold binding authenticates and unwraps immutable splat bindings, retains direct typed buffers/handles, validates every resource and then every indexing or BOOL element before destination mutation, and makes one synchronous typed native call into assigned output destinations only on success. |
-| Optional trace observation | A traced integration emits only final PREPARE and native RUN outcomes through a caller-owned `MetalTraceObserver`. PREPARE succeeds only after route and splat acquisition. The ordinary open overload creates no producer or trace work. Observation never selects a route, retries, falls back, or changes ownership or results. |
+| Optional trace observation | While tracing remains enabled, a traced integration emits advisory `MetalPreparationStructure` facts in PREPARE, selected-route `LowPrecisionTraceMetadata` for low-containing programs, and a `BackendPreparationOutcome` after finalization. A bound invocation reaching the native-call path emits a pre-native `MetalInvocationPlan` in RUN and then a `BackendInvocationOutcome` on success or failure; Java-side failures have no native status. PREPARE succeeds only after route and splat acquisition. The ordinary open overload creates no producer or trace work. Observation never selects a route, retries, falls back, or changes ownership or results. |
 | Publication | Runtime leases the already-resident output representation. Canonical outputs, local rank-zero reduction outputs, authenticated affine targets, and readable persistent splat bindings may be downloaded as detached canonical host bytes. SELECT/SLICE publication gathers all seven carriers from exact physical storage while preserving holes. CPU/Metal transfer accepts canonical or supported positive-stride non-overlapping storage layouts and validates logical BOOL bytes before any destination mutation. |
 
 The public Java surface contains `MetalCapabilityProvider`, `MetalBackendConfiguration`,
@@ -249,10 +220,9 @@ refresh.
 `BackendDeviceId(metal, "default")`, fixed `TraceDeviceId(0)`, and the tuning `SessionNonce` are
 distinct non-physical identities. The first is an abstract availability slot, the second a Metal
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
-claim. No mapping among them is implied. ABI 6 and the fourteen native exports are fixed; the
-certification environment is retained context identity, not a public device-selection identity.
-The route-bearing image is schema 19 and every workload/exact-policy/candidate/compatibility/
-route/codec identity is version 28; every other schema or identity fails closed. Tuning remains
+claim. No mapping among them is implied. ABI 7 and the thirteen native exports are fixed. The
+route-bearing image is schema 19 and every workload/exact-policy/candidate/compatibility/
+route/codec identity is version 29; every other schema or identity fails closed. Tuning remains
 session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
@@ -280,7 +250,9 @@ sequences beginning at zero. Each event uses `System.nanoTime()`. After final ro
 recognition, but before native creation, Metal emits one bounded `MetalPreparationStructure`
 `PREPARE` event with profile, neutral route, fused/composed anchor family and suffix order,
 schema/generator identities, bounded counts, canonical digest, and bounded custom-step summaries.
-Resource finalization then emits the existing preparation outcome. Immediately before each native
+For a low-containing program, it then emits `LowPrecisionTraceMetadata` with the selected custom
+route, ordered feed-then-target logical dtype tuple, and profile. Resource finalization emits the
+preparation outcome. Immediately before each native
 run call Metal emits one `MetalInvocationPlan` `RUN` event with invocation identity, route, slot
 counts, aggregate input/output/internal/splat/workspace bytes, splat/workspace counts, and the same
 bounded step summaries; the
@@ -358,6 +330,10 @@ positions. Generated data cotangents require non-overlapping effective windows. 
 singleton-height Conv1d/Pool1d forms remain authenticated local compositions. Availability and hard
 backend requirements remain separate Planning facts.
 
+Generated pointwise units and anchor epilogues require a partition whose complete value table
+contains no BFLOAT16 or FLOAT16 descriptor. Even eligible FLOAT32 nodes cannot form those fused
+steps when another value in their partition has a low-precision type.
+
 `ACCELERATOR` recognizes a bounded anchor epilogue only when every suffix intermediate is private,
 single-consumer, non-target, canonical, and shape/type/gradient compatible. MATMUL admits optional
 literal `SCALAR_MUL`, at most one source-ordered tensor `ADD`, and optional terminal `RELU` or
@@ -423,22 +399,23 @@ consuming a caller position. Existing shared `GraphPreparation` tests independen
 chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, typed node records, and the
-canonical execution plan are known, analysis creates a version-twenty-eight candidate batch and
-workload fingerprint. Every selected Task-0066 or Task-0069 occurrence forces the fixed
-`CUSTOM_PROGRAM` production candidate; the batch rejects a selected-node MPSGraph route before
-native allocation. Other partitions retain their established candidate sets, including the bounded
-singleton-NEG dual-route case and direct rank-two FLOAT32 MATMUL where no selected custom-only node
-requires the whole-program route. Package-private structural forcing remains available only for a
-route already present in the fresh authenticated batch.
+canonical execution plan are known, analysis creates a version-twenty-nine candidate batch and
+workload fingerprint. Every partition containing BFLOAT16/FLOAT16 values or a selected
+Task-0066/Task-0069 occurrence forces the fixed `CUSTOM_PROGRAM` production candidate; the batch
+rejects a selected-node MPSGraph route before native allocation. Other FLOAT32 partitions retain
+their established candidate sets, including the bounded singleton-NEG dual-route case and direct
+rank-two FLOAT32 MATMUL where no selected custom-only node requires the whole-program route.
+Package-private structural forcing remains available only for a route already present in the fresh
+authenticated batch.
 
-The version-twenty-eight canonical workload fingerprint covers the explicit numerical-profile wire,
+The version-twenty-nine canonical workload fingerprint covers the explicit numerical-profile wire,
 the schema-nineteen route-bearing program image and authenticated execution extension, ordered
 input and output references, all typed attributes, logical and physical value states,
 authenticated local provenance, complete tensor descriptors and storage layouts, compact
 materialized and target sets, exact scalar/splat bits, logical-boundary roles,
 policy/candidate/route schemas, and ABI version. It encodes structural positions rather than graph
 object identity. Target compatibility also contains a fresh private nonce from the exact
-`MetalDeviceContext`; only identity 28 is accepted, while every other decision fails closed.
+`MetalDeviceContext`; only identity 29 is accepted, while every other decision fails closed.
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. Every supplied handoff is accepted only when the exact
 partition, candidate schema, workload fingerprint, and context session match. An absent decision
@@ -463,15 +440,15 @@ exposes this test seam.
 
 ### Session decision codec and limitations
 
-The package-private version-twenty-eight Metal codec produces bounded canonical compatibility,
+The package-private version-twenty-nine Metal codec produces bounded canonical compatibility,
 candidate, and checksummed decision bytes. Decode rejects wrong magic, schema, session scope,
 numerical profile, malformed or truncated content, trailing or corrupt bytes, changed workload or
 context, and unknown or pruned candidates. The bytes contain no native handle or executable. Only
-identity 28 is accepted; every other codec or cross-profile decision fails closed even when its
+identity 29 is accepted; every other codec or cross-profile decision fails closed even when its
 trailing checksum is otherwise valid.
 
 The public `MetalLocalWorkloadTuning` retained by `MetalBackendIntegration` wraps this codec and
-candidate generator without changing their version-twenty-eight bytes. It returns a handoff only
+candidate generator without changing their version-twenty-nine bytes. It returns a handoff only
 for an exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
 `MetalCompletePlanTuning` authenticates the exact Phase-1 association and exposes one complete-plan
 candidate fixed to that selected route. Both collaborations use opaque exact-owner/batch values,
@@ -486,7 +463,7 @@ device/library fingerprint.
 
 Schema-nineteen workload bytes and workload compatibility include the fixed route, exact profile,
 canonical execution extension, and manifest digest. Candidate and decision bytes retain route
-wires `1..3`, route-policy version twenty-eight, and the target session.
+wires `1..3`, route-policy version twenty-nine, and the target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
 session)` rather than a workload digest alone. The repository has no persistent Metal executable
@@ -859,14 +836,14 @@ variant or automatic Metal selection outside the explicitly registered inventory
 
 ## ABI and failures
 
-Private ABI version `6` exports exactly fourteen symbols: the version/context/buffer foundation,
-immutable context-certification-environment query,
+Private ABI version `7` exports exactly thirteen symbols: the version/context/buffer foundation,
 `synaptik_metal_mpsgraph_executable_create`, executable release/run, and the three typed custom
 singleton-NEG pipeline operations. The create function accepts a pointer plus unsigned byte count
-for one schema-19 program image. The old `synaptik_metal_mpsgraph_neg_executable_create` symbol is
-absent. Statuses `0..12` retain their documented meanings, status `13` reports a structurally valid
-registered operation without a current native route, and unknown integers fail closed with the raw
-value retained.
+for one schema-19 program image. The old
+`synaptik_metal_context_certification_environment` and
+`synaptik_metal_mpsgraph_neg_executable_create` symbols are absent. Statuses `0..12` retain their
+documented meanings, status `13` reports a structurally valid registered operation without a
+current native route, and unknown integers fail closed with the raw value retained.
 
 The schema-19 image is little-endian, at least 128 bytes, and at most `Integer.MAX_VALUE` bytes on
 both sides. Its core contains a 128-byte/32-word header, 40-byte value descriptors, 32-byte node
@@ -1074,14 +1051,13 @@ Current validation composes:
   input preservation, and same-partition composition;
 - current generic lifecycle, prepared-byte-geometry, target publication, reuse, concurrency, close,
   malformed-image, and indexing diagnostics without duplicating their matrices for one wire;
-- a rebuilt arm64 dylib inspected for exactly fourteen exports, ABI `6`, required framework
-  linkage, the immutable context-environment symbol, and absence of the old NEG-only create symbol;
+- a rebuilt arm64 dylib inspected for exactly thirteen exports, ABI `7`, required framework
+  linkage, absence of the removed certification-environment export, and absence of the old
+  NEG-only create symbol;
 - focused real-device native and Engine proof of exact signed-zero, subnormal, infinity, and
   quiet/signaling-NaN raw-bit movement with unchanged input;
-- real-device certificate evidence under both profiles and both low carriers that exhausts all
-  65,536 raw words through RESHAPE, PERMUTE, CONTIGUOUS, SLICE, CONCAT, and TILE, repeats every
-  executable three times with poisoned targets, separately covers 257-word odd counts, and leaves
-  offset/hole and zero-count boundaries fail-closed;
+- real-device BFLOAT16/FLOAT16 arithmetic and raw-preserving execution through the custom program,
+  plus native and Java rejection of low MPSGraph images;
 - architecture tests, Metal Javadoc, the one final repository build, Markdown validation, and diff
   validation.
 - real-device ABS execution under both profiles across signed zeros, subnormal and normal
@@ -1150,7 +1126,7 @@ persistent Metal splat binding is accepted only as a Metal read source; it canno
 destination. Runtime executes only the resulting direct prepared references.
 
 For one exact singleton NEG Metal plan, public `prepareTuned(...)` measures the complete two-route
-local batch, authenticates the selected version-twenty-eight decision, then correctness-checks and
+local batch, authenticates the selected version-twenty-nine decision, then correctness-checks and
 times one complete-plan candidate fixed to that route. The returned production recipe is freshly
 prepared after representative cleanup. Metal policy, producer, and decision-codec identities are
 adapter-owned and distinct from CPU identities; existing CPU bytes and behavior remain unchanged.
@@ -1252,10 +1228,9 @@ rank-one no-gradient L1/ScatterAdd plus singleton VARIANCE slices.
 P0 freezes these current F32 answers through the canonical provider-derived capability ledger and
 independently queries each corresponding BF16 witness. Existing BF16 true rows are preserved; only
 actual BF16 false rows may map to future backend-relative parity. It activates no Metal type wire,
-schema, identity, capability, route, execution, native, or certificate behavior and preserves
-every current `STRICT_IEEE` and `ACCELERATOR FLOAT32` occurrence. Certificate schema 1 freezes
-field definitions only; route, generated-backward, runtime/device, and certificate facts remain
-outside provider output.
+schema, identity, capability, route, execution, native, or evidence behavior and preserves every
+current `STRICT_IEEE` and `ACCELERATOR FLOAT32` occurrence. Route, generated-backward, and
+runtime/device facts remain outside provider output.
 
 Every Task-0066 selected occurrence is custom-only. Exact authenticated local logical views may
 depart from canonical layout only where their physical descriptors and spans are independently
@@ -1287,11 +1262,10 @@ unflagged `fdiv`, one `fsub`, one `fmul`, no `fadd` or FMA, and one static store
 also retains its ordinal-zero filter, raw-base unaddressed select, one static store, and no atomics.
 
 The profile is retained in partition plans and every route/tuning/codec/workload identity. Java
-enforces the boundary before native entry. ABI version `6` exposes exactly fourteen export names
+enforces the boundary before native entry. ABI version `7` exposes exactly thirteen export names
 and accepts one bounded schema-19 route-bearing image; operation wires `1..115`, attribute wires
 `0..41`, route wires `1..3`, and type wires `1..7` cover the current structural registry without
 widening operation-kind capability. Route, candidate, compatibility, workload, exact-policy, and
-codec identities are version `28`; every other identity fails closed. Catalogs are exactly
-`75/35/5` MPSGraph and `73/42/0` custom; capability/structural counts remain `86/29` and
-`101/14`.
+codec identities are version `29`; every other identity fails closed. Capability/structural counts
+remain `86/29` and `101/14`.
 The complete-plan wrapper remains version `1`.

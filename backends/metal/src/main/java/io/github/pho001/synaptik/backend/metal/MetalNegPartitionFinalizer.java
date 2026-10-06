@@ -16,10 +16,10 @@ import java.util.Optional;
 /**
  * Validates assigned Metal supported-operation declarations and compiles the selected resource.
  *
- * <p>The finalizer changes no route or declaration. It compiles and owns the selected custom
- * singleton-NEG pipeline or typed whole-partition MPSGraph executable until the complete result
- * returns, and reverses that acquisition on every intervening failure while preserving the
- * original failure and distinct cleanup suppression.</p>
+ * <p>The finalizer changes no route or declaration. It compiles and owns either the selected
+ * custom singleton-NEG pipeline or the selected typed whole-partition program executable until the
+ * complete result returns, and reverses that acquisition on every intervening failure while
+ * preserving the original failure and distinct cleanup suppression.</p>
  */
 final class MetalNegPartitionFinalizer
         implements BackendPartitionFinalizer<MetalNegPreparationPlan> {
@@ -35,7 +35,7 @@ final class MetalNegPartitionFinalizer
     MetalNegPartitionFinalizer(MetalDeviceContext context) {
         this(context, new FinalizedExecutableFactory() {
             @Override
-            public MetalNegPreparedExecutable createMpsGraph(
+            public MetalNegPreparedExecutable createProgram(
                     MetalNegPreparationPlan plan,
                     io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan memoryPlan,
                     int[] feedPlanIndices,
@@ -44,7 +44,7 @@ final class MetalNegPartitionFinalizer
                     int[] targetRepresentationIndices,
                     int[] internalPlanIndices,
                     int[] internalRepresentationIndices,
-                    MetalMpsGraphExecutableResource resource,
+                    MetalProgramExecutableResource resource,
                     List<Optional<MetalPreparedSplatResource>> splatResources,
                     long[] feedRequiredBytes,
                     long[] targetRequiredBytes,
@@ -238,12 +238,12 @@ final class MetalNegPartitionFinalizer
             throw new IllegalArgumentException("Metal NEG address workspace geometry disagrees");
         }
         var resources = new ArrayList<PreparedResource>();
-        MetalMpsGraphExecutableResource resource = context.createMpsGraphExecutable(plan);
+        MetalProgramExecutableResource resource = context.createProgramExecutable(plan);
         addAcquired(resources, resource);
         try {
             List<Optional<MetalPreparedSplatResource>> splats =
                     acquireSplats(plan, resources);
-            var executable = executableFactory.createMpsGraph(
+            var executable = executableFactory.createProgram(
                     plan,
                     finalization.memoryPlan(),
                     feedPlanIndices,
@@ -373,7 +373,7 @@ final class MetalNegPartitionFinalizer
          * @throws RuntimeException if recipe construction fails
          * @throws Error if construction reports an error
          */
-        MetalNegPreparedExecutable createMpsGraph(
+        MetalNegPreparedExecutable createProgram(
                 MetalNegPreparationPlan plan,
                 io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan memoryPlan,
                 int[] feedPlanIndices,
@@ -382,7 +382,7 @@ final class MetalNegPartitionFinalizer
                 int[] targetRepresentationIndices,
                 int[] internalPlanIndices,
                 int[] internalRepresentationIndices,
-                MetalMpsGraphExecutableResource resource,
+                MetalProgramExecutableResource resource,
                 List<Optional<MetalPreparedSplatResource>> splatResources,
                 long[] feedRequiredBytes,
                 long[] targetRequiredBytes,
