@@ -510,18 +510,6 @@ final class TrainingSessionTest {
                         Float.floatToRawIntBits(master.getFloat()));
                 assertEquals(decodeLow(dataType, smallestSubnormal), master.getFloat(), 0.0f);
 
-                IllegalArgumentException compatibilityFailure = assertThrows(
-                        IllegalArgumentException.class,
-                        () -> new TrainingState.ParameterState(
-                                "value",
-                                dataType,
-                                Shape.of(2),
-                                new byte[2 * Short.BYTES],
-                                new byte[2 * Float.BYTES],
-                                new byte[2 * Float.BYTES]));
-                assertTrue(compatibilityFailure.getMessage().contains(
-                        "supports only FLOAT32 or FLOAT64"));
-
                 session.run(List.of(), GradientMode.RESET_AND_STEP);
                 session.restore(initial);
                 MemorySegment restored = parameter.hostStorage().orElseThrow().segment();

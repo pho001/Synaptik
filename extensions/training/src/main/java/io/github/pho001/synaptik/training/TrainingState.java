@@ -165,23 +165,6 @@ public final class TrainingState {
                     (int) optimizerBytes);
         }
 
-        ParameterState(
-                String path,
-                DataType dataType,
-                Shape shape,
-                byte[] parameterBytes,
-                byte[] momentumBytes,
-                byte[] accumulatedGradientBytes) {
-            this(
-                    path,
-                    dataType,
-                    shape,
-                    parameterBytes,
-                    compatibilityMaster(dataType, parameterBytes),
-                    momentumBytes,
-                    accumulatedGradientBytes);
-        }
-
         /**
          * Returns the stable recursive Module path associated with this entry.
          *
@@ -263,15 +246,6 @@ public final class TrainingState {
 
         byte[] accumulatedGradientBytesInternal() {
             return accumulatedGradientBytes;
-        }
-
-        private static byte[] compatibilityMaster(DataType dataType, byte[] parameterBytes) {
-            DataType type = Objects.requireNonNull(dataType, "dataType");
-            if (type != DataType.FLOAT32 && type != DataType.FLOAT64) {
-                throw new IllegalArgumentException(
-                        "compatibility ParameterState constructor supports only FLOAT32 or FLOAT64");
-            }
-            return parameterBytes;
         }
 
         private static byte[] copyExact(byte[] source, String name, int expected) {

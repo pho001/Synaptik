@@ -458,6 +458,7 @@ final class TrainingSessionFailureContractTest {
                     parameter.dataType(),
                     parameter.shape(),
                     bytes(parameter.parameterBytes()),
+                    bytes(parameter.masterParameterBytes()),
                     floatBytes(Float.NaN),
                     bytes(parameter.accumulatedGradientBytes()));
             TrainingState corruptMomentum = new TrainingState(
@@ -471,6 +472,7 @@ final class TrainingSessionFailureContractTest {
                     parameter.dataType(),
                     parameter.shape(),
                     bytes(parameter.parameterBytes()),
+                    bytes(parameter.masterParameterBytes()),
                     bytes(parameter.momentumBytes()),
                     floatBytes(Float.POSITIVE_INFINITY));
             TrainingState corruptAccumulation = new TrainingState(
