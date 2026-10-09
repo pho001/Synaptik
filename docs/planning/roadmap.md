@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0018 Blocked; 0007A1D Review needed; 0010D1 and 0011 Blocked | [CPU 0018](backends/cpu/tasks/0018-shared-external-read-recognition-validation.md) is partial; independent Class C review found a P2 forged virtual-output/shared-weight boundary position. User must choose authenticated `ValueId` binding or safe nonfused fallback. Separate >8-node decision remains open; no CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | 0073 Complete; [0069](backends/metal/tasks/0069-source-owned-binary32-aggregate-slices.md) Complete at its source checkpoint; [0074A](backends/metal/tasks/0074a-post-cutover-capability-evolution-contract.md) Complete; [0074](backends/metal/tasks/0074-profile-free-float32-exp-route.md) Complete; [0075A](backends/metal/tasks/0075a-low-exp-capability-contract.md) Complete; [0075](backends/metal/tasks/0075-profile-free-low-precision-exp-custom-route.md) Complete | BF16/FP16 EXP custom routes, device/conformance/Engine tests, 0069 evidence rebinding, full build, documentation, and independent Class C review passed. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through [0075](backends/metal/tasks/0075-profile-free-low-precision-exp-custom-route.md); [0076](backends/metal/tasks/0076-profile-free-float32-sigmoid-route.md) Ready; [0077](backends/metal/tasks/0077-profile-free-low-precision-sigmoid-custom-route.md) Draft | The sole serial Metal frontier is bounded FLOAT32 SIGMOID with the exact stable sign guard. Low SIGMOID requires separate typed custom qualification after 0076. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -102,6 +102,9 @@ is installed. The serial
 Task 0074 is a qualified profile-free FLOAT32 EXP route, not permission to resume the historical
 proof-gated Metal 0053 or to enable SIGMOID or low-precision EXP. The frozen low-type provider
 baseline does not require a low-type counterpart for a newly qualified FLOAT32 EXP occurrence.
+At clean checkpoint `c19f16ee`, [Metal 0076](backends/metal/tasks/0076-profile-free-float32-sigmoid-route.md)
+is Ready as the sole serial Metal frontier; [Metal 0077](backends/metal/tasks/0077-profile-free-low-precision-sigmoid-custom-route.md)
+remains Draft until 0076 is independently closed. Neither task resumes historical proof-gated 0053.
 
 Trace and Metal diagnostics
 
