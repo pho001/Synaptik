@@ -26,6 +26,12 @@ def main() -> None:
     symbols_path = generated / "runtime-source.air.nm"
     ir = ir_path.read_text(encoding="utf-8")
     toolchain = manifest["toolchain"]
+    assert toolchain["componentIdentifier"] == "com.apple.dt.toolchain.Metal.32023.921.5"
+    assert manifest["options"] == [
+        "-x", "metal", "-std=metal3.2", "-fno-fast-math", "-Wall", "-Wextra",
+        "-Werror", "-fmodules-cache-path=<audit-workspace>/module-cache", "-isysroot",
+        toolchain["sdkPath"], "-c", "<stdin>",
+    ]
     assert (generated / "xcode-version.txt").read_text(encoding="utf-8").splitlines() == [
         f'Xcode {toolchain["xcodeVersion"]}',
         f'Build version {toolchain["xcodeBuild"]}',
@@ -76,7 +82,8 @@ def main() -> None:
     l1_fadds = [line.strip() for line in l1_body.splitlines() if " fadd " in line]
     assert len(l1_fadds) == 1
     assert re.search(r"= fadd float %\d+, %\d+$", l1_fadds[0])
-    assert all(flag not in l1_fadds[0] for flag in ("fast", "contract", "reassoc", "afn"))
+    unsafe_flags = ("fast", "contract", "reassoc", "afn", "nnan", "ninf", "nsz", "arcp")
+    assert all(flag not in l1_fadds[0] for flag in unsafe_flags)
     assert l1_body.count("2147483647") == 2
     assert l1_body.count(" bitcast i32 ") == 2
     assert l1_body.count(" bitcast float ") == 1
@@ -102,9 +109,19 @@ def main() -> None:
         for instruction in variance_instructions
     )
     assert all(
-        all(flag not in instruction for flag in ("fast", "contract", "reassoc", "afn"))
+        all(flag not in instruction for flag in unsafe_flags)
         for instruction in variance_instructions
     )
+    first_div = re.search(r"%\d+ = fdiv float (%\d+), (%\d+)$", variance_fdivs[0])
+    difference_sub = re.search(r"%\d+ = fsub float (%\d+), (%\d+)$", variance_fsubs[0])
+    square_mul = re.search(r"%\d+ = fmul float (%\d+), (%\d+)$", variance_fmuls[0])
+    final_div = re.search(r"%\d+ = fdiv float (%\d+), (%\d+)$", variance_fdivs[1])
+    assert all(site is not None for site in (first_div, difference_sub, square_mul, final_div))
+    assert variance_fdivs[0].split(" = ", 1)[0] == difference_sub.group(2)
+    assert first_div.group(1) == difference_sub.group(1)
+    assert variance_fsubs[0].split(" = ", 1)[0] == square_mul.group(1) == square_mul.group(2)
+    assert variance_fmuls[0].split(" = ", 1)[0] == final_div.group(1)
+    assert first_div.group(2) == final_div.group(2)
     assert " fadd " not in variance_body
     assert "air.fma" not in variance_body and "llvm.fma" not in variance_body
     assert variance_body.count("store i8") == 1
@@ -116,7 +133,7 @@ def main() -> None:
     assert len(scatter_fadds) == 1
     assert re.search(r"= fadd float %\d+, %\d+$", scatter_fadds[0])
     assert all(
-        flag not in scatter_fadds[0] for flag in ("fast", "contract", "reassoc", "afn")
+        flag not in scatter_fadds[0] for flag in unsafe_flags
     )
     assert scatter_body.count("store i8") == 1
     assert "phi i64" in scatter_body and "[ 0," in scatter_body

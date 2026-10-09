@@ -148,7 +148,7 @@ production preparation and adds no runtime timing, fallback, retry, or workload 
 ## Low-precision capability evidence
 
 The Model, CPU, and Metal `FLOAT16` allocation, value, provider, route, and execution semantics are
-active. The canonical capability ledger is generated from actual `CpuCapabilityProvider` and
+active. Canonical capability ledgers are generated from actual `CpuCapabilityProvider` and
 `MetalCapabilityProvider` queries over a stable representative basis. Each row records backend,
 occurrence identity, kind and attributes, ordered input/output descriptors, data type,
 Shape, layout, gradient metadata, arity, and the boolean provider answer. Checked-in supported and
@@ -162,11 +162,17 @@ domains. Canonical manifests use explicit UTF-8 TSV fields, LF endings, stable s
 keys; a duplicate key is rejected after exact row-byte comparison, and validation reports the
 first missing, added, or changed row.
 
-Project actual current ACCELERATOR CPU and Metal provider true and false answers into profile-free
-occurrence keys without adding support. Every supported frozen ACCELERATOR FLOAT32 Metal occurrence
-has independently queried homogeneous BFLOAT16 and FLOAT16 current rows; negative predicates
-remain explicit exclusions. The representative 508-row v1 ledger detects drift, not an enumerated
-support domain or numerical certification. Exact movement, Shape/layout, indexing, selection,
+The 508-row v1 ledger freezes the pre-cutover `ACCELERATOR` and `STRICT_IEEE` provider answers as
+historical evidence; its `ACCELERATOR` true and false answers established the profile-free cutover
+baseline and must not be rewritten by later capability work. The v2 ledger records actual current
+profile-free answers on its representative basis, including independent homogeneous BFLOAT16 and
+FLOAT16 queries and explicit negative predicates. It was initially projected from the cutover
+`ACCELERATOR` answers, but is not permanently constrained to equal that projection. Reviewed new
+occurrences may change v2 and the provider while leaving v1 intact. Both ledgers detect drift in
+their respective snapshots; neither enumerates the full provider domain or certifies numerics.
+Every supported frozen `ACCELERATOR` FLOAT32 Metal occurrence retains its independently queried
+homogeneous low counterparts where declared. Existing supported low answers remain true. Exact
+movement, Shape/layout, indexing, selection,
 ordering, state, and cast occurrences remain exact substrate. Direct BFLOAT16/FLOAT16 mixed-low
 operations are unsupported; an explicit
 cast to FLOAT32 is the sole mixed-low boundary. Forward capability remains distinct from
@@ -412,10 +418,24 @@ routes. Plans, specialization, generated artifacts, tuning candidates and decisi
 compatibility retain their non-profile semantic, type, target, ABI, source, and version identities;
 changed formats reject stale inputs. CPU retains its supported routes without a profile selector.
 
+After the cutover, a new supported occurrence must have an independently true provider query for
+its exact dtype, descriptors, attributes, and gradient metadata; a route qualified against Model
+semantics and the applicable exact, special-value, finite, and failure conformance tests; and an
+updated current ledger and provider/conformance tests. A FLOAT32 true answer never implies a
+BFLOAT16 or FLOAT16 true answer, including through a FLOAT32 descriptor proxy used to preserve
+the frozen low baseline. Each newly supported low occurrence additionally needs its own qualified
+custom step under the fixed low-containing `CUSTOM_PROGRAM` partition rule. Preserve all existing
+supported low occurrences. Advance the relevant compatibility identity append-only when changed
+route, program, plan, serialized, or generated behavior makes old inputs incompatible; reject
+stale inputs. Capability evidence and route qualification remain cold backend/Prepare concerns,
+not a Runtime certificate, tolerance policy, retry, or fallback layer.
+
 Current generated CPU artifact envelopes use schema 69. Current Metal images use schema 20 with a
 124-byte header, and coordinated workload, exact-policy, candidate, compatibility, route, and
-codec identities use version 30. Native ABI 7 still exposes thirteen symbols. CPU schema 68 and
-Metal schema 19/identity 29 are historical pre-cutover baselines, not valid current inputs.
+codec identities use version 32. Native ABI 7 still exposes thirteen symbols. CPU schema 68 and
+Metal schema 19/identity 29 are historical pre-cutover baselines; Metal identity 30 is the
+historical cutover value and identity 31 is the superseded FLOAT32 `EXP` value; neither is a valid
+current input.
 Native source, manifest, and package authentication remain safety gates; historical schema-19
 source certificates do not certify schema-20 programs.
 
@@ -450,6 +470,26 @@ state dropout domains. Each low input is decoded exactly, every working value an
 FLOAT32, and each observable low result is narrowed once with round-to-nearest, ties-to-even.
 Conv1d/Pool1d may use only authenticated local singleton-height views. This paragraph does not
 widen unlisted or false provider occurrences.
+
+At the Task-0074 checkpoint (2026-10-09), the Metal provider admitted `EXP` only for one canonical,
+fully static, positive-rank `1..16` FLOAT32 input and equal-Shape output with no gradients, no
+attributes, and checked four-byte span and dispatch geometry. Prepare selected its fixed direct
+MPSGraph exponent route. At that checkpoint, independently queried BFLOAT16 and FLOAT16 `EXP`
+answers were false, as were FLOAT64, gradient-bearing, scalar-rank, noncanonical, and over-limit
+answers. The historical v1 `ACCELERATOR` EXP answer stays false; at that checkpoint v2 recorded
+FLOAT32 true and both low answers false.
+
+Task 0075 independently qualifies homogeneous BFLOAT16 and FLOAT16 `EXP` in that bounded canonical,
+positive-static-rank `1..16`, no-gradient, no-attribute, same-type/same-Shape domain with checked
+two-byte span and dispatch geometry. Current v2 records true for both low types while historical
+v1 stays false. Each low type has a distinct typed custom kernel step, evaluates in FLOAT32 working
+values, and narrows once to its original low type under the Model's `EXP` special-value and
+arithmetic-site DAZ/FTZ rules. The current FLOAT32 occurrence retains its direct MPSGraph route.
+FLOAT64, gradient-bearing, scalar-rank, noncanonical, mixed-low, and over-limit `EXP` occurrences
+remain false. A low-valued `EXP` step is custom, never MPSGraph.
+An explicit low-to-FLOAT32 cast followed by FLOAT32 `EXP` may separately use an internal MPSGraph
+boundary step in the enclosing low-containing `CUSTOM_PROGRAM` route; the cast does not itself
+grant low-valued `EXP` support or change the partition candidate set.
 
 Every partition containing BFLOAT16 or FLOAT16 values selects the fixed `CUSTOM_PROGRAM`
 whole-partition route. This includes homogeneous no-gradient raw-preserving `RESHAPE`, simple
@@ -520,7 +560,7 @@ units, 256 instructions, 16,384 bytes per function, 262,144 generated bytes, and
 source bytes. Native reconstructs exact cap precedence and the first rejected node. The production
 emitter first traverses the structured sink in no-allocation count mode, validates all five caps,
 allocates the exact byte count, and traverses the same emitter once for compiler input. The exact
-fixed corpus is 84,541 UTF-8 bytes: native SHA-256-checks each of its ten ordered components and
+fixed corpus is 84,603 UTF-8 bytes: native SHA-256-checks each of its ten ordered components and
 their total and independently authenticates the assembled source before compiler entry.
 
 The versioned program image admits the existing qualified typed anchor-epilogue instructions. An eligible MATMUL
@@ -542,9 +582,10 @@ store, one dispatch, and no intermediate materialization. Barriers, unsupported 
 noncanonical layouts, gradients, fan-out, targets, and cap rejection preserve fixed custom or
 MPSGraph boundaries; Task-0069 VARIANCE remains custom only for its exact singleton domain.
 
-Structural execution covers exactly 101 kinds with 14 remaining nonexecutable; production
-capability is exactly 86 kinds with 29 remaining false at the frozen provider baseline. Workload,
-exact-policy, candidate, compatibility, route-policy, and codec identities were version
-twenty-nine before cutover. Assign append-only changed identities in implementation, reject stale
-versions, and retain the complete-plan wrapper's unrelated version-one format unless its bytes
-change.
+At the frozen cutover baseline, structural execution covered 101 kinds with 14 nonexecutable and
+production capability covered 86 kinds with 29 false. The FLOAT32 `EXP` addition raised
+those counts to 102/13 structural and 87/28 production; the later BFLOAT16/FLOAT16 `EXP` additions
+do not change kind counts. Counts are over operation kinds, not all dtype occurrences. Workload,
+exact-policy, candidate, compatibility, route-policy, and codec identities were version 29 before
+cutover, version 30 at cutover, version 31 for FLOAT32 `EXP`, and are now version 32. Stale
+versions fail closed. The complete-plan wrapper retains its unrelated version-one format.

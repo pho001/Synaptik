@@ -130,8 +130,9 @@ abstract class MetalNativeApi implements AutoCloseable {
 
     /**
      * Compiles one shape-specialized whole-partition typed Metal program executable. The selected
-     * route is fixed for the whole partition; a custom program may contain an internal FLOAT32-only
-     * MPSGraph boundary step, including after an explicit low-to-FLOAT32 cast. The caller must
+     * route is fixed for the whole partition; a custom program uses typed BFLOAT16/FLOAT16 EXP
+     * steps and may contain an internal FLOAT32-only MPSGraph boundary step, including after an
+     * explicit low-to-FLOAT32 cast. The caller must
      * release the returned executable exactly once, including when later preparation fails.
      *
      * @param context non-null live context whose ownership remains with the caller
@@ -546,7 +547,12 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the schema-twenty typed Metal program create contract. */
+    /**
+     * Exact Java preflight for the schema-twenty typed Metal program create contract, including
+     * EXP's route-specific FLOAT32 or homogeneous low type, shape, layout, gradient, and
+     * byte-span gates. Low EXP is custom only; a FLOAT32 EXP in a custom partition remains
+     * an internal direct MPSGraph boundary step.
+     */
     static final class ProgramExecutableAbi {
         private static final int MAX_RANK = 16;
         private static final long UINT32_MAX = 0xffff_ffffL;
@@ -839,6 +845,24 @@ abstract class MetalNativeApi implements AutoCloseable {
                                                 || rankZeroAnchorRoles
                                                         .scalarMultiply()[nodePosition]),
                                     "SCALAR_MUL input/output shape is unsupported");
+                    case EXP -> requireShape(
+                            (route == MetalPreparedRoute.MPSGRAPH
+                                    || route == MetalPreparedRoute.CUSTOM_PROGRAM)
+                                    && types[left] == types[output]
+                                    && (types[left] == ValueType.FLOAT32
+                                            || route == MetalPreparedRoute.CUSTOM_PROGRAM
+                                                    && lowPrecision(types[left]))
+                                    && valueRanks[left] >= 1
+                                    && sameShape(left, output, valueRanks, valueDimensions)
+                                    && canonicalExpValue(values.get(left))
+                                    && canonicalExpValue(values.get(output))
+                                    && !values.get(left).requiresGrad()
+                                    && !values.get(output).requiresGrad()
+                                    && elementCount(left, valueRanks, valueDimensions)
+                                            <= 0xffff_ffffL / (lowPrecision(types[left])
+                                                    ? Short.BYTES : Float.BYTES),
+                            "EXP requires canonical same-type positive-rank no-gradient values"
+                                    + " within the route-specific byte span");
                     case FLOOR, CEIL, SIGN ->
                             requireShape(
                                     valueRanks[left] >= 1
@@ -1165,6 +1189,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                             SCALAR_DIV,
                             SCALAR_POW,
                             RECIPROCAL,
+                            EXP,
                             LOG,
                             LOG1P,
                             EXPM1,
@@ -2563,6 +2588,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                         SCALAR_MAX,
                         CLAMP,
                         RECIPROCAL,
+                        EXP,
                         FLOOR,
                         CEIL,
                         SIGN,
@@ -2990,6 +3016,20 @@ abstract class MetalNativeApi implements AutoCloseable {
             }
             return indices.layout().orElseThrow().referencedElementSpan()
                     <= UINT32_MAX / indices.dataType().byteWidth();
+        }
+
+        /**
+         * Checks the explicit canonical storage descriptor required by both direct FLOAT32 and
+         * custom low EXP images; neither route accepts an affine view or absent layout.
+         *
+         * @param value non-null encoded value descriptor
+         * @return whether its physical layout is the non-view canonical contiguous layout
+         */
+        private static boolean canonicalExpValue(MetalMpsGraphProgram.ValueDescriptor value) {
+            return !value.densePhysical()
+                    && value.layout().filter(layout -> layout.equals(
+                            LayoutDescriptor.contiguous(Shape.of(value.dimensions()))))
+                            .isPresent();
         }
 
         private static boolean canonicalTask0069(

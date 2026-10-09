@@ -1968,8 +1968,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     Tensor input = nativeTensor(
                             descriptor(shape), arena, -1.25f, 2.5f);
                     var compiled = engine.compile(List.of(
-                            input.neg().exp(),
-                            input.exp().neg()));
+                            input.neg().sigmoid(),
+                            input.sigmoid().neg()));
                     assertEquals(
                             List.of("metal", "cpu", "metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
@@ -1978,11 +1978,11 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         assertCanonical(
                                 result.materialize(
                                         result.publications().get(0), 2L * Float.BYTES).bytes(),
-                                strictExp(1.25f), strictExp(-2.5f));
+                                strictSigmoid(1.25f), strictSigmoid(-2.5f));
                         assertCanonical(
                                 result.materialize(
                                         result.publications().get(1), 2L * Float.BYTES).bytes(),
-                                -strictExp(-1.25f), -strictExp(2.5f));
+                                -strictSigmoid(-1.25f), -strictSigmoid(2.5f));
                     }
                 }
                 Tensor reductionInput =
@@ -2035,25 +2035,25 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
                 assertMixedResult(
                         engine,
-                        engine.compile(List.of(input.exp().neg())),
+                        engine.compile(List.of(input.sigmoid().neg())),
                         List.of("cpu", "metal"),
                         List.of(input),
-                        -strictExp(1.25f),
-                        -strictExp(-2.5f));
+                        -strictSigmoid(1.25f),
+                        -strictSigmoid(-2.5f));
                 assertMixedResult(
                         engine,
-                        engine.compile(List.of(input.neg().exp())),
+                        engine.compile(List.of(input.neg().sigmoid())),
                         List.of("metal", "cpu"),
                         List.of(input),
-                        strictExp(-1.25f),
-                        strictExp(2.5f));
+                        strictSigmoid(-1.25f),
+                        strictSigmoid(2.5f));
                 assertMixedResult(
                         engine,
-                        engine.compile(List.of(input.neg().exp().neg())),
+                        engine.compile(List.of(input.neg().sigmoid().neg())),
                         List.of("metal", "cpu", "metal"),
                         List.of(input),
-                        -strictExp(-1.25f),
-                        -strictExp(2.5f));
+                        -strictSigmoid(-1.25f),
+                        -strictSigmoid(2.5f));
 
                 Tensor cpuInput = TensorFactory.create(
                         descriptor,
@@ -2073,9 +2073,9 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         var result = engine.run(tuned, List.of(cpuInput))) {
                     assertEquals(1, result.resultCount());
                 }
-                Tensor capturedBase = input.exp();
+                Tensor capturedBase = input.sigmoid();
                 Tensor metalPublication = capturedBase.neg();
-                Tensor cpuPublication = metalPublication.exp();
+                Tensor cpuPublication = metalPublication.sigmoid();
                 assertCapturedAdaptersSurviveRegistryPoison(
                         engine,
                         engine.compile(List.of(metalPublication, cpuPublication)),
@@ -2956,12 +2956,12 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(2, result.resultCount());
                     assertCanonical(
                             result.materialize(result.publications().get(0), 8L).bytes(),
-                            -strictExp(1.25f),
-                            -strictExp(-2.5f));
+                            -strictSigmoid(1.25f),
+                            -strictSigmoid(-2.5f));
                     assertCanonical(
                             result.materialize(result.publications().get(1), 8L).bytes(),
-                            strictExp(-strictExp(1.25f)),
-                            strictExp(-strictExp(-2.5f)));
+                            strictSigmoid(-strictSigmoid(1.25f)),
+                            strictSigmoid(-strictSigmoid(-2.5f)));
                 }
             }
         }
@@ -2969,6 +2969,21 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
     private static float strictExp(float value) {
         return (float) StrictMath.exp(value);
+    }
+
+    /**
+     * Computes the CPU-owned sign-branch sigmoid oracle for exact mixed-owner transfer assertions.
+     *
+     * @param value FLOAT32 value widened before the binary64 formula
+     * @return one final FLOAT32 narrowing of the stable sigmoid formula
+     */
+    private static float strictSigmoid(float value) {
+        double widened = value;
+        if (widened >= 0.0d) {
+            return (float) (1.0d / (1.0d + StrictMath.exp(-widened)));
+        }
+        double exponential = StrictMath.exp(widened);
+        return (float) (exponential / (1.0d + exponential));
     }
 
     @Test

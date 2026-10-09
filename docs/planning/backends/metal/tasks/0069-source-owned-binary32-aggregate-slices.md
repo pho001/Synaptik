@@ -2,10 +2,43 @@
 
 ## Status
 
-Review needed. The authorized shared proof substrate plus Slices 1 and 2 are independently
-approved. Slice 3 was freshly authorized at the current checkpoint and is implemented with its
-proof, native/custom route, identity cutover, package, and validation evidence; independent
-Slice-3 review remains pending.
+Complete. The shared proof substrate and Slices 1–3 are independently approved. The post-cutover
+source/AIR evidence was rebound to current schema-20 source and passed final independent Class C
+rereview without changing production capability or numerical behavior.
+
+### Post-cutover review remediation (closed)
+
+This amendment supersedes the profile-era evidence instructions below only where they refer to a
+current `ACCELERATOR` selector, schema 16, identity 25, or a source hash predating Model 0032.
+Historical checkpoint records remain historical; current authority is `ARCHITECTURE.md` Core
+invariants, `foundational-modules.md` Profile-free numerical semantics, and
+`backend-execution.md` Metal backend / Profile-free backend capability and identity.
+
+- Goal: rebind the retained Task-0069 source/compiler-site and compiled-MSL review evidence to
+  the exact current native foundation and fixed kernel assembly. Audit the changes since the
+  Slice-3 checkpoint in 0069 preflight, route selection, index validation, dispatch, buffer
+  ownership, and source assembly before changing any hash. Preserve the unchanged proof and
+  literal DIV–SUB–MUL–DIV kernel; do not turn the retained evidence into a runtime certificate.
+- Files: `backends/metal/evidence/0069/` manifests, extraction/verification scripts as necessary;
+  read-only review of `native/metal-macos-arm64/src/synaptik_metal_foundation.m` and
+  `synaptik_task0069_aggregate_kernels.h`. No production-source edit is authorized here.
+- Acceptance: certificate checks current source and profile-free wording; the exact current fixed
+  source is compiled with pinned safe options; AIR inspection still proves the three bounded
+  0069 kernels' source/site/store invariants; the package source authentication and existing
+  schema-20/profile-free conformance remain intact. If an invariant fails, stop and report a
+  separate behavior remediation instead of weakening the verifier or updating a hash blindly.
+- Validation: run `backends/metal/evidence/0069/run-proof.sh`, check current source/package
+  authentication and `git diff --check`; reuse Model-0032's successful full build and focused
+  device evidence because no executable source changes. Select the installed pinned compiler with
+  `TOOLCHAINS=com.apple.dt.toolchain.Metal.32023.921.5`; default `xcrun` does not currently select
+  that component. Independent targeted Class C rereview then decides final Slice-3 acceptance.
+- Frontier verification: Model 0032 is `Complete`; Task 0069's original Slice-3 implementation is
+  present; the independent review P1 is the identified evidence gate. The pinned toolchain is
+  installed and its `metal`/`metallib` versions were verified with explicit selection. No
+  conflicting Metal writer is active. Parallel group: None. Common base revision: `1cab0731b75c035f589a60f8b9922a767211e6c6`.
+  Integration order: evidence remediation → independent review → 0069 closure → 0074 readiness.
+  Integration validation: focused proof/source/AIR runner plus documentation/diff checks.
+  Shared-document integration owner: main coordination context.
 
 ## Change class
 
@@ -402,3 +435,40 @@ backend conformance; architecture tests; and Metal Javadoc. Serialized repositor
 `./gradlew test --rerun-tasks --no-daemon --max-workers=1` completed all 76 actionable tasks, then
 serialized `./gradlew build --rerun-tasks --no-daemon --max-workers=1` completed all 87 actionable
 tasks against the fresh ZIP-extracted dylib.
+
+### Post-cutover review and remediation attempt
+
+Independent current-source review found no separate Slice-3 behavior defect in the inspected
+provider, Java/native validation, fixed route, kernel, alias rejection, or public Engine paths, but
+the Task-0069 certificate's foundation hash no longer matches schema-20 source. The focused
+remediation attempt changed no files: Lean proofs and current native package authentication
+passed; `run-proof.sh` stopped on that stale hash. Compiling the current 84,603-byte fixed source
+could not proceed because Xcode 27.0 build 27A266a reports `missing Metal Toolchain` and suggests
+`xcodebuild -downloadComponent MetalToolchain`. The existing source/AIR hashes were not replaced
+without compiled-code inspection. Task-0032's full build and real-device evidence were reused,
+not rerun; `git diff --check` passed. Installing the Xcode component changed external machine
+state and was separately approved. The component reports `installed` and compiler version
+`32023.921`; explicit `TOOLCHAINS=com.apple.dt.toolchain.Metal.32023.921.5` selection executes
+it. The source/AIR audit resumed afterward and reached the accepted checkpoint below.
+
+### Post-cutover evidence remediation checkpoint
+
+The clean evidence worker audited current route, preflight, index validation, dispatch, buffer
+ownership, source assembly, and safe math mode against the original Slice-3 checkpoint before
+rebinding source and compiled hashes. It changed only five files in `backends/metal/evidence/0069/`:
+the source certificate, compiled-MSL audit, runner, source verifier, and AIR verifier. The current
+84,603-byte fixed source passed source authentication; AIR checks retained the L1 and ScatterAdd
+add sites and the singleton VARIANCE DIV–SUB–MUL–DIV dependency, safe flags, and one store.
+`backends/metal/evidence/0069/run-proof.sh`, the canonical native `verify-package.sh`, and
+`git diff --check` passed. The current packaged dylib remains byte-identical to its verified
+build. No production source or Java/Javadoc changed, so Model-0032 full/device results were reused
+without a redundant build. Independent review found one closure defect: the verifier required
+`review-pending`, which would reject the final `accepted` manifests. The worker changed both
+manifest statuses and their bound digest, made the verifier require exact `accepted`, and reran
+`run-proof.sh` and `git diff --check`; both passed. Targeted independent rereview returned
+`APPROVE` with zero findings, independently reran the source-certificate verifier and diff check,
+and reused the passing proof/package/Task-0032 full-device evidence. No production, Java, or
+Javadoc changed; the five evidence files are the only non-planning edits. There are no unresolved
+Slice-3 findings.
+
+Status: Complete

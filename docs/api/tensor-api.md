@@ -126,15 +126,17 @@ no-gradient FLOAT32 singleton `VARIANCE` over input `[1]`, axis `[0]`, correctio
 canonical scalar or retained `[1]` output. Compiler-generated rank-one Gather data cotangents close
 through an explicit canonical zero `EXPAND -> CONTIGUOUS -> SCATTER_ADD`; gradient-bearing
 Scatter-Add and its own cotangents remain unsupported. The resulting Metal capability ledger is
-exactly 86 admitted kinds and 29 remaining false, with 101 structurally executable kinds and 14
-remaining nonexecutable. These are shape-restricted production domains, not whole-kind admission;
+exactly 87 admitted kinds and 28 remaining false, with 102 structurally executable kinds and 13
+remaining nonexecutable. The later bounded FLOAT32 and homogeneous BFLOAT16/FLOAT16 `EXP` routes
+do not make every dtype or occurrence of that kind available. These counts describe kinds with
+admitted occurrences, not whole-kind admission;
 every unlisted occurrence fails closed before route selection.
 
 Metal uses ABI 7 with thirteen exports and one bounded schema-20 route-bearing program image.
 Operation wires `1..115`, attribute wires `0..41`, and type wires `1..7` cover current structural
 vocabulary. The custom-program image authenticates compact materialized slots, deterministic
 pointwise units, and qualified MATMUL/Conv2d anchor epilogues. Metal-local workload,
-exact-policy, candidate, compatibility, route-policy, and session codec identities are version 30;
+exact-policy, candidate, compatibility, route-policy, and session codec identities are version 32;
 every other identity fails closed rather than falling back. Model remains the sole semantic owner
 of numerical meaning.
 

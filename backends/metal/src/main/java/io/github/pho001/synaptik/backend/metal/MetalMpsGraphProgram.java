@@ -22,7 +22,10 @@ import java.util.Optional;
  * <p>The fixed 124-byte header binds the complete core-image and execution-extension counts.
  * {@code CUSTOM_PROGRAM} images carry authoritative step, binding, materialization, instruction,
  * and canonical-manifest records. MPSGraph images clear the extension flag and physically omit
- * every extension section.</p>
+ * every extension section. Operation wire 55 is a direct FLOAT32 exponent node or a typed
+ * low-precision custom exponent step; Java and native creation admit only bounded canonical
+ * no-gradient occurrences for those three separately qualified types without changing the
+ * image schema.</p>
  */
 final class MetalMpsGraphProgram {
     static final int SCHEMA_VERSION = 20;
@@ -139,7 +142,7 @@ final class MetalMpsGraphProgram {
         RECIPROCAL(52, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         LOG(53, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         LOG1P(54, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        EXP(55, 1, 1, 1, 1, AttributeKind.NONE),
+        EXP(55, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         EXPM1(56, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         ERF(57, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         SQRT(58, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),

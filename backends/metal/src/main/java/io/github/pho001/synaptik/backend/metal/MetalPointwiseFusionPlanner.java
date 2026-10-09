@@ -461,6 +461,7 @@ final class MetalPointwiseFusionPlanner {
                     SCALAR_MAX,
                     CLAMP,
                     RECIPROCAL,
+                    EXP,
                     FLOOR,
                     CEIL,
                     SIGN,

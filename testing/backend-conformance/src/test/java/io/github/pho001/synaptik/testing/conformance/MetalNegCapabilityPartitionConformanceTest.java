@@ -72,7 +72,8 @@ final class MetalNegCapabilityPartitionConformanceTest {
         TensorDescriptor row = descriptor(Shape.of(3));
         for (UnaryElementwiseKind kind : UnaryElementwiseKind.values()) {
             assertEquals(
-                    exactRawUnary(kind) || kind == UnaryElementwiseKind.RECIPROCAL,
+                    exactRawUnary(kind) || kind == UnaryElementwiseKind.RECIPROCAL
+                            || kind == UnaryElementwiseKind.EXP,
                     provider.supports(query(
                             operation(kind),
                             List.of(matrix),

@@ -7,7 +7,11 @@
   },
   "foundationSource": {
     "path": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
-    "sha256": "f14eee9b44674c703cb333ab581a4b768244ff0c26395a6e5758ff5996fa6983"
+    "sha256": "f831032edeecaee60129d1b6560697770a3d5447059d7d9a1c5e1ac6d0f2318f"
+  },
+  "fixedRuntimeSource": {
+    "bytes": 84603,
+    "sha256": "eb9a4bc2e9156bd971c59a3f8c1416df61627fe1c8e5655ccff28ecdf28b39f5"
   },
   "leanProofs": [
     {
@@ -21,7 +25,7 @@
   ],
   "compiledMslAudit": {
     "path": "backends/metal/evidence/0069/compiled-msl-audit.json",
-    "sha256": "e5327a77d35c2f556dbd5942b3dcace264c232fe9796918190be6a856f3e9ee7"
+    "sha256": "7cc31b3350558e8c1957d5014b271e22ac4691292f51389b2372a13d8ef5bd77"
   },
   "compilerSite": {
     "runtimeCompiler": "MTLDevice.newLibraryWithSource",
@@ -29,9 +33,9 @@
     "fastMathRequested": false,
     "languageVersion": "MTLLanguageVersion3_2",
     "compiledMslAuditRequired": true,
-    "compiledMslAuditBasis": "The exact assembled production NSString source was compiled with Xcode 27.0 build 27A266a, Metal 32023.921, macOS SDK 27.0, metal3.2, no-fast-math, warnings as errors, and the explicit SDK isysroot. AIR inspection proves one unflagged fadd for L1, one unflagged fadd for SCATTER_ADD, and the exact singleton VARIANCE sequence of two fdiv, one fsub, and one fmul with no unsafe flags, fadd, or FMA. Each kernel retains its certified source order and one static output store.",
+    "compiledMslAuditBasis": "The exact current 84603-byte authenticated fixed production NSString source was compiled with Xcode 27.0 build 27A266a, explicitly selected Metal Toolchain 32023.921, macOS SDK 27.0, metal3.2, no-fast-math, warnings as errors, a workspace-local module cache, and the explicit SDK isysroot. AIR inspection proves one unflagged fadd for L1, one unflagged fadd for SCATTER_ADD, and the exact singleton VARIANCE dependency sequence of two fdiv, one fsub, and one fmul with no unsafe flags, fadd, or FMA. Each kernel retains its certified source order and one static output store.",
     "offlineMetalCompilerAvailable": true,
-    "offlineCompilerAudit": "Accepted and pinned by compiled-msl-audit.json; its runner always sets DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer and the explicit MacOSX27.0.sdk isysroot."
+    "offlineCompilerAudit": "Pinned by compiled-msl-audit.json; its runner sets DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer and TOOLCHAINS=com.apple.dt.toolchain.Metal.32023.921.5, resolves metallib from that toolchain, and uses the explicit MacOSX27.0.sdk isysroot."
   },
   "floatingContract": {
     "carrier": "FLOAT32",
@@ -61,7 +65,7 @@
   },
   "varianceContract": {
     "carrier": "FLOAT32",
-    "geometry": "canonical-dense rank-one [1] input, axes exactly [0], correction zero, scalar or retained [1] output, accelerator profile, no gradients, distinct buffers",
+    "geometry": "canonical-dense rank-one [1] FLOAT32 input, axes exactly [0], correction zero, scalar or retained [1] output, no gradients, distinct buffers; profile-free occurrence",
     "sourceOrder": "mean = DIV(x, +1); difference = SUB(x, mean); square = MUL(difference, difference); result = DIV(square, +1)",
     "sourceDivisionSites": 2,
     "sourceSubtractionSites": 1,

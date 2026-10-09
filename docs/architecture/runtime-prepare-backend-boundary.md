@@ -643,9 +643,27 @@ workflow boundaries that feed prepare without entering runtime.
 Model owns one family/dtype contract. Planning's provider query rejects unsupported occurrences;
 backend analysis qualifies a concrete route against exact stored/discrete/special boundaries and
 test-only finite arithmetic criteria before committing its resource declarations. Prepare does
-not infer capability from a passing sample. Metal retains eligible FLOAT32 MPSGraph routes and
-the fixed custom program for low-containing partitions; CPU retains generated and OpenBLAS routes.
-The current Metal image is schema 20 with a 124-byte header and tuning identity 30; CPU generator
+not infer capability from a passing sample. The frozen v1 `ACCELERATOR` capability ledger records
+cutover answers; the profile-free v2 ledger snapshots actual current provider answers. A reviewed
+post-cutover addition can change v2 without changing v1. At the Task-0074 checkpoint
+(2026-10-09), the bounded no-gradient FLOAT32 `EXP` occurrence is true while its independently
+queried BFLOAT16 and FLOAT16 occurrences and their v2 answers were false. Planning could
+assign only the true occurrence; Prepare then fixes its direct MPSGraph route before declaring
+shared resources. For example, an explicit low-to-FLOAT32 cast followed by FLOAT32 `EXP` may use an
+internal MPSGraph boundary step, but the enclosing low-containing partition still uses
+`CUSTOM_PROGRAM`; direct low-valued `EXP` was unsupported at that checkpoint. Task 0075 now
+admits each homogeneous BFLOAT16 and FLOAT16 `EXP` occurrence in the bounded canonical, no-gradient
+domain through its own qualified custom step and independently true current v2 provider answer.
+Each step retains FLOAT32 working evaluation and one final narrowing to its original low type
+under Model semantics, and the whole low-containing partition remains on `CUSTOM_PROGRAM`.
+The explicit-cast FLOAT32 route and the low-valued custom routes are distinct. This is an occurrence and
+dtype distinction fixed during Prepare, not a runtime decision. See the
+[backend capability contract](contracts/backend-execution.md#profile-free-backend-capability-and-identity)
+and [ADR 0027](../design/decisions/0027-post-cutover-capability-evolution.md).
+
+Metal retains eligible FLOAT32 MPSGraph routes and the fixed custom program for low-containing
+partitions; CPU retains generated and OpenBLAS routes.
+The current Metal image is schema 20 with a 124-byte header and tuning identity 32; CPU generator
 schema is 69; native ABI 7 retains thirteen exports. CPU/Metal transfer accepts canonical or
 resolved positive-stride non-overlapping all-carrier storage layouts without widening operation
 capability. Runtime requires no profile, tolerance, certificate, or policy lookup.

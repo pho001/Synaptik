@@ -223,10 +223,15 @@
  * {@code 1..7}, operation wires {@code 1..115}, attribute wires {@code 0..41}, and complete
  * optional storage-layout geometry. Its fixed 124-byte header binds the route and, only for the
  * custom-program route, the canonical execution-plan extension and manifest
- * digest. Native structural execution covers exactly 101 wires and leaves 14 nonexecutable.
- * Production capability is exactly 86 operation kinds and 29 remain false. Backend-local workload,
+ * digest. Native structural execution covers exactly 102 wires and leaves 13 nonexecutable.
+ * Production capability is exactly 87 operation kinds and 28 remain false. The new no-gradient
+ * canonical FLOAT32 EXP occurrence uses one fixed direct MPSGraph exponent route, including an
+ * internal MPSGraph boundary step after an explicit low-to-FLOAT32 cast in a custom partition.
+ * Separately qualified canonical BFLOAT16 and FLOAT16 EXP occurrences use typed fixed custom
+ * kernels with FLOAT32 working evaluation and one low narrowing; gradient-bearing EXP remains
+ * unsupported. Backend-local workload,
  * exact-policy, candidate, compatibility, route-policy, and codec identities are version
- * thirty. Only schema twenty and identity thirty are accepted; every other schema or
+ * thirty-two. Only schema twenty and identity thirty-two are accepted; every other schema or
  * identity value fails closed.
  */
 package io.github.pho001.synaptik.backend.metal;

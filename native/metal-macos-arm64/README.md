@@ -12,7 +12,7 @@ authenticated execution extension; no native type, shape, layout, or plan infere
 boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
-can structurally execute exactly 101 operation kinds; production capability is exactly 86 kinds.
+can structurally execute exactly 102 operation kinds; production capability is exactly 87 kinds.
 Task 0059 adds exact movement/indexing rows and complete positive-stride storage geometry.
 Task 0060 adds replacement/fold rows `72`, `76`, `80`, `82`, and `84` plus exact aggregate rows
 `106..108`. Task 0061 widens existing `MATMUL=15` without adding a wire: the selected capability
@@ -93,9 +93,9 @@ materialized slot table. Each admitted anchor executes as one safe-math kernel d
 final store, with no native retry or fallback. The pinned AIR audit covers all new FMA, multiply,
 add, and final-store sites plus NaN, signed-zero, infinity, subnormal DAZ/FTZ, and clamp boundaries.
 
-The remaining 29 production rows fail closed before native creation. A structurally valid
+The remaining 28 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 30. Java
+rather than masquerading as malformed input. Candidate and route identity are version 32. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
 shared custom-program wire 3. Schema 20 embeds wire 2 or 3 in each graph image; every other
 schema or route value fails closed. The exhaustive Java
@@ -108,8 +108,13 @@ SLICE, CONCAT, and TILE. The native parser rejects any MPSGraph-route image cont
 type before operation lowering. No low occurrence is qualified through MPSGraph, classic MPS, MPP,
 pointwise source generation, or anchor-epilogue fusion, and execution has no retry or CPU fallback.
 The complete frozen, formerly ACCELERATOR Metal FLOAT32 target set has a homogeneous BFLOAT16 and FLOAT16
-recipe. Schema 20, route wires 2/3, identity 30,
-native ABI 7, and the existing operation and attribute wires retain their allocations.
+recipe. The later positive-static-rank `1..16` canonical no-gradient BFLOAT16 and FLOAT16 `EXP`
+occurrences each use
+a distinct typed custom kernel with FLOAT32 working evaluation and one final low narrowing;
+FLOAT32 `EXP` remains on direct MPSGraph. Explicit low-to-FLOAT32 CAST then FLOAT32 `EXP` is a
+different internal composition, not an implicit low route. Schema 20, route wires 2/3, native ABI 7,
+and the existing operation and attribute wires retain their allocations; the coordinated
+compatibility identity advances to 32 and rejects prior 30/31 inputs.
 
 
 Raw storage is always an unsigned 16-bit word. Exact kernels copy or select that word, predicates
@@ -131,11 +136,11 @@ is zero. Exact paths preserve zero bits; MIN chooses negative zero, MAX chooses 
 SIGN preserves a zero's sign, RELU maps negative zero to positive zero, and average pooling
 preserves negative zero only when every contributor is negative zero and none is padding.
 
-For admitted nodes, the version-30 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-32 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, complete encoded logical storage-layout
 geometry, independently safe physical materialization, and the canonical schema-20 execution
-extension. The schema-20 and identity-30 cutover has no compatibility reader or migration alias;
+extension. The schema-20 identity-32 program has no compatibility reader or migration alias;
 every other schema or identity fails closed.
 
 ```text
@@ -511,7 +516,7 @@ capability narrowing, tuning, fallback, or a performance claim.
 Any schema-20 program containing an exact custom node or a MATMUL outside the retained
 all-FLOAT32 rank-two MPSGraph slice uses one retained custom-program handle. Creation authenticates
 the frozen SHA-256 values of all ten reviewed fixed-kernel components and their ordered
-84,541-byte total. The sole production pointwise emitter first traverses a structured
+84,603-byte total. The sole production pointwise emitter first traverses a structured
 no-allocation count sink, validates unit, instruction, per-function, generated, and total caps,
 allocates the exact byte count, traverses the same emitter once for compiler input, independently
 authenticates the assembled source, and only then compiles with `MTLMathModeSafe` and

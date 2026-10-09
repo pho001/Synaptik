@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0018 Blocked; 0007A1D Review needed; 0010D1 and 0011 Blocked | [CPU 0018](backends/cpu/tasks/0018-shared-external-read-recognition-validation.md) is partial; independent Class C review found a P2 forged virtual-output/shared-weight boundary position. User must choose authenticated `ValueId` binding or safe nonfused fallback. Separate >8-node decision remains open; no CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | [0073](backends/metal/tasks/0073-custom-only-low-precision-cutover.md) Complete; 0053 Blocked | Task 0073's ABI 7/schema 19/identity 29 are historical. Main-worktree Task 0032 uses ABI 7, schema 20/header 124 and identity 30. Every low-containing partition retains one `CUSTOM_PROGRAM` candidate; historical certificates do not certify schema 20, while source/package authentication remains required. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | 0073 Complete; [0069](backends/metal/tasks/0069-source-owned-binary32-aggregate-slices.md) Complete at its source checkpoint; [0074A](backends/metal/tasks/0074a-post-cutover-capability-evolution-contract.md) Complete; [0074](backends/metal/tasks/0074-profile-free-float32-exp-route.md) Complete; [0075A](backends/metal/tasks/0075a-low-exp-capability-contract.md) Complete; [0075](backends/metal/tasks/0075-profile-free-low-precision-exp-custom-route.md) Complete | BF16/FP16 EXP custom routes, device/conformance/Engine tests, 0069 evidence rebinding, full build, documentation, and independent Class C review passed. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -93,6 +93,15 @@ documentation P2. The source-matched main Metal package passed verification and 
 tests (7 total, zero failures/skips). [ADR 0026](../design/decisions/0026-profile-free-numerical-semantics.md)
 is Accepted. Git history records publication separately from this validation result. No next
 Model task is Ready; the old `ACCELERATOR` name is only historical provider-baseline vocabulary.
+
+Metal after the numerical cutover: [Task 0069](backends/metal/tasks/0069-source-owned-binary32-aggregate-slices.md)
+is `Complete` after its source/AIR evidence renewal passed on current schema-20 native source and
+final independent rereview approved it with zero findings. The matching Xcode 27 Metal Toolchain
+is installed. The serial
+[Task 0074A](backends/metal/tasks/0074a-post-cutover-capability-evolution-contract.md), [Task 0074](backends/metal/tasks/0074-profile-free-float32-exp-route.md), [Task 0075A](backends/metal/tasks/0075a-low-exp-capability-contract.md), and [Task 0075](backends/metal/tasks/0075-profile-free-low-precision-exp-custom-route.md) are Complete after independent review and integration. Metal `EXP` now has a separate FLOAT32 MPSGraph route and BFLOAT16/FLOAT16 custom routes.
+Task 0074 is a qualified profile-free FLOAT32 EXP route, not permission to resume the historical
+proof-gated Metal 0053 or to enable SIGMOID or low-precision EXP. The frozen low-type provider
+baseline does not require a low-type counterpart for a newly qualified FLOAT32 EXP occurrence.
 
 Trace and Metal diagnostics
 
@@ -784,11 +793,14 @@ their public tuning/fallback assertions, but no measured value or selected winne
 verification or source.
 
 Independent cumulative code, security, and evidence review at exact clean `1775081a` returned
-`APPROVE` with zero P0/P1/P2. No Metal task is Ready. Proof-blocked Task 0053 remains separate.
+`APPROVE` with zero P0/P1/P2. At that checkpoint no Metal task was Ready. Proof-blocked Task 0053
+remains separate.
 
 Metal Task 0069 has completed its shared proof substrate and approved Slices 1 and 2; Slice 3 is
-implemented under fresh checkpoint authorization and awaits independent review. The exact frontier
-adds accelerator FLOAT32 no-gradient singleton `VARIANCE` to rank-one `L1_NORM` and `SCATTER_ADD`.
+implemented but its current-source independent review found an evidence-binding P1. The narrow
+source/AIR remediation and independent final review passed; Slice 3 is approved. The
+exact implemented domain adds accelerator FLOAT32 no-gradient singleton `VARIANCE` to rank-one
+`L1_NORM` and `SCATTER_ADD`.
 Variance requires input `[1]`, axis `[0]`, correction zero, and scalar or retained `[1]` output.
 Its one-writer custom source executes literal DIV-SUB-MUL-DIV; non-domain variance retains the
 existing direct structural recipe. L1 uses raw ABS leaves and exactly `N-1` source-ordered safe
@@ -799,7 +811,10 @@ cells, and stores once without atomics. The same occurrence closes the existing 
 rank-one Gather data cotangent.
 
 The Task-0069 Lean proof, source certificate, pinned runtime-source extraction, and Xcode 27.0 build
-27A266a/Metal 32023.921/macOS SDK 27.0 compiled-MSL/AIR audit cover all three aggregate slices.
+27A266a/Metal 32023.921/macOS SDK 27.0 compiled-MSL/AIR audit covered the three aggregate slices
+at their original source checkpoint. The source certificate and audit do not yet attest the
+post-cutover native foundation; the worker renewed them and final independent review approved the
+result.
 Task 0070 adds four universal raw-word proofs, an authenticated pointwise generator,
 real-reflection and dispatch-observer evidence, and a separate compiled generated-MSL/AIR audit.
 Task 0071 adds authenticated accelerator MATMUL/Conv2d anchor-epilogue steps, structural

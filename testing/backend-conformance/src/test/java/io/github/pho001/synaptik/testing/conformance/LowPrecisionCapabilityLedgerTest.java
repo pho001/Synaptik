@@ -93,9 +93,18 @@ final class LowPrecisionCapabilityLedgerTest {
             String[] fields = historical[index].split("\t", -1);
             assertEquals(18, fields.length, "historical row " + index);
             if (!fields[2].equals("ACCELERATOR")) continue;
+            boolean approvedExpDelta = fields[1].equals("metal")
+                    && fields[3].equals("055-EXP/base");
+            if (approvedExpDelta) {
+                assertEquals("false", fields[11]);
+                assertEquals("false", fields[12]);
+                assertEquals("false", fields[13]);
+            }
             projected.add(String.join("\t", "2", fields[1], fields[3], fields[4], fields[5],
-                    fields[6], fields[7], fields[8], fields[9], fields[10], fields[11],
-                    fields[12], fields[13]));
+                    fields[6], fields[7], fields[8], fields[9], fields[10],
+                    approvedExpDelta ? "true" : fields[11],
+                    approvedExpDelta ? "true" : fields[12],
+                    approvedExpDelta ? "true" : fields[13]));
         }
         assertEquals(254, projected.size());
         assertEquals(resource(RESOURCE), HEADER + String.join("\n", projected) + "\n");
@@ -127,16 +136,16 @@ final class LowPrecisionCapabilityLedgerTest {
             long notApplicable = backendFacts.stream()
                     .filter(fields -> fields[11].equals("NOT_APPLICABLE")
                             && fields[12].equals("NOT_APPLICABLE")).count();
-            assertEquals(backend.equals("cpu") ? 122 : 98, supported, backend + " F32 true");
-            assertEquals(backend.equals("cpu") ? 114 : 90, bf16, backend + " BF16 true");
-            assertEquals(backend.equals("cpu") ? 114 : 90, fp16, backend + " FLOAT16 true");
+            assertEquals(backend.equals("cpu") ? 122 : 99, supported, backend + " F32 true");
+            assertEquals(backend.equals("cpu") ? 114 : 91, bf16, backend + " BF16 true");
+            assertEquals(backend.equals("cpu") ? 114 : 91, fp16, backend + " FLOAT16 true");
             assertEquals(8, notApplicable, backend + " controls");
-            assertEquals(backend.equals("cpu") ? 5 : 29,
+            assertEquals(backend.equals("cpu") ? 5 : 28,
                     backendFacts.stream().filter(fields -> fields[10].equals("false")).count(),
                     backend + " F32 false");
             for (int lowColumn : List.of(11, 12)) {
                 final int column = lowColumn;
-                assertEquals(backend.equals("cpu") ? 5 : 29,
+                assertEquals(backend.equals("cpu") ? 5 : 28,
                         backendFacts.stream().filter(fields -> fields[column].equals("false")).count(),
                         backend + " low false column " + column);
             }

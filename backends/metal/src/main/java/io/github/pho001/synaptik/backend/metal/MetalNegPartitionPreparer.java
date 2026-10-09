@@ -1,14 +1,11 @@
 package io.github.pho001.synaptik.backend.metal;
 
-import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
-import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
-import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
@@ -127,7 +124,8 @@ import java.util.Optional;
  * last-two-axis {@code PERMUTE} on that consuming edge. Schema-twenty lowering emits one bounded
  * self-describing image over stable type wires 1..7, complete operation registry 1..115, attribute
  * registry 0..41, the explicit prepared route, and its authenticated execution plan. Production
- * capability remains bounded by the provider predicate and its low-precision proxy. Every selected
+ * capability remains bounded by the provider's occurrence predicate, including its frozen-baseline
+ * low-precision proxy; preparation has no separate capability fallback. Every selected
  * exact custom occurrence and every partition containing BFLOAT16 or FLOAT16 values fixes the
  * whole partition to {@code CUSTOM_PROGRAM}. No low-precision partition exposes another candidate.
  * Neither low routes nor existing FLOAT32 routes permit retry, CPU fallback, timing, or autotuning.
@@ -253,13 +251,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 outputDescriptors.add(outputValue.descriptor());
             }
             if (!MetalCapabilityProvider.supportsOccurrence(
-                            node.operation(),
-                            inputDescriptors,
-                            outputDescriptors)
-                    && !supportsLowPrecisionBaseline(
-                            node.operation(),
-                            inputDescriptors,
-                            outputDescriptors)) {
+                    node.operation(), inputDescriptors, outputDescriptors)) {
                 throw new IllegalArgumentException(
                         "Metal occurrence is outside the capability domain");
             }
@@ -807,108 +799,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         return result;
     }
 
-    private static boolean supportsLowPrecisionBaseline(
-            Operation operation,
-            List<TensorDescriptor> inputs,
-            List<TensorDescriptor> outputs) {
-        DataType selected = null;
-        for (TensorDescriptor descriptor : concat(inputs, outputs)) {
-            DataType type = descriptor.dataType();
-            if (isLowPrecision(type)) {
-                if (operation.kind() != CastKind.CAST
-                        && selected != null
-                        && selected != type) {
-                    return false;
-                }
-                selected = type;
-            } else if (type.isFloating() && operation.kind() != CastKind.CAST) {
-                return false;
-            }
-        }
-        if (selected == null || !lowScalarAttrsMatch(operation.attrs(), selected)) return false;
-
-        Operation proxy = new Operation(operation.kind(), float32ProxyAttrs(operation.attrs()));
-        List<TensorDescriptor> proxyInputs = inputs.stream()
-                .map(MetalNegPartitionPreparer::float32Proxy)
-                .toList();
-        List<TensorDescriptor> proxyOutputs = outputs.stream()
-                .map(MetalNegPartitionPreparer::float32Proxy)
-                .toList();
-        return MetalCapabilityProvider.supportsOccurrence(
-                proxy, proxyInputs, proxyOutputs);
-    }
-
-    private static List<TensorDescriptor> concat(
-            List<TensorDescriptor> inputs, List<TensorDescriptor> outputs) {
-        var descriptors = new ArrayList<TensorDescriptor>(inputs.size() + outputs.size());
-        descriptors.addAll(inputs);
-        descriptors.addAll(outputs);
-        return descriptors;
-    }
-
-    private static TensorDescriptor float32Proxy(TensorDescriptor descriptor) {
-        DataType type = isLowPrecision(descriptor.dataType())
-                ? DataType.FLOAT32 : descriptor.dataType();
-        return new TensorDescriptor(
-                type, descriptor.shape(), descriptor.layout(), descriptor.requiresGrad());
-    }
-
-    private static OperationAttrs float32ProxyAttrs(OperationAttrs attrs) {
-        if (attrs instanceof ScalarValueAttrs scalar) {
-            return new ScalarValueAttrs(float32Proxy(scalar.value()));
-        }
-        if (attrs instanceof ClampRangeAttrs clamp) {
-            return new ClampRangeAttrs(
-                    float32Proxy(clamp.minValue()), float32Proxy(clamp.maxValue()));
-        }
-        if (attrs instanceof PadAttrs pad) {
-            return new PadAttrs(
-                    pad.before(), pad.after(), float32Proxy(pad.constantValue()));
-        }
-        if (attrs instanceof Unfold2dAttrs unfold) {
-            return new Unfold2dAttrs(
-                    unfold.window(), float32Proxy(unfold.paddingValue()));
-        }
-        if (attrs instanceof Unfold3dAttrs unfold) {
-            return new Unfold3dAttrs(
-                    unfold.window(), float32Proxy(unfold.paddingValue()));
-        }
-        if (attrs instanceof CastAttrs cast) {
-            DataType target = isLowPrecision(cast.targetDataType())
-                    ? DataType.FLOAT32 : cast.targetDataType();
-            return new CastAttrs(target);
-        }
-        return attrs;
-    }
-
-    private static ScalarValue float32Proxy(ScalarValue value) {
-        return switch (value.dataType()) {
-            case BFLOAT16 -> ScalarValue.float32(BFloat16Bits.toFloat(value.bfloat16Bits()));
-            case FLOAT16 -> ScalarValue.float32(Float16Bits.toFloat(value.float16Bits()));
-            default -> value;
-        };
-    }
-
-    private static boolean lowScalarAttrsMatch(OperationAttrs attrs, DataType selected) {
-        if (attrs instanceof ScalarValueAttrs scalar) {
-            return scalar.value().dataType() == selected;
-        }
-        if (attrs instanceof ClampRangeAttrs clamp) {
-            return clamp.minValue().dataType() == selected
-                    && clamp.maxValue().dataType() == selected;
-        }
-        if (attrs instanceof PadAttrs pad) {
-            return pad.constantValue().dataType() == selected;
-        }
-        if (attrs instanceof Unfold2dAttrs unfold) {
-            return unfold.paddingValue().dataType() == selected;
-        }
-        if (attrs instanceof Unfold3dAttrs unfold) {
-            return unfold.paddingValue().dataType() == selected;
-        }
-        return true;
-    }
-
     private static long scalarRawBits(ScalarValue value) {
         return switch (value.dataType()) {
             case FLOAT32 -> Integer.toUnsignedLong(
@@ -1031,6 +921,19 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         return LayoutDescriptor.of(output.shape(), outputStrides, 0L, true);
     }
 
+    /**
+     * Lowers one already-admitted Model operation into its fixed schema-twenty node. In particular,
+     * each bounded EXP occurrence becomes the no-attribute exponent node. FLOAT32 retains its
+     * direct route, while low values force the fixed custom partition route before declarations.
+     *
+     * @param operation non-null typed Model operation
+     * @param inputs ordered input value indices, not mutated
+     * @param outputs ordered output value indices, not mutated
+     * @param inputDescriptors descriptors for the input indices, not mutated
+     * @param outputDescriptors descriptors for the output indices, not mutated
+     * @return non-null encoded node for the admitted occurrence
+     * @throws IllegalStateException if an operation lacks a lowering despite admission
+     */
     private static MetalMpsGraphProgram.Node lower(
             Operation operation,
             int[] inputs,
@@ -1364,6 +1267,11 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         }
         if (kind == UnaryElementwiseKind.ABS) {
             return MetalMpsGraphProgram.Node.abs(inputs[0], output);
+        }
+        if (kind == UnaryElementwiseKind.EXP) {
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.EXP, inputs, new int[] {output},
+                    MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
         }
         if (kind == UnaryElementwiseKind.RECIPROCAL) {
             return MetalMpsGraphProgram.Node.generic(

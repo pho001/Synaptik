@@ -94,6 +94,11 @@ boundary step without changing the partition route. Neither generated-pointwise 
 anchor-epilogue fusion occurs anywhere in that partition, and BFLOAT16 is never silently
 substituted with FLOAT16. Every other
 unlisted occurrence fails closed before route selection.
+The post-cutover `EXP` additions are independently bounded: canonical no-gradient FLOAT32 uses
+direct MPSGraph, while canonical homogeneous BFLOAT16 and FLOAT16 at positive-static rank `1..16`
+use distinct typed custom steps with FLOAT32 working evaluation and one final low narrowing.
+An explicit low-to-FLOAT32 cast followed by FLOAT32 `EXP` is a separate internal composition;
+it does not turn a low-valued `EXP` into an MPSGraph node.
 Canonical typed host ingress/publication and direct CPU/Metal transfer support all seven data types at
 ranks `0..16`; transfer also accepts resolved positive-stride non-overlapping physical storage
 layouts and rejects unresolved, zero-stride, negative-stride, or overlapping geometry. BOOL
@@ -116,18 +121,20 @@ a materialized suffix intermediate.
 
 Current Metal uses ABI 7 with thirteen exports and one bounded schema-20 route-bearing program
 image over type wires `1..7`, operation wires `1..115`, attribute wires `0..41`, and route wires
-`1..3`. Structural coverage is `101 / 14`; production capability is exactly `86 / 29`.
-Backend-local tuning identities are version 30. Schema 19 and identity 29 remain historical
-pre-cutover allocations and are rejected as stale.
+`1..3`. Structural coverage is `102 / 13`; production capability is exactly `87 / 28` over
+operation kinds. Backend-local tuning identities are version 32. Schema 19 and identity 29 are
+historical pre-cutover allocations; identity 30 is the historical cutover value and 31 the
+superseded FLOAT32 `EXP` value. All are rejected as stale.
 
 The historical 508-row v1 capability ledger recorded both numerical profiles. The current
-254-row v2 projection retains the actual pre-cutover ACCELERATOR true and false FLOAT32 provider
-answers plus independently queried corresponding BFLOAT16 and FLOAT16 answers, without profile or
-target/exclusion columns. Neither ledger asserts route, runtime/device, or generated-backward
+254-row v2 ledger snapshots actual current profile-free provider answers, including separately
+qualified FLOAT32, BFLOAT16, and FLOAT16 `EXP` occurrences, without profile or target/exclusion
+columns. The frozen v1 `ACCELERATOR` `EXP` answer remains false. Neither ledger asserts route,
+runtime/device, or generated-backward
 ownership. The separate append-only identity-allocation
 ledger records the pre-cutover Model ordinal 6, Metal type wire 7, schema 19, identities 29, CPU
 generator schema 68, and native ABI 7. Current CPU generator schema is 69; current Metal program
-schema is 20 with a 124-byte header; current tuning identity is 30; native ABI remains 7.
+schema is 20 with a 124-byte header; current tuning identity is 32; native ABI remains 7.
 
 Low-precision trace identifies the selected custom route and reports its ordered logical boundary
 dtype tuple, with no profile. It has no accumulator or working-type field: FLOAT32 working values and

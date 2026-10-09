@@ -203,16 +203,25 @@ The following invariants must remain true:
 - Floating scatter MUL combines its base and every addressed update exactly once; a rounded
   multiplication tree is permitted, including intermediate overflow and ensuing NaN. Integral
   modular multiplication and unaddressed raw cells remain exact.
-- Canonical checked-in capability ledgers are generated from actual CPU and Metal provider queries
-  and preserve the current ACCELERATOR true and false answers, independent low-type queries,
-  negative predicates, occurrence identity, and provenance. Former target columns are not provider
-  facts. Provider evidence contains no route, runtime, device, or generated-backward ownership.
-  Metal native ABI 7 exposes thirteen symbols. The cutover advances the Metal program to schema
+- Canonical checked-in capability ledgers use actual CPU and Metal provider queries. The v1
+  `ACCELERATOR` true and false answers, independent low-type queries, negative predicates,
+  occurrence identity, and provenance are immutable historical cutover evidence. The profile-free
+  v2 ledger instead records actual current provider answers over its representative occurrences;
+  it may change after a reviewed post-cutover capability addition and is not required to remain
+  an identical projection of v1. A new occurrence requires its own dtype-specific true provider
+  answer, qualified backend route, updated current ledger and conformance tests, and an append-only
+  compatibility identity where changed behavior makes prior inputs incompatible. FLOAT32 support
+  alone never grants BFLOAT16 or FLOAT16 support. Former target columns are not provider facts.
+  Provider evidence contains no route, runtime, device, or generated-backward ownership.
+  Metal native ABI 7 exposes thirteen symbols. The cutover advanced the Metal program to schema
   20 with a 124-byte header, the CPU generator envelope to schema 69, and coordinated Metal
   workload/exact-policy/candidate/compatibility/route/codec identity to 30. Schema 19, CPU schema
-  68, and Metal identity 29 are incompatible pre-cutover baselines. Changed serialized/generated
-  identities advance append-only and reject stale inputs. The Metal profile wire is absent in
-  both Java and native schema-20 decoding; source and package authentication remain required.
+  68, and Metal identity 29 are incompatible pre-cutover baselines. Metal identity 30 is the
+  historical cutover value; identity 31 is the superseded FLOAT32 `EXP` value, and the current
+  coordinated Metal identity is 32. Changed serialized/generated identities advance append-only
+  and reject stale inputs. The Metal profile
+  wire is absent in both Java and native schema-20 decoding; source and package authentication
+  remain required.
   Every low-precision PREPARE trace reports the selected custom route and ordered logical boundary
   dtype tuple. It has no accumulator or working-type field: those Model
   arithmetic guarantees are semantic rules, not diagnostic route facts. The trace reports
@@ -228,21 +237,35 @@ The following invariants must remain true:
   canonicalization, indexing, BOOL-domain, movement, replacement/fold/aggregate,
   ordering/top-K/arg-extrema, comparison, and maximum-pooling occurrences. It also
   realizes no-gradient INT32/INT64 `MATMUL` pairs with INT64-dominant promotion and modular result
-  arithmetic. Current true provider answers for supported homogeneous FLOAT32 occurrences have
-  corresponding independently queried BFLOAT16 and FLOAT16 ownership where declared. This includes
-  the documented arithmetic, scalar, reduction, scan,
+  arithmetic. The supported homogeneous FLOAT32 occurrences preserved at the cutover retain their
+  independently queried BFLOAT16 and FLOAT16 ownership where declared; later FLOAT32 additions
+  do not imply either low answer. Existing supported low occurrences remain supported. The
+  preserved low domain includes the documented arithmetic, scalar, reduction, scan,
   MATMUL, MSE, convolution, average-pooling, dropout, L1, ScatterAdd, and singleton-variance
   domains. Direct BFLOAT16/FLOAT16 mixed-low operations remain unsupported; explicit casts to
-  FLOAT32 are the sole mixed-low path. Every partition containing BFLOAT16 or FLOAT16 values
-  selects one fixed custom program and exposes only the `CUSTOM_PROGRAM` candidate. This includes
-  raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and
-  `TILE`. The partition route remains `CUSTOM_PROGRAM`: every operation consuming or producing a
-  BFLOAT16 or FLOAT16 value uses a custom step, never MPSGraph or a hidden BFLOAT16-to-FLOAT16
-  substitution. Any FLOAT32-only operation in that same partition may use an internal MPSGraph
-  boundary step under the existing FLOAT32 policy, whether on an independent FLOAT32 branch or
-  after an explicit low-to-FLOAT32 cast; this does not add a partition candidate or change its
-  route. No generated-pointwise or anchor-epilogue fusion occurs anywhere in a low-containing
-  partition. Classic MPS, MPP, CPU, retry, and fallback are not low-precision alternatives.
+  FLOAT32 are the sole mixed-low path. At the Task-0074 checkpoint (2026-10-09), the bounded
+  no-gradient canonical FLOAT32 `EXP` occurrence used a fixed direct MPSGraph route; independently
+  queried BFLOAT16 and FLOAT16 `EXP` provider answers were false, as were FLOAT64 and
+  gradient-bearing `EXP` answers. A later homogeneous BFLOAT16 or FLOAT16 `EXP` occurrence could be
+  admitted only after its dtype has a separately qualified custom step satisfying Model semantics,
+  FLOAT32 working evaluation with one final low narrowing, and the provider, current-ledger,
+  conformance, and compatibility-identity requirements above. Task 0075 has now qualified both
+  homogeneous low types independently in that bounded canonical, positive-static-rank `1..16`,
+  no-gradient, same-type/same-Shape domain. Current v2 answers are true for both; historical v1
+  `EXP` remains false. FLOAT64, gradient-bearing, scalar-rank, noncanonical, and over-limit `EXP`
+  remain unsupported. FLOAT32 `EXP` keeps its separate direct MPSGraph route; each low-valued
+  `EXP` uses a typed custom step with FLOAT32 working evaluation and one final low narrowing.
+  Every partition containing BFLOAT16 or FLOAT16 values selects one fixed custom program and
+  exposes only the `CUSTOM_PROGRAM` candidate.
+  This includes raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`,
+  `CONCAT`, and `TILE`. The partition route remains `CUSTOM_PROGRAM`: every operation consuming
+  or producing a BFLOAT16 or FLOAT16 value uses a custom step, never MPSGraph or a hidden
+  BFLOAT16-to-FLOAT16 substitution. Any FLOAT32-only operation in that same partition may use an
+  internal MPSGraph boundary step under the existing FLOAT32 policy, whether on an independent
+  FLOAT32 branch or after an explicit low-to-FLOAT32 cast; this does not add a partition candidate
+  or change its route. No generated-pointwise or anchor-epilogue fusion occurs anywhere in a
+  low-containing partition. Classic MPS, MPP, CPU, retry, and fallback are not low-precision
+  alternatives.
   MATMUL operands are canonical or authenticated local identity-prefix, last-two-axis transposes.
   Conv1d and Pool1d use only authenticated local singleton-height compositions. Existing rank-two
   FLOAT32 matrix products retain direct MPSGraph; newly admitted MATMUL forms and

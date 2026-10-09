@@ -551,10 +551,12 @@ SUM or MEAN. It lowers Task-0060 scatter preflight, signed slice placement, sing
 folds, exact modular/logical reductions, every Task-0063 row, and selected Task-0066/Task-0069
 occurrences to their fixed custom programs without atomics or fallback. Every partition containing
 BFLOAT16 or FLOAT16 values uses that custom-only route, including homogeneous no-gradient
-RESHAPE, simple PERMUTE, materializing CONTIGUOUS, SLICE, CONCAT, and TILE. It may replace only an
+RESHAPE, simple PERMUTE, materializing CONTIGUOUS, SLICE, CONCAT, and TILE. A bounded canonical
+no-gradient BFLOAT16 or FLOAT16 EXP uses its own typed custom step; a separate FLOAT32 EXP may use
+an internal MPSGraph boundary step only after an explicit low-to-FLOAT32 cast. It may replace only an
 qualified private MATMUL/Conv2d suffix with one typed anchor instruction. It preserves typed
 ingress, target and internal physical byte geometry, window/index obligations, unsigned-32-bit
-geometry and the schema-twenty/version-thirty route identity without
+geometry and the schema-twenty/version-thirty-two route identity without
 widening capability. Every other identity fails closed.
 
 Metal's one closed prepared-route identity owns the existing candidate wires `1..3` and the

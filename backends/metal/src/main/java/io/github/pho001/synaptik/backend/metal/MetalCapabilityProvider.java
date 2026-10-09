@@ -101,10 +101,11 @@ import java.util.Objects;
 /**
  * Reports the exact operation-occurrence capability of the current Metal backend.
  *
- * <p>The canonical capability ledger calls this unchanged boolean predicate over a stable
- * representative basis and freezes both true and false answers. Target columns are architecture
- * mapping, not provider output; the ledger contains no route, runtime, device, certificate, or
- * generated-backward fact.</p>
+ * <p>The current capability ledger calls this predicate over a stable representative basis and
+ * snapshots true and false answers. The historical pre-cutover ledger remains frozen; the only
+ * added EXP answers are the separately qualified bounded no-gradient FLOAT32, BFLOAT16, and
+ * FLOAT16 occurrences. The ledger contains
+ * no route, runtime, device, certificate, or generated-backward fact.</p>
  *
  * <p>This provider is immutable and performs no native loading, device discovery, allocation,
  * registration, or caching. The provider admits the exact seven-carrier movement, affine,
@@ -117,7 +118,9 @@ import java.util.Objects;
  * <p>For homogeneous BFLOAT16 and FLOAT16 occurrences, this predicate first checks the original
  * descriptors, then tests an exact FLOAT32 descriptor/attribute proxy against the baseline
  * occurrence predicate. This preserves the independently queried low-type support corresponding
- * to the frozen, formerly ACCELERATOR FLOAT32 baseline. In particular, low L1, ScatterAdd, and
+ * to the frozen, formerly ACCELERATOR FLOAT32 baseline. EXP is instead checked by three exact
+ * typed predicates and never inherits a low answer from the FLOAT32 proxy. In particular, low
+ * L1, ScatterAdd, and
  * singleton variance support does not select the separate FLOAT32-only Task 0069 specialized
  * kernels. Direct BFLOAT16/FLOAT16 mixed-low operations are rejected except explicit
  * {@code CAST}; explicit FLOAT32 casts are the sole mixed-low arithmetic boundary. Route selection
@@ -204,9 +207,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
      * @param operation non-null typed operation
      * @param inputs non-null ordered input descriptors
      * @param outputs non-null ordered output descriptors
-     * @return {@code true} only if the original occurrence passes the baseline predicate or a
-     *     homogeneous low-type occurrence passes its exact FLOAT32 proxy predicate; otherwise
-     *     {@code false}
+     * @return {@code true} only if the original occurrence passes the exact current predicate or
+     *     an independently qualified {@code EXP} predicate, or a homogeneous low-type occurrence
+     *     passes the frozen-baseline FLOAT32 proxy predicate; other FLOAT32-only additions do not
+     *     gain low support through that proxy
      * @throws NullPointerException if {@code operation}, {@code inputs}, or {@code outputs} is
      *     {@code null}
      */
@@ -220,8 +224,19 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         if (mixedLowPrecision(inputs, outputs) && operation.kind() != CastKind.CAST) {
             return false;
         }
-        if (supportsBaselineOccurrence(operation, inputs, outputs)) {
+        if (supportsFrozenBaselineOccurrence(operation, inputs, outputs)) {
             return true;
+        }
+        if (operation.kind() == UnaryElementwiseKind.EXP && outputs.size() == 1) {
+            try {
+                return supportsFloat32Exp(operation, inputs, outputs.getFirst())
+                        || supportsLowExp(operation, inputs, outputs.getFirst(),
+                                DataType.BFLOAT16)
+                        || supportsLowExp(operation, inputs, outputs.getFirst(),
+                                DataType.FLOAT16);
+            } catch (IllegalArgumentException | ArithmeticException incompatible) {
+                return false;
+            }
         }
         DataType lowType = homogeneousLowPrecision(inputs, outputs);
         if (lowType == null || !lowScalarAttrsMatch(operation.attrs(), lowType)) {
@@ -233,10 +248,19 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 inputs.stream().map(MetalCapabilityProvider::float32Proxy).toList();
         List<TensorDescriptor> proxyOutputs =
                 outputs.stream().map(MetalCapabilityProvider::float32Proxy).toList();
-        return supportsBaselineOccurrence(proxy, proxyInputs, proxyOutputs);
+        return supportsFrozenBaselineOccurrence(proxy, proxyInputs, proxyOutputs);
     }
 
-    private static boolean supportsBaselineOccurrence(
+    /**
+     * Evaluates only the preserved cutover domain, which is the sole authority for low proxies.
+     * Post-cutover additions must be checked separately on their original typed descriptors.
+     *
+     * @param operation non-null typed operation
+     * @param inputs non-null ordered input descriptors
+     * @param outputs non-null ordered output descriptors
+     * @return whether the frozen-baseline provider admits the occurrence
+     */
+    private static boolean supportsFrozenBaselineOccurrence(
             Operation operation,
             List<TensorDescriptor> inputs,
             List<TensorDescriptor> outputs) {
@@ -1620,6 +1644,48 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 && canonical(output)
                 && input.requiresGrad() == output.requiresGrad()
                 && input.shape().equals(output.shape());
+    }
+
+    /**
+     * Checks the bounded no-gradient FLOAT32 EXP occurrence for its fixed direct route.
+     *
+     * @param operation non-null unary operation
+     * @param inputs non-null ordered input descriptors
+     * @param output non-null output descriptor
+     * @return whether this occurrence has the qualified direct route
+     */
+    private static boolean supportsFloat32Exp(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 1) return false;
+        TensorDescriptor input = inputs.getFirst();
+        return canonical(input) && canonical(output)
+                && !input.requiresGrad() && !output.requiresGrad()
+                && input.shape().equals(output.shape())
+                && input.layout().orElseThrow().referencedElementSpan()
+                        <= UINT32_MAX / Float.BYTES;
+    }
+
+    /**
+     * Checks one explicitly selected no-gradient low EXP domain. BFLOAT16 and FLOAT16 call this
+     * predicate separately, each with a distinct fixed custom kernel and a checked two-byte span.
+     *
+     * @param operation non-null unary operation with no attributes
+     * @param inputs non-null ordered input descriptors
+     * @param output non-null output descriptor
+     * @param type exact BFLOAT16 or FLOAT16 storage type to query; never inferred from FLOAT32
+     * @return whether this exact low-type occurrence has the qualified custom route
+     */
+    private static boolean supportsLowExp(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output,
+            DataType type) {
+        if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 1) return false;
+        TensorDescriptor input = inputs.getFirst();
+        return (type == DataType.BFLOAT16 || type == DataType.FLOAT16)
+                && canonicalTyped(input, type) && canonicalTyped(output, type)
+                && !input.requiresGrad() && !output.requiresGrad()
+                && input.shape().equals(output.shape())
+                && input.layout().orElseThrow().referencedElementSpan()
+                        <= UINT32_MAX / Short.BYTES;
     }
 
     private static boolean supportsScan(

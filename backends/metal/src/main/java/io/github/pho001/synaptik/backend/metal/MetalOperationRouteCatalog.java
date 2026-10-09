@@ -9,7 +9,10 @@ import java.util.Objects;
  * approves an implementation route: {@link MetalCapabilityProvider} remains the capability
  * authority and the partition preparer separately enforces the current route freeze. Lookup is an
  * exhaustive enum switch returning shared enum constants, so it performs no allocation, map lookup,
- * reflection, wire-number duplication, or string dispatch.
+ * reflection, wire-number duplication, or string dispatch. The EXP entry records its direct
+ * FLOAT32 MPSGraph construction and still-pending FLOAT32 custom pointwise route. Its separately
+ * qualified BFLOAT16/FLOAT16 custom kernels are occurrence-specific and do not change this
+ * operation-wide FLOAT32 catalog state.
  */
 final class MetalOperationRouteCatalog {
     /** Structural MPSGraph realization state, independent of correctness approval. */

@@ -116,7 +116,6 @@ class MetalOperationCompletenessAuditTest {
             MetalMpsGraphProgram.NodeKind.SCALAR_POW,
             MetalMpsGraphProgram.NodeKind.LOG,
             MetalMpsGraphProgram.NodeKind.LOG1P,
-            MetalMpsGraphProgram.NodeKind.EXP,
             MetalMpsGraphProgram.NodeKind.EXPM1,
             MetalMpsGraphProgram.NodeKind.ERF,
             MetalMpsGraphProgram.NodeKind.SQRT,
@@ -164,7 +163,7 @@ class MetalOperationCompletenessAuditTest {
     void everyWireMapsOnceToAConstructibleModelOccurrenceAndActualCapabilityTruth() {
         MetalMpsGraphProgram.NodeKind[] kinds = MetalMpsGraphProgram.NodeKind.values();
         assertEquals(115, kinds.length);
-        assertEquals(29, PRODUCTION_FALSE.size());
+        assertEquals(28, PRODUCTION_FALSE.size());
         assertEquals(15, STRUCTURAL_ONLY.size());
         assertTrue(PRODUCTION_FALSE.containsAll(STRUCTURAL_ONLY));
 
@@ -212,8 +211,8 @@ class MetalOperationCompletenessAuditTest {
         }
 
         assertEquals(115, modelKinds.size());
-        assertEquals(86, accepted);
-        assertEquals(101, executable);
+        assertEquals(87, accepted);
+        assertEquals(102, executable);
         assertEquals(75, direct);
         assertEquals(35, composed);
         assertEquals(5, unavailable);
@@ -231,10 +230,10 @@ class MetalOperationCompletenessAuditTest {
                 .filter(kind -> kind != MetalMpsGraphProgram.NodeKind.MATMUL)
                 .count();
         assertEquals(71, productionCustom);
-        assertEquals(13, productionMpsGraph);
+        assertEquals(14, productionMpsGraph);
         assertTrue(PRODUCTION_FALSE.stream()
                 .noneMatch(MetalMpsGraphProgram.NodeKind::isCustomProgramOperation));
-        assertEquals(14, PRODUCTION_FALSE.size() - STRUCTURAL_ONLY.size());
+        assertEquals(13, PRODUCTION_FALSE.size() - STRUCTURAL_ONLY.size());
         STRUCTURAL_ONLY.forEach(kind -> assertTrue(kind.executable(), kind.name()));
     }
 

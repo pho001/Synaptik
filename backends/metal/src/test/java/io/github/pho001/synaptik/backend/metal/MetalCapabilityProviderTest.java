@@ -571,7 +571,8 @@ class MetalCapabilityProviderTest {
                 gradientMatrix)));
         for (UnaryElementwiseKind kind : UnaryElementwiseKind.values()) {
             assertEquals(
-                    exactRawUnary(kind) || kind == UnaryElementwiseKind.RECIPROCAL,
+                    exactRawUnary(kind) || kind == UnaryElementwiseKind.RECIPROCAL
+                            || kind == UnaryElementwiseKind.EXP,
                     provider.supports(unaryQuery(
                             kind, matrix, matrix)),
                     "selected capability " + kind);

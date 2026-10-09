@@ -78,8 +78,14 @@ class MetalOperationRouteCatalogTest {
             MetalMpsGraphProgram.NodeKind.SCATTER_ELEMENTS,
             MetalMpsGraphProgram.NodeKind.UNFOLD_AXIS),
         task0066MovedToCustomAvailable);
-        assertEquals(101, executable);
-        assertEquals(14, kinds.length - executable);
+        assertEquals(102, executable);
+        assertEquals(13, kinds.length - executable);
+        assertCatalog(
+                MetalMpsGraphProgram.NodeKind.EXP,
+                MetalOperationRouteCatalog.MpsGraphState.DIRECT,
+                MetalOperationRouteCatalog.MpsGraphReason.MD_ARITH,
+                MetalOperationRouteCatalog.CustomKernelState.PENDING,
+                MetalOperationRouteCatalog.CustomKernelReason.CP_POINT);
         assertThrows(NullPointerException.class, () -> MetalOperationRouteCatalog.entry(null));
     }
 

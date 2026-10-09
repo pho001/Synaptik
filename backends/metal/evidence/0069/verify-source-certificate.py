@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import hashlib
 import json
+import runpy
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -30,6 +31,25 @@ def main() -> None:
     kernel_text = kernel.read_text(encoding="utf-8")
     foundation_text = foundation.read_text(encoding="utf-8")
     proof_text = binary32.read_text(encoding="utf-8") + tree.read_text(encoding="utf-8")
+    fixed_source = runpy.run_path(
+        str(Path(__file__).with_name("extract-runtime-source.py"))
+    )["runtime_source"]().encode("utf-8")
+    fixed_entry = certificate["fixedRuntimeSource"]
+    compiled = json.loads(compiled_audit.read_text(encoding="utf-8"))
+    assert certificate["status"] == compiled["status"] == "accepted"
+    assert compiled["runtimeCompilerSite"]["sourceAssembly"] == (
+        "exact ordered concatenation of the ten digest-authenticated production "
+        "NSString constants; no Task0053 source is assembled"
+    )
+    assert len(fixed_source) == fixed_entry["bytes"]
+    assert hashlib.sha256(fixed_source).hexdigest() == fixed_entry["sha256"]
+    assert compiled["artifacts"]["source"]["bytes"] == fixed_entry["bytes"]
+    assert compiled["artifacts"]["source"]["sha256"] == fixed_entry["sha256"]
+    authenticated_fixed_source = foundation_text.split(
+        "static NSString *synaptik_authenticated_fixed_source(void) {", 1
+    )[1].split("static NSString *synaptik_authenticated_low_precision_source(void) {", 1)[0]
+    assert f'== {fixed_entry["bytes"]}U' in authenticated_fixed_source
+    assert f'"{fixed_entry["sha256"]}"' in authenticated_fixed_source
 
     compiler = certificate["compilerSite"]
     assert compiler["runtimeCompiler"] == "MTLDevice.newLibraryWithSource"
@@ -50,6 +70,8 @@ def main() -> None:
     assert variance["sourceDivisionSites"] == 2
     assert variance["sourceSubtractionSites"] == 1
     assert variance["sourceMultiplicationSites"] == 1
+    assert "profile-free occurrence" in variance["geometry"]
+    assert "accelerator profile" not in variance["geometry"]
     assert floating["reassociationSites"] == 0
     assert scatter["reassociationSites"] == 0
     assert floating["pretruncationSites"] == 0

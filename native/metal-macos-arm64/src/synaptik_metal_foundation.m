@@ -131,7 +131,7 @@ typedef enum : uint32_t {
     SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL = 52U,
     SYNAPTIK_METAL_MPSGRAPH_LOG = 53U,
     SYNAPTIK_METAL_MPSGRAPH_LOG1P = 54U,
-    SYNAPTIK_METAL_CUSTOM_EXP = 55U,
+    SYNAPTIK_METAL_MPSGRAPH_EXP = 55U,
     SYNAPTIK_METAL_MPSGRAPH_EXPM1 = 56U,
     SYNAPTIK_METAL_MPSGRAPH_ERF = 57U,
     SYNAPTIK_METAL_MPSGRAPH_SQRT = 58U,
@@ -418,10 +418,10 @@ static NSString *synaptik_authenticated_fixed_source(void) {
 
 static NSString *synaptik_authenticated_low_precision_source(void) {
     return [SynaptikLowPrecisionKernelSource
-                            lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 34694U
+                            lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 35407U
                     && synaptik_source_digest_matches(
                             SynaptikLowPrecisionKernelSource,
-                            "ffcdff700a1974d99354acea3fd111e56b75ac3102c8e3e38b5809ae3edaccad")
+                            "9505b41b20a20a5f7ff2c9f056957039a83f4d81a5fa31568629fbb954e173ab")
             ? SynaptikLowPrecisionKernelSource : nil;
 }
 
@@ -3160,7 +3160,6 @@ static BOOL operation_uses_custom_kernel(uint32_t operation) {
             || operation == SYNAPTIK_METAL_BOOL_WHERE
             || (operation >= SYNAPTIK_METAL_CUSTOM_FLOOR
                     && operation <= SYNAPTIK_METAL_CUSTOM_RELU)
-            || operation == SYNAPTIK_METAL_CUSTOM_EXP
             || operation == SYNAPTIK_METAL_CUSTOM_SIGMOID
             || operation == SYNAPTIK_METAL_CUSTOM_CAST
             || operation == SYNAPTIK_METAL_CUSTOM_GATHER_ELEMENTS
@@ -3339,6 +3338,7 @@ static BOOL operation_has_direct_mpsgraph(uint32_t operation) {
                     && operation <= SYNAPTIK_METAL_MPSGRAPH_SCALAR_POW)
             || (operation >= SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL
                     && operation <= SYNAPTIK_METAL_MPSGRAPH_LOG1P)
+            || operation == SYNAPTIK_METAL_MPSGRAPH_EXP
             || (operation >= SYNAPTIK_METAL_MPSGRAPH_EXPM1
                     && operation <= SYNAPTIK_METAL_CUSTOM_RELU)
             || (operation >= SYNAPTIK_METAL_MPSGRAPH_TANH
@@ -3406,6 +3406,8 @@ static NSString *low_precision_custom_function(
             return SYNAPTIK_LP_PICK("lp_abs_bf16", "lp_abs_f16");
         case SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL:
             return SYNAPTIK_LP_PICK("lp_reciprocal_bf16", "lp_reciprocal_f16");
+        case SYNAPTIK_METAL_MPSGRAPH_EXP:
+            return SYNAPTIK_LP_PICK("lp_exp_bf16", "lp_exp_f16");
         case SYNAPTIK_METAL_MPSGRAPH_ADD:
             return SYNAPTIK_LP_PICK("lp_add_bf16", "lp_add_f16");
         case SYNAPTIK_METAL_MPSGRAPH_SUB:
@@ -4154,9 +4156,9 @@ static SynaptikMetalProgramStep *make_custom_step(
             || node.operation == SYNAPTIK_METAL_MPSGRAPH_NEG
             || node.operation == SYNAPTIK_METAL_MPSGRAPH_ABS
             || node.operation == SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL
+            || node.operation == SYNAPTIK_METAL_MPSGRAPH_EXP
             || (node.operation >= SYNAPTIK_METAL_CUSTOM_FLOOR
                     && node.operation <= SYNAPTIK_METAL_CUSTOM_RELU)
-            || node.operation == SYNAPTIK_METAL_CUSTOM_EXP
             || node.operation == SYNAPTIK_METAL_CUSTOM_SIGMOID) {
         SynaptikMetalPointMeta meta = {0};
         meta.elementCount = shape_element_count(output);
@@ -5067,9 +5069,22 @@ static int32_t synaptik_metal_create_decoded(
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     break;
                 }
-                case SYNAPTIK_METAL_CUSTOM_EXP:
                 case SYNAPTIK_METAL_CUSTOM_SIGMOID:
                     return SYNAPTIK_METAL_STATUS_UNSUPPORTED_OPERATION;
+                case SYNAPTIK_METAL_MPSGRAPH_EXP:
+                    if ((route != SYNAPTIK_METAL_ROUTE_MPSGRAPH
+                                    && route != SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM)
+                            || states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                            || node.second_input != UINT32_MAX
+                            || !node_has_no_attributes(node)
+                            || shapes[node.first_input].count == 0U
+                            || ![shapes[node.first_input] isEqualToArray:shapes[node.output]]
+                            || shape_element_count(shapes[node.first_input])
+                                    > UINT32_MAX / (synaptik_is_low_precision_type(
+                                            declared_types[node.first_input])
+                                            ? sizeof(uint16_t) : sizeof(float)))
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    break;
                 case SYNAPTIK_METAL_MPSGRAPH_NEG:
                 case SYNAPTIK_METAL_MPSGRAPH_ABS:
                 case SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL:
@@ -5952,6 +5967,7 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL:
                 case SYNAPTIK_METAL_MPSGRAPH_LOG:
                 case SYNAPTIK_METAL_MPSGRAPH_LOG1P:
+                case SYNAPTIK_METAL_MPSGRAPH_EXP:
                 case SYNAPTIK_METAL_MPSGRAPH_EXPM1:
                 case SYNAPTIK_METAL_MPSGRAPH_ERF:
                 case SYNAPTIK_METAL_MPSGRAPH_SQRT:
@@ -5964,7 +5980,6 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_MPSGRAPH_GELU:
                 case SYNAPTIK_METAL_MPSGRAPH_GELU_TANH:
                 case SYNAPTIK_METAL_MPSGRAPH_SILU:
-                case SYNAPTIK_METAL_CUSTOM_EXP:
                 case SYNAPTIK_METAL_CUSTOM_SIGMOID:
                 case SYNAPTIK_METAL_MPSGRAPH_SUM:
                 case SYNAPTIK_METAL_MPSGRAPH_MEAN:
@@ -6988,6 +7003,9 @@ static int32_t synaptik_metal_create_decoded(
                             secondaryTensor:one name:nil];
                     break;
                 }
+                case SYNAPTIK_METAL_MPSGRAPH_EXP:
+                    output = [graph exponentWithTensor:first name:nil];
+                    break;
                 case SYNAPTIK_METAL_MPSGRAPH_ERF:
                     output = [graph erfWithTensor:first name:nil];
                     break;
@@ -8466,6 +8484,28 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                     consumed[value] = 1U;
             }
             reference_cursor = output_offset + output_count;
+            if (operation == SYNAPTIK_METAL_MPSGRAPH_EXP) {
+                uint32_t input_value = synaptik_read_le32(
+                        program + references_offset + (uint64_t)input_offset * 4U);
+                uint32_t output_value = synaptik_read_le32(
+                        program + references_offset + (uint64_t)output_offset * 4U);
+                uint32_t input_flags = synaptik_read_le32(
+                        program + values_offset + (uint64_t)input_value * 40U + 16U);
+                uint32_t output_flags = synaptik_read_le32(
+                        program + values_offset + (uint64_t)output_value * 40U + 16U);
+                uint8_t exp_type = declared_types[input_value];
+                if ((route != SYNAPTIK_METAL_ROUTE_MPSGRAPH
+                                && route != SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM)
+                        || (exp_type != SYNAPTIK_METAL_TYPE_FLOAT32
+                                && !(route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM
+                                        && synaptik_is_low_precision_type(exp_type)))
+                        || declared_types[output_value] != exp_type
+                        || (input_flags & 1U) != 0U || (output_flags & 1U) != 0U
+                        || !layout_present[input_value] || !layout_present[output_value]
+                        || declared_states[input_value] != SYNAPTIK_METAL_VALUE_CANONICAL
+                        || declared_states[output_value] != SYNAPTIK_METAL_VALUE_CANONICAL)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            }
             if (operation == SYNAPTIK_METAL_MPSGRAPH_SCALAR_ADD
                     || operation == SYNAPTIK_METAL_MPSGRAPH_SCALAR_SUB
                     || operation == SYNAPTIK_METAL_MPSGRAPH_SCALAR_MUL

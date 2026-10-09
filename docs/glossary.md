@@ -1140,7 +1140,9 @@ FLOAT32/BFLOAT16/FLOAT16 arithmetic, scalar, reduction, scan, MATMUL, MSE, convo
 dropout, L1, ScatterAdd, and singleton-variance occurrence. Direct BFLOAT16/FLOAT16 mixed-low
 operations remain false except explicit CAST. Every partition containing BFLOAT16 or FLOAT16
 values selects the fixed custom program, including exact no-gradient homogeneous raw-preserving
-RESHAPE, simple PERMUTE, materializing CONTIGUOUS, SLICE, CONCAT, and TILE. Existing rank-two
+RESHAPE, simple PERMUTE, materializing CONTIGUOUS, SLICE, CONCAT, and TILE and independently
+qualified bounded canonical no-gradient BFLOAT16/FLOAT16 `EXP`. The FLOAT32 `EXP` occurrence uses
+direct MPSGraph; neither answer is inferred from the other. Existing rank-two
 FLOAT32 MATMUL may retain direct MPSGraph. Metal's occurrence-level answer is independent of native
 availability and route policy; preparation authenticates private structural facts and fixes the
 route.
@@ -2508,7 +2510,7 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The profile-free Metal instance is also implemented internally. Its version-thirty
+The profile-free Metal instance is also implemented internally. Its version-thirty-two
 fingerprint covers bounded route-bearing node schema 20 and
 authenticated execution extension, operation wires `1..115`, attribute wires `0..41`, type wires
 `1..7`, ordered variable-cardinality inputs/outputs, ordered feed/target/value structure,
@@ -2556,7 +2558,7 @@ batch as a plan batch would incorrectly repeat local route search.
 
 The profile-free Metal batch is session-scoped. It contains only the complete
 `CUSTOM_SINGLE_NEG`, `CUSTOM_PROGRAM`, and `MPSGRAPH` configurations valid for the exact partition
-under the one Model contract. Compatibility, candidate, and route-policy identities are version thirty; every
+under the one Model contract. Compatibility, candidate, and route-policy identities are version thirty-two; every
 other identity fails closed, and no private field crosses the marker-role boundary.
 
 ### Complete-plan candidate
@@ -2596,10 +2598,10 @@ decision contains no measurement, cache representation, executable, provider, na
 physical resource, or Runtime state.
 
 The profile-free Metal decision follows the same owner-defined pattern with a bounded
-checksummed version-thirty session codec. Fresh Metal analysis regenerates current occurrence/
+checksummed version-thirty-two session codec. Fresh Metal analysis regenerates current occurrence/
 topology facts and accepts a selection only when schema, workload, exact context session, and
 candidate identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session,
-version-twenty-nine and earlier and unknown-candidate bytes. These bytes are not a
+version-thirty-one and earlier and unknown-candidate bytes. These bytes are not a
 workload-cache artifact and have no current `tools/tuning` adapter.
 
 The generic Phase-2 tool may persist a decision only when its producer declares persistent reuse,
@@ -5219,12 +5221,14 @@ maximal Metal-owned partition. Its exact domain admits seven-carrier movement,
 indexing, ordering, predicate, cast, non-overlapping window, maximum-pool, promoted integral
 MATMUL, and raw INITIAL_STATE occurrences. It also admits qualified
 homogeneous FLOAT32/BFLOAT16/FLOAT16 arithmetic, reduction, scan, MATMUL, MSE, convolution,
-average-pool, dropout, L1, ScatterAdd, and singleton-variance occurrence. Direct BFLOAT16/FLOAT16
+average-pool, dropout, L1, ScatterAdd, singleton-variance, and independently qualified bounded
+canonical no-gradient `EXP` occurrences. FLOAT32 `EXP` uses direct MPSGraph; each low type uses its
+typed custom step. Direct BFLOAT16/FLOAT16
 mixed-low operations remain unsupported. Direct transfer moves all seven carriers at ranks
 `0..16`; BOOL validation visits logical elements only.
 
 Metal analysis fixes stable value/node/feed/target order, lowers one bounded schema-20 route-bearing
-program image with a 124-byte header, generates a complete version-30 route batch, authenticates any supplied session
+program image with a 124-byte header, generates a complete version-32 route batch, authenticates any supplied session
 decision, and fixes one private route before declaring resources. Every other identity fails
 closed. Every partition containing BFLOAT16 or FLOAT16 values selects the fixed shared custom
 whole-program route; it has no MPSGraph candidate. Existing eligible FLOAT32 partitions retain
@@ -5235,7 +5239,7 @@ remain custom, and generated-pointwise/anchor fusion remains disabled throughout
 These choices add no fallback, retry, timing selection, or partition change.
 
 Finalization compiles one persistent route resource and transfers it to `PreparedExecution`.
-Shared custom-program creation authenticates each frozen component and the ordered 84,541-byte
+Shared custom-program creation authenticates each frozen component and the ordered 84,603-byte
 fixed source. Java supplies typed records and integer byte counts only. Native owns the sole
 structured pointwise emitter and all source hashes: it performs a no-allocation count traversal,
 validates all caps before exact allocation, emits once for compiler input, authenticates the

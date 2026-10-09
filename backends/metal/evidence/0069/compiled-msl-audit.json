@@ -21,6 +21,7 @@
     "-Wall",
     "-Wextra",
     "-Werror",
+    "-fmodules-cache-path=<audit-workspace>/module-cache",
     "-isysroot",
     "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk",
     "-c",
@@ -30,28 +31,28 @@
     "api": "MTLDevice.newLibraryWithSource",
     "mathMode": "MTLMathModeSafe",
     "languageVersion": "MTLLanguageVersion3_2",
-    "sourceAssembly": "exact ordered concatenation extracted from the ten production NSString constants with the Task0053 source gate false"
+    "sourceAssembly": "exact ordered concatenation of the ten digest-authenticated production NSString constants; no Task0053 source is assembled"
   },
   "artifacts": {
     "source": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.metal",
-      "bytes": 84541,
-      "sha256": "5e7d65bfc46f52532781a3730aeda2202b798022b61fb60ea5beeb95307e77bb"
+      "bytes": 84603,
+      "sha256": "eb9a4bc2e9156bd971c59a3f8c1416df61627fe1c8e5655ccff28ecdf28b39f5"
     },
     "air": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.air",
-      "bytes": 109424,
-      "sha256": "0910cf65f5205bcbd8016abd3a252d81b751b88dd681b65f8b73c374bd91da67"
+      "bytes": 109904,
+      "sha256": "9316c7642c1ea9dea110f869fc456196c3fed2a54089847a4ff439edc94da408"
     },
     "metallib": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.metallib",
-      "bytes": 486686,
-      "sha256": "b09ead23c20e4b9c1de200e4176914aa08642e4f68edf218ef79bb97659b8d1e"
+      "bytes": 487886,
+      "sha256": "a0df8b5be8dc7888e55e6a753e823ccceb2697d30829af62c3660b45e02b50a2"
     },
     "ir": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.air.ll",
-      "bytes": 810710,
-      "sha256": "22f73e62f6643bff79becdca57266286e326b252adcbe298a58523ddae26c33d"
+      "bytes": 814921,
+      "sha256": "5af09a4d4f68677e39e6fed19cf452b156d49afe053a0f36ae683e0242b9412b"
     },
     "symbols": {
       "path": "ephemeral/.task0069-msl-audit/runtime-source.air.nm",

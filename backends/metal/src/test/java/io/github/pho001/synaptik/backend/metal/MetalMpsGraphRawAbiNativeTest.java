@@ -253,6 +253,82 @@ class MetalMpsGraphRawAbiNativeTest {
         }
     }
 
+    @Test
+    void packagedNativeCreatesLowCastThenFloat32ExpMpsGraphBoundary() throws Throwable {
+        var cast = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.CAST,
+                new int[] {0}, new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
+                new long[] {MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT32)});
+        var exp = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.EXP,
+                new int[] {1}, new int[] {2},
+                MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
+        var program = new MetalMpsGraphProgram(List.of(cast, exp));
+        try (RawAbi abi = new RawAbi(configuredLibrary())) {
+            for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+                List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                        descriptor(low, 4), descriptor(4), descriptor(4));
+                MetalPointwiseFusionPlan plan = program.resolvePlan(
+                        values, new int[] {0}, new int[] {2},
+                        MetalPreparedRoute.CUSTOM_PROGRAM, null);
+                assertEquals(List.of(
+                                MetalPointwiseFusionPlan.StepKind.FIXED_CUSTOM,
+                                MetalPointwiseFusionPlan.StepKind.MPSGRAPH_BOUNDARY),
+                        plan.steps().stream().map(MetalPointwiseFusionPlan.Step::kind).toList(),
+                        low.toString());
+                assertEquals(0, plan.generatedUnitCount(), low.toString());
+                byte[] image = program.encodedProgramImage(
+                        values, new int[] {0}, new int[] {2},
+                        MetalPreparedRoute.CUSTOM_PROGRAM);
+                assertEquals(0, abi.create(image, image.length), low.toString());
+            }
+        }
+    }
+
+    @Test
+    void schemaTwentyAuthenticatesTypedLowExpCustomStepsAndRejectsForgedImages()
+            throws Throwable {
+        var exp = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.EXP,
+                        new int[] {0}, new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.NONE, new long[0])));
+        try (RawAbi abi = new RawAbi(configuredLibrary())) {
+            for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+                var value = descriptor(low, 7, 17);
+                var values = List.of(value, value);
+                var plan = exp.resolvePlan(values, new int[] {0}, new int[] {1},
+                        MetalPreparedRoute.CUSTOM_PROGRAM, null);
+                assertEquals(List.of(MetalPointwiseFusionPlan.StepKind.FIXED_CUSTOM),
+                        plan.steps().stream().map(MetalPointwiseFusionPlan.Step::kind).toList());
+                assertEquals(0, plan.generatedUnitCount());
+                byte[] image = exp.encodedProgramImage(values, new int[] {0}, new int[] {1},
+                        MetalPreparedRoute.CUSTOM_PROGRAM);
+                assertEquals(0, abi.create(image, image.length), low.name());
+                byte[] wrongRoute = exp.encodedProgramImage(values, new int[] {0}, new int[] {1},
+                        MetalPreparedRoute.MPSGRAPH);
+                assertNotEquals(0, abi.create(wrongRoute, wrongRoute.length), low.name());
+                int inputDescriptor = MetalMpsGraphProgram.HEADER_BYTES;
+                int outputDescriptor = inputDescriptor
+                        + MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES;
+                assertEquals(1, abi.create(rewriteInt(image, 4, 19), image.length));
+                assertEquals(1, abi.create(rewriteInt(image, inputDescriptor,
+                        MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT32)), image.length));
+                assertEquals(1, abi.create(rewriteInt(image, outputDescriptor,
+                        MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT32)), image.length));
+                assertEquals(1, abi.create(rewriteInt(image, inputDescriptor + 16,
+                        readInt(image, inputDescriptor + 16) | 1), image.length));
+                assertEquals(1, abi.create(rewriteInt(image, outputDescriptor + 16,
+                        readInt(image, outputDescriptor + 16) | 1), image.length));
+                assertEquals(1, abi.create(rewriteLong(image,
+                        inputDescriptor + 32, 0L), image.length));
+                assertEquals(1, abi.create(rewriteInt(image, nodeOffset(2),
+                        MetalMpsGraphProgram.NodeKind.EXPM1.wireIdentity()), image.length));
+            }
+        }
+    }
+
     /**
      * A low feed cast to FLOAT32 does not authorize fused FLOAT32 work later in that partition.
      * The forged images retain a valid typed fusion extension and a matching manifest digest, so
@@ -1131,12 +1207,8 @@ class MetalMpsGraphRawAbiNativeTest {
         byte[] image = program.encodedProgramImage(values, new int[] {0, 1, 2}, new int[] {3});
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(13, abi.create(image, image.length));
-            for (MetalMpsGraphProgram.NodeKind kind : List.of(
-                    MetalMpsGraphProgram.NodeKind.EXP,
-                    MetalMpsGraphProgram.NodeKind.SIGMOID)) {
-                byte[] blocked = unaryImage(kind);
-                assertEquals(13, abi.create(blocked, blocked.length));
-            }
+            byte[] blocked = unaryImage(MetalMpsGraphProgram.NodeKind.SIGMOID);
+            assertEquals(13, abi.create(blocked, blocked.length));
             assertEquals(1, abi.create(
                     rewriteLong(image, image.length - Long.BYTES, 2L), image.length));
             int referencesOffset = MetalMpsGraphProgram.HEADER_BYTES
@@ -1148,6 +1220,50 @@ class MetalMpsGraphRawAbiNativeTest {
                     rewriteInt(image, referencesOffset + 4 * Integer.BYTES, 3), image.length));
             assertEquals(1, abi.create(
                     rewriteInt(image, referencesOffset + 7 * Integer.BYTES, 0), image.length));
+        }
+    }
+
+    @Test
+    void expWire55AcceptsOnlyCanonicalNoGradientFloat32DirectImages() throws Throwable {
+        Path library = configuredLibrary();
+        byte[] valid = unaryImage(MetalMpsGraphProgram.NodeKind.EXP);
+        int valuesOffset = MetalMpsGraphProgram.HEADER_BYTES;
+        int outputOffset = valuesOffset + MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES;
+        int nodeOffset = outputOffset + MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES;
+        try (RawAbi abi = new RawAbi(library)) {
+            assertEquals(0, abi.create(valid, valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, 4, 19), valid.length),
+                    "stale schema-nineteen image must reject");
+            assertEquals(1, abi.create(rewriteInt(valid, 16, 3), valid.length),
+                    "EXP has no custom-program route");
+            assertEquals(1, abi.create(rewriteInt(valid, valuesOffset,
+                    MetalMpsGraphProgram.dataTypeWire(DataType.BFLOAT16)), valid.length),
+                    "BFLOAT16 input must reject");
+            assertEquals(1, abi.create(rewriteInt(valid, outputOffset,
+                    MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT64)), valid.length),
+                    "FLOAT64 output must reject");
+            assertEquals(1, abi.create(rewriteInt(valid, valuesOffset + 16, 3), valid.length),
+                    "input gradient flag must reject");
+            assertEquals(1, abi.create(rewriteInt(valid, outputOffset + 16, 3), valid.length),
+                    "output gradient flag must reject");
+            assertEquals(1, abi.create(rewriteInt(valid, valuesOffset + 16, 0), valid.length),
+                    "missing input layout must reject");
+            assertEquals(1, abi.create(rewriteInt(valid, outputOffset + 16, 0), valid.length),
+                    "missing output layout must reject");
+            assertEquals(1, abi.create(rewriteInt(valid, nodeOffset + 4, 1), valid.length),
+                    "EXP attributes must remain absent");
+            byte[] mismatchedShape = new MetalMpsGraphProgram(List.of(
+                    unaryNode(MetalMpsGraphProgram.NodeKind.EXP, 0, 1)))
+                    .encodedProgramImage(
+                            List.of(descriptor(4), descriptor(5)),
+                            new int[] {0}, new int[] {1});
+            assertEquals(1, abi.create(mismatchedShape, mismatchedShape.length));
+            byte[] scalar = new MetalMpsGraphProgram(List.of(
+                    unaryNode(MetalMpsGraphProgram.NodeKind.EXP, 0, 1)))
+                    .encodedProgramImage(
+                            List.of(descriptor(), descriptor()),
+                            new int[] {0}, new int[] {1});
+            assertEquals(1, abi.create(scalar, scalar.length));
         }
     }
     @Test

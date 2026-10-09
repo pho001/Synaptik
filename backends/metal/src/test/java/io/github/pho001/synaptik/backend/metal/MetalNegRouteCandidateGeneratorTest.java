@@ -371,6 +371,32 @@ class MetalNegRouteCandidateGeneratorTest {
         }
     }
 
+    @Test
+    void lowExpSelectsOneFixedCustomStepAndOnlyCustomCandidate() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+                TensorDescriptor descriptor = canonical(low, Shape.of(7, 17));
+                Workload workload = operationWorkload(device,
+                        low == DataType.BFLOAT16 ? 205_300L : 205_400L,
+                        new Operation(UnaryElementwiseKind.EXP, NoOperationAttrs.INSTANCE),
+                        descriptor, descriptor);
+                Generated generated = generated(workload, 2);
+                MetalNegPreparationPlan plan = generated.analysis().plan();
+                assertSame(MetalPreparedRoute.CUSTOM_PROGRAM, plan.route(), low.name());
+                assertEquals(List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
+                        generated.batch().candidates(), low.name());
+                assertEquals(List.of(MetalPointwiseFusionPlan.StepKind.FIXED_CUSTOM),
+                        plan.pointwiseFusionPlan().steps().stream()
+                                .map(MetalPointwiseFusionPlan.Step::kind).toList(), low.name());
+                assertThrows(IllegalArgumentException.class,
+                        () -> new MetalNegPartitionPreparer().analyzeForTesting(
+                                workload.context(), MetalPreparedRoute.MPSGRAPH));
+            }
+            assertEquals(0, api.nativeAllocations.get());
+        }
+    }
+
   @Test
   void task0066SelectedNodesRejectForcedMpsGraphBeforeNativeAllocation() {
     TestNativeApi api = new TestNativeApi();
@@ -1116,8 +1142,8 @@ class MetalNegRouteCandidateGeneratorTest {
                     route.wireIdentity()).orElseThrow());
             assertArrayEquals(new byte[] {
                     0x4d, 0x4e, 0x43, 0x41,
-                    0x00, 0x00, 0x00, 0x1e,
-                    0x00, 0x00, 0x00, 0x1e,
+                    0x00, 0x00, 0x00, 0x20,
+                    0x00, 0x00, 0x00, 0x20,
                     0x00, 0x00, 0x00, (byte) route.wireIdentity()
             }, codec.encodeCandidate(candidate));
         }
@@ -1139,17 +1165,19 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(30, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(30, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(30, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(32, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(32, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(32, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(30, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(30, current.batch().compatibility().schemaVersion());
-            assertEquals(30, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(30, current.batch().compatibility().routePolicyVersion());
+            assertEquals(32, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(32, current.batch().compatibility().schemaVersion());
+            assertEquals(32, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(32, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
+            assertTrue(codec.decodeDecision(rewriteInt(first, Integer.BYTES, 31),
+                    current.batch()).isEmpty(), "identity 31 decisions are stale");
             byte[] corrupt = first.clone();
             corrupt[20] ^= 1;
             assertTrue(codec.decodeDecision(corrupt, current.batch()).isEmpty());
@@ -1207,11 +1235,30 @@ class MetalNegRouteCandidateGeneratorTest {
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, 4, 29), current.batch()).isEmpty(),
                     "stale pre-cutover codec identity must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, 4, 30), current.batch()).isEmpty(),
+                    "stale pre-EXP codec identity must fail closed");
             int compatibilityOffset = 4 * Integer.BYTES;
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, compatibilityOffset + Integer.BYTES, 24),
                     current.batch()).isEmpty(),
                     "checksummed compatibility-codec-v24 decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, compatibilityOffset + Integer.BYTES, 30),
+                    current.batch()).isEmpty(),
+                    "stale pre-EXP compatibility codec must fail closed with a valid checksum");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, compatibilityOffset + 3 * Integer.BYTES, 30),
+                    current.batch()).isEmpty(),
+                    "stale pre-EXP compatibility schema must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, compatibilityOffset + 4 * Integer.BYTES, 30),
+                    current.batch()).isEmpty(),
+                    "stale pre-EXP candidate schema must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, compatibilityOffset + 5 * Integer.BYTES, 30),
+                    current.batch()).isEmpty(),
+                    "stale pre-EXP route policy must fail closed");
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, compatibilityOffset + 3 * Integer.BYTES, 24),
                     current.batch()).isEmpty(),
@@ -1227,6 +1274,25 @@ class MetalNegRouteCandidateGeneratorTest {
             int compatibilityLength =
                     java.nio.ByteBuffer.wrap(first).getInt(3 * Integer.BYTES);
             int candidateOffset = 5 * Integer.BYTES + compatibilityLength;
+            for (int staleOffset : new int[] {
+                    compatibilityOffset + Integer.BYTES,
+                    compatibilityOffset + 3 * Integer.BYTES,
+                    compatibilityOffset + 4 * Integer.BYTES,
+                    compatibilityOffset + 5 * Integer.BYTES,
+                    candidateOffset + Integer.BYTES,
+                    candidateOffset + 2 * Integer.BYTES}) {
+                assertTrue(codec.decodeDecision(
+                        rewriteInt(first, staleOffset, 31), current.batch()).isEmpty(),
+                        "identity 31 must be rejected at byte " + staleOffset);
+            }
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, candidateOffset + Integer.BYTES, 30),
+                    current.batch()).isEmpty(),
+                    "stale pre-EXP candidate codec must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, candidateOffset + 2 * Integer.BYTES, 30),
+                    current.batch()).isEmpty(),
+                    "stale pre-EXP candidate identity must fail closed");
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, candidateOffset + Integer.BYTES, 24),
                     current.batch()).isEmpty(),
@@ -1331,7 +1397,7 @@ class MetalNegRouteCandidateGeneratorTest {
             Workload valid = workload(device, 700, Shape.of(4), false,
                     Optional.empty(), true, false, 1);
             CompiledNode invalidNode = new CompiledNode(valid.context().nodes().getFirst().id(),
-                    new Operation(UnaryElementwiseKind.EXP, NoOperationAttrs.INSTANCE),
+                    new Operation(UnaryElementwiseKind.SIGMOID, NoOperationAttrs.INSTANCE),
                     valid.context().nodes().getFirst().inputs(),
                     valid.context().nodes().getFirst().outputs());
             var invalidDag = new PartitionDag(valid.context().partition(), List.of(invalidNode));
@@ -1358,6 +1424,42 @@ class MetalNegRouteCandidateGeneratorTest {
                 assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
             }
             assertEquals(0, api.nativeAllocations.get());
+        }
+    }
+
+    @Test
+    void preparerRejectsGradientLowExpAtProviderGateBeforeNativeAllocation() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+                TensorDescriptor value = canonical(low, Shape.of(4));
+                Workload preservedBaseline = operationWorkload(
+                        device, 70_000 + low.ordinal() * 10L,
+                        new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE),
+                        List.of(value), value);
+                assertTrue(MetalCapabilityProvider.supportsOccurrence(
+                        preservedBaseline.context().nodes().getFirst().operation(),
+                        List.of(value), List.of(value)));
+                assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM,
+                        analyze(preservedBaseline.context()).plan().route());
+
+                TensorDescriptor gradient = new TensorDescriptor(
+                        low, Shape.of(4), Optional.of(LayoutDescriptor.contiguous(Shape.of(4))),
+                        true);
+                Workload rejected = operationWorkload(
+                        device, 71_000 + low.ordinal() * 10L,
+                        new Operation(UnaryElementwiseKind.EXP, NoOperationAttrs.INSTANCE),
+                        List.of(gradient), gradient);
+                assertFalse(MetalCapabilityProvider.supportsOccurrence(
+                        rejected.context().nodes().getFirst().operation(),
+                        List.of(gradient), List.of(gradient)));
+                IllegalArgumentException failure = assertThrows(
+                        IllegalArgumentException.class,
+                        () -> analyze(rejected.context()), low.toString());
+                assertEquals("Metal occurrence is outside the capability domain",
+                        failure.getMessage(), low.toString());
+                assertEquals(0, api.nativeAllocations.get(), low.toString());
+            }
         }
     }
 

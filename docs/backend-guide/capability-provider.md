@@ -38,8 +38,9 @@ compatibility or eventual executability.
 The checked-in
 [`low-precision-capability-ledger-v2.tsv`](../../testing/backend-conformance/src/test/resources/low-precision-capability-ledger-v2.tsv)
 is the canonical profile-free representative snapshot of actual CPU and Metal provider answers.
-It preserves supported and explicit unsupported FLOAT32 occurrences, plus independently queried
-BFLOAT16 and FLOAT16 counterparts. The 508-row
+It records supported and explicit unsupported FLOAT32 occurrences, plus independently queried
+BFLOAT16 and FLOAT16 counterparts. The current Metal FLOAT32, BFLOAT16, and FLOAT16 `EXP` rows
+are independently true for their bounded canonical no-gradient occurrences. The 508-row
 [`v1 ledger`](../../testing/backend-conformance/src/test/resources/low-precision-capability-ledger-v1.tsv)
 is historical two-profile evidence; it is not a current provider query or numerical certificate.
 `LowPrecisionCapabilityLedgerTest` reconstructs the basis, calls the providers, serializes UTF-8
@@ -61,7 +62,9 @@ This mechanism does not redesign `BackendCapabilityProvider`. The separate ident
 ledger records historical allocations: Model `DataType.FLOAT16` ordinal 6, CPU generator schema
 68, Metal type wire 7, program schema 19, backend identities 29, and native ABI 7. Current CPU
 generator schema is 69; current Metal program schema is 20 with a 124-byte header and tuning
-identity 30; native ABI remains 7. The ledger is not a current-schema certificate.
+identity 32 (identity 30 was the profile-free cutover value and 31 the FLOAT32 `EXP` value);
+native ABI remains 7. The ledger is
+not a current-schema certificate.
 
 ## Current shared identity, availability, and requirement vocabulary
 
@@ -279,8 +282,8 @@ style](../developer-guide/documentation/backend-guide-style.md).
 `OperationCapabilityQuery` carries complete occurrence facts but no numerical selector. Model
 defines one family/dtype semantic contract. A provider answers the concrete occurrence and must
 not infer support from semantic reachability or `DeviceClass`; return `false` for unsupported
-descriptors or attributes. The CPU and Metal providers retain their independently queried true
-and false answers from the pre-cutover accelerator baseline.
+descriptors or attributes. The v1 `ACCELERATOR` answers remain historical cutover evidence, not a
+permanent ceiling on the current provider or its v2 ledger.
 
 The current Metal provider admits the exact common unary, affine, canonicalization, indexing,
 classification, BOOL, replacement, movement, non-overlapping fold/window, ordering/top-K/numeric
@@ -296,16 +299,26 @@ the six numeric carriers over canonical dense ranks `1..16` with unsigned-32-bit
 Metal also admits the documented FLOAT32 arithmetic, extrema, scalar, reduction,
 scan, MSE, general MATMUL, average-pooling, convolution, explicit-state dropout, and exact
 rank-one no-gradient FLOAT32 `L1_NORM` and `SCATTER_ADD`, plus singleton `VARIANCE`. Every
-supported homogeneous FLOAT32 occurrence has independently queried BFLOAT16 and FLOAT16 counterparts;
-direct BFLOAT16/FLOAT16 mixed-low execution remains unsupported. ScatterAdd uses axis zero,
+supported frozen-baseline homogeneous FLOAT32 occurrence retains its independently queried
+BFLOAT16 and FLOAT16 counterparts where declared; a new FLOAT32 answer does not grant either low
+answer. Current post-cutover `EXP` support admits separate homogeneous FLOAT32, BFLOAT16, and
+FLOAT16 answers for one canonical, positive-static-rank `1..16`, no-gradient input and
+same-type/equal-Shape canonical output with no attributes and checked dtype-specific byte geometry.
+FLOAT32 uses direct MPSGraph; each low type uses its own typed custom step. FLOAT64,
+gradient-bearing, scalar-rank, noncanonical, mixed-low, and over-limit Metal `EXP` remain false.
+Direct BFLOAT16/FLOAT16 mixed-low execution remains unsupported. ScatterAdd uses
+axis zero,
 canonical base/index/update/output roles, and a materialized INT32/INT64 index feed; the compiler
 explicitly canonicalizes its generated zero base, and the complete range scan precedes dispatch
 and mutation. Variance requires no-gradient input `[1]`, axis `[0]`, correction zero, and canonical
 scalar or retained `[1]` output. Metal admits no-gradient INT32/INT64 MATMUL pairs with
 INT64-dominant promotion and modular result arithmetic. Every partition containing BFLOAT16 or
 FLOAT16 values and the three exact rank-one FLOAT32 special occurrences use one fixed
-`CUSTOM_PROGRAM` route. Low-precision partitions expose no MPSGraph, classic-MPS, MPP, CPU, retry,
-or fallback route.
+`CUSTOM_PROGRAM` route. A low feed explicitly cast to FLOAT32 may then use this FLOAT32 `EXP` as
+an internal MPSGraph boundary step; the whole partition remains custom. Low-valued `EXP` instead
+uses a qualified typed custom step without an implicit cast. Low-precision partitions expose no
+MPSGraph, classic-MPS, MPP, CPU, retry,
+or fallback whole-partition route.
 Capability distinguishes logical affine layouts from their independently authenticated physical
 spans and rejects dynamic/empty geometry, zero or negative external strides, overlap, every other
 additive scatter, reduction-dependent adjoints, and every other unlisted occurrence before route
@@ -315,6 +328,7 @@ ABI 7 exposes thirteen functions and consumes one bounded schema-20 route-bearin
 Operation wires `1..115`, attribute wires `0..41`, route wires `1..3`, and type wires `1..7` are
 structural vocabulary only. The custom-program extension authenticates compact materialized slots,
 deterministic generated pointwise units, and qualified MATMUL/Conv2d anchor epilogues
-without widening capability. Version-thirty workload, policy, candidate, compatibility,
-route, and codec identities authenticate that meaning; every other identity fails closed.
-Production capability is `86/29`, and structural execution remains `101/14`.
+without widening capability. Version-thirty-two workload, policy, candidate, compatibility,
+route, and codec identities authenticate that meaning; prior identities 30 and 31 and other stale values
+fail closed. Current production capability is `87/28` and structural execution is `102/13` over
+operation kinds; the frozen cutover counts were `86/29` and `101/14`.
