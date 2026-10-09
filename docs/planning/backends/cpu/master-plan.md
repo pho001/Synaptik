@@ -248,6 +248,7 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0017 | [Explicit ACCELERATOR numerical-profile realization](tasks/0017-explicit-accelerator-numerical-profile-realization.md) | Complete | Model 0027; Config 0006; Engine 0018; current exact portable/OpenBLAS routes and profile-keyed plans/caches | Delivered identical exact CPU semantics and routes under both profiles with profile-separated plans, generated artifacts, OpenBLAS workloads, and tuning/cache identities. |
 | 0018 | [Shared external-read recognition validation](tasks/0018-shared-external-read-recognition-validation.md) | Complete | CPU 0008C/0008D/0008F/0017; Engine 0018 (all Complete); user chose authenticated `ValueId` binding | DAG-authenticated virtual-output provenance preserves legal shared-weight MATMUL+RELU fusion and rejects forged positions; focused and full CPU tests passed, with independent Class C approval. |
 | 0019 | [CPU partition size independent of fusion-unit size](tasks/0019-unbounded-cpu-partition-bounded-fusion-units.md) | Complete | CPU 0008B/0008D/0008E/0008F/0017; Engine 0018 (Complete); independent of 0018 | Long maximal CPU partitions now execute as bounded local units; 1,039 CPU tests and focused Engine execution passed. |
+| 0020 | [Bare MATMUL realization and strategy alignment](tasks/0020-bare-matmul-realization-strategy-alignment.md) | Ready | CPU 0008F, 0010M, 0018, 0019 (all Complete) | Sole CPU frontier: reconcile geometry-selected vector MATMUL IR with the configured scalar/vector compute strategy, then verify portable public execution. |
 
 ## Milestones and current frontier
 
@@ -262,8 +263,9 @@ The table owns order and status; linked tasks own detailed evidence.
   user-authorized exception to table order. [0018](tasks/0018-shared-external-read-recognition-validation.md)
   is also Complete: CPU-private DAG-derived `ValueId` binding closes the shared-weight/virtual-
   output validation hole while retaining legal MATMUL+RELU fusion. Focused and full CPU validation
-  and independent Class C re-review passed. No next CPU implementation task is Ready;
-  0007A1D's historical failed performance gate is closed as Superseded, not accepted as passing.
+  and independent Class C re-review passed. [0020](tasks/0020-bare-matmul-realization-strategy-alignment.md)
+  is the sole `Ready` CPU implementation frontier at clean `81a2503d`. CPU 0007A1D's historical
+  failed performance gate is closed as Superseded, not accepted as passing.
 - Documentation-only 0010K and 0010L and profile realization
   [0017](tasks/0017-explicit-accelerator-numerical-profile-realization.md) are Complete. CPU 0017
   landed at `372a8b98`; its independent Class C review and the combined numerical-profile backend
@@ -287,6 +289,8 @@ capability/preparer, and glossary documents now describe the combined current be
 - CPU 0018 closed the virtualized-output/shared-weight recognition validation hole with
   CPU-private DAG-derived `ValueId` provenance. The separate >8-node CPU graph-size choice was
   fixed by 0019: retain maximal same-owner partitions and bound only local computation units.
+- CPU 0020 must align vector-eligible bare MATMUL realization with the actual configured
+  scalar/vector preparation strategy before finalization; it makes no new route or speed claim.
 - [OpenBLAS provider 0004](../openblas-provider/tasks/0004-optional-direct-bfloat16-output-gemm-capability.md)
   and CPU 0010D1 resume only after proving an exported direct BFLOAT16-input/output ABI and full
   FLOAT32 contraction with one final narrowing. Existing portable BFLOAT16 and FLOAT32/FLOAT64
