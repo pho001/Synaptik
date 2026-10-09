@@ -154,7 +154,7 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0007A1A | [Generated scalar-body self-containment](tasks/0007a1a-generated-scalar-body-self-containment.md) | Complete | 0007A1; approved schema-29 generated-code audit | Delivered. |
 | 0007A1B | [Scatter algorithmic parity](tasks/0007a1b-scatter-algorithmic-parity.md) | Complete | 0007A1A; completed 0006B1/0007A0C semantics | Delivered. |
 | 0007A1C | [Generated/direct evidence closure](tasks/0007a1c-generated-direct-evidence-closure.md) | Complete | 0007A1B; completed generated-family inventory through 0007A1 | Closed semantics, structure, and twenty five-fork parity rows. |
-| 0007A1D | [Native-order segment layout hoisting](tasks/0007a1d-native-order-segment-layout-hoisting.md) | Review needed | 0007A1C first-fork evidence | Schema-32 semantics and structure pass; all 13 final-fork performance targets failed, with forks 2–5 and aggregates open. |
+| 0007A1D | [Native-order segment layout hoisting](tasks/0007a1d-native-order-segment-layout-hoisting.md) | Superseded | 0007A1C first-fork evidence | Retained schema-32 hoisting passed semantics/structure but failed all 13 isolated performance targets; later A1E–A1O/A1C work replaced the unfinished local gate without retroactive acceptance. |
 | 0007A1E | [Movement general-address-loop parity](tasks/0007a1e-movement-general-address-loop-parity.md) | Complete | 0007A1D stable schema-32 prerequisite and failed fork | Delivered. |
 | 0007A1F | [BOOL movement and aggregate residual parity](tasks/0007a1f-bool-movement-and-aggregate-residual-parity.md) | Complete | 0007A1E | Delivered. |
 | 0007A1G | [Fold and dropout residual parity](tasks/0007a1g-fold-and-dropout-residual-parity.md) | Complete | 0007A1F | Delivered. |
@@ -256,13 +256,14 @@ The table owns order and status; linked tasks own detailed evidence.
 - Evidence-backed production-default task 0010M is `Complete`: ordinary production remains
   scalar with configured/available parallelism `1`/`1` and minimum elements per worker `1`; the
   invalid broad vector candidate was reverted and its reports removed.
-- 0007A1D is Review needed; 0010D1 and 0011 are Blocked; 0012–0016 are Draft.
+- 0007A1D is Superseded after its failed isolated performance gate; 0010D1 and 0011 are
+  Blocked; 0012–0016 are Draft.
 - [0019](tasks/0019-unbounded-cpu-partition-bounded-fusion-units.md) is Complete by explicit
   user-authorized exception to table order. [0018](tasks/0018-shared-external-read-recognition-validation.md)
   is also Complete: CPU-private DAG-derived `ValueId` binding closes the shared-weight/virtual-
   output validation hole while retaining legal MATMUL+RELU fusion. Focused and full CPU validation
   and independent Class C re-review passed. No next CPU implementation task is Ready;
-  0007A1D's performance review remains separate.
+  0007A1D's historical failed performance gate is closed as Superseded, not accepted as passing.
 - Documentation-only 0010K and 0010L and profile realization
   [0017](tasks/0017-explicit-accelerator-numerical-profile-realization.md) are Complete. CPU 0017
   landed at `372a8b98`; its independent Class C review and the combined numerical-profile backend

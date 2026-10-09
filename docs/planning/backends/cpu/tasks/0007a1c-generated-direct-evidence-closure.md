@@ -337,9 +337,10 @@ may change; otherwise stop and replan.
 
 ## Follow-up tasks
 
-- CPU 0007A1D retains the useful schema-32 invocation-local segment-layout implementation and its
-  historical `Review needed` status because its own original 13-target performance criterion did
-  not pass. Later bounded corrections, rather than A1D alone, supply the accumulated A1C closure.
+- CPU 0007A1D retains the useful schema-32 invocation-local segment-layout implementation. Its
+  original 13-target performance criterion did not pass. Later bounded corrections, rather than
+  A1D alone, supplied the accumulated A1C closure; a subsequent review closed A1D as
+  `Superseded`, not as a passing task.
 - CPU 0007A1E through [CPU 0007A1N](0007a1n-multi-axis-min-residual-parity.md) are Complete. Their
   accumulated evidence closes every frozen performance row, but the original ledger gate remains
   open because rows other than INITIAL_STATE and computation-free views retain explicit
@@ -567,8 +568,8 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
   public/semantic contracts are unchanged, so architecture/ADRs/architecture tests, public/API
   Javadocs, glossary, guides/examples, capability, conformance/integration, build, and other-module
   documentation require no change. CPU Javadoc and Java suites were not rerun by the final
-  documentation context. A1D remains `Review needed`; this closure does not waive its historical
-  failed local 13-target performance criterion.
+  documentation context. At this closure A1D still needed review; its subsequent `Superseded`
+  disposition does not waive its historical failed local 13-target performance criterion.
 
 ## Completion summary
 
@@ -590,8 +591,8 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
 - Architecture/API/Javadoc/glossary/guide/capability/build/conformance/integration/other-module
   impact: no change because A1O adds test evidence only and changes no production/public/semantic
   contract.
-- Unresolved issues: None for A1C. CPU 0007A1D independently remains `Review needed` because its
-  own historical local performance criterion failed.
+- Unresolved issues: None for A1C. CPU 0007A1D's own historical local performance criterion
+  failed; subsequent review closed it as `Superseded`, not as a passing result.
 - Follow-up required: plan CPU 0007A2 in a later change; its detailed specification is not created
   within A1O's fully occupied six-path scope.
 

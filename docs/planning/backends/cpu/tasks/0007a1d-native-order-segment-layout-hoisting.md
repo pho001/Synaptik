@@ -2,7 +2,10 @@
 
 ## Status
 
-Review needed
+Superseded — review closed on 2026-10-09. The retained schema-32 layout hoisting passed semantic
+and structural checks but failed all 13 original `<= 1.15x` performance targets in the final
+required fork. Later bounded corrections 0007A1E–0007A1N and the 0007A1O/0007A1C evidence
+closure replace further work under this isolated gate; they do not retroactively make A1D pass.
 
 ## Goal
 
@@ -387,5 +390,7 @@ implementation term.
 - Follow-up required: CPU 0007A1E is now Complete. Execute Ready CPU 0007A1F, then later residual
   groups in strict order before resuming CPU 0007A1C. CPU 0007A2 remains blocked.
 
-Status: Incomplete
-Follow-up required: CPU 0007A1F and later ordered residual corrections must close the remaining frozen performance failures before CPU 0007A1C or CPU 0007A2 can advance.
+Historical implementation result: Incomplete. The original 13-target/five-fork acceptance gate
+was not met. The listed residual follow-ups and the accumulated 0007A1C closure later completed
+under their own contracts; no further implementation is authorized under A1D's failed isolated
+gate. Review disposition: Superseded.

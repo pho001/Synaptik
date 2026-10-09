@@ -40,7 +40,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through documentation-only 0006B10; 0006C and 0007 Draft; profile artifact cutover Complete through Engine 0018 | No Compiler task is Ready. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through documentation-only 0008; profile projection cutover Complete through Engine 0018 | No Prepare task is Ready. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
-| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0019; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0018 closed the virtual-output/shared-weight validation hole with authenticated `ValueId` binding and retained MATMUL+RELU fusion; CPU 0019 separately resolved the long-partition/local-unit boundary. No CPU implementation task is Ready. |
+| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0019; 0007A1D Superseded; 0010D1 and 0011 Blocked | CPU 0018 closed the virtual-output/shared-weight validation hole with authenticated `ValueId` binding and retained MATMUL+RELU fusion; CPU 0019 separately resolved the long-partition/local-unit boundary. No CPU implementation task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through [0077](backends/metal/tasks/0077-profile-free-low-precision-sigmoid-custom-route.md); no Metal task Ready | BFLOAT16/FLOAT16 SIGMOID is independently qualified on typed custom steps; FLOAT32 retains its MPSGraph route. |
 
@@ -63,8 +63,8 @@ is `Complete`. CPU-private DAG-derived `ValueId` binding rejects forged virtual-
 preserves legal MATMUL+RELU fusion, and passed focused/full CPU validation and independent Class C
 review. No CPU implementation task is Ready.
 [CPU 0019](backends/cpu/tasks/0019-unbounded-cpu-partition-bounded-fusion-units.md) is Complete:
-long CPU partitions execute as bounded local units. CPU 0007A1D remains independently
-`Review needed`.
+long CPU partitions execute as bounded local units. CPU 0007A1D's failed isolated performance
+gate is closed as `Superseded`, without claiming it passed.
 
 Model numerical-semantics cutover
 
@@ -702,8 +702,9 @@ matrix with narrowing, or infer capability from registered schema.
   unaffected.
 - CPU 0011 remains `Blocked` in the [CPU master plan](backends/cpu/master-plan.md) until a concrete
   Intel workload and supported oneMKL interface evidence both exist.
-- CPU 0007A1D remains `Review needed`, not an active frontier; its stable semantic and structural
-  evidence does not satisfy its failed performance gate.
+- CPU 0007A1D is `Superseded`, not an active frontier: its stable semantic and structural
+  evidence never satisfied the original performance gate; later bounded work closed the wider
+  0007A1C objective without retroactively passing A1D.
 - CPU 0010M is `Complete` with an evidence-backed no-change conclusion: production retains scalar
   compute, configured/available parallelism `1`/`1`, minimum elements per worker `1`, no worker
   group, and all existing fallbacks/thresholds. The report-only protocol is hardened; a future
