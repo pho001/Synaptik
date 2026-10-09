@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0018 Blocked; 0007A1D Review needed; 0010D1 and 0011 Blocked | [CPU 0018](backends/cpu/tasks/0018-shared-external-read-recognition-validation.md) is partial; independent Class C review found a P2 forged virtual-output/shared-weight boundary position. User must choose authenticated `ValueId` binding or safe nonfused fallback. Separate >8-node decision remains open; no CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through [0076](backends/metal/tasks/0076-profile-free-float32-sigmoid-route.md); [0077](backends/metal/tasks/0077-profile-free-low-precision-sigmoid-custom-route.md) Ready | The sole serial Metal frontier separately qualifies BFLOAT16/FLOAT16 SIGMOID on typed custom steps; FLOAT32 remains on its approved MPSGraph route. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through [0077](backends/metal/tasks/0077-profile-free-low-precision-sigmoid-custom-route.md); no Metal task Ready | BFLOAT16/FLOAT16 SIGMOID is independently qualified on typed custom steps; FLOAT32 retains its MPSGraph route. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -104,7 +104,8 @@ baseline does not require a low-type counterpart for a newly qualified FLOAT32 o
 [Metal 0076](backends/metal/tasks/0076-profile-free-float32-sigmoid-route.md) separately qualified
 only FLOAT32 SIGMOID after source-matched device and independent Class C approval;
 [Metal 0077](backends/metal/tasks/0077-profile-free-low-precision-sigmoid-custom-route.md)
-is Ready at clean `bcf9d3b4` with separate BFLOAT16/FLOAT16 finite and special-value gates.
+is Complete after separate BFLOAT16/FLOAT16 real-device finite and special-value gates,
+source/AIR rebinding, full validation, and independent Class C approval.
 Neither task resumes historical proof-gated 0053.
 
 Trace and Metal diagnostics

@@ -11,7 +11,9 @@ import java.util.Objects;
 /**
  * Deterministic schema-2 execution planner and integer source-size oracle for FLOAT32 pointwise
  * units and anchor epilogues. A partition containing any BFLOAT16 or FLOAT16 value has no
- * generated-pointwise or anchor-epilogue steps, including for its FLOAT32 nodes.
+ * generated-pointwise or anchor-epilogue steps, including for its FLOAT32 nodes. A low SIGMOID
+ * is a fixed typed custom step even when an explicit cast permits an internal FLOAT32 SIGMOID
+ * MPSGraph boundary step in the same partition.
  */
 final class MetalPointwiseFusionPlanner {
     private static final int GENERATED_SOURCE_PREAMBLE_UTF8_BYTES = 49;
@@ -462,6 +464,7 @@ final class MetalPointwiseFusionPlanner {
                     CLAMP,
                     RECIPROCAL,
                     EXP,
+                    SIGMOID,
                     FLOOR,
                     CEIL,
                     SIGN,

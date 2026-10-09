@@ -110,8 +110,8 @@ final class LowPrecisionCapabilityLedgerTest {
             projected.add(String.join("\t", "2", fields[1], fields[3], fields[4], fields[5],
                     fields[6], fields[7], fields[8], fields[9], fields[10],
                     approvedExpDelta || approvedSigmoidDelta ? "true" : fields[11],
-                    approvedExpDelta ? "true" : fields[12],
-                    approvedExpDelta ? "true" : fields[13]));
+                    approvedExpDelta || approvedSigmoidDelta ? "true" : fields[12],
+                    approvedExpDelta || approvedSigmoidDelta ? "true" : fields[13]));
         }
         assertEquals(254, projected.size());
         assertEquals(resource(RESOURCE), HEADER + String.join("\n", projected) + "\n");
@@ -144,15 +144,15 @@ final class LowPrecisionCapabilityLedgerTest {
                     .filter(fields -> fields[11].equals("NOT_APPLICABLE")
                             && fields[12].equals("NOT_APPLICABLE")).count();
             assertEquals(backend.equals("cpu") ? 122 : 100, supported, backend + " F32 true");
-            assertEquals(backend.equals("cpu") ? 114 : 91, bf16, backend + " BF16 true");
-            assertEquals(backend.equals("cpu") ? 114 : 91, fp16, backend + " FLOAT16 true");
+            assertEquals(backend.equals("cpu") ? 114 : 92, bf16, backend + " BF16 true");
+            assertEquals(backend.equals("cpu") ? 114 : 92, fp16, backend + " FLOAT16 true");
             assertEquals(8, notApplicable, backend + " controls");
             assertEquals(backend.equals("cpu") ? 5 : 27,
                     backendFacts.stream().filter(fields -> fields[10].equals("false")).count(),
                     backend + " F32 false");
             for (int lowColumn : List.of(11, 12)) {
                 final int column = lowColumn;
-                assertEquals(backend.equals("cpu") ? 5 : 28,
+                assertEquals(backend.equals("cpu") ? 5 : 27,
                         backendFacts.stream().filter(fields -> fields[column].equals("false")).count(),
                         backend + " low false column " + column);
             }
@@ -167,11 +167,6 @@ final class LowPrecisionCapabilityLedgerTest {
             OperationCapabilityQuery query = seed.query();
             if (hasFloat32Role(query) && provider.supports(query)) {
                 supported++;
-                if (seed.id().equals("064-SIGMOID/base")) {
-                    assertFalse(provider.supports(toBfloat16(query)));
-                    assertFalse(provider.supports(toFloat16(query)));
-                    continue;
-                }
                 assertTrue(
                         provider.supports(toBfloat16(query)),
                         "BFLOAT16 " + seed.id());

@@ -418,10 +418,10 @@ static NSString *synaptik_authenticated_fixed_source(void) {
 
 static NSString *synaptik_authenticated_low_precision_source(void) {
     return [SynaptikLowPrecisionKernelSource
-                            lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 35407U
+                            lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 36289U
                     && synaptik_source_digest_matches(
                             SynaptikLowPrecisionKernelSource,
-                            "9505b41b20a20a5f7ff2c9f056957039a83f4d81a5fa31568629fbb954e173ab")
+                            "80e0298fa7098a83f0f1a771e5aaf5be1f25028c7d2893cc753ca43bc2ad1d72")
             ? SynaptikLowPrecisionKernelSource : nil;
 }
 
@@ -3408,6 +3408,8 @@ static NSString *low_precision_custom_function(
             return SYNAPTIK_LP_PICK("lp_reciprocal_bf16", "lp_reciprocal_f16");
         case SYNAPTIK_METAL_MPSGRAPH_EXP:
             return SYNAPTIK_LP_PICK("lp_exp_bf16", "lp_exp_f16");
+        case SYNAPTIK_METAL_CUSTOM_SIGMOID:
+            return SYNAPTIK_LP_PICK("lp_sigmoid_bf16", "lp_sigmoid_f16");
         case SYNAPTIK_METAL_MPSGRAPH_ADD:
             return SYNAPTIK_LP_PICK("lp_add_bf16", "lp_add_f16");
         case SYNAPTIK_METAL_MPSGRAPH_SUB:
@@ -5078,7 +5080,9 @@ static int32_t synaptik_metal_create_decoded(
                             || shapes[node.first_input].count == 0U
                             || ![shapes[node.first_input] isEqualToArray:shapes[node.output]]
                             || shape_element_count(shapes[node.first_input])
-                                    > UINT32_MAX / sizeof(float))
+                                    > UINT32_MAX / (synaptik_is_low_precision_type(
+                                            declared_types[node.first_input])
+                                            ? sizeof(uint16_t) : sizeof(float)))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     break;
                 case SYNAPTIK_METAL_MPSGRAPH_EXP:
@@ -8533,14 +8537,13 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                         program + values_offset + (uint64_t)input_value * 40U + 16U);
                 uint32_t output_flags = synaptik_read_le32(
                         program + values_offset + (uint64_t)output_value * 40U + 16U);
-                uint8_t exp_type = declared_types[input_value];
+                uint8_t unary_type = declared_types[input_value];
                 if ((route != SYNAPTIK_METAL_ROUTE_MPSGRAPH
                                 && route != SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM)
-                        || (exp_type != SYNAPTIK_METAL_TYPE_FLOAT32
-                                && !(operation == SYNAPTIK_METAL_MPSGRAPH_EXP
-                                        && route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM
-                                        && synaptik_is_low_precision_type(exp_type)))
-                        || declared_types[output_value] != exp_type
+                        || (unary_type != SYNAPTIK_METAL_TYPE_FLOAT32
+                                && !(route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM
+                                        && synaptik_is_low_precision_type(unary_type)))
+                        || declared_types[output_value] != unary_type
                         || (input_flags & 1U) != 0U || (output_flags & 1U) != 0U
                         || !layout_present[input_value] || !layout_present[output_value]
                         || declared_states[input_value] != SYNAPTIK_METAL_VALUE_CANONICAL

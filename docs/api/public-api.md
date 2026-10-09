@@ -65,14 +65,15 @@ materializing results are canonical. Eligible linear canonical FLOAT32
 precision partitions never enter those routes.
 
 Bounded canonical no-gradient FLOAT32 `SIGMOID` uses a sign-guarded composed MPSGraph step.
-BFLOAT16/FLOAT16 `SIGMOID` remain unsupported; an explicit low-to-FLOAT32 cast can place the
+BFLOAT16/FLOAT16 `SIGMOID` use typed custom steps; an explicit low-to-FLOAT32 cast can place the
 FLOAT32 step inside a low-containing `CUSTOM_PROGRAM` partition without changing that route.
 
 Metal ABI 7 exposes thirteen native functions. Its bounded route-bearing program image is schema
 20 with a 124-byte header, data-type wires `1..7`, operation wires `1..115`, attribute wires `0..41`, route wires
 `1..3`, and backend-local candidate, compatibility, route-policy, workload, codec, and default-
-decision identities at version 33 (30 is the historical profile-free cutover value; 31 is the
-superseded FLOAT32 `EXP` value; 32 is the superseded low-`EXP` value). Structural
+decision identities at version 34 (30 is the historical profile-free cutover value; 31 is the
+superseded FLOAT32 `EXP` value; 32 is the superseded low-`EXP` value; 33 is the superseded
+FLOAT32 `SIGMOID` value). Structural
 coverage is `103 / 12`; production capability is `88 / 27` over operation kinds. Canonical typed
 host ingress/publication and CPU/Metal transfer support all seven carriers. Cross-owner values
 may use exact rank-0..16 static canonical or positive-stride

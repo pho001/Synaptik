@@ -16,6 +16,30 @@ import org.junit.jupiter.api.Test;
 
 class MetalPointwiseFusionPlannerTest {
     @Test
+    void lowSigmoidAndCastFloat32SigmoidUseDistinctUnfusedSteps() {
+        for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            var program = new MetalMpsGraphProgram(List.of(
+                    unary(MetalMpsGraphProgram.NodeKind.SIGMOID, 0, 1),
+                    MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.CAST,
+                            new int[] {0}, new int[] {2},
+                            MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
+                            new long[] {MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT32)}),
+                    unary(MetalMpsGraphProgram.NodeKind.SIGMOID, 2, 3)));
+            var values = List.of(descriptor(low, 4L), descriptor(low, 4L),
+                    descriptor(DataType.FLOAT32, 4L), descriptor(DataType.FLOAT32, 4L));
+            var plan = program.resolvePlan(values, new int[] {0}, new int[] {1, 3},
+                    MetalPreparedRoute.CUSTOM_PROGRAM, null);
+            assertEquals(List.of(MetalPointwiseFusionPlan.StepKind.FIXED_CUSTOM,
+                    MetalPointwiseFusionPlan.StepKind.FIXED_CUSTOM,
+                    MetalPointwiseFusionPlan.StepKind.MPSGRAPH_BOUNDARY),
+                    plan.steps().stream().map(MetalPointwiseFusionPlan.Step::kind).toList());
+            assertEquals(0, plan.generatedUnitCount());
+            assertTrue(plan.steps().stream().noneMatch(step ->
+                    step.kind() == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE));
+        }
+    }
+
+    @Test
     void lowValueAnywhereInPartitionDisablesF32PointwiseFusionAndPreview() {
         var f32Program = new MetalMpsGraphProgram(List.of(
                 unary(MetalMpsGraphProgram.NodeKind.FLOOR, 0, 1),

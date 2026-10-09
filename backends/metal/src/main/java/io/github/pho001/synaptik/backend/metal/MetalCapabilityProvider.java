@@ -104,8 +104,8 @@ import java.util.Objects;
  * <p>The current capability ledger calls this predicate over a stable representative basis and
  * snapshots true and false answers. The historical pre-cutover ledger remains frozen; the only
  * added EXP answers are the separately qualified bounded no-gradient FLOAT32, BFLOAT16, and
- * FLOAT16 occurrences. The separately qualified SIGMOID answer is FLOAT32 only. The ledger contains
- * no route, runtime, device, certificate, or generated-backward fact.</p>
+ * FLOAT16 occurrences. SIGMOID has separately qualified FLOAT32, BFLOAT16, and FLOAT16 answers.
+ * The ledger contains no route, runtime, device, certificate, or generated-backward fact.</p>
  *
  * <p>This provider is immutable and performs no native loading, device discovery, allocation,
  * registration, or caching. The provider admits the exact seven-carrier movement, affine,
@@ -119,7 +119,7 @@ import java.util.Objects;
  * descriptors, then tests an exact FLOAT32 descriptor/attribute proxy against the baseline
  * occurrence predicate. This preserves the independently queried low-type support corresponding
  * to the frozen, formerly ACCELERATOR FLOAT32 baseline. EXP is instead checked by three exact
- * typed predicates, and SIGMOID by one FLOAT32-only predicate; neither inherits a low answer
+ * typed predicates, and SIGMOID by three exact typed predicates; neither inherits a low answer
  * from the FLOAT32 proxy. In particular, low
  * L1, ScatterAdd, and
  * singleton variance support does not select the separate FLOAT32-only Task 0069 specialized
@@ -209,7 +209,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
      * @param inputs non-null ordered input descriptors
      * @param outputs non-null ordered output descriptors
      * @return {@code true} only if the original occurrence passes the exact current predicate or
-     *     an independently qualified {@code EXP} or FLOAT32-only {@code SIGMOID} predicate, or a
+     *     an independently qualified {@code EXP} or {@code SIGMOID} typed predicate, or a
      *     homogeneous low-type occurrence
      *     passes the frozen-baseline FLOAT32 proxy predicate; other FLOAT32-only additions do not
      *     gain low support through that proxy
@@ -231,7 +231,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         }
         if (operation.kind() == UnaryElementwiseKind.SIGMOID && outputs.size() == 1) {
             try {
-                return supportsFloat32ExpOrSigmoid(operation, inputs, outputs.getFirst());
+                return supportsFloat32ExpOrSigmoid(operation, inputs, outputs.getFirst())
+                        || supportsLowExpOrSigmoid(operation, inputs, outputs.getFirst(),
+                                DataType.BFLOAT16)
+                        || supportsLowExpOrSigmoid(operation, inputs, outputs.getFirst(),
+                                DataType.FLOAT16);
             } catch (IllegalArgumentException | ArithmeticException incompatible) {
                 return false;
             }
@@ -239,9 +243,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         if (operation.kind() == UnaryElementwiseKind.EXP && outputs.size() == 1) {
             try {
                 return supportsFloat32ExpOrSigmoid(operation, inputs, outputs.getFirst())
-                        || supportsLowExp(operation, inputs, outputs.getFirst(),
+                        || supportsLowExpOrSigmoid(operation, inputs, outputs.getFirst(),
                                 DataType.BFLOAT16)
-                        || supportsLowExp(operation, inputs, outputs.getFirst(),
+                        || supportsLowExpOrSigmoid(operation, inputs, outputs.getFirst(),
                                 DataType.FLOAT16);
             } catch (IllegalArgumentException | ArithmeticException incompatible) {
                 return false;
@@ -1658,7 +1662,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     /**
      * Checks a bounded no-gradient FLOAT32 EXP or SIGMOID occurrence for its fixed MPSGraph
      * route: direct for EXP and sign-guarded composition for SIGMOID. This predicate is
-     * deliberately reached before the frozen low proxy, so SIGMOID never inherits a low-valued
+     * deliberately reached before the frozen low proxy, so neither kind inherits a low-valued
      * answer.
      *
      * @param operation non-null unary operation
@@ -1678,8 +1682,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     /**
-     * Checks one explicitly selected no-gradient low EXP domain. BFLOAT16 and FLOAT16 call this
-     * predicate separately, each with a distinct fixed custom kernel and a checked two-byte span.
+     * Checks one explicitly selected no-gradient low EXP or SIGMOID domain. BFLOAT16 and FLOAT16
+     * call this predicate separately, each with a distinct fixed custom kernel and a checked
+     * two-byte span.
      *
      * @param operation non-null unary operation with no attributes
      * @param inputs non-null ordered input descriptors
@@ -1687,7 +1692,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
      * @param type exact BFLOAT16 or FLOAT16 storage type to query; never inferred from FLOAT32
      * @return whether this exact low-type occurrence has the qualified custom route
      */
-    private static boolean supportsLowExp(
+    private static boolean supportsLowExpOrSigmoid(
             Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output,
             DataType type) {
         if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 1) return false;

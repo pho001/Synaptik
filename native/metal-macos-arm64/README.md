@@ -95,7 +95,7 @@ add, and final-store sites plus NaN, signed-zero, infinity, subnormal DAZ/FTZ, a
 
 The remaining 27 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 33. Java
+rather than masquerading as malformed input. Candidate and route identity are version 34. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
 shared custom-program wire 3. Schema 20 embeds wire 2 or 3 in each graph image; every other
 schema or route value fails closed. The exhaustive Java
@@ -115,11 +115,12 @@ FLOAT32 `EXP` remains on direct MPSGraph. Explicit low-to-FLOAT32 CAST then FLOA
 different internal composition, not an implicit low route. Task 0076 adds only bounded canonical
 no-gradient FLOAT32 `SIGMOID` at existing wire 64. An integer reinterpretation of stored input
 bits selects the sign branch before one MPSGraph `EXP`, typed-one addition, and division; signed
-zero and subnormal guards cannot be altered by floating-comparison DAZ. BFLOAT16 and FLOAT16
-SIGMOID stay false; explicit low-to-FLOAT32 cast may precede the internal FLOAT32 MPSGraph step
-inside a custom partition. Schema 20, route wires 2/3, native ABI 7, and the existing operation
-and attribute wires retain their allocations; the coordinated compatibility identity advances to
-33 and rejects prior 30/31/32 inputs.
+zero and subnormal guards cannot be altered by floating-comparison DAZ. Task 0077 separately
+admits BFLOAT16 and FLOAT16 `SIGMOID` through typed custom kernels with an exact raw
+sign guard, one FLOAT32 exponent, and one final low narrowing. An explicit low-to-FLOAT32 cast
+may precede the internal FLOAT32 MPSGraph step in the same custom partition. Schema 20, route
+wires 2/3, native ABI 7, and the existing operation and attribute wires retain their allocations;
+the coordinated compatibility identity advances to 34 and rejects prior 30/31/32/33 inputs.
 
 
 Raw storage is always an unsigned 16-bit word. Exact kernels copy or select that word, predicates

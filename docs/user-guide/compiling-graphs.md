@@ -90,7 +90,8 @@ convolution, average pooling, and FLOAT32 dropout; and the no-gradient rank-one 
 axis-zero SCATTER_ADD, and singleton VARIANCE custom programs. Metal also admits separate
 no-gradient canonical `EXP` occurrences for FLOAT32 on direct MPSGraph and for homogeneous
 BFLOAT16/FLOAT16 on typed custom steps. Bounded canonical no-gradient FLOAT32 `SIGMOID` uses a
-sign-guarded composed MPSGraph step; low-valued `SIGMOID` remains unsupported. The current ledger
+sign-guarded composed MPSGraph step; homogeneous BFLOAT16 and FLOAT16 `SIGMOID` use separately
+qualified typed custom steps. The current ledger
 is 88 admitted kinds and 27 remaining false; counts are over operation kinds, not dtype
 occurrences. Every unlisted occurrence fails before route selection; compilation does not infer
 provider support from Model semantic reachability or fall back to another owner.
@@ -109,7 +110,7 @@ raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`,
 bounded generated units. ABI 7 exports thirteen symbols and consumes one bounded schema-20 program
 image with type wires `1..7`, operation wires `1..115`, attributes `0..41`, and route wires `1..3`.
 Workload, exact-policy, candidate, compatibility, route-policy, and session-codec identities are
-version 33; earlier identities, including historical cutover 30 and superseded 31 and 32, fail
+version 34; earlier identities, including historical cutover 30 and superseded 31, 32, and 33, fail
 closed. Registry presence does not widen capability; unsupported operations fail closed.
 
 Model construction leaves Conv2d and Conv3d result layouts unresolved; Compiler closes

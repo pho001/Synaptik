@@ -555,11 +555,12 @@ RESHAPE, simple PERMUTE, materializing CONTIGUOUS, SLICE, CONCAT, and TILE. A bo
 no-gradient BFLOAT16 or FLOAT16 EXP uses its own typed custom step. A separate FLOAT32 EXP may use
 an internal MPSGraph boundary step on an independent FLOAT32 branch or after an explicit
 low-to-FLOAT32 cast. Bounded canonical no-gradient FLOAT32 SIGMOID likewise uses a sign-guarded
-composed MPSGraph step on either FLOAT32 path; low-valued SIGMOID remains unsupported. The
+composed MPSGraph step on either FLOAT32 path; separately admitted low-valued SIGMOID uses
+its typed custom step in the same fixed custom partition. The
 preparer may replace only a qualified private MATMUL/Conv2d suffix with one typed anchor
 instruction. It preserves typed
 ingress, target and internal physical byte geometry, window/index obligations, unsigned-32-bit
-geometry and the schema-twenty/version-thirty-three route identity without
+geometry and the schema-twenty/version-thirty-four route identity without
 widening capability. Every other identity fails closed.
 
 Metal's one closed prepared-route identity owns the existing candidate wires `1..3` and the

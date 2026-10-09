@@ -231,10 +231,11 @@
  * kernels with FLOAT32 working evaluation and one low narrowing; gradient-bearing EXP remains
  * unsupported. Bounded canonical no-gradient FLOAT32 SIGMOID uses wire 64 with an exact
  * stored-bit sign guard and the Model's stable branch formula in a composed MPSGraph step;
- * BFLOAT16/FLOAT16 SIGMOID stay false. An explicit low-to-FLOAT32 cast may put that FLOAT32
- * step inside a custom partition without making SIGMOID low-valued. Backend-local workload,
+ * independently admitted BFLOAT16/FLOAT16 SIGMOID use distinct typed custom steps with one
+ * FLOAT32 exponent and one final low narrowing. An explicit low-to-FLOAT32 cast may put the
+ * FLOAT32 step alongside a low custom step inside one custom partition. Backend-local workload,
  * exact-policy, candidate, compatibility, route-policy, and codec identities are version
- * thirty-three. Only schema twenty and identity thirty-three are accepted; every other schema or
+ * thirty-four. Only schema twenty and identity thirty-four are accepted; every other schema or
  * identity value fails closed.
  */
 package io.github.pho001.synaptik.backend.metal;

@@ -218,7 +218,8 @@ The following invariants must remain true:
   workload/exact-policy/candidate/compatibility/route/codec identity to 30. Schema 19, CPU schema
   68, and Metal identity 29 are incompatible pre-cutover baselines. Metal identity 30 is the
   historical cutover value; identity 31 is the superseded FLOAT32 `EXP` value, identity 32 is the
-  superseded low-`EXP` value, and the current coordinated Metal identity is 33. Changed
+  superseded low-`EXP` value, identity 33 is the superseded FLOAT32 `SIGMOID` value, and the
+  current coordinated Metal identity is 34. Changed
   serialized/generated identities advance append-only
   and reject stale inputs. The Metal profile
   wire is absent in both Java and native schema-20 decoding; source and package authentication
@@ -256,12 +257,15 @@ The following invariants must remain true:
   `EXP` remains false. FLOAT64, gradient-bearing, scalar-rank, noncanonical, and over-limit `EXP`
   remain unsupported. FLOAT32 `EXP` keeps its separate direct MPSGraph route; each low-valued
   `EXP` uses a typed custom step with FLOAT32 working evaluation and one final low narrowing.
-  Task 0076 admits only bounded canonical no-gradient FLOAT32 `SIGMOID` through the fixed
+  Task 0076 admitted bounded canonical no-gradient FLOAT32 `SIGMOID` through the fixed
   sign-guarded composed MPSGraph route at wire 64. Its exact stored-bit guard selects the stable
-  Model branch; the two low-valued `SIGMOID` answers, FLOAT64, gradient-bearing, scalar-rank,
-  noncanonical, and over-limit occurrences remain false. Historical v1 stays false; current v2
-  records FLOAT32 true and both low answers false. An explicit low-to-FLOAT32 cast may place the
-  FLOAT32 step inside a low-containing custom partition without changing its partition route.
+  Model branch. Task 0077 now admits each homogeneous BFLOAT16 and FLOAT16 `SIGMOID`
+  independently in the same bounded canonical no-gradient domain, with checked two-byte spans.
+  Current v2 records all three types true; historical v1 stays false. Each low type has its own
+  sign-guarded custom step: exact stored-bit guard, one FLOAT32 `EXP`, branch-selected numerator,
+  FLOAT32 addition/division, and one final low narrowing. FLOAT64, gradient-bearing, scalar-rank,
+  noncanonical, mixed-low, and over-limit `SIGMOID` remain false. An explicit low-to-FLOAT32 cast
+  may place the FLOAT32 step inside a low-containing custom partition without changing its route.
   Every partition containing BFLOAT16 or FLOAT16 values selects one fixed custom program and
   exposes only the `CUSTOM_PROGRAM` candidate.
   This includes raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`,

@@ -131,7 +131,7 @@ abstract class MetalNativeApi implements AutoCloseable {
     /**
      * Compiles one shape-specialized whole-partition typed Metal program executable. The selected
      * route is fixed for the whole partition; a custom program uses typed BFLOAT16/FLOAT16 EXP
-     * steps and may contain an internal FLOAT32-only MPSGraph EXP or sign-guarded SIGMOID
+     * or SIGMOID steps and may contain an internal FLOAT32-only MPSGraph EXP or sign-guarded SIGMOID
      * boundary step, including after an explicit low-to-FLOAT32 cast. The caller must
      * release the returned executable exactly once, including when later preparation fails.
      *
@@ -549,8 +549,8 @@ abstract class MetalNativeApi implements AutoCloseable {
 
     /**
      * Exact Java preflight for the schema-twenty typed Metal program create contract, including
-     * EXP's route-specific FLOAT32 or homogeneous low type and SIGMOID's FLOAT32-only type,
-     * shape, layout, gradient, and byte-span gates. Low EXP is custom only. FLOAT32 EXP or
+     * EXP and SIGMOID route-specific FLOAT32 or homogeneous low types,
+     * shape, layout, gradient, and byte-span gates. Low EXP and SIGMOID are custom only. FLOAT32 EXP or
      * SIGMOID in a custom partition remains an internal MPSGraph boundary step, and SIGMOID's
      * stable sign-guarded formula is fixed by the authenticated native source.
      */
@@ -564,8 +564,9 @@ abstract class MetalNativeApi implements AutoCloseable {
         /**
          * Rejects a schema-twenty program before native creation if its fixed route, graph
          * geometry, types, or occurrence metadata disagrees. In particular, wire-64 SIGMOID
-         * requires canonical no-gradient FLOAT32 on either eligible whole-partition route, while
-         * a standalone SIGMOID cannot invent a custom partition route.
+         * requires canonical no-gradient FLOAT32 for a composed MPSGraph step or homogeneous
+         * BFLOAT16/FLOAT16 for a typed custom step. A standalone FLOAT32 SIGMOID cannot invent
+         * a custom partition route.
          *
          * @param values non-null ordered value descriptors, not mutated
          * @param graphProgram non-null typed program, not mutated
@@ -587,7 +588,8 @@ abstract class MetalNativeApi implements AutoCloseable {
 
         /**
          * Validates the same fixed program contract with an optional authenticated custom
-         * execution plan. A low-valued SIGMOID remains invalid even when the partition is custom.
+         * execution plan. Low-valued SIGMOID requires a custom whole-partition route and a
+         * separately typed kernel; it cannot use the FLOAT32 MPSGraph boundary step.
          *
          * @param values non-null ordered value descriptors, not mutated
          * @param graphProgram non-null typed program, not mutated
@@ -878,8 +880,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                                     || route == MetalPreparedRoute.CUSTOM_PROGRAM)
                                     && types[left] == types[output]
                                     && (types[left] == ValueType.FLOAT32
-                                            || node.kind() == MetalMpsGraphProgram.NodeKind.EXP
-                                                    && route == MetalPreparedRoute.CUSTOM_PROGRAM
+                                            || route == MetalPreparedRoute.CUSTOM_PROGRAM
                                                     && lowPrecision(types[left]))
                                     && valueRanks[left] >= 1
                                     && sameShape(left, output, valueRanks, valueDimensions)
@@ -3051,7 +3052,8 @@ abstract class MetalNativeApi implements AutoCloseable {
 
         /**
          * Checks the explicit canonical storage descriptor required by direct FLOAT32 EXP and
-         * SIGMOID and custom low EXP images; none accepts an affine view or absent layout.
+         * SIGMOID and custom low EXP and SIGMOID images; none accepts an affine view or absent
+         * layout.
          *
          * @param value non-null encoded value descriptor
          * @return whether its physical layout is the non-view canonical contiguous layout

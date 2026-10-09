@@ -16,18 +16,24 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/** Cross-module current-provider evidence for F32-only SIGMOID without low proxy promotion. */
+/** Cross-module evidence for independent current F32 and homogeneous low SIGMOID answers. */
 final class MetalSigmoidCapabilityConformanceTest {
     private final MetalCapabilityProvider metal = new MetalCapabilityProvider();
     private static final Operation SIGMOID = new Operation(
             UnaryElementwiseKind.SIGMOID, NoOperationAttrs.INSTANCE);
 
     @Test
-    void float32AdmissionDoesNotGrantLowOrGradientAdmission() {
+    void eachQualifiedTypeAdmitsOnlyItsOwnNoGradientOccurrence() {
         TensorDescriptor float32 = descriptor(DataType.FLOAT32, Shape.of(2, 3), false);
         assertTrue(supports(float32, float32));
-        for (DataType unsupported : List.of(DataType.BFLOAT16, DataType.FLOAT16,
-                DataType.FLOAT64)) {
+        for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            TensorDescriptor value = descriptor(low, Shape.of(2, 3), false);
+            assertTrue(supports(value, value));
+            assertFalse(supports(value, float32));
+            assertFalse(supports(float32, value));
+            assertFalse(supports(descriptor(low, Shape.of(2, 3), true), value));
+        }
+        for (DataType unsupported : List.of(DataType.FLOAT64)) {
             TensorDescriptor value = descriptor(unsupported, Shape.of(2, 3), false);
             assertFalse(supports(value, value), unsupported.name());
         }

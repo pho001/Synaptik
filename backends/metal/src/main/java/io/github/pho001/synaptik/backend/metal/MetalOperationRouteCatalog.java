@@ -13,7 +13,8 @@ import java.util.Objects;
  * FLOAT32 MPSGraph construction and still-pending FLOAT32 custom pointwise route. Its separately
  * qualified BFLOAT16/FLOAT16 custom kernels are occurrence-specific and do not change this
  * operation-wide FLOAT32 catalog state. SIGMOID records a composed MPSGraph implementation
- * with a pending custom pointwise route; its only qualified occurrence is FLOAT32.
+ * with a pending FLOAT32 custom pointwise route; separately qualified BFLOAT16/FLOAT16 SIGMOID
+ * uses occurrence-specific typed custom kernels without changing that FLOAT32 catalog state.
  */
 final class MetalOperationRouteCatalog {
     /** Structural MPSGraph realization state, independent of correctness approval. */

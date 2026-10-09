@@ -18,8 +18,9 @@ import java.util.Optional;
 
 /**
  * Immutable schema-twenty Metal program and its canonical bounded image encoder. Wire 64
- * represents only the qualified FLOAT32, no-gradient sign-guarded SIGMOID route; the encoding
- * does not add a formula selector or low-valued admission.
+ * represents the qualified FLOAT32 sign-guarded MPSGraph SIGMOID step or one of the separately
+ * qualified low-type custom steps according to declared values and the fixed partition route.
+ * The encoding adds no formula selector.
  *
  * <p>The fixed 124-byte header binds the complete core-image and execution-extension counts.
  * {@code CUSTOM_PROGRAM} images carry authoritative step, binding, materialization, instruction,

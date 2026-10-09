@@ -2,9 +2,8 @@
 
 ## Status
 
-Ready — the sole serial Metal frontier verified on 2026-10-09 at clean `bcf9d3b4`:
-Model 0032 and Metal 0069/0074–0076 are Complete, Task 0076 passed independent Class C review,
-and no other Metal native/capability writer is active.
+Complete — separately qualified BFLOAT16 and FLOAT16 SIGMOID custom routes passed source-matched
+real-device validation, integration, documentation, and independent Class C review on 2026-10-09.
 
 ## Change class
 
@@ -141,4 +140,33 @@ reading conflicts with source or another applicable contract.
 
 ## Result
 
-Empty until execution.
+Implemented separate typed BFLOAT16/FLOAT16 custom SIGMOID kernels with an exact raw-word sign
+guard, one FLOAT32 `EXP`, FLOAT32 addition/division, and one final ties-to-even low narrowing.
+Capability, Java/native preflight, fixed custom routing, no-fusion protection, current v2 ledger,
+and coordinated backend identity 34 were updated. FLOAT32 remains on its MPSGraph step, including
+after an explicit low-to-FLOAT32 cast in the same custom partition. ABI 7, schema 20, and the
+historical ledger remain unchanged; unsupported occurrences still fail closed.
+
+Changed production and test areas: Metal provider, preflight, preparer, identity/route/fusion and
+Javadocs; native low kernel and foundation source; Metal capability/native tests, backend
+conformance, public Engine integration, and the current v2 ledger. Updated the root and owning
+backend contract, relevant API/architecture/backend/user guides, glossary, native README, and
+Task-0069 foundation source certificate. No new architecture decision or ADR was required because
+the authorized route and numerical sites were already specified by the existing contracts.
+
+Validation: native build, ad-hoc signing, local package and package verification passed. The
+source-matched real-device run passed 346 Metal tests (10 pre-existing skips), 32 backend
+conformance tests (0 skips), and 94 integration tests (1 pre-existing skip), all with zero
+failures. Focused SIGMOID native 6/6, capability 1/1, conformance 1/1, and Engine 2/2 had no
+skips. Worst ordinary finite relative errors were 0.003787 BFLOAT16 versus the predeclared
+0.0040 gate and 0.000474 FLOAT16 versus 0.00055. The Task-0069 source certificate, Lean proof,
+and compiled-MSL/AIR audit passed against foundation SHA-256
+`b2c94c90d1a58d768f409bfa70986c40f26ca41e01954e1edff3894d3481f4cd`.
+`./gradlew :backends:metal:javadoc` and `./gradlew build --max-workers=1` passed; the latter
+reported 89 tasks (5 executed, 84 up-to-date). An independent Class C review returned `APPROVE`
+with zero P0/P1/P2 findings and finalized documentation/Javadocs without changing executable
+behavior. `git diff --check` passed. Existing unrelated Javadoc warnings remain.
+
+No unresolved Task-0077 issue or required follow-up. No performance claim is made.
+
+Status: Complete

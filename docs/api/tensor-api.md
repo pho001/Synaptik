@@ -129,7 +129,8 @@ Scatter-Add and its own cotangents remain unsupported. The resulting Metal capab
 exactly 88 admitted kinds and 27 remaining false, with 103 structurally executable kinds and 12
 remaining nonexecutable. The later bounded FLOAT32 and homogeneous BFLOAT16/FLOAT16 `EXP` routes
 and sign-guarded composed FLOAT32 `SIGMOID` route do not make every dtype or occurrence of those
-kinds available. Low-valued `SIGMOID` remains unsupported. These counts describe kinds with
+kinds available. Homogeneous BFLOAT16 and FLOAT16 `SIGMOID` use independently qualified custom
+steps. These counts describe kinds with
 admitted occurrences, not whole-kind admission; every unlisted occurrence fails closed before
 route selection.
 
@@ -137,7 +138,7 @@ Metal uses ABI 7 with thirteen exports and one bounded schema-20 route-bearing p
 Operation wires `1..115`, attribute wires `0..41`, and type wires `1..7` cover current structural
 vocabulary. The custom-program image authenticates compact materialized slots, deterministic
 pointwise units, and qualified MATMUL/Conv2d anchor epilogues. Metal-local workload,
-exact-policy, candidate, compatibility, route-policy, and session codec identities are version 33;
+exact-policy, candidate, compatibility, route-policy, and session codec identities are version 34;
 every other identity fails closed rather than falling back. Model remains the sole semantic owner
 of numerical meaning.
 
