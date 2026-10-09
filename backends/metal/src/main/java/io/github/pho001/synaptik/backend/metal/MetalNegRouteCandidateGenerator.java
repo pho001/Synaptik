@@ -25,12 +25,13 @@ import java.util.Optional;
  * and the scalar-composition source wire, exact raw constant, rank-one {@code [1]} shape, operand
  * order, and primitive opcode. Graph-local identities, partition object identity, native handles,
  * measurements, and cache state are excluded. Generation is cold, thread-safe, deterministic, and
- * performs no native work.
+ * performs no native work. Version 33 binds the added FLOAT32 SIGMOID route and rejects older
+ * session compatibility.
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 32;
-    private static final int EXACT_DEFAULT_POLICY = 32;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 33;
+    private static final int EXACT_DEFAULT_POLICY = 33;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.

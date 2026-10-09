@@ -120,7 +120,6 @@ class MetalOperationCompletenessAuditTest {
             MetalMpsGraphProgram.NodeKind.ERF,
             MetalMpsGraphProgram.NodeKind.SQRT,
             MetalMpsGraphProgram.NodeKind.RSQRT,
-            MetalMpsGraphProgram.NodeKind.SIGMOID,
             MetalMpsGraphProgram.NodeKind.TANH,
             MetalMpsGraphProgram.NodeKind.GELU,
             MetalMpsGraphProgram.NodeKind.GELU_TANH_APPROXIMATION,
@@ -163,7 +162,7 @@ class MetalOperationCompletenessAuditTest {
     void everyWireMapsOnceToAConstructibleModelOccurrenceAndActualCapabilityTruth() {
         MetalMpsGraphProgram.NodeKind[] kinds = MetalMpsGraphProgram.NodeKind.values();
         assertEquals(115, kinds.length);
-        assertEquals(28, PRODUCTION_FALSE.size());
+        assertEquals(27, PRODUCTION_FALSE.size());
         assertEquals(15, STRUCTURAL_ONLY.size());
         assertTrue(PRODUCTION_FALSE.containsAll(STRUCTURAL_ONLY));
 
@@ -211,10 +210,10 @@ class MetalOperationCompletenessAuditTest {
         }
 
         assertEquals(115, modelKinds.size());
-        assertEquals(87, accepted);
-        assertEquals(102, executable);
-        assertEquals(75, direct);
-        assertEquals(35, composed);
+        assertEquals(88, accepted);
+        assertEquals(103, executable);
+        assertEquals(74, direct);
+        assertEquals(36, composed);
         assertEquals(5, unavailable);
         assertEquals(73, customAvailable);
         assertEquals(42, customPending);
@@ -230,10 +229,10 @@ class MetalOperationCompletenessAuditTest {
                 .filter(kind -> kind != MetalMpsGraphProgram.NodeKind.MATMUL)
                 .count();
         assertEquals(71, productionCustom);
-        assertEquals(14, productionMpsGraph);
+        assertEquals(15, productionMpsGraph);
         assertTrue(PRODUCTION_FALSE.stream()
                 .noneMatch(MetalMpsGraphProgram.NodeKind::isCustomProgramOperation));
-        assertEquals(13, PRODUCTION_FALSE.size() - STRUCTURAL_ONLY.size());
+        assertEquals(12, PRODUCTION_FALSE.size() - STRUCTURAL_ONLY.size());
         STRUCTURAL_ONLY.forEach(kind -> assertTrue(kind.executable(), kind.name()));
     }
 

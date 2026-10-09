@@ -12,7 +12,7 @@ authenticated execution extension; no native type, shape, layout, or plan infere
 boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
-can structurally execute exactly 102 operation kinds; production capability is exactly 87 kinds.
+can structurally execute exactly 103 operation kinds; production capability is exactly 88 kinds.
 Task 0059 adds exact movement/indexing rows and complete positive-stride storage geometry.
 Task 0060 adds replacement/fold rows `72`, `76`, `80`, `82`, and `84` plus exact aggregate rows
 `106..108`. Task 0061 widens existing `MATMUL=15` without adding a wire: the selected capability
@@ -93,9 +93,9 @@ materialized slot table. Each admitted anchor executes as one safe-math kernel d
 final store, with no native retry or fallback. The pinned AIR audit covers all new FMA, multiply,
 add, and final-store sites plus NaN, signed-zero, infinity, subnormal DAZ/FTZ, and clamp boundaries.
 
-The remaining 28 production rows fail closed before native creation. A structurally valid
+The remaining 27 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 32. Java
+rather than masquerading as malformed input. Candidate and route identity are version 33. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
 shared custom-program wire 3. Schema 20 embeds wire 2 or 3 in each graph image; every other
 schema or route value fails closed. The exhaustive Java
@@ -112,9 +112,14 @@ recipe. The later positive-static-rank `1..16` canonical no-gradient BFLOAT16 an
 occurrences each use
 a distinct typed custom kernel with FLOAT32 working evaluation and one final low narrowing;
 FLOAT32 `EXP` remains on direct MPSGraph. Explicit low-to-FLOAT32 CAST then FLOAT32 `EXP` is a
-different internal composition, not an implicit low route. Schema 20, route wires 2/3, native ABI 7,
-and the existing operation and attribute wires retain their allocations; the coordinated
-compatibility identity advances to 32 and rejects prior 30/31 inputs.
+different internal composition, not an implicit low route. Task 0076 adds only bounded canonical
+no-gradient FLOAT32 `SIGMOID` at existing wire 64. An integer reinterpretation of stored input
+bits selects the sign branch before one MPSGraph `EXP`, typed-one addition, and division; signed
+zero and subnormal guards cannot be altered by floating-comparison DAZ. BFLOAT16 and FLOAT16
+SIGMOID stay false; explicit low-to-FLOAT32 cast may precede the internal FLOAT32 MPSGraph step
+inside a custom partition. Schema 20, route wires 2/3, native ABI 7, and the existing operation
+and attribute wires retain their allocations; the coordinated compatibility identity advances to
+33 and rejects prior 30/31/32 inputs.
 
 
 Raw storage is always an unsigned 16-bit word. Exact kernels copy or select that word, predicates
@@ -136,11 +141,11 @@ is zero. Exact paths preserve zero bits; MIN chooses negative zero, MAX chooses 
 SIGN preserves a zero's sign, RELU maps negative zero to positive zero, and average pooling
 preserves negative zero only when every contributor is negative zero and none is padding.
 
-For admitted nodes, the version-32 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-33 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, complete encoded logical storage-layout
 geometry, independently safe physical materialization, and the canonical schema-20 execution
-extension. The schema-20 identity-32 program has no compatibility reader or migration alias;
+extension. The schema-20 identity-33 program has no compatibility reader or migration alias;
 every other schema or identity fails closed.
 
 ```text

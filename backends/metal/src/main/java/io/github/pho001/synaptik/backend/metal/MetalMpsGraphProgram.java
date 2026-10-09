@@ -17,7 +17,9 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Immutable schema-twenty Metal program and its canonical bounded image encoder.
+ * Immutable schema-twenty Metal program and its canonical bounded image encoder. Wire 64
+ * represents only the qualified FLOAT32, no-gradient sign-guarded SIGMOID route; the encoding
+ * does not add a formula selector or low-valued admission.
  *
  * <p>The fixed 124-byte header binds the complete core-image and execution-extension counts.
  * {@code CUSTOM_PROGRAM} images carry authoritative step, binding, materialization, instruction,
@@ -151,7 +153,7 @@ final class MetalMpsGraphProgram {
         CEIL(61, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         SIGN(62, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         RELU(63, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        SIGMOID(64, 1, 1, 1, 1, AttributeKind.NONE),
+        SIGMOID(64, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         TANH(65, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         GELU(66, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         GELU_TANH_APPROXIMATION(67, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),

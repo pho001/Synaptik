@@ -432,10 +432,10 @@ not a Runtime certificate, tolerance policy, retry, or fallback layer.
 
 Current generated CPU artifact envelopes use schema 69. Current Metal images use schema 20 with a
 124-byte header, and coordinated workload, exact-policy, candidate, compatibility, route, and
-codec identities use version 32. Native ABI 7 still exposes thirteen symbols. CPU schema 68 and
+codec identities use version 33. Native ABI 7 still exposes thirteen symbols. CPU schema 68 and
 Metal schema 19/identity 29 are historical pre-cutover baselines; Metal identity 30 is the
 historical cutover value and identity 31 is the superseded FLOAT32 `EXP` value; neither is a valid
-current input.
+current input. Identity 32 is the superseded low-`EXP` value and is also rejected.
 Native source, manifest, and package authentication remain safety gates; historical schema-19
 source certificates do not certify schema-20 programs.
 
@@ -490,6 +490,17 @@ remain false. A low-valued `EXP` step is custom, never MPSGraph.
 An explicit low-to-FLOAT32 cast followed by FLOAT32 `EXP` may separately use an internal MPSGraph
 boundary step in the enclosing low-containing `CUSTOM_PROGRAM` route; the cast does not itself
 grant low-valued `EXP` support or change the partition candidate set.
+
+Task 0076 admits one canonical fully static positive-rank `1..16` FLOAT32 `SIGMOID` input and
+equal-Shape output with no attributes, no gradients, and checked four-byte span and dispatch
+geometry. Wire 64 uses a fixed composed MPSGraph route: a predicate over reinterpreted stored
+FLOAT32 bits selects the Model's sign branch before its `EXP`, typed-one addition, and division.
+The guard classifies signed zero and subnormals without floating-comparison DAZ. Historical v1
+stays false; current v2 records only FLOAT32 true. BFLOAT16, FLOAT16, FLOAT64,
+gradient-bearing, scalar-rank, noncanonical, and over-limit SIGMOID occurrences stay false. A
+FLOAT32 SIGMOID after an explicit low-to-FLOAT32 cast may run as an internal MPSGraph step in a
+low-containing `CUSTOM_PROGRAM` partition; no low-valued SIGMOID or second partition route
+follows from that composition.
 
 Every partition containing BFLOAT16 or FLOAT16 values selects the fixed `CUSTOM_PROGRAM`
 whole-partition route. This includes homogeneous no-gradient raw-preserving `RESHAPE`, simple
@@ -585,7 +596,9 @@ MPSGraph boundaries; Task-0069 VARIANCE remains custom only for its exact single
 At the frozen cutover baseline, structural execution covered 101 kinds with 14 nonexecutable and
 production capability covered 86 kinds with 29 false. The FLOAT32 `EXP` addition raised
 those counts to 102/13 structural and 87/28 production; the later BFLOAT16/FLOAT16 `EXP` additions
-do not change kind counts. Counts are over operation kinds, not all dtype occurrences. Workload,
+do not change kind counts. FLOAT32 `SIGMOID` raises current counts to 103/12 structural and 88/27
+production. Counts are over operation kinds, not all dtype occurrences. Workload,
 exact-policy, candidate, compatibility, route-policy, and codec identities were version 29 before
-cutover, version 30 at cutover, version 31 for FLOAT32 `EXP`, and are now version 32. Stale
+cutover, version 30 at cutover, version 31 for FLOAT32 `EXP`, version 32 for low `EXP`, and are now
+version 33 for FLOAT32 `SIGMOID`. Stale
 versions fail closed. The complete-plan wrapper retains its unrelated version-one format.

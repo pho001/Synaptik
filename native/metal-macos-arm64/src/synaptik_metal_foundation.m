@@ -3160,7 +3160,6 @@ static BOOL operation_uses_custom_kernel(uint32_t operation) {
             || operation == SYNAPTIK_METAL_BOOL_WHERE
             || (operation >= SYNAPTIK_METAL_CUSTOM_FLOOR
                     && operation <= SYNAPTIK_METAL_CUSTOM_RELU)
-            || operation == SYNAPTIK_METAL_CUSTOM_SIGMOID
             || operation == SYNAPTIK_METAL_CUSTOM_CAST
             || operation == SYNAPTIK_METAL_CUSTOM_GATHER_ELEMENTS
             || operation == SYNAPTIK_METAL_CUSTOM_GATHER_ND
@@ -3339,6 +3338,7 @@ static BOOL operation_has_direct_mpsgraph(uint32_t operation) {
             || (operation >= SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL
                     && operation <= SYNAPTIK_METAL_MPSGRAPH_LOG1P)
             || operation == SYNAPTIK_METAL_MPSGRAPH_EXP
+            || operation == SYNAPTIK_METAL_CUSTOM_SIGMOID
             || (operation >= SYNAPTIK_METAL_MPSGRAPH_EXPM1
                     && operation <= SYNAPTIK_METAL_CUSTOM_RELU)
             || (operation >= SYNAPTIK_METAL_MPSGRAPH_TANH
@@ -5070,7 +5070,17 @@ static int32_t synaptik_metal_create_decoded(
                     break;
                 }
                 case SYNAPTIK_METAL_CUSTOM_SIGMOID:
-                    return SYNAPTIK_METAL_STATUS_UNSUPPORTED_OPERATION;
+                    if ((route != SYNAPTIK_METAL_ROUTE_MPSGRAPH
+                                    && route != SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM)
+                            || states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                            || node.second_input != UINT32_MAX
+                            || !node_has_no_attributes(node)
+                            || shapes[node.first_input].count == 0U
+                            || ![shapes[node.first_input] isEqualToArray:shapes[node.output]]
+                            || shape_element_count(shapes[node.first_input])
+                                    > UINT32_MAX / sizeof(float))
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    break;
                 case SYNAPTIK_METAL_MPSGRAPH_EXP:
                     if ((route != SYNAPTIK_METAL_ROUTE_MPSGRAPH
                                     && route != SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM)
@@ -7006,6 +7016,35 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_MPSGRAPH_EXP:
                     output = [graph exponentWithTensor:first name:nil];
                     break;
+                case SYNAPTIK_METAL_CUSTOM_SIGMOID: {
+                    // Reinterpret stored bits before comparison: floating comparison may DAZ
+                    // subnormals and would choose the wrong exact Model sign branch.
+                    MPSGraphTensor *bits = [graph reinterpretCastTensor:first
+                            toType:MPSDataTypeInt32 name:nil];
+                    MPSGraphTensor *zero_bits = exact_int32_scalar(graph, 0);
+                    MPSGraphTensor *magnitude = [graph bitwiseANDWithPrimaryTensor:bits
+                            secondaryTensor:exact_int32_scalar(graph, INT32_MAX) name:nil];
+                    MPSGraphTensor *signed_negative = [graph lessThanWithPrimaryTensor:bits
+                            secondaryTensor:zero_bits name:nil];
+                    MPSGraphTensor *nonzero = [graph greaterThanWithPrimaryTensor:magnitude
+                            secondaryTensor:zero_bits name:nil];
+                    MPSGraphTensor *negative = [graph logicalANDWithPrimaryTensor:signed_negative
+                            secondaryTensor:nonzero name:nil];
+                    MPSGraphTensor *one = exact_float32_scalar(graph, UINT32_C(0x3f800000));
+                    MPSGraphTensor *negative_input = [graph negativeWithTensor:first name:nil];
+                    MPSGraphTensor *exponent_input = [graph selectWithPredicateTensor:negative
+                            truePredicateTensor:first
+                            falsePredicateTensor:negative_input name:nil];
+                    MPSGraphTensor *exponent = [graph exponentWithTensor:exponent_input name:nil];
+                    MPSGraphTensor *numerator = [graph selectWithPredicateTensor:negative
+                            truePredicateTensor:exponent
+                            falsePredicateTensor:one name:nil];
+                    MPSGraphTensor *denominator = [graph additionWithPrimaryTensor:one
+                            secondaryTensor:exponent name:nil];
+                    output = [graph divisionWithPrimaryTensor:numerator
+                            secondaryTensor:denominator name:nil];
+                    break;
+                }
                 case SYNAPTIK_METAL_MPSGRAPH_ERF:
                     output = [graph erfWithTensor:first name:nil];
                     break;
@@ -8484,7 +8523,8 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                     consumed[value] = 1U;
             }
             reference_cursor = output_offset + output_count;
-            if (operation == SYNAPTIK_METAL_MPSGRAPH_EXP) {
+            if (operation == SYNAPTIK_METAL_MPSGRAPH_EXP
+                    || operation == SYNAPTIK_METAL_CUSTOM_SIGMOID) {
                 uint32_t input_value = synaptik_read_le32(
                         program + references_offset + (uint64_t)input_offset * 4U);
                 uint32_t output_value = synaptik_read_le32(
@@ -8497,7 +8537,8 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                 if ((route != SYNAPTIK_METAL_ROUTE_MPSGRAPH
                                 && route != SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM)
                         || (exp_type != SYNAPTIK_METAL_TYPE_FLOAT32
-                                && !(route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM
+                                && !(operation == SYNAPTIK_METAL_MPSGRAPH_EXP
+                                        && route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM
                                         && synaptik_is_low_precision_type(exp_type)))
                         || declared_types[output_value] != exp_type
                         || (input_flags & 1U) != 0U || (output_flags & 1U) != 0U

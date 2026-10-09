@@ -1971,15 +1971,15 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             input.neg().sigmoid(),
                             input.sigmoid().neg()));
                     assertEquals(
-                            List.of("metal", "cpu", "metal"),
+                            List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
                     try (var session = engine.session(compiled);
                             var result = session.run(List.of(input))) {
-                        assertCanonical(
+                        assertSigmoidApproxCanonical(
                                 result.materialize(
                                         result.publications().get(0), 2L * Float.BYTES).bytes(),
                                 strictSigmoid(1.25f), strictSigmoid(-2.5f));
-                        assertCanonical(
+                        assertSigmoidApproxCanonical(
                                 result.materialize(
                                         result.publications().get(1), 2L * Float.BYTES).bytes(),
                                 -strictSigmoid(-1.25f), -strictSigmoid(2.5f));
@@ -2036,21 +2036,21 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 assertMixedResult(
                         engine,
                         engine.compile(List.of(input.sigmoid().neg())),
-                        List.of("cpu", "metal"),
+                        List.of("metal"),
                         List.of(input),
                         -strictSigmoid(1.25f),
                         -strictSigmoid(-2.5f));
                 assertMixedResult(
                         engine,
                         engine.compile(List.of(input.neg().sigmoid())),
-                        List.of("metal", "cpu"),
+                        List.of("metal"),
                         List.of(input),
                         strictSigmoid(-1.25f),
                         strictSigmoid(2.5f));
                 assertMixedResult(
                         engine,
                         engine.compile(List.of(input.neg().sigmoid().neg())),
-                        List.of("metal", "cpu", "metal"),
+                        List.of("metal"),
                         List.of(input),
                         -strictSigmoid(-1.25f),
                         -strictSigmoid(2.5f));
@@ -2079,7 +2079,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 assertCapturedAdaptersSurviveRegistryPoison(
                         engine,
                         engine.compile(List.of(metalPublication, cpuPublication)),
-                        List.of("cpu", "metal", "cpu"),
+                        List.of("metal"),
                         List.of(input));
             }
         }
@@ -2934,8 +2934,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 try (var result = session.run(inputs)) {
                     ByteBuffer canonical = result.materialize(
                             result.publications().getFirst(), 8L).bytes();
-                    assertEquals(Float.floatToRawIntBits(first), canonical.getInt());
-                    assertEquals(Float.floatToRawIntBits(second), canonical.getInt());
+                    assertSigmoidApproxCanonical(canonical, first, second);
                 }
             }
         }
@@ -2954,11 +2953,11 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             for (int run = 0; run < 2; run++) {
                 try (var result = session.run(inputs)) {
                     assertEquals(2, result.resultCount());
-                    assertCanonical(
+                    assertSigmoidApproxCanonical(
                             result.materialize(result.publications().get(0), 8L).bytes(),
                             -strictSigmoid(1.25f),
                             -strictSigmoid(-2.5f));
-                    assertCanonical(
+                    assertSigmoidApproxCanonical(
                             result.materialize(result.publications().get(1), 8L).bytes(),
                             strictSigmoid(-strictSigmoid(1.25f)),
                             strictSigmoid(-strictSigmoid(-2.5f)));
@@ -2972,7 +2971,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     /**
-     * Computes the CPU-owned sign-branch sigmoid oracle for exact mixed-owner transfer assertions.
+     * Computes a test-only branch-correct sigmoid reference for Metal-owned partition assertions.
      *
      * @param value FLOAT32 value widened before the binary64 formula
      * @return one final FLOAT32 narrowing of the stable sigmoid formula
@@ -3378,6 +3377,23 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     private static void assertCanonical(ByteBuffer canonical, float... expected) {
         for (float value : expected) {
             assertEquals(Float.floatToRawIntBits(value), canonical.getInt());
+        }
+    }
+
+    /**
+     * Checks Metal SIGMOID publications against the branch-correct reference without imposing
+     * CPU bit identity on the separately qualified MPSGraph route. This is a test-only finite
+     * gate; exact special values are exercised by the dedicated SIGMOID device tests.
+     *
+     * @param canonical result bytes positioned at the first expected FLOAT32 value; consumed
+     * @param expected finite nonzero branch-correct values in publication order; not mutated
+     */
+    private static void assertSigmoidApproxCanonical(ByteBuffer canonical, float... expected) {
+        for (float reference : expected) {
+            float actual = Float.intBitsToFloat(canonical.getInt());
+            assertTrue(Float.isFinite(actual) && Math.abs(actual - reference)
+                            <= 2e-6 * Math.abs(reference),
+                    "Metal SIGMOID actual=" + actual + " reference=" + reference);
         }
     }
 

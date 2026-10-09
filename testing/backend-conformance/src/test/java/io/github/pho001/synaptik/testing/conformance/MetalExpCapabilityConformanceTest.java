@@ -47,8 +47,6 @@ final class MetalExpCapabilityConformanceTest {
                 descriptor(DataType.FLOAT32, Shape.of(3, 2), false)));
         assertFalse(supports(EXP, descriptor(DataType.FLOAT32, Shape.scalar(), false),
                 descriptor(DataType.FLOAT32, Shape.scalar(), false)));
-        assertFalse(supports(new Operation(UnaryElementwiseKind.SIGMOID,
-                NoOperationAttrs.INSTANCE), float32, float32));
     }
 
     private boolean supports(Operation operation, TensorDescriptor input,

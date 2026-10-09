@@ -923,8 +923,11 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
 
     /**
      * Lowers one already-admitted Model operation into its fixed schema-twenty node. In particular,
-     * each bounded EXP occurrence becomes the no-attribute exponent node. FLOAT32 retains its
-     * direct route, while low values force the fixed custom partition route before declarations.
+     * each bounded EXP occurrence becomes the no-attribute exponent node. The bounded FLOAT32
+     * SIGMOID becomes wire 64 for a sign-guarded composed MPSGraph step, including after an
+     * explicit low-to-FLOAT32 cast inside a fixed custom partition. Low-valued SIGMOID is never
+     * admitted. FLOAT32 EXP retains its direct route, while low EXP values force the fixed custom
+     * partition route before declarations.
      *
      * @param operation non-null typed Model operation
      * @param inputs ordered input value indices, not mutated
@@ -1268,9 +1271,12 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         if (kind == UnaryElementwiseKind.ABS) {
             return MetalMpsGraphProgram.Node.abs(inputs[0], output);
         }
-        if (kind == UnaryElementwiseKind.EXP) {
+        if (kind == UnaryElementwiseKind.EXP || kind == UnaryElementwiseKind.SIGMOID) {
             return MetalMpsGraphProgram.Node.generic(
-                    MetalMpsGraphProgram.NodeKind.EXP, inputs, new int[] {output},
+                    kind == UnaryElementwiseKind.EXP
+                            ? MetalMpsGraphProgram.NodeKind.EXP
+                            : MetalMpsGraphProgram.NodeKind.SIGMOID,
+                    inputs, new int[] {output},
                     MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
         }
         if (kind == UnaryElementwiseKind.RECIPROCAL) {

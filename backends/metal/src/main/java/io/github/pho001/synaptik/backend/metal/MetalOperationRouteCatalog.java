@@ -12,7 +12,8 @@ import java.util.Objects;
  * reflection, wire-number duplication, or string dispatch. The EXP entry records its direct
  * FLOAT32 MPSGraph construction and still-pending FLOAT32 custom pointwise route. Its separately
  * qualified BFLOAT16/FLOAT16 custom kernels are occurrence-specific and do not change this
- * operation-wide FLOAT32 catalog state.
+ * operation-wide FLOAT32 catalog state. SIGMOID records a composed MPSGraph implementation
+ * with a pending custom pointwise route; its only qualified occurrence is FLOAT32.
  */
 final class MetalOperationRouteCatalog {
     /** Structural MPSGraph realization state, independent of correctness approval. */
@@ -307,7 +308,8 @@ final class MetalOperationRouteCatalog {
                     Entry.DIRECT_SHAPE_CUSTOM_0066;
             case SLICE_UPDATE -> Entry.DIRECT_SHAPE_CUSTOM_0060;
             case PAD, SLICE, CONCAT, TILE -> Entry.DIRECT_SHAPE_CUSTOM_0059;
-            case ABS, EXP, SIGMOID -> Entry.DIRECT_ARITH_PENDING_POINT;
+            case ABS, EXP -> Entry.DIRECT_ARITH_PENDING_POINT;
+            case SIGMOID -> Entry.COMPOSED_UNARY_PENDING_POINT;
             case FLOOR, CEIL, SIGN, RELU -> Entry.DIRECT_ARITH_CUSTOM_0058;
             case LOG, ERF, SQRT, TANH -> Entry.DIRECT_ARITH_PENDING_ELEMENTARY;
             case RECIPROCAL -> Entry.COMPOSED_UNARY_PENDING_POINT;

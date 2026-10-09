@@ -1207,8 +1207,6 @@ class MetalMpsGraphRawAbiNativeTest {
         byte[] image = program.encodedProgramImage(values, new int[] {0, 1, 2}, new int[] {3});
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(13, abi.create(image, image.length));
-            byte[] blocked = unaryImage(MetalMpsGraphProgram.NodeKind.SIGMOID);
-            assertEquals(13, abi.create(blocked, blocked.length));
             assertEquals(1, abi.create(
                     rewriteLong(image, image.length - Long.BYTES, 2L), image.length));
             int referencesOffset = MetalMpsGraphProgram.HEADER_BYTES
@@ -1262,6 +1260,32 @@ class MetalMpsGraphRawAbiNativeTest {
                     unaryNode(MetalMpsGraphProgram.NodeKind.EXP, 0, 1)))
                     .encodedProgramImage(
                             List.of(descriptor(), descriptor()),
+                            new int[] {0}, new int[] {1});
+            assertEquals(1, abi.create(scalar, scalar.length));
+        }
+    }
+
+    @Test
+    void sigmoidWire64AcceptsOnlyCanonicalNoGradientFloat32DirectImages() throws Throwable {
+        Path library = configuredLibrary();
+        byte[] valid = unaryImage(MetalMpsGraphProgram.NodeKind.SIGMOID);
+        int valuesOffset = MetalMpsGraphProgram.HEADER_BYTES;
+        int outputOffset = valuesOffset + MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES;
+        int nodeOffset = outputOffset + MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES;
+        try (RawAbi abi = new RawAbi(library)) {
+            assertEquals(0, abi.create(valid, valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, valuesOffset,
+                    MetalMpsGraphProgram.dataTypeWire(DataType.BFLOAT16)), valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, outputOffset,
+                    MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT16)), valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, valuesOffset + 16, 3), valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, outputOffset + 16, 3), valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, valuesOffset + 16, 0), valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, outputOffset + 16, 0), valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, nodeOffset + 4, 1), valid.length));
+            byte[] scalar = new MetalMpsGraphProgram(List.of(
+                    unaryNode(MetalMpsGraphProgram.NodeKind.SIGMOID, 0, 1)))
+                    .encodedProgramImage(List.of(descriptor(), descriptor()),
                             new int[] {0}, new int[] {1});
             assertEquals(1, abi.create(scalar, scalar.length));
         }

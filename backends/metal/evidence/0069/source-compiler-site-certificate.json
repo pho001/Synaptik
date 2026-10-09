@@ -7,7 +7,7 @@
   },
   "foundationSource": {
     "path": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
-    "sha256": "f831032edeecaee60129d1b6560697770a3d5447059d7d9a1c5e1ac6d0f2318f"
+    "sha256": "3ffacd1843f13ddc3753899e09d700d86a05162391f90a156d6404ae068a76fd"
   },
   "fixedRuntimeSource": {
     "bytes": 84603,

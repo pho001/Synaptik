@@ -48,32 +48,32 @@ final class LowPrecisionIdentityContractTest {
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNativeApi", "ABI_VERSION"));
         assertEquals(
-                32,
+                33,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegTuningBatch",
                         "CANDIDATE_SCHEMA_VERSION"));
         assertEquals(
-                32,
+                33,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegTuningBatch",
                         "COMPATIBILITY_SCHEMA_VERSION"));
         assertEquals(
-                32,
+                33,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegTuningBatch",
                         "ROUTE_POLICY_VERSION"));
         assertEquals(
-                32,
+                33,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegTuningCodec",
                         "CODEC_VERSION"));
         assertEquals(
-                32,
+                33,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegRouteCandidateGenerator",
                         "WORKLOAD_SIGNATURE_VERSION"));
         assertEquals(
-                32,
+                33,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegRouteCandidateGenerator",
                         "EXACT_DEFAULT_POLICY"));

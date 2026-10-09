@@ -40,7 +40,9 @@ The checked-in
 is the canonical profile-free representative snapshot of actual CPU and Metal provider answers.
 It records supported and explicit unsupported FLOAT32 occurrences, plus independently queried
 BFLOAT16 and FLOAT16 counterparts. The current Metal FLOAT32, BFLOAT16, and FLOAT16 `EXP` rows
-are independently true for their bounded canonical no-gradient occurrences. The 508-row
+are independently true for their bounded canonical no-gradient occurrences. The bounded canonical
+no-gradient FLOAT32 `SIGMOID` row is true, while its independently queried BFLOAT16 and FLOAT16
+rows remain false. The 508-row
 [`v1 ledger`](../../testing/backend-conformance/src/test/resources/low-precision-capability-ledger-v1.tsv)
 is historical two-profile evidence; it is not a current provider query or numerical certificate.
 `LowPrecisionCapabilityLedgerTest` reconstructs the basis, calls the providers, serializes UTF-8
@@ -62,9 +64,8 @@ This mechanism does not redesign `BackendCapabilityProvider`. The separate ident
 ledger records historical allocations: Model `DataType.FLOAT16` ordinal 6, CPU generator schema
 68, Metal type wire 7, program schema 19, backend identities 29, and native ABI 7. Current CPU
 generator schema is 69; current Metal program schema is 20 with a 124-byte header and tuning
-identity 32 (identity 30 was the profile-free cutover value and 31 the FLOAT32 `EXP` value);
-native ABI remains 7. The ledger is
-not a current-schema certificate.
+identity 33 (identity 30 was the profile-free cutover value, 31 the FLOAT32 `EXP` value, and 32
+the low-`EXP` value); native ABI remains 7. The ledger is not a current-schema certificate.
 
 ## Current shared identity, availability, and requirement vocabulary
 

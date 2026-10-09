@@ -58,9 +58,6 @@ final class MetalExpCapabilityTest {
                 () -> supports(new Operation(UnaryElementwiseKind.EXP,
                                 new ScalarValueAttrs(ScalarValue.float32(1.0f))),
                         List.of(value), List.of(value)));
-        assertFalse(supports(new Operation(UnaryElementwiseKind.SIGMOID,
-                        NoOperationAttrs.INSTANCE),
-                List.of(value), List.of(value)));
         TensorDescriptor scalar = canonical(DataType.FLOAT32, Shape.scalar(), false);
         assertFalse(supports(EXP, List.of(scalar), List.of(scalar)));
         Shape rank17 = rank(17);

@@ -656,14 +656,18 @@ admits each homogeneous BFLOAT16 and FLOAT16 `EXP` occurrence in the bounded can
 domain through its own qualified custom step and independently true current v2 provider answer.
 Each step retains FLOAT32 working evaluation and one final narrowing to its original low type
 under Model semantics, and the whole low-containing partition remains on `CUSTOM_PROGRAM`.
-The explicit-cast FLOAT32 route and the low-valued custom routes are distinct. This is an occurrence and
-dtype distinction fixed during Prepare, not a runtime decision. See the
+The explicit-cast FLOAT32 route and the low-valued custom routes are distinct. This is an occurrence
+and dtype distinction fixed during Prepare, not a runtime decision.
+Task 0076 separately admits bounded canonical no-gradient FLOAT32 `SIGMOID` through a fixed
+sign-guarded MPSGraph composition. Low-valued `SIGMOID` remains false; an explicit low-to-FLOAT32
+cast permits the FLOAT32 step inside a low-containing `CUSTOM_PROGRAM` partition without changing
+its whole-partition route. See the
 [backend capability contract](contracts/backend-execution.md#profile-free-backend-capability-and-identity)
 and [ADR 0027](../design/decisions/0027-post-cutover-capability-evolution.md).
 
 Metal retains eligible FLOAT32 MPSGraph routes and the fixed custom program for low-containing
 partitions; CPU retains generated and OpenBLAS routes.
-The current Metal image is schema 20 with a 124-byte header and tuning identity 32; CPU generator
+The current Metal image is schema 20 with a 124-byte header and tuning identity 33; CPU generator
 schema is 69; native ABI 7 retains thirteen exports. CPU/Metal transfer accepts canonical or
 resolved positive-stride non-overlapping all-carrier storage layouts without widening operation
 capability. Runtime requires no profile, tolerance, certificate, or policy lookup.

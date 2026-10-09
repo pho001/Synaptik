@@ -73,7 +73,8 @@ final class MetalNegCapabilityPartitionConformanceTest {
         for (UnaryElementwiseKind kind : UnaryElementwiseKind.values()) {
             assertEquals(
                     exactRawUnary(kind) || kind == UnaryElementwiseKind.RECIPROCAL
-                            || kind == UnaryElementwiseKind.EXP,
+                            || kind == UnaryElementwiseKind.EXP
+                            || kind == UnaryElementwiseKind.SIGMOID,
                     provider.supports(query(
                             operation(kind),
                             List.of(matrix),

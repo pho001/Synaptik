@@ -410,6 +410,6 @@ prepared result without tolerance, certificate, route, or capability lookup. For
 BFLOAT16 raw move preserves its stored word, while a following named arithmetic primitive may
 use its permitted input DAZ. Neither step changes the other's boundary. Metal retains MPSGraph
 for eligible FLOAT32-only steps and the fixed custom program for low-containing partitions. Its
-current program is schema 20 with a 124-byte header and tuning identity 32; CPU generator schema
+current program is schema 20 with a 124-byte header and tuning identity 33; CPU generator schema
 is 69, and native ABI 7 retains thirteen exports. Schema 19/identity 29 and CPU schema 68 are
 historical, incompatible inputs.

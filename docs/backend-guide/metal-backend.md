@@ -4,9 +4,10 @@
 
 The Metal backend executes one whole maximal Metal-owned partition. Its active protocol is
 native ABI 7, program schema 20 with a 124-byte header, data-type wires `1..7`, operation wires
-`1..115`, attribute wires `0..41`, route wires `1..3`, and coordinated backend-local identity 32.
+`1..115`, attribute wires `0..41`, route wires `1..3`, and coordinated backend-local identity 33.
 Schema 19 and identity 29 are historical pre-cutover allocations; identity 30 is the historical
-profile-free cutover value, and identity 31 is the superseded FLOAT32 `EXP` value. None is a current
+profile-free cutover value, identity 31 is the superseded FLOAT32 `EXP` value, and identity 32 is
+the superseded low-`EXP` value. None is a current
 decoder or tuning input.
 
 The profile-free exact domain contains represented-bit unary operations, affine
@@ -68,6 +69,22 @@ An explicit cast of the same input to FLOAT32 before `EXP` instead yields a FLOA
 an internal MPSGraph step. The equal mathematical value does not make the routes interchangeable;
 a scalar-rank or gradient-bearing low `EXP` still fails capability.
 
+The current provider also admits bounded canonical no-gradient FLOAT32 `SIGMOID` at positive
+static rank `1..16`, equal input/output Shape, and checked four-byte span and dispatch geometry.
+Its fixed composed MPSGraph step reads the stored FLOAT32 sign through an integer reinterpretation,
+so signed zero and stored subnormals choose the exact Model branch without floating-comparison
+denormals-are-zero (DAZ). It selects `x` for negative input or `-x` otherwise, evaluates one
+`EXP`, selects that result or typed one as numerator, adds typed one to the exponent as denominator,
+and divides. For example, input `[-1, 0, 1]` selects exponent arguments `[-1, -0, -1]` and
+produces approximately `[0.26894, 0.5, 0.73106]`; the zero result is exactly `0.5`. The
+[real-device SIGMOID test](../../backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalSigmoidNativeTest.java)
+separates exact class/guard checks, output underflow and saturation gates, and a test-only
+ordinary-finite relative threshold of `2e-6`. It creates no Runtime tolerance policy or
+numerical certification. BFLOAT16, FLOAT16, FLOAT64, gradient-bearing, scalar-rank,
+noncanonical, and over-limit SIGMOID stay false. An explicit low-to-FLOAT32 cast before
+SIGMOID can use the FLOAT32 step inside a `CUSTOM_PROGRAM` partition; the partition stays custom
+and the low-valued SIGMOID answer remains false.
+
 Direct BFLOAT16/FLOAT16 mixed-low operations are unsupported. Explicit casts to FLOAT32 are the
 only mixed-low boundary. Existing one-low-plus-FLOAT32 widening occurrences remain permitted where
 the Model result is FLOAT32. Every partition containing BFLOAT16 or FLOAT16 values selects the
@@ -112,7 +129,7 @@ capability -> Planning ownership -> Metal analysis and typed candidates
 Capability applies per occurrence. Preparation authenticates the complete maximal partition.
 Existing eligible rank-two FLOAT32 MATMUL may retain direct MPSGraph. Every partition containing
 BFLOAT16 or FLOAT16 values uses the shared custom whole-program route. The capability catalog
-is `87 true / 28 false` over operation kinds, with structural execution `102 / 13`. These kind
+is `88 true / 27 false` over operation kinds, with structural execution `103 / 12`. These kind
 inventories do not count additional dtype occurrences.
 
 Within that capability domain, Metal analysis generates a typed complete candidate batch and
@@ -180,8 +197,9 @@ MPFR/Sollya/Lean evidence. They remain evidence-only artifacts: production impor
 header, Task-0053 gate, source, function, or dispatch metadata. The current no-gradient FLOAT32
 `EXP` uses a separate direct MPSGraph route, not that historical raw-word candidate. Its FLOAT32
 custom pointwise catalog candidate remains pending. The newly qualified BFLOAT16/FLOAT16 `EXP`
-occurrences use different typed low custom kernels; all `SIGMOID` occurrences remain provider-false,
-and native creation rejects unsupported occurrences. Admitting the proposed Task-0053 candidates
+occurrences use different typed low custom kernels. The bounded FLOAT32 SIGMOID occurrence uses
+the separate composed MPSGraph route; low SIGMOID remains provider-false and native creation
+rejects unsupported occurrences. Admitting the proposed Task-0053 candidates
 still requires a separate reviewed capability change, not a runtime boolean gate.
 
 ## Prerequisites
@@ -253,7 +271,7 @@ distinct non-physical identities. The first is an abstract availability slot, th
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
 claim. No mapping among them is implied. ABI 7 and the thirteen native exports are fixed. The
 route-bearing image is schema 20 with a 124-byte header, and every workload/exact-policy/candidate/compatibility/
-route/codec identity is version 32; prior identities 30 and 31 and every other stale identity fail closed.
+route/codec identity is version 33; prior identities 30, 31, and 32 and every other stale identity fail closed.
 Tuning remains session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
@@ -385,15 +403,15 @@ intermediate materialized slot and no native retry or fallback.
 The package-private `MetalOperationRouteCatalog` separately describes every one of the 115
 current schema-20 `NodeKind` values. Exhaustive enum switching yields shared immutable entries with
 closed MPSGraph state/reason and custom-kernel state/reason values: MPSGraph totals are
-`75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`; custom totals are
+`74 DIRECT / 36 COMPOSED / 5 UNAVAILABLE`; custom totals are
 `73 AVAILABLE / 42 PENDING / 0 UNAVAILABLE_WITH_PROOF`. `EXP` has a direct MPSGraph catalog entry
 but its custom pointwise entry remains pending. Task 0066 moves exactly wires `6..11` and
 `16..19` from pending to available under reason `CA_0066`. Task-0069 Slices 1 through 3 move wires
 `114=L1_NORM`, `70=SCATTER_ADD`, and `112=VARIANCE` from pending to available under reason
 `CA_0069` without changing their MPSGraph records. This catalog performs no capability admission
-and no selection. It is never consulted by Runtime; 28 kinds remain capability-false even when the
+and no selection. It is never consulted by Runtime; 27 kinds remain capability-false even when the
 catalog records a structurally direct or composed MPSGraph realization. Structural executable
-status separately covers 102 wires with 13 nonexecutable rows and never grants production
+status separately covers 103 wires with 12 nonexecutable rows and never grants production
 ownership.
 
 After Planning creates one maximal Metal partition, analysis walks nodes in partition order with
@@ -433,7 +451,7 @@ consuming a caller position. Existing shared `GraphPreparation` tests independen
 chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, typed node records, and the
-canonical execution plan are known, analysis creates a version-thirty-two candidate batch and
+canonical execution plan are known, analysis creates a version-thirty-three candidate batch and
 workload fingerprint. Every partition containing BFLOAT16/FLOAT16 values or a selected
 Task-0066/Task-0069 occurrence forces the fixed `CUSTOM_PROGRAM` production candidate; the batch
 rejects a selected-node MPSGraph route before native allocation. Other FLOAT32 partitions retain
@@ -442,14 +460,14 @@ rank-two FLOAT32 MATMUL where no selected custom-only node requires the whole-pr
 Package-private structural forcing remains available only for a route already present in the fresh
 authenticated batch.
 
-The version-thirty-two canonical workload fingerprint covers the schema-twenty route-bearing program
+The version-thirty-three canonical workload fingerprint covers the schema-twenty route-bearing program
 image and authenticated execution extension, ordered
 input and output references, all typed attributes, logical and physical value states,
 authenticated local provenance, complete tensor descriptors and storage layouts, compact
 materialized and target sets, exact scalar/splat bits, logical-boundary roles,
 policy/candidate/route schemas, and ABI version. It encodes structural positions rather than graph
 object identity. Target compatibility also contains a fresh private nonce from the exact
-`MetalDeviceContext`; only identity 32 is accepted, while prior identities 30 and 31 and every other stale
+`MetalDeviceContext`; only identity 33 is accepted, while prior identities 30, 31, and 32 and every other stale
 decision fail closed.
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. Every supplied handoff is accepted only when the exact
@@ -475,15 +493,15 @@ exposes this test seam.
 
 ### Session decision codec and limitations
 
-The package-private version-thirty-two Metal codec produces bounded canonical compatibility,
+The package-private version-thirty-three Metal codec produces bounded canonical compatibility,
 candidate, and checksummed decision bytes. Decode rejects wrong magic, schema, session scope,
 malformed or truncated content, trailing or corrupt bytes, changed workload or
 context, and unknown or pruned candidates. The bytes contain no native handle or executable. Only
-identity 32 is accepted; prior identities 30 and 31 and every other stale decision fail closed even when its
+identity 33 is accepted; prior identities 30, 31, and 32 and every other stale decision fail closed even when its
 trailing checksum is otherwise valid.
 
 The public `MetalLocalWorkloadTuning` retained by `MetalBackendIntegration` wraps this codec and
-candidate generator without changing their version-thirty-two bytes. It returns a handoff only
+candidate generator without changing their version-thirty-three bytes. It returns a handoff only
 for an exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
 `MetalCompletePlanTuning` authenticates the exact Phase-1 association and exposes one complete-plan
 candidate fixed to that selected route. Both collaborations use opaque exact-owner/batch values,
@@ -498,7 +516,7 @@ device/library fingerprint.
 
 Schema-twenty workload bytes and workload compatibility include the fixed route,
 canonical execution extension, and manifest digest. Candidate and decision bytes retain route
-wires `1..3`, route-policy version thirty-two, and the target session.
+wires `1..3`, route-policy version thirty-three, and the target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
 session)` rather than a workload digest alone. The repository has no persistent Metal executable
@@ -903,8 +921,8 @@ manifest text, and the manifest digest must recompute exactly. An MPSGraph image
 extension flag, generator schema, counts, sizes, and caps and physically omits every extension
 section. Pre-cutover schema-19 images, route zero, and every other schema or route fail closed.
 
-Production capability admits exactly 87 operation kinds while 28 remain false; structural native
-execution covers 102 kinds and leaves 13 nonexecutable. At the historical profile-free cutover,
+Production capability admits exactly 88 operation kinds while 27 remain false; structural native
+execution covers 103 kinds and leaves 12 nonexecutable. At the historical profile-free cutover,
 the respective counts were 86/29 and 101/14. Attribute wires `0..41` and type wires `1..7`
 cover all current Model signatures and carriers.
 
@@ -1168,7 +1186,7 @@ persistent Metal splat binding is accepted only as a Metal read source; it canno
 destination. Runtime executes only the resulting direct prepared references.
 
 For one exact singleton NEG Metal plan, public `prepareTuned(...)` measures the complete two-route
-local batch, authenticates the selected version-thirty-two decision, then correctness-checks and
+local batch, authenticates the selected version-thirty-three decision, then correctness-checks and
 times one complete-plan candidate fixed to that route. The returned production recipe is freshly
 prepared after representative cleanup. Metal policy, producer, and decision-codec identities are
 adapter-owned and distinct from CPU identities; existing CPU bytes and behavior remain unchanged.
@@ -1313,6 +1331,6 @@ and accepts one bounded schema-20 route-bearing image with a 124-byte header; op
 `0..41`, route wires `1..3`, and type wires `1..7` cover the current structural registry without
 widening operation-kind capability. Route, candidate, compatibility, workload, exact-policy, and
 codec identities are version `32`; prior identities `30` and `31` and every other stale identity fail closed.
-Current capability/structural counts are `87/28` and `102/13`; the frozen cutover counts were
+Current capability/structural counts are `88/27` and `103/12`; the frozen cutover counts were
 `86/29` and `101/14`.
 The complete-plan wrapper remains version `1`.

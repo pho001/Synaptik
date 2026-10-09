@@ -2,8 +2,8 @@
 
 ## Status
 
-Ready — the serial Metal frontier verified on 2026-10-09 at `c19f16ee`: Model 0032,
-Metal 0069, and Metal 0074–0075 are Complete; no other Metal native/capability writer is active.
+Complete — the bounded FLOAT32 route, source-matched device/conformance/Engine validation,
+0069 source rebind, full build, documentation and independent Class C review passed.
 
 ## Change class
 
@@ -23,8 +23,9 @@ MPSGraph route that implements the Model's sign-guarded stable formula.
   provider-false and rejected before resource mutation.
 - Lower wire 64 as an explicit sign-guarded MPSGraph composition: for nonnegative `x`,
   `1/(1+EXP(-x))`; for negative `x`, `EXP(x)/(1+EXP(x))`. The predicate must classify stored
-  finite subnormals and signed zero without MPSGraph floating-comparison DAZ. Both `EXP` sites,
-  typed-one additions, and divisions retain the Model's named arithmetic semantics. A direct
+  finite subnormals and signed zero without MPSGraph floating-comparison DAZ. An exact guard may
+  select the argument for one shared `EXP` evaluation and the numerator before the typed-one
+  addition and division, retaining each branch's named arithmetic semantics. A direct
   opaque sigmoid selector, unguarded formula, host repair, and route fallback are not substitutes.
 - A FLOAT32-only SIGMOID inside a low-containing `CUSTOM_PROGRAM` partition may use an internal
   FLOAT32 MPSGraph boundary step, including after an explicit low-to-FLOAT32 cast. The partition
@@ -124,4 +125,19 @@ implementation if an applicable contract proves ambiguous.
 
 ## Result
 
-Empty until execution.
+The provider admits only the bounded no-gradient canonical FLOAT32 occurrence. Wire 64 lowers to
+one fixed MPSGraph composition with a stored-bit sign guard and one `EXP` evaluation per element;
+an explicit low-to-FLOAT32 cast may precede it inside a fixed custom partition. BFLOAT16/FLOAT16
+SIGMOID remain false. Current v2 ledger and identity advance to 33; historical v1, ABI 7 and
+schema 20 are unchanged. Native foundation source certificate is rebound to SHA-256
+`3ffacd1843f13ddc3753899e09d700d86a05162391f90a156d6404ae068a76fd`.
+
+Native build/sign/package/verify, focused device, affected Metal/conformance/Engine/architecture
+tests, Javadoc, both 0069 evidence checks, `git diff --check`, and the full
+`./gradlew build --max-workers=1` passed. JUnit reports show 342 Metal, 32 conformance and 94
+integration tests with zero failures; 10/0/1 previously explained skips and no new SIGMOID skip.
+Independent Class C code/documentation review returned APPROVE with zero P0/P1/P2; it finalized
+Javadoc, guide/API explanations, glossary references and 529 local Markdown links without editing
+executable behavior. No remaining task blocker or performance claim.
+
+Status: Complete

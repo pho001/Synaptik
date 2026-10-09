@@ -104,7 +104,7 @@ import java.util.Objects;
  * <p>The current capability ledger calls this predicate over a stable representative basis and
  * snapshots true and false answers. The historical pre-cutover ledger remains frozen; the only
  * added EXP answers are the separately qualified bounded no-gradient FLOAT32, BFLOAT16, and
- * FLOAT16 occurrences. The ledger contains
+ * FLOAT16 occurrences. The separately qualified SIGMOID answer is FLOAT32 only. The ledger contains
  * no route, runtime, device, certificate, or generated-backward fact.</p>
  *
  * <p>This provider is immutable and performs no native loading, device discovery, allocation,
@@ -119,7 +119,8 @@ import java.util.Objects;
  * descriptors, then tests an exact FLOAT32 descriptor/attribute proxy against the baseline
  * occurrence predicate. This preserves the independently queried low-type support corresponding
  * to the frozen, formerly ACCELERATOR FLOAT32 baseline. EXP is instead checked by three exact
- * typed predicates and never inherits a low answer from the FLOAT32 proxy. In particular, low
+ * typed predicates, and SIGMOID by one FLOAT32-only predicate; neither inherits a low answer
+ * from the FLOAT32 proxy. In particular, low
  * L1, ScatterAdd, and
  * singleton variance support does not select the separate FLOAT32-only Task 0069 specialized
  * kernels. Direct BFLOAT16/FLOAT16 mixed-low operations are rejected except explicit
@@ -208,7 +209,8 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
      * @param inputs non-null ordered input descriptors
      * @param outputs non-null ordered output descriptors
      * @return {@code true} only if the original occurrence passes the exact current predicate or
-     *     an independently qualified {@code EXP} predicate, or a homogeneous low-type occurrence
+     *     an independently qualified {@code EXP} or FLOAT32-only {@code SIGMOID} predicate, or a
+     *     homogeneous low-type occurrence
      *     passes the frozen-baseline FLOAT32 proxy predicate; other FLOAT32-only additions do not
      *     gain low support through that proxy
      * @throws NullPointerException if {@code operation}, {@code inputs}, or {@code outputs} is
@@ -227,9 +229,16 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         if (supportsFrozenBaselineOccurrence(operation, inputs, outputs)) {
             return true;
         }
+        if (operation.kind() == UnaryElementwiseKind.SIGMOID && outputs.size() == 1) {
+            try {
+                return supportsFloat32ExpOrSigmoid(operation, inputs, outputs.getFirst());
+            } catch (IllegalArgumentException | ArithmeticException incompatible) {
+                return false;
+            }
+        }
         if (operation.kind() == UnaryElementwiseKind.EXP && outputs.size() == 1) {
             try {
-                return supportsFloat32Exp(operation, inputs, outputs.getFirst())
+                return supportsFloat32ExpOrSigmoid(operation, inputs, outputs.getFirst())
                         || supportsLowExp(operation, inputs, outputs.getFirst(),
                                 DataType.BFLOAT16)
                         || supportsLowExp(operation, inputs, outputs.getFirst(),
@@ -1647,14 +1656,17 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     /**
-     * Checks the bounded no-gradient FLOAT32 EXP occurrence for its fixed direct route.
+     * Checks a bounded no-gradient FLOAT32 EXP or SIGMOID occurrence for its fixed MPSGraph
+     * route: direct for EXP and sign-guarded composition for SIGMOID. This predicate is
+     * deliberately reached before the frozen low proxy, so SIGMOID never inherits a low-valued
+     * answer.
      *
      * @param operation non-null unary operation
      * @param inputs non-null ordered input descriptors
      * @param output non-null output descriptor
-     * @return whether this occurrence has the qualified direct route
+     * @return whether this exact FLOAT32 occurrence has its qualified MPSGraph route
      */
-    private static boolean supportsFloat32Exp(
+    private static boolean supportsFloat32ExpOrSigmoid(
             Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
         if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 1) return false;
         TensorDescriptor input = inputs.getFirst();

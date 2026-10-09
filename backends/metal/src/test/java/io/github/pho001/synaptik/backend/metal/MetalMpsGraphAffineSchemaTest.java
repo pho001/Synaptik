@@ -23,8 +23,8 @@ class MetalMpsGraphAffineSchemaTest {
             assertEquals(index + 1, operations[index].wireIdentity());
             if (operations[index].executable()) executable++;
         }
-        assertEquals(102, executable);
-        assertEquals(13, operations.length - executable);
+        assertEquals(103, executable);
+        assertEquals(12, operations.length - executable);
 
         MetalMpsGraphProgram.AttributeKind[] attributes =
                 MetalMpsGraphProgram.AttributeKind.values();

@@ -217,8 +217,9 @@ The following invariants must remain true:
   20 with a 124-byte header, the CPU generator envelope to schema 69, and coordinated Metal
   workload/exact-policy/candidate/compatibility/route/codec identity to 30. Schema 19, CPU schema
   68, and Metal identity 29 are incompatible pre-cutover baselines. Metal identity 30 is the
-  historical cutover value; identity 31 is the superseded FLOAT32 `EXP` value, and the current
-  coordinated Metal identity is 32. Changed serialized/generated identities advance append-only
+  historical cutover value; identity 31 is the superseded FLOAT32 `EXP` value, identity 32 is the
+  superseded low-`EXP` value, and the current coordinated Metal identity is 33. Changed
+  serialized/generated identities advance append-only
   and reject stale inputs. The Metal profile
   wire is absent in both Java and native schema-20 decoding; source and package authentication
   remain required.
@@ -255,6 +256,12 @@ The following invariants must remain true:
   `EXP` remains false. FLOAT64, gradient-bearing, scalar-rank, noncanonical, and over-limit `EXP`
   remain unsupported. FLOAT32 `EXP` keeps its separate direct MPSGraph route; each low-valued
   `EXP` uses a typed custom step with FLOAT32 working evaluation and one final low narrowing.
+  Task 0076 admits only bounded canonical no-gradient FLOAT32 `SIGMOID` through the fixed
+  sign-guarded composed MPSGraph route at wire 64. Its exact stored-bit guard selects the stable
+  Model branch; the two low-valued `SIGMOID` answers, FLOAT64, gradient-bearing, scalar-rank,
+  noncanonical, and over-limit occurrences remain false. Historical v1 stays false; current v2
+  records FLOAT32 true and both low answers false. An explicit low-to-FLOAT32 cast may place the
+  FLOAT32 step inside a low-containing custom partition without changing its partition route.
   Every partition containing BFLOAT16 or FLOAT16 values selects one fixed custom program and
   exposes only the `CUSTOM_PROGRAM` candidate.
   This includes raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`,
