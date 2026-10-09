@@ -15,12 +15,10 @@ import java.util.Objects;
  * @param selectedRoute the selected custom-kernel route, never a graph route or {@code null}
  * @param logicalDtypeTuple nonempty ordered feed-then-target logical dtype names; elements must
  *        be non-null and nonempty, and the list is copied on construction
- * @param numericalProfile the selected profile identifier, never {@code null}
  */
 public record LowPrecisionTraceMetadata(
         TraceRouteKind selectedRoute,
-        List<String> logicalDtypeTuple,
-        TraceNumericalProfile numericalProfile) implements TracePayload {
+        List<String> logicalDtypeTuple) implements TracePayload {
     /**
      * Validates and snapshots the selected-route boundary facts without inferring arithmetic
      * working types from the prepared program.
@@ -28,7 +26,6 @@ public record LowPrecisionTraceMetadata(
      * @param selectedRoute the selected custom-kernel route, never a graph route or {@code null}
      * @param logicalDtypeTuple nonempty ordered feed-then-target logical dtype names; elements
      *        must be non-null and nonempty, and the list is copied
-     * @param numericalProfile the selected profile identifier, never {@code null}
      * @throws NullPointerException if a required argument or tuple element is {@code null}
      * @throws IllegalArgumentException if the route is not custom or the tuple is empty or
      *         contains an empty dtype name
@@ -50,6 +47,5 @@ public record LowPrecisionTraceMetadata(
                 throw new IllegalArgumentException("logicalDtypeTuple element must not be empty");
             }
         });
-        Objects.requireNonNull(numericalProfile, "numericalProfile");
     }
 }

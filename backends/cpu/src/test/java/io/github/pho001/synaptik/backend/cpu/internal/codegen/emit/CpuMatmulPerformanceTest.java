@@ -192,7 +192,7 @@ public final class CpuMatmulPerformanceTest {
         int bits=(form==CpuMatmulIr.Realization.DIRECT_N_VECTOR||form==CpuMatmulIr.Realization.TILED_N_VECTOR_2X2)?species(out):0;
         var ir=new CpuMatmulIr(lt,rt,out,form,epi,bits,CpuMatmulIr.NumericalForm.SEQUENTIAL,bias?List.of(read,read,biasPlan):List.of(read,read),write);
         List<DataType>types=bias?List.of(lt,rt,out,out):List.of(lt,rt,out);List<CarrierAccess>carriers=types.stream().map(CpuMatmulPerformanceTest::carrier).toList();
-        var spec=new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, bits==0?CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR:CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+        var spec=new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), bits==0?CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR:CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
         types,carriers,bits,-1,List.of(),false,54,Optional.of(ir));
         var generator=new CpuClassFileKernelGenerator();byte[]bytes=generator.generateClassBytes(spec,ir.encodedKernelIr());
         retainGenerated(name,bytes,spec,ir);MethodHandle handle=generator.defineClassBytes(spec,bytes).entryPoint();

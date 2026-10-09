@@ -62,15 +62,16 @@ import java.util.List;
  * than multi-axis coordinate tuples. Its inherited enum name is diagnostic text rather than a
  * serialization, dispatch, registry, route, or kernel identifier.</p>
  *
- * <p>Under the Model-owned numerical-profile contract, coordinate tuples, bounds, target/suffix
- * mapping, base participation, duplicate membership, and unaddressed payloads remain exact in
- * both profiles. {@code NONE} replacement preserves the selected original update. For
- * {@code ACCELERATOR FLOAT32}, ADD/MUL reductions combine the base and every addressed update
- * exactly once using any binary tree, per-step FLOAT32 rounding, DAZ/FTZ, and only corresponding
- * multiply/add fusion; MIN/MAX retain exact original-candidate selection under their documented
- * NaN, signed-zero, and tie rules. Non-FLOAT32 behavior stays strict. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Coordinate tuples, bounds, target and suffix mapping, duplicate membership, and raw
+ * unaddressed cells remain exact. NONE replacement preserves the selected original update; MIN and
+ * MAX use stored represented values and exact original-candidate rules. Floating ADD and MUL
+ * include the base and each addressed update exactly once in a rounded tree; named arithmetic
+ * primitives may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, but never FLOAT64.
+ * An overflow-first MUL tree for maxFinite * 2 * +0 may produce NaN, while another grouping may
+ * produce positive zero. Integral reductions retain fixed-width modular arithmetic. Homogeneous low
+ * arithmetic accumulates in FLOAT32 with one final low narrowing. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum ScatterNdKind implements OperationKind {
     /**

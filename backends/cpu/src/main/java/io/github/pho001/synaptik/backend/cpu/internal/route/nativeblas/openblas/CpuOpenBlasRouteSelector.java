@@ -217,8 +217,7 @@ public final class CpuOpenBlasRouteSelector {
         return new CpuOpenBlasTuningBatch.WorkloadSignature(
                 CpuOpenBlasTuningBatch.OperationKind.MATMUL,
                 CpuOpenBlasTuningBatch.OperationAttributes.NONE, type, type, type,
-                type, boundaries, context.numericalProfile(),
-                CpuOpenBlasTuningBatch.DeterminismMode.DEFAULT,
+                type, boundaries, CpuOpenBlasTuningBatch.DeterminismMode.DEFAULT,
                 new CpuOpenBlasTuningBatch.QualificationScope(config.qualification().orElseThrow()),
                 context.backendInputs().cpuHardwareIdentity(), capacity,
                 context.backendInputs().portableExecution(), plan.executionStrategy(),

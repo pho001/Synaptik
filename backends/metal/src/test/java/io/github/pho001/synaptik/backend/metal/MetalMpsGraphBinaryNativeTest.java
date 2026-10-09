@@ -3,16 +3,12 @@ package io.github.pho001.synaptik.backend.metal;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -20,6 +16,11 @@ import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Qualifies real-device FLOAT32 MPSGraph binary arithmetic, including the exact sign of
+ * represented zero at ordinary addition and subtraction sites. Only subnormal operands and
+ * results admit the Model's named arithmetic-site DAZ/FTZ alternatives.
+ */
 class MetalMpsGraphBinaryNativeTest {
     private static final int MIN_SUBNORMAL = 0x00000001;
     private static final int NEGATIVE_MIN_SUBNORMAL = 0x80000001;
@@ -29,21 +30,18 @@ class MetalMpsGraphBinaryNativeTest {
     private static final int POSITIVE_INFINITY = 0x7f800000;
 
     @Test
-    void JavaPreflightClosesTheBinaryProfileMatrix() {
+    void JavaPreflightClosesTheBinaryShapeMatrix() {
 
         int[] ranks = {2, 1, 2};
         long[] dimensions = dimensions(new long[][] {{2, 3}, {3}, {2, 3}});
         MetalMpsGraphProgram binary = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.binary(
                         MetalMpsGraphProgram.NodeKind.SUB, 0, 1, 2)));
-        MetalNativeApi.ProgramExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks, dimensions, binary), binary, new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.MPSGRAPH);
-        assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.ProgramExecutableAbi.validateCreate(NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks, dimensions, binary), binary, new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.MPSGRAPH));
-
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(MetalTestProgram.descriptors(ranks, dimensions, binary), binary, new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.MPSGRAPH);
 
         long[] wrongBroadcast = dimensions(new long[][] {{2, 3}, {2}, {2, 3}});
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.ProgramExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks, wrongBroadcast, binary), binary, new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.MPSGRAPH));
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(MetalTestProgram.descriptors(ranks, wrongBroadcast, binary), binary, new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.MPSGRAPH));
         assertThrows(IllegalArgumentException.class, () ->
                 MetalMpsGraphProgram.Node.binary(
                         MetalMpsGraphProgram.NodeKind.NEG, 0, 1, 2));
@@ -67,6 +65,128 @@ class MetalMpsGraphBinaryNativeTest {
                 runTopology(api, context, kind);
             }
         } finally {
+            if (context != null) {
+                api.releaseContext(context);
+            }
+            api.close();
+        }
+    }
+
+    /**
+     * Verifies every represented zero-pair order for tensor ADD/SUB and both signed-zero scalar
+     * immediates on a real device, with ordinary nonzero and cancellation controls. A custom
+     * program with a materializing step also exercises its internal FLOAT32 MPSGraph boundary.
+     */
+    @Test
+    void realAddAndSubPreserveOrderedZeroSignsForTensorAndScalarSites() {
+        for (MetalPreparedRoute route : List.of(
+                MetalPreparedRoute.MPSGRAPH, MetalPreparedRoute.CUSTOM_PROGRAM)) {
+            runOrderedZeroSigns(route);
+        }
+    }
+
+    /**
+     * Executes the same raw-bit oracle through one native route without relaxing zero signs.
+     *
+     * @param route direct MPSGraph or a custom program containing an MPSGraph boundary step
+     */
+    private static void runOrderedZeroSigns(MetalPreparedRoute route) {
+        String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
+        assumeTrue(configured != null && !configured.isBlank(),
+                "SYNAPTIK_METAL_TEST_LIBRARY is not set");
+        MetalNativeApi api = MetalNativeApi.open(Path.of(configured).toAbsolutePath().normalize());
+        MetalNativeApi.Handle context = null;
+        MetalNativeApi.Handle executable = null;
+        var buffers = new ArrayList<MetalNativeApi.Handle>();
+        int[] left = {0, 0, 0x80000000, 0x80000000,
+                0x3f800000, 0xbf800000, 0x40000000, 0xc0000000};
+        int[] right = {0, 0x80000000, 0, 0x80000000,
+                0xbf800000, 0x3f800000, 0x3f800000, 0x3f800000};
+        var nodes = new ArrayList<>(List.of(
+                MetalMpsGraphProgram.Node.binary(MetalMpsGraphProgram.NodeKind.ADD, 0, 1, 2),
+                MetalMpsGraphProgram.Node.binary(MetalMpsGraphProgram.NodeKind.SUB, 0, 1, 3),
+                MetalMpsGraphProgram.Node.binary(MetalMpsGraphProgram.NodeKind.ADD, 1, 0, 4),
+                MetalMpsGraphProgram.Node.binary(MetalMpsGraphProgram.NodeKind.SUB, 1, 0, 5),
+                MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_ADD,
+                        0, 6, 0),
+                MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_ADD,
+                        0, 7, 0x80000000),
+                MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_SUB,
+                        0, 8, 0),
+                MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_SUB,
+                        0, 9, 0x80000000)));
+        if (route == MetalPreparedRoute.CUSTOM_PROGRAM) {
+            nodes.add(MetalMpsGraphProgram.Node.contiguous(0, 10));
+        }
+        var program = new MetalMpsGraphProgram(nodes);
+        int valueCount = route == MetalPreparedRoute.CUSTOM_PROGRAM ? 11 : 10;
+        int[] ranks = new int[valueCount];
+        java.util.Arrays.fill(ranks, 1);
+        long[] dimensions = new long[valueCount * 16];
+        for (int value = 0; value < valueCount; value++) {
+            dimensions[value * 16] = 8;
+        }
+        int[] targets = route == MetalPreparedRoute.CUSTOM_PROGRAM
+                ? new int[] {2, 3, 4, 5, 6, 7, 8, 9, 10}
+                : new int[] {2, 3, 4, 5, 6, 7, 8, 9};
+        try {
+            context = api.createContext();
+            executable = api.createProgramExecutable(context,
+                    MetalTestProgram.descriptors(ranks, dimensions, program), program,
+                    new int[] {0, 1}, targets,
+                    route);
+            for (int value = 0; value < valueCount; value++) {
+                buffers.add(api.createBuffer(context, 8L * Integer.BYTES));
+            }
+            upload(api, buffers.get(0), left);
+            upload(api, buffers.get(1), right);
+            try (Arena arena = Arena.ofConfined()) {
+                int boundCount = route == MetalPreparedRoute.CUSTOM_PROGRAM ? valueCount : 2;
+                MemorySegment inputs = arena.allocate(ADDRESS, boundCount);
+                MemorySegment outputs = arena.allocate(ADDRESS, targets.length);
+                for (int value = 0; value < boundCount; value++) {
+                    inputs.setAtIndex(ADDRESS, value, buffers.get(value).carrier());
+                }
+                for (int value = 0; value < targets.length; value++) {
+                    outputs.setAtIndex(ADDRESS, value, buffers.get(targets[value]).carrier());
+                }
+                api.runExecutable(executable, boundCount, inputs, targets.length, outputs);
+            }
+            StringBuilder mismatches = new StringBuilder();
+            for (int output = 2; output < 10; output++) {
+                int[] actual = download(api, buffers.get(output), 8);
+                for (int lane = 0; lane < 8; lane++) {
+                    int first = output == 4 || output == 5 ? right[lane] : left[lane];
+                    int second = switch (output) {
+                        case 2, 3 -> right[lane];
+                        case 4, 5 -> left[lane];
+                        case 6, 8 -> 0;
+                        case 7, 9 -> 0x80000000;
+                        default -> throw new IllegalStateException();
+                    };
+                    int expected = (output == 3 || output == 5 || output == 8 || output == 9)
+                            ? Float.floatToRawIntBits(Float.intBitsToFloat(first)
+                                    - Float.intBitsToFloat(second))
+                            : Float.floatToRawIntBits(Float.intBitsToFloat(first)
+                                    + Float.intBitsToFloat(second));
+                    if (expected != actual[lane]) {
+                        mismatches.append("output=").append(output).append(" lane=")
+                                .append(lane).append(" expected=0x")
+                                .append(Integer.toHexString(expected)).append(" actual=0x")
+                                .append(Integer.toHexString(actual[lane])).append('\n');
+                    }
+                }
+            }
+            assertTrue(mismatches.isEmpty(), route + "\n" + mismatches);
+            assertArrayEquals(left, download(api, buffers.get(0), 8));
+            assertArrayEquals(right, download(api, buffers.get(1), 8));
+        } finally {
+            for (int index = buffers.size(); index-- > 0;) {
+                api.releaseBuffer(buffers.get(index));
+            }
+            if (executable != null) {
+                api.releaseExecutable(executable);
+            }
             if (context != null) {
                 api.releaseContext(context);
             }
@@ -101,7 +221,7 @@ class MetalMpsGraphBinaryNativeTest {
         var inputs = new ArrayList<MetalNativeApi.Handle>();
         var outputs = new ArrayList<MetalNativeApi.Handle>();
         try {
-            executable = api.createProgramExecutable(context, NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks, dimensions, program), program, new int[] {0, 1, 2, 3}, new int[] {4, 5, 6, 7, 8}, MetalPreparedRoute.MPSGRAPH);
+            executable = api.createProgramExecutable(context, MetalTestProgram.descriptors(ranks, dimensions, program), program, new int[] {0, 1, 2, 3}, new int[] {4, 5, 6, 7, 8}, MetalPreparedRoute.MPSGRAPH);
             for (int[] bits : inputBits) {
                 MetalNativeApi.Handle buffer = api.createBuffer(
                         context, Math.multiplyExact((long) bits.length, Integer.BYTES));
@@ -213,14 +333,7 @@ class MetalMpsGraphBinaryNativeTest {
                     bits.add(result);
                 }
                 if (isFiniteSubnormal(result)) {
-                    bits.add(0x00000000);
-                    bits.add(0x80000000);
-                }
-                if ((kind == MetalMpsGraphProgram.NodeKind.ADD
-                        || kind == MetalMpsGraphProgram.NodeKind.SUB)
-                        && (result & 0x7fffffff) == 0) {
-                    bits.add(0x00000000);
-                    bits.add(0x80000000);
+                    bits.add(result & 0x80000000);
                 }
             }
         }

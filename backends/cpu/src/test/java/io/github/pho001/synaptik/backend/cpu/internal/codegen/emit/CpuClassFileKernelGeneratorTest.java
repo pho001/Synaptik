@@ -43,7 +43,6 @@ class CpuClassFileKernelGeneratorTest {
                 () -> assertThrows(IllegalArgumentException.class, () -> generator.generateClassBytes(
                         new io.github.pho001.synaptik.backend.cpu.internal.cache
                                 .CpuKernelSpecialization(route.specialization().loweringFingerprint(),
-                                route.specialization().numericalProfile(),
                                 route.specialization().executionStrategy(),
                                 route.specialization().boundaryDataTypes(),
                                 route.specialization().carrierPattern(), 0, -1,
@@ -165,7 +164,7 @@ class CpuClassFileKernelGeneratorTest {
 
     private static CpuPortableRoutePlan randomRoute(
             PrepareContext<CpuPartitionAnalysisInputs> base, List<CarrierAccess> carriers) {
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         return new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
     }
 

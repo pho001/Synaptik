@@ -18,24 +18,23 @@ Compiler orchestration now consumes those three operations and uses the public i
 `CompileArtifacts`, `PublicationPlan`, `CompileConstantPlan`, and `CompileDiagnostics` contracts.
 Public `GraphCompilationPort` exposes that complete constant-free pipeline as a narrow
 cross-module integration service-provider interface (SPI). The CPU backend exposes the supported
-`CpuBackendIntegration` lifecycle SPI, including bounded canonical host-byte materialization and
-identical exact execution under both numerical profiles. The Metal backend exposes
+`CpuBackendIntegration` lifecycle SPI, including bounded canonical host-byte materialization. The Metal backend exposes
 `MetalBackendConfiguration`, `MetalBackendIntegration`, `MetalTraceObserver`, and a closed
-profile-qualified domain. Its common domain includes exact unary, affine, canonicalization,
+occurrence-qualified domain. Its exact domain includes unary, affine, canonicalization,
 indexing, four-type floating classification, BOOL logic, the 14 supported floating `WHERE`
 signatures, replacement/fold/aggregate, no-gradient promoted INT32/INT64 MATMUL,
 ordering/top-K/numeric arg-extrema, maximum pooling, and explicit state. `SORT`, `ARGSORT`, and
 positive-K `TOP_K` admit all seven carriers, while `ARG_MIN` and `ARG_MAX` admit the six numeric
 carriers. `UNFOLD_AXIS` accepts all seven carriers, `FOLD_AXIS` all six numeric carriers, and
 2D/3D unfold/fold all four floating carriers. All 49 ordered casts are explicit.
-Under `ACCELERATOR`, every supported homogeneous FLOAT32 Metal occurrence has a BFLOAT16 and
+Every supported homogeneous FLOAT32 Metal occurrence has an independently queried BFLOAT16 and
 FLOAT16 counterpart with FLOAT32 working values and accumulators and one final ties-to-even
 narrowing. This includes the admitted arithmetic, extrema, scalar, reductions, scans, MATMUL,
 MSE, convolution, average pooling, explicit-state dropout, rank-one L1 and ScatterAdd, and
 singleton-variance domains. Direct BFLOAT16/FLOAT16 mixed-low execution is unsupported; callers
 must insert explicit FLOAT32 casts. Maximum Pool2d/Pool3d accepts all four floating carriers under
-both profiles. Common no-gradient INT32/INT64 MATMUL uses INT64-dominant promotion and exact
-modular result arithmetic. Unsupported profile/operation occurrences fail before native resource
+the one Model contract. No-gradient INT32/INT64 MATMUL uses INT64-dominant promotion and exact
+modular result arithmetic. Unsupported operation occurrences fail before native resource
 creation.
 
 Every partition containing BFLOAT16 or FLOAT16 values selects `CUSTOM_PROGRAM`; this includes
@@ -54,9 +53,9 @@ materializing results are canonical. Eligible linear canonical FLOAT32
 precision partitions never enter those routes.
 
 Metal ABI 7 exposes thirteen native functions. Its bounded route-bearing program image is schema
-19 with data-type wires `1..7`, operation wires `1..115`, attribute wires `0..41`, route wires
+20 with a 124-byte header, data-type wires `1..7`, operation wires `1..115`, attribute wires `0..41`, route wires
 `1..3`, and backend-local candidate, compatibility, route-policy, workload, codec, and default-
-decision identities at version 29. Structural coverage is `101 / 14`; production capability is
+decision identities at version 30. Structural coverage is `101 / 14`; production capability is
 `86 / 29`. Canonical typed host ingress/publication and CPU/Metal transfer support all seven
 carriers. Cross-owner values may use exact rank-0..16 static canonical or positive-stride
 non-overlapping layouts with checked physical spans; transfer performs no conversion or fallback.
@@ -129,7 +128,7 @@ The implemented `modules:trace` surface contains:
   correlation with producer-owned model identities;
 - nominal non-negative `TraceBackendId`, `TraceDeviceId`, `TracePreparedUnitId`, and
   `TraceInvocationId` records for producer-stream backend execution correlations;
-- the closed `TraceOutcomeStatus`, `TraceNumericalProfile`, `TraceRouteKind`, `TraceCacheStatus`,
+- the closed `TraceOutcomeStatus`, `TraceRouteKind`, `TraceCacheStatus`,
   and `TraceNativeStatusKind` vocabulary plus exact-code `TraceNativeStatus`; and
 - immutable `BackendPreparationOutcome` and `BackendInvocationOutcome` payloads.
 
@@ -233,23 +232,18 @@ supplies one CPU provider; `Engine.builder()` compiles against the frozen provid
 registered CPU and/or Metal integrations. Generic plugin registration, other executable backends,
 and a public graph-wide Planning surface remain planned.
 
-The implemented `modules:config` surface contains five standalone compile-configuration values:
+The implemented `modules:config` surface contains four standalone compile-configuration values:
 
 - `BackendIntent` records whether planning has one hard backend eligibility target;
 - `CompileMode` records the requested compile-time graph scope;
 - `GraphOptimizationConfig` permits or suppresses optional semantics-preserving compiler work;
 - `PartitionScoringConfig` records an optional soft `DeviceClass` preference for later ranking of
-  already eligible ownership candidates; and
-- `NumericalProfile` records immutable graph-wide numerical-profile identity vocabulary.
+  already eligible ownership candidates.
 
-`NumericalProfile` is identity only. Model remains the sole semantic owner: `STRICT_IEEE` retains
-the current per-operation sets and `ACCELERATOR` adds the current recursive `FLOAT32` floors and
-activated BFLOAT16/FLOAT16 occurrence contracts. A fresh `Engine.Builder` selects `STRICT_IEEE`;
-callers may replace that selection with `numericalProfile(...)` before building, and the built
-Engine transports the exact cold identity through compile and preparation. CPU supports both
-values identically; Metal applies the fail-closed profile-specific capability matrices described
-above and realizes every admitted BFLOAT16/FLOAT16 partition through its fixed custom program. No
-runtime API reads the profile.
+Model owns one family/dtype numerical contract; these configuration values contain no numerical
+selector. Metal uses occurrence-specific provider capability and its fixed custom program for
+admitted BFLOAT16/FLOAT16 partitions. Finite arithmetic tolerances are test-only route
+qualification, not Engine or Runtime policy.
 
 They are immutable requests, not a runnable compiler configuration aggregate. For example:
 
@@ -261,7 +255,6 @@ import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 
 BackendId cuda = new BackendId("cuda");
 BackendIntent unconstrained = BackendIntent.unconstrained();
@@ -272,7 +265,6 @@ GraphOptimizationConfig optimization = GraphOptimizationConfig.standard();
 PartitionScoringConfig neutralRanking = PartitionScoringConfig.neutral();
 PartitionScoringConfig preferAccelerator =
         PartitionScoringConfig.preferring(DeviceClass.ACCELERATOR);
-NumericalProfile profileIdentity = NumericalProfile.STRICT_IEEE;
 ```
 
 `unconstrained.hardRequirement()` is empty. That absence means only that no hard eligibility
@@ -283,7 +275,7 @@ contains the exact requirement reference supplied to `requiring`. Direct constru
 
 The canonical constructor rejects a null optional with message `hardRequirement`, and
 `requiring(null)` rejects null with message `requirement`. Each factory returns a fresh record.
-The record evaluates no requirement and contains no preference, scoring, profile, service,
+The record evaluates no requirement and contains no preference, scoring, numerical policy, service,
 preparation, run, publication, or execution behavior.
 
 `graphScope` requests current internal compiler autograd expansion and combined
@@ -312,10 +304,9 @@ rejects null with message `preferredDeviceClass`; `preferring(null)` rejects nul
 scores, contain profile measurements, choose ownership or a device, select a route or kernel, or
 perform compiler, prepare, runtime, or execution work. Current Planning interprets only its
 optional class preference through a cost-free provider-order baseline, and package-private
-Compiler supplies that value per final graph node. Numerical-profile selection is a separate,
-graph-wide Engine construction choice. `CompileConfig`, further backend profile realizations, and
-public graph-wide planning remain planned; the current Engine passes the selected profile alongside
-the four operational standalone compile inputs.
+Compiler supplies that value per final graph node. There is no graph-wide numerical selection.
+`CompileConfig` and public graph-wide planning remain planned; the current Engine passes the four
+operational standalone compile inputs without a numerical selector.
 
 The implemented `config.tuning` package contains one separate declarative facade,
 `ModelAutotuningConfig`. Possessing this value means that model autotuning was requested; there is
@@ -579,13 +570,13 @@ The public `backends:cpu` integration surface contains four supported types:
 - `CpuLocalWorkloadTuning`, the artifact-free Phase-1 route-candidate collaboration; and
 - `CpuCompletePlanTuning`, the artifact-free Phase-2 retained-plan collaboration.
 
-One `CpuBackendIntegration.open()` call creates the fixed CPU composition for both profiles. It
-reports the immutable `cpu/host` availability fact, exposes one capability matrix whose strict and
-accelerator answers are identical, exposes one artifact-free positional `PartitionPreparation` and
+One `CpuBackendIntegration.open()` call creates the fixed profile-free CPU composition. It
+reports the immutable `cpu/host` availability fact, exposes occurrence-specific capability,
+one artifact-free positional `PartitionPreparation` and
 one retained schedule assembler for exactly one non-empty maximal CPU-owned partition, and provides
-artifact-free local and complete-plan tuning collaborations. CPU realizes accelerator requests
-with unchanged exact arithmetic and routes while retaining profile-separated plan, generated,
-OpenBLAS, tuning, and cache identity. Engine owns the `CompileArtifacts`, obtains the exact
+artifact-free local and complete-plan tuning collaborations. CPU retains qualified portable,
+generated, and OpenBLAS routes with non-profile plan, generated-artifact, tuning, and cache
+identity. Engine owns the `CompileArtifacts`, obtains the exact
 partition projection from `GraphPreparation`, and passes every ordinary, tuned, selected, or
 fallback preparation back through `GraphPreparation`. During complete preparation, shared Prepare
 identifies eligible fully static source-only published splat constants and asks the CPU assembler
@@ -985,8 +976,9 @@ winner identity and summary, plus one correctness-and-sample row per measured ca
 persistent hit has no candidate rows because compact reusable cache records do not contain rich
 per-call correctness actions or raw samples. Current CPU and Metal complete-plan evidence is
 always `SESSION` and measured, and its explicit model-plan path receives no filesystem access.
-Metal workload evidence is also always `SESSION` and measured. Model/profile identities are
-caller-defined evidence labels, not workload-cache keys. Current scope excludes multiple
+Metal workload evidence is also always `SESSION` and measured. Model and representative-profile
+identities are caller-defined tuning-evidence labels, not a numerical selector or workload-cache
+key. Current scope excludes multiple
 workloads or occurrences, Compiler graph alternatives, Planning owner or partition alternatives,
 multiple partitions, and mixed backends.
 
@@ -1333,7 +1325,7 @@ or callback work.
 The traced path reports one final `PREPARE` outcome per enabled prepared unit and one `RUN` outcome
 per enabled native invocation. Stream-local event, prepared-unit, and invocation IDs use
 independent non-negative sequences; backend/device correlations are both zero. Preparation reports
-the fixed profile, neutral custom-kernel or graph-executable route, and `NOT_QUERIED`; invocation
+the neutral custom-kernel or graph-executable route and `NOT_QUERIED`; invocation
 reports the same immutable facts and exact mapped native status when one exists. An observer
 `RuntimeException`, ID exhaustion, or trace-object construction failure disables later tracing
 without changing backend behavior or outward exceptions. An observer `Error` from success
@@ -1343,19 +1335,19 @@ losing earlier rollback suppression. Events contain only the bounded trace DTO f
 no native path, handle, Tensor value, shape, exception, free-form string, or generic map.
 
 For a low-precision prepared unit, `LowPrecisionTraceMetadata` identifies the selected custom
-route, ordered feed-then-target logical dtype tuple, and numerical profile. It has no accumulator
+route and ordered feed-then-target logical dtype tuple. It has no numerical-profile, accumulator
 or working-type field; the Model's FLOAT32 low-arithmetic rule is a separate semantic guarantee.
 The DTO contains no hypothetical candidate, certificate, accuracy, determinism, or environment
 state. Metal exposes no generic trace viewer, serializer, or exporter, so callers consume these
 typed DTOs directly through `MetalTraceObserver`.
 
-Metal retains a custom route for an eligible singleton `NEG` under either profile. A supported
+Metal retains a custom route for an eligible singleton `NEG`. A supported
 partition containing any Task-0052 node, exact custom movement/replacement/fold/aggregate node,
 non-direct MATMUL, ordering/top-K/arg-extrema node, or Task-0064 convolution/pooling node uses the
 fixed shared custom whole-program resource with declared run-owned buffers and one synchronous
 Java/native invocation. Existing MPSGraph-compatible nodes may remain nested in that recipe; there
 is no per-node fallback. Other supported partitions use one typed whole-partition MPSGraph
-executable. The general accelerator FLOAT32 MATMUL domain also executes Compiler-generated
+executable. The general qualified FLOAT32 MATMUL domain also executes Compiler-generated
 explicitly seeded gradients for both operands through authenticated local last-two-axis
 transposes. Task-0064's primitive-closed cases additionally execute separately selected
 all-FLOAT32 Conv2d input, weight, or bias cotangents and non-overlapping FLOAT32 average

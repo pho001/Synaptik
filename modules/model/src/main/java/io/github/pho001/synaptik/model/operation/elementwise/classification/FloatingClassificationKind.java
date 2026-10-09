@@ -19,12 +19,11 @@ import java.util.List;
  * io.github.pho001.synaptik.model.operation.Operation Operation} represents each kind with {@link
  * NoOperationAttrs#INSTANCE}.</p>
  *
- * <p>The Model-owned numerical-profile contract leaves this exact/discrete family unchanged:
- * {@code STRICT_IEEE} and {@code ACCELERATOR} classify the stored floating representation under
- * the same NaN, infinity, and finite rules. Classification does not apply DAZ or FTZ, neighboring
- * arithmetic cannot rewrite its input, and the Boolean result is exact. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Classification reads the stored floating representation, including subnormal bits, under the
+ * family NaN, infinity, and finite rules. It applies neither arithmetic input DAZ nor result FTZ,
+ * and neighboring arithmetic cannot rewrite that input. Each BOOL result is exact. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum FloatingClassificationKind implements OperationKind {
     /**

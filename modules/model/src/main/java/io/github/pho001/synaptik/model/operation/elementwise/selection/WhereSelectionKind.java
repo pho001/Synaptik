@@ -20,21 +20,21 @@ import java.util.List;
  * NoOperationAttrs.INSTANCE}. Operation construction enforces this exact attributes pairing, and
  * a compiled-node occurrence enforces the signature's input and output counts.</p>
  *
- * <p>This vocabulary defines conditional choice meaning only. It does not define condition or
- * branch descriptor eligibility, branch promotion, three-way broadcasting, a result descriptor,
- * evaluation order, gradients, execution, ONNX mapping, or backend availability. Enum identity
+ * <p>This enum stores no condition or branch descriptor, promoted result type, three-way
+ * broadcast geometry, or evaluation order. Gradient rules, execution, ONNX mapping, and backend
+ * availability belong to later owners. Enum identity
  * supplies typed equality and hashing, so an equally named constant in another operation family
  * remains a different semantic value. The inherited {@link #name()} and {@link #toString()} text
  * is stable diagnostic vocabulary only; it is not a serialization, parsing, registry, reflection,
  * or dispatch contract.</p>
  *
- * <p>The Model-owned numerical-profile contract leaves this exact/discrete family unchanged:
- * {@code STRICT_IEEE} and {@code ACCELERATOR} use the exact Boolean condition and preserve the
- * selected original payload representation. Selection applies no DAZ, FTZ, epsilon, or
- * arithmetic tolerance and cannot be changed by neighboring relaxed sites. The condition has no
- * gradient contribution. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>WHERE makes an exact Boolean branch choice before applying the declared conversion when
+ * promotion requires one. Same-type selection preserves the chosen stored bits, including signed
+ * zero, NaN payload, and subnormal representation; promoted selection uses the exact cast rules.
+ * Neither selection nor casting applies arithmetic DAZ, FTZ, epsilon, or finite tolerance, and the
+ * condition has no gradient contribution. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum WhereSelectionKind implements OperationKind {
     /**

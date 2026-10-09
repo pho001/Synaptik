@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable schema-19 execution extension for one {@code CUSTOM_PROGRAM} image.
+ * Immutable schema-20 execution extension for one {@code CUSTOM_PROGRAM} image.
  *
  * <p>The pointwise generator schema and the anchor-epilogue schema remain distinct typed records
  * inside one canonical execution plan. The canonical manifest is a redundant cross-language

@@ -25,12 +25,11 @@ import java.util.List;
  * diagnostic text rather than a serialization, parsing, registry, dispatch, reflection, route,
  * or kernel identifier.</p>
  *
- * <p>The Model-owned numerical-profile contract leaves scalar selection exact under
- * {@code STRICT_IEEE} and {@code ACCELERATOR}: axis/index normalization, bounds, output mapping,
- * and the selected original payload representation remain exact. Selection applies no DAZ, FTZ,
- * or arithmetic tolerance. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Scalar selection retains exact axis and index normalization, bounds, output mapping, and the
+ * selected original stored payload. It does not apply arithmetic DAZ, FTZ, or finite tolerance,
+ * even for a subnormal selected value. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum SelectKind implements OperationKind {
     /**

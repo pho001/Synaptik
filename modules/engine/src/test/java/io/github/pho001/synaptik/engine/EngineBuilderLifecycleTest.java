@@ -12,7 +12,6 @@ import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.backend.contract.DeviceClass;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -43,60 +42,18 @@ final class EngineBuilderLifecycleTest {
     private static final BackendId THIRD = new BackendId("third");
 
     @Test
-    void numericalProfileDefaultsReassignsAndCapturesAcrossCompile() {
-        var defaultQuery = new AtomicReference<OperationCapabilityQuery>();
-        RecordingEntry defaultEntry = new RecordingEntry(
+    void compileQueriesTheRegisteredProviderWithoutNumericalSelection() {
+        var observedQuery = new AtomicReference<OperationCapabilityQuery>();
+        RecordingEntry entry = new RecordingEntry(
                 FIRST, query -> {
-                    defaultQuery.set(query);
+                    observedQuery.set(query);
                     return true;
                 }, new ArrayList<>());
-        try (Engine engine = Engine.builder().takeOwnership(defaultEntry).build()) {
+        try (Engine engine = Engine.builder().takeOwnership(entry).build()) {
             CompiledGraph compiled = engine.compile(List.of(leaf().neg()));
-            assertSame(NumericalProfile.STRICT_IEEE, engine.numericalProfile());
-            assertSame(NumericalProfile.STRICT_IEEE,
-                    compiled.artifacts().numericalProfile());
-            assertSame(NumericalProfile.STRICT_IEEE,
-                    defaultQuery.get().numericalProfile());
+            assertEquals(FIRST, compiled.artifacts().partitions().getFirst().owner());
+            assertTrue(observedQuery.get() != null);
         }
-
-        var explicitQuery = new AtomicReference<OperationCapabilityQuery>();
-        RecordingEntry explicitEntry = new RecordingEntry(
-                SECOND, query -> {
-                    explicitQuery.set(query);
-                    return true;
-                }, new ArrayList<>());
-        Engine.Builder builder = Engine.builder()
-                .numericalProfile(NumericalProfile.ACCELERATOR)
-                .takeOwnership(explicitEntry);
-        assertSame(builder, builder.numericalProfile(NumericalProfile.STRICT_IEEE));
-        assertSame(builder, builder.numericalProfile(NumericalProfile.ACCELERATOR));
-        try (Engine engine = builder.build()) {
-            CompiledGraph compiled = engine.compile(List.of(leaf().neg()));
-            assertSame(NumericalProfile.ACCELERATOR, engine.numericalProfile());
-            assertSame(NumericalProfile.ACCELERATOR,
-                    compiled.artifacts().numericalProfile());
-            assertSame(NumericalProfile.ACCELERATOR,
-                    explicitQuery.get().numericalProfile());
-        }
-    }
-
-    @Test
-    void numericalProfileValidatesNullBeforeStateAndRejectsSpentMutation() {
-        Engine.Builder closed = Engine.builder();
-        closed.close();
-        assertEquals("numericalProfile", assertThrows(NullPointerException.class,
-                () -> closed.numericalProfile(null)).getMessage());
-        assertEquals("engine builder is spent or closed",
-                assertThrows(IllegalStateException.class,
-                        () -> closed.numericalProfile(NumericalProfile.ACCELERATOR))
-                        .getMessage());
-
-        Engine.Builder spent = Engine.builder();
-        assertThrows(IllegalArgumentException.class, spent::build);
-        assertEquals("numericalProfile", assertThrows(NullPointerException.class,
-                () -> spent.numericalProfile(null)).getMessage());
-        assertThrows(IllegalStateException.class,
-                () -> spent.numericalProfile(NumericalProfile.ACCELERATOR));
     }
 
     @Test

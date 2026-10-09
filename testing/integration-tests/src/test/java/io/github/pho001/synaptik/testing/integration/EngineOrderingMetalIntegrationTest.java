@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.EngineMixedOwnerTestAccess;
 import io.github.pho001.synaptik.engine.RunResult;
@@ -35,11 +34,9 @@ import org.junit.jupiter.api.Test;
 /** Public, CPU-free Engine evidence for exact Metal ordering and arg-extrema execution. */
 final class EngineOrderingMetalIntegrationTest {
     @Test
-    void cpuFreeEnginePublishesEveryCarrierRoleAcrossProfilesReuseAndSessions() {
+    void cpuFreeEnginePublishesEveryCarrierRoleAcrossReuseAndSessions() {
         Path library = configuredMetalLibrary();
-        for (NumericalProfile profile : NumericalProfile.values()) {
             try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(profile);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
@@ -80,7 +77,6 @@ final class EngineOrderingMetalIntegrationTest {
                     }
                 }
             }
-        }
     }
 
     @Test
@@ -112,9 +108,7 @@ final class EngineOrderingMetalIntegrationTest {
     @Test
     void int32SameSignMagnitudesReachEveryPublicOrderingResult() {
         Path library = configuredMetalLibrary();
-        for (NumericalProfile profile : NumericalProfile.values()) {
             try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(profile);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
@@ -172,14 +166,12 @@ final class EngineOrderingMetalIntegrationTest {
                     }
                 }
             }
-        }
     }
 
     @Test
     void cpuFreeEngineRejectsOverLimitAndExecutesGeneratedOrderingBackward() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {

@@ -56,7 +56,7 @@ final class AdvancedEngineLifecycleTest {
     @Test
     void compileDelegatesOnceInExactOrderAndPreservesFailures() {
         RecordingComposition composition = new RecordingComposition(emptyExecution());
-        try (AdvancedEngine engine = new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, composition::prepare)) {
+        try (AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare)) {
             Tensor input = leaf();
             AdvancedCompiledGraph compiled = compile(engine, input.neg());
             assertSame(engine, compiled.owner());
@@ -74,8 +74,8 @@ final class AdvancedEngineLifecycleTest {
     void validatesOwnerAndStateBeforeCompositionCallbacks() {
         RecordingComposition firstComposition = new RecordingComposition(emptyExecution());
         RecordingComposition secondComposition = new RecordingComposition(emptyExecution());
-        AdvancedEngine first = new AdvancedEngine(firstComposition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, firstComposition::prepare);
-        AdvancedEngine second = new AdvancedEngine(secondComposition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, secondComposition::prepare);
+        AdvancedEngine first = new AdvancedEngine(firstComposition, firstComposition::prepare);
+        AdvancedEngine second = new AdvancedEngine(secondComposition, secondComposition::prepare);
         AdvancedCompiledGraph compiled = compile(first, leaf().neg());
         AdvancedPreparedExecution prepared = first.prepare(compiled);
 
@@ -108,7 +108,7 @@ final class AdvancedEngineLifecycleTest {
         TestBuffer owned = new TestBuffer(null, new ArrayList<>(), "result");
         PreparedExecution execution = blockingExecution(entered, release, owned);
         RecordingComposition composition = new RecordingComposition(execution);
-        AdvancedEngine engine = new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, composition::prepare);
+        AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
         AdvancedPreparedExecution prepared = engine.prepare(compile(engine, leaf().neg()));
 
         try (var executor = Executors.newFixedThreadPool(2)) {
@@ -139,7 +139,7 @@ final class AdvancedEngineLifecycleTest {
                         : new TestBuffer(firstFailure, order, "second")));
         composition.closeFailure = backendFailure;
         composition.closeOrder = order;
-        AdvancedEngine engine = new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, composition::prepare);
+        AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
         AdvancedPreparedExecution prepared = engine.prepare(compile(engine, leaf().neg()));
         AdvancedRunResult first = engine.run(prepared, List.of());
         AdvancedRunResult second = engine.run(prepared, List.of());
@@ -158,7 +158,7 @@ final class AdvancedEngineLifecycleTest {
         List<String> order = java.util.Collections.synchronizedList(new ArrayList<>());
         TestBuffer buffer = new TestBuffer(null, order, "result");
         RecordingComposition composition = new RecordingComposition(createdBufferExecution(() -> buffer));
-        AdvancedEngine engine = new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, composition::prepare);
+        AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
         AdvancedRunResult result = engine.run(
                 engine.prepare(compile(engine, leaf().neg())), List.of());
         try (var executor = Executors.newFixedThreadPool(4)) {
@@ -183,7 +183,7 @@ final class AdvancedEngineLifecycleTest {
                 createdBufferExecution(() -> new TestBuffer(resultFailure, order, "result")));
         composition.closeFailure = backendFailure;
         composition.closeOrder = order;
-        AdvancedEngine engine = new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, composition::prepare);
+        AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
         engine.run(engine.prepare(compile(engine, leaf().neg())), List.of());
 
         Error observed = assertThrows(Error.class, engine::close);
@@ -199,7 +199,7 @@ final class AdvancedEngineLifecycleTest {
         TestPreparedResource resource = new TestPreparedResource(expected, new ArrayList<>(), "prepared");
         RecordingComposition composition = new RecordingComposition(
                 () -> resourceExecution(resource));
-        AdvancedEngine engine = new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, composition::prepare);
+        AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
         AdvancedPreparedExecution prepared = engine.prepare(compile(engine, leaf().neg()));
 
         try (var executor = Executors.newFixedThreadPool(3)) {
@@ -228,7 +228,7 @@ final class AdvancedEngineLifecycleTest {
                     () -> new TestBuffer(null, order, "result-" + index));
         });
         composition.closeOrder = order;
-        AdvancedEngine engine = new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, composition::prepare);
+        AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
         AdvancedCompiledGraph compiled = compile(engine, leaf().neg());
         AdvancedPreparedExecution first = engine.prepare(compiled);
         AdvancedPreparedExecution second = engine.prepare(compiled);
@@ -258,7 +258,7 @@ final class AdvancedEngineLifecycleTest {
             }
             return resourceExecution(resource);
         });
-        AdvancedEngine engine = new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, composition::prepare);
+        AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
         AdvancedCompiledGraph compiled = compile(engine, leaf().neg());
         try (var executor = Executors.newFixedThreadPool(2)) {
             var preparation = executor.submit(() -> engine.prepare(compiled));
@@ -282,7 +282,7 @@ final class AdvancedEngineLifecycleTest {
         RecordingComposition composition = new RecordingComposition(
                 blockingExecution(entered, release,
                         new TestBuffer(null, new ArrayList<>(), "result"), resource));
-        AdvancedEngine engine = new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, composition::prepare);
+        AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
         AdvancedPreparedExecution prepared = engine.prepare(compile(engine, leaf().neg()));
 
         try (var executor = Executors.newFixedThreadPool(2)) {
@@ -307,7 +307,7 @@ final class AdvancedEngineLifecycleTest {
                 new TestPreparedResource(null, new ArrayList<>(), "prepared");
         RecordingComposition composition = new RecordingComposition(
                 () -> resourceExecution(resource));
-        AdvancedEngine engine = new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, composition::prepare);
+        AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
         AdvancedPreparedExecution prepared = engine.prepare(compile(engine, leaf().neg()));
         PreparedExecution inward = prepared.execution();
         AtomicReference<Throwable> closeFailure = new AtomicReference<>();

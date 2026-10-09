@@ -23,8 +23,9 @@ current. The public Training extension adds one reusable backend-neutral Engine 
 persistent SGD, gradient accumulation, and detached in-memory state over its bounded shareable-
 native parameter domain. BFLOAT16 and FLOAT16 parameters retain private FLOAT32 master, momentum,
 and accumulation values and publish one narrowed logical value only after a successful update.
-Metal executes an exact occurrence- and profile-qualified static domain. Under `ACCELERATOR`, every
-supported homogeneous FLOAT32 occurrence has BFLOAT16 and FLOAT16 counterparts with FLOAT32
+Metal executes an occurrence-qualified static domain under one profile-free Model numerical
+contract. Supported homogeneous FLOAT32 occurrences have independently queried BFLOAT16 and
+FLOAT16 counterparts with FLOAT32
 working values and accumulators and one final ties-to-even narrowing. Every BFLOAT16/FLOAT16
 partition uses one fixed custom program and exposes no MPSGraph, classic-MPS, MPP, CPU, retry, or
 fallback route. Mixed CPU/Metal plans use explicit

@@ -350,7 +350,7 @@ class CpuPointwiseMaskPerformanceTest {
       }
       geometry = geometry(types.size(), count, offset);
       var s =
-          new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, row.strategy(),
+          new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), row.strategy(),
           types,
           cs,
           bits(row.type),

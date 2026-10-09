@@ -27,12 +27,11 @@ import java.util.List;
  * diagnostic vocabulary only; it is not a serialization, parsing, registry, or dispatch
  * contract.</p>
  *
- * <p>The Model-owned numerical-profile contract leaves this exact/discrete family unchanged:
- * {@code STRICT_IEEE} and {@code ACCELERATOR} preserve Boolean inputs, truth tables, Shape
- * mapping, and output bits exactly. Neighboring FLOAT32 arithmetic cannot relax this kind, and it
- * has no gradient contribution or backend-selection meaning. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Boolean inputs, truth tables, Shape mapping, and output bits are exact. Adjacent floating
+ * arithmetic does not relax this operation or change its inputs; this kind has no gradient
+ * contribution or backend-selection meaning. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum BooleanLogicalKind implements OperationKind {
     /**

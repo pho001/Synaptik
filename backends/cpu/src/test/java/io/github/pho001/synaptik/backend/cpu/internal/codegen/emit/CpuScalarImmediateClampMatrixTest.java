@@ -67,7 +67,7 @@ class CpuScalarImmediateClampMatrixTest {
             assertEquals(Integer.toString(fixture.parallelism()), row.get("parallelism"), fixture.id());
             assertEquals(artifact.descriptor(), row.get("entry-descriptor"), fixture.id());
             assertEquals(artifact.strategy(), row.get("strategy"), fixture.id());
-            assertEquals("68", artifact.generatorSchema(), fixture.id());
+            assertEquals("69", artifact.generatorSchema(), fixture.id());
             assertEquals(artifact.generatorSchema(), row.get("generator-schema"), fixture.id());
             assertEquals(artifact.classIdentitySchema(), row.get("class-identity-schema"), fixture.id());
             assertEquals(artifact.structuralKey(), row.get("structural-key"), fixture.id());
@@ -171,7 +171,7 @@ class CpuScalarImmediateClampMatrixTest {
                     form.inputLayout(), form.outputShape(), form.outputLayout(), form.materializationPolicy())).plan().units().getFirst().executionStrategy()), row.get("selected-strategy"), form.id());
             assertEquals(artifact.strategy(), row.get("artifact-strategy"), form.id());
             assertEquals(artifact.descriptor(), row.get("entry-descriptor"), form.id());
-            assertEquals("68", artifact.generatorSchema(), form.id());
+            assertEquals("69", artifact.generatorSchema(), form.id());
             assertEquals(artifact.generatorSchema(), row.get("generator-schema"), form.id());
             assertEquals(artifact.classIdentitySchema(), row.get("class-identity-schema"), form.id());
             assertEquals(artifact.structuralKey(), row.get("structural-key"), form.id());
@@ -208,9 +208,12 @@ class CpuScalarImmediateClampMatrixTest {
         assertThrows(AssertionError.class, () -> validateFormRows(new LinkedHashMap<>(parsed) {{ put("UNKNOWN", get(firstId)); }}));
         assertThrows(AssertionError.class, () -> validateFormRows(new LinkedHashMap<>(parsed) {{
             put(firstId, new LinkedHashMap<>(get(firstId)) {{ put("operation", "UNKNOWN"); }}); }}));
+        String badProjectionMemberHash = projections.replaceFirst("(?<=\\t)[0-9a-f]{64}(?=,)",
+                "f".repeat(64));
+        assertNotEquals(projections, badProjectionMemberHash, "mutation must target a live member hash");
         for (String mutation : List.of(reseal(projections.replace("ORCHESTRATION-PARALLEL_SCALAR", "UNKNOWN")),
                 reseal(projections.replace("ORCHESTRATION-PARALLEL_SCALAR", "ORCHESTRATION-SCALAR,ORCHESTRATION-SCALAR")),
-                reseal(projections.replaceFirst("7143ae[0-9a-f]{58}", "f".repeat(64))), reseal(projections.replace("IDENTITY", "PROVED_CONSTANTS_ONLY")),
+                reseal(badProjectionMemberHash), reseal(projections.replace("IDENTITY", "PROVED_CONSTANTS_ONLY")),
                 reseal(projections.replace("NONE", "1"))))
             assertThrows(AssertionError.class, () -> validateProjections(parseTable("projections", mutation,
                     projectionHeader()), validateFormRows(parsed)));
@@ -261,7 +264,7 @@ class CpuScalarImmediateClampMatrixTest {
             assertEquals(64, artifact.hash().length(), fixture.id());
             assertFalse(artifact.descriptor().isBlank(), fixture.id());
             assertTrue(List.of("scalar", "vector").contains(artifact.strategy()), fixture.id());
-            assertEquals("68", artifact.generatorSchema(), fixture.id());
+            assertEquals("69", artifact.generatorSchema(), fixture.id());
             assertEquals(fixture.type() == DataType.BFLOAT16 ? "59" : "52",
                     artifact.classIdentitySchema(), fixture.id());
         }
@@ -563,7 +566,7 @@ class CpuScalarImmediateClampMatrixTest {
         Operation operation = kind == ScalarElementwiseKind.CLAMP
                 ? new Operation(kind, new ClampRangeAttrs(scalar(attributeType, -1), scalar(attributeType, 1)))
                 : new Operation(kind, new ScalarValueAttrs(scalar(immediateType, 1)));
-        return new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation, List.of(input), List.of(output));
+        return new OperationCapabilityQuery(operation, List.of(input), List.of(output));
     }
 
     private static ScalarValue scalar(DataType type, int value) {

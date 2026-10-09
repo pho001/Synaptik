@@ -76,7 +76,7 @@ class CpuOrdinaryNonPointwiseGeneratedMatrixTest {
                 runtimeCandidates++;
                 var context = configured(base.context(), request);
                 var node = context.nodes().getFirst();
-                var query = new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, node.operation(), CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.inputs()), CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.outputs()));
+                var query = new OperationCapabilityQuery(node.operation(), CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.inputs()), CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.outputs()));
                 assertTrue(new CpuCapabilityProvider().supports(query), base.id() + '/' + request.id());
                 var plan = new CpuPartitionPreparer().analyze(context).plan();
                 var route = plan.units().getFirst().portablePlan();
@@ -157,7 +157,7 @@ class CpuOrdinaryNonPointwiseGeneratedMatrixTest {
 
     private static void assertRejected(CpuCapabilityProvider provider, Operation operation,
             List<TensorDescriptor> inputs, List<TensorDescriptor> outputs, String id) {
-        assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation, inputs, outputs)), id);
+        assertFalse(provider.supports(new OperationCapabilityQuery(operation, inputs, outputs)), id);
     }
 
     private static List<Base> bases() {
@@ -362,7 +362,7 @@ class CpuOrdinaryNonPointwiseGeneratedMatrixTest {
             values.add(new GraphValue(old.id(), descriptor)); var requirement = base.memoryRequirements().get(i);
             memory.add(new LogicalMemoryRequirement(requirement.valueId(), descriptor, requirement.producerPartition(), requirement.consumerPartitions(), requirement.graphOutput()));
         }
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), values, memory, base.constants(), base.backendInputs());
+        return new PrepareContext<>(base.partition(), base.nodes(), values, memory, base.constants(), base.backendInputs());
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> configured(PrepareContext<CpuPartitionAnalysisInputs> base, Request request) {
@@ -375,7 +375,7 @@ class CpuOrdinaryNonPointwiseGeneratedMatrixTest {
         var carriers = new ArrayList<CpuKernelSpecialization.CarrierAccess>();
         for (int i = 0; i < values.size(); i++) carriers.add(request.segment() ? CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT : request.mixed() && i % 2 == 1 ? CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT : CpuGeneratedDirectEvidenceClosureTest.heapCarrier(values.get(i).descriptor().dataType()));
         var materialization = request.materialization() ? new CpuPartitionAnalysisInputs.MaterializationPolicy(true, 0, 1, 20, 1, 3, 1_000_000, 1, 1) : CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED;
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), values, memory, base.constants(), new CpuPartitionAnalysisInputs(false, carriers, request.execution(), materialization));
+        return new PrepareContext<>(base.partition(), base.nodes(), values, memory, base.constants(), new CpuPartitionAnalysisInputs(false, carriers, request.execution(), materialization));
     }
 
     private static List<Request> requests() { return List.of(new Request("heap-contiguous-scalar", false, false, false, false, CpuGeneratedDirectEvidenceClosureTest.scalar(1)), new Request("segment-contiguous-vector", true, false, false, false, CpuGeneratedDirectEvidenceClosureTest.vector(1)), new Request("mixed-general-parallel-vector", false, true, true, false, CpuGeneratedDirectEvidenceClosureTest.vector(4)), new Request("heap-general-materialization-candidate", false, false, true, true, CpuGeneratedDirectEvidenceClosureTest.scalar(4))); }

@@ -20,8 +20,8 @@ work.
 
 For any BFLOAT16 or FLOAT16 occurrence, inspect `LowPrecisionTraceMetadata` emitted during PREPARE.
 `selectedRoute` is always the route actually fixed by preparation and must be `CUSTOM_KERNEL`.
-`logicalDtypeTuple` orders boundary feeds before boundary targets. `numericalProfile` reports the
-cold profile. The payload has no accumulator or working-type field: FLOAT32 arithmetic is a
+`logicalDtypeTuple` orders boundary feeds before boundary targets. The payload has no numerical
+profile, accumulator, or working-type field: FLOAT32 arithmetic is a
 separate Model guarantee, and raw-preserving programs copy represented words exactly. It contains
 no hypothetical candidate or certificate state.
 
@@ -34,7 +34,7 @@ status is `NOT_QUERIED`.
 | Symptom | Cause | Correction |
 |---|---|---|
 | A low event is displayed as MPSGraph. | A removed alternate route was assumed. | Treat the DTO's required `CUSTOM_KERNEL` route as authoritative. |
-| A consumer expects `accumulatorDtype`. | An old diagnostic field was mistaken for a numerical-policy requirement. | Read route, logical dtype tuple, and profile from the event; use the Model contract for arithmetic semantics. |
+| A consumer expects `accumulatorDtype` or `numericalProfile`. | An old diagnostic field was mistaken for a numerical-policy requirement. | Read route and logical dtype tuple from the event; use the Model contract for arithmetic semantics. |
 | Consumers parse numeric facts from strings. | The primary payload is unstructured. | Add an appropriate typed field or typed trace attribute. |
 | Trace imports model/runtime/backend objects. | DTOs depend on producer domains. | Translate to trace-local identifiers and values. |
 | Enabling trace changes execution decisions. | Diagnostics became business logic. | Keep emission observational and producer-owned. |

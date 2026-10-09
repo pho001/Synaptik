@@ -92,8 +92,15 @@ loss own no mode, session, or hidden mutable statistics.
 
 ## Task list
 
-The table is the ordered queue and status source. Tasks 0030, 0031, and 0032A are Complete; 0026
-and 0032 are Draft. No Model task is Ready, and current profile-based authority remains in force.
+The table is the ordered queue and status source. Tasks 0030, 0031, 0032A, and 0032 are Complete;
+0026 is an unselected Draft. The DAG edge `0032A -> 0032` is closed. The approved
+named-arithmetic-site DAZ/FTZ rule for `FLOAT32`, `BFLOAT16`, and `FLOAT16` (forbidden for
+`FLOAT64`) is implemented in the main worktree. The isolated full build, source-matched main
+native rebuild, independent Class C review, and final documentation reconciliation passed.
+ADR 0026 is Accepted. No Model implementation task is currently `Ready`; selecting another
+frontier requires a separate planning decision. The historical common base was
+`9fbd0cc36f2f187d1a658671cb55710ff13a5ed7`; the [0032 brief](tasks/0032-profile-free-numerical-semantics-reset.md)
+records its serial integration and validation. Git history records publication separately.
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
@@ -241,7 +248,7 @@ and 0032 are Draft. No Model task is Ready, and current profile-based authority 
 | 0030 | [Total recursive ACCELERATOR numerical floor](tasks/0030-total-recursive-accelerator-numerical-floor.md) | Complete | 0031; 0027–0029; completed profile spine and backend realizations; retained Metal blocker evidence through 0040; approved minimal recursive redesign | Completed the documentation-only total recursive contract at remediation `2d95ab71` plus strict-baseline remediation `97cb9d11`; preserved the two-value API and all capability/identity behavior; independent Class C rereview after `97cb9d11` returned `APPROVE` with zero findings. |
 | 0031 | [STRICT unary numerical baseline](tasks/0031-strict-unary-numerical-baseline.md) | Complete | 0018T1; 0019A; 0027–0029; completed CPU 0005H/0005I evidence | Owns exact-reference primitive bounds, special/domain rules, and recursive native/one-wider results for all nineteen kinds and every accepted BFLOAT16/FLOAT32/FLOAT64 type; remediation `97cb9d11` passed independent Class C rereview with zero findings and changed no executable behavior or capability. |
 | 0032A | [Stored-subnormal provider regressions](tasks/0032a-stored-subnormal-provider-regressions.md) | Complete | 0030/0031, CPU 0017, Metal 0063 Complete; verified native package at execution | CPU/Metal backend-local stored-subnormal regressions passed; no stronger Model contract or behavior change. |
-| 0032 | [Profile-free numerical-semantics reset](tasks/0032-profile-free-numerical-semantics-reset.md) | Draft | Coordinated architecture decision and readiness gates; no task predecessor declared | Proposed Class C semantic/identity cutover targeting current ACCELERATOR provider answers; no implementation permission. |
+| 0032 | [Profile-free numerical-semantics reset](tasks/0032-profile-free-numerical-semantics-reset.md) | Complete | 0032A Complete; user-approved arithmetic-site DAZ/FTZ rule | Profile-free cutover, source-matched native rebuild, integrated validation, independent review, and documentation completed in main; historical ACCELERATOR true/false provider answers retained. |
 
 ## Milestones and current frontier
 
@@ -279,20 +286,24 @@ and 0032 are Draft. No Model task is Ready, and current profile-based authority 
   findings. No executable statement or capability changed.
 - Task 0032A is `Complete`: backend-local regressions record the current CPU/Metal stored-value
   subnormal realization, with focused CPU and verified-package Metal tests passed. This does not
-  authorize the Draft 0032 cutover or change Model semantics or provider behavior.
+  change Model semantics or provider behavior.
+- Task 0032 is `Complete`: profile-free authority and implementation are in main, with the
+  isolated full build (3,853 total, zero failures, 39 explained skips), architecture tests
+  (9 total, zero failures/skips), source-matched main Metal package, independent Class C review,
+  and final documentation reconciliation recorded in the brief. The P1 OpenBLAS ABI smoke and
+  P2 documentation findings were corrected. ADR 0026 is Accepted; publication is separate from
+  this validation result.
 - `FLOAT16` is already active through the later low-precision cutover; the unselected 0026 Draft
   row is not the current gate for it and needs separate planning reconciliation before execution.
 
 ## Live gates, decisions, and risks
 
-- **Explicit numerical profiles:** completed 0027–0031 own the two-value recursive contract.
-  Complete 0031 defines strict unary result sets for every accepted floating type through
-  exact-reference ordered bounds, explicit error-function bounds, complete subnormal/special
-  rules, and recursive native/one-wider composite sites independent of backend algorithms.
-  Complete 0030 defines the separate accelerator ordered-distance rule, closes every composite
-  primitive site, and distinguishes recursive semantic reachability from remaining Metal
-  selection/structure/route-proof blockers. Independent Class C rereview after `97cb9d11`
-  approved both with zero findings. Metal 0051 remains historically Blocked.
+- **Numerical semantics:** Complete 0027–0031 and ADRs 0019/0021/0023 describe historical
+  profile-era baselines, not the current rule. Complete 0032 and Accepted ADR 0026 record the
+  main-worktree profile-free cutover; the root and incorporated Model contract are authoritative.
+  Metal 0051 remains historically Blocked under its original premise. The MPSGraph scalar `+0`
+  guard's performance effect is unmeasured, a nonblocking follow-up rather than a live cutover
+  gate. No Model task is `Ready` merely because 0032 closed.
 - **FLOAT16 and mixed precision:** Both low types are current and distinct. A shared two-byte
   carrier does not imply identical arithmetic or a mixed-low backend route; explicit casts form
   the current `FLOAT32` boundary. Task 0026 remains an unselected stale Draft, not authority.

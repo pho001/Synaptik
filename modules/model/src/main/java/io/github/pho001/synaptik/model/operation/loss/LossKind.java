@@ -18,18 +18,16 @@ import java.util.List;
  * guard, reduction membership, identities, and divisors. Their NaN, infinity, and signed-zero
  * classes follow those guards and named formula sites.</p>
  *
- * <p>Under the Model-owned numerical-profile contract, {@code STRICT_IEEE} retains those
- * formulas. For {@code ACCELERATOR FLOAT32}, MSE recurses through subtraction,
- * {@code delta*delta}, aggregation, and any exact reduction divisor. Categorical losses recurse
- * through exact max/target/ignore guards, score subtraction, exponential, class sum, logarithm,
- * max addition, logit subtraction, optional target multiplication, aggregation, negation, and any
- * exact divisor. Every contributor participates once; arithmetic sites use DAZ/FTZ and one-round
- * operations, and each irreducible logarithmic or exponential site uses the inclusive
- * ordered-binary32 distance ceiling of five. The composites gain no final-output envelope. Every
- * current non-FLOAT32 occurrence remains strict; the inactive low-precision reservation changes
- * none of them. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>MSE uses one subtraction and delta*delta per position, then its exact reduction and optional
+ * divisor. Categorical losses retain exact maximum selection, target and ignore guards, score
+ * subtraction, EXP, class sum, LOG, max addition, logit subtraction, declared target
+ * multiplication, aggregation, negation, and optional divisor. Every contributor participates once;
+ * only named floating arithmetic primitive inputs/results may use dtype-specific DAZ/FTZ for
+ * FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64. Homogeneous low arithmetic works and accumulates
+ * in FLOAT32 with one final low narrowing per declared output. Exact guards and special classes
+ * remain; neither loss has a blanket output tolerance. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum LossKind implements OperationKind {
     /**

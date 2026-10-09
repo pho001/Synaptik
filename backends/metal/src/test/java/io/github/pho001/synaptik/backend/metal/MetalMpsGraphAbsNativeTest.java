@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.file.Path;
@@ -34,15 +33,14 @@ class MetalMpsGraphAbsNativeTest {
     };
 
     @Test
-    void JavaPreflightClosesAbsProfileAndRejectsSelectedMpsGraphViewNodes() {
+    void JavaPreflightClosesAbsRouteAndRejectsSelectedMpsGraphViewNodes() {
 
         int[] ranks = {1, 1};
         long[] dimensions = dimensions(2, INPUT_BITS.length);
         MetalMpsGraphProgram unary = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.abs(0, 1)));
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            MetalNativeApi.ProgramExecutableAbi.validateCreate(profile, MetalTestProgram.descriptors(ranks, dimensions, unary), unary, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
-        }
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(MetalTestProgram.descriptors(ranks, dimensions, unary), unary, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
+
 
         MetalMpsGraphProgram viewToAbs = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.targetShape(
@@ -52,7 +50,7 @@ class MetalMpsGraphAbsNativeTest {
                         new long[] {INPUT_BITS.length}),
                 MetalMpsGraphProgram.Node.abs(1, 2)));
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.ProgramExecutableAbi.validateCreate(NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(new int[] {1, 1, 1}, dimensions(3, INPUT_BITS.length), viewToAbs), viewToAbs, new int[] {0}, new int[] {2}, MetalPreparedRoute.MPSGRAPH));
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(MetalTestProgram.descriptors(new int[] {1, 1, 1}, dimensions(3, INPUT_BITS.length), viewToAbs), viewToAbs, new int[] {0}, new int[] {2}, MetalPreparedRoute.MPSGRAPH));
 
         MetalMpsGraphProgram canonicalizedAbs = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.targetShape(
@@ -65,11 +63,11 @@ class MetalMpsGraphAbsNativeTest {
     assertThrows(
         IllegalArgumentException.class,
         () ->
-        MetalNativeApi.ProgramExecutableAbi.validateCreate(NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(new int[] {1, 1, 1, 1}, dimensions(4, INPUT_BITS.length), canonicalizedAbs), canonicalizedAbs, new int[] {0}, new int[] {3}, MetalPreparedRoute.MPSGRAPH));
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(MetalTestProgram.descriptors(new int[] {1, 1, 1, 1}, dimensions(4, INPUT_BITS.length), canonicalizedAbs), canonicalizedAbs, new int[] {0}, new int[] {3}, MetalPreparedRoute.MPSGRAPH));
     }
 
     @Test
-    void realAbsIsExactAcrossProfilesTopologyReuseConcurrencyContextsAndClose() throws Exception {
+    void realAbsIsExactAcrossTopologyReuseConcurrencyContextsAndClose() throws Exception {
         Path library = configuredLibrary();
         MetalNativeApi api = MetalNativeApi.open(library);
         MetalNativeApi.Handle firstContext = null;
@@ -77,21 +75,18 @@ class MetalMpsGraphAbsNativeTest {
         try {
             firstContext = api.createContext();
             secondContext = api.createContext();
-            for (NumericalProfile profile : NumericalProfile.values()) {
-                runProfile(api, firstContext, profile, 2);
-                runProfile(api, secondContext, profile, 1);
-            }
+            runTopology(api, firstContext, true, 2);
+            runTopology(api, secondContext, false, 1);
+
 
             MetalNativeApi.Handle concurrentContext = firstContext;
             var executor = Executors.newFixedThreadPool(4);
             try {
                 var calls = new ArrayList<java.util.concurrent.Callable<Boolean>>();
                 for (int call = 0; call < 12; call++) {
-                    NumericalProfile profile = call % 2 == 0
-                            ? NumericalProfile.STRICT_IEEE
-                            : NumericalProfile.ACCELERATOR;
+                    boolean withArithmetic = call % 2 == 0;
                     calls.add(() -> {
-                        runProfile(api, concurrentContext, profile, 1);
+                        runTopology(api, concurrentContext, withArithmetic, 1);
                         return true;
                     });
                 }
@@ -121,13 +116,12 @@ class MetalMpsGraphAbsNativeTest {
         assertThrows(IllegalStateException.class, () -> device.createBuffer(Integer.BYTES));
     }
 
-    private static void runProfile(
+    private static void runTopology(
             MetalNativeApi api,
             MetalNativeApi.Handle context,
-            NumericalProfile profile,
+            boolean withArithmetic,
             int repetitions) {
-        boolean accelerator = profile == NumericalProfile.ACCELERATOR;
-        MetalMpsGraphProgram program = accelerator
+        MetalMpsGraphProgram program = withArithmetic
                 ? new MetalMpsGraphProgram(List.of(
                         MetalMpsGraphProgram.Node.binary(
                                 MetalMpsGraphProgram.NodeKind.ADD, 0, 1, 2),
@@ -139,18 +133,18 @@ class MetalMpsGraphAbsNativeTest {
                         MetalMpsGraphProgram.Node.abs(2, 3),
                         MetalMpsGraphProgram.Node.abs(0, 4)));
         int valueCount = 5;
-        int[] feeds = accelerator ? new int[] {0, 1} : new int[] {0};
-        int[] targets = accelerator ? new int[] {2, 3, 4} : new int[] {1, 3, 4};
+        int[] feeds = withArithmetic ? new int[] {0, 1} : new int[] {0};
+        int[] targets = withArithmetic ? new int[] {2, 3, 4} : new int[] {1, 3, 4};
         MetalNativeApi.Handle executable = null;
         var inputs = new ArrayList<MetalNativeApi.Handle>();
         var outputs = new ArrayList<MetalNativeApi.Handle>();
         long byteCount = Math.multiplyExact((long) INPUT_BITS.length, Integer.BYTES);
         try {
-            executable = api.createProgramExecutable(context, profile, MetalTestProgram.descriptors(new int[] {1, 1, 1, 1, 1}, dimensions(valueCount, INPUT_BITS.length), program), program, feeds, targets, MetalPreparedRoute.MPSGRAPH);
+            executable = api.createProgramExecutable(context, MetalTestProgram.descriptors(new int[] {1, 1, 1, 1, 1}, dimensions(valueCount, INPUT_BITS.length), program), program, feeds, targets, MetalPreparedRoute.MPSGRAPH);
             MetalNativeApi.Handle input = api.createBuffer(context, byteCount);
             inputs.add(input);
             upload(api, input, INPUT_BITS);
-            if (accelerator) {
+            if (withArithmetic) {
                 MetalNativeApi.Handle zeros = api.createBuffer(context, byteCount);
                 inputs.add(zeros);
                 upload(api, zeros, new int[INPUT_BITS.length]);
@@ -168,7 +162,7 @@ class MetalMpsGraphAbsNativeTest {
                     outputAddresses.setAtIndex(ADDRESS, index, outputs.get(index).carrier());
                 }
                 MetalNativeApi.Handle runExecutable = executable;
-                if (accelerator) {
+                if (withArithmetic) {
                     inputAddresses.setAtIndex(
                             ADDRESS, 1, inputs.getFirst().carrier());
                     api.runExecutable(
@@ -236,16 +230,16 @@ class MetalMpsGraphAbsNativeTest {
                     for (int output = 0; output < outputs.size(); output++) {
                         actual[output] = download(api, outputs.get(output));
                     }
-                    assertExactMagnitude(INPUT_BITS, actual[2], profile + " direct ABS");
-                    if (accelerator) {
+                    assertExactMagnitude(INPUT_BITS, actual[2], " direct ABS");
+                    if (withArithmetic) {
                         assertExactMagnitude(actual[0], actual[1],
-                                "accelerator binary-to-ABS");
+                                "binary-to-ABS");
                     } else {
-                        assertExactMagnitude(INPUT_BITS, actual[0], "strict first ABS target");
-                        assertExactMagnitude(INPUT_BITS, actual[1], "strict ABS/NEG/ABS");
+                        assertExactMagnitude(INPUT_BITS, actual[0], "first ABS target");
+                        assertExactMagnitude(INPUT_BITS, actual[1], "ABS/NEG/ABS");
                     }
                     assertArrayEquals(INPUT_BITS, download(api, input),
-                            profile + " input preservation");
+                            " input preservation");
                 }
             }
         } finally {

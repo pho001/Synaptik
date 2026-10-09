@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -23,7 +22,7 @@ class MetalPointwiseFusionPlannerTest {
                 unary(MetalMpsGraphProgram.NodeKind.CEIL, 1, 2)));
         List<MetalMpsGraphProgram.ValueDescriptor> f32Values = descriptors(3, 4L);
         MetalPointwiseFusionPlan f32 = MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.ACCELERATOR, f32Program, f32Values,
+                f32Program, f32Values,
                 new int[] {0}, new int[] {2}, MetalPreparedRoute.CUSTOM_PROGRAM);
         assertEquals(List.of(MetalPointwiseFusionPlan.StepKind.GENERATED_POINTWISE),
                 f32.steps().stream().map(MetalPointwiseFusionPlan.Step::kind).toList());
@@ -39,7 +38,7 @@ class MetalPointwiseFusionPlannerTest {
             int[] feeds = {0, 3};
             int[] targets = {2, 4};
             MetalPointwiseFusionPlan mixed = program.resolvePlan(
-                    NumericalProfile.ACCELERATOR, values, feeds, targets,
+                    values, feeds, targets,
                     MetalPreparedRoute.CUSTOM_PROGRAM, null);
 
             assertEquals(List.of(
@@ -50,13 +49,13 @@ class MetalPointwiseFusionPlannerTest {
             assertArrayEquals(new int[] {0, 1, 2, 3, 4},
                     mixed.materializedProgramValueIndices());
             byte[] preview = program.encodedProgramImage(
-                    NumericalProfile.ACCELERATOR, values, feeds, targets,
+                    values, feeds, targets,
                     MetalPreparedRoute.CUSTOM_PROGRAM);
             ByteBuffer header = ByteBuffer.wrap(preview).order(ByteOrder.LITTLE_ENDIAN);
-            assertEquals(0, header.getInt(80), "instruction count for " + lowType);
-            assertEquals(0, header.getInt(92), "generated unit count for " + lowType);
+            assertEquals(0, header.getInt(76), "instruction count for " + lowType);
+            assertEquals(0, header.getInt(88), "generated unit count for " + lowType);
             assertThrows(IllegalArgumentException.class, () -> program.encodedProgramImage(
-                    NumericalProfile.ACCELERATOR, values, feeds, targets,
+                    values, feeds, targets,
                     MetalPreparedRoute.CUSTOM_PROGRAM, f32));
         }
     }
@@ -73,7 +72,7 @@ class MetalPointwiseFusionPlannerTest {
                 descriptor(DataType.FLOAT32, 2L, 2L),
                 descriptor(DataType.FLOAT32, 2L, 2L));
         MetalPointwiseFusionPlan f32 = MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.ACCELERATOR, f32Program, f32Values,
+                f32Program, f32Values,
                 new int[] {0, 1, 2}, new int[] {4}, MetalPreparedRoute.CUSTOM_PROGRAM);
         assertEquals(List.of(MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE),
                 f32.steps().stream().map(MetalPointwiseFusionPlan.Step::kind).toList());
@@ -90,7 +89,7 @@ class MetalPointwiseFusionPlannerTest {
             int[] feeds = {0, 1, 2, 5};
             int[] targets = {4, 6};
             MetalPointwiseFusionPlan mixed = program.resolvePlan(
-                    NumericalProfile.ACCELERATOR, values, feeds, targets,
+                    values, feeds, targets,
                     MetalPreparedRoute.CUSTOM_PROGRAM, null);
 
             assertEquals(3, mixed.steps().size());
@@ -99,11 +98,11 @@ class MetalPointwiseFusionPlannerTest {
                             || step.kind() == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE));
             assertEquals(0, mixed.instructions().size());
             byte[] preview = program.encodedProgramImage(
-                    NumericalProfile.ACCELERATOR, values, feeds, targets,
+                    values, feeds, targets,
                     MetalPreparedRoute.CUSTOM_PROGRAM);
-            assertEquals(0, ByteBuffer.wrap(preview).order(ByteOrder.LITTLE_ENDIAN).getInt(80));
+            assertEquals(0, ByteBuffer.wrap(preview).order(ByteOrder.LITTLE_ENDIAN).getInt(76));
             assertThrows(IllegalArgumentException.class, () -> program.encodedProgramImage(
-                    NumericalProfile.ACCELERATOR, values, feeds, targets,
+                    values, feeds, targets,
                     MetalPreparedRoute.CUSTOM_PROGRAM, f32));
         }
     }
@@ -175,7 +174,6 @@ class MetalPointwiseFusionPlannerTest {
                 descriptor(1L), descriptor(1L), descriptor(1L),
                 descriptor(1L), descriptor(1L), descriptor(1L));
         MetalPointwiseFusionPlan exact = MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.ACCELERATOR,
                 new MetalMpsGraphProgram(nodes),
                 values,
                 new int[] {0},
@@ -199,7 +197,6 @@ class MetalPointwiseFusionPlannerTest {
                         false,
                         0L)));
         MetalPointwiseFusionPlan boundary = MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.ACCELERATOR,
                 nonSingleton,
                 nonSingletonValues,
                 new int[] {0},
@@ -269,7 +266,7 @@ class MetalPointwiseFusionPlannerTest {
     }
 
     @Test
-    void schemaNineteenPacksOddReferencePoolDirectlyBeforeAttributes() {
+    void schemaTwentyPacksOddReferencePoolDirectlyBeforeAttributes() {
         var program = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.ADD,
@@ -284,7 +281,6 @@ class MetalPointwiseFusionPlannerTest {
                         0x3f80_0000)));
         List<MetalMpsGraphProgram.ValueDescriptor> values = descriptors(3, 4L);
         byte[] image = program.encodedProgramImage(
-                NumericalProfile.ACCELERATOR,
                 values,
                 new int[] {0},
                 new int[] {2},
@@ -297,8 +293,8 @@ class MetalPointwiseFusionPlannerTest {
                 + 7 * Integer.BYTES;
         ByteBuffer bytes = ByteBuffer.wrap(image).order(ByteOrder.LITTLE_ENDIAN);
 
-        assertEquals(388, attributesOffset);
-        assertEquals(404, image.length);
+        assertEquals(384, attributesOffset);
+        assertEquals(400, image.length);
         assertEquals(1L, bytes.getLong(attributesOffset));
         assertEquals(0x3f80_0000L, bytes.getLong(attributesOffset + Long.BYTES));
     }
@@ -311,7 +307,6 @@ class MetalPointwiseFusionPlannerTest {
                 new int[] {0},
                 new int[] {1});
         byte[] image = fixture.program().encodedProgramImage(
-                NumericalProfile.STRICT_IEEE,
                 fixture.values(),
                 fixture.feeds(),
                 fixture.targets(),
@@ -321,18 +316,17 @@ class MetalPointwiseFusionPlannerTest {
         assertEquals(MetalMpsGraphProgram.SCHEMA_VERSION, header.getInt(4));
         assertEquals(MetalMpsGraphProgram.HEADER_BYTES, header.getInt(8));
         assertEquals(MetalPreparedRoute.MPSGRAPH.wireIdentity(), header.getInt(16));
+        assertEquals(0, header.getInt(20));
         assertEquals(0, header.getInt(24));
-        assertEquals(0, header.getInt(28));
-        for (int offset = 64; offset <= 104; offset += Integer.BYTES)
+        for (int offset = 60; offset <= 100; offset += Integer.BYTES)
             assertEquals(0, header.getInt(offset));
-        assertEquals(-1, header.getInt(108));
-        for (int offset = 112; offset <= 124; offset += Integer.BYTES)
+        assertEquals(-1, header.getInt(104));
+        for (int offset = 108; offset <= 120; offset += Integer.BYTES)
             assertEquals(0, header.getInt(offset));
     }
 
     private static MetalPointwiseFusionPlan plan(Fixture fixture) {
         return MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.STRICT_IEEE,
                 fixture.program(),
                 fixture.values(),
                 fixture.feeds(),

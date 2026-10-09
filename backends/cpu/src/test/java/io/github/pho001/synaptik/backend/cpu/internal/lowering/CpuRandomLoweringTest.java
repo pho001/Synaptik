@@ -53,7 +53,7 @@ public class CpuRandomLoweringTest {
             values.set(2, new GraphValue(values.get(2).id(), unresolved));
             memory.set(2, new LogicalMemoryRequirement(values.get(2).id(), unresolved,
                     Optional.of(base.partition()), List.of(), true));
-            var invalid = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), values, memory, base.constants(), base.backendInputs());
+            var invalid = new PrepareContext<>(base.partition(), base.nodes(), values, memory, base.constants(), base.backendInputs());
             new CpuPartitionLowering().lower(invalid);
         });
     }
@@ -68,7 +68,7 @@ public class CpuRandomLoweringTest {
         values.set(1, new GraphValue(values.get(1).id(), aliasedState));
         memory.set(1, new LogicalMemoryRequirement(values.get(1).id(), aliasedState,
                 Optional.empty(), List.of(base.partition()), false));
-        var invalid = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), values, memory, base.constants(), base.backendInputs());
+        var invalid = new PrepareContext<>(base.partition(), base.nodes(), values, memory, base.constants(), base.backendInputs());
         assertThrows(IllegalArgumentException.class,
                 () -> new CpuPartitionLowering().lower(invalid));
     }
@@ -79,7 +79,7 @@ public class CpuRandomLoweringTest {
         var node = new CompiledNode(nodeId, new Operation(GraphRngKind.INITIAL_STATE,
                 new GraphRngStateAttrs(key, counter)), List.of(), List.of(output));
         var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID, List.of(nodeId));
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), List.of(new GraphValue(output, state)), List.of(new LogicalMemoryRequirement(output, state, Optional.of(partition), List.of(), true)), Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(partition, List.of(node), List.of(new GraphValue(output, state)), List.of(new LogicalMemoryRequirement(output, state, Optional.of(partition), List.of(), true)), Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 
     public static PrepareContext<CpuPartitionAnalysisInputs> dropoutContext(
@@ -115,7 +115,7 @@ public class CpuRandomLoweringTest {
                     input ? Optional.empty() : Optional.of(partition), input ? List.of(partition) : List.of(),
                     !input));
         }
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 
     private static TensorDescriptor descriptor(DataType type, Shape shape) {

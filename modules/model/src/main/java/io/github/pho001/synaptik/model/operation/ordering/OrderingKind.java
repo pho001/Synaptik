@@ -13,13 +13,12 @@ import java.util.List;
  * negative zero precedes positive zero in ascending order. These semantics select no algorithm,
  * backend route, storage behavior, gradient rule, or execution support.</p>
  *
- * <p>The Model-owned numerical-profile contract leaves ordering exact under
- * {@code STRICT_IEEE} and {@code ACCELERATOR}: axis mapping, NaN-last class, infinity order,
- * negative-zero/positive-zero order, direction, stability, ties, selected values, and indices are
- * unchanged. Ordering applies no DAZ, FTZ, comparison epsilon, or arithmetic tolerance and
- * preserves selected original payload representations. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Ordering compares stored represented values, including subnormals, and retains exact axis
+ * mapping, NaN-last class, infinity and signed-zero order, direction, stability, ties, selected
+ * original payloads, and indices. It applies no arithmetic DAZ, FTZ, comparison epsilon, or finite
+ * tolerance. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum OrderingKind implements OperationKind {
     /** Requests the input values in stable axis order. */

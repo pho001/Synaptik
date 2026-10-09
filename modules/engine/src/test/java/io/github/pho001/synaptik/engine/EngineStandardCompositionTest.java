@@ -12,7 +12,6 @@ import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
@@ -43,24 +42,21 @@ final class EngineStandardCompositionTest {
     }
 
     @Test
-    void advancedFactoryValidatesInOrderAndTransfersOnlyAfterBothArgumentsValidate() {
+    void advancedFactoryValidatesBeforeOwnershipTransfer() {
         assertEquals("cpuIntegration", assertThrows(NullPointerException.class,
-                () -> AdvancedEngine.takeOwnership(null, null)).getMessage());
+                () -> AdvancedEngine.takeOwnership(null)).getMessage());
 
         CpuBackendIntegration integration = CpuBackendIntegration.open();
-        assertEquals("numericalProfile", assertThrows(NullPointerException.class,
-                () -> AdvancedEngine.takeOwnership(integration, null)).getMessage());
-        try (AdvancedEngine engine =
-                AdvancedEngine.takeOwnership(integration, NumericalProfile.ACCELERATOR)) {
-            assertSame(NumericalProfile.ACCELERATOR, engine.numericalProfile());
+        try (AdvancedEngine engine = AdvancedEngine.takeOwnership(integration)) {
+            assertFalse(engine.isClosed());
         }
     }
 
     @Test
     void constructorTransfersTheExactNonNullOwner() {
         RecordingComposition composition = new RecordingComposition();
-        AdvancedEngine owner = new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE);
-        Engine engine = new Engine(owner, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE);
+        AdvancedEngine owner = new AdvancedEngine(composition);
+        Engine engine = new Engine(owner);
 
         assertFalse(engine.isClosed());
         engine.close();
@@ -72,7 +68,7 @@ final class EngineStandardCompositionTest {
     @Test
     void nullConstructorArgumentTransfersNothing() {
         NullPointerException failure = assertThrows(NullPointerException.class,
-                () -> new Engine(null, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE));
+                () -> new Engine(null));
         assertEquals("delegate", failure.getMessage());
         assertEquals(0, failure.getSuppressed().length);
     }
@@ -81,8 +77,8 @@ final class EngineStandardCompositionTest {
     void independentWrappersOwnIndependentCompositions() {
         RecordingComposition firstComposition = new RecordingComposition();
         RecordingComposition secondComposition = new RecordingComposition();
-        Engine first = new Engine(new AdvancedEngine(firstComposition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE);
-        Engine second = new Engine(new AdvancedEngine(secondComposition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE);
+        Engine first = new Engine(new AdvancedEngine(firstComposition));
+        Engine second = new Engine(new AdvancedEngine(secondComposition));
 
         assertNotSame(first, second);
         first.close();
@@ -98,7 +94,7 @@ final class EngineStandardCompositionTest {
     @Test
     void repeatedAndConcurrentCloseRunsCleanupExactlyOnce() throws Exception {
         RecordingComposition composition = new RecordingComposition();
-        Engine engine = new Engine(new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE);
+        Engine engine = new Engine(new AdvancedEngine(composition));
 
         try (var executor = Executors.newFixedThreadPool(4)) {
             var closes = List.of(
@@ -122,7 +118,7 @@ final class EngineStandardCompositionTest {
         Error expected = new AssertionError("cleanup");
         RecordingComposition composition = new RecordingComposition();
         composition.closeFailure = expected;
-        Engine engine = new Engine(new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE);
+        Engine engine = new Engine(new AdvancedEngine(composition));
 
         try (var executor = Executors.newFixedThreadPool(2)) {
             var first = executor.submit(() -> assertThrows(Error.class, engine::close));

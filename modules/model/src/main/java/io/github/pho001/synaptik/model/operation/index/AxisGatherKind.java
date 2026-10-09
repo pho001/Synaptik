@@ -38,12 +38,11 @@ import java.util.List;
  * inherited enum name is diagnostic text rather than a serialization, dispatch, registry, route,
  * or kernel identifier.</p>
  *
- * <p>The Model-owned numerical-profile contract leaves both gathers exact under
- * {@code STRICT_IEEE} and {@code ACCELERATOR}: indices, bounds, axis/Shape mapping, output
- * placement, and every selected original payload representation remain exact. Gathering applies
- * no DAZ, FTZ, or arithmetic tolerance. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Both axis-gather forms retain exact indices, bounds, axis and Shape mapping, output
+ * placement, and selected original stored payloads. Gathering applies no arithmetic DAZ, FTZ, or
+ * finite tolerance. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum AxisGatherKind implements OperationKind {
     /**

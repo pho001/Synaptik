@@ -11,7 +11,6 @@ import io.github.pho001.synaptik.compiler.FunctionalGradientRequest;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.engine.AdvancedCompiledGraph;
 import io.github.pho001.synaptik.engine.AdvancedEngine;
@@ -235,7 +234,6 @@ final class DtypeLayoutGradientMetalIntegrationTest {
     Path library = configuredMetalLibrary();
     try (Arena arena = Arena.ofShared();
         Engine.Builder builder = Engine.builder()) {
-      builder.numericalProfile(NumericalProfile.ACCELERATOR);
       builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
       try (Engine engine = builder.build()) {
         for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
@@ -265,7 +263,6 @@ final class DtypeLayoutGradientMetalIntegrationTest {
     Path library = configuredMetalLibrary();
     try (Arena arena = Arena.ofShared();
         Engine.Builder builder = Engine.builder()) {
-      builder.numericalProfile(NumericalProfile.ACCELERATOR);
       builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
       try (Engine engine = builder.build()) {
         for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
@@ -295,7 +292,6 @@ final class DtypeLayoutGradientMetalIntegrationTest {
     Path library = configuredMetalLibrary();
     try (Arena arena = Arena.ofShared();
         Engine.Builder builder = Engine.builder()) {
-      builder.numericalProfile(NumericalProfile.ACCELERATOR);
       builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
       try (Engine engine = builder.build()) {
         MaxPool2dAttrs attrs = new MaxPool2dAttrs(2, 2, 2, 2, 0, 0, 1, 1, false);
@@ -323,7 +319,6 @@ final class DtypeLayoutGradientMetalIntegrationTest {
     Path library = configuredMetalLibrary();
     try (Arena arena = Arena.ofShared();
         Engine.Builder builder = Engine.builder()) {
-      builder.numericalProfile(NumericalProfile.ACCELERATOR);
       builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
       try (Engine engine = builder.build()) {
         Tensor bfloat16 = tensor(arena, DataType.BFLOAT16, true, 2, 3);
@@ -353,7 +348,6 @@ final class DtypeLayoutGradientMetalIntegrationTest {
     Path library = configuredMetalLibrary();
     try (Arena arena = Arena.ofShared();
         Engine.Builder builder = Engine.builder()) {
-      builder.numericalProfile(NumericalProfile.ACCELERATOR);
       builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
       try (Engine engine = builder.build()) {
         Tensor target = tensor(arena, DataType.FLOAT16, true, 2, 3);
@@ -415,7 +409,6 @@ final class DtypeLayoutGradientMetalIntegrationTest {
     Path library = configuredMetalLibrary();
     try (Arena arena = Arena.ofShared();
         Engine.Builder builder = Engine.builder()) {
-      builder.numericalProfile(NumericalProfile.ACCELERATOR);
       builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
       try (Engine engine = builder.build()) {
         for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
@@ -769,7 +762,6 @@ final class DtypeLayoutGradientMetalIntegrationTest {
     Path library = configuredMetalLibrary();
     try (Arena arena = Arena.ofShared();
         Engine.Builder builder = Engine.builder()) {
-      builder.numericalProfile(NumericalProfile.ACCELERATOR);
       builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
       try (Engine engine = builder.build()) {
         Tensor data = tensor(arena, DataType.FLOAT32, false, 1, 2, 3, 4);
@@ -840,38 +832,39 @@ final class DtypeLayoutGradientMetalIntegrationTest {
             "SUM");
         Tensor expandedTarget = tensor(arena, DataType.FLOAT32, true, 7);
         Tensor expandedSeed = tensor(arena, DataType.FLOAT32, false, 1, 2, 3);
-        assertMetalCompileRejected(
+        assertGradientCase(
             engine,
-            () ->
-                engine.compile(
-                    List.of(expandedTarget.expand(3)),
-                    List.of(expandedSeed),
-                    List.of(expandedTarget)),
-            "SUM");
+            expandedTarget.expand(3),
+            expandedSeed,
+            expandedTarget,
+            List.of(expandedTarget, expandedSeed),
+            new long[] {7, 7, 7},
+            new long[] {6});
 
         Tensor branchTarget = tensor(arena, DataType.FLOAT32, true, 7);
         Tensor condition = tensor(arena, DataType.BOOL, false, 1, 0, 1);
         Tensor other = tensor(arena, DataType.FLOAT32, false, 3, 4, 5);
         Tensor branchSeed = tensor(arena, DataType.FLOAT32, false, 1, 2, 3);
-        assertMetalCompileRejected(
+        assertGradientCase(
             engine,
-            () ->
-                engine.compile(
-                    List.of(Tensor.where(condition, branchTarget.reshape(1).expand(3), other)),
-                    List.of(branchSeed),
-                    List.of(branchTarget)),
-            "SUM");
+            Tensor.where(condition, branchTarget.reshape(1).expand(3), other),
+            branchSeed,
+            branchTarget,
+            List.of(branchTarget, condition, other, branchSeed),
+            new long[] {7, 4, 7},
+            new long[] {4});
 
         Tensor multiPathTarget = tensor(arena, DataType.FLOAT32, true, 7);
         Tensor multiPathSeed = tensor(arena, DataType.FLOAT32, false, Shape.of(2, 1), 1, 2);
-        assertMetalCompileRejected(
-            engine,
-            () ->
-                engine.compile(
-                    List.of(Tensor.stack(0, multiPathTarget, multiPathTarget)),
-                    List.of(multiPathSeed),
-                    List.of(multiPathTarget)),
-            "ADD");
+        var multiPath = engine.compile(
+            List.of(Tensor.stack(0, multiPathTarget, multiPathTarget)),
+            List.of(multiPathSeed),
+            List.of(multiPathTarget));
+        assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(multiPath));
+        IllegalArgumentException multiPathFailure = assertThrows(
+            IllegalArgumentException.class, () -> engine.session(multiPath));
+        assertTrue(multiPathFailure.getMessage().contains(
+            "Metal node ADD input value state is unavailable or incompatible"));
 
         Tensor dynamic =
             TensorFactory.create(

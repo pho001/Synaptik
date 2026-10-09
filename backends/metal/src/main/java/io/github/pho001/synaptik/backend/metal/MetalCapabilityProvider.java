@@ -1,7 +1,6 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.backend.contract.BackendId;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
@@ -108,24 +107,27 @@ import java.util.Objects;
  * generated-backward fact.</p>
  *
  * <p>This provider is immutable and performs no native loading, device discovery, allocation,
- * registration, or caching. Both profiles admit the exact seven-carrier movement, affine,
+ * registration, or caching. The provider admits the exact seven-carrier movement, affine,
  * canonicalization, indexing, replacement, selection, ordering, state, predicate, cast, and
  * non-overlapping window occurrences declared below. Reads may use authenticated static affine or
  * transferred materialized layouts; outputs use the operation's exact logical view or canonical
  * materialization. External unsafe aliases, negative strides, overlap, empty or dynamic geometry,
  * and accumulation-requiring folds remain unsupported.</p>
  *
- * <p>For every current accelerator FLOAT32 occurrence, this predicate admits the corresponding
- * homogeneous BFLOAT16 and FLOAT16 descriptor/attribute projection. The strict low domain is the
- * exact valid subset of the current strict FLOAT32 domain. Direct BFLOAT16/FLOAT16 mixed-low
- * operations are rejected except explicit {@code CAST}; explicit FLOAT32 casts are the sole
- * mixed-low arithmetic boundary. Route selection is separate, but every admitted occurrence
- * containing a low carrier is required by preparation to use the fixed custom program.</p>
+ * <p>For homogeneous BFLOAT16 and FLOAT16 occurrences, this predicate first checks the original
+ * descriptors, then tests an exact FLOAT32 descriptor/attribute proxy against the baseline
+ * occurrence predicate. This preserves the independently queried low-type support corresponding
+ * to the frozen, formerly ACCELERATOR FLOAT32 baseline. In particular, low L1, ScatterAdd, and
+ * singleton variance support does not select the separate FLOAT32-only Task 0069 specialized
+ * kernels. Direct BFLOAT16/FLOAT16 mixed-low operations are rejected except explicit
+ * {@code CAST}; explicit FLOAT32 casts are the sole mixed-low arithmetic boundary. Route selection
+ * is separate, but every admitted occurrence containing a low carrier must use the fixed custom
+ * program.</p>
  *
  * <p>All 49 ordered casts use the Model conversion and preserve legal floating gradient metadata.
  * Floating classification covers all four floating carriers. BOOL logic and the fourteen
  * non-mixed-low promoted floating {@code WHERE} signatures use exact right-aligned broadcasting;
- * WHERE differentiability is the branch-role OR. Accelerator arithmetic, scalar, reciprocal,
+ * WHERE differentiability is the branch-role OR. Arithmetic, scalar, reciprocal,
  * reduction, scan, MATMUL, MSE, convolution, pooling, dropout, L1, ScatterAdd, and singleton
  * variance occurrences retain the exact FLOAT32 predicate after homogeneous low projection.
  * Binary arithmetic output differentiability is the operand OR; scalar, reciprocal, reductions,
@@ -133,7 +135,7 @@ import java.util.Objects;
  * no-gradient BOOL while permitting differentiable floating inputs.</p>
  *
  * <p>MATMUL accepts canonical operands or authenticated local identity-prefix last-two-axis
- * transposes. Both profiles admit no-gradient INT32/INT64 pairs; accelerator admits every qualified
+ * transposes. The provider admits no-gradient INT32/INT64 pairs and every qualified
  * homogeneous floating geometry plus the existing one-low-plus-FLOAT32 widening rows. Direct
  * BFLOAT16/FLOAT16 mixing, FLOAT64 results, and disallowed gradient metadata remain false.
  * Reductions support the exact full, normalized-axis, keep-dimension, and binding-resolved
@@ -147,9 +149,9 @@ import java.util.Objects;
  * overlapping generated folds, attention, recurrent execution, and convolution transpose remain
  * unsupported.</p>
  *
- * <p>INITIAL_STATE is profile-common and no-gradient. Accelerator DROPOUT preserves value
+ * <p>INITIAL_STATE is no-gradient. DROPOUT preserves value
  * differentiability and publishes no-gradient mask/state roles. L1, ScatterAdd, and singleton
- * VARIANCE retain their narrow no-gradient accelerator predicates. LOG_SUM_EXP,
+ * VARIANCE retain their narrow no-gradient predicates. LOG_SUM_EXP,
  * STANDARD_DEVIATION, L2_NORM, and every unlisted occurrence remain production-false.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
@@ -183,42 +185,42 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     /**
-     * Reports support only for the exact profile-qualified prepared Metal domain.
+     * Reports support only for the exact prepared Metal occurrence domain.
      *
      * @param query the non-null immutable operation occurrence to classify without probing a device
      * or native library
-     * @return {@code true} exactly for one occurrence in the complete strict or accelerator     matrix
+     * @return {@code true} exactly for an admitted occurrence in the qualified Metal domain
      * @throws NullPointerException if {@code query} is {@code null}, with message {@code query}
      */
     @Override
     public boolean supports(OperationCapabilityQuery query) {
         Objects.requireNonNull(query, "query");
-        return supportsOccurrence(
-                query.numericalProfile(), query.operation(), query.inputs(), query.outputs());
+        return supportsOccurrence(query.operation(), query.inputs(), query.outputs());
     }
 
     /**
-     * Validates one projected occurrence against the same profile-qualified domain used by Planning.
+     * Validates one projected occurrence against the same domain used by Planning.
      *
-     * @param numericalProfile non-null cold graph-wide numerical-profile identity
      * @param operation non-null typed operation
      * @param inputs non-null ordered input descriptors
      * @param outputs non-null ordered output descriptors
-     * @return whether the occurrence is supported
+     * @return {@code true} only if the original occurrence passes the baseline predicate or a
+     *     homogeneous low-type occurrence passes its exact FLOAT32 proxy predicate; otherwise
+     *     {@code false}
+     * @throws NullPointerException if {@code operation}, {@code inputs}, or {@code outputs} is
+     *     {@code null}
      */
     static boolean supportsOccurrence(
-            NumericalProfile numericalProfile,
             Operation operation,
             List<TensorDescriptor> inputs,
             List<TensorDescriptor> outputs) {
-        Objects.requireNonNull(numericalProfile, "numericalProfile");
         Objects.requireNonNull(operation, "operation");
         Objects.requireNonNull(inputs, "inputs");
         Objects.requireNonNull(outputs, "outputs");
         if (mixedLowPrecision(inputs, outputs) && operation.kind() != CastKind.CAST) {
             return false;
         }
-        if (supportsBaselineOccurrence(numericalProfile, operation, inputs, outputs)) {
+        if (supportsBaselineOccurrence(operation, inputs, outputs)) {
             return true;
         }
         DataType lowType = homogeneousLowPrecision(inputs, outputs);
@@ -231,16 +233,13 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 inputs.stream().map(MetalCapabilityProvider::float32Proxy).toList();
         List<TensorDescriptor> proxyOutputs =
                 outputs.stream().map(MetalCapabilityProvider::float32Proxy).toList();
-        return supportsBaselineOccurrence(
-                numericalProfile, proxy, proxyInputs, proxyOutputs);
+        return supportsBaselineOccurrence(proxy, proxyInputs, proxyOutputs);
     }
 
     private static boolean supportsBaselineOccurrence(
-            NumericalProfile numericalProfile,
             Operation operation,
             List<TensorDescriptor> inputs,
             List<TensorDescriptor> outputs) {
-        Objects.requireNonNull(numericalProfile, "numericalProfile");
         Objects.requireNonNull(operation, "operation");
         Objects.requireNonNull(inputs, "inputs");
         Objects.requireNonNull(outputs, "outputs");
@@ -249,7 +248,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             try {
                 return operation.kind() == GraphRngKind.INITIAL_STATE
                         ? supportsInitialState(operation, inputs, outputs)
-                        : supportsDropout(numericalProfile, operation, inputs, outputs);
+                        : supportsDropout(operation, inputs, outputs);
             } catch (IllegalArgumentException | ArithmeticException incompatible) {
                 return false;
             }
@@ -305,11 +304,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             }
             if (operation.kind() == Conv2dKind.CONV2D
                     || operation.kind() == Conv3dKind.CONV3D) {
-                return supportsConvolution(numericalProfile, operation, inputs, output);
+                return supportsConvolution(operation, inputs, output);
             }
             if (operation.kind() instanceof Pool2dKind
                     || operation.kind() instanceof Pool3dKind) {
-                return supportsPooling(numericalProfile, operation, inputs, output);
+                return supportsPooling(operation, inputs, output);
             }
             if (operation.kind() == WindowTransformKind.UNFOLD2D
                     || operation.kind() == WindowTransformKind.UNFOLD3D) {
@@ -325,7 +324,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             }
             if (operation.kind() == AxisScatterKind.SCATTER_ADD) {
                 return supportsTask0069ScatterAdd(
-                        numericalProfile, operation, inputs, output);
+                        operation, inputs, output);
             }
             if (operation.kind() == AxisScatterKind.SCATTER_ELEMENTS) {
                 return supportsScatterElements(operation, inputs, output);
@@ -367,36 +366,33 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return supportsExactReduction(operation, inputs, output, reduction);
             }
             if (operation.kind() == MatmulKind.MATMUL) {
-                return supportsMatmul(numericalProfile, operation, inputs, output);
+                return supportsMatmul(operation, inputs, output);
             }
             if (operation.kind() instanceof BinaryComparisonKind comparison) {
                 return supportsComparison(operation, inputs, output, comparison);
             }
-            if (numericalProfile == NumericalProfile.ACCELERATOR) {
-                if (operation.kind() == LossKind.MEAN_SQUARED_ERROR) {
-                    return supportsMeanSquaredError(operation, inputs, output);
-                }
-                if (operation.kind() instanceof ScalarElementwiseKind scalar) {
-                    return supportsScalar(operation, inputs, output, scalar);
-                }
-                if (operation.kind() == UnaryElementwiseKind.RECIPROCAL) {
-                    return supportsReciprocal(operation, inputs, output);
-                }
-                if (operation.kind() instanceof CumulativeScanKind scan) {
-                    return supportsScan(operation, inputs, output, scan);
-                }
-                if (operation.kind() instanceof AggregateReductionKind reduction) {
-                    if (reduction == AggregateReductionKind.L1_NORM) {
-                        return supportsTask0069L1Norm(operation, inputs, output);
-                    }
-                    if (reduction == AggregateReductionKind.VARIANCE) {
-                        return supportsTask0069Variance(operation, inputs, output);
-                    }
-                    return supportsReduction(operation, inputs, output, reduction);
-                }
-                return supportsBinary(operation, inputs, output);
+            if (operation.kind() == LossKind.MEAN_SQUARED_ERROR) {
+                return supportsMeanSquaredError(operation, inputs, output);
             }
-            return false;
+            if (operation.kind() instanceof ScalarElementwiseKind scalar) {
+                return supportsScalar(operation, inputs, output, scalar);
+            }
+            if (operation.kind() == UnaryElementwiseKind.RECIPROCAL) {
+                return supportsReciprocal(operation, inputs, output);
+            }
+            if (operation.kind() instanceof CumulativeScanKind scan) {
+                return supportsScan(operation, inputs, output, scan);
+            }
+            if (operation.kind() instanceof AggregateReductionKind reduction) {
+                if (reduction == AggregateReductionKind.L1_NORM) {
+                    return supportsTask0069L1Norm(operation, inputs, output);
+                }
+                if (reduction == AggregateReductionKind.VARIANCE) {
+                    return supportsTask0069Variance(operation, inputs, output);
+                }
+                return supportsReduction(operation, inputs, output, reduction);
+            }
+            return supportsBinary(operation, inputs, output);
         } catch (IllegalArgumentException | ArithmeticException incompatible) {
             return false;
         }
@@ -525,12 +521,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     private static boolean supportsDropout(
-            NumericalProfile profile,
             Operation operation,
             List<TensorDescriptor> inputs,
             List<TensorDescriptor> outputs) {
-        if (profile != NumericalProfile.ACCELERATOR
-                || operation.kind() != DropoutKind.DROPOUT
+        if (operation.kind() != DropoutKind.DROPOUT
                 || !(operation.attrs() instanceof DropoutAttrs)
                 || inputs.size() != 2
                 || outputs.size() != 3) {
@@ -1647,13 +1641,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     private static boolean supportsConvolution(
-            NumericalProfile profile,
             Operation operation,
             List<TensorDescriptor> inputs,
             TensorDescriptor output) {
         int spatial = operation.kind() == Conv2dKind.CONV2D ? 2 : 3;
-        if (profile != NumericalProfile.ACCELERATOR
-                || inputs.size() < 2 || inputs.size() > 3
+        if (inputs.size() < 2 || inputs.size() > 3
                 || output.dataType() != DataType.FLOAT32
                 || !task0064Canonical(output, spatial + 2)) {
             return false;
@@ -1748,7 +1740,6 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     private static boolean supportsPooling(
-            NumericalProfile profile,
             Operation operation,
             List<TensorDescriptor> inputs,
             TensorDescriptor output) {
@@ -1770,8 +1761,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                     && input.dataType() != DataType.BFLOAT16) {
                 return false;
             }
-        } else if (profile != NumericalProfile.ACCELERATOR
-                || input.dataType() != DataType.FLOAT32) {
+        } else if (input.dataType() != DataType.FLOAT32) {
             return false;
         }
         long[] kernel = new long[spatial];
@@ -1912,7 +1902,6 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     private static boolean supportsMatmul(
-            NumericalProfile numericalProfile,
             Operation operation,
             List<TensorDescriptor> inputs,
             TensorDescriptor output) {
@@ -1939,7 +1928,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                     && !right.requiresGrad()
                     && !output.requiresGrad();
         }
-        if (numericalProfile != NumericalProfile.ACCELERATOR || outputType != DataType.FLOAT32) {
+        if (outputType != DataType.FLOAT32) {
             return false;
         }
         if (leftType == DataType.FLOAT32 && rightType == DataType.FLOAT32) return true;
@@ -2077,12 +2066,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     private static boolean supportsTask0069ScatterAdd(
-            NumericalProfile numericalProfile,
             Operation operation,
             List<TensorDescriptor> inputs,
             TensorDescriptor output) {
-        if (numericalProfile != NumericalProfile.ACCELERATOR
-                || !(operation.attrs() instanceof IndexAxisAttrs attrs)
+        if (!(operation.attrs() instanceof IndexAxisAttrs attrs)
                 || attrs.axis() != 0
                 || inputs.size() != 3) {
             return false;

@@ -245,7 +245,6 @@ final class MetalDeviceContext implements AutoCloseable {
         MetalNativeApi.Handle executable = null;
         try {
             executable = api.createProgramExecutable(handle,
-            plan.numericalProfile(),
             plan.programValueDescriptors(),
             plan.graphProgram(),
             plan.feedValueIndices(),

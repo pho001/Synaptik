@@ -10,7 +10,6 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 
 import org.junit.jupiter.api.Test;
 
@@ -41,7 +40,7 @@ class MetalMpsGraphIndexingNativeTest {
                     MetalMpsGraphProgram.Node.gather(0, 1, 2, 1),
                     MetalMpsGraphProgram.Node.oneHot(3, 4, 4)));
             long[][] shapes = {{2, 4}, {3}, {2, 3}, {3}, {3, 4}};
-            executable = api.createProgramExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks(shapes), dimensions(shapes), program), program, new int[] {0, 1, 3}, new int[] {2, 4}, MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context, MetalTestProgram.descriptors(ranks(shapes), dimensions(shapes), program), program, new int[] {0, 1, 3}, new int[] {2, 4}, MetalPreparedRoute.CUSTOM_PROGRAM);
 
             MetalNativeApi.Handle data = api.createBuffer(context, 8L * Integer.BYTES);
             MetalNativeApi.Handle gatherIndices = api.createBuffer(context, 3L * Integer.BYTES);
@@ -122,7 +121,6 @@ class MetalMpsGraphIndexingNativeTest {
             long[][] shapes = {{4}, {}, {}, {}, {5}};
             executable =
                     api.createProgramExecutable(context,
-                    NumericalProfile.STRICT_IEEE,
                     MetalTestProgram.descriptors(
                             ranks(shapes), dimensions(shapes), program),
                     program,
@@ -187,7 +185,6 @@ class MetalMpsGraphIndexingNativeTest {
                     descriptor(io.github.pho001.synaptik.model.datatype.DataType.INT64, 2, 1),
                     descriptor(io.github.pho001.synaptik.model.datatype.DataType.FLOAT32, 2, 3));
             executable = api.createProgramExecutable(context,
-            NumericalProfile.STRICT_IEEE,
             values,
             program,
             new int[] {0, 1, 3},
@@ -277,7 +274,6 @@ class MetalMpsGraphIndexingNativeTest {
                             io.github.pho001.synaptik.model.datatype.DataType.FLOAT32,
                             2, 2));
             executable = api.createProgramExecutable(context,
-            NumericalProfile.STRICT_IEEE,
             values,
             program,
             new int[] {0, 1},
@@ -347,7 +343,7 @@ class MetalMpsGraphIndexingNativeTest {
             MetalMpsGraphProgram program = new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.scatterElements(0, 1, 2, 3, 1)));
             long[][] shapes = {{2, 3}, {2, 2}, {2, 2}, {2, 3}};
-            executable = api.createProgramExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks(shapes), dimensions(shapes), program), program, new int[] {0, 1, 2}, new int[] {3}, MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context, MetalTestProgram.descriptors(ranks(shapes), dimensions(shapes), program), program, new int[] {0, 1, 2}, new int[] {3}, MetalPreparedRoute.CUSTOM_PROGRAM);
 
             MetalNativeApi.Handle data = api.createBuffer(context, 6L * Integer.BYTES);
             MetalNativeApi.Handle indices = api.createBuffer(context, 4L * Integer.BYTES);
@@ -429,7 +425,6 @@ class MetalMpsGraphIndexingNativeTest {
                     descriptor(io.github.pho001.synaptik.model.datatype.DataType.FLOAT32, 2, 2),
                     descriptor(io.github.pho001.synaptik.model.datatype.DataType.FLOAT32, 2, 3));
             executable = api.createProgramExecutable(context,
-            NumericalProfile.STRICT_IEEE,
             values,
             program,
             new int[] {0, 1, 2},
@@ -498,7 +493,7 @@ class MetalMpsGraphIndexingNativeTest {
         try {
             context = api.createContext();
             long[][] shapes = {{2, 6}, {2, 2, 3}};
-            executable = api.createProgramExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks(shapes), dimensions(shapes), new MetalMpsGraphProgram(List.of(
+            executable = api.createProgramExecutable(context, MetalTestProgram.descriptors(ranks(shapes), dimensions(shapes), new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 1, 3, 2)))), new MetalMpsGraphProgram(List.of(
             MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 1, 3, 2))), new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
             input = api.createBuffer(context, (long) inputBits.length * Integer.BYTES);
@@ -547,7 +542,6 @@ class MetalMpsGraphIndexingNativeTest {
                             List.of(MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 0, 17, 4)));
             executable =
                     api.createProgramExecutable(context,
-                    NumericalProfile.STRICT_IEEE,
                     MetalTestProgram.descriptors(
                             ranks(shapes), dimensions(shapes), program),
                     program,

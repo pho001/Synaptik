@@ -233,7 +233,7 @@ final class CpuStableReductionAttentionStageATest {
     List<Integer> roles = masked ? List.of(0, 1, 2, 3) : List.of(0, 1, 2);
     var ir = new CpuAttentionIr(dataType, dataType, dataType, dataType, masked, causal,
         outputCount, roles, types, plans(inputCount, outputCount));
-    var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, access, 0, -1, List.of(), true, 57);
+    var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, access, 0, -1, List.of(), true, 57);
     MethodHandle entry = new CpuClassFileKernelGenerator().defineClassBytes(specialization,
         new CpuClassFileKernelGenerator().generateClassBytes(specialization, ir.encodedKernelIr())).entryPoint();
     var geometry = geometry(dataType, rows, s, e, ev, masked, outputCount, logicalRows);

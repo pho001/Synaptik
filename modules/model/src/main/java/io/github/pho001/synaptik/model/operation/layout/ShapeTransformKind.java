@@ -21,12 +21,10 @@ import java.util.List;
  * input, target shape, result descriptor, layout, materialization requirement, or graph-occurrence
  * state.</p>
  *
- * <p>The Model-owned numerical-profile contract leaves this exact/discrete family unchanged under
- * {@code STRICT_IEEE} and {@code ACCELERATOR}: Shape derivation, logical ordering, alias/copy
- * mapping, and every stored payload representation remain exact. These transformations apply no
- * DAZ, FTZ, elementary approximation, or arithmetic tolerance. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Shape derivation, logical order, alias or copy mapping, and stored payloads remain exact.
+ * Shape transformations apply no arithmetic DAZ, FTZ, or finite tolerance. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  *
  * <p>These kinds define logical meaning only. Input-aware Model construction owns local
  * compatibility validation, result metadata, and provenance. In particular, an expansion may

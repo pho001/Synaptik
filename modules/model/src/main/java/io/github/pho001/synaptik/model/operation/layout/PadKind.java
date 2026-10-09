@@ -25,12 +25,11 @@ import java.util.List;
  * materialization, provenance, gradient, compiler, backend, ONNX, or execution behavior. Its
  * inherited enum name is diagnostic text rather than a serialization or dispatch identifier.</p>
  *
- * <p>The Model-owned numerical-profile contract preserves pad modes, widths, reflection/circular
- * mapping, copied payloads, and exact constant-fill values under both {@code STRICT_IEEE} and
- * {@code ACCELERATOR}. Padding itself applies no DAZ, FTZ, or arithmetic tolerance; later
- * arithmetic may use the selected profile only at its own named sites. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Pad mode, widths, reflection or circular mapping, copied payloads, and constant-fill values
+ * remain exact. Padding itself applies no arithmetic DAZ, FTZ, or finite tolerance; later
+ * arithmetic may use only its own named primitive-site permissions. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum PadKind implements OperationKind {
     /**

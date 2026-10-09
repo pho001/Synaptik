@@ -12,17 +12,15 @@ import java.util.List;
  * selected numerical meaning, not a reversed mathematical kernel, algorithm, decomposition,
  * gradient rule, compiler support, backend capability, lowering, storage, or execution route.</p>
  *
- * <p>Under the Model-owned graph numerical-profile contract, {@code STRICT_IEEE} retains this
- * exact convolution formula. For {@code ACCELERATOR FLOAT32}, groups, stride, dilation, padding,
- * layout mapping, padding values, contributor membership, and output placement remain exact.
- * Every declared term participates exactly once; each cell may use any binary tree, per-step
- * FLOAT32 rounding, DAZ/FTZ, and corresponding product/add fusion. It may not drop, duplicate,
- * invent, pretruncate, or replace a term, and convolution gains no MATMUL-specific final-zero
- * freedom. This is recursive construction freedom, not a final-output tolerance. Every current
- * non-FLOAT32 occurrence remains strict; the inactive low-precision reservation changes none of
- * them. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Groups, stride, dilation, padding, layout mapping, contributor membership, and output
+ * placement remain exact. Every declared product contributes once to a rounded sum tree, followed
+ * by the optional bias addition; corresponding multiply/add fusion requires an unobservable
+ * intermediate. FLOAT32, BFLOAT16, and FLOAT16 may use DAZ/FTZ only at named floating arithmetic
+ * primitive inputs/results, including low multiplication; FLOAT64 may not. Homogeneous low
+ * convolution works and accumulates in FLOAT32, then narrows once at the declared output. No term
+ * may be dropped or invented, and no whole-output tolerance is implied. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum Conv2dKind implements OperationKind {
     /**

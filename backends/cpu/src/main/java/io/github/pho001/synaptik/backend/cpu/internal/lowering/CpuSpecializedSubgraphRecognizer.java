@@ -302,7 +302,7 @@ public final class CpuSpecializedSubgraphRecognizer {
 
     private boolean supportedOccurrence(PrepareContext<CpuPartitionAnalysisInputs> context,
             CompiledNode node, Map<ValueId, GraphValue> values) {
-        var query = new OperationCapabilityQuery(context.numericalProfile(), node.operation(), node.inputs().stream()
+        var query = new OperationCapabilityQuery(node.operation(), node.inputs().stream()
                 .map(id -> require(values, id).descriptor()).toList(), node.outputs().stream()
         .map(id -> require(values, id).descriptor()).toList());
         return capabilities.supports(query);

@@ -109,7 +109,7 @@ class CpuPointwiseMaskEvidenceTest {
     }
 
     @Test void priorSchemaProjectionsRemainExplicitlySeparated() {
-        assertEquals(68, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(69, CpuGeneratorSchema.CURRENT_VERSION);
         CpuKernelIr virtual = virtualWhere(DataType.FLOAT32);
         assertEquals(52, specialization(virtual, DataType.FLOAT32, arrayCarriers(virtual), 52)
                 .classIdentitySchema());
@@ -281,7 +281,7 @@ class CpuPointwiseMaskEvidenceTest {
 
     private static CpuKernelSpecialization specialization(CpuKernelIr ir, DataType type,
             List<CpuKernelSpecialization.CarrierAccess> carriers, int schema) {
-        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, boundaryTypes(ir), carriers,
+        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, boundaryTypes(ir), carriers,
         bits(type), -1, List.of(), false, schema);
     }
 

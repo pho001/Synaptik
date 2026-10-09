@@ -336,7 +336,7 @@ class CpuIndexingGeneratedKernelTest {
             io.github.pho001.synaptik.model.tensor.TensorDescriptor output,
             List<CarrierAccess> carriers) {
         var base = CpuIndexingLoweringTest.context(operation, occurrences, inputs, output);
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
+        return new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
     }
     private static CarrierAccess heap(DataType t) { return switch(t) {
         case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;

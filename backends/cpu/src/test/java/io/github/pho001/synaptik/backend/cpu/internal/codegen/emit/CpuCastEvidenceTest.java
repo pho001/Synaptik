@@ -126,7 +126,7 @@ class CpuCastEvidenceTest {
     private static Generated generate(CpuClassFileKernelGenerator generator, Form form,
             CpuPartitionPreparationPlan.ExecutionStrategy strategy) {
         CpuKernelIr ir = ir(form.source, form.target, form.access);
-        CpuKernelSpecialization specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, strategy,
+        CpuKernelSpecialization specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), strategy,
         List.of(form.source, form.target), List.of(form.carriers.source(form.source),
                 form.carriers.target(form.target)), 0, -1, List.of(), false,
         form.source == form.target ? (form.source == DataType.BFLOAT16 ? 59 : 52) : 60);
@@ -194,7 +194,7 @@ class CpuCastEvidenceTest {
     private static CpuKernelSpecialization schema52Projection() {
         Form form = new Form(DataType.FLOAT64, DataType.FLOAT64, CARRIERS.getFirst(), AccessForm.DENSE);
         CpuKernelIr ir = ir(form.source, form.target, form.access);
-        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, List.of(DataType.FLOAT64, DataType.FLOAT64),
+        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, List.of(DataType.FLOAT64, DataType.FLOAT64),
         List.of(CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,
                 CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY), 0, -1, List.of(), false, 52);
     }
@@ -202,7 +202,7 @@ class CpuCastEvidenceTest {
     private static CpuKernelSpecialization schema59Projection() {
         Form form = new Form(DataType.BFLOAT16, DataType.BFLOAT16, CARRIERS.getFirst(), AccessForm.DENSE);
         CpuKernelIr ir = ir(form.source, form.target, form.access);
-        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, List.of(DataType.BFLOAT16, DataType.BFLOAT16),
+        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, List.of(DataType.BFLOAT16, DataType.BFLOAT16),
         List.of(CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY,
                 CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY), 0, -1, List.of(), false, 59);
     }

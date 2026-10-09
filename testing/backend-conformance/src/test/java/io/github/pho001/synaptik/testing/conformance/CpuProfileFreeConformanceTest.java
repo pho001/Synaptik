@@ -3,8 +3,6 @@ package io.github.pho001.synaptik.testing.conformance;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
@@ -16,7 +14,6 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalys
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizer;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
@@ -52,48 +49,38 @@ import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/** Bounded public CPU capability, preparation, and execution parity across numerical profiles. */
-final class CpuNumericalProfileConformanceTest {
+/** Bounded profile-free CPU capability, preparation, and represented-value execution. */
+final class CpuProfileFreeConformanceTest {
     private static final Shape SHAPE = Shape.of(3);
     private static final TensorDescriptor FLOAT = descriptor(DataType.FLOAT32);
 
     @Test
-    void strictAndAcceleratorShareCapabilityPlanAndRepresentedExecution() {
+    void supportedNegPreparesAndPreservesRepresentedExecution() {
         try (CpuBackendIntegration integration = CpuBackendIntegration.open()) {
             var operation = new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE);
-            var strictQuery = new OperationCapabilityQuery(NumericalProfile.STRICT_IEEE,
-                    operation, List.of(FLOAT), List.of(FLOAT));
-            var acceleratorQuery = new OperationCapabilityQuery(NumericalProfile.ACCELERATOR,
+            var query = new OperationCapabilityQuery(
                     operation, List.of(FLOAT), List.of(FLOAT));
             var bool = descriptor(DataType.BOOL);
-            assertTrue(integration.capabilityProvider().supports(strictQuery));
-            assertEquals(integration.capabilityProvider().supports(strictQuery),
-                    integration.capabilityProvider().supports(acceleratorQuery));
+            assertTrue(integration.capabilityProvider().supports(query));
             assertFalse(integration.capabilityProvider().supports(new OperationCapabilityQuery(
-                    NumericalProfile.STRICT_IEEE, operation, List.of(bool), List.of(bool))));
-            assertFalse(integration.capabilityProvider().supports(new OperationCapabilityQuery(
-                    NumericalProfile.ACCELERATOR, operation, List.of(bool), List.of(bool))));
+                    operation, List.of(bool), List.of(bool))));
 
-            Evidence strict = execute(integration, NumericalProfile.STRICT_IEEE);
-            Evidence accelerator = execute(integration, NumericalProfile.ACCELERATOR);
-            assertSame(NumericalProfile.STRICT_IEEE, strict.profile());
-            assertSame(NumericalProfile.ACCELERATOR, accelerator.profile());
-            assertEquals(strict.route(), accelerator.route());
-            assertEquals(strict.strategy(), accelerator.strategy());
-            assertEquals(strict.rangeCount(), accelerator.rangeCount());
-            assertEquals(strict.minimumElementsPerWorker(),
-                    accelerator.minimumElementsPerWorker());
-            assertEquals(strict.vectorSpeciesBits(), accelerator.vectorSpeciesBits());
-            assertEquals(strict.irKey(), accelerator.irKey());
-            assertNotEquals(strict.specializationKey(), accelerator.specializationKey());
-            assertArrayEquals(new float[] {-1.25f, 2.5f, -4.0f}, strict.output());
-            assertArrayEquals(strict.output(), accelerator.output());
+            Evidence result = execute(integration);
+            assertEquals(CpuPartitionPreparationPlan.Route.PORTABLE, result.route());
+            assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR,
+                    result.strategy().compute());
+            assertEquals(1, result.rangeCount());
+            assertTrue(result.minimumElementsPerWorker() > 0);
+            assertTrue(result.vectorSpeciesBits() >= 0);
+            assertFalse(result.irKey().isBlank());
+            assertFalse(result.specializationKey().isBlank());
+            assertArrayEquals(new float[] {-1.25f, 2.5f, -4.0f}, result.output());
         }
     }
 
-    private static Evidence execute(CpuBackendIntegration integration, NumericalProfile profile) {
+    private static Evidence execute(CpuBackendIntegration integration) {
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis =
-                new CpuPartitionPreparer().analyze(context(profile));
+                new CpuPartitionPreparer().analyze(context());
         CpuPartitionPreparationPlan plan = analysis.plan();
         PreparedExecutable executable = finalizePortable(analysis);
         float[] input = {1.25f, -2.5f, 4.0f};
@@ -113,13 +100,13 @@ final class CpuNumericalProfileConformanceTest {
             output = outputSegment.toArray(java.lang.foreign.ValueLayout.JAVA_FLOAT);
         }
         var unit = plan.units().getFirst();
-        return new Evidence(plan.numericalProfile(), plan.route(), unit.executionStrategy(),
+        return new Evidence(plan.route(), unit.executionStrategy(),
                 unit.selectedRangeCount(), unit.minimumElementsPerWorker(),
                 unit.vectorSpeciesBitSize(), unit.portablePlan().kernelIr().structuralKey(),
                 unit.portablePlan().specialization().structuralKey(), output);
     }
 
-    private static PrepareContext<CpuPartitionAnalysisInputs> context(NumericalProfile profile) {
+    private static PrepareContext<CpuPartitionAnalysisInputs> context() {
         var input = new ValueId(0);
         var output = new ValueId(1);
         var node = new CompiledNode(new NodeId(0),
@@ -136,7 +123,7 @@ final class CpuNumericalProfileConformanceTest {
         var inputs = new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT),
                 new PortableExecutionConfig(ComputePreference.SCALAR, 1, 1, 1));
-        return new PrepareContext<>(profile, partition, List.of(node), values, memory, Map.of(),
+        return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(),
                 inputs);
     }
 
@@ -177,7 +164,7 @@ final class CpuNumericalProfileConformanceTest {
                 Optional.of(LayoutDescriptor.contiguous(SHAPE)), false);
     }
 
-    private record Evidence(NumericalProfile profile, CpuPartitionPreparationPlan.Route route,
+    private record Evidence(CpuPartitionPreparationPlan.Route route,
             CpuPartitionPreparationPlan.ExecutionStrategy strategy, int rangeCount,
             long minimumElementsPerWorker, int vectorSpeciesBits, String irKey,
             String specializationKey, float[] output) {

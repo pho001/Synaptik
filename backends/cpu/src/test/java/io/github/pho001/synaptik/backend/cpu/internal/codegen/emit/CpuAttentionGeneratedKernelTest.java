@@ -42,7 +42,7 @@ class CpuAttentionGeneratedKernelTest {
             List.of(read, read, read, write, write));
     var ir = attention.encodedKernelIr();
     var specialization =
-        new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
         List.of(
             DataType.FLOAT32,
             DataType.FLOAT32,

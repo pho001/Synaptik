@@ -45,7 +45,7 @@ final class CpuScalarImmediateClampEquivalenceOracle {
         var node = new CompiledNode(nodeId, new Operation(ScalarElementwiseKind.MUL,
                 new ScalarValueAttrs(ScalarValue.bfloat16(fixture.immediate()))), List.of(input), List.of(output));
         var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID, List.of(nodeId));
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), List.of(new GraphValue(input, descriptor), new GraphValue(output, descriptor)), List.of(new LogicalMemoryRequirement(input, descriptor, Optional.empty(), List.of(partition), false),
+        var context = new PrepareContext<>(partition, List.of(node), List.of(new GraphValue(input, descriptor), new GraphValue(output, descriptor)), List.of(new LogicalMemoryRequirement(input, descriptor, Optional.empty(), List.of(partition), false),
                 new LogicalMemoryRequirement(output, descriptor, Optional.of(partition), List.of(), true)), java.util.Map.of(), new CpuPartitionAnalysisInputs(true,
                 List.of(CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY,
                         CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY),

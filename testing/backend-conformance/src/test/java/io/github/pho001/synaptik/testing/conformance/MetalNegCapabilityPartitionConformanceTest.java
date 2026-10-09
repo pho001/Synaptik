@@ -1,12 +1,10 @@
 package io.github.pho001.synaptik.testing.conformance;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
@@ -66,29 +64,20 @@ import org.junit.jupiter.api.Test;
 
 /** Conformance checks for public Metal capability truth and Planning maximal closure. */
 final class MetalNegCapabilityPartitionConformanceTest {
-    /** Proves the strict matrix is a subset of the complete accelerator matrix. */
+    /** Proves representative positive and negative profile-free provider predicates. */
     @Test
-    void advertisesExactProfileQualifiedDomain() {
+    void advertisesOccurrenceQualifiedDomain() {
         var provider = new MetalCapabilityProvider();
         TensorDescriptor matrix = descriptor(Shape.of(2, 3));
         TensorDescriptor row = descriptor(Shape.of(3));
         for (UnaryElementwiseKind kind : UnaryElementwiseKind.values()) {
             assertEquals(
-                    exactRawUnary(kind),
-                    provider.supports(query(
-                            NumericalProfile.STRICT_IEEE,
-                            operation(kind),
-                            List.of(matrix),
-                            List.of(matrix))),
-                    "strict " + kind);
-            assertEquals(
                     exactRawUnary(kind) || kind == UnaryElementwiseKind.RECIPROCAL,
                     provider.supports(query(
-                            NumericalProfile.ACCELERATOR,
                             operation(kind),
                             List.of(matrix),
                             List.of(matrix))),
-                    "accelerator " + kind);
+                    kind.toString());
         }
         for (BinaryArithmeticKind kind : BinaryArithmeticKind.values()) {
             boolean supported = kind == BinaryArithmeticKind.ADD
@@ -97,13 +86,7 @@ final class MetalNegCapabilityPartitionConformanceTest {
                     || kind == BinaryArithmeticKind.DIV
                     || kind == BinaryArithmeticKind.MIN
                     || kind == BinaryArithmeticKind.MAX;
-            assertFalse(provider.supports(query(
-                    NumericalProfile.STRICT_IEEE,
-                    operation(kind),
-                    List.of(matrix, row),
-                    List.of(matrix))));
             assertEquals(supported, provider.supports(query(
-                    NumericalProfile.ACCELERATOR,
                     operation(kind),
                     List.of(matrix, row),
                     List.of(matrix))));
@@ -115,11 +98,6 @@ final class MetalNegCapabilityPartitionConformanceTest {
                             kind,
                             new ScalarValueAttrs(ScalarValue.float32(2.0f)));
             if (scalarOperation == null) continue;
-            assertFalse(provider.supports(query(
-                    NumericalProfile.STRICT_IEEE,
-                    scalarOperation,
-                    List.of(matrix),
-                    List.of(matrix))), "strict " + kind);
             assertEquals(
                     kind == ScalarElementwiseKind.ADD
                             || kind == ScalarElementwiseKind.SUB
@@ -128,11 +106,10 @@ final class MetalNegCapabilityPartitionConformanceTest {
                             || kind == ScalarElementwiseKind.MIN
                             || kind == ScalarElementwiseKind.MAX,
                     provider.supports(query(
-                            NumericalProfile.ACCELERATOR,
                             scalarOperation,
                             List.of(matrix),
                             List.of(matrix))),
-                    "accelerator " + kind);
+                    kind.toString());
         }
         TensorDescriptor cube = descriptor(Shape.of(2, 3, 4));
         TensorDescriptor scalar = descriptor(Shape.scalar());
@@ -145,47 +122,36 @@ final class MetalNegCapabilityPartitionConformanceTest {
                 AggregateReductionKind.ALL,
                 AggregateReductionKind.ANY)) {
             Operation full = new Operation(kind, NoOperationAttrs.INSTANCE);
-            assertFalse(provider.supports(query(
-                    NumericalProfile.STRICT_IEEE,
-                    full,
-                    List.of(cube),
-                    List.of(scalar))),
-                    "strict " + kind);
             assertEquals(
                     kind == AggregateReductionKind.SUM
                             || kind == AggregateReductionKind.MEAN
                             || kind == AggregateReductionKind.MIN
                             || kind == AggregateReductionKind.MAX,
                     provider.supports(query(
-                            NumericalProfile.ACCELERATOR,
                             full,
                             List.of(cube),
                             List.of(scalar))),
-                    "accelerator " + kind);
+                    kind.toString());
         }
         assertTrue(provider.supports(query(
-                NumericalProfile.ACCELERATOR,
                 new Operation(
                         AggregateReductionKind.MEAN,
                         new AxisReductionAttrs(1, false)),
                 List.of(cube),
                 List.of(descriptor(Shape.of(2, 4))))));
         assertTrue(provider.supports(query(
-                NumericalProfile.ACCELERATOR,
                 new Operation(
                         AggregateReductionKind.SUM,
                         new AxisReductionAttrs(1, true)),
                 List.of(cube),
                 List.of(descriptor(Shape.of(2, 1, 4))))));
         assertTrue(provider.supports(query(
-                NumericalProfile.ACCELERATOR,
                 new Operation(
                         AggregateReductionKind.SUM,
                         new MultiAxisReductionAttrs(List.of(), false)),
                 List.of(cube),
                 List.of(cube))));
         assertTrue(provider.supports(query(
-                NumericalProfile.ACCELERATOR,
                 new Operation(
                         AggregateReductionKind.SUM,
                         new SumToShapeAttrs(Shape.of(1, 4))),
@@ -195,25 +161,17 @@ final class MetalNegCapabilityPartitionConformanceTest {
         TensorDescriptor product = descriptor(Shape.of(2, 4));
         Operation matmul = new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE);
         assertTrue(provider.supports(query(
-                NumericalProfile.ACCELERATOR,
-                matmul,
-                List.of(matrix, right),
-                List.of(product))));
-        assertFalse(provider.supports(query(
-                NumericalProfile.STRICT_IEEE,
                 matmul,
                 List.of(matrix, right),
                 List.of(product))));
         TensorDescriptor transposedRight = view(Shape.of(3, 4), 1, 3);
         assertTrue(provider.supports(query(
-                NumericalProfile.ACCELERATOR,
                 new Operation(
                         AxisTransformKind.PERMUTE,
                         new PermutationAttrs(List.of(1, 0))),
                 List.of(descriptor(Shape.of(4, 3))),
                 List.of(transposedRight))));
         assertTrue(provider.supports(query(
-                NumericalProfile.ACCELERATOR,
                 matmul,
                 List.of(matrix, transposedRight),
                 List.of(product))));
@@ -221,20 +179,14 @@ final class MetalNegCapabilityPartitionConformanceTest {
         Operation contiguous = new Operation(
                 ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE);
         assertTrue(provider.supports(query(
-                NumericalProfile.STRICT_IEEE,
-                contiguous,
-                List.of(matrix),
-                List.of(matrix))));
-        assertTrue(provider.supports(query(
-                NumericalProfile.ACCELERATOR,
                 contiguous,
                 List.of(matrix),
                 List.of(matrix))));
     }
 
-    /** Proves all three accelerator MSE reductions form one maximal Metal partition. */
+    /** Proves all three supported MSE reductions form one maximal Metal partition. */
     @Test
-    void acceleratorMseCapabilityAndMaximalPartitionAgree() {
+    void mseCapabilityAndMaximalPartitionAgree() {
         var provider = new MetalCapabilityProvider();
         TensorDescriptor tensor = descriptor(Shape.of(2, 3));
         TensorDescriptor scalar = descriptor(Shape.scalar());
@@ -254,12 +206,6 @@ final class MetalNegCapabilityPartitionConformanceTest {
             TensorDescriptor output =
                     reductions.get(index) == LossReduction.NONE ? tensor : scalar;
             assertTrue(provider.supports(query(
-                    NumericalProfile.ACCELERATOR,
-                    operation,
-                    List.of(tensor, tensor),
-                    List.of(output))));
-            assertFalse(provider.supports(query(
-                    NumericalProfile.STRICT_IEEE,
                     operation,
                     List.of(tensor, tensor),
                     List.of(output))));
@@ -345,9 +291,9 @@ final class MetalNegCapabilityPartitionConformanceTest {
                 partitions.getFirst().nodeIds());
     }
 
-    /** Proves all four accelerator binaries form one ordered maximal partition. */
+    /** Proves all four supported binaries form one ordered maximal partition. */
     @Test
-    void eligibleAcceleratorBinaryOccurrencesBecomeOneMaximalPartition() {
+    void eligibleBinaryOccurrencesBecomeOneMaximalPartition() {
         TensorDescriptor matrix = descriptor(Shape.of(2, 3));
         TensorDescriptor row = descriptor(Shape.of(3));
         ValueId matrixInput = new ValueId(20);
@@ -406,9 +352,9 @@ final class MetalNegCapabilityPartitionConformanceTest {
                 partitions.getFirst().nodeIds());
     }
 
-    /** Proves the visible local transpose and MATMUL become one accelerator partition. */
+    /** Proves the visible local transpose and MATMUL become one Metal partition. */
     @Test
-    void acceleratorLinearTopologyBecomesOneMaximalPartition() {
+    void eligibleLinearTopologyBecomesOneMaximalPartition() {
         ValueId left = new ValueId(40);
         ValueId weight = new ValueId(41);
         ValueId transposed = new ValueId(42);
@@ -561,21 +507,13 @@ final class MetalNegCapabilityPartitionConformanceTest {
                 List.of(scatterNegated));
         List<CompiledNode> nodes = List.of(gather, neg, encode, scatter, scatterNeg);
         var provider = new MetalCapabilityProvider();
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            assertTrue(provider.supports(query(
-                    profile, gather.operation(),
-                    List.of(dataDescriptor, indexDescriptor),
-                    List.of(gatheredDescriptor))));
-            assertTrue(provider.supports(query(
-                    profile, encode.operation(),
-                    List.of(indexDescriptor),
-                    List.of(oneHotDescriptor))));
-            assertTrue(provider.supports(query(
-                    profile,
-                    scatter.operation(),
-                    List.of(dataDescriptor, scatterIndexDescriptor, updateDescriptor),
-                    List.of(dataDescriptor))));
-        }
+        assertTrue(provider.supports(query(gather.operation(),
+                List.of(dataDescriptor, indexDescriptor), List.of(gatheredDescriptor))));
+        assertTrue(provider.supports(query(encode.operation(),
+                List.of(indexDescriptor), List.of(oneHotDescriptor))));
+        assertTrue(provider.supports(query(scatter.operation(),
+                List.of(dataDescriptor, scatterIndexDescriptor, updateDescriptor),
+                List.of(dataDescriptor))));
         var graph = new CompiledGraphModel(
                 List.of(
                         new GraphValue(data, dataDescriptor),
@@ -624,36 +562,24 @@ final class MetalNegCapabilityPartitionConformanceTest {
         TensorDescriptor trueBranch = descriptor(Shape.of(2, 1));
         TensorDescriptor falseBranch = descriptor(Shape.of(3));
 
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            for (FloatingClassificationKind kind : FloatingClassificationKind.values()) {
-                assertTrue(provider.supports(query(
-                        profile,
-                        new Operation(kind, NoOperationAttrs.INSTANCE),
-                        List.of(floatMatrix),
-                        List.of(boolMatrix))),
-                        profile + " " + kind);
-            }
-            for (BooleanLogicalKind kind :
-                    List.of(BooleanLogicalKind.AND, BooleanLogicalKind.OR)) {
-                assertTrue(provider.supports(query(
-                        profile,
-                        new Operation(kind, NoOperationAttrs.INSTANCE),
-                        List.of(boolColumn, boolRow),
-                        List.of(boolMatrix))),
-                        profile + " " + kind);
-            }
+        for (FloatingClassificationKind kind : FloatingClassificationKind.values()) {
             assertTrue(provider.supports(query(
-                    profile,
-                    new Operation(BooleanLogicalKind.NOT, NoOperationAttrs.INSTANCE),
-                    List.of(boolMatrix),
-                    List.of(boolMatrix))));
+                    new Operation(kind, NoOperationAttrs.INSTANCE),
+                    List.of(floatMatrix), List.of(boolMatrix))), kind.toString());
+        }
+        for (BooleanLogicalKind kind :
+                List.of(BooleanLogicalKind.AND, BooleanLogicalKind.OR)) {
             assertTrue(provider.supports(query(
-                    profile,
-                    new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
-                    List.of(boolRow, trueBranch, falseBranch),
-                    List.of(floatMatrix))));
+                    new Operation(kind, NoOperationAttrs.INSTANCE),
+                    List.of(boolColumn, boolRow), List.of(boolMatrix))), kind.toString());
+        }
+        assertTrue(provider.supports(query(
+                new Operation(BooleanLogicalKind.NOT, NoOperationAttrs.INSTANCE),
+                List.of(boolMatrix), List.of(boolMatrix))));
+        assertTrue(provider.supports(query(
+                new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
+                List.of(boolRow, trueBranch, falseBranch), List.of(floatMatrix))));
       assertTrue(provider.supports(query(
-                    profile,
                     new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
                     List.of(
                             typed(DataType.BOOL, Shape.scalar()),
@@ -662,7 +588,6 @@ final class MetalNegCapabilityPartitionConformanceTest {
                     List.of(floatMatrix))),
           "rank-zero BOOL condition broadcasts in Metal capability");
       assertTrue(provider.supports(query(
-                    profile,
                     new Operation(SelectKind.SELECT, new SelectAttrs(0,1)),
                     List.of(descriptor(Shape.of(3))),
                   List.of(
@@ -672,7 +597,6 @@ final class MetalNegCapabilityPartitionConformanceTest {
                           Optional.of(LayoutDescriptor.of(Shape.scalar(), new long[0], 1L, true)),
                           false)))),
           "wire 73 SELECT admits a scalar output");
-        }
     }
 
     /** Proves materialized general-axis windows compose with exact Metal elementwise work. */
@@ -696,11 +620,8 @@ final class MetalNegCapabilityPartitionConformanceTest {
         TensorDescriptor inputDescriptor = descriptor(Shape.of(2, 6));
         TensorDescriptor outputDescriptor = descriptor(Shape.of(2, 2, 3));
         var provider = new MetalCapabilityProvider();
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            assertTrue(provider.supports(query(
-                    profile, unfold.operation(),
-                    List.of(inputDescriptor), List.of(outputDescriptor))));
-        }
+        assertTrue(provider.supports(query(unfold.operation(),
+                List.of(inputDescriptor), List.of(outputDescriptor))));
         var graph = new CompiledGraphModel(
                 List.of(
                         new GraphValue(input, inputDescriptor),
@@ -751,15 +672,11 @@ final class MetalNegCapabilityPartitionConformanceTest {
                 List.of(topValues),
                 List.of(arg));
         var provider = new MetalCapabilityProvider();
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            assertTrue(provider.supports(query(
-                    profile, sort.operation(), List.of(matrix), List.of(matrix))));
-            assertTrue(provider.supports(query(
-                    profile, top.operation(), List.of(matrix),
-                    List.of(topMatrix, topIndexMatrix))));
-            assertTrue(provider.supports(query(
-                    profile, maximum.operation(), List.of(topMatrix), List.of(argVector))));
-        }
+        assertTrue(provider.supports(query(sort.operation(), List.of(matrix), List.of(matrix))));
+        assertTrue(provider.supports(query(top.operation(), List.of(matrix),
+                List.of(topMatrix, topIndexMatrix))));
+        assertTrue(provider.supports(query(maximum.operation(), List.of(topMatrix),
+                List.of(argVector))));
         var graph = new CompiledGraphModel(
                 List.of(
                         new GraphValue(input, matrix),
@@ -788,11 +705,10 @@ final class MetalNegCapabilityPartitionConformanceTest {
     }
 
     private static OperationCapabilityQuery query(
-            NumericalProfile profile,
             Operation operation,
             List<TensorDescriptor> inputs,
             List<TensorDescriptor> outputs) {
-        return new OperationCapabilityQuery(profile, operation, inputs, outputs);
+        return new OperationCapabilityQuery(operation, inputs, outputs);
     }
 
     private static TensorDescriptor descriptor(Shape shape) {

@@ -576,7 +576,37 @@ class CpuScatterGeneratedKernelTest {
     }
 
     @Test
-    void exactFloatingProductMatchesIndependentSpecialValueAndRoundingOracle() throws Throwable {
+    void generatedFloat32ScatterProductYieldsPositiveZeroForOverflowTimesZeroWitness()
+            throws Throwable {
+        float maximum = Float.MAX_VALUE;
+        float untouched = Float.intBitsToFloat(0x7fc0_1234);
+        float[] base = {maximum, untouched};
+        float[] updates = {2.0f, 0.0f};
+        float[] output = {Float.NaN, Float.NaN};
+
+        // This CPU route's product differs from an allowed overflow-first rounded tree.
+        assertTrue(Float.isNaN((maximum * updates[0]) * updates[1]));
+        invoke(
+                context(
+                        new Operation(
+                                AxisScatterKind.SCATTER_ELEMENTS,
+                                new ScatterElementsAttrs(0, ScatterReduction.MUL)),
+                        List.of(
+                                desc(DataType.FLOAT32, Shape.of(2)),
+                                desc(DataType.INT32, Shape.of(2)),
+                                desc(DataType.FLOAT32, Shape.of(2))),
+                        desc(DataType.FLOAT32, Shape.of(2))),
+                List.of(base, new int[] {0, 0}, updates, output));
+
+        assertEquals(0x0000_0000, Float.floatToRawIntBits(output[0]));
+        assertEquals(0x7fc0_1234, Float.floatToRawIntBits(output[1]));
+        assertEquals(Float.floatToRawIntBits(maximum), Float.floatToRawIntBits(base[0]));
+        assertEquals(0x7fc0_1234, Float.floatToRawIntBits(base[1]));
+        assertArrayEquals(new float[] {2.0f, 0.0f}, updates);
+    }
+
+    @Test
+    void generatedFloatingProductMatchesRouteLocalSpecialValueAndRoundingOracle() throws Throwable {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
             double minimumNormal =
                     type == DataType.FLOAT64
@@ -823,7 +853,7 @@ class CpuScatterGeneratedKernelTest {
                         List.of(data, indices, updates),
                         outputDescriptor);
         var context =
-                new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(
+                new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(
                         false,
                         List.of(
                                 CarrierAccess.MEMORY_SEGMENT, CarrierAccess.INT_ARRAY,
@@ -1170,7 +1200,7 @@ class CpuScatterGeneratedKernelTest {
         for (var input : inputs)
             carriers.add(segments ? CarrierAccess.MEMORY_SEGMENT : heap(input.dataType()));
         carriers.add(segments ? CarrierAccess.MEMORY_SEGMENT : heap(output.dataType()));
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
+        return new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> context(
@@ -1179,7 +1209,7 @@ class CpuScatterGeneratedKernelTest {
             io.github.pho001.synaptik.model.tensor.TensorDescriptor output,
             List<CarrierAccess> carriers) {
         var base = CpuScatterLoweringTest.context(operation, List.of(0, 1, 2), inputs, output);
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
+        return new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
     }
 
     private static CarrierAccess heap(DataType t) {

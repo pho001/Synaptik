@@ -20,17 +20,17 @@ import java.util.List;
  * NoOperationAttrs.INSTANCE}. Broadcast geometry is derived from operand shapes and is not stored
  * as an attribute or as mutable state on the kind.</p>
  *
- * <p>Under the Model-owned graph numerical-profile contract, {@code STRICT_IEEE} retains every
- * rule above. For {@code ACCELERATOR FLOAT32}, each named arithmetic site may use DAZ/FTZ,
- * one-round basic arithmetic, and a corresponding fused multiply-add only where no intermediate
- * is observable; {@code POW} is additionally an irreducible elementary site with an inclusive
- * ordered-binary32 distance ceiling of five. {@code MIN} and {@code MAX} preserve their exact NaN,
- * signed-zero, and original-candidate selection rules, except that DAZ-normalized values may tie.
- * Existing final exact-zero publication freedoms remain local to their named final results. This
- * is a site rule, not a final-output tolerance. Every current non-FLOAT32 occurrence remains
- * strict; the inactive low-precision reservation changes none of them. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>The arithmetic kinds use their named ADD, SUB, MUL, DIV, or POW site after exact broadcasting
+ * and promotion. FLOAT32, BFLOAT16, and FLOAT16 may treat a subnormal input to a named floating
+ * arithmetic primitive as same-signed zero (DAZ) and flush a finite subnormal primitive result to
+ * zero (FTZ), subject to the kind's signed-zero rule; FLOAT64 may do neither. Homogeneous low
+ * arithmetic uses FLOAT32 working values and one final ties-to-even low narrowing. POW retains its
+ * mathematical function, domain, and special-value rules; finite accuracy is qualified per route in
+ * tests, not by a public distance bound. MIN and MAX instead compare stored represented values,
+ * including subnormals, and preserve their NaN, signed-zero, and candidate-selection rules without
+ * DAZ or FTZ. No arithmetic freedom crosses an observable intermediate. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  *
  * <p>Enum identity supplies typed equality and hashing, so an equally named constant in another
  * operation family remains a different semantic value. The inherited {@link #name()} and
@@ -41,10 +41,11 @@ public enum BinaryArithmeticKind implements OperationKind {
     /**
      * Adds the left element value to the corresponding right element value.
      *
-     * <p>The semantic request is ordinary ordered IEEE-754 addition in the eventual result data
-     * type, including its NaN, infinity, signed-zero, overflow, and underflow classifications.
-     * It promises no NaN payload, intermediate precision, exact instruction, or bitwise result.
-     * Operand eligibility, broadcasting, result-data-type derivation, gradients, execution, and
+     * <p>The semantic request is ordered floating addition at the declared working type, including
+     * its NaN, infinity, signed-zero, overflow, and underflow classifications. In particular,
+     * {@code -0 + +0} produces {@code +0}. It promises no NaN payload, exact instruction, or
+     * bitwise reproducibility beyond these requirements. Operand eligibility, broadcasting,
+     * result-data-type derivation, gradients, execution, and
      * backend availability belong to their owning contracts.</p>
      */
     ADD,
@@ -52,9 +53,9 @@ public enum BinaryArithmeticKind implements OperationKind {
     /**
      * Subtracts the right element value from the corresponding left element value.
      *
-     * <p>The left-minus-right order and ordinary IEEE-754 subtraction in the eventual result data
-     * type are semantic. The request promises no NaN payload, intermediate precision, exact
-     * instruction, or bitwise result. Operand eligibility, broadcasting, result-data-type
+     * <p>The left-minus-right order and the named subtraction site's working-type and special-value
+     * rules are semantic. The request promises no NaN payload, exact instruction, or bitwise
+     * reproducibility beyond its special-value rules. Operand eligibility, broadcasting, result-data-type
      * derivation, gradients, execution, and backend availability belong to their owners.</p>
      */
     SUB,
@@ -62,9 +63,10 @@ public enum BinaryArithmeticKind implements OperationKind {
     /**
      * Multiplies the left element value by the corresponding right element value.
      *
-     * <p>The semantic request is ordinary ordered IEEE-754 multiplication in the eventual result
-     * data type. It promises no NaN payload, intermediate precision, exact instruction, or
-     * bitwise result. Operand eligibility, broadcasting, result-data-type derivation, gradients,
+     * <p>The semantic request is ordered multiplication at the declared working type, including
+     * the low-type arithmetic-site DAZ/FTZ permission above. It promises no NaN payload, exact
+     * instruction, or bitwise reproducibility beyond its special-value rules. Operand eligibility,
+     * broadcasting, result-data-type derivation, gradients,
      * execution, and backend availability belong to their owning contracts.</p>
      */
     MUL,
@@ -72,9 +74,9 @@ public enum BinaryArithmeticKind implements OperationKind {
     /**
      * Divides the left element value by the corresponding right element value.
      *
-     * <p>The left-divided-by-right order and ordinary IEEE-754 division in the eventual result
-     * data type are semantic. The request promises no NaN payload, intermediate precision, exact
-     * instruction, or bitwise result. Operand eligibility, broadcasting, result-data-type
+     * <p>The left-divided-by-right order and the named division site's working-type and special-value
+     * rules are semantic. The request promises no NaN payload, exact instruction, or bitwise
+     * reproducibility beyond its special-value rules. Operand eligibility, broadcasting, result-data-type
      * derivation, gradients, execution, and backend availability belong to their owners.</p>
      */
     DIV,

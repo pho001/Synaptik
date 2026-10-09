@@ -37,7 +37,7 @@ class BackendOwnerSelectionTest {
     private static final TensorDescriptor FLOAT_VECTOR =
             new TensorDescriptor(DataType.FLOAT32, Shape.of(2), Optional.empty(), false);
     private static final OperationCapabilityQuery QUERY =
-            new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE), List.of(FLOAT_VECTOR), List.of(FLOAT_VECTOR));
+            new OperationCapabilityQuery(new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE), List.of(FLOAT_VECTOR), List.of(FLOAT_VECTOR));
 
     @Test
     void hasTheExactPackagePrivateStatelessSelectorShape() throws ReflectiveOperationException {

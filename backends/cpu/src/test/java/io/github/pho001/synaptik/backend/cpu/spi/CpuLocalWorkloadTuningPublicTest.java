@@ -110,22 +110,13 @@ final class CpuLocalWorkloadTuningPublicTest {
             assertTrue(candidates.size() >= 2);
             assertSame(artifacts.partitions().getFirst(), handoff.partition());
             assertTrue(handoff.selectedDecision().isEmpty());
-            CompileArtifacts acceleratorArtifacts = withProfile(
-                    artifacts,
-                    io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR);
-            var acceleratorBatch = tuning.candidateHandoff(
-                    context(integration, acceleratorArtifacts)).orElseThrow().candidateBatch();
+            var repeatedBatch = tuning.candidateHandoff(
+                    context(integration, artifacts)).orElseThrow().candidateBatch();
             assertAll(
-                    () -> assertEquals(2, java.nio.ByteBuffer.wrap(
+                    () -> assertEquals(3, java.nio.ByteBuffer.wrap(
                             tuning.compatibility(batch).bytes()).getInt()),
-                    () -> assertEquals(2, java.nio.ByteBuffer.wrap(
-                            tuning.compatibility(acceleratorBatch).bytes()).getInt()),
-                    () -> assertNotEquals(tuning.compatibility(batch),
-                            tuning.compatibility(acceleratorBatch)),
-                    () -> assertEquals(tuning.compatibility(acceleratorBatch),
-                            tuning.compatibility(tuning.candidateHandoff(
-                                    context(integration, acceleratorArtifacts)).orElseThrow()
-                                    .candidateBatch())));
+                    () -> assertEquals(tuning.compatibility(batch),
+                            tuning.compatibility(repeatedBatch)));
 
 
             var compatibility = tuning.compatibility(batch);
@@ -160,13 +151,9 @@ final class CpuLocalWorkloadTuningPublicTest {
             var firstDecision = tuning.selectedDecision(batch, candidates.getFirst());
             assertThrows(IllegalArgumentException.class,
                     () -> tuning.selectedPreparation(secondBatch, firstDecision));
-            byte[] strictEncoded = tuning.encodeDecision(firstDecision);
-            assertTrue(tuning.decodeCompatibleDecision(
-                    acceleratorBatch, strictEncoded).isEmpty());
-            var acceleratorDecision = tuning.selectedDecision(
-                    acceleratorBatch, tuning.candidates(acceleratorBatch).getFirst());
-            assertTrue(tuning.decodeCompatibleDecision(
-                    batch, tuning.encodeDecision(acceleratorDecision)).isEmpty());
+            byte[] schema2 = tuning.encodeDecision(firstDecision);
+            java.nio.ByteBuffer.wrap(schema2).putInt(4, 2);
+            assertTrue(tuning.decodeCompatibleDecision(batch, schema2).isEmpty());
 
         }
     }
@@ -184,7 +171,7 @@ final class CpuLocalWorkloadTuningPublicTest {
     }
 
     private static CompileArtifacts compile(CpuBackendIntegration integration, Tensor output) {
-        return GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(integration.capabilityProvider()), List.of(integration.availabilitySnapshot()));
+        return GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(integration.capabilityProvider()), List.of(integration.availabilitySnapshot()));
     }
 
     private static CompileArtifacts resolvedMatmulArtifacts(
@@ -198,7 +185,7 @@ final class CpuLocalWorkloadTuningPublicTest {
                 return true;
             }
         };
-        CompileArtifacts base = GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(captureProvider), List.of(integration.availabilitySnapshot()));
+        CompileArtifacts base = GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(captureProvider), List.of(integration.availabilitySnapshot()));
         var outputIds = java.util.Set.copyOf(base.graph().outputs());
         var values = base.graph().values().stream().map(value -> {
             if (!outputIds.contains(value.id())) return value;
@@ -217,15 +204,8 @@ final class CpuLocalWorkloadTuningPublicTest {
                 new Class<?>[] {List.class, List.class}, List.of(), graph.inputs().stream()
                         .map(id -> new CompileConstantPlan.ConstantSource(
                                 id, ScalarValue.float32(1.0f))).toList());
-        return new CompileArtifacts(base.mode(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, base.partitions(), LogicalMemoryPlanning.plan(graph, base.partitions()), publication, constants, base.diagnostics(), new DerivativeGraphMetadata(
+        return new CompileArtifacts(base.mode(), graph, base.partitions(), LogicalMemoryPlanning.plan(graph, base.partitions()), publication, constants, base.diagnostics(), new DerivativeGraphMetadata(
                 graph, base.derivatives().derivativeOrderByNode()));
-    }
-
-    private static CompileArtifacts withProfile(CompileArtifacts source,
-            io.github.pho001.synaptik.config.compile.NumericalProfile profile) {
-        return new CompileArtifacts(source.mode(), profile, source.graph(), source.partitions(),
-                source.memory(), source.publication(), source.constants(), source.diagnostics(),
-                source.derivatives());
     }
 
     private static <T> T construct(

@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -128,25 +127,6 @@ class MetalAnchorEpiloguePlannerTest {
                 .noneMatch(step -> step.kind() == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE));
     }
 
-    @Test
-    void strictProfileNeverAdmitsAnAnchorEpilogue() {
-        var values = List.of(f32(2, 3), f32(3, 4), f32(2, 4), f32(2, 4));
-        var program = new MetalMpsGraphProgram(List.of(
-                MetalMpsGraphProgram.Node.matmul(0, 1, 2),
-                unary(MetalMpsGraphProgram.NodeKind.RELU, 2, 3)));
-
-        MetalPointwiseFusionPlan plan = MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.STRICT_IEEE,
-                program,
-                values,
-                new int[] {0, 1},
-                new int[] {3},
-                MetalPreparedRoute.CUSTOM_PROGRAM);
-
-        assertTrue(plan.steps().stream()
-                .noneMatch(step -> step.kind() == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE));
-    }
-
     private static boolean hasSingleDotScalarAnchor() {
         var values = List.of(f32(3), f32(3), f32(), f32(), f32());
         var program = new MetalMpsGraphProgram(List.of(
@@ -225,7 +205,6 @@ class MetalAnchorEpiloguePlannerTest {
             int[] feeds,
             int[] targets) {
         return MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.ACCELERATOR,
                 program,
                 values,
                 feeds,

@@ -22,7 +22,7 @@ analysis context, explicit schedule assembly, complete schedule validation, and 
 the reusable prepared-execution root.
 The CPU backend supplies broad physical allocation, preparation, and access for
 `Engine.standard()` and explicit composition. Metal supplies bounded MPSGraph and custom-kernel
-profile-qualified routes plus explicit native configuration, host ingress, materialization, and
+occurrence-qualified routes plus explicit native configuration, host ingress, materialization, and
 close. `Engine.builder()` currently registers opened CPU and/or Metal integrations and composes
 their non-empty partition sets through one shared preparation. It preflights every owner and
 required directed transfer before backend analysis, then captures direct per-input, executable,
@@ -637,34 +637,15 @@ See [Lifecycle](lifecycle.md) for the complete stage flow, [Module Boundaries](m
 See [Performance Evidence and Tuning](performance-evidence-and-tuning.md) for the optimization
 workflow boundaries that feed prepare without entering runtime.
 
-## Numerical profile at the boundary
+## Numerical semantics at the boundary
 
-`PrepareContext` carries the exact selected `NumericalProfile` into backend analysis and preserves
-it across projections. Model owns the unchanged strict set and total recursive `FLOAT32`
-accelerator floors. Prepare does not interpret them: a backend must reject an unsupported
-profile/operation pair before route selection, preserve strict capability as an accelerator
-subset, prove its complete route results fall inside Model's recursive set, and retain profile
-identity in every reusable plan/cache boundary. CPU admits both profiles through identical exact
-routes. Metal's common exact occurrence domain under both profiles contains exact unary rows, all
-49 casts, four-carrier floating classification and promoted WHERE, scalar/broadcast BOOL,
-all-carrier affine/index/replacement/movement, the admitted non-overlapping fold/window subsets,
-unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema, no-gradient promoted INT32/INT64
-MATMUL, exact maximum pooling, and raw initial state. Accelerator additionally admits the
-documented FLOAT32/BFLOAT16/FLOAT16 arithmetic, extrema, scalar, reduction, scan, MSE, general
-MATMUL, average-pooling, convolution, explicit-state dropout, and the exact rank-one FLOAT32 L1,
-ScatterAdd, and singleton VARIANCE occurrences. Every partition containing BFLOAT16 or FLOAT16
-values uses one fixed custom whole-program route, including exact no-gradient raw-preserving
-RESHAPE/PERMUTE/CONTIGUOUS/SLICE/CONCAT/TILE. The three Task-0069 occurrences also use the fixed
-custom route. ScatterAdd validates all indices before encoding or mutation and closes the existing
-rank-one Gather data cotangent. Every other unsupported occurrence fails closed before route
-selection. Eligible linear canonical FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use bounded
-generated custom units with compact materialized slots. Eligible ACCELERATOR MATMUL/Conv2d suffixes
-instead use one typed anchor dispatch and final store without a materialized suffix slot. ABI 7 has
-thirteen exports and consumes one bounded schema-19 route-bearing image over type wires `1..7`,
-operation wires `1..115`, attribute wires `0..41`, and route wires `1..3`; backend identities are
-version twenty-nine. Structural coverage is `101 / 14`, and production capability is `86 / 29`.
-Every other schema or identity fails closed.
-CPU/Metal transfer accepts canonical or resolved
-positive-stride non-overlapping all-carrier storage layouts without widening operation
-capability.
-Runtime therefore requires neither profile interpretation nor a policy lookup.
+`PrepareContext` carries complete occurrence and ownership facts, not a numerical selector.
+Model owns one family/dtype contract. Planning's provider query rejects unsupported occurrences;
+backend analysis qualifies a concrete route against exact stored/discrete/special boundaries and
+test-only finite arithmetic criteria before committing its resource declarations. Prepare does
+not infer capability from a passing sample. Metal retains eligible FLOAT32 MPSGraph routes and
+the fixed custom program for low-containing partitions; CPU retains generated and OpenBLAS routes.
+The current Metal image is schema 20 with a 124-byte header and tuning identity 30; CPU generator
+schema is 69; native ABI 7 retains thirteen exports. CPU/Metal transfer accepts canonical or
+resolved positive-stride non-overlapping all-carrier storage layouts without widening operation
+capability. Runtime requires no profile, tolerance, certificate, or policy lookup.

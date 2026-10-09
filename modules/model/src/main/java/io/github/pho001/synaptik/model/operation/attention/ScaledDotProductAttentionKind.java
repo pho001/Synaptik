@@ -21,16 +21,17 @@ import java.util.List;
  * NaN propagates; positive-infinity ties split unit weight equally; excluded score/value special
  * values never enter arithmetic.</p>
  *
- * <p>Under the Model-owned numerical-profile contract, those guards, masks, scale, contributor
- * sets, special classes, output/weight slots, and saved weights remain exact. For
- * {@code ACCELERATOR FLOAT32}, scores use query/key multiply-contractions then scale
- * multiplication; an absent scale adds exact embedding-extent conversion, square root, and
- * typed-one division. Exact guards precede exponential/sum/division softmax sites, and outputs use
- * value/weight multiply-contractions. Each site uses its recursive floor and the composite gains
- * no final-output envelope. Every current non-FLOAT32 occurrence remains strict; the inactive
- * low-precision reservation changes none of them. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Mask and causal guards, scale derivation, contributor membership, and output placement remain
+ * exact. Scores use query/key multiply-contractions and scale multiplication; an absent scale uses
+ * exact embedding extent conversion, SQRT, and typed-one division. Eligible scores use literal EXP,
+ * an all-contributors-once sum, and division; output rows use value-weight multiply-contractions.
+ * Guarded no-eligible, all-negative-infinity, and positive-infinity-tie cases retain their distinct
+ * exact results. Only named arithmetic primitive inputs/results may use dtype-specific DAZ/FTZ for
+ * FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64. Homogeneous low arithmetic works and accumulates
+ * in FLOAT32 with one final low narrowing per output; no blanket attention tolerance applies. See
+ * the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum ScaledDotProductAttentionKind implements OperationKind {
     /** Scaled query/key scores, masked final-axis softmax, and weighted value aggregation. */

@@ -53,7 +53,7 @@ import org.junit.jupiter.api.Test;
 class CpuOrdinaryMovementFoldSemanticClosureTest {
     private static final String INVENTORY = "generated-coverage-inventory.tsv";
     private static final String INVENTORY_SHA256 =
-            "9c06f9898dc287c6d2c3805088460c699052d14dbe707de146845659ce5450eb";
+            "ccbde775b20797ceb2b245bc0676a9aa516535007d0861d02f161991000a11a4";
     private static final Set<String> FORMS = Set.of("CONCAT", "STACK", "TILE", "SLICE_UPDATE",
             "UNFOLD_AXIS", "FOLD_AXIS", "FOLD2D", "UNFOLD2D", "PAD");
     private static final Map<String, Long> FORM_COUNTS = Map.of("CONCAT", 28L, "STACK", 28L,

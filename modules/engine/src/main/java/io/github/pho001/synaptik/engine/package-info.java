@@ -4,8 +4,9 @@
  * <p>The ordinary {@code Engine} supports explicit ownership composition of opened CPU and Metal
  * integrations. Registration freezes each backend's capability provider and point-in-time
  * availability in order. Compilation considers that immutable inventory; cold preparation accepts
- * a non-empty single-owner plan or a mixed CPU/Metal plan in the bounded static canonical
- * contiguous {@code FLOAT32} transfer domain. Mixed preparation assigns deterministic
+ * a non-empty single-owner plan or a mixed CPU/Metal plan for all seven current data types at
+ * fully static ranks {@code 0..16}, with canonical or resolved positive-stride non-overlapping
+ * layouts and a checked physical span. Mixed preparation assigns deterministic
  * owner-indexed representations, assembles one shared ordered schedule, and captures exact
  * adapters per caller-input and publication occurrence for run and materialization.
  * {@code Engine.standard()} remains the CPU-only convenience and uses the same builder path. There
@@ -48,14 +49,10 @@
  * closeable; Engine shutdown closes results first, then retained preparations, then composition.
  * Caller storage and borrowed input representations remain caller-owned.</p>
  *
- * <p>Both surfaces capture one exact graph-wide {@link
- * io.github.pho001.synaptik.config.compile.NumericalProfile} at construction. Builders default to
- * {@code STRICT_IEEE}; an explicit selection is passed unchanged through compilation and
- * preparation. Model alone defines the unchanged strict set and the total recursive
- * {@code FLOAT32} accelerator superset. CPU currently realizes both profiles through identical
- * exact routes. Metal realizes its documented common exact subset under both profiles and its
- * documented binary/reduction/MATMUL subset only under {@code ACCELERATOR}; every other pair
- * fails closed. Runtime performs no per-run profile lookup.</p>
+ * <p>Neither surface selects a graph-wide numerical mode. Compilation asks registered providers
+ * about each complete operation occurrence; cold preparation uses those planned facts and
+ * backend-qualified routes. Runtime performs no per-run capability or numerical-policy lookup.
+ * Model owns the operation-family and data-type semantics independently of Engine composition.</p>
  *
  * <p>Neither surface performs backend discovery or successful zero-node preparation. Mixed-backend
  * execution is confined to ordinary Engine's explicit CPU/Metal composition and exact transfer

@@ -32,11 +32,12 @@ acceptance date and considered alternatives.
 - [ADR 0018: Public Training Session and SGD lifecycle](decisions/0018-public-training-session-and-sgd-lifecycle.md)
 - [ADR 0019: Explicit graph numerical profiles](decisions/0019-explicit-numerical-profiles.md)
 - [ADR 0020: Synchronous single-default-device Metal execution](decisions/0020-synchronous-single-default-device-metal-execution.md)
-- [ADR 0021: Total Recursive ACCELERATOR Numerical Floor](decisions/0021-total-recursive-accelerator-numerical-floor.md)
+- [ADR 0021: Total Recursive ACCELERATOR Numerical Floor (superseded by 0026)](decisions/0021-total-recursive-accelerator-numerical-floor.md)
 - [ADR 0022: Auditable Custom Metal Route Cost Evidence](decisions/0022-auditable-custom-metal-route-cost-evidence.md)
-- [ADR 0023: Low-precision ACCELERATOR parity and P0 evidence](decisions/0023-low-precision-accelerator-parity.md)
+- [ADR 0023: Low-precision ACCELERATOR parity and P0 evidence (profile rule superseded by 0026)](decisions/0023-low-precision-accelerator-parity.md)
 - [ADR 0024: Environment-bound Metal raw-route certificates (superseded)](decisions/0024-environment-bound-metal-raw-certificates.md)
 - [ADR 0025: Custom-only Metal low precision](decisions/0025-custom-only-metal-low-precision.md)
+- [ADR 0026: Profile-free numerical semantics (accepted)](decisions/0026-profile-free-numerical-semantics.md)
 
 ## Design notes
 

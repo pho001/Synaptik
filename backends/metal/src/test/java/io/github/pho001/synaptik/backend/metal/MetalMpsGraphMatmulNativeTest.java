@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -67,7 +66,6 @@ class MetalMpsGraphMatmulNativeTest {
                 typed(DataType.FLOAT32, 2, 1));
         List<byte[]> actual = executeCustom(
                 library,
-                NumericalProfile.ACCELERATOR,
                 program,
                 values,
                 new int[] {0, 1, 3, 4, 6, 7, 9, 10},
@@ -131,7 +129,6 @@ class MetalMpsGraphMatmulNativeTest {
             for (int call = 0; call < 8; call++) {
                 calls.add(() -> executeCustom(
                         library,
-                        NumericalProfile.ACCELERATOR,
                         program,
                         values,
                         feeds,
@@ -177,7 +174,6 @@ class MetalMpsGraphMatmulNativeTest {
         }
         List<byte[]> actual = executeCustom(
                 library,
-                NumericalProfile.ACCELERATOR,
                 new MetalMpsGraphProgram(List.copyOf(nodes)),
                 List.copyOf(values),
                 feeds,
@@ -208,7 +204,6 @@ class MetalMpsGraphMatmulNativeTest {
                         new long[0])));
         List<byte[]> actual = executeCustom(
                 library,
-                NumericalProfile.ACCELERATOR,
                 program,
                 List.of(
                         typed(DataType.FLOAT32, 2, 2),
@@ -259,7 +254,6 @@ class MetalMpsGraphMatmulNativeTest {
                 typed(DataType.FLOAT32, 2, 2));
         List<byte[]> actual = executeCustom(
                 library,
-                NumericalProfile.ACCELERATOR,
                 program,
                 values,
                 new int[] {0, 2},
@@ -271,7 +265,7 @@ class MetalMpsGraphMatmulNativeTest {
     }
 
     @Test
-    void customIntegralDomainRunsAllPromotionsWithModularOverflowUnderStrictProfile() {
+    void customIntegralDomainRunsAllPromotionsWithModularOverflow() {
         Path library = configuredLibrary();
         var program = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.matmul(0, 1, 2),
@@ -289,7 +283,6 @@ class MetalMpsGraphMatmulNativeTest {
                 typed(DataType.INT64, 1, 1));
         List<byte[]> actual = executeCustom(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 program,
                 values,
                 new int[] {0, 1, 3, 4, 6, 7, 9, 10},
@@ -338,7 +331,6 @@ class MetalMpsGraphMatmulNativeTest {
                 typed(DataType.FLOAT32, 2, 1));
         List<byte[]> actual = executeCustom(
                 library,
-                NumericalProfile.ACCELERATOR,
                 program,
                 values,
                 new int[] {0, 2, 4, 6},
@@ -373,7 +365,6 @@ class MetalMpsGraphMatmulNativeTest {
                 typed(DataType.FLOAT32, 2, 2, 1));
         List<byte[]> actual = executeCustom(
                 library,
-                NumericalProfile.ACCELERATOR,
                 program,
                 values,
                 new int[] {0, 1},
@@ -420,7 +411,7 @@ class MetalMpsGraphMatmulNativeTest {
         var outputs = new ArrayList<MetalNativeApi.Handle>();
     var internals = new ArrayList<MetalNativeApi.Handle>();
         try {
-            executable = api.createProgramExecutable(context, NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks, dimensions, program), program, new int[] {0, 1, 2, 3}, new int[] {4, 5, 6, 7}, MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context, MetalTestProgram.descriptors(ranks, dimensions, program), program, new int[] {0, 1, 2, 3}, new int[] {4, 5, 6, 7}, MetalPreparedRoute.CUSTOM_PROGRAM);
             for (int[] bits : inputBits) {
                 MetalNativeApi.Handle buffer = api.createBuffer(
                         context, Math.multiplyExact((long) bits.length, Integer.BYTES));
@@ -508,7 +499,7 @@ class MetalMpsGraphMatmulNativeTest {
         var inputs = new ArrayList<MetalNativeApi.Handle>();
         MetalNativeApi.Handle output = null;
         try {
-            executable = api.createProgramExecutable(context, NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(new int[] {2, 2, 2}, dimensions(new long[][] {{3, 1}, {1, 2}, {3, 2}}), program), program, new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.MPSGRAPH);
+            executable = api.createProgramExecutable(context, MetalTestProgram.descriptors(new int[] {2, 2, 2}, dimensions(new long[][] {{3, 1}, {1, 2}, {3, 2}}), program), program, new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.MPSGRAPH);
             for (int[] bits : inputBits) {
                 MetalNativeApi.Handle buffer = api.createBuffer(
                         context, Math.multiplyExact((long) bits.length, Integer.BYTES));
@@ -580,7 +571,6 @@ class MetalMpsGraphMatmulNativeTest {
 
     private static List<byte[]> executeCustom(
             Path library,
-            NumericalProfile profile,
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] feeds,
@@ -592,7 +582,7 @@ class MetalMpsGraphMatmulNativeTest {
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
-            executable = api.createProgramExecutable(context, profile, values, program, feeds, targets,
+            executable = api.createProgramExecutable(context, values, program, feeds, targets,
             MetalPreparedRoute.CUSTOM_PROGRAM);
             for (var value : values) {
                 MetalNativeApi.Handle buffer = api.createBuffer(context, value.byteCount());

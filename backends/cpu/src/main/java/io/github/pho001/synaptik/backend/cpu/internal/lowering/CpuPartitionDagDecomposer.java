@@ -931,7 +931,7 @@ public final class CpuPartitionDagDecomposer {
         source.constants().forEach((id, value) -> {
             if (consumed.contains(id) && !produced.contains(id)) constants.put(id, value);
         });
-        return new PrepareContext<>(source.numericalProfile(), partition, nodes, source.values(), requirements, constants, inputs);
+        return new PrepareContext<>(partition, nodes, source.values(), requirements, constants, inputs);
     }
 
     private static final class MutableUnit {

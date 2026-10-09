@@ -77,7 +77,7 @@ class CpuPointwisePartitionLoweringTest {
                 NoOperationAttrs.INSTANCE), List.of(input, input), List.of(output));
         var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,
                 List.of(node.id()));
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), List.of(new GraphValue(input, descriptor), new GraphValue(output, descriptor)), List.of(new LogicalMemoryRequirement(input, descriptor, Optional.empty(),
+        var context = new PrepareContext<>(partition, List.of(node), List.of(new GraphValue(input, descriptor), new GraphValue(output, descriptor)), List.of(new LogicalMemoryRequirement(input, descriptor, Optional.empty(),
                         List.of(partition), false),
                 new LogicalMemoryRequirement(output, descriptor, Optional.of(partition),
                         List.of(), true)), Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
@@ -98,7 +98,7 @@ class CpuPointwisePartitionLoweringTest {
         CompiledNode second = nodes.get(1);
         nodes.set(1, new CompiledNode(second.id(), second.operation(),
                 List.of(new ValueId(0)), second.outputs()));
-        var disconnected = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, context.partition(), nodes, context.values(), context.memoryRequirements(), Map.of(), context.backendInputs());
+        var disconnected = new PrepareContext<>(context.partition(), nodes, context.values(), context.memoryRequirements(), Map.of(), context.backendInputs());
         var lowered = new CpuPartitionLowering().lower(disconnected);
         assertAll(() -> assertEquals(2, lowered.kernelIr().stores().size()),
                 () -> assertEquals(3, lowered.boundaryValues().size()));
@@ -334,7 +334,7 @@ class CpuPointwisePartitionLoweringTest {
                     i == 0 ? Optional.empty() : Optional.of(partition),
                     i == count ? List.of() : List.of(partition), i == count));
         }
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 
     private static CpuKernelIr.Instruction power(ScalarValue exponent) {
@@ -372,7 +372,7 @@ class CpuPointwisePartitionLoweringTest {
         values.add(new GraphValue(outputId, output));
         memory.add(new LogicalMemoryRequirement(outputId, output, Optional.of(partition),
                 List.of(), true));
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), values, memory, Map.of(), analysisInputs);
+        return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(), analysisInputs);
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> where() {
@@ -395,7 +395,7 @@ class CpuPointwisePartitionLoweringTest {
                     i == 3 ? Optional.of(partition) : Optional.empty(),
                     i == 3 ? List.of() : List.of(partition), i == 3));
         }
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> logical() {

@@ -308,7 +308,7 @@ route, threshold, cache, or later preparation.
 ### Metal singleton-NEG routes
 
 The Metal benchmark is deliberately one workload rather than an operation or Shape matrix. It
-compiles canonical no-grad `FLOAT32 NEG` at Shape `[1_048_576]` under `STRICT_IEEE`, enumerates the
+compiles canonical no-grad `FLOAT32 NEG` at Shape `[1_048_576]`, enumerates the
 complete current `MetalLocalWorkloadTuning` pair, and prepares both opaque candidates. It records
 both routes and never selects a winner, calls `prepareTuned(...)`, uses complete-plan tuning, reads
 or writes a cache, applies a threshold, or changes a later preparation.
@@ -381,13 +381,16 @@ SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_met
   -PbenchmarkFork=<positive-integer>
 ```
 
-Schema 1 labels caller-supplied host facts, hashes the loaded benchmark class and exact dylib,
+The Metal route report uses JSON schema 2. It labels caller-supplied host facts, hashes the loaded
+benchmark class and exact dylib,
 records the real library path, JVM and OS facts, fixed workload, protocol, compile/enumeration/
 prepare durations, and two complete route rows. It always reports
 `eligibleForProductionDecision=false`, `autotuningEvidence=false`, and
 `selectionMode=fixed-candidate-enumeration-no-winner`. It writes one JSON document only to
 standard output; the harness creates no report, baseline, manifest, cache, or other retained
-artifact. Missing metadata/JVM flags, wrong host/library, candidate or trace changes, raw-bit
+artifact. Its `profile` field names only the `smoke` or `baseline` sampling protocol; there is no
+`numericalProfile` field or graph-wide numerical selector. Missing metadata/JVM flags, wrong
+host/library, candidate or trace changes, raw-bit
 mismatch, iteration ceiling, and floor violation fail nonzero rather than producing a successful
 partial or `unavailable` report.
 

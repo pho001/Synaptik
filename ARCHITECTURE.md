@@ -16,7 +16,7 @@ navigation, see [current architecture documentation](docs/architecture/current-a
 Only the following six files are incorporated as normative, and only within their stated,
 non-overlapping scopes:
 
-1. [Foundational module and numerical-profile contract](docs/architecture/contracts/foundational-modules.md)
+1. [Foundational module and numerical-semantics contract](docs/architecture/contracts/foundational-modules.md)
 2. [Fixed recurrent-scan contract](docs/architecture/contracts/recurrent-scan.md)
 3. [Compiler and automatic-differentiation contract](docs/architecture/contracts/compiler-autograd.md)
 4. [Runtime, Prepare, and Engine contract](docs/architecture/contracts/runtime-prepare-engine.md)
@@ -176,57 +176,61 @@ The following invariants must remain true:
 - `Tensor` has no gradient field, backward method, or gradient-lifecycle state.
 - `Operation` owns semantic behavior but never backend support.
 - `Operation` must not expose `supportedBackends()`.
-- Model owns every operation's profile-indexed allowed-result set. A selected numerical profile is
-  graph-wide and cold: later lifecycle layers may transport, retain, query capability for, and
-  realize it, but must not reinterpret Model semantics or consult profile policy on the runtime hot
-  path.
-- `STRICT_IEEE` retains every current per-operation promise and freedom. Its unary contract owns
-  exact-reference primitive bounds, special/domain rules, and recursive native/one-wider results
-  for every accepted FLOAT16/BFLOAT16/FLOAT32/FLOAT64 type, independent of backend algorithms.
-  `ACCELERATOR` adds its total recursive `FLOAT32` superset and the corresponding homogeneous
-  `BFLOAT16`/`FLOAT16` occurrences: exact mapping/selection/state, DAZ/FTZ and one-round
-  primitives, an inclusive ordered-binary32 distance-at-most-five ceiling only at irreducible
-  elementary-function sites, and all-declared-contributors-once aggregate freedom. Composite Model
-  and generated-gradient formulas inherit those floors at their sites and gain no final-output
-  tolerance.
+- Model owns one profile-free semantic contract per operation family and dtype: formulas, guards,
+  contributor domains, precision and rounding sites, special values, and observable results.
+  There is no numerical selector, public accuracy envelope, runtime numerical certificate, or
+  production tolerance policy. Exact structure, represented-value comparison and extrema,
+  discrete decisions, casts, raw movement and selection, saved/state values, and publication do
+  not acquire arithmetic latitude. Finite arithmetic tolerances qualify backend routes only in
+  tests, never Compiler transformations or runtime decisions.
+- Denormals-are-zero (DAZ) at named floating arithmetic primitive inputs and flush-to-zero (FTZ)
+  at named primitive results are permitted for FLOAT32, BFLOAT16, and FLOAT16, including low
+  multiplication, but forbidden for FLOAT64. DAZ uses same-signed zero without changing stored
+  bits; FTZ obeys the family's existing zero-sign rule. Neither applies at stored comparison,
+  extrema/winner, raw movement, cast, selection, index/mask/state, or exact unary ABS, NEG, SIGN,
+  FLOOR, CEIL, and RELU sites. Composite and generated-gradient formulas inherit only their
+  named arithmetic sites' permissions; they gain no blanket output tolerance.
 - Model-level `FLOAT16` value, promotion, cast, factory, backend, and execution semantics are active
   at appended ordinal 6. `FLOAT16` and `BFLOAT16` are distinct storage types; direct mixed-low
   execution is unavailable, and explicit casts establish a `FLOAT32` boundary. Homogeneous low
   arithmetic uses `FLOAT32` working/accumulator values and one final ties-to-even narrowing. Raw
   storage/movement, mapping, guards, predicates, indices, masks, state, selection, casts,
-  public/saved values, and final conversion remain exact. The family declares DAZ/FTZ, arithmetic
+  public/saved values, and final conversion remain exact. The family declares arithmetic
   zero-sign, and NaN class/domain rules; NaN payload/sign are not accuracy requirements.
   Operation-local reassociation/FMA and fusion across only unobservable single-use intermediates
   are permitted, never across public, saved, fan-out, predicate, index, mask, selection, or state
   boundaries.
-- A Model-owned public per-family envelope gives a cancellation- and size-aware forward-error
-  bound for transformed algorithms. A backend implementation must satisfy that envelope; an
-  operation name, examples, or generic `allclose` do not qualify it.
+- Floating scatter MUL combines its base and every addressed update exactly once; a rounded
+  multiplication tree is permitted, including intermediate overflow and ensuing NaN. Integral
+  modular multiplication and unaddressed raw cells remain exact.
 - Canonical checked-in capability ledgers are generated from actual CPU and Metal provider queries
-  and record provider query identity plus boolean answers; separate target columns are not provider
+  and preserve the current ACCELERATOR true and false answers, independent low-type queries,
+  negative predicates, occurrence identity, and provenance. Former target columns are not provider
   facts. Provider evidence contains no route, runtime, device, or generated-backward ownership.
-  Metal native ABI 7 exposes thirteen symbols. Program schema 19, CPU generator schema 68, and
-  route/type/operation/attribute wires retain their allocations; the coordinated Metal
-  workload/exact-policy/candidate/compatibility/route/codec identities are version 29.
-  Every low-precision PREPARE trace reports the selected custom route, ordered logical boundary
-  dtype tuple, and numerical profile. It has no accumulator or working-type field: those Model
+  Metal native ABI 7 exposes thirteen symbols. The cutover advances the Metal program to schema
+  20 with a 124-byte header, the CPU generator envelope to schema 69, and coordinated Metal
+  workload/exact-policy/candidate/compatibility/route/codec identity to 30. Schema 19, CPU schema
+  68, and Metal identity 29 are incompatible pre-cutover baselines. Changed serialized/generated
+  identities advance append-only and reject stale inputs. The Metal profile wire is absent in
+  both Java and native schema-20 decoding; source and package authentication remain required.
+  Every low-precision PREPARE trace reports the selected custom route and ordered logical boundary
+  dtype tuple. It has no accumulator or working-type field: those Model
   arithmetic guarantees are semantic rules, not diagnostic route facts. The trace reports
   execution facts, not hypothetical candidates or removed certificate state. Metal has no
   executable/compilation/preparation cache. Tuning compatibility is session-only and binds identity
-  versions, profile, ABI, a random context nonce,
-  schema-19 program/plan semantics, explicit dtype wires and descriptors; candidate and
+  versions, ABI, a random context nonce,
+  versioned program/plan semantics, explicit dtype wires and descriptors; candidate and
   complete-plan bytes additionally bind the selected route and phase-one decision. A new context
   has a new nonce, and tools never persist session-scoped decisions.
-- Engine construction captures one exact graph-wide profile, defaulting to `STRICT_IEEE`.
-  Planning queries, Compiler artifacts, Prepare contexts, and backend plan/cache identities retain
-  it unchanged. For a fixed occurrence domain, every backend's `STRICT_IEEE` capability and allowed
-  behavior are subsets of its `ACCELERATOR` capability and allowed behavior. CPU realizes both
-  profiles with identical exact behavior. Metal's common domain includes exact unary, affine,
+- Engine, Config, Planning queries, Compiler artifacts, Prepare contexts, Trace, and backend/native
+  identities carry no numerical-profile selector. CPU retains its qualified routes. Metal's
+  currently supported domain includes exact unary, affine,
   canonicalization, indexing, BOOL-domain, movement, replacement/fold/aggregate,
-  ordering/top-K/arg-extrema, comparison, and maximum-pooling occurrences. Both profiles also
-  realize no-gradient INT32/INT64 `MATMUL` pairs with INT64-dominant promotion and modular result
-  arithmetic. Under `ACCELERATOR`, every supported homogeneous FLOAT32 occurrence has corresponding
-  BFLOAT16 and FLOAT16 ownership. This includes the documented arithmetic, scalar, reduction, scan,
+  ordering/top-K/arg-extrema, comparison, and maximum-pooling occurrences. It also
+  realizes no-gradient INT32/INT64 `MATMUL` pairs with INT64-dominant promotion and modular result
+  arithmetic. Current true provider answers for supported homogeneous FLOAT32 occurrences have
+  corresponding independently queried BFLOAT16 and FLOAT16 ownership where declared. This includes
+  the documented arithmetic, scalar, reduction, scan,
   MATMUL, MSE, convolution, average-pooling, dropout, L1, ScatterAdd, and singleton-variance
   domains. Direct BFLOAT16/FLOAT16 mixed-low operations remain unsupported; explicit casts to
   FLOAT32 are the sole mixed-low path. Every partition containing BFLOAT16 or FLOAT16 values
@@ -246,7 +250,7 @@ The following invariants must remain true:
   reduction, scan, dropout, non-overlapping maximum-pool, and other admitted differentiable
   occurrences retain compiler-generated first-order and owned higher-order closure. Overlapping
   generated folds, Conv3d backward, attention, convolution transpose, and every unsupported
-  profile/operation occurrence remain fail-closed. Metal indexing validates complete bounds and
+  operation occurrence remain fail-closed. Metal indexing validates complete bounds and
   scatter target uniqueness before dispatch or target writes and leaves targets unchanged on
   failure. Canonical cross-owner transfer supports all seven current data types at ranks `0..16`;
   transfer coverage does not widen operation capability. Runtime and Trace remain profile-free.
@@ -267,8 +271,11 @@ The following invariants must remain true:
 - Planning may consume backend-neutral cost estimates, but it must not interpret backend route,
   vector, thread, tile, kernel, or other implementation parameters.
 - Backend prepare owns backend-specific lowering and kernel selection.
-- Metal route comparison begins only after identical complete-domain semantics and numerical
-  evidence. A single survivor needs no comparative cost gate. Multiple survivors may be selected
+- Metal route comparison begins only after candidates qualify for the same occurrence domain and
+  Model semantics: exact structure/stored/discrete/special conformance and explicit test-only
+  finite oracles, metrics, thresholds, and cancellation boundaries where arithmetic is finite.
+  No sample grants provider capability or licenses a Compiler rewrite. A single survivor needs no
+  comparative cost gate. Multiple survivors may be selected
   without timing only by strict structural dominance: no more compute dispatches, no more
   route-owned temporary bytes, and at least one strict improvement, using exact facts. An explicit
   custom route may use a source-bound declaration only when retained source owns every dispatch and
@@ -338,7 +345,7 @@ briefs and maintained navigation adopt the exact scoped destinations:
 | Trace | [Foundational modules — `modules/trace`](docs/architecture/contracts/foundational-modules.md#modulestrace) |
 | Backend Contract | [Foundational modules — `modules/backend-contract`](docs/architecture/contracts/foundational-modules.md#modulesbackend-contract) |
 | Model and Tensor producer ownership | [Foundational modules — `modules/model`](docs/architecture/contracts/foundational-modules.md#modulesmodel) |
-| Graph numerical profiles and allowed-result sets | [Foundational modules — numerical profiles](docs/architecture/contracts/foundational-modules.md#numerical-profiles) |
+| Model numerical semantics and allowed results | [Foundational modules — profile-free numerical semantics](docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics) |
 | Config | [Foundational modules — `modules/config`](docs/architecture/contracts/foundational-modules.md#modulesconfig) |
 | Planning responsibility | [Foundational modules — `modules/planning`](docs/architecture/contracts/foundational-modules.md#modulesplanning) |
 | Fixed recurrent scan | [Recurrent scan — fixed recurrent scan without graph regions](docs/architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions) |
@@ -371,7 +378,7 @@ This compact routing summary does not replace the linked details:
 
 | Scope | Owner |
 |---|---|
-| Model operation semantics, including profile-indexed allowed-result sets, and immutable graph model | Model |
+| Model operation semantics and immutable graph model | Model |
 | Backend-neutral capability, ownership, partitioning, and logical requirements | Planning |
 | Graph transformations, autograd, publication, and compile artifacts | Compiler |
 | Shared transition contracts, slot assignment, and prepared validation | Prepare |

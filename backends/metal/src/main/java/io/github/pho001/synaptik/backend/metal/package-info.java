@@ -5,16 +5,16 @@
  * occurrence matrix. The common domain covers represented-bit unary operations, seven-carrier
  * affine movement/canonicalization/indexing/replacement, all 49 casts, four-carrier floating
  * classification, BOOL logic, the fourteen non-mixed-low promoted WHERE signatures, stable
- * ordering/top-K/numeric arg-extrema, non-overlapping folds, strict comparisons, maximum pooling,
+ * ordering/top-K/numeric arg-extrema, non-overlapping folds, stored comparisons, maximum pooling,
  * promoted integral MATMUL, and raw initial state. Authenticated affine views remain logical while
  * physical descriptors stay safe; unresolved, empty, unsafe-stride, overlapping, or over-limit
  * geometry remains false. Index roles accept INT32 or INT64 and replacement validates complete
  * bounds and destination uniqueness before mutation.
  *
- * <p>The schema-nineteen low-precision closure maps every current true ACCELERATOR FLOAT32
- * occurrence to homogeneous BFLOAT16 and FLOAT16 descriptors and scalar attributes. STRICT_IEEE
- * admits the corresponding exact-valid subset. Direct BFLOAT16/FLOAT16 mixed-low operations are
- * false except explicit CAST; callers establish mixed-low computation with explicit FLOAT32 casts.
+ * <p>The low-precision capability path checks homogeneous BFLOAT16 and FLOAT16 descriptors and
+ * scalar attributes through a FLOAT32 proxy of the frozen, formerly ACCELERATOR support baseline.
+ * Direct BFLOAT16/FLOAT16 mixed-low operations are false except explicit CAST;
+ * callers establish mixed-low computation with explicit FLOAT32 casts.
  * Every BFLOAT16/FLOAT16 occurrence uses the fixed authenticated {@code CUSTOM_PROGRAM} route;
  * no low-precision partition exposes an MPSGraph, MPS, retry, CPU-fallback, pointwise-generation,
  * or anchor-epilogue candidate. Arithmetic decodes represented inputs exactly to FLOAT32, retains
@@ -22,12 +22,14 @@
  * once with round-to-nearest, ties-to-even. Raw-preserving operations move represented bits without
  * a numerical accumulator.
  *
- * <p>ACCELERATOR low closure includes tensor and scalar arithmetic, comparisons, extrema,
+ * <p>The selected low-precision closure includes tensor and scalar arithmetic, comparisons, extrema,
  * SUM/MEAN/MIN/MAX and sum-to-Shape reductions, cumulative SUM/PROD, positive-static MATMUL, MSE,
  * convolution, average pooling, dropout, and the source-owned L1, ScatterAdd, and singleton
- * VARIANCE slices. Binary output differentiability is the operand OR; scalar, reciprocal,
+ * VARIANCE kinds. Their low-type occurrences use separate {@code lp_*} custom kernels, not the
+ * FLOAT32-only Task 0069 specialized kernels. Binary output differentiability is the operand OR;
+ * scalar, reciprocal,
  * reduction, scan, pooling, and dropout value roles preserve their declared gradient relationship;
- * comparisons publish no-gradient BOOL. Both profiles also admit no-gradient INT32/INT64 MATMUL
+ * comparisons publish no-gradient BOOL. The provider also admits no-gradient INT32/INT64 MATMUL
  * pairs with modular result arithmetic. Canonical host ingress/materialization and bidirectional
  * CPU/Metal transfer accept ranks {@code 0..16} for all seven carriers and resolved positive-stride
  * non-overlapping storage layouts.
@@ -49,7 +51,8 @@
  * incompatible. Native authenticates all frozen fixed-source components and the assembled source
  * before compile, and requires exact strongest available binding/type reflection for all three
  * buffers and every {@code PointMeta} member.
- * <p>Anchor-epilogue fusion is ACCELERATOR-only and preserves exact source order. MATMUL covers
+ * <p>Anchor-epilogue fusion applies only to its qualified FLOAT32 custom-program occurrences and
+ * preserves exact source order. MATMUL covers
  * the already-admitted positive-static vector, matrix, dot, batched, and right-broadcast batch
  * geometries. It accepts optional literal {@code SCALAR_MUL}, at most one ordinary right-aligned
  * tensor {@code ADD}, and optional terminal {@code RELU} or no-gradient {@code CLAMP}. Conv2d
@@ -70,9 +73,9 @@
  * maximal partition; nested MPSGraph steps materialize those views into dense assigned buffers
  * before downstream custom steps index their physical representation. Their published outputs
  * retain exact Model view geometry. {@code CONTIGUOUS} produces canonical geometry. Metal lowers
- * one complete profile-homogeneous partition as a typed whole-partition program during preparation.
+ * one complete homogeneous partition as a typed whole-partition program during preparation.
  *
- * <p>A package-private exhaustive catalog describes all 115 schema-nineteen operation kinds as
+ * <p>A package-private exhaustive catalog describes all 115 schema-twenty operation kinds as
  * MPSGraph {@code DIRECT}, {@code COMPOSED}, or {@code UNAVAILABLE} and custom-kernel {@code
  * AVAILABLE}, {@code PENDING}, or {@code UNAVAILABLE_WITH_PROOF}, with closed source reasons. It is
  * cold descriptive metadata only: capability remains authoritative and the catalog is never
@@ -127,7 +130,7 @@
  * payloads remain deferred because logical units share/refcount native resources and would be
  * misleading lifecycle noise.
  *
- * <p>Task 0060 adds exact profile-common no-gradient replacement SCATTER_ND and signed
+ * <p>Task 0060 adds exact no-gradient replacement SCATTER_ND and signed
  * SLICE_UPDATE, non-overlapping FLOAT64/FLOAT32/BFLOAT16/FLOAT16 FOLD_AXIS/FOLD2D/FOLD3D,
  * modular INT32/INT64 PROD, and canonical BOOL ALL/ANY. FOLD_AXIS also admits INT32/INT64;
  * BOOL FOLD_AXIS and integral or BOOL FOLD2D/FOLD3D remain false. Every
@@ -137,14 +140,14 @@
  * forceable structural recipes only and remain production-false. The exact bounded L1_NORM and
  * singleton VARIANCE occurrences described below instead use fixed source-owned custom programs.
  *
- * <p>Task 0062 adds ACCELERATOR same-type canonical positive-rank MSE with NONE, SUM, or MEAN
+ * <p>Task 0062 adds selected same-type canonical positive-rank MSE with NONE, SUM, or MEAN
  * reduction. Native lowering fixes the Model formula to one subtraction, multiplication of that
  * exact difference by itself, and the already qualified full SUM or MEAN reduction. P9 admits
  * homogeneous FLOAT32/BFLOAT16/FLOAT16 descriptors and their compiler-generated gradients.
- * Output differentiability is the exact input logical OR. Strict IEEE, scalar inputs,
+ * Output differentiability is the exact input logical OR. Scalar inputs,
  * direct mixed-low inputs, and every other normalization or loss kind remain false.
  *
- * <p>Task 0063 adds profile-common canonical dense {@code SORT}, {@code ARGSORT}, and positive-K
+ * <p>Task 0063 adds canonical dense {@code SORT}, {@code ARGSORT}, and positive-K
  * {@code TOP_K} for all seven carriers, plus {@code ARG_MAX} and {@code ARG_MIN} for the six numeric
  * carriers. Ranks must be in {@code 1..16}; dimensions, element counts, strides, selected extents,
  * K, output counts, and one-dimensional grid widths must be positive and no greater than {@code
@@ -162,8 +165,8 @@
  *
  * <p>Task 0064 adds one fixed custom-program route for {@code CONV2D}, {@code CONV3D}, {@code
  * MAX_POOL2D}, {@code AVERAGE_POOL2D}, {@code MAX_POOL3D}, and {@code AVERAGE_POOL3D}. P9 admits
- * homogeneous FLOAT32/BFLOAT16/FLOAT16 convolution and pooling under ACCELERATOR wherever the
- * corresponding FLOAT32 occurrence is valid; profile-common maximum pooling additionally retains
+ * homogeneous FLOAT32/BFLOAT16/FLOAT16 convolution and pooling wherever the
+ * corresponding FLOAT32 occurrence is valid; maximum pooling additionally retains
  * FLOAT64. One-low-plus-FLOAT32 widening convolution remains no-gradient. All six kinds require
  * fully static positive geometry bounded to unsigned 32 bits, exact symmetric padding and fixed
  * layouts, and checked result geometry. Pooling additionally caps the product of kernel extents at
@@ -171,11 +174,11 @@
  * tensors. Conv1d and Pool1d enter only through authenticated local singleton-height affine views.
  * Maximum pooling fixes NaN-first, positive-zero-over-negative-zero, first-logical-winner raw-bit
  * publication; average pooling fixes a full-kernel divisor and conceptual positive-zero padding.
- * Strict convolution/average pooling, Conv3d gradients, direct mixed-low operations, and
+ * Conv3d gradients, direct mixed-low operations, and
  * overlap-accumulating generated folds remain fail-closed. Non-overlapping maximum-pool gradients
  * close through the compiler formula.
  *
- * <p>Task 0065 adds profile-common zero-input {@code INITIAL_STATE} and ACCELERATOR-only canonical
+ * <p>Task 0065 adds zero-input {@code INITIAL_STATE} and canonical
  * FLOAT32/BFLOAT16/FLOAT16 {@code DROPOUT}. INITIAL_STATE publishes one raw {@code INT64[2]}
  * {@code [key,counter]} value whose words are interpreted unsigned. DROPOUT emits the scaled value,
  * canonical BOOL saved mask, and advanced state through one fixed custom-program route. Its private
@@ -192,7 +195,7 @@
  * liveness, and one-writer replacement/window geometry. Dynamic, empty, unsafe, overlapping,
  * additive-scatter, attention, and recurrent blockers remain fail-closed.
  *
- * <p>Task 0069 Slices 1 through 3 add accelerator-only no-gradient FLOAT32 rank-one L1 norm,
+ * <p>Task 0069 Slices 1 through 3 add narrow no-gradient FLOAT32 rank-one L1 norm,
  * scatter-add, and singleton variance occurrences at wires 114, 70, and 112. L1
  * raw-ABS-transforms every contributor and uses exactly {@code N-1} source-ordered safe additions.
  * Scatter requires axis zero, a materialized canonical INT32/INT64 index feed, and canonical
@@ -203,27 +206,27 @@
  * {@code [1]}, axis {@code [0]}, correction zero, and canonical scalar or retained {@code [1]}
  * output. It executes the literal DIV-SUB-MUL-DIV sequence on one custom writer thread. Other
  * variance occurrences retain the existing descriptive direct-MPSGraph path but remain
- * production-false. The shared proof and source/compiler/AIR certificates are pinned under
- * {@code evidence/0069}.
+ * production-false. The retained Task 0069 proof and source/compiler/AIR audits under
+ * {@code evidence/0069} concern these FLOAT32 specialized kernels; they do not certify the
+ * low-type kernels or authenticate the current schema-twenty image.
  *
- * <p>Task 0071 adds schema-nineteen typed anchor instructions, generator schema two, and the
- * anchor-epilogue/trace contracts above. Schema and digest bind anchor family, suffix order, ADD
- * side and role, raw scalar/clamp words, profile, types, Shapes, layouts, and gradient facts. Native
+ * <p>The current schema-twenty image retains the typed anchor instructions and generator-schema-two
+ * lineage introduced by Task 0071. Its schema and digest bind anchor family, suffix order, ADD
+ * side and role, raw scalar/clamp words, types, Shapes, layouts, and gradient facts. Native
  * independently validates the records before one dispatch. The checked Lean model, authenticated
- * source certificate, pinned compiled-MSL/AIR audit, real-device dispatch observer, special-value
- * cases, and public Engine smoke are retained under {@code evidence/0071}.
+ * source audit, pinned compiled-MSL/AIR audit, real-device dispatch observer, special-value
+ * cases, and public Engine smoke retained under {@code evidence/0071}. That historical evidence
+ * does not by itself authenticate the current schema-twenty image or qualify a post-cutover route.
  *
- * <p>The selected numerical profile participates in partition-plan, route, tuning, decision-codec,
- * and workload identity. Java rejects profile/schema mismatches before native entry. ABI version
- * seven has thirteen exports; the former certification-environment query is absent. Node schema
- * version nineteen is one bounded self-describing route-bearing image over stable type wires
+ * <p>ABI version seven has thirteen exports; the former certification-environment query is absent.
+ * Node schema version twenty is one bounded self-describing route-bearing image over stable type wires
  * {@code 1..7}, operation wires {@code 1..115}, attribute wires {@code 0..41}, and complete
- * optional storage-layout geometry. Its fixed 128-byte header binds the exact numerical-profile
- * wire and, only for the custom-program route, the canonical execution-plan extension and manifest
+ * optional storage-layout geometry. Its fixed 124-byte header binds the route and, only for the
+ * custom-program route, the canonical execution-plan extension and manifest
  * digest. Native structural execution covers exactly 101 wires and leaves 14 nonexecutable.
  * Production capability is exactly 86 operation kinds and 29 remain false. Backend-local workload,
  * exact-policy, candidate, compatibility, route-policy, and codec identities are version
- * twenty-nine. Only schema nineteen and identity twenty-nine are accepted; every other schema or
+ * thirty. Only schema twenty and identity thirty are accepted; every other schema or
  * identity value fails closed.
  */
 package io.github.pho001.synaptik.backend.metal;

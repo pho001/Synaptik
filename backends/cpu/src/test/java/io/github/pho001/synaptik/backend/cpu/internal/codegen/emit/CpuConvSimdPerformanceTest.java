@@ -609,7 +609,7 @@ class CpuConvSimdPerformanceTest {
             Row row) {
         int bits = row.f32 ? jdk.incubator.vector.FloatVector.SPECIES_PREFERRED.vectorBitSize()
                 : jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED.vectorBitSize();
-        return new CpuKernelSpecialization(scalar.loweringFingerprint(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, row.parallel() ? ExecutionStrategy.PARALLEL_VECTOR : ExecutionStrategy.VECTOR,
+        return new CpuKernelSpecialization(scalar.loweringFingerprint(), row.parallel() ? ExecutionStrategy.PARALLEL_VECTOR : ExecutionStrategy.VECTOR,
         scalar.boundaryDataTypes(), scalar.carrierPattern(), bits, -1,
         scalar.scalarPowerRealizations(), false, 63);
     }
@@ -643,7 +643,7 @@ class CpuConvSimdPerformanceTest {
                 new CpuPartitionAnalysisInputs.PortableExecutionConfig(
                         CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,
                         rangeCount, rangeCount, 1));
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), inputs);
+        return new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), inputs);
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> context3d(Row row) {
@@ -672,7 +672,7 @@ class CpuConvSimdPerformanceTest {
                 new CpuPartitionAnalysisInputs.PortableExecutionConfig(
                         CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,
                         rangeCount, rangeCount, 1));
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), inputs);
+        return new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), inputs);
     }
 
     private static LayoutDescriptor offset(Shape shape, long offset) {

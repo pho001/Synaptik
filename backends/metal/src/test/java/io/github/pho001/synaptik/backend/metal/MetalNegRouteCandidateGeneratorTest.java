@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
@@ -126,7 +125,6 @@ class MetalNegRouteCandidateGeneratorTest {
             Workload acceleratorSingleton = unaryWorkload(
                     device,
                     150,
-                    NumericalProfile.ACCELERATOR,
                     UnaryElementwiseKind.NEG);
             Generated acceleratorGenerated = generated(acceleratorSingleton, 2);
             assertEquals(
@@ -134,10 +132,10 @@ class MetalNegRouteCandidateGeneratorTest {
                             MetalNegTuningBatch.Candidate.CUSTOM_SINGLE_NEG,
                             MetalNegTuningBatch.Candidate.MPSGRAPH),
                     acceleratorGenerated.batch().candidates());
-            assertNotEquals(
+            assertEquals(
                     generated.batch().compatibility().workload(),
                     acceleratorGenerated.batch().compatibility().workload(),
-                    "profile separates otherwise identical singleton NEG workloads");
+                    "graph identity is independent of compilation request origin");
 
             Workload oversized = workload(device, 200, Shape.of(0x1_0000_0000L), false,
                     Optional.empty(), true, false, 1);
@@ -183,30 +181,28 @@ class MetalNegRouteCandidateGeneratorTest {
                             List.of(boolRow, trueBranch, falseBranch), floats,
                             MetalMpsGraphProgram.NodeKind.WHERE));
             long identity = 100_000L;
-            for (NumericalProfile profile : NumericalProfile.values()) {
-                for (BoolCase fixture : cases) {
-                    Workload workload = operationWorkload(
-                            device, identity++, profile,
-                            new Operation(fixture.kind(), NoOperationAttrs.INSTANCE),
-                            fixture.inputs(), fixture.output());
-                    Generated generated = generated(workload, 2);
-                    assertSame(MetalPreparedRoute.CUSTOM_PROGRAM,
-                            generated.analysis().plan().route());
-                    assertEquals(List.of(fixture.loweredKind()),
-                            generated.analysis().plan().graphProgram().nodes().stream()
-                                    .map(MetalMpsGraphProgram.Node::kind)
-                                    .toList());
-                    assertEquals(List.of(
-                            MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
-                            generated.batch().candidates());
-          assertThrows(
-              IllegalArgumentException.class,
-              () ->
-                            new MetalNegPartitionPreparer()
-                                    .analyzeForTesting(
-                                            workload.context(), MetalPreparedRoute.MPSGRAPH));
-                }
+            for (BoolCase fixture : cases) {
+                Workload workload = operationWorkload(
+                        device, identity++, new Operation(fixture.kind(), NoOperationAttrs.INSTANCE),
+                        fixture.inputs(), fixture.output());
+                Generated generated = generated(workload, 2);
+                assertSame(MetalPreparedRoute.CUSTOM_PROGRAM,
+                        generated.analysis().plan().route());
+                assertEquals(List.of(fixture.loweredKind()),
+                        generated.analysis().plan().graphProgram().nodes().stream()
+                                .map(MetalMpsGraphProgram.Node::kind)
+                                .toList());
+                assertEquals(List.of(
+                        MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
+                        generated.batch().candidates());
+      assertThrows(
+          IllegalArgumentException.class,
+          () ->
+                        new MetalNegPartitionPreparer()
+                                .analyzeForTesting(
+                                        workload.context(), MetalPreparedRoute.MPSGRAPH));
             }
+
             assertEquals(0, api.nativeAllocations.get());
         }
     }
@@ -217,7 +213,6 @@ class MetalNegRouteCandidateGeneratorTest {
             Workload workload = operationWorkload(
                     device,
                     190_069L,
-                    NumericalProfile.ACCELERATOR,
                     new Operation(
                             AggregateReductionKind.L1_NORM,
                             new MultiAxisReductionAttrs(List.of(0), false)),
@@ -244,7 +239,6 @@ class MetalNegRouteCandidateGeneratorTest {
             Workload workload = operationWorkload(
                     device,
                     190_070L,
-                    NumericalProfile.ACCELERATOR,
                     new Operation(
                             AggregateReductionKind.VARIANCE,
                             new StatisticalReductionAttrs(List.of(0), false, 0)),
@@ -274,31 +268,30 @@ class MetalNegRouteCandidateGeneratorTest {
         TestNativeApi api = new TestNativeApi();
         try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
             long identity = 200_000L;
-            for (NumericalProfile profile : NumericalProfile.values()) {
-                for (UnaryElementwiseKind kind : List.of(
-                        UnaryElementwiseKind.FLOOR,
-                        UnaryElementwiseKind.CEIL,
-                        UnaryElementwiseKind.SIGN,
-                        UnaryElementwiseKind.RELU)) {
-                    Workload workload = unaryWorkload(device, identity++, profile, kind);
-                    Generated generated = generated(workload, 2);
-                    assertSame(
-                            MetalPreparedRoute.CUSTOM_PROGRAM,
-                            generated.analysis().plan().route());
-                    assertEquals(
-                            List.of(
-                                    MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM,
-                                    MetalNegTuningBatch.Candidate.MPSGRAPH),
-                            generated.batch().candidates());
-                    assertSame(
-                            MetalPreparedRoute.MPSGRAPH,
-                            new MetalNegPartitionPreparer()
-                                    .analyzeForTesting(
-                                            workload.context(), MetalPreparedRoute.MPSGRAPH)
-                                    .plan()
-                                    .route());
-                }
+            for (UnaryElementwiseKind kind : List.of(
+                    UnaryElementwiseKind.FLOOR,
+                    UnaryElementwiseKind.CEIL,
+                    UnaryElementwiseKind.SIGN,
+                    UnaryElementwiseKind.RELU)) {
+                Workload workload = unaryWorkload(device, identity++, kind);
+                Generated generated = generated(workload, 2);
+                assertSame(
+                        MetalPreparedRoute.CUSTOM_PROGRAM,
+                        generated.analysis().plan().route());
+                assertEquals(
+                        List.of(
+                                MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM,
+                                MetalNegTuningBatch.Candidate.MPSGRAPH),
+                        generated.batch().candidates());
+                assertSame(
+                        MetalPreparedRoute.MPSGRAPH,
+                        new MetalNegPartitionPreparer()
+                                .analyzeForTesting(
+                                        workload.context(), MetalPreparedRoute.MPSGRAPH)
+                                .plan()
+                                .route());
             }
+
             assertEquals(0, api.nativeAllocations.get());
         }
     }
@@ -308,20 +301,18 @@ class MetalNegRouteCandidateGeneratorTest {
         TestNativeApi api = new TestNativeApi();
         try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
             long identity = 205_000L;
-            for (NumericalProfile profile : NumericalProfile.values()) {
-                Workload workload = operationWorkload(
-                        device,
-                        identity++,
-                        profile,
-                        new Operation(CastKind.CAST, new CastAttrs(DataType.INT64)),
-                        List.of(canonical(DataType.INT32, Shape.of(2, 3))),
-                        canonical(DataType.INT64, Shape.of(2, 3)));
-                Generated generated = generated(workload, 2);
-                assertSame(MetalPreparedRoute.CUSTOM_PROGRAM, generated.analysis().plan().route());
-                assertEquals(
-                        List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
-                        generated.batch().candidates());
-            }
+            Workload workload = operationWorkload(
+                    device,
+                    identity++,
+                    new Operation(CastKind.CAST, new CastAttrs(DataType.INT64)),
+                    List.of(canonical(DataType.INT32, Shape.of(2, 3))),
+                    canonical(DataType.INT64, Shape.of(2, 3)));
+            Generated generated = generated(workload, 2);
+            assertSame(MetalPreparedRoute.CUSTOM_PROGRAM, generated.analysis().plan().route());
+            assertEquals(
+                    List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
+                    generated.batch().candidates());
+
       assertEquals(0, api.nativeAllocations.get());
     }
   }
@@ -349,7 +340,6 @@ class MetalNegRouteCandidateGeneratorTest {
                         MetalCapabilityProvider.METAL_BACKEND_ID,
                         List.of(cast.id(), neg.id()));
                 var context = new PrepareContext<>(
-                        NumericalProfile.STRICT_IEEE,
                         new PartitionDag(partition, List.of(cast, neg)),
                         List.of(new GraphValue(feed, lowDescriptor),
                                 new GraphValue(castResult, floatDescriptor),
@@ -389,7 +379,6 @@ class MetalNegRouteCandidateGeneratorTest {
           operationWorkload(
               device,
               207_000L,
-              NumericalProfile.STRICT_IEEE,
               new Operation(ShapeTransformKind.RESHAPE, new TargetShapeAttrs(Shape.of(2, 2))),
               canonical(Shape.of(4)),
               view(Shape.of(2, 2), 2, 1));
@@ -431,7 +420,6 @@ class MetalNegRouteCandidateGeneratorTest {
                 Workload workload = operationWorkload(
                         device,
                         identity++,
-                        NumericalProfile.ACCELERATOR,
                         new Operation(
                                 kind,
                                 new ScalarValueAttrs(ScalarValue.float32(
@@ -466,7 +454,6 @@ class MetalNegRouteCandidateGeneratorTest {
                 Workload workload = operationWorkload(
                         device,
                         identity++,
-                        NumericalProfile.ACCELERATOR,
                         new Operation(
                                 kind,
                                 new ScalarValueAttrs(ScalarValue.float32(2.0f))),
@@ -481,7 +468,6 @@ class MetalNegRouteCandidateGeneratorTest {
             Workload gradReciprocal = operationWorkload(
                     device,
                     identity++,
-                    NumericalProfile.ACCELERATOR,
                     new Operation(
                             UnaryElementwiseKind.RECIPROCAL,
                             NoOperationAttrs.INSTANCE),
@@ -503,7 +489,6 @@ class MetalNegRouteCandidateGeneratorTest {
                 Workload workload = operationWorkload(
                         device,
                         identity++,
-                        NumericalProfile.ACCELERATOR,
                         new Operation(
                                 ScalarElementwiseKind.ADD,
                                 new ScalarValueAttrs(ScalarValue.float32(
@@ -524,7 +509,6 @@ class MetalNegRouteCandidateGeneratorTest {
             Workload reciprocal = operationWorkload(
                     device,
                     identity++,
-                    NumericalProfile.ACCELERATOR,
                     new Operation(
                             UnaryElementwiseKind.RECIPROCAL,
                             NoOperationAttrs.INSTANCE),
@@ -549,43 +533,9 @@ class MetalNegRouteCandidateGeneratorTest {
                     rewriteInt(encoded, Integer.BYTES, 14),
                     scalarGenerated.batch()).isEmpty());
 
-            for (ScalarElementwiseKind kind : List.of(
-                    ScalarElementwiseKind.ADD,
-                    ScalarElementwiseKind.SUB,
-                    ScalarElementwiseKind.MUL,
-                    ScalarElementwiseKind.DIV,
-                    ScalarElementwiseKind.MIN,
-                    ScalarElementwiseKind.MAX,
-                    ScalarElementwiseKind.POW)) {
-                Workload strict = operationWorkload(
-                        device,
-                        identity++,
-                        NumericalProfile.STRICT_IEEE,
-                        new Operation(
-                                kind,
-                                new ScalarValueAttrs(ScalarValue.float32(2.0f))),
-                        noGrad,
-                        noGrad);
-                assertThrows(
-                        IllegalArgumentException.class,
-                        () -> analyze(strict.context()));
-            }
-            Workload strictReciprocal = operationWorkload(
-                    device,
-                    identity++,
-                    NumericalProfile.STRICT_IEEE,
-                    new Operation(
-                            UnaryElementwiseKind.RECIPROCAL,
-                            NoOperationAttrs.INSTANCE),
-                    noGrad,
-                    noGrad);
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> analyze(strictReciprocal.context()));
             Workload gradPow = operationWorkload(
                     device,
                     identity++,
-                    NumericalProfile.ACCELERATOR,
                     new Operation(
                             ScalarElementwiseKind.POW,
                             new ScalarValueAttrs(ScalarValue.float32(2.0f))),
@@ -647,7 +597,7 @@ class MetalNegRouteCandidateGeneratorTest {
                     workloadSignature(binaryReversed),
                     "ordered binary operand edges participate in workload identity");
             Workload unaryAbs = unaryWorkload(
-                    device, 40_000, NumericalProfile.STRICT_IEEE, UnaryElementwiseKind.ABS);
+                    device, 40_000, UnaryElementwiseKind.ABS);
             assertEquals(
                     List.of(MetalNegTuningBatch.Candidate.MPSGRAPH),
                     generated(unaryAbs, 2).batch().candidates(),
@@ -657,11 +607,11 @@ class MetalNegRouteCandidateGeneratorTest {
                     workloadSignature(unaryAbs),
                     "ordered ABS topology participates in workload identity");
             Workload acceleratorAbs = unaryWorkload(
-                    device, 50_000, NumericalProfile.ACCELERATOR, UnaryElementwiseKind.ABS);
-            assertNotEquals(
+                    device, 50_000, UnaryElementwiseKind.ABS);
+            assertEquals(
                     workloadSignature(unaryAbs),
                     workloadSignature(acceleratorAbs),
-                    "requested profile participates in ABS workload identity");
+                    "the same ABS topology has one workload identity");
         }
     }
     @Test
@@ -679,7 +629,6 @@ class MetalNegRouteCandidateGeneratorTest {
                 signatures.add(workloadSignature(operationWorkload(
                         device,
                         identity++,
-                        NumericalProfile.ACCELERATOR,
                         new Operation(
                                 kind,
                                 new ScalarValueAttrs(ScalarValue.float32(
@@ -690,7 +639,6 @@ class MetalNegRouteCandidateGeneratorTest {
             signatures.add(workloadSignature(operationWorkload(
                     device,
                     identity++,
-                    NumericalProfile.ACCELERATOR,
                     new Operation(
                             ScalarElementwiseKind.ADD,
                             new ScalarValueAttrs(ScalarValue.float32(
@@ -701,7 +649,6 @@ class MetalNegRouteCandidateGeneratorTest {
             signatures.add(workloadSignature(operationWorkload(
                     device,
                     identity++,
-                    NumericalProfile.ACCELERATOR,
                     new Operation(
                             ScalarElementwiseKind.ADD,
                             new ScalarValueAttrs(ScalarValue.float32(
@@ -711,7 +658,6 @@ class MetalNegRouteCandidateGeneratorTest {
             signatures.add(workloadSignature(operationWorkload(
                     device,
                     identity++,
-                    NumericalProfile.ACCELERATOR,
                     new Operation(
                             UnaryElementwiseKind.RECIPROCAL,
                             NoOperationAttrs.INSTANCE),
@@ -1029,7 +975,6 @@ class MetalNegRouteCandidateGeneratorTest {
             Workload oneHot = operationWorkload(
                     device,
                     80_000,
-                    NumericalProfile.STRICT_IEEE,
                     new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(4)),
                     canonical(DataType.INT32, Shape.of(3)),
                     canonical(DataType.BOOL, Shape.of(3, 4)));
@@ -1105,7 +1050,6 @@ class MetalNegRouteCandidateGeneratorTest {
             Workload workload = operationWorkload(
                     device,
                     95_000,
-                    NumericalProfile.STRICT_IEEE,
                     new Operation(
                             WindowTransformKind.UNFOLD_AXIS,
                             new UnfoldAxisAttrs(1, 3, 2)),
@@ -1172,8 +1116,8 @@ class MetalNegRouteCandidateGeneratorTest {
                     route.wireIdentity()).orElseThrow());
             assertArrayEquals(new byte[] {
                     0x4d, 0x4e, 0x43, 0x41,
-                    0x00, 0x00, 0x00, 0x1d,
-                    0x00, 0x00, 0x00, 0x1d,
+                    0x00, 0x00, 0x00, 0x1e,
+                    0x00, 0x00, 0x00, 0x1e,
                     0x00, 0x00, 0x00, (byte) route.wireIdentity()
             }, codec.encodeCandidate(candidate));
         }
@@ -1195,36 +1139,17 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(29, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(29, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(29, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(30, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(30, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(30, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(29, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(29, current.batch().compatibility().schemaVersion());
-            assertEquals(29, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(29, current.batch().compatibility().routePolicyVersion());
+            assertEquals(30, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(30, current.batch().compatibility().schemaVersion());
+            assertEquals(30, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(30, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
-            var strictCompatibility = current.batch().compatibility();
-            var acceleratorCompatibility = new MetalNegTuningBatch.Compatibility(
-                    MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION,
-                    MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
-                    MetalNegTuningBatch.ROUTE_POLICY_VERSION,
-                    NumericalProfile.ACCELERATOR,
-                    strictCompatibility.workload(),
-                    strictCompatibility.target());
-            var acceleratorBatch = new MetalNegTuningBatch(
-                    acceleratorCompatibility, current.batch().candidates());
-            var acceleratorDecision = new MetalNegTuningDecision(
-                    MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
-                    acceleratorCompatibility,
-                    MetalNegTuningBatch.Candidate.MPSGRAPH);
-            byte[] acceleratorBytes = codec.encodeDecision(acceleratorDecision);
-            assertFalse(Arrays.equals(first, acceleratorBytes));
-            assertTrue(codec.decodeDecision(acceleratorBytes, current.batch()).isEmpty());
-            assertTrue(codec.decodeDecision(first, acceleratorBatch).isEmpty());
-
             byte[] corrupt = first.clone();
             corrupt[20] ^= 1;
             assertTrue(codec.decodeDecision(corrupt, current.batch()).isEmpty());
@@ -1279,6 +1204,9 @@ class MetalNegRouteCandidateGeneratorTest {
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, 4, 28), current.batch()).isEmpty(),
                     "stale identity-28 decisions must fail closed despite a valid checksum");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, 4, 29), current.batch()).isEmpty(),
+                    "stale pre-cutover codec identity must fail closed");
             int compatibilityOffset = 4 * Integer.BYTES;
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, compatibilityOffset + Integer.BYTES, 24),
@@ -1407,7 +1335,7 @@ class MetalNegRouteCandidateGeneratorTest {
                     valid.context().nodes().getFirst().inputs(),
                     valid.context().nodes().getFirst().outputs());
             var invalidDag = new PartitionDag(valid.context().partition(), List.of(invalidNode));
-            var invalid = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, invalidDag, valid.context().values(), valid.context().memoryRequirements(), valid.context().constants(), new MetalNegAnalysisInputs(device));
+            var invalid = new PrepareContext<>(invalidDag, valid.context().values(), valid.context().memoryRequirements(), valid.context().constants(), new MetalNegAnalysisInputs(device));
             assertThrows(IllegalArgumentException.class, () -> new MetalNegPartitionPreparer()
                     .analyze(invalid));
             assertThrows(IllegalArgumentException.class,
@@ -1471,7 +1399,7 @@ class MetalNegRouteCandidateGeneratorTest {
             List<MetalMpsGraphProgram.ValueDescriptor> programValueDescriptors,
             MetalMpsGraphProgram graphProgram,
             long[] targetRequiredBytes) {
-        return new MetalNegPreparationPlan(source.numericalProfile(), source.partition(),
+        return new MetalNegPreparationPlan(source.partition(),
         source.partitionDag(),
         source.context(),
         source.route(),
@@ -1505,7 +1433,6 @@ class MetalNegRouteCandidateGeneratorTest {
         return operationWorkload(
                 device,
                 identityBase,
-                NumericalProfile.STRICT_IEEE,
                 operation,
                 inputDescriptor,
                 outputDescriptor);
@@ -1520,7 +1447,6 @@ class MetalNegRouteCandidateGeneratorTest {
         return operationWorkload(
                 device,
                 identityBase,
-                NumericalProfile.ACCELERATOR,
                 operation,
                 inputDescriptor,
                 outputDescriptor);
@@ -1529,7 +1455,6 @@ class MetalNegRouteCandidateGeneratorTest {
     private static Workload operationWorkload(
             MetalDeviceContext device,
             long identityBase,
-            NumericalProfile profile,
             Operation operation,
             TensorDescriptor inputDescriptor,
             TensorDescriptor outputDescriptor) {
@@ -1543,7 +1468,7 @@ class MetalNegRouteCandidateGeneratorTest {
         PlannedPartition partition = new PlannedPartition(
                 MetalCapabilityProvider.METAL_BACKEND_ID,
                 List.of(node.id()));
-        var context = new PrepareContext<>(profile, new PartitionDag(partition, List.of(node)),
+        var context = new PrepareContext<>(new PartitionDag(partition, List.of(node)),
                 List.of(
                         new GraphValue(feed, inputDescriptor),
                         new GraphValue(target, outputDescriptor)),
@@ -1568,7 +1493,6 @@ class MetalNegRouteCandidateGeneratorTest {
     private static Workload operationWorkload(
             MetalDeviceContext device,
             long identityBase,
-            NumericalProfile profile,
             Operation operation,
             List<TensorDescriptor> inputDescriptors,
             TensorDescriptor outputDescriptor) {
@@ -1595,7 +1519,6 @@ class MetalNegRouteCandidateGeneratorTest {
         requirements.add(new LogicalMemoryRequirement(
                 output, outputDescriptor, Optional.of(partition), List.of(), true));
         return new Workload(new PrepareContext<>(
-                profile,
                 new PartitionDag(partition, List.of(node)),
                 values,
                 requirements,
@@ -1625,7 +1548,6 @@ class MetalNegRouteCandidateGeneratorTest {
         PlannedPartition partition = new PlannedPartition(
                 MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
         return new Workload(new PrepareContext<>(
-                NumericalProfile.STRICT_IEEE,
                 new PartitionDag(partition, List.of(node)),
                 List.of(
                         new GraphValue(data, dataDescriptor),
@@ -1672,7 +1594,6 @@ class MetalNegRouteCandidateGeneratorTest {
                 MetalCapabilityProvider.METAL_BACKEND_ID,
                 List.of(node.id()));
         return new Workload(new PrepareContext<>(
-                NumericalProfile.ACCELERATOR,
                 new PartitionDag(partition, List.of(node)),
                 List.of(
                         new GraphValue(left, leftDescriptor),
@@ -1717,7 +1638,6 @@ class MetalNegRouteCandidateGeneratorTest {
                 MetalCapabilityProvider.METAL_BACKEND_ID,
                 List.of(node.id()));
         return new Workload(new PrepareContext<>(
-                NumericalProfile.STRICT_IEEE,
                 new PartitionDag(partition, List.of(node)),
                 List.of(
                         new GraphValue(data, dataDescriptor),
@@ -1775,7 +1695,7 @@ class MetalNegRouteCandidateGeneratorTest {
         PlannedPartition partition = new PlannedPartition(
                 MetalCapabilityProvider.METAL_BACKEND_ID,
                 nodes.stream().map(CompiledNode::id).toList());
-        return new Workload(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new PartitionDag(partition, nodes), List.of(
+        return new Workload(new PrepareContext<>(new PartitionDag(partition, nodes), List.of(
                 new GraphValue(firstFeed, inputDescriptor),
                 new GraphValue(firstTarget, outputDescriptor),
                 new GraphValue(secondFeed, inputDescriptor),
@@ -1838,15 +1758,13 @@ class MetalNegRouteCandidateGeneratorTest {
 
     static Workload withInputs(Workload workload, MetalNegAnalysisInputs inputs) {
         PrepareContext<MetalNegAnalysisInputs> context = workload.context();
-        return new Workload(new PrepareContext<>(NumericalProfile.STRICT_IEEE,
-                context.partitionDag(), context.values(), context.memoryRequirements(),
+        return new Workload(new PrepareContext<>(context.partitionDag(), context.values(), context.memoryRequirements(),
                 context.constants(), inputs));
     }
 
     private static Workload unaryWorkload(
             MetalDeviceContext device,
             long identityBase,
-            NumericalProfile profile,
             UnaryElementwiseKind kind) {
         Workload source = workload(
                 device, identityBase, Shape.of(4), false,
@@ -1859,7 +1777,6 @@ class MetalNegRouteCandidateGeneratorTest {
                 original.inputs(),
                 original.outputs());
         return new Workload(new PrepareContext<>(
-                profile,
                 new PartitionDag(context.partition(), List.of(unary)),
                 context.values(),
                 context.memoryRequirements(),
@@ -1914,7 +1831,7 @@ class MetalNegRouteCandidateGeneratorTest {
                 .<Map<ValueId, ScalarValue>>map(value -> Map.of(feed, value))
                 .orElseGet(Map::of);
         var dag = new PartitionDag(partition, nodes);
-        return new Workload(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, dag, values, requirements, constants, new MetalNegAnalysisInputs(device)));
+        return new Workload(new PrepareContext<>(dag, values, requirements, constants, new MetalNegAnalysisInputs(device)));
     }
 
     private static byte[] rewriteInt(byte[] source, int offset, int value) {

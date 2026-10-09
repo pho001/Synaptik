@@ -12,7 +12,6 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLowe
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
@@ -28,7 +27,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Pins the current CPU generated providers' raw FLOAT32 stored-subnormal realization.
- * These backend observations do not narrow Model's ACCELERATOR DAZ freedom.
+ * These route-local observations do not narrow Model's arithmetic-site DAZ permission.
  */
 class CpuStoredSubnormalProviderRegressionTest {
     private static final int MIN_SUBNORMAL = 0x0000_0001;
@@ -39,8 +38,7 @@ class CpuStoredSubnormalProviderRegressionTest {
         int lanes = FloatVector.SPECIES_PREFERRED.length();
         assertTrue(lanes > 0);
         int count = lanes + 1; // One complete preferred-species chunk plus its scalar tail.
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            for (var strategy : List.of(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        for (var strategy : List.of(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
                     CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR)) {
                 float[] left = new float[count];
                 float[] right = new float[count];
@@ -58,8 +56,8 @@ class CpuStoredSubnormalProviderRegressionTest {
                     Object output = opcode == CpuPointwiseOpcode.GREATER_THAN
                             || opcode == CpuPointwiseOpcode.EQUAL
                             ? new byte[count] : new float[count];
-                    invoke(opcode, profile, strategy, left, right, output, null);
-                    String label = profile + " " + strategy + " " + opcode;
+                    invoke(opcode, strategy, left, right, output, null);
+                    String label = strategy + " " + opcode;
                     if (output instanceof byte[] predicates) {
                         byte[] expected = new byte[count];
                         if (opcode == CpuPointwiseOpcode.GREATER_THAN) {
@@ -77,7 +75,7 @@ class CpuStoredSubnormalProviderRegressionTest {
                         CpuPointwiseOpcode.SCALAR_MAX)) {
                     for (int scalarBits : List.of(POSITIVE_ZERO, MIN_SUBNORMAL)) {
                         float[] output = new float[count];
-                        invoke(opcode, profile, strategy, left, null, output, scalarBits);
+                        invoke(opcode, strategy, left, null, output, scalarBits);
                         int[] expected = new int[count];
                         for (int index = 0; index < count; index++) {
                             int inputBits = leftBefore[index];
@@ -86,25 +84,23 @@ class CpuStoredSubnormalProviderRegressionTest {
                                     : Math.min(inputBits, scalarBits);
                         }
                         assertArrayEquals(expected, bits(output),
-                                profile + " " + strategy + " " + opcode + " scalar=" + scalarBits);
+                                strategy + " " + opcode + " scalar=" + scalarBits);
                     }
                 }
-                assertArrayEquals(leftBefore, bits(left), profile + " left input bits");
-                assertArrayEquals(rightBefore, bits(right), profile + " right input bits");
-            }
+                assertArrayEquals(leftBefore, bits(left), "left input bits");
+                assertArrayEquals(rightBefore, bits(right), "right input bits");
         }
     }
 
     @Test
-    void generatedScalarArgMaxSelectsStoredSubnormalUnderBothProfiles() throws Throwable {
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            for (ArgExtremaTiePolicy tie : ArgExtremaTiePolicy.values()) {
+    void generatedScalarArgMaxSelectsStoredSubnormal() throws Throwable {
+        for (ArgExtremaTiePolicy tie : ArgExtremaTiePolicy.values()) {
                 float[] input = {Float.intBitsToFloat(POSITIVE_ZERO),
                         Float.intBitsToFloat(MIN_SUBNORMAL),
                         Float.intBitsToFloat(POSITIVE_ZERO)};
                 var base = CpuArgExtremaLoweringTest.context(AggregateReductionKind.ARG_MAX,
                         DataType.FLOAT32, Shape.of(3), 0, false, tie);
-                var context = new PrepareContext<>(profile, base.partition(), base.nodes(),
+                var context = new PrepareContext<>(base.partition(), base.nodes(),
                         base.values(), base.memoryRequirements(), base.constants(),
                         new CpuPartitionAnalysisInputs(false, List.of(
                                 CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
@@ -117,14 +113,13 @@ class CpuStoredSubnormalProviderRegressionTest {
                 long[] output = {-1};
                 artifact.entryPoint().invokeWithArguments(input, output,
                         plan.argExtremaGeometry().orElseThrow().pack(new long[2]), 0L, 1L);
-                assertArrayEquals(new long[] {1}, output, profile + " " + tie);
+                assertArrayEquals(new long[] {1}, output, tie.toString());
                 assertArrayEquals(new int[] {POSITIVE_ZERO, MIN_SUBNORMAL, POSITIVE_ZERO},
-                        bits(input), profile + " " + tie + " input bits");
-            }
+                        bits(input), tie + " input bits");
         }
     }
 
-    private static void invoke(CpuPointwiseOpcode opcode, NumericalProfile profile,
+    private static void invoke(CpuPointwiseOpcode opcode,
             CpuPartitionPreparationPlan.ExecutionStrategy strategy, float[] left,
             float[] right, Object output, Integer scalarBits) throws Throwable {
         boolean binary = right != null;
@@ -148,7 +143,7 @@ class CpuStoredSubnormalProviderRegressionTest {
                 type == DataType.BOOL ? CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY
                         : CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY).toList();
         var specialization = new CpuKernelSpecialization(
-                CpuLoweringFingerprint.fromHex(ir.structuralKey()), profile, strategy,
+                CpuLoweringFingerprint.fromHex(ir.structuralKey()), strategy,
                 types, carriers, strategy == CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR
                         ? FloatVector.SPECIES_PREFERRED.vectorBitSize() : 0, -1,
                 List.of(), false, strategy == CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR

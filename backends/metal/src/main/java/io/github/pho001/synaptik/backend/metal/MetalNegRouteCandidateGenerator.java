@@ -1,6 +1,5 @@
 package io.github.pho001.synaptik.backend.metal;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
@@ -20,7 +19,7 @@ import java.util.Optional;
  * Generates complete, stable, budget-bounded Metal supported-operation route candidates.
  *
  * <p>The workload fingerprint uses only versioned semantics and structural positions, including the
- * cold numerical profile, schema-nineteen program image and execution plan, exact logical
+ * schema-twenty program image and execution plan, exact logical
  * descriptors, ordered edges, explicit value states, compact materialized set, target sets,
  * dense represented-order geometry, ABI identity, typed splats,
  * and the scalar-composition source wire, exact raw constant, rank-one {@code [1]} shape, operand
@@ -30,8 +29,8 @@ import java.util.Optional;
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 29;
-    private static final int EXACT_DEFAULT_POLICY = 29;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 30;
+    private static final int EXACT_DEFAULT_POLICY = 30;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.
@@ -51,8 +50,7 @@ final class MetalNegRouteCandidateGenerator {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(plan, "plan");
         if (budget <= 0) throw new IllegalArgumentException("budget must be positive");
-        if (plan.numericalProfile() != context.numericalProfile()
-                || plan.partition() != context.partition()
+        if (plan.partition() != context.partition()
                 || plan.partitionDag() != context.partitionDag()
                 || plan.context() != context.backendInputs().context()) {
             throw new IllegalArgumentException("Metal NEG candidate facts disagree");
@@ -76,7 +74,6 @@ final class MetalNegRouteCandidateGenerator {
                 MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION,
                 MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                 MetalNegTuningBatch.ROUTE_POLICY_VERSION,
-                plan.numericalProfile(),
                 signature(context, plan),
                 new MetalNegTuningBatch.TargetCompatibility(
                         MetalNativeApi.ABI_VERSION, plan.context().sessionNonce()));
@@ -169,7 +166,6 @@ final class MetalNegRouteCandidateGenerator {
         MessageDigest digest = sha256();
         updateInt(digest, WORKLOAD_SIGNATURE_VERSION);
         updateInt(digest, EXACT_DEFAULT_POLICY);
-        updateInt(digest, numericalProfileWireValue(plan.numericalProfile()));
         updateInt(digest, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
         updateInt(digest, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
         updateInt(digest, MetalNativeApi.ABI_VERSION);
@@ -186,7 +182,7 @@ final class MetalNegRouteCandidateGenerator {
                 ? MetalPreparedRoute.MPSGRAPH
                 : plan.route();
         plan.graphProgram().updateDigest(
-                digest, plan.numericalProfile(), plan.programValueDescriptors(),
+                digest, plan.programValueDescriptors(),
                 plan.feedValueIndices(), plan.targetValueIndices(), imageRoute);
         updateInt(digest, plan.valueStates().size());
         for (MetalMpsGraphProgram.ValueState state : plan.valueStates()) {
@@ -255,13 +251,6 @@ final class MetalNegRouteCandidateGenerator {
 
     private static int dataTypeWireValue(DataType dataType) {
         return MetalMpsGraphProgram.dataTypeWire(dataType);
-    }
-
-    private static int numericalProfileWireValue(NumericalProfile profile) {
-        return switch (profile) {
-            case STRICT_IEEE -> 0x53545249;
-            case ACCELERATOR -> 0x41434345;
-        };
     }
 
     private static MessageDigest sha256() {

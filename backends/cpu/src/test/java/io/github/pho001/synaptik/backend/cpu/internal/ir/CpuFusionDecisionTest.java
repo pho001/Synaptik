@@ -175,7 +175,7 @@ class CpuFusionDecisionTest {
         var baseline = fact.structuralIdentity().baselineUnits().getFirst();
         var execution = baseline.execution();
         var specialization = execution.specialization();
-        var changedSpecialization = new CpuKernelSpecialization(specialization.loweringFingerprint(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, specialization.executionStrategy(), specialization.boundaryDataTypes(),
+        var changedSpecialization = new CpuKernelSpecialization(specialization.loweringFingerprint(), specialization.executionStrategy(), specialization.boundaryDataTypes(),
         specialization.carrierPattern(), specialization.vectorSpeciesBitSize(),
         specialization.materializedSourcePosition(),
         specialization.scalarPowerRealizations(), !specialization.scratchParameter());
@@ -188,7 +188,7 @@ class CpuFusionDecisionTest {
                         execution.materialization(), execution.runtimeTopology(),
                         execution.packedGeometry(), execution.fusionReason()));
         String wrongKey = "02".repeat(32);
-        var changedFingerprint = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(wrongKey), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, specialization.executionStrategy(), specialization.boundaryDataTypes(),
+        var changedFingerprint = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(wrongKey), specialization.executionStrategy(), specialization.boundaryDataTypes(),
         specialization.carrierPattern(), specialization.vectorSpeciesBitSize(),
         specialization.materializedSourcePosition(),
         specialization.scalarPowerRealizations(), specialization.scratchParameter());
@@ -303,7 +303,7 @@ class CpuFusionDecisionTest {
 
     private static CpuPartitionPreparationPlan copyPlan(CpuPartitionPreparationPlan plan,
             List<CpuSpecializedSubgraph> recognition, List<CpuFusionDecision> decisions) {
-        return new CpuPartitionPreparationPlan(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, plan.units(), plan.route(),
+        return new CpuPartitionPreparationPlan(plan.units(), plan.route(),
                 plan.executionStrategy(), plan.bufferDeclarations(), plan.boundaryValues(),
                 plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
                 plan.extents(), plan.elementCount(), plan.affineAddressPairs(),
@@ -358,7 +358,7 @@ class CpuFusionDecisionTest {
                         requirement.valueId(), requirement.descriptor(),
                         requirement.producerPartition(), requirement.consumerPartitions(), false))
                 .toList();
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, source.partition(), source.nodes(), source.values(), memory, source.constants(), source.backendInputs());
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(source.partition(), source.nodes(), source.values(), memory, source.constants(), source.backendInputs());
         return new CpuPartitionPreparer().analyze(context).plan();
     }
 }

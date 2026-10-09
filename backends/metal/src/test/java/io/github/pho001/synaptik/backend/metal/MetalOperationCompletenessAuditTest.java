@@ -3,7 +3,6 @@ package io.github.pho001.synaptik.backend.metal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -261,17 +260,13 @@ class MetalOperationCompletenessAuditTest {
                     SCATTER_ND -> indexing(kind);
             case UNFOLD_AXIS, FOLD_AXIS, UNFOLD2D, FOLD2D, UNFOLD3D, FOLD3D -> window(kind);
             case SELECT, PAD, SLICE, SLICE_UPDATE, CONCAT, STACK, TILE -> movement(kind);
-            case MATMUL -> query(NumericalProfile.ACCELERATOR,
-                    new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
+            case MATMUL -> query(new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
                     List.of(f32(2, 3), f32(3, 4)), List.of(f32(2, 4)));
-            case WHERE -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
+            case WHERE -> query(new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
                     List.of(bool(3), f32(2, 1), f32(1, 3)), List.of(f32(2, 3)));
-            case CAST -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(CastKind.CAST, new CastAttrs(DataType.INT64)),
+            case CAST -> query(new Operation(CastKind.CAST, new CastAttrs(DataType.INT64)),
                     List.of(f32(2, 3)), List.of(descriptor(DataType.INT64, Shape.of(2, 3), false)));
-            case CUM_SUM, CUM_PROD -> query(NumericalProfile.ACCELERATOR,
-                    new Operation(kind == MetalMpsGraphProgram.NodeKind.CUM_SUM
+            case CUM_SUM, CUM_PROD -> query(new Operation(kind == MetalMpsGraphProgram.NodeKind.CUM_SUM
                             ? CumulativeScanKind.CUM_SUM : CumulativeScanKind.CUM_PROD,
                             new CumulativeScanAttrs(1, false, false)),
                     List.of(f32(2, 3)), List.of(f32(2, 3)));
@@ -290,8 +285,7 @@ class MetalOperationCompletenessAuditTest {
 
     private static OperationCapabilityQuery unary(MetalMpsGraphProgram.NodeKind node) {
         UnaryElementwiseKind kind = UnaryElementwiseKind.valueOf(node.name());
-        return query(NumericalProfile.ACCELERATOR,
-                new Operation(kind, NoOperationAttrs.INSTANCE), List.of(f32(2, 3)), List.of(f32(2, 3)));
+        return query(new Operation(kind, NoOperationAttrs.INSTANCE), List.of(f32(2, 3)), List.of(f32(2, 3)));
     }
 
     private static OperationCapabilityQuery binary(MetalMpsGraphProgram.NodeKind node) {
@@ -301,7 +295,7 @@ class MetalOperationCompletenessAuditTest {
             case TENSOR_POW -> BinaryArithmeticKind.POW;
             default -> BinaryArithmeticKind.valueOf(node.name());
         };
-        return query(NumericalProfile.ACCELERATOR, new Operation(kind, NoOperationAttrs.INSTANCE),
+        return query(new Operation(kind, NoOperationAttrs.INSTANCE),
                 List.of(f32(2, 1, 3), f32(1, 4, 3)), List.of(f32(2, 4, 3)));
     }
 
@@ -312,7 +306,7 @@ class MetalOperationCompletenessAuditTest {
         Object attrs = kind == ScalarElementwiseKind.CLAMP
                 ? new ClampRangeAttrs(ScalarValue.float32(-1.0f), ScalarValue.float32(1.0f))
                 : new ScalarValueAttrs(ScalarValue.float32(2.0f));
-        return query(NumericalProfile.ACCELERATOR, new Operation(kind,
+        return query(new Operation(kind,
                 (io.github.pho001.synaptik.model.operation.OperationAttrs) attrs),
                 List.of(f32(2, 3)), List.of(f32(2, 3)));
     }
@@ -368,9 +362,7 @@ class MetalOperationCompletenessAuditTest {
                 || kind == AggregateReductionKind.STANDARD_DEVIATION
                 || kind == AggregateReductionKind.L1_NORM
                 || kind == AggregateReductionKind.L2_NORM;
-        return query(accelerator
-                        ? NumericalProfile.ACCELERATOR : NumericalProfile.STRICT_IEEE,
-                new Operation(kind, (io.github.pho001.synaptik.model.operation.OperationAttrs) attrs),
+        return query(new Operation(kind, (io.github.pho001.synaptik.model.operation.OperationAttrs) attrs),
                 List.of(input), List.of(output));
     }
 
@@ -384,13 +376,13 @@ class MetalOperationCompletenessAuditTest {
             case NE -> BinaryComparisonKind.NOT_EQUAL;
             default -> throw new AssertionError(node);
         };
-        return query(NumericalProfile.ACCELERATOR, new Operation(kind, NoOperationAttrs.INSTANCE),
+        return query(new Operation(kind, NoOperationAttrs.INSTANCE),
                 List.of(f32(2, 1, 3), f32(1, 4, 3)), List.of(bool(2, 4, 3)));
     }
 
     private static OperationCapabilityQuery classification(MetalMpsGraphProgram.NodeKind node) {
         FloatingClassificationKind kind = FloatingClassificationKind.valueOf(node.name());
-        return query(NumericalProfile.STRICT_IEEE, new Operation(kind, NoOperationAttrs.INSTANCE),
+        return query(new Operation(kind, NoOperationAttrs.INSTANCE),
                 List.of(f32(2, 3)), List.of(bool(2, 3)));
     }
 
@@ -398,29 +390,23 @@ class MetalOperationCompletenessAuditTest {
         BooleanLogicalKind kind = BooleanLogicalKind.valueOf(node.name().replace("LOGICAL_", ""));
         List<TensorDescriptor> inputs = kind == BooleanLogicalKind.NOT
                 ? List.of(bool(2, 3)) : List.of(bool(2, 1), bool(1, 3));
-        return query(NumericalProfile.STRICT_IEEE, new Operation(kind, NoOperationAttrs.INSTANCE),
+        return query(new Operation(kind, NoOperationAttrs.INSTANCE),
                 inputs, List.of(bool(2, 3)));
     }
 
     private static OperationCapabilityQuery affine(MetalMpsGraphProgram.NodeKind node) {
         return switch (node) {
-            case RESHAPE -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(ShapeTransformKind.RESHAPE, new TargetShapeAttrs(Shape.of(2, 3))),
+            case RESHAPE -> query(new Operation(ShapeTransformKind.RESHAPE, new TargetShapeAttrs(Shape.of(2, 3))),
                     List.of(f32(6)), List.of(view(DataType.FLOAT32, Shape.of(2, 3), 0, 3, 1)));
-            case EXPAND -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(ShapeTransformKind.EXPAND, new TargetShapeAttrs(Shape.of(2, 3))),
+            case EXPAND -> query(new Operation(ShapeTransformKind.EXPAND, new TargetShapeAttrs(Shape.of(2, 3))),
                     List.of(f32(1, 3)), List.of(view(DataType.FLOAT32, Shape.of(2, 3), 0, 0, 1)));
-            case PERMUTE -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(AxisTransformKind.PERMUTE, new PermutationAttrs(List.of(1, 0))),
+            case PERMUTE -> query(new Operation(AxisTransformKind.PERMUTE, new PermutationAttrs(List.of(1, 0))),
                     List.of(f32(2, 3)), List.of(view(DataType.FLOAT32, Shape.of(3, 2), 0, 1, 3)));
-            case EXPAND_DIMS -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(AxisTransformKind.EXPAND_DIMS, new AxisTransformAttrs(1)),
+            case EXPAND_DIMS -> query(new Operation(AxisTransformKind.EXPAND_DIMS, new AxisTransformAttrs(1)),
                     List.of(f32(2, 3)), List.of(view(DataType.FLOAT32, Shape.of(2, 1, 3), 0, 3, 3, 1)));
-            case SQUEEZE -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(AxisTransformKind.SQUEEZE, new AxisTransformAttrs(1)),
+            case SQUEEZE -> query(new Operation(AxisTransformKind.SQUEEZE, new AxisTransformAttrs(1)),
                     List.of(f32(2, 1, 3)), List.of(view(DataType.FLOAT32, Shape.of(2, 3), 0, 3, 1)));
-            case CONTIGUOUS -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE),
+            case CONTIGUOUS -> query(new Operation(ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE),
                     List.of(view(DataType.FLOAT32, Shape.of(2, 3), 0, 0, 1)), List.of(f32(2, 3)));
             default -> throw new AssertionError(node);
         };
@@ -428,27 +414,20 @@ class MetalOperationCompletenessAuditTest {
 
     private static OperationCapabilityQuery indexing(MetalMpsGraphProgram.NodeKind node) {
         return switch (node) {
-            case GATHER -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(1)),
+            case GATHER -> query(new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(1)),
                     List.of(f32(2, 3, 4), i32(5, 6)), List.of(f32(2, 5, 6, 4)));
-            case ONE_HOT -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(4)),
+            case ONE_HOT -> query(new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(4)),
                     List.of(i32(2, 3)), List.of(bool(2, 3, 4)));
-            case SCATTER_ELEMENTS -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+            case SCATTER_ELEMENTS -> query(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
                             new ScatterElementsAttrs(1, ScatterReduction.NONE)),
                     List.of(f32(2, 3), i32(2, 2), f32(2, 2)), List.of(f32(2, 3)));
-            case GATHER_ELEMENTS -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(AxisGatherKind.GATHER_ELEMENTS, new IndexAxisAttrs(1)),
+            case GATHER_ELEMENTS -> query(new Operation(AxisGatherKind.GATHER_ELEMENTS, new IndexAxisAttrs(1)),
                     List.of(f32(2, 3), i32(2, 2)), List.of(f32(2, 2)));
-            case SCATTER_ADD -> query(NumericalProfile.ACCELERATOR,
-                    new Operation(AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(0)),
+            case SCATTER_ADD -> query(new Operation(AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(0)),
                     List.of(f32(3), i32(2), f32(2)), List.of(f32(3)));
-            case GATHER_ND -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(GatherNdKind.GATHER_ND, new GatherNdAttrs(0)),
+            case GATHER_ND -> query(new Operation(GatherNdKind.GATHER_ND, new GatherNdAttrs(0)),
                     List.of(f32(2, 3), i32(2, 1)), List.of(f32(2, 3)));
-            case SCATTER_ND -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(ScatterNdKind.SCATTER_ND,
+            case SCATTER_ND -> query(new Operation(ScatterNdKind.SCATTER_ND,
                             new ScatterNdAttrs(0, ScatterReduction.NONE)),
                     List.of(f32(3), i32(2, 1), f32(2)), List.of(f32(3)));
             default -> throw new AssertionError(node);
@@ -464,24 +443,18 @@ class MetalOperationCompletenessAuditTest {
         Window3dAttrs fold3d =
                 new Window3dAttrs(2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, true);
         return switch (node) {
-            case UNFOLD_AXIS -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(1, 3, 2)),
+            case UNFOLD_AXIS -> query(new Operation(WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(1, 3, 2)),
                     List.of(f32(2, 6)), List.of(f32(2, 2, 3)));
-            case FOLD_AXIS -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(WindowTransformKind.FOLD_AXIS, new FoldAxisAttrs(1, 4, 2)),
+            case FOLD_AXIS -> query(new Operation(WindowTransformKind.FOLD_AXIS, new FoldAxisAttrs(1, 4, 2)),
                     List.of(f32(2, 2, 2)), List.of(f32(2, 4)));
-            case UNFOLD2D -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(WindowTransformKind.UNFOLD2D, unfold2d),
+            case UNFOLD2D -> query(new Operation(WindowTransformKind.UNFOLD2D, unfold2d),
                     List.of(f32(1, 1, 2, 2)), List.of(f32(1, 4, 1)));
-            case FOLD2D -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(WindowTransformKind.FOLD2D,
+            case FOLD2D -> query(new Operation(WindowTransformKind.FOLD2D,
                             new Fold2dAttrs(Shape.of(1, 1, 3, 3), fold2d)),
                     List.of(f32(1, 4, 9)), List.of(f32(1, 1, 3, 3)));
-            case UNFOLD3D -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(WindowTransformKind.UNFOLD3D, unfold3d),
+            case UNFOLD3D -> query(new Operation(WindowTransformKind.UNFOLD3D, unfold3d),
                     List.of(f32(1, 1, 2, 2, 2)), List.of(f32(1, 8, 1)));
-            case FOLD3D -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(WindowTransformKind.FOLD3D,
+            case FOLD3D -> query(new Operation(WindowTransformKind.FOLD3D,
                             new Fold3dAttrs(Shape.of(1, 1, 3, 3, 3), fold3d)),
                     List.of(f32(1, 8, 27)), List.of(f32(1, 1, 3, 3, 3)));
             default -> throw new AssertionError(node);
@@ -490,31 +463,24 @@ class MetalOperationCompletenessAuditTest {
 
     private static OperationCapabilityQuery movement(MetalMpsGraphProgram.NodeKind node) {
         return switch (node) {
-            case SELECT -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(SelectKind.SELECT, new SelectAttrs(0, 1)),
+            case SELECT -> query(new Operation(SelectKind.SELECT, new SelectAttrs(0, 1)),
                     List.of(i32(2, 3)),
                     List.of(view(DataType.INT32, Shape.of(3), 3, 1)));
-            case PAD -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(PadKind.PAD,
+            case PAD -> query(new Operation(PadKind.PAD,
                             new PadAttrs(List.of(1L), List.of(2L), ScalarValue.int32(-1))),
                     List.of(i32(2)), List.of(i32(5)));
-            case SLICE -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(SliceKind.SLICE,
+            case SLICE -> query(new Operation(SliceKind.SLICE,
                             new SliceAttrs(List.of(1L), List.of(2L), List.of(1), List.of(1L))),
                     List.of(i32(2, 3)),
                     List.of(view(DataType.INT32, Shape.of(2, 2), 1, 3, 1)));
-            case SLICE_UPDATE -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(SliceKind.SLICE_UPDATE,
+            case SLICE_UPDATE -> query(new Operation(SliceKind.SLICE_UPDATE,
                             new SliceAttrs(List.of(3L), List.of(2L), List.of(0), List.of(-2L))),
                     List.of(i32(4), i32(2)), List.of(i32(4)));
-            case CONCAT -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(TensorCompositionKind.CONCAT, new CompositionAxisAttrs(0)),
+            case CONCAT -> query(new Operation(TensorCompositionKind.CONCAT, new CompositionAxisAttrs(0)),
                     List.of(i32(2), i32(1), i32(2)), List.of(i32(5)));
-            case STACK -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(TensorCompositionKind.STACK, new CompositionAxisAttrs(1)),
+            case STACK -> query(new Operation(TensorCompositionKind.STACK, new CompositionAxisAttrs(1)),
                     List.of(i32(2), i32(2)), List.of(i32(2, 2)));
-            case TILE -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(TileKind.TILE, new TileAttrs(List.of(3L))),
+            case TILE -> query(new Operation(TileKind.TILE, new TileAttrs(List.of(3L))),
                     List.of(i32(2)), List.of(i32(6)));
             default -> throw new AssertionError(node);
         };
@@ -522,21 +488,18 @@ class MetalOperationCompletenessAuditTest {
 
     private static OperationCapabilityQuery attention() {
         TensorDescriptor value = f32(1, 1, 1);
-        return query(NumericalProfile.ACCELERATOR,
-                new Operation(ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION,
+        return query(new Operation(ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION,
                         new ScaledDotProductAttentionAttrs(Optional.empty(), false)),
                 List.of(value, value, value), List.of(value));
     }
 
     private static OperationCapabilityQuery convolution(MetalMpsGraphProgram.NodeKind node) {
         if (node == MetalMpsGraphProgram.NodeKind.CONV2D) {
-            return query(NumericalProfile.ACCELERATOR,
-                    new Operation(Conv2dKind.CONV2D, Conv2dAttrs.defaults()),
+            return query(new Operation(Conv2dKind.CONV2D, Conv2dAttrs.defaults()),
                     List.of(f32(1, 2, 3, 4), f32(4, 2, 1, 1), f32(4)),
                     List.of(f32(1, 4, 3, 4)));
         }
-        return query(NumericalProfile.ACCELERATOR,
-                new Operation(Conv3dKind.CONV3D,
+        return query(new Operation(Conv3dKind.CONV3D,
                         new Conv3dAttrs(1, 2, 1, 0, 1, 0, 1, 1, 2, 1)),
                 List.of(f32(1, 2, 4, 5, 6), f32(3, 2, 2, 2, 2)),
                 List.of(f32(1, 3, 3, 3, 4)));
@@ -545,17 +508,14 @@ class MetalOperationCompletenessAuditTest {
     private static OperationCapabilityQuery loss(MetalMpsGraphProgram.NodeKind node) {
         TensorDescriptor value = f32(2, 3);
         return switch (node) {
-            case MEAN_SQUARED_ERROR -> query(NumericalProfile.ACCELERATOR,
-                    new Operation(LossKind.MEAN_SQUARED_ERROR,
+            case MEAN_SQUARED_ERROR -> query(new Operation(LossKind.MEAN_SQUARED_ERROR,
                             new MeanSquaredErrorAttrs(LossReduction.NONE)),
                     List.of(value, value), List.of(value));
             case DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS -> query(
-                    NumericalProfile.ACCELERATOR,
                     new Operation(LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                             new DenseCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.NONE)),
                     List.of(value, value), List.of(f32(2)));
             case INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS -> query(
-                    NumericalProfile.ACCELERATOR,
                     new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                             new IndexCategoricalCrossEntropyWithLogitsAttrs(
                                     1, LossReduction.NONE, Optional.empty())),
@@ -569,25 +529,20 @@ class MetalOperationCompletenessAuditTest {
         TensorDescriptor channel = f32(3);
         ScalarValue epsilon = ScalarValue.float32(1.0e-5f);
         return switch (node) {
-            case BATCH_NORM_INFERENCE -> query(NumericalProfile.ACCELERATOR,
-                    new Operation(BatchNormKind.BATCH_NORM_INFERENCE,
+            case BATCH_NORM_INFERENCE -> query(new Operation(BatchNormKind.BATCH_NORM_INFERENCE,
                             new BatchNormInferenceAttrs(1, epsilon)),
                     List.of(value, channel, channel, channel, channel), List.of(value));
-            case BATCH_NORM_TRAINING -> query(NumericalProfile.ACCELERATOR,
-                    new Operation(BatchNormKind.BATCH_NORM_TRAINING,
+            case BATCH_NORM_TRAINING -> query(new Operation(BatchNormKind.BATCH_NORM_TRAINING,
                             new BatchNormTrainingAttrs(1, ScalarValue.float32(0.5f), epsilon)),
                     List.of(value, channel, channel, channel, channel),
                     List.of(value, channel, channel, channel, channel));
-            case LAYER_NORM -> query(NumericalProfile.ACCELERATOR,
-                    new Operation(LayerNormKind.LAYER_NORM,
+            case LAYER_NORM -> query(new Operation(LayerNormKind.LAYER_NORM,
                             new LayerNormAttrs(Shape.of(3), epsilon)),
                     List.of(value), List.of(value));
-            case RMS_NORM -> query(NumericalProfile.ACCELERATOR,
-                    new Operation(RmsNormKind.RMS_NORM,
+            case RMS_NORM -> query(new Operation(RmsNormKind.RMS_NORM,
                             new RmsNormAttrs(Shape.of(3), epsilon)),
                     List.of(value), List.of(value));
-            case SOFTMAX, LOG_SOFTMAX -> query(NumericalProfile.ACCELERATOR,
-                    new Operation(node == MetalMpsGraphProgram.NodeKind.SOFTMAX
+            case SOFTMAX, LOG_SOFTMAX -> query(new Operation(node == MetalMpsGraphProgram.NodeKind.SOFTMAX
                             ? SoftmaxKind.SOFTMAX : SoftmaxKind.LOG_SOFTMAX, new SoftmaxAttrs(1)),
                     List.of(value), List.of(value));
             default -> throw new AssertionError(node);
@@ -597,14 +552,11 @@ class MetalOperationCompletenessAuditTest {
     private static OperationCapabilityQuery ordering(MetalMpsGraphProgram.NodeKind node) {
         TensorDescriptor input = bool(2, 4, 3);
         return switch (node) {
-            case SORT -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(OrderingKind.SORT, new SortAttrs(1, true)),
+            case SORT -> query(new Operation(OrderingKind.SORT, new SortAttrs(1, true)),
                     List.of(input), List.of(input));
-            case ARGSORT -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(OrderingKind.ARGSORT, new SortAttrs(1, false)),
+            case ARGSORT -> query(new Operation(OrderingKind.ARGSORT, new SortAttrs(1, false)),
                     List.of(input), List.of(descriptor(DataType.INT64, input.shape(), false)));
-            case TOP_K -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(TopKKind.TOP_K, new TopKAttrs(1, 2, true, false)),
+            case TOP_K -> query(new Operation(TopKKind.TOP_K, new TopKAttrs(1, 2, true, false)),
                     List.of(input), List.of(bool(2, 2, 3),
                             descriptor(DataType.INT64, Shape.of(2, 2, 3), false)));
             default -> throw new AssertionError(node);
@@ -613,20 +565,16 @@ class MetalOperationCompletenessAuditTest {
 
     private static OperationCapabilityQuery pooling(MetalMpsGraphProgram.NodeKind node) {
         return switch (node) {
-            case MAX_POOL2D -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(Pool2dKind.MAX_POOL2D,
+            case MAX_POOL2D -> query(new Operation(Pool2dKind.MAX_POOL2D,
                             new MaxPool2dAttrs(2, 3, 2, 2, 1, 1, 1, 1, true)),
                     List.of(f32(1, 2, 3, 4)), List.of(f32(1, 2, 3, 3)));
-            case AVERAGE_POOL2D -> query(NumericalProfile.ACCELERATOR,
-                    new Operation(Pool2dKind.AVERAGE_POOL2D,
+            case AVERAGE_POOL2D -> query(new Operation(Pool2dKind.AVERAGE_POOL2D,
                             new AveragePool2dAttrs(2, 3, 2, 2, 1, 1, 1, 1, true)),
                     List.of(f32(1, 2, 3, 4)), List.of(f32(1, 2, 3, 3)));
-            case MAX_POOL3D -> query(NumericalProfile.STRICT_IEEE,
-                    new Operation(Pool3dKind.MAX_POOL3D,
+            case MAX_POOL3D -> query(new Operation(Pool3dKind.MAX_POOL3D,
                             new MaxPool3dAttrs(2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, false)),
                     List.of(f32(1, 1, 3, 3, 3)), List.of(f32(1, 1, 2, 2, 2)));
-            case AVERAGE_POOL3D -> query(NumericalProfile.ACCELERATOR,
-                    new Operation(Pool3dKind.AVERAGE_POOL3D,
+            case AVERAGE_POOL3D -> query(new Operation(Pool3dKind.AVERAGE_POOL3D,
                             new AveragePool3dAttrs(1, 1, 2, 1, 1, 2, 0, 0, 2, 1, 1, 1, true)),
                     List.of(f32(1, 1, 1, 1, 1)), List.of(f32(1, 1, 1, 1, 3)));
             default -> throw new AssertionError(node);
@@ -636,13 +584,11 @@ class MetalOperationCompletenessAuditTest {
     private static OperationCapabilityQuery random(MetalMpsGraphProgram.NodeKind node) {
         TensorDescriptor state = descriptor(DataType.INT64, Shape.of(2), false);
         if (node == MetalMpsGraphProgram.NodeKind.INITIAL_STATE) {
-            return query(NumericalProfile.STRICT_IEEE,
-                    new Operation(GraphRngKind.INITIAL_STATE,
+            return query(new Operation(GraphRngKind.INITIAL_STATE,
                             new GraphRngStateAttrs(0x1234L, 0x5678L)),
                     List.of(), List.of(state));
         }
-        return query(NumericalProfile.ACCELERATOR,
-                new Operation(DropoutKind.DROPOUT, new DropoutAttrs(0.25d)),
+        return query(new Operation(DropoutKind.DROPOUT, new DropoutAttrs(0.25d)),
                 List.of(f32(2, 3), state),
                 List.of(f32(2, 3), bool(2, 3), state));
     }
@@ -664,16 +610,14 @@ class MetalOperationCompletenessAuditTest {
         java.util.ArrayList<TensorDescriptor> outputs =
                 new java.util.ArrayList<>(List.of(f32(2, 2, 4), f32(2, 4)));
         if (kind == RecurrentScanKind.LSTM) outputs.add(f32(2, 4));
-        return query(NumericalProfile.ACCELERATOR,
-                new Operation(kind, RecurrentDirection.FORWARD), inputs, outputs);
+        return query(new Operation(kind, RecurrentDirection.FORWARD), inputs, outputs);
     }
 
     private static OperationCapabilityQuery query(
-            NumericalProfile profile,
             Operation operation,
             List<TensorDescriptor> inputs,
             List<TensorDescriptor> outputs) {
-        return new OperationCapabilityQuery(profile, operation, inputs, outputs);
+        return new OperationCapabilityQuery(operation, inputs, outputs);
     }
 
     private static TensorDescriptor f32(long... dimensions) {

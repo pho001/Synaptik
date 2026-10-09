@@ -11,16 +11,15 @@ import java.util.List;
  * and average pooling retain distinct attribute types and numerical policies. These kinds do not
  * define gradients, algorithms, compiler support, backend capabilities, storage, or execution.</p>
  *
- * <p>Under the Model-owned numerical-profile contract, max pooling remains exact/discrete in both
- * profiles: window geometry, eligibility, traversal, NaN dominance, signed-zero order, first-tie
- * winner, empty identity, and selected original payload are unchanged. For
- * {@code ACCELERATOR FLOAT32}, average pooling preserves every kernel position and its exact
- * divisor while allowing any binary tree, per-step FLOAT32 rounding, DAZ/FTZ, and only
- * corresponding multiply/add fusion. It may not drop padding or another contributor and gains no
- * final-output envelope. Every current non-FLOAT32 occurrence remains strict; the inactive
- * low-precision reservation changes none of them. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Max pooling compares stored represented values, including subnormals, and retains exact
+ * window geometry, eligibility, traversal, NaN dominance, signed-zero order, first-tie winner,
+ * empty identity, and original selected payload. Average pooling includes every declared kernel
+ * position, including padding, once in a rounded sum tree and divides by the exact fixed divisor.
+ * Only its named floating arithmetic primitives may use dtype-specific DAZ/FTZ for FLOAT32,
+ * BFLOAT16, and FLOAT16, never FLOAT64. Homogeneous low averaging accumulates in FLOAT32 and
+ * narrows once at the declared output; no whole-output tolerance is implied. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum Pool2dKind implements OperationKind {
     /**

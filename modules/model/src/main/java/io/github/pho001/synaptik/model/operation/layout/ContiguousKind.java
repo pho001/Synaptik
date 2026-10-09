@@ -22,12 +22,11 @@ import java.util.List;
  * stores no input, result descriptor, layout state, materialization state, or executable
  * metadata.</p>
  *
- * <p>The Model-owned numerical-profile contract leaves this exact movement unchanged under
- * {@code STRICT_IEEE} and {@code ACCELERATOR}: logical mapping, descriptor, layout publication,
- * and every copied stored payload representation remain exact. Copying applies no DAZ, FTZ, or
- * arithmetic tolerance. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Logical mapping, descriptor, layout publication, and each copied stored payload are exact.
+ * Materialization applies no arithmetic DAZ, FTZ, or finite tolerance; a subnormal's stored bits
+ * are preserved. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  *
  * <p>A contiguous request is computation semantics, whereas
  * {@code io.github.pho001.synaptik.model.layout.LayoutKind.DENSE_CONTIGUOUS} classifies already

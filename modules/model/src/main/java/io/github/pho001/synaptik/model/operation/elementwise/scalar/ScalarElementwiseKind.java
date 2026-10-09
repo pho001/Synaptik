@@ -18,17 +18,16 @@ import java.util.List;
  * io.github.pho001.synaptik.model.operation.Operation Operation} construction enforces these
  * exact pairings through the family-owned signatures.</p>
  *
- * <p>Under the Model-owned graph numerical-profile contract, {@code STRICT_IEEE} retains these
- * scalar formulas. For {@code ACCELERATOR FLOAT32}, each named arithmetic site may use DAZ/FTZ
- * and one-round basic arithmetic; scalar {@code POW} is an irreducible elementary site with the
- * inclusive ordered-binary32 distance ceiling of five.
- * Scalar extrema and clamp still select an original candidate under their exact NaN, signed-zero,
- * bound, and tie rules, except that DAZ-normalized candidates may tie. Attribute values and
- * guards remain exact and no final-output tolerance is added. Every current non-FLOAT32
- * occurrence remains strict; the inactive low-precision reservation changes none of them.
- * See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Scalar ADD, SUB, MUL, DIV, and POW retain their declared operand order, typed attribute, and
+ * formula. At named floating arithmetic primitives only, FLOAT32, BFLOAT16, and FLOAT16 permit
+ * same-signed-zero input DAZ and finite-subnormal-result FTZ under the family zero-sign rule;
+ * FLOAT64 permits neither. Homogeneous low arithmetic works in FLOAT32 and narrows once to the
+ * declared low output. Scalar MIN, MAX, and CLAMP compare stored represented candidates, including
+ * subnormals, and preserve exact NaN, signed-zero, bound, tie, and original-candidate rules; they
+ * never apply DAZ/FTZ. Guards and attributes remain exact; finite arithmetic accuracy is
+ * route-qualified in tests, not a method-level tolerance. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  *
  * <p>Enum identity supplies typed equality and hashing, so equally named constants in another
  * operation family remain different semantic values. The inherited {@link #name()} and {@link
@@ -39,9 +38,10 @@ public enum ScalarElementwiseKind implements OperationKind {
     /**
      * Adds the scalar addend in {@link ScalarValueAttrs} to each input value.
      *
-     * <p>The request is ordinary ordered IEEE-754 addition in the input data type. It stores the
-     * addend as metadata and promises no NaN payload, intermediate precision, exact instruction,
-     * bitwise result, gradient rule, or executable backend route.</p>
+     * <p>The request adds the exact typed scalar at the declared arithmetic working type;
+     * homogeneous low arithmetic works in FLOAT32 and narrows once. Ordinary signed-zero rules
+     * remain: {@code -0 + +0} produces {@code +0}. The kind stores the addend as metadata and
+     * promises no NaN payload, fixed instruction, gradient rule, or executable backend route.</p>
      */
     ADD,
 

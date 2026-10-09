@@ -64,7 +64,7 @@ class BackendPartitionPreparerTest {
                 DataType.FLOAT32, Shape.of(2, 3), Optional.empty(), false);
         GraphValue inputValue = new GraphValue(input, descriptor);
         GraphValue outputValue = new GraphValue(output, descriptor);
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), List.of(inputValue, outputValue), List.of(
+        return new PrepareContext<>(partition, List.of(node), List.of(inputValue, outputValue), List.of(
                 new LogicalMemoryRequirement(
                         input,
                         descriptor,

@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
 import io.github.pho001.synaptik.backend.metal.MetalTraceObserver;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.EngineMixedOwnerTestAccess;
 import io.github.pho001.synaptik.engine.RunResult;
@@ -49,7 +48,6 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
     void conv1dAndPool1dCompositionsExecuteAsOneMetalOwnedProgram() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
@@ -98,7 +96,6 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
         Path library = configuredMetalLibrary();
         List<ObservedTrace> events = new CopyOnWriteArrayList<>();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library), traceCollector(events)));
             try (Engine engine = builder.build()) {
@@ -157,8 +154,6 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                             "FLOAT32", "FLOAT32", "FLOAT32", // Conv3d/Pool3d targets
                             "FLOAT32"),                       // Mixed Conv2d target
                             component(lowPrecision.payload(), "logicalDtypeTuple"));
-                    assertEquals("ACCELERATOR",
-                            enumName(component(lowPrecision.payload(), "numericalProfile")));
                     ObservedTrace outcome = events.get(2);
                     assertEquals("PREPARE", outcome.phase());
                     assertEquals("BackendPreparationOutcome",
@@ -190,7 +185,6 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
     void generatedAveragePoolBackwardIsOwnedOnlyForNonOverlappingFoldGeometry() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
@@ -248,7 +242,6 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
     void generatedConv2dBackwardOwnsSeparateAndJointFloat32SourceRoles() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
@@ -340,7 +333,6 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
     void generatedMaximumPoolBackwardClosesWhileConv3dRemainsCompilerFailClosed() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
@@ -378,10 +370,9 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
     }
 
     @Test
-    void strictProfileExecutesMaximumPoolAndRejectsConvolutionAndAveragePool() {
+    void profileFreeMaximumAndArithmeticPoolingAndConvolutionExecute() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.STRICT_IEEE);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
@@ -397,13 +388,15 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
 
                 Tensor average = input.averagePool2d(
                         new AveragePool2dAttrs(1, 2, 1, 1, 0, 0, 1, 1, false));
-                assertThrows(IllegalStateException.class,
-                        () -> engine.compile(List.of(average)));
-
                 Tensor weight = tensor(arena, Shape.of(1, 1, 1, 1), 2);
                 Tensor convolution = input.conv2d(weight, Conv2dAttrs.defaults());
-                assertThrows(IllegalStateException.class,
-                        () -> engine.compile(List.of(convolution)));
+                var arithmetic = engine.compile(List.of(average, convolution));
+                assertEquals(List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(arithmetic));
+                try (var session = engine.session(arithmetic)) {
+                    assertResults(session.run(List.of(input, weight)), List.of(
+                            floats(1.5f), floats(2, 4)));
+                }
             }
         }
     }

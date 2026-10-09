@@ -187,11 +187,6 @@ typedef enum : uint32_t {
     SYNAPTIK_METAL_ROUTE_MPSGRAPH = 2U,
     SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM = 3U
 } SynaptikMetalPreparedRoute;
-typedef enum : uint32_t {
-    SYNAPTIK_METAL_PROFILE_STRICT_IEEE = UINT32_C(0x53545249),
-    SYNAPTIK_METAL_PROFILE_ACCELERATOR = UINT32_C(0x41434345)
-} SynaptikMetalNumericalProfile;
-
 
 typedef enum : uint32_t {
     SYNAPTIK_METAL_MPSGRAPH_ATTR_NONE = 0U,
@@ -621,7 +616,6 @@ static uint32_t synaptik_anchor_consumer_count(
 static BOOL synaptik_validate_anchor_step(
         const uint8_t *program,
         uint64_t values_offset,
-        uint32_t numerical_profile,
         uint32_t node_count,
         const SynaptikMetalDecodedNode *nodes,
         const uint32_t *ranks,
@@ -635,8 +629,7 @@ static BOOL synaptik_validate_anchor_step(
         const uint32_t *members,
         const SynaptikPointwiseBindingRecord *bindings,
         const SynaptikPointwiseInstructionRecord *instructions) {
-    if (numerical_profile != SYNAPTIK_METAL_PROFILE_ACCELERATOR
-            || step.flags < 1U || step.flags > 2U
+    if (step.flags < 1U || step.flags > 2U
             || step.member_count < 2U || step.member_count > 4U
             || step.instruction_count != step.member_count - 1U
             || step.function_bytes != 0U)
@@ -7151,6 +7144,21 @@ static int32_t synaptik_metal_create_decoded(
                         case SYNAPTIK_METAL_MPSGRAPH_SCALAR_ADD:
                             output = [graph additionWithPrimaryTensor:first
                                     secondaryTensor:scalar name:nil];
+                            if (node.attribute_values[0] == 0U) {
+                                // MPSGraph folds scalar +0 to an identity, incorrectly leaving
+                                // raw -0 unchanged. Correct only that exact input bit pattern;
+                                // an output==0 repair would also alter allowed DAZ/FTZ results.
+                                MPSGraphTensor *raw_input = [graph reinterpretCastTensor:first
+                                        toType:MPSDataTypeInt32 name:nil];
+                                MPSGraphTensor *negative_zero = exact_int32_scalar(
+                                        graph, (int32_t)UINT32_C(0x80000000));
+                                MPSGraphTensor *is_negative_zero =
+                                        [graph equalWithPrimaryTensor:raw_input
+                                                secondaryTensor:negative_zero name:nil];
+                                output = [graph selectWithPredicateTensor:is_negative_zero
+                                        truePredicateTensor:scalar
+                                        falsePredicateTensor:output name:nil];
+                            }
                             break;
                         case SYNAPTIK_METAL_MPSGRAPH_SCALAR_SUB:
                             output = [graph subtractionWithPrimaryTensor:first
@@ -8019,7 +8027,6 @@ static int32_t synaptik_metal_create_decoded(
 }
 
 static NSData *synaptik_pointwise_manifest(
-        uint32_t numerical_profile,
         const uint8_t *program,
         uint64_t values_offset,
         uint32_t value_count,
@@ -8037,8 +8044,7 @@ static NSData *synaptik_pointwise_manifest(
         return nil;
     NSMutableString *text = [NSMutableString stringWithCapacity:4096U];
     if (text == nil) return nil;
-    [text appendString:@"format 2\nschema 19\ngenerator 2\nroute 3\n"];
-    [text appendFormat:@"profile %u\n", numerical_profile];
+    [text appendString:@"format 2\nschema 20\ngenerator 2\nroute 3\n"];
     [text appendFormat:@"counts %u %u %u %u %u %u %u %u %u\n",
             value_count, node_count, feed_count, target_count,
             fusion->step_count, fusion->member_count, fusion->binding_count,
@@ -8135,49 +8141,46 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
         void **out_executable) {
     if (out_executable == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
     *out_executable = NULL;
-    if (context == NULL || program == NULL || program_bytes < 128U
+    if (context == NULL || program == NULL || program_bytes < 124U
             || program_bytes > (uint32_t)INT32_MAX)
         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
     @try { @autoreleasepool {
-        if (synaptik_read_le32(program) != UINT32_C(0x39314d53)
-                || synaptik_read_le32(program + 4U) != 19U
-                || synaptik_read_le32(program + 8U) != 128U
+        if (synaptik_read_le32(program) != UINT32_C(0x30324d53)
+                || synaptik_read_le32(program + 4U) != 20U
+                || synaptik_read_le32(program + 8U) != 124U
                 || synaptik_read_le32(program + 12U) != program_bytes)
             return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
         uint32_t route = synaptik_read_le32(program + 16U);
-        uint32_t numerical_profile = synaptik_read_le32(program + 20U);
-        uint32_t generator_schema = synaptik_read_le32(program + 24U);
-        uint32_t flags = synaptik_read_le32(program + 28U);
+        uint32_t generator_schema = synaptik_read_le32(program + 20U);
+        uint32_t flags = synaptik_read_le32(program + 24U);
         if ((route != SYNAPTIK_METAL_ROUTE_MPSGRAPH
-                    && route != SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM)
-                || (numerical_profile != SYNAPTIK_METAL_PROFILE_STRICT_IEEE
-                    && numerical_profile != SYNAPTIK_METAL_PROFILE_ACCELERATOR))
+                    && route != SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM))
             return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
 
-        uint32_t value_count = synaptik_read_le32(program + 32U);
-        uint32_t node_count = synaptik_read_le32(program + 36U);
-        uint32_t feed_count = synaptik_read_le32(program + 40U);
-        uint32_t target_count = synaptik_read_le32(program + 44U);
-        uint32_t dimension_count = synaptik_read_le32(program + 48U);
-        uint32_t stride_count = synaptik_read_le32(program + 52U);
-        uint32_t reference_count = synaptik_read_le32(program + 56U);
-        uint32_t attribute_count = synaptik_read_le32(program + 60U);
-        uint32_t step_count = synaptik_read_le32(program + 64U);
-        uint32_t member_count = synaptik_read_le32(program + 68U);
-        uint32_t binding_count = synaptik_read_le32(program + 72U);
-        uint32_t materialized_count = synaptik_read_le32(program + 76U);
-        uint32_t instruction_count = synaptik_read_le32(program + 80U);
-        uint32_t manifest_bytes = synaptik_read_le32(program + 84U);
-        uint32_t manifest_digest_bytes = synaptik_read_le32(program + 88U);
-        uint32_t generated_unit_count = synaptik_read_le32(program + 92U);
-        uint32_t expected_generated_bytes = synaptik_read_le32(program + 96U);
-        uint32_t expected_fixed_bytes = synaptik_read_le32(program + 100U);
-        uint32_t expected_total_bytes = synaptik_read_le32(program + 104U);
-        uint32_t rejected_node = synaptik_read_le32(program + 108U);
-        uint32_t cap_reason = synaptik_read_le32(program + 112U);
-        uint32_t function_cap = synaptik_read_le32(program + 116U);
-        uint32_t generated_cap = synaptik_read_le32(program + 120U);
-        uint32_t total_cap = synaptik_read_le32(program + 124U);
+        uint32_t value_count = synaptik_read_le32(program + 28U);
+        uint32_t node_count = synaptik_read_le32(program + 32U);
+        uint32_t feed_count = synaptik_read_le32(program + 36U);
+        uint32_t target_count = synaptik_read_le32(program + 40U);
+        uint32_t dimension_count = synaptik_read_le32(program + 44U);
+        uint32_t stride_count = synaptik_read_le32(program + 48U);
+        uint32_t reference_count = synaptik_read_le32(program + 52U);
+        uint32_t attribute_count = synaptik_read_le32(program + 56U);
+        uint32_t step_count = synaptik_read_le32(program + 60U);
+        uint32_t member_count = synaptik_read_le32(program + 64U);
+        uint32_t binding_count = synaptik_read_le32(program + 68U);
+        uint32_t materialized_count = synaptik_read_le32(program + 72U);
+        uint32_t instruction_count = synaptik_read_le32(program + 76U);
+        uint32_t manifest_bytes = synaptik_read_le32(program + 80U);
+        uint32_t manifest_digest_bytes = synaptik_read_le32(program + 84U);
+        uint32_t generated_unit_count = synaptik_read_le32(program + 88U);
+        uint32_t expected_generated_bytes = synaptik_read_le32(program + 92U);
+        uint32_t expected_fixed_bytes = synaptik_read_le32(program + 96U);
+        uint32_t expected_total_bytes = synaptik_read_le32(program + 100U);
+        uint32_t rejected_node = synaptik_read_le32(program + 104U);
+        uint32_t cap_reason = synaptik_read_le32(program + 108U);
+        uint32_t function_cap = synaptik_read_le32(program + 112U);
+        uint32_t generated_cap = synaptik_read_le32(program + 116U);
+        uint32_t total_cap = synaptik_read_le32(program + 120U);
         if (value_count == 0U || node_count == 0U || target_count == 0U)
             return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
         BOOL extension = route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM;
@@ -8211,7 +8214,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
             return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
         }
 
-        uint64_t values_offset = 128U;
+        uint64_t values_offset = 124U;
         uint64_t nodes_offset = values_offset + (uint64_t)value_count * 40U;
         uint64_t dimensions_offset = nodes_offset + (uint64_t)node_count * 32U;
         uint64_t strides_offset =
@@ -8673,8 +8676,6 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
             }
             if (operation == SYNAPTIK_METAL_MPSGRAPH_L1_NORM
                     || task0069_variance) {
-                if (numerical_profile != SYNAPTIK_METAL_PROFILE_ACCELERATOR)
-                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                 uint32_t input_value = synaptik_read_le32(
                         program + references_offset + (uint64_t)input_offset * 4U);
                 uint32_t output_value = synaptik_read_le32(
@@ -8692,8 +8693,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             }
             if (operation == SYNAPTIK_METAL_CUSTOM_SCATTER_ADD) {
-                if (numerical_profile != SYNAPTIK_METAL_PROFILE_ACCELERATOR
-                        || input_count != 3U
+                if (input_count != 3U
                         || output_count != 1U) {
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                 }
@@ -9210,7 +9210,6 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                     if (!synaptik_validate_anchor_step(
                                 program,
                                 values_offset,
-                                numerical_profile,
                                 node_count,
                                 nodes,
                                 value_ranks,
@@ -9328,7 +9327,6 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
             if (memcmp(computed_digest, program + digest_offset, CC_SHA256_DIGEST_LENGTH) != 0)
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             NSData *canonical = synaptik_pointwise_manifest(
-                    numerical_profile,
                     program,
                     values_offset,
                     value_count,

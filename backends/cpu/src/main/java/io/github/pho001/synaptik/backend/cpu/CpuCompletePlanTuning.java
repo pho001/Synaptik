@@ -7,7 +7,6 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecisi
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuBackendComposition;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasTuningDecision;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
@@ -51,11 +50,11 @@ import java.util.zip.CRC32;
  * neither mechanism is a hostile-input security boundary.</p>
  */
 public final class CpuCompletePlanTuning {
-    private static final int VALUE_SCHEMA = 2;
+    private static final int VALUE_SCHEMA = 3;
     private static final int DECISION_MAGIC = 0x53435032;
     private static final int MAXIMUM_DECISION_BYTES = 2_048;
     private static final int CPU_BACKEND_TAG = 0x435055;
-    private static final int CANDIDATE_SCHEMA = 2;
+    private static final int CANDIDATE_SCHEMA = 3;
 
     private final CpuBackendComposition composition;
     private final CpuLocalWorkloadTuning localWorkloadTuning;
@@ -357,7 +356,7 @@ public final class CpuCompletePlanTuning {
                 .bytes(sessionNonce).integer(association.identities.size());
         encodeProjection(sink, association.context, association.partition);
         association.identities.forEach(identity -> encodeVariant(sink, identity));
-        encodeEnumerationProfile(sink);
+        encodeEnumerationDefaults(sink);
         sink.bytes(association.phaseOneFingerprint);
         byte[] digest = sink.digest();
         byte[] encoded = ByteBuffer.allocate(9 + sessionNonce.length + digest.length)
@@ -428,7 +427,7 @@ public final class CpuCompletePlanTuning {
         });
     }
 
-    private static void encodeEnumerationProfile(CanonicalSink sink) {
+    private static void encodeEnumerationDefaults(CanonicalSink sink) {
         sink.integer(1).bool(true).longValue(0).longValue(1).longValue(3)
                 .longValue(1).longValue(1).longValue(Long.MAX_VALUE)
                 .longValue(0).integer(0);
@@ -473,7 +472,7 @@ public final class CpuCompletePlanTuning {
 
     private static void encodeSpecialization(CanonicalSink sink,
             CpuKernelSpecialization value) {
-        sink.text(value.loweringFingerprint().hex()).profile(value.numericalProfile())
+        sink.text(value.loweringFingerprint().hex())
                 .tag(value.executionStrategy().compute())
                 .integer(value.boundaryDataTypes().size());
         value.boundaryDataTypes().forEach(sink::tag);
@@ -672,12 +671,6 @@ public final class CpuCompletePlanTuning {
         }
         private CanonicalSink bool(boolean value) { return integer(value ? 1 : 0); }
         private CanonicalSink tag(Enum<?> value) { return integer(value.ordinal() + 1); }
-        private CanonicalSink profile(NumericalProfile profile) {
-            return integer(switch (profile) {
-                case STRICT_IEEE -> 0x53545249;
-                case ACCELERATOR -> 0x41434345;
-            });
-        }
         private CanonicalSink integer(int value) {
             digest.update(ByteBuffer.allocate(4).putInt(value).array());
             return this;

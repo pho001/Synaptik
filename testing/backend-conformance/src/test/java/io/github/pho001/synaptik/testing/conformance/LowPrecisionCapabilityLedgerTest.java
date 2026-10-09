@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -55,8 +54,8 @@ import java.util.TreeMap;
 import org.junit.jupiter.api.Test;
 
 /**
- * Freezes canonical current F32 capability witnesses and the separately declared low-precision
- * target disposition without turning either artifact into runtime policy.
+ * Freezes canonical profile-free F32 and independently queried low-precision capability witnesses
+ * without turning provider evidence into runtime policy or numerical certification.
  *
  * <p>The providers expose a predicate rather than an enumerable domain. Consequently each ledger
  * row is one real, fully described occurrence submitted to the actual provider. The 115-row base
@@ -65,18 +64,15 @@ import org.junit.jupiter.api.Test;
  * separately. Existing provider boundary tests remain authoritative for the larger shape and
  * attribute domains; this snapshot detects drift in these named witnesses only.</p>
  *
- * <p>The F32 provider output ends at {@code supported}. The corresponding mapped BF16 and FP16
- * occurrences are queried independently and recorded in {@code bf16_current_supported} and
- * {@code fp16_current_supported}; neither answer is inferred from F32. The following BF16/FP16
- * disposition, target-profile, and exclusion columns are the approved migration contract and do
- * not substitute for those observed provider answers.</p>
+ * <p>The F32 answer is {@code supported}. Corresponding BF16 and FLOAT16 occurrences are queried
+ * independently; neither answer is inferred from F32. The v1 resource is historical evidence of
+ * the pre-cutover profile predicates. This v2 resource contains only current provider facts.</p>
  */
 final class LowPrecisionCapabilityLedgerTest {
-    private static final String RESOURCE = "/low-precision-capability-ledger-v1.tsv";
-    private static final String HEADER = "schema\tbackend\tprofile\toccurrence\tbasis\tkind\tattrs"
+    private static final String RESOURCE = "/low-precision-capability-ledger-v2.tsv";
+    private static final String HEADER = "schema\tbackend\toccurrence\tbasis\tkind\tattrs"
             + "\tinputs\toutputs\tinput_arity\toutput_arity\tsupported"
-            + "\tbf16_current_supported\tfp16_current_supported\tbf16_target\tfp16_target"
-            + "\ttarget_profile\texclusion\n";
+            + "\tbf16_current_supported\tfp16_current_supported\n";
 
     @Test
     void checkedLedgerEqualsCanonicalCurrentProviderAnswers() throws Exception {
@@ -89,48 +85,70 @@ final class LowPrecisionCapabilityLedgerTest {
     }
 
     @Test
-    void snapshotContainsBothProfilesBackendsAndExplicitSupportOutcomes() throws Exception {
-        List<Seed> seeds = seeds();
-        String ledger = resource(RESOURCE);
-        Map<String, byte[]> rows = rowsByKey(ledger);
-        assertEquals(seeds.size() * 4, rows.size());
-        for (String backend : List.of("cpu", "metal")) {
-            for (NumericalProfile profile : NumericalProfile.values()) {
-                long count = rows.keySet().stream()
-                        .filter(key -> key.startsWith(backend + "|" + profile + "|"))
-                        .count();
-                assertEquals(seeds.size(), count, backend + " " + profile);
-            }
+    void v2RetainsFrozenAcceleratorProviderFactsWithoutMigrationColumns() throws Exception {
+        String[] historical = resource("/low-precision-capability-ledger-v1.tsv")
+                .split("\n");
+        var projected = new ArrayList<String>();
+        for (int index = 1; index < historical.length; index++) {
+            String[] fields = historical[index].split("\t", -1);
+            assertEquals(18, fields.length, "historical row " + index);
+            if (!fields[2].equals("ACCELERATOR")) continue;
+            projected.add(String.join("\t", "2", fields[1], fields[3], fields[4], fields[5],
+                    fields[6], fields[7], fields[8], fields[9], fields[10], fields[11],
+                    fields[12], fields[13]));
         }
-        assertTrue(ledger.contains("\ttrue\ttrue\ttrue\tPRESERVE_CURRENT\t"));
-        assertTrue(ledger.contains("\tfalse\tfalse\tfalse\tEXCLUDED\t"));
-        assertTrue(ledger.contains("\tCURRENT_F32_UNSUPPORTED\n"));
-        assertTrue(ledger.contains("\tSTRICT_SNAPSHOT_ONLY\n"));
-        List<String[]> acceleratorClosure = ledger.lines()
-                .skip(1)
-                .map(line -> line.split("\t", -1))
-                .filter(fields -> fields[2].equals("ACCELERATOR"))
-                .filter(fields -> fields[4].equals("F32_OCCURRENCE"))
-                .filter(fields -> fields[11].equals("true"))
-                .toList();
-        assertFalse(acceleratorClosure.isEmpty());
-        assertTrue(acceleratorClosure.stream().allMatch(fields ->
-                fields[12].equals("true")
-                        && fields[13].equals("true")
-                        && fields[14].equals("PRESERVE_CURRENT")
-                        && fields[15].equals("PRESERVE_CURRENT")));
+        assertEquals(254, projected.size());
+        assertEquals(resource(RESOURCE), HEADER + String.join("\n", projected) + "\n");
     }
 
     @Test
-    void metalAcceleratorClosesEverySupportedFloat32OccurrenceForBothLowTypes() {
+    void snapshotContainsBothBackendsAndExplicitSupportOutcomes() throws Exception {
+        List<Seed> seeds = seeds();
+        String ledger = resource(RESOURCE);
+        Map<String, byte[]> rows = rowsByKey(ledger);
+        assertEquals(seeds.size() * 2, rows.size());
+        for (String backend : List.of("cpu", "metal")) {
+            long count = rows.keySet().stream()
+                    .filter(key -> key.startsWith(backend + "|"))
+                    .count();
+            assertEquals(seeds.size(), count, backend);
+        }
+        List<String[]> facts = ledger.lines()
+                .skip(1)
+                .map(line -> line.split("\t", -1))
+                .filter(fields -> fields.length == 13)
+                .toList();
+        for (String backend : List.of("cpu", "metal")) {
+            List<String[]> backendFacts = facts.stream().filter(fields -> fields[1].equals(backend))
+                    .toList();
+            long supported = backendFacts.stream().filter(fields -> fields[10].equals("true")).count();
+            long bf16 = backendFacts.stream().filter(fields -> fields[11].equals("true")).count();
+            long fp16 = backendFacts.stream().filter(fields -> fields[12].equals("true")).count();
+            long notApplicable = backendFacts.stream()
+                    .filter(fields -> fields[11].equals("NOT_APPLICABLE")
+                            && fields[12].equals("NOT_APPLICABLE")).count();
+            assertEquals(backend.equals("cpu") ? 122 : 98, supported, backend + " F32 true");
+            assertEquals(backend.equals("cpu") ? 114 : 90, bf16, backend + " BF16 true");
+            assertEquals(backend.equals("cpu") ? 114 : 90, fp16, backend + " FLOAT16 true");
+            assertEquals(8, notApplicable, backend + " controls");
+            assertEquals(backend.equals("cpu") ? 5 : 29,
+                    backendFacts.stream().filter(fields -> fields[10].equals("false")).count(),
+                    backend + " F32 false");
+            for (int lowColumn : List.of(11, 12)) {
+                final int column = lowColumn;
+                assertEquals(backend.equals("cpu") ? 5 : 29,
+                        backendFacts.stream().filter(fields -> fields[column].equals("false")).count(),
+                        backend + " low false column " + column);
+            }
+        }
+    }
+
+    @Test
+    void metalClosesEverySupportedFloat32OccurrenceForBothLowTypes() {
         var provider = new MetalCapabilityProvider();
         int supported = 0;
         for (Seed seed : seeds()) {
-            OperationCapabilityQuery query = new OperationCapabilityQuery(
-                    NumericalProfile.ACCELERATOR,
-                    seed.query().operation(),
-                    seed.query().inputs(),
-                    seed.query().outputs());
+            OperationCapabilityQuery query = seed.query();
             if (hasFloat32Role(query) && provider.supports(query)) {
                 supported++;
                 assertTrue(
@@ -145,14 +163,10 @@ final class LowPrecisionCapabilityLedgerTest {
     }
 
     @Test
-    void metalStrictLowSupportNeverExceedsCurrentStrictFloat32Support() {
+    void metalLowSupportNeverExceedsCurrentFloat32Support() {
         var provider = new MetalCapabilityProvider();
         for (Seed seed : seeds()) {
-            OperationCapabilityQuery query = new OperationCapabilityQuery(
-                    NumericalProfile.STRICT_IEEE,
-                    seed.query().operation(),
-                    seed.query().inputs(),
-                    seed.query().outputs());
+            OperationCapabilityQuery query = seed.query();
             if (!hasFloat32Role(query)) {
                 continue;
             }
@@ -164,27 +178,21 @@ final class LowPrecisionCapabilityLedgerTest {
         }
     }
     @Test
-    void cpuStrictIeeeSupportsFloat16ForEverySupportedFloat32Occurrence() {
-        assertFloat16Closure(NumericalProfile.STRICT_IEEE);
+    void cpuSupportsFloat16ForEverySupportedFloat32Occurrence() {
+        assertFloat16Closure();
     }
 
-    @Test
-    void cpuAcceleratorSupportsFloat16ForEverySupportedFloat32Occurrence() {
-        assertFloat16Closure(NumericalProfile.ACCELERATOR);
-    }
-
-    private static void assertFloat16Closure(NumericalProfile profile) {
+    private static void assertFloat16Closure() {
         var provider = new CpuCapabilityProvider();
         int supported = 0;
         for (Seed seed : seeds()) {
-            OperationCapabilityQuery query = new OperationCapabilityQuery(
-                    profile, seed.query().operation(), seed.query().inputs(), seed.query().outputs());
+            OperationCapabilityQuery query = seed.query();
             if (hasFloat32Role(query) && provider.supports(query)) {
                 supported++;
-                assertTrue(provider.supports(toFloat16(query)), profile + " " + seed.id());
+                assertTrue(provider.supports(toFloat16(query)), seed.id());
             }
         }
-        assertEquals(114, supported, profile.name());
+        assertEquals(114, supported);
     }
 
 
@@ -195,41 +203,21 @@ final class LowPrecisionCapabilityLedgerTest {
         providers.put("metal", new MetalCapabilityProvider());
         var lines = new ArrayList<String>();
         for (var backend : providers.entrySet()) {
-            for (NumericalProfile profile : NumericalProfile.values()) {
-                for (Seed seed : seeds) {
-                    OperationCapabilityQuery query = new OperationCapabilityQuery(
-                            profile,
-                            seed.query().operation(),
-                            seed.query().inputs(),
-                            seed.query().outputs());
-                    boolean supported = backend.getValue().supports(query);
-                    String bfloat16Supported = "NOT_APPLICABLE";
-                    if (hasFloat32Role(query)) {
-                        bfloat16Supported = Boolean.toString(
-                                backend.getValue().supports(toBfloat16(query)));
-                    }
-                    String float16Supported = "NOT_APPLICABLE";
-                    if (hasFloat32Role(query)) {
-                        float16Supported = Boolean.toString(
-                                backend.getValue().supports(toFloat16(query)));
-                    }
-                    Target target = target(
-                            backend.getKey(),
-                            profile,
-                            query,
-                            supported,
-                            bfloat16Supported,
-                            float16Supported);
-                    lines.add(row(
-                            backend.getKey(),
-                            profile,
-                            seed,
-                            query,
-                            supported,
-                            bfloat16Supported,
-                            float16Supported,
-                            target));
+            for (Seed seed : seeds) {
+                OperationCapabilityQuery query = seed.query();
+                boolean supported = backend.getValue().supports(query);
+                String bfloat16Supported = "NOT_APPLICABLE";
+                if (hasFloat32Role(query)) {
+                    bfloat16Supported = Boolean.toString(
+                            backend.getValue().supports(toBfloat16(query)));
                 }
+                String float16Supported = "NOT_APPLICABLE";
+                if (hasFloat32Role(query)) {
+                    float16Supported = Boolean.toString(
+                            backend.getValue().supports(toFloat16(query)));
+                }
+                lines.add(row(backend.getKey(), seed, query, supported,
+                        bfloat16Supported, float16Supported));
             }
         }
         lines.sort(String::compareTo);
@@ -238,18 +226,15 @@ final class LowPrecisionCapabilityLedgerTest {
 
     private static String row(
             String backend,
-            NumericalProfile profile,
             Seed seed,
             OperationCapabilityQuery query,
             boolean supported,
             String bfloat16Supported,
-            String float16Supported,
-            Target target) {
+            String float16Supported) {
         return String.join(
                 "\t",
-                "1",
+                "2",
                 backend,
-                profile.name(),
                 seed.id(),
                 basis(query),
                 kind(query.operation()),
@@ -260,60 +245,11 @@ final class LowPrecisionCapabilityLedgerTest {
                 Integer.toString(query.outputs().size()),
                 Boolean.toString(supported),
                 bfloat16Supported,
-                float16Supported,
-                target.bfloat16(),
-                target.float16(),
-                target.profile(),
-                target.exclusion());
-    }
-
-    private static Target target(
-            String backend,
-            NumericalProfile profile,
-            OperationCapabilityQuery query,
-            boolean supported,
-            String bfloat16Supported,
-            String float16Supported) {
-        if (profile == NumericalProfile.STRICT_IEEE) {
-            return new Target("PRESERVE_CURRENT", "PRESERVE_CURRENT", "NONE",
-                    "STRICT_SNAPSHOT_ONLY");
-        }
-        if (!hasFloat32Role(query)) {
-            return new Target("NOT_APPLICABLE", "NOT_APPLICABLE", "NONE",
-                    "NON_F32_CONTROL");
-        }
-        boolean currentBfloat16 = Boolean.parseBoolean(bfloat16Supported);
-        boolean currentFloat16 = Boolean.parseBoolean(float16Supported);
-        if (!supported) {
-            return new Target(
-                    currentBfloat16 ? "PRESERVE_CURRENT" : "EXCLUDED",
-                    "EXCLUDED",
-                    "NONE",
-                    currentBfloat16
-                            ? "CURRENT_F32_UNSUPPORTED_PRESERVE_BF16"
-                            : "CURRENT_F32_UNSUPPORTED");
-        }
-        String targetProfile = isExactSubstrate(query.operation())
-                ? "PROFILE_COMMON_EXACT" : "ACCELERATOR";
-        String bfloat16;
-        String float16;
-        String exclusion = "NONE";
-        if (currentBfloat16) {
-            bfloat16 = "PRESERVE_CURRENT";
-        } else if (backend.equals("metal")
-                || query.operation().kind() == DropoutKind.DROPOUT) {
-            bfloat16 = "REQUIRE_F32_PARITY";
-        } else {
-            bfloat16 = "NEEDS_AUDIT";
-            exclusion = "BF16_CURRENT_FALSE_NEEDS_AUDIT";
-        }
-        float16 = currentFloat16 ? "PRESERVE_CURRENT" : "REQUIRE_F32_PARITY";
-        return new Target(bfloat16, float16, targetProfile, exclusion);
+                float16Supported);
     }
 
     private static OperationCapabilityQuery toBfloat16(OperationCapabilityQuery query) {
         return new OperationCapabilityQuery(
-                query.numericalProfile(),
                 new Operation(query.operation().kind(), toBfloat16(query.operation().attrs())),
                 query.inputs().stream().map(LowPrecisionCapabilityLedgerTest::toBfloat16).toList(),
                 query.outputs().stream().map(LowPrecisionCapabilityLedgerTest::toBfloat16).toList());
@@ -374,7 +310,6 @@ final class LowPrecisionCapabilityLedgerTest {
     }
     private static OperationCapabilityQuery toFloat16(OperationCapabilityQuery query) {
         return new OperationCapabilityQuery(
-                query.numericalProfile(),
                 new Operation(query.operation().kind(), toFloat16(query.operation().attrs())),
                 query.inputs().stream().map(LowPrecisionCapabilityLedgerTest::toFloat16).toList(),
                 query.outputs().stream().map(LowPrecisionCapabilityLedgerTest::toFloat16).toList());
@@ -411,24 +346,6 @@ final class LowPrecisionCapabilityLedgerTest {
                 ? ScalarValue.float16(value.float32Value()) : value;
     }
 
-
-    private static boolean isExactSubstrate(Operation operation) {
-        return operation.kind() == CastKind.CAST
-                || operation.kind() instanceof ShapeTransformKind
-                || operation.kind() instanceof AxisTransformKind
-                || operation.kind() == ContiguousKind.CONTIGUOUS
-                || operation.kind() == SelectKind.SELECT
-                || operation.kind() == SliceKind.SLICE
-                || operation.kind() == SliceKind.SLICE_UPDATE
-                || operation.kind() == PadKind.PAD
-                || operation.kind() instanceof TensorCompositionKind
-                || operation.kind() == TileKind.TILE
-                || operation.kind() instanceof AxisGatherKind
-                || operation.kind() == GatherNdKind.GATHER_ND
-                || operation.kind() == AxisScatterKind.SCATTER_ELEMENTS
-                || operation.kind() == ScatterNdKind.SCATTER_ND
-                || operation.kind() instanceof WindowTransformKind;
-    }
 
     private static boolean hasFloat32Role(OperationCapabilityQuery query) {
         return java.util.stream.Stream.concat(query.inputs().stream(), query.outputs().stream())
@@ -543,8 +460,9 @@ final class LowPrecisionCapabilityLedgerTest {
         for (int index = 1; index < lines.length - 1; index++) {
             String line = lines[index];
             String[] fields = line.split("\t", -1);
-            assertEquals(18, fields.length, "ledger row " + index);
-            String key = fields[1] + "|" + fields[2] + "|" + fields[3];
+            assertEquals(13, fields.length, "ledger row " + index);
+            assertEquals("2", fields[0], "ledger schema " + index);
+            String key = fields[1] + "|" + fields[2];
             byte[] bytes = line.getBytes(StandardCharsets.UTF_8);
             byte[] duplicate = rows.putIfAbsent(key, bytes);
             if (duplicate != null) {
@@ -994,8 +912,7 @@ final class LowPrecisionCapabilityLedgerTest {
 
     private static OperationCapabilityQuery query(Operation operation,
             List<TensorDescriptor> inputs, List<TensorDescriptor> outputs) {
-        return new OperationCapabilityQuery(NumericalProfile.ACCELERATOR,
-                operation, inputs, outputs);
+        return new OperationCapabilityQuery(operation, inputs, outputs);
     }
 
     private static TensorDescriptor f32(long... dimensions) {
@@ -1033,8 +950,6 @@ final class LowPrecisionCapabilityLedgerTest {
     }
 
     private record Seed(String id, OperationCapabilityQuery query) { }
-
-    private record Target(String bfloat16, String float16, String profile, String exclusion) { }
 
     /** Frozen current Model-kind basis; names follow the append-only Metal wires 1 through 115. */
     private enum Row {

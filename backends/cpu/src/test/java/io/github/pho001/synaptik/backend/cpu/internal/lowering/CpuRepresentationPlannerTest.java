@@ -611,7 +611,7 @@ class CpuRepresentationPlannerTest {
                 List.of(new CpuAffineCopyIr.MappingStep(
                         CpuAffineCopyIr.MappingKind.CONTIGUOUS, 1, 1, List.of())),
                 CpuAffineCopyIr.WriteDomain.LOGICAL_ELEMENTS);
-        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan
                 .ExecutionStrategy.SCALAR,
         List.of(DataType.FLOAT64, DataType.FLOAT64),
         List.of(CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,
@@ -813,7 +813,7 @@ class CpuRepresentationPlannerTest {
                     produced ? Optional.of(partition) : Optional.empty(),
                     consumed ? List.of(partition) : List.of(), index == 5));
         }
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), inputs);
+        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), inputs);
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> disjointBenchmarkContext(
@@ -847,7 +847,7 @@ class CpuRepresentationPlannerTest {
                     index >= 2 ? Optional.of(partition) : Optional.empty(),
                     index == 4 ? List.of() : List.of(partition), index == 4));
         }
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), inputs);
+        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), inputs);
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> reuseBenchmarkContext(DataType type,
@@ -885,7 +885,7 @@ class CpuRepresentationPlannerTest {
                     produced ? Optional.of(partition) : Optional.empty(),
                     consumed ? List.of(partition) : List.of(), publication));
         }
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), inputs);
+        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), inputs);
     }
 
     private static TensorDescriptor typedDescriptor(DataType type, Shape shape,

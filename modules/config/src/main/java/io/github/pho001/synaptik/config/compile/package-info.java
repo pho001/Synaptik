@@ -1,26 +1,19 @@
 /**
  * Defines immutable declarative configuration values for graph compilation.
  *
- * <p>The current package contains five standalone values:
+ * <p>The current package contains four standalone values:
  * {@link io.github.pho001.synaptik.config.compile.BackendIntent} records optionality for one hard
  * backend requirement, {@link io.github.pho001.synaptik.config.compile.CompileMode} records the
  * requested compile-time graph scope,
  * {@link io.github.pho001.synaptik.config.compile.GraphOptimizationConfig} records permission for
  * optional semantics-preserving compiler optimization, and
  * {@link io.github.pho001.synaptik.config.compile.PartitionScoringConfig} records an optional soft
- * device-class preference for ranking after hard eligibility. {@link
- * io.github.pho001.synaptik.config.compile.NumericalProfile} records only the immutable graph-wide
- * numerical-profile identity. These values describe requests or identity only. Current
- * package-private compiler entries consume all five values; the complete artifact entry passes
- * backend intent, scoring preference, and the exact profile to Planning once per final graph node.
- * Engine construction supplies the current default of {@code STRICT_IEEE}; Config supplies no
- * default.</p>
+ * device-class preference for ranking after hard eligibility. These values describe declarative
+ * compile requests. The complete artifact entry passes backend intent and scoring preference to
+ * Planning once per final graph node; no numerical selector is carried.</p>
  *
- * <p>Config owns no profile semantics: Model remains the sole authority for the unchanged strict
- * set and the total recursive {@code FLOAT32} accelerator superset. Planning, Compiler, Prepare,
- * Engine, and concrete backends transport or realize the exact cold identity without
- * reinterpreting it; Runtime performs no per-run lookup. This package contains no compiler pass
- * API, profile evaluator, scoring evaluator, live service, runtime state, or concrete backend
- * implementation.</p>
+ * <p>Model owns numerical semantics, while backend capability remains an occurrence-specific
+ * provider answer. This package contains no compiler pass API, numerical-policy evaluator,
+ * scoring evaluator, live service, runtime state, or concrete backend implementation.</p>
  */
 package io.github.pho001.synaptik.config.compile;

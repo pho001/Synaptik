@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.EngineMixedOwnerTestAccess;
 import io.github.pho001.synaptik.engine.RunResult;
@@ -65,7 +64,6 @@ final class RandomDropoutMetalIntegrationTest {
         long key = 0L;
         long counter = 0L;
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
@@ -132,7 +130,6 @@ final class RandomDropoutMetalIntegrationTest {
             Float.floatToRawIntBits(-4.0f)
         };
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
@@ -171,7 +168,6 @@ final class RandomDropoutMetalIntegrationTest {
         float[] values = {1, 2, 3, 4, 5, 6, 7, 8};
         byte[] mask = oracle(new int[values.length], 0L, 0L, 0.5d).mask();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
@@ -207,7 +203,7 @@ final class RandomDropoutMetalIntegrationTest {
     }
 
     @Test
-    void evaluationBuildsNoDropoutAndUnsupportedProfilesCarriersLimitsAndRecurrenceFailEarly() {
+    void evaluationBuildsNoDropoutAndUnsupportedCarriersLimitsAndRecurrenceFailEarly() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared()) {
             Tensor value = nativeTensor(
@@ -228,27 +224,19 @@ final class RandomDropoutMetalIntegrationTest {
             assertSame(DropoutKind.DROPOUT,
                     training.output().provenance().orElseThrow().operation().kind());
 
-            try (Engine.Builder strictBuilder = Engine.builder()) {
-                strictBuilder.numericalProfile(NumericalProfile.STRICT_IEEE);
-                strictBuilder.takeOwnership(MetalBackendIntegration.open(
+            try (Engine.Builder builder = Engine.builder()) {
+                builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
-                try (Engine strict = strictBuilder.build()) {
-                    assertThrows(IllegalStateException.class,
-                            () -> strict.compile(List.of(training.output())));
-                }
-            }
-
-            try (Engine.Builder acceleratorBuilder = Engine.builder()) {
-                acceleratorBuilder.numericalProfile(NumericalProfile.ACCELERATOR);
-                acceleratorBuilder.takeOwnership(MetalBackendIntegration.open(
-                        new MetalBackendConfiguration(library)));
-                try (Engine accelerator = acceleratorBuilder.build()) {
+                try (Engine engine = builder.build()) {
+                    var compiled = engine.compile(List.of(training.output()));
+                    assertEquals(List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
                     Tensor float64 = nativeTensor(
                             DataType.FLOAT64, Shape.of(2), false,
                             longWords(
                                     Double.doubleToRawLongBits(1.0d),
                                     Double.doubleToRawLongBits(2.0d)), arena);
-                    assertThrows(IllegalStateException.class, () -> accelerator.compile(List.of(
+                    assertThrows(IllegalStateException.class, () -> engine.compile(List.of(
                             float64.dropout(0.5d, GraphRngState.initial(0L, 0L)).output())));
 
                     Shape overShape = Shape.of(0x1_0000_0000L);
@@ -260,7 +248,7 @@ final class RandomDropoutMetalIntegrationTest {
                                     false),
                             Optional.empty(),
                             Optional.empty());
-                    assertThrows(IllegalStateException.class, () -> accelerator.compile(List.of(
+                    assertThrows(IllegalStateException.class, () -> engine.compile(List.of(
                             over.dropout(0.5d, GraphRngState.initial(0L, 0L)).output())));
 
                     Tensor recurrentInput = nativeTensor(
@@ -285,12 +273,12 @@ final class RandomDropoutMetalIntegrationTest {
                             hiddenWeight,
                             RecurrentDirection.FORWARD);
                     assertThrows(IllegalStateException.class,
-                            () -> accelerator.compile(List.of(recurrent.outputs())));
+                            () -> engine.compile(List.of(recurrent.outputs())));
                     Tensor recurrentSeed = nativeTensor(
                             DataType.FLOAT32, Shape.of(1, 1, 1), false,
                             integerWords(new int[] {Float.floatToRawIntBits(1.0f)}), arena);
                     assertThrows(IllegalArgumentException.class,
-                            () -> accelerator.compile(
+                            () -> engine.compile(
                                     List.of(recurrent.outputs()),
                                     List.of(recurrentSeed),
                                     List.of(recurrentInput)));

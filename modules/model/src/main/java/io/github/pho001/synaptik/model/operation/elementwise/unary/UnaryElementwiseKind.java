@@ -25,27 +25,20 @@ import java.util.List;
  * #toString()} text is stable diagnostic vocabulary only, not a serialization token, registry
  * key, or string-dispatch contract.</p>
  *
- * <p>Under the Model-owned numerical-profile contract, {@code STRICT_IEEE} has a complete
- * backend-independent allowed-result baseline for all nineteen kinds and each accepted {@code
- * BFLOAT16}, {@code FLOAT16}, {@code FLOAT32}, and {@code FLOAT64} type. Exact/discrete kinds use
- * their exact represented results. Against correctly rounded exact same-format references,
- * {@code LOG}, {@code LOG1P}, {@code EXP}, and {@code EXPM1} permit at most two ordered
- * representations, {@code SQRT} one, and {@code TANH} five. {@code ERF} uses the inclusive
- * absolute/relative coefficients {@code 2^-7}, {@code 2^-10}, {@code 2e-5}, and {@code 2e-7} for
- * BFLOAT16, FLOAT16, FLOAT32, and FLOAT64 respectively. Domain, class, range, subnormal, and
- * signed-zero rules remain separate.</p>
- *
- * <p>{@code RSQRT}, {@code SIGMOID}, and the three composite activations recurse through those
- * primitive result sets and explicitly rounded arithmetic sites. Strict results are the union of
- * native-format evaluation and one-wider evaluation followed by one final ties-to-even narrowing
- * for BFLOAT16, FLOAT16, and FLOAT32; FLOAT64 uses native evaluation.
- * {@code LOG}, {@code LOG1P}, {@code EXP}, {@code EXPM1}, {@code ERF}, {@code SQRT}, and {@code
- * TANH} are irreducible elementary sites. {@code RSQRT} expands through square root and division;
- * sigmoid expands through its exact sign guard and exponential/add/divide branch. GELU and SiLU
- * recurse through every named constant, arithmetic, and elementary site and gain no final-output
- * envelope. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Each of the nineteen kinds has one Model formula for accepted BFLOAT16, FLOAT16, FLOAT32, and
+ * FLOAT64 values. ABS and NEG transform non-NaN represented sign bits exactly; NaN class is
+ * preserved without a payload or sign promise. SIGN, FLOOR, CEIL, and RELU retain exact
+ * represented-value rules. None of these six uses arithmetic DAZ or FTZ. RECIPROCAL is
+ * a named division. LOG, LOG1P, EXP, EXPM1, ERF, SQRT, and TANH retain their mathematical
+ * reference, domain, class, range, and signed-zero rules; finite accuracy is qualified per backend
+ * route in tests rather than by a public ordered-distance or error envelope. RSQRT, SIGMOID, GELU,
+ * tanh GELU, and SiLU recurse through their named guards, constants, elementary functions, and
+ * rounded arithmetic primitives; they gain no blanket output tolerance. Only named arithmetic
+ * primitive inputs/results may use DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64; exact
+ * unary sites and stored outputs do not inherit that permission. Homogeneous low arithmetic uses
+ * FLOAT32 working values and one final ties-to-even low narrowing. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum UnaryElementwiseKind implements OperationKind {
     /**
@@ -81,10 +74,10 @@ public enum UnaryElementwiseKind implements OperationKind {
      *
      * <p>The mathematical reference is the exact natural logarithm. Either signed zero maps to
      * negative infinity, negative finite values and negative infinity map to NaN, positive
-     * infinity remains positive infinity, and NaN remains NaN. For a positive finite input, the
-     * strict finite result is at most two ordered same-format representations from the correctly
-     * rounded reference. Input/result eligibility, differentiation, execution, and backend
-     * availability belong to later owning contracts.</p>
+     * infinity remains positive infinity, and NaN remains NaN. For a positive finite input,
+     * finite accuracy is qualified per backend route in tests rather than by a public bound.
+     * Input/result eligibility, differentiation, execution, and backend availability belong to
+     * later owning contracts.</p>
      */
     LOG,
 
@@ -94,10 +87,9 @@ public enum UnaryElementwiseKind implements OperationKind {
      * <p>The target is the first-class exact {@code log1p(x)} function, without a separately
      * rounded addition. It preserves signed zero, produces negative infinity at negative one,
      * produces NaN below negative one and for NaN input, and maps positive infinity to positive
-     * infinity. For an in-domain finite input, the strict finite result is at most two ordered
-     * same-format representations from the correctly rounded reference. It is not a stored
-     * addition followed by {@link #LOG} and selects no gradient rule, execution route, or backend
-     * availability.</p>
+     * infinity. For an in-domain finite input, accuracy is qualified per backend route in tests.
+     * It is not a stored addition followed by {@link #LOG} and selects no gradient rule, execution
+     * route, or backend availability.</p>
      */
     LOG1P,
 
@@ -106,9 +98,9 @@ public enum UnaryElementwiseKind implements OperationKind {
      *
      * <p>The mathematical reference is the exact natural exponential. Negative infinity maps to
      * positive zero, positive infinity remains positive infinity, and NaN remains NaN; finite
-     * overflow and underflow follow the represented result type. A strict finite result is at most
-     * two ordered same-format representations from the correctly rounded reference. It selects no
-     * algorithm, gradient rule, route, or backend availability.</p>
+     * overflow and underflow follow the represented result type. Finite accuracy is qualified per
+     * backend route in tests. It selects no algorithm, gradient rule, route, or backend
+     * availability.</p>
      */
     EXP,
 
@@ -117,10 +109,9 @@ public enum UnaryElementwiseKind implements OperationKind {
      *
      * <p>The target is the first-class exact {@code expm1(x)} function, without a separately
      * rounded subtraction. It preserves signed zero, maps negative infinity to negative one and
-     * positive infinity to positive infinity, and produces NaN for NaN input. A strict finite
-     * result is at most two ordered same-format representations from the correctly rounded
-     * reference. It is not a stored {@link #EXP} followed by subtraction and selects no gradient
-     * rule, execution route, or backend availability.</p>
+     * positive infinity to positive infinity, and produces NaN for NaN input. Finite accuracy is
+     * qualified per backend route in tests. It is not a stored {@link #EXP} followed by
+     * subtraction and selects no gradient rule, execution route, or backend availability.</p>
      */
     EXPM1,
 
@@ -129,11 +120,10 @@ public enum UnaryElementwiseKind implements OperationKind {
      *
      * <p>The exact mathematical reference is
      * {@code 2/sqrt(pi) * integral[0,x](exp(-t*t)) dt}. It is odd, preserves signed zero, maps
-     * signed infinity to the same-signed unit value, and maps NaN to NaN. For finite nonzero input,
-     * strict results are finite, nonzero, same-signed, in {@code [-1,1]}, and satisfy the normative
-     * inclusive absolute/relative bound with coefficients {@code 2^-7}, {@code 2^-10}, {@code
-     * 2e-5}, or {@code 2e-7} for BFLOAT16, FLOAT16, FLOAT32, or FLOAT64. It selects no algorithm,
-     * coefficient table, gradient rule, execution route, or backend availability.</p>
+     * signed infinity to the same-signed unit value, and maps NaN to NaN. Its mathematical
+     * reference lies in {@code [-1,1]}; finite accuracy is qualified per backend route in tests,
+     * not by a public coefficient bound. It selects no algorithm, coefficient table, gradient
+     * rule, execution route, or backend availability.</p>
      */
     ERF,
 
@@ -141,9 +131,9 @@ public enum UnaryElementwiseKind implements OperationKind {
      * Produces the principal square root of each input value.
      *
      * <p>The exact mathematical reference preserves signed zero and positive infinity; negative
-     * finite values and negative infinity map to NaN, and NaN remains NaN. A strict finite result
-     * is at most one ordered same-format representation from the correctly rounded reference.
-     * Input/result eligibility, differentiation, execution, and backend availability belong to
+     * finite values and negative infinity map to NaN, and NaN remains NaN. Finite accuracy is
+     * qualified per backend route in tests. Input/result eligibility, differentiation, execution,
+     * and backend availability belong to
      * later owning contracts.</p>
      */
     SQRT,
@@ -153,11 +143,11 @@ public enum UnaryElementwiseKind implements OperationKind {
      *
      * <p>This is one first-class {@code 1 / sqrt(x)} request. Positive and negative zero map to
      * same-signed infinity, positive infinity maps to positive zero, negative finite values and
-     * negative infinity produce NaN, and NaN remains NaN. Its strict result set recursively chooses
-     * a strict square-root result and performs one rounded division in either the native format or,
-     * for BFLOAT16, FLOAT16, and FLOAT32, one wider format followed by one final narrowing. The
-     * kind stores neither primitive operation and selects no algorithm, gradient rule, route, or backend
-     * availability.</p>
+     * negative infinity produce NaN, and NaN remains NaN. Its formula has a named square-root
+     * site followed by typed-one division. Only named arithmetic primitive inputs and results
+     * may use dtype-specific DAZ/FTZ; homogeneous low work uses FLOAT32 and one final narrowing.
+     * The kind stores neither primitive operation and selects no algorithm, gradient rule, route,
+     * or backend availability.</p>
      */
     RSQRT,
 
@@ -204,10 +194,10 @@ public enum UnaryElementwiseKind implements OperationKind {
      *
      * <p>The stable target is {@code 1 / (1 + exp(-x))} for nonnegative input and {@code exp(x) /
      * (1 + exp(x))} for negative input. Negative infinity maps to positive zero, either zero maps
-     * to {@code 0.5}, positive infinity maps to one, and NaN remains NaN. Native and one-wider
-     * strict realizations recurse through the Model-owned {@link #EXP} set and one-round negation,
-     * addition, and division sites. The kind selects no gradient rule, execution route, or backend
-     * availability.</p>
+     * to {@code 0.5}, positive infinity maps to one, and NaN remains NaN. The exact sign guard
+     * selects the corresponding {@link #EXP}, typed-one addition, and division sites; only named
+     * arithmetic primitives inherit dtype-specific DAZ/FTZ. The kind selects no gradient rule,
+     * execution route, or backend availability.</p>
      */
     SIGMOID,
 
@@ -215,10 +205,9 @@ public enum UnaryElementwiseKind implements OperationKind {
      * Applies the hyperbolic tangent function to each input value.
      *
      * <p>The exact mathematical reference preserves signed zero, maps signed infinity to the
-     * same-signed unit value, and maps NaN to NaN. A strict finite result is same-signed, in {@code
-     * [-1,1]}, and at most five ordered same-format representations from the correctly rounded
-     * reference. It selects no algorithm, gradient rule, execution route, or backend
-     * availability.</p>
+     * same-signed unit value, and maps NaN to NaN. Its mathematical reference lies in
+     * {@code [-1,1]}; finite accuracy is qualified per backend route in tests. It selects no
+     * algorithm, gradient rule, execution route, or backend availability.</p>
      */
     TANH,
 
@@ -226,12 +215,11 @@ public enum UnaryElementwiseKind implements OperationKind {
      * Applies the exact Gaussian error linear unit to each input value.
      *
      * <p>The target is {@code 0.5 * x * (1 + erf(x / sqrt(2)))}. Its constants, square root,
-     * division, error-function, addition, and two multiplications are the complete sites. Native
-     * and one-wider strict realizations perform each arithmetic site with one ties-to-even rounding
-     * and choose square-root and error-function values from their Model-owned primitive result
-     * sets. The continuous extension maps negative infinity to negative zero, preserves signed
-     * zero, maps positive infinity to positive infinity, and produces NaN for NaN input. The kind
-     * selects no gradient rule, route, or backend support.</p>
+     * division, error-function, addition, and two multiplications are the complete sites. Only
+     * named arithmetic primitives inherit dtype-specific DAZ/FTZ; the composite gains no blanket
+     * output tolerance. The continuous extension maps negative infinity to negative zero,
+     * preserves signed zero, maps positive infinity to positive infinity, and produces NaN for
+     * NaN input. The kind selects no gradient rule, route, or backend support.</p>
      */
     GELU,
 
@@ -241,24 +229,24 @@ public enum UnaryElementwiseKind implements OperationKind {
      * <p>The target is
      * {@code 0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))}. The constants;
      * {@code x*x} and {@code x^2*x}; root, division, additions, remaining multiplications, and
-     * {@link #TANH} are the complete sites. Native and one-wider strict realizations round each
-     * arithmetic site once and choose square-root and tanh values from their Model-owned primitive
-     * sets. Its continuous extension maps negative infinity to negative zero, preserves signed
-     * zero, maps positive infinity to positive infinity, and produces NaN for NaN input. This is
-     * not permission to select another approximation, gradient rule, route, or backend.</p>
+     * {@link #TANH} are the complete sites. Only named arithmetic primitives inherit
+     * dtype-specific DAZ/FTZ; the fixed composite gains no blanket output tolerance. Its
+     * continuous extension maps negative infinity to negative zero, preserves signed zero, maps
+     * positive infinity to positive infinity, and produces NaN for NaN input. This is not
+     * permission to select another approximation, gradient rule, route, or backend.</p>
      */
     GELU_TANH_APPROXIMATION,
 
     /**
      * Applies the sigmoid linear unit activation to each input value.
      *
-     * <p>The stable target is {@code x / (1 + exp(-x))} for nonnegative input and {@code x *
-     * exp(x) / (1 + exp(x))} for negative input. Native and one-wider strict realizations recurse
-     * through the Model-owned {@link #EXP} set and round every named negation, addition,
-     * multiplication, and division site once. Its continuous extension maps negative infinity to
-     * negative zero, preserves signed zero, maps positive infinity to positive infinity, and
-     * produces NaN for NaN input. The kind selects no gradient rule, route, or backend
-     * support.</p>
+     * <p>The stable target is {@code x / (1 + exp(-x))} for nonnegative input and
+     * {@code x * exp(x) / (1 + exp(x))} for negative input. Its exact sign guard selects the
+     * corresponding {@link #EXP}, typed-one addition, multiplication, and division sites; only
+     * named arithmetic primitives inherit dtype-specific DAZ/FTZ. Its continuous extension maps
+     * negative infinity to negative zero, preserves signed zero, maps positive infinity to
+     * positive infinity, and produces NaN for NaN input. The kind selects no gradient rule, route,
+     * or backend support.</p>
      */
     SILU;
 

@@ -351,7 +351,7 @@ public final class CpuPartitionLowering {
 
     private void assertOccurrence(PrepareContext<? extends BackendAnalysisInputs> context,
             CompiledNode node, Map<ValueId, GraphValue> values) {
-        var query = new OperationCapabilityQuery(context.numericalProfile(), node.operation(), node.inputs().stream().map(id -> require(values, id).descriptor()).toList(), node.outputs().stream().map(id -> require(values, id).descriptor()).toList());
+        var query = new OperationCapabilityQuery(node.operation(), node.inputs().stream().map(id -> require(values, id).descriptor()).toList(), node.outputs().stream().map(id -> require(values, id).descriptor()).toList());
         if (!capabilities.supports(query)) {
             throw new IllegalArgumentException("partition contains an unsupported CPU occurrence");
         }

@@ -395,32 +395,21 @@ In both forms, `extensions/training` owns optimizer algorithms and training orch
 parameters declared by `extensions/nn`. It remains independent of concrete backends. Backend-
 specific optimizer execution belongs to backend prepare and kernels.
 
-## Numerical profile across the lifecycle
+## Numerical semantics across the lifecycle
 
 ```text
-Engine selection -> Planning query -> CompileArtifacts -> PrepareContext -> backend plan/cache
+Model semantics -> Planning occurrence query -> CompileArtifacts -> PrepareContext
+                -> qualified backend route -> PreparedExecution -> RunState
 ```
 
-The same graph-wide `NumericalProfile` crosses these cold stages unchanged. Model owns the
-unchanged strict set and total recursive `FLOAT32` accelerator superset; every downstream stage
-transports, queries, or realizes that meaning without reinterpreting it. CPU realizes both profiles
-identically. Metal's common exact occurrence domain under both profiles contains exact unary rows,
-all 49 casts, four-carrier floating classification and promoted WHERE, scalar/broadcast BOOL,
-all-carrier affine/index/replacement/movement, the admitted non-overlapping fold/window subsets,
-unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema, no-gradient promoted INT32/INT64
-MATMUL, exact maximum pooling, and raw initial state. `ACCELERATOR` additionally admits the
-documented FLOAT32/BFLOAT16/FLOAT16 arithmetic, extrema, scalar, reduction, scan, MSE, general
-MATMUL, average-pooling, convolution, explicit-state dropout, and the exact rank-one FLOAT32 L1,
-ScatterAdd, and singleton VARIANCE occurrences. Every partition containing BFLOAT16 or FLOAT16
-values uses one fixed custom whole-program route, including exact no-gradient raw-preserving
-RESHAPE/PERMUTE/CONTIGUOUS/SLICE/CONCAT/TILE. The three Task-0069 occurrences also use the fixed
-custom route. ScatterAdd completes its index scan before encoding or mutation and closes the
-existing rank-one Gather data cotangent. Every other unlisted occurrence fails closed before route
-selection. Eligible linear canonical FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use bounded
-generated custom units with compact materialized slots. Eligible ACCELERATOR MATMUL/Conv2d suffixes
-instead use one typed anchor dispatch and final store with no suffix slot. ABI 7 has thirteen
-exports and accepts one bounded schema-19 route-bearing program image over type wires `1..7`,
-operation wires `1..115`, attribute wires `0..41`, and route wires `1..3`; backend identities are
-version twenty-nine. Structural coverage is `101 / 14`, and production capability is `86 / 29`.
-Every other schema or identity fails closed.
-Runtime executes the prepared result with no profile branch.
+There is no Engine numerical selection or cold profile transport. Model fixes each operation
+family's exact and named-arithmetic-site meaning. Planning queries provider capability for the
+complete occurrence; Compiler preserves guarded rewrites and immutable occurrence facts. Prepare
+uses qualified backend routes and non-profile compatibility identities, then Runtime executes the
+prepared result without tolerance, certificate, route, or capability lookup. For example, a
+BFLOAT16 raw move preserves its stored word, while a following named arithmetic primitive may
+use its permitted input DAZ. Neither step changes the other's boundary. Metal retains MPSGraph
+for eligible FLOAT32-only steps and the fixed custom program for low-containing partitions. Its
+current program is schema 20 with a 124-byte header and tuning identity 30; CPU generator schema
+is 69, and native ABI 7 retains thirteen exports. Schema 19/identity 29 and CPU schema 68 are
+historical, incompatible inputs.

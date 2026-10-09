@@ -51,16 +51,17 @@ import java.util.List;
  * value rules for configurable reductions are defined by {@link ScatterReduction}; they are
  * independent of encounter, layout, atomic, tree, and backend order.</p>
  *
- * <p>Under the Model-owned numerical-profile contract, indices, bounds, target mapping, base
- * participation, duplicate membership, and unaddressed payloads remain exact in both profiles.
- * {@code NONE} replacement preserves the selected original update. For
- * {@code ACCELERATOR FLOAT32}, ADD/MUL reductions combine the base and every addressed update
- * exactly once using any binary tree, per-step FLOAT32 rounding, DAZ/FTZ, and only corresponding
- * multiply/add fusion; MIN/MAX retain exact original-candidate selection under their documented
- * NaN, signed-zero, and tie rules. Every current non-FLOAT32 occurrence remains strict; the
- * inactive low-precision reservation changes none of them. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Axis indices, bounds, target mapping, duplicate membership, and raw unaddressed cells remain
+ * exact. NONE replacement preserves the original update representation; MIN and MAX select original
+ * candidates using stored represented values and their NaN, signed-zero, and tie rules. Floating
+ * ADD and MUL combine the base and every addressed update exactly once in a rounded tree; named
+ * arithmetic primitives may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, but
+ * never FLOAT64. A rounded MUL tree may return NaN or positive zero for maxFinite * 2 * +0 through
+ * intermediate overflow or a different grouping. Integral reductions use exact fixed-width modular
+ * arithmetic. Homogeneous low arithmetic accumulates in FLOAT32 and narrows once at the declared
+ * output. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum AxisScatterKind implements OperationKind {
     /**

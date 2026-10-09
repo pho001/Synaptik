@@ -195,9 +195,9 @@ See [Lifecycle](lifecycle.md) for the full compile pipeline and [Runtime, Prepar
 See [Performance Evidence and Model Autotuning](performance-evidence-and-tuning.md) for the
 separate benchmarking, model-autotuning, runtime-profiling, and planning-cost boundaries.
 
-## Profile-qualified eligibility
+## Occurrence-qualified eligibility
 
-The selected `NumericalProfile` is part of every `OperationCapabilityQuery`, so two otherwise equal
-operation occurrences under different profiles are distinct eligibility questions. Scoring may
-compare only candidates that answered that exact query; it does not reinterpret profile semantics
-or infer a profile from an accelerator preference.
+`OperationCapabilityQuery` carries the complete occurrence without a numerical selector. Scoring
+may compare only providers that answered that exact occurrence. A soft accelerator device-class
+preference does not change Model numerical semantics or turn an unsupported occurrence into a
+capable one.

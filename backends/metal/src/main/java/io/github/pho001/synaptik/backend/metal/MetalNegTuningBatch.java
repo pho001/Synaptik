@@ -1,6 +1,5 @@
 package io.github.pho001.synaptik.backend.metal;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
 import java.util.Arrays;
 import java.util.List;
@@ -17,17 +16,17 @@ import java.util.Optional;
  */
 final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
     /** Current candidate and decision meaning. */
-    static final int CANDIDATE_SCHEMA_VERSION = 29;
+    static final int CANDIDATE_SCHEMA_VERSION = 30;
     /** Current canonical workload/target compatibility meaning. */
-    static final int COMPATIBILITY_SCHEMA_VERSION = 29;
-    /** Current exact profile-qualified Metal operation-composition policy meaning. */
-    static final int ROUTE_POLICY_VERSION = 29;
+    static final int COMPATIBILITY_SCHEMA_VERSION = 30;
+    /** Current exact Metal operation-composition policy meaning. */
+    static final int ROUTE_POLICY_VERSION = 30;
 
     /** Stable complete private route configurations. */
     enum Candidate {
         /** One-node, one-feed, one-target custom FLOAT32 NEG configuration. */
         CUSTOM_SINGLE_NEG(MetalPreparedRoute.CUSTOM_SINGLE_NEG),
-        /** Whole-partition typed MPSGraph profile-qualified operation configuration. */
+        /** Whole-partition typed MPSGraph operation configuration. */
         MPSGRAPH(MetalPreparedRoute.MPSGRAPH),
         /** Fixed whole-partition exact custom-program configuration. */
         CUSTOM_PROGRAM(MetalPreparedRoute.CUSTOM_PROGRAM);
@@ -73,10 +72,9 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
         private final byte[] bytes;
 
         /**
-         * Snapshots canonical schema-nineteen workload-fingerprint bytes.
+         * Snapshots canonical schema-twenty workload-fingerprint bytes.
          *
-         * <p>The bytes include the stable explicit numerical-profile wire identity, so otherwise equal
-         * workloads under different profiles cannot share workload identity.
+         * <p>The bytes bind the versioned program and route semantics.
          *
          * @param bytes non-null non-empty canonical bytes within the generator bound
          * @throws IllegalArgumentException if {@code bytes} is empty or exceeds the bound
@@ -127,7 +125,6 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
      * @param schemaVersion exact compatibility schema
      * @param candidateSchemaVersion exact candidate schema
      * @param routePolicyVersion exact route-policy schema
-     * @param numericalProfile exact immutable graph-wide numerical-profile identity
      * @param workload exact canonical structural workload
      * @param target exact live-context session compatibility
      */
@@ -135,7 +132,6 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
             int schemaVersion,
             int candidateSchemaVersion,
             int routePolicyVersion,
-            NumericalProfile numericalProfile,
             WorkloadSignature workload,
             TargetCompatibility target) {
         Compatibility {
@@ -144,7 +140,6 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
                     || routePolicyVersion != ROUTE_POLICY_VERSION) {
                 throw new IllegalArgumentException("unsupported Metal NEG compatibility schema");
             }
-            Objects.requireNonNull(numericalProfile, "numericalProfile");
             Objects.requireNonNull(workload, "workload");
             Objects.requireNonNull(target, "target");
         }

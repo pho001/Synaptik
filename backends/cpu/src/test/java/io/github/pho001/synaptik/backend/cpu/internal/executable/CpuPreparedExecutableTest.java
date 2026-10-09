@@ -87,7 +87,7 @@ class CpuPreparedExecutableTest {
         var intBase = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.INT32,
                 Shape.of(16), NoOperationAttrs.INSTANCE, Shape.scalar());
         var intAnalysis = new CpuPartitionPreparer().analyze(
-                new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, intBase.partition(), intBase.nodes(), intBase.values(), intBase.memoryRequirements(), intBase.constants(), new CpuPartitionAnalysisInputs(
+                new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(intBase.partition(), intBase.nodes(), intBase.values(), intBase.memoryRequirements(), intBase.constants(), new CpuPartitionAnalysisInputs(
                         false, List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY),
                         new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 4),
                         CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false,
@@ -99,7 +99,7 @@ class CpuPreparedExecutableTest {
         var longBase = CpuAggregateLoweringTest.context(AggregateReductionKind.PROD, DataType.INT64,
                 Shape.of(2, 16), new AxisReductionAttrs(1, false), Shape.of(2));
         var longAnalysis = new CpuPartitionPreparer().analyze(
-                new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, longBase.partition(), longBase.nodes(), longBase.values(), longBase.memoryRequirements(), longBase.constants(), new CpuPartitionAnalysisInputs(
+                new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(longBase.partition(), longBase.nodes(), longBase.values(), longBase.memoryRequirements(), longBase.constants(), new CpuPartitionAnalysisInputs(
                         false, List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.LONG_ARRAY),
                         new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 4),
                         CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false,
@@ -146,7 +146,7 @@ class CpuPreparedExecutableTest {
                         CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(samples))),
                 CpuScatterLoweringTest.desc(DataType.FLOAT32, Shape.of(samples)));
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
                 CarrierAccess.FLOAT_ARRAY, CarrierAccess.INT_ARRAY,
                 CarrierAccess.FLOAT_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
@@ -207,7 +207,7 @@ class CpuPreparedExecutableTest {
                         new MeanSquaredErrorAttrs(LossReduction.NONE)), List.of(0, 0),
                 List.of(CpuScatterLoweringTest.desc(DataType.FLOAT32, shape)),
                 CpuScatterLoweringTest.desc(DataType.FLOAT32, shape));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
                 CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(
                 new CpuPartitionPreparer().analyze(context), Optional.empty());
@@ -232,7 +232,7 @@ class CpuPreparedExecutableTest {
                 DataType.FLOAT32, Shape.of(1, 1, 3, 3, 3), Shape.of(1, 1, 2, 2, 2));
         float[] input = new float[27];
         for (int index = 0; index < input.length; index++) input[index] = index - 13.5f;
-        var scalarContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var scalarContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
         var scalar = CpuPartitionFinalizerTest.finalizeExecutable(
                 new CpuPartitionPreparer().analyze(scalarContext), Optional.empty());
@@ -242,7 +242,7 @@ class CpuPreparedExecutableTest {
         try { scalar.bind(scalarRun).execute(); } finally { scalarRun.close(); }
 
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(parallelContext);
         assertAll(() -> assertTrue(analysis.plan().workspaceDeclaration().isEmpty()),
@@ -271,7 +271,7 @@ class CpuPreparedExecutableTest {
                 Shape.of(1, 1, 4, 5), Shape.of(1, 1, 3, 5));
         float[] input = new float[20];
         for (int index = 0; index < input.length; index++) input[index] = index % 7 - 3.25f;
-        var scalarContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var scalarContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
         var scalar = CpuPartitionFinalizerTest.finalizeExecutable(
                 new CpuPartitionPreparer().analyze(scalarContext), Optional.empty());
@@ -281,7 +281,7 @@ class CpuPreparedExecutableTest {
         try { scalar.bind(scalarRun).execute(); } finally { scalarRun.close(); }
 
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(parallelContext);
         try (var workers = new CpuWorkerGroup(4)) {
@@ -305,7 +305,7 @@ class CpuPreparedExecutableTest {
         var base = CpuPool2dLoweringTest.context(Pool2dKind.MAX_POOL2D,
                 new MaxPool2dAttrs(2, 2, 1, 1, 2, 2, 1, 1, false), DataType.FLOAT32,
                 Shape.of(1, 1, 1, 1), Shape.of(1, 1, 4, 4));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(
                 new CpuPartitionPreparer().analyze(context), Optional.empty());
@@ -328,7 +328,7 @@ class CpuPreparedExecutableTest {
                 new io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs(
                         1, 1, 1, 1, 0, 0, 1, 1, false), DataType.FLOAT64,
                 Shape.of(0, 1, 2, 2), Shape.of(0, 1, 2, 2));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(
                 new CpuPartitionPreparer().analyze(context), Optional.empty());
@@ -350,7 +350,7 @@ class CpuPreparedExecutableTest {
         for(int i=0;i<right.length;i++)right[i]=i%5-2;
         var scalarInputs=new CpuPartitionAnalysisInputs(false,java.util.Collections.nCopies(3,
                 CarrierAccess.FLOAT_ARRAY),new PortableExecutionConfig(ComputePreference.SCALAR,1,1,1));
-        var scalarContext=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), scalarInputs);
+        var scalarContext=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), scalarInputs);
         var scalar=CpuPartitionFinalizerTest.finalizeExecutable(new CpuPartitionPreparer().analyze(
                 scalarContext),Optional.empty());float[] expected=new float[128];
         var scalarRun=state(scalar,List.of(borrow(left,0,left.length),borrow(right,0,right.length),
@@ -358,7 +358,7 @@ class CpuPreparedExecutableTest {
         try{scalar.bind(scalarRun).execute();}finally{scalarRun.close();}
         var parallelInputs=new CpuPartitionAnalysisInputs(false,java.util.Collections.nCopies(3,
                 CarrierAccess.FLOAT_ARRAY),new PortableExecutionConfig(ComputePreference.SCALAR,4,4,1));
-        var parallelContext=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), parallelInputs);
+        var parallelContext=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), parallelInputs);
         var analysis=new CpuPartitionPreparer().analyze(parallelContext);
         try(var workers=new CpuWorkerGroup(4)){var executable=CpuPartitionFinalizerTest.finalizeExecutable(
                 analysis,Optional.empty(),Optional.of(workers));float[] actual=new float[128];
@@ -374,15 +374,15 @@ class CpuPreparedExecutableTest {
 
     @Test void conv3dExecutesScalarAndParallelCompleteCellsAndRejectsOverlapBeforeWrite(){
         var base=CpuConv3dLoweringTest.context(List.of(DataType.FLOAT32,DataType.FLOAT32),Shape.of(1,2,3,3,3),Shape.of(2,2,2,2,2),Shape.of(1,2,2,2,2),Conv3dAttrs.defaults(),null);float[] input=new float[54],weight=new float[32];for(int i=0;i<input.length;i++)input[i]=i*.1f-2;for(int i=0;i<weight.length;i++)weight[i]=(i%5-2)*.25f;
-        var scalarContext=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY)));var scalar=CpuPartitionFinalizerTest.finalizeExecutable(new CpuPartitionPreparer().analyze(scalarContext),Optional.empty());float[] scalarOutput=new float[16];var scalarState=state(scalar,List.of(borrow(input,0,input.length),borrow(weight,0,weight.length),borrow(scalarOutput,0,scalarOutput.length)));try{scalar.bind(scalarState).execute();}finally{scalarState.close();}
-        var config=new PortableExecutionConfig(ComputePreference.SCALAR,4,4,1);var parallelContext=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY),config));var analysis=new CpuPartitionPreparer().analyze(parallelContext);try(var workers=new CpuWorkerGroup(4)){var parallel=CpuPartitionFinalizerTest.finalizeExecutable(analysis,Optional.empty(),Optional.of(workers));float[] parallelOutput=new float[16];var run=state(parallel,List.of(borrow(input,0,input.length),borrow(weight,0,weight.length),borrow(parallelOutput,0,parallelOutput.length)));try{parallel.bind(run).execute();assertArrayEquals(scalarOutput,parallelOutput);}finally{run.close();}
+        var scalarContext=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY)));var scalar=CpuPartitionFinalizerTest.finalizeExecutable(new CpuPartitionPreparer().analyze(scalarContext),Optional.empty());float[] scalarOutput=new float[16];var scalarState=state(scalar,List.of(borrow(input,0,input.length),borrow(weight,0,weight.length),borrow(scalarOutput,0,scalarOutput.length)));try{scalar.bind(scalarState).execute();}finally{scalarState.close();}
+        var config=new PortableExecutionConfig(ComputePreference.SCALAR,4,4,1);var parallelContext=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY),config));var analysis=new CpuPartitionPreparer().analyze(parallelContext);try(var workers=new CpuWorkerGroup(4)){var parallel=CpuPartitionFinalizerTest.finalizeExecutable(analysis,Optional.empty(),Optional.of(workers));float[] parallelOutput=new float[16];var run=state(parallel,List.of(borrow(input,0,input.length),borrow(weight,0,weight.length),borrow(parallelOutput,0,parallelOutput.length)));try{parallel.bind(run).execute();assertArrayEquals(scalarOutput,parallelOutput);}finally{run.close();}
             float[] shared=new float[64];java.util.Arrays.fill(shared,-7f);var overlap=state(parallel,List.of(borrow(shared,0,54),borrow(weight,0,weight.length),borrow(shared,0,16)));try{assertThrows(IllegalArgumentException.class,()->parallel.bind(overlap));for(float value:shared)assertEquals(-7f,value);}finally{overlap.close();}}
     }
 
     @Test void batchNormTrainingPublishesFiveOutputsWithOneDisjointRangeSlice() {
         var base = CpuBatchNormTrainingLoweringTest.context(Shape.of(2, 3, 4), 1);
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
         java.util.Collections.nCopies(10, CarrierAccess.FLOAT_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
         assertEquals(3, analysis.plan().selectedRangeCount());
@@ -421,7 +421,7 @@ class CpuPreparedExecutableTest {
                 java.util.Collections.nCopies(5, DataType.FLOAT32), Shape.of(8, 3, 4), 1,
                 List.of(0, 1, 2, 3, 4));
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 java.util.Collections.nCopies(6, CarrierAccess.FLOAT_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
         assertAll(() -> assertEquals(4, analysis.plan().selectedRangeCount()),
@@ -478,7 +478,7 @@ class CpuPreparedExecutableTest {
         var base = CpuTrailingNormalizationLoweringTest.context(true, false, DataType.FLOAT64,
                 Shape.of(8, 4), Shape.of(4), List.of(0));
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 2, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
         var declaration = analysis.plan().workspaceDeclaration().orElseThrow();
@@ -522,7 +522,7 @@ class CpuPreparedExecutableTest {
     @Test void rmsNormalizationNeedsNoWorkspaceAndKeepsLargeFiniteRootsFinite() {
         var base = CpuTrailingNormalizationLoweringTest.context(false, false, DataType.FLOAT64,
                 Shape.of(1, 2), Shape.of(2), List.of(0));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
         var analysis = new CpuPartitionPreparer().analyze(context);
         assertTrue(analysis.plan().workspaceDeclaration().isEmpty());
@@ -544,7 +544,7 @@ class CpuPreparedExecutableTest {
         var base = CpuSoftmaxLoweringTest.context(SoftmaxKind.SOFTMAX, DataType.FLOAT64,
                 Shape.of(8, 4), 1);
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
         try (var workers = new CpuWorkerGroup(4)) {
@@ -589,7 +589,7 @@ class CpuPreparedExecutableTest {
                 DataType.FLOAT64, Shape.of(8, 4),
                 new StatisticalReductionAttrs(List.of(1), false, 1), Shape.of(8));
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
         var declaration = analysis.plan().workspaceDeclaration().orElseThrow();
@@ -627,7 +627,7 @@ class CpuPreparedExecutableTest {
         var base = CpuMaskedReductionLoweringTest.context(AggregateReductionKind.MEAN,
                 DataType.FLOAT64, Shape.of(8, 4), Shape.of(4), 1);
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.BYTE_ARRAY,
                         CarrierAccess.DOUBLE_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
@@ -686,7 +686,7 @@ class CpuPreparedExecutableTest {
     @Test void zeroInputInitializerExecutesItsSinglePrologueWithNoWorkspace() {
         var base = CpuRandomLoweringTest.initialContext(Long.MIN_VALUE, Long.MAX_VALUE);
         var analysis = new CpuPartitionPreparer().analyze(
-                new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.LONG_ARRAY))));
+                new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.LONG_ARRAY))));
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
         long[] stateWords = new long[2];
         var run = state(executable, List.of(borrow(stateWords)));
@@ -706,7 +706,7 @@ class CpuPreparedExecutableTest {
         byte[] scalarMask = new byte[count], parallelMask = new byte[count];
         long[] scalarNext = new long[2], parallelNext = new long[2];
 
-        var scalarContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        var scalarContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         var scalar = CpuPartitionFinalizerTest.finalizeExecutable(
                 new CpuPartitionPreparer().analyze(scalarContext), Optional.empty());
         var scalarRun = state(scalar, List.of(borrow(input, 0, count), borrow(rng),
@@ -714,7 +714,7 @@ class CpuPreparedExecutableTest {
         try { scalar.bind(scalarRun).execute(); } finally { scalarRun.close(); }
 
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers, config));
+        var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers, config));
         var analysis = new CpuPartitionPreparer().analyze(parallelContext);
         try (var workers = new CpuWorkerGroup(4)) {
             var parallel = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty(),
@@ -736,7 +736,7 @@ class CpuPreparedExecutableTest {
     @Test void dropoutRejectsEveryInputOutputAndOutputPairOverlapBeforeMutation() {
         var base = CpuRandomLoweringTest.dropoutContext(DataType.FLOAT64, Shape.of(3), .5);
         var carriers = java.util.Collections.nCopies(5, CarrierAccess.MEMORY_SEGMENT);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(
                 new CpuPartitionPreparer().analyze(context), Optional.empty());
         try (Arena arena = Arena.ofConfined()) {
@@ -765,7 +765,7 @@ class CpuPreparedExecutableTest {
     @Test void dropoutPermitsPhysicalInputInputOverlapAndExecutesCoherently() {
         var base = CpuRandomLoweringTest.dropoutContext(DataType.FLOAT64, Shape.of(2), 0.0d);
         var carriers = java.util.Collections.nCopies(5, CarrierAccess.MEMORY_SEGMENT);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(
                 new CpuPartitionPreparer().analyze(context), Optional.empty());
         try (Arena arena = Arena.ofConfined()) {
@@ -800,7 +800,7 @@ class CpuPreparedExecutableTest {
                 io.github.pho001.synaptik.model.operation.ordering.TopKKind.TOP_K,
                 new io.github.pho001.synaptik.model.operation.ordering.TopKAttrs(1, 3, true, false)),
                 DataType.FLOAT32, Shape.of(2, 5), Shape.of(2, 3), true);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
                 CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT)));
         var analysis = new CpuPartitionPreparer().analyze(context);
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
@@ -842,7 +842,7 @@ class CpuPreparedExecutableTest {
             var base = CpuOrderingLoweringTest.context(new Operation(family,
                             new io.github.pho001.synaptik.model.operation.ordering.SortAttrs(1, false)),
                     DataType.INT64, Shape.of(4, 5), Shape.of(4, 5), false);
-            var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+            var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                     List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.LONG_ARRAY)));
             var executable = CpuPartitionFinalizerTest.finalizeExecutable(
                     new CpuPartitionPreparer().analyze(context), Optional.empty());
@@ -868,7 +868,7 @@ class CpuPreparedExecutableTest {
         var base = CpuOrderingLoweringTest.context(operation, DataType.FLOAT32,
                 Shape.of(4, 5), Shape.of(4, 5), false);
         var parallel = new PortableExecutionConfig(ComputePreference.SCALAR, 2, 2, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY), parallel));
         var analysis = new CpuPartitionPreparer().analyze(context);
         float[] input = {1, 5, 3, 2, 4, -0.0f, +0.0f, Float.NaN, 9, 9,
@@ -1302,7 +1302,7 @@ class CpuPreparedExecutableTest {
                 List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(
                         DataType.INT32, Shape.of(2))),
                 CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(5)));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY)));
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(
                 new CpuPartitionPreparer().analyze(context), Optional.empty()).forRange(1, 4);
@@ -1328,7 +1328,7 @@ class CpuPreparedExecutableTest {
                 List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(
                         DataType.INT32, Shape.of(6))),
                 CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(5, 2)));
-        var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+        var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY),
                 new PortableExecutionConfig(ComputePreference.SCALAR, 2, 2, 1)));
         var analysis = new CpuPartitionPreparer().analyze(parallelContext);
@@ -1349,7 +1349,7 @@ class CpuPreparedExecutableTest {
                 List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(
                         DataType.BOOL, Shape.of(3))),
                 CpuNonAffineMovementLoweringTest.descriptor(DataType.BOOL, Shape.of(2, 2)));
-        var boolContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, boolBase.partition(), boolBase.nodes(), boolBase.values(), boolBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+        var boolContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(boolBase.partition(), boolBase.nodes(), boolBase.values(), boolBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.BYTE_ARRAY, CarrierAccess.BYTE_ARRAY)));
         var boolExecutable = CpuPartitionFinalizerTest.finalizeExecutable(
                 new CpuPartitionPreparer().analyze(boolContext), Optional.empty());
@@ -1372,7 +1372,7 @@ class CpuPreparedExecutableTest {
         for (boolean inputSegment : List.of(false, true)) for (boolean outputSegment : List.of(false, true)) {
             var pattern = List.of(inputSegment ? CarrierAccess.MEMORY_SEGMENT : CarrierAccess.BYTE_ARRAY,
                     outputSegment ? CarrierAccess.MEMORY_SEGMENT : CarrierAccess.BYTE_ARRAY);
-            var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, pattern, parallel));
+            var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, pattern, parallel));
             var analysis = new CpuPartitionPreparer().analyze(context);
             assertEquals("parallel-scalar", analysis.plan().executionStrategy().toString(),
                     "preflight must precede the selected worker path for " + pattern);
@@ -1414,7 +1414,7 @@ class CpuPreparedExecutableTest {
                                 List.of(-2L, -2L))),
                 List.of(0, 1), List.of(baseDescriptor, updateDescriptor), outputDescriptor);
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 3, 3, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.INT_ARRAY, CarrierAccess.MEMORY_SEGMENT,
                         CarrierAccess.INT_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
@@ -1465,7 +1465,7 @@ class CpuPreparedExecutableTest {
                                 DataType.INT32, Shape.of(5)),
                         CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2))),
                 CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(5)));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT,
                         CarrierAccess.MEMORY_SEGMENT)));
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(
@@ -1497,7 +1497,7 @@ class CpuPreparedExecutableTest {
                                 DataType.BOOL, Shape.of(4)),
                         CpuNonAffineMovementLoweringTest.descriptor(DataType.BOOL, Shape.of(2))),
                 CpuNonAffineMovementLoweringTest.descriptor(DataType.BOOL, Shape.of(4)));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.BYTE_ARRAY, CarrierAccess.BYTE_ARRAY,
                         CarrierAccess.BYTE_ARRAY)));
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(
@@ -1550,7 +1550,7 @@ class CpuPreparedExecutableTest {
                 new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(3)), List.of(0),
                 List.of(CpuIndexingLoweringTest.descriptor(DataType.INT64, Shape.of(3))),
                 CpuIndexingLoweringTest.descriptor(DataType.BOOL, Shape.of(3, 3)));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.BYTE_ARRAY)));
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(
                 new CpuPartitionPreparer().analyze(context), Optional.empty());
@@ -1762,7 +1762,7 @@ class CpuPreparedExecutableTest {
         var config = new CpuPartitionAnalysisInputs.PortableExecutionConfig(
                 CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,
                 4, 4, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.BYTE_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
         var workers = new CpuWorkerGroup(4);
@@ -1810,7 +1810,7 @@ class CpuPreparedExecutableTest {
         var base = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
                 new FoldAxisAttrs(0, 16, 1)), DataType.INT32, Shape.of(15, 2), Shape.of(16));
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
         var workers = new CpuWorkerGroup(4);
@@ -1847,7 +1847,7 @@ class CpuPreparedExecutableTest {
         var base = CpuScanLoweringTest.context(CumulativeScanKind.CUM_SUM, DataType.INT32,
                 Shape.of(8, 3), 1, false, false);
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
         var workers = new CpuWorkerGroup(4);
@@ -1875,7 +1875,7 @@ class CpuPreparedExecutableTest {
         var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.INT32,
                 Shape.of(2,8,3), new SumToShapeAttrs(Shape.of(8,1)), Shape.of(8,1));
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 2, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
         assertAll(() -> assertEquals(2, analysis.plan().bufferDeclarations().size()),
@@ -1912,7 +1912,7 @@ class CpuPreparedExecutableTest {
         var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.FLOAT64,
                 Shape.of(2,8,3), new SumToShapeAttrs(Shape.of(8,1)), Shape.of(8,1));
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
         var declaration = analysis.plan().workspaceDeclaration().orElseThrow();
@@ -2100,7 +2100,7 @@ class CpuPreparedExecutableTest {
         var base = CpuScatterLoweringTest.context(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
                         new ScatterElementsAttrs(0, ScatterReduction.ADD)), List.of(0, 1, 0),
                 descriptors, CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(2)));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
                 CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY,
                 CarrierAccess.INT_ARRAY)));
         var deduplicated = CpuPartitionFinalizerTest.finalizeExecutable(
@@ -2124,7 +2124,7 @@ class CpuPreparedExecutableTest {
                         new ScatterElementsAttrs(0, ScatterReduction.MUL)), List.of(0, 1, 2),
                 inputs, CpuScatterLoweringTest.desc(DataType.FLOAT64, Shape.of(outputCount)));
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
         List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.INT_ARRAY,
                 CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
@@ -2170,7 +2170,7 @@ class CpuPreparedExecutableTest {
                         new ScatterElementsAttrs(0, ScatterReduction.NONE)), List.of(0, 1, 2),
                 inputs, CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(count)));
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
                 CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY,
                 CarrierAccess.INT_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
@@ -2199,7 +2199,7 @@ class CpuPreparedExecutableTest {
             List<TensorDescriptor> inputs,TensorDescriptor output){
         var base=CpuScatterLoweringTest.context(operation,List.of(0,1,2),inputs,output);
         var carriers=new ArrayList<CarrierAccess>();for(var input:inputs)carriers.add(switch(input.dataType()){case FLOAT64->CarrierAccess.DOUBLE_ARRAY;case FLOAT32->CarrierAccess.FLOAT_ARRAY;case BFLOAT16->CarrierAccess.SHORT_ARRAY;case INT32->CarrierAccess.INT_ARRAY;case INT64->CarrierAccess.LONG_ARRAY;case BOOL->CarrierAccess.BYTE_ARRAY;case FLOAT16->throw new IllegalArgumentException("FLOAT16 CPU carrier is unsupported");});carriers.add(switch(output.dataType()){case FLOAT64->CarrierAccess.DOUBLE_ARRAY;case FLOAT32->CarrierAccess.FLOAT_ARRAY;case BFLOAT16->CarrierAccess.SHORT_ARRAY;case INT32->CarrierAccess.INT_ARRAY;case INT64->CarrierAccess.LONG_ARRAY;case BOOL->CarrierAccess.BYTE_ARRAY;case FLOAT16->throw new IllegalArgumentException("FLOAT16 CPU carrier is unsupported");});
-        var context=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,carriers));
+        var context=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,carriers));
         return CpuPartitionFinalizerTest.finalizeExecutable(new CpuPartitionPreparer().analyze(context),Optional.empty());
     }
 
@@ -2209,7 +2209,7 @@ class CpuPreparedExecutableTest {
             io.github.pho001.synaptik.model.tensor.TensorDescriptor output,
             List<CarrierAccess> carriers) {
         var base = CpuIndexingLoweringTest.context(operation, occurrences, inputs, output);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         return CpuPartitionFinalizerTest.finalizeExecutable(
                 new CpuPartitionPreparer().analyze(context), Optional.empty());
     }
@@ -2219,7 +2219,7 @@ class CpuPreparedExecutableTest {
             List<CarrierAccess> carriers, CpuWorkerGroup workers) {
         var base = CpuArgExtremaLoweringTest.context(kind, type, shape, axis, keep, tie);
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 2, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers, config));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers, config));
         return CpuPartitionFinalizerTest.finalizeExecutable(
                 new CpuPartitionPreparer().analyze(context), Optional.empty(),
                 Optional.of(workers));

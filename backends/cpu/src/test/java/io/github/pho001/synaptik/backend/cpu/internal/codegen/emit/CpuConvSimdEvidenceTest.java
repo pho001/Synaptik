@@ -51,6 +51,11 @@ import org.junit.jupiter.api.Test;
  */
 final class CpuConvSimdEvidenceTest {
     private static final String EVIDENCE_ROOT_PROPERTY = "synaptik.cpu.convSimd.evidenceRoot";
+    // Stage-A's schema-68 artifact is historical provenance, not the expected schema-69 output.
+    private static final String SCHEMA_68_STAGE_A_SCALAR_CLASS_SHA256 =
+            "ee435967bfe81b02faf6e996838da18c47d0f2caea9637d6392722f594d5510c";
+    private static final String SCHEMA_68_STAGE_A_SCALAR_STRUCTURAL_KEY =
+            "6921d1fea6e1e7205571dd483f3cfc784dc3d568c255cfb2135c55902966de93";
 
     private enum Rank { CONV2D, CONV3D }
     private enum CarrierForm { ARRAYS, SEGMENTS, MIXED }
@@ -74,7 +79,7 @@ final class CpuConvSimdEvidenceTest {
             CpuKernelSpecialization vector, byte[] vectorBytes) { }
 
     @Test void stageBSemanticMatrixExecutesExactlyFortyEightRawBitRows() throws Throwable {
-        assertEquals(68, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(69, CpuGeneratorSchema.CURRENT_VERSION);
         List<SemanticRow> rows = semanticRows();
         assertEquals(48, rows.size());
         assertEquals(48, rows.stream().distinct().count());
@@ -127,10 +132,14 @@ final class CpuConvSimdEvidenceTest {
             assertScalarControl(route.scalarBytes, dossier.toString());
             if (dossier.rank == Rank.CONV2D && dossier.type == DataType.FLOAT32
                     && !dossier.bias && dossier.carriers == CarrierForm.ARRAYS) {
-                assertEquals("ee435967bfe81b02faf6e996838da18c47d0f2caea9637d6392722f594d5510c",
-                        sha256(route.scalarBytes), "immutable Stage-A scalar class bytes");
-                assertEquals("6921d1fea6e1e7205571dd483f3cfc784dc3d568c255cfb2135c55902966de93",
-                        route.scalar.structuralKey(), "immutable Stage-A scalar identity");
+                assertNotEquals(SCHEMA_68_STAGE_A_SCALAR_CLASS_SHA256, sha256(route.scalarBytes),
+                        "schema-69 artifact does not impersonate Stage-A schema-68 bytes");
+                assertNotEquals(SCHEMA_68_STAGE_A_SCALAR_STRUCTURAL_KEY, route.scalar.structuralKey(),
+                        "schema-69 artifact does not impersonate Stage-A schema-68 identity");
+                assertEquals("4d410328897a83b10d408021859673a9a24b0c5a108e3d071d0a6127b353e7ca",
+                        sha256(route.scalarBytes), "schema-69 Stage-A scalar class bytes");
+                assertEquals("f13c0a93f4785e645f44b5b0194904eff4f5ee07e99f9e9c3ff9665205f8e437",
+                        route.scalar.structuralKey(), "schema-69 scalar identity");
             }
             retain(dossier, route);
         }
@@ -639,7 +648,7 @@ final class CpuConvSimdEvidenceTest {
 
     private static PrepareContext<CpuPartitionAnalysisInputs> withInputs(
             PrepareContext<CpuPartitionAnalysisInputs> base, CpuPartitionAnalysisInputs inputs) {
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), inputs);
+        return new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), inputs);
     }
 
     /** Generates directly for class-file and semantic inspection. */

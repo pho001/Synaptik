@@ -352,9 +352,9 @@ final class EngineTypedLifecycleTest {
     @Test
     void rejectsAbsentStorageAndAnotherPreparedOwnerBeforeBorrow() {
         RecordingComposition shared = new RecordingComposition();
-        AdvancedEngine delegate = new AdvancedEngine(shared, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, shared::prepare);
-        Engine first = new Engine(delegate, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE);
-        Engine second = new Engine(delegate, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE);
+        AdvancedEngine delegate = new AdvancedEngine(shared, shared::prepare);
+        Engine first = new Engine(delegate);
+        Engine second = new Engine(delegate);
         Tensor absent = leaf(false, false);
         var prepared = first.prepare(first.compile(List.of(absent.neg())));
 
@@ -561,8 +561,8 @@ final class EngineTypedLifecycleTest {
     @Test
     void materializeValidatesDescriptorCountsBeforePhysicalAccess() {
         RecordingComposition composition = new RecordingComposition();
-        AdvancedEngine advanced = new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, composition::prepare);
-        Engine engine = new Engine(advanced, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE);
+        AdvancedEngine advanced = new AdvancedEngine(composition, composition::prepare);
+        Engine engine = new Engine(advanced);
         TestBuffer representation = new TestBuffer(null, null, "publication");
 
         Shape dynamicShape = Shape.ofDimensions(new DynamicDimension("N"));
@@ -1201,7 +1201,7 @@ final class EngineTypedLifecycleTest {
     }
 
     private static Engine engine(RecordingComposition composition) {
-        return new Engine(new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, composition::prepare), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE);
+        return new Engine(new AdvancedEngine(composition, composition::prepare));
     }
 
     private static RunResult syntheticResult(

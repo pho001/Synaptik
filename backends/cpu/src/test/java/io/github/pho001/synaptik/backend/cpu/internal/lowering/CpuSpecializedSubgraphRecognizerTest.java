@@ -294,6 +294,6 @@ class CpuSpecializedSubgraphRecognizerTest {
                     produced ? Optional.of(partition) : Optional.empty(),
                     consumed && !output ? List.of(partition) : List.of(), output));
         }
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 }

@@ -3,7 +3,6 @@ package io.github.pho001.synaptik.backend.metal;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
@@ -24,21 +23,20 @@ class MetalRandomDropoutCapabilityTest {
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
 
     @Test
-    void initialStateIsExactInBothProfilesAndRequiresCanonicalNoGradInt64Pair() {
+    void initialStateIsExactAndRequiresCanonicalNoGradInt64Pair() {
         Operation initial = new Operation(
                 GraphRngKind.INITIAL_STATE,
                 new GraphRngStateAttrs(0xfedc_ba98_7654_3210L, 0x0123_4567_89ab_cdefL));
         TensorDescriptor state = descriptor(DataType.INT64, Shape.of(2), false);
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            assertTrue(supports(profile, initial, List.of(), List.of(state)), profile.toString());
-            assertFalse(supports(profile, initial, List.of(),
-                    List.of(descriptor(DataType.INT64, Shape.of(1), false))));
-            assertFalse(supports(profile, initial, List.of(),
-                    List.of(descriptor(DataType.FLOAT32, Shape.of(2), false))));
-            assertFalse(supports(profile, initial, List.of(),
-                    List.of(new TensorDescriptor(
-                            DataType.INT64, Shape.of(2), Optional.empty(), false))));
-        }
+        assertTrue(supports(initial, List.of(), List.of(state)), "selected occurrence");
+        assertFalse(supports(initial, List.of(),
+                List.of(descriptor(DataType.INT64, Shape.of(1), false))));
+        assertFalse(supports(initial, List.of(),
+                List.of(descriptor(DataType.FLOAT32, Shape.of(2), false))));
+        assertFalse(supports(initial, List.of(),
+                List.of(new TensorDescriptor(
+                        DataType.INT64, Shape.of(2), Optional.empty(), false))));
+
     }
 
     @Test
@@ -52,23 +50,21 @@ class MetalRandomDropoutCapabilityTest {
                 descriptor(DataType.BOOL, shape, false),
                 descriptor(DataType.INT64, Shape.of(2), false));
         assertTrue(supports(
-                NumericalProfile.ACCELERATOR, dropout, List.of(input, state), outputs));
-        assertFalse(supports(
-                NumericalProfile.STRICT_IEEE, dropout, List.of(input, state), outputs));
-        assertFalse(supports(NumericalProfile.ACCELERATOR, dropout,
+                dropout, List.of(input, state), outputs));
+        assertFalse(supports(dropout,
                 List.of(descriptor(DataType.FLOAT64, shape, true), state),
                 List.of(
                         descriptor(DataType.FLOAT64, shape, true),
                         outputs.get(1), outputs.get(2))));
-        assertFalse(supports(NumericalProfile.ACCELERATOR, dropout,
+        assertFalse(supports(dropout,
                 List.of(input, state),
                 List.of(
                         descriptor(DataType.FLOAT32, shape, false),
                         outputs.get(1), outputs.get(2))));
-        assertFalse(supports(NumericalProfile.ACCELERATOR, dropout,
+        assertFalse(supports(dropout,
                 List.of(input, state),
                 List.of(outputs.get(0), descriptor(DataType.INT32, shape, false), outputs.get(2))));
-        assertFalse(supports(NumericalProfile.ACCELERATOR, dropout,
+        assertFalse(supports(dropout,
                 List.of(new TensorDescriptor(
                         DataType.FLOAT32, shape, Optional.empty(), true), state), outputs));
     }
@@ -82,19 +78,19 @@ class MetalRandomDropoutCapabilityTest {
                 Shape.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 7),
                 Shape.of(0xffff_ffffL))) {
             TensorDescriptor value = descriptor(DataType.FLOAT32, shape, false);
-            assertTrue(supports(NumericalProfile.ACCELERATOR, dropout,
+            assertTrue(supports(dropout,
                     List.of(value, state),
                     List.of(value, descriptor(DataType.BOOL, shape, false), state)),
                     shape.toString());
         }
         Shape extentOver = Shape.of(0x1_0000_0000L);
         TensorDescriptor over = descriptor(DataType.FLOAT32, extentOver, false);
-        assertFalse(supports(NumericalProfile.ACCELERATOR, dropout,
+        assertFalse(supports(dropout,
                 List.of(over, state),
                 List.of(over, descriptor(DataType.BOOL, extentOver, false), state)));
         Shape productOver = Shape.of(65_536, 65_536);
         TensorDescriptor product = descriptor(DataType.FLOAT32, productOver, false);
-        assertFalse(supports(NumericalProfile.ACCELERATOR, dropout,
+        assertFalse(supports(dropout,
                 List.of(product, state),
                 List.of(product, descriptor(DataType.BOOL, productOver, false), state)));
     }
@@ -131,21 +127,19 @@ class MetalRandomDropoutCapabilityTest {
                             List.of(output, hidden));
                     if (kind == RecurrentScanKind.LSTM) outputs.add(hidden);
                     Operation operation = new Operation(kind, direction);
-                    for (NumericalProfile profile : NumericalProfile.values()) {
-                        assertFalse(supports(profile, operation, inputs, outputs),
-                                profile + " " + kind + " " + direction + " bias=" + biased);
-                    }
+                    assertFalse(supports(operation, inputs, outputs),
+                            kind + " " + direction + " bias=" + biased);
+
                 }
             }
         }
     }
 
     private boolean supports(
-            NumericalProfile profile,
             Operation operation,
             List<TensorDescriptor> inputs,
             List<TensorDescriptor> outputs) {
-        return provider.supports(new OperationCapabilityQuery(profile, operation, inputs, outputs));
+        return provider.supports(new OperationCapabilityQuery(operation, inputs, outputs));
     }
 
     private static TensorDescriptor descriptor(DataType type, Shape shape, boolean requiresGrad) {

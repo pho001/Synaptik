@@ -4,7 +4,6 @@ import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
@@ -26,11 +25,9 @@ import java.util.Optional;
  * logical Tensor identity. Constants that the Compiler creates internally for a functional
  * gradient request retain their existing Compiler-owned treatment.</p>
  *
- * <p>The selected numerical profile is one cold graph-wide identity. Compiler passes it unchanged
- * to Planning and stores it in artifacts; it never evaluates Model's recursive floors.
- * Compiler-generated derivative formulas consist of ordinary public Tensor operations and
- * therefore inherit that same profile at every generated primitive, aggregate, guard, and saved-
- * value site. There is no gradient-only numerical profile or final-output tolerance.</p>
+ * <p>Compiler-generated derivative formulas consist of ordinary public Tensor operations and
+ * inherit Model's operation semantics. Capability questions remain occurrence-specific; neither
+ * the request nor its artifacts carry a numerical selector or production tolerance policy.</p>
  */
 public final class GraphCompilationPort {
     private GraphCompilationPort() {}
@@ -45,9 +42,6 @@ public final class GraphCompilationPort {
      * list is retained in the result.</p>
      *
      * @param mode non-null graph-scope mode
-     * @param numericalProfile non-null immutable cold graph-wide identity retained in the result
-     *     and supplied unchanged to every capability query; generated gradient operations inherit
-     *     it without Compiler interpretation
      * @param forwardOutputs non-null, non-empty ordered forward boundary; exact Tensor references
      *     and resolved logical values must be unique, and the list is not mutated
      * @param functionalGradientRequest non-null optional functional request, absent exactly for
@@ -76,7 +70,6 @@ public final class GraphCompilationPort {
      */
     public static CompileArtifacts compile(
             CompileMode mode,
-            NumericalProfile numericalProfile,
             List<Tensor> forwardOutputs,
             Optional<FunctionalGradientRequest> functionalGradientRequest,
             GraphOptimizationConfig optimizationConfig,
@@ -86,7 +79,6 @@ public final class GraphCompilationPort {
             List<BackendAvailabilitySnapshot> availabilitySnapshots) {
         return GraphCompiler.compile(
                 mode,
-                numericalProfile,
                 forwardOutputs,
                 functionalGradientRequest,
                 CompileTimeConstantGraph.Ingress.empty(),

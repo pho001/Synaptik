@@ -300,7 +300,7 @@ public final class CpuPool2dPerformanceTest {
                                 CpuAccessPlan.AccessKind.WRITE, CpuAccessPlan.Regime.DENSE_LINEAR, 4, roles, 4));
         var ir = pool.encodedKernelIr();
         var s =
-                new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
                 List.of(g.dataType(), g.dataType()),
                 List.of(in, out),
                 0,

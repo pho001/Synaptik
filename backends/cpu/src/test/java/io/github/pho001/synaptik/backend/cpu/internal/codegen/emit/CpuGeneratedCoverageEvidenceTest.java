@@ -47,7 +47,7 @@ class CpuGeneratedCoverageEvidenceTest {
         assertTrue(json.endsWith("\n") && !json.contains("\r"), "canonical LF JSON");
         Map<String, Object> root = object(new JsonReader(json).parse());
         assertEquals(List.of("schema", "status", "materializationCandidates", "materializationsSelected", "inventory", "gaps", "nonPassing", "projections"), List.copyOf(root.keySet()));
-        assertEquals(68L, root.get("schema"));
+        assertEquals(69L, root.get("schema"));
         assertEquals("FAIL_CLOSED", root.get("status"));
         assertEquals(4L, root.get("materializationCandidates"));
         assertEquals(0L, root.get("materializationsSelected"));

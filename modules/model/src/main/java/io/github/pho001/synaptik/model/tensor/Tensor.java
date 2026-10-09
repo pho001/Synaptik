@@ -134,28 +134,26 @@ import java.util.Optional;
  * aggregation; an empty selected set means zero for sum and NaN for mean. Floating-only
  * log-sum-exp, corrected variance/standard deviation, and L1/L2 norm methods use ordered distinct
  * axes, preserve exact input metadata, and record their first-class numerical targets without
- * decomposition or evaluation. The graph numerical profile changes no construction behavior and
- * is not stored on a Tensor. {@code STRICT_IEEE} has a complete backend-independent result set
- * for all nineteen unary kinds and BFLOAT16, FLOAT16, FLOAT32, and FLOAT64. It preserves
- * represented subnormals and required classes/zero signs; uses exact mathematical references with
- * ordered bounds of two for logarithmic/exponential primitives, one for square root, and five for
- * tanh; gives error function explicit per-type absolute/relative bounds; and constructs composite
- * results recursively in native or one-wider formats with one-round arithmetic sites. No backend
- * algorithm or coefficient table is semantic authority. {@code ACCELERATOR} is the strict set's
- * total recursive
- * {@code FLOAT32} superset: exact/discrete mapping, contributors, guards, selection, ordering,
- * state, casts, identities, divisors, and publication; DAZ/FTZ and one-round arithmetic at named
- * primitive sites; an inclusive distance of at most five ordered binary32 representations only at
- * irreducible elementary-function sites; and all-declared-contributors-once aggregate evaluation
- * with reassociation and corresponding FMA. Composite Tensor formulas recurse through those
- * floors and gain no final-output tolerance. Stored selected payloads, masks, indices, saved
- * values, exact typed attributes, and state stay exact; each formula-named real constant rounds
- * once to nearest-even FLOAT32 before its first use. Non-FLOAT32 behavior stays strict.
- * Existing operation-local final exact-zero publication freedoms remain local to their qualifying
- * final results. These profile rules describe allowed results, not
- * Model evaluation or backend support; the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">Model-owned
- * numerical-profile contract</a> is normative.
+ * decomposition or evaluation. Model owns one formula and special-value contract per operation
+ * family and dtype; Tensor construction stores no numerical selector and does not evaluate that
+ * formula. Stored-value comparisons and extrema, predicates, indices, masks, selection, casts,
+ * raw movement, saved values, state, and publication remain exact. In particular, represented
+ * subnormals participate in stored comparisons and winner selection without denormals-are-zero
+ * (DAZ). Unary ABS, NEG, SIGN, FLOOR, CEIL, and RELU are exact represented-value sites.
+ * Floating arithmetic retains its family formula, guards, contributor domain, rounding sites,
+ * and special-value rules. At named primitive arithmetic inputs/results only, FLOAT32, BFLOAT16,
+ * and FLOAT16 may use same-signed-zero input DAZ and finite-subnormal-result flush-to-zero (FTZ)
+ * under the family's zero-sign rule; FLOAT64 permits neither. Homogeneous low arithmetic works
+ * and accumulates in FLOAT32 with one final ties-to-even low narrowing. Aggregates use every
+ * declared contributor once in a rounded tree; corresponding multiply/add fusion requires an
+ * unobservable intermediate. Composite and generated-gradient formulas inherit only their named
+ * arithmetic sites' permissions, not a blanket output tolerance. Exact typed attributes and
+ * formula-named constants retain their specified conversions. Qualifying final exact-zero
+ * publication choices remain local to the named families. These rules describe Model results,
+ * not backend support or execution; see the
+ *  <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.
  * Statistical construction rejects a statically known domain count
  * at most correction and defers dynamic proof. Arg-min and arg-max
  * accept one non-empty selected axis of a floating or integral input, use an explicit first- or
@@ -652,10 +650,10 @@ public final class Tensor {
      * in ordinary IEEE-754 multiplication, including with infinity. NaN, infinity, and signed zero
      * otherwise follow ordinary multiplication and addition. An empty channel contraction starts
      * at positive zero. Reassociation and fused multiply-add are permitted without a fixed-order
-     * or bitwise cross-backend guarantee. Under {@code ACCELERATOR FLOAT32}, exact geometry,
-     * padding, and contributors remain unchanged while the contraction recurses through the
-     * primitive and aggregate floors above. Every term participates once; convolution gains no
-     * MATMUL-specific final-zero freedom or final-output tolerance.</p>
+     * or bitwise cross-backend guarantee. Geometry, padding, and contributors remain exact;
+     * every product participates once in a rounded contraction tree. Only named floating
+     * arithmetic primitives may use the dtype-specific DAZ/FTZ permission above. Convolution
+     * gains no MATMUL-specific final-zero freedom or final-output tolerance.</p>
      *
      * <p>The fresh result has promoted type, exact derived Shape, unresolved layout, gradient
      * request equal to the input/weight logical OR, no label or storage, and exact ordered
@@ -742,9 +740,9 @@ public final class Tensor {
      * multiplication, including with infinity. NaN, infinity, and signed zero otherwise follow
      * ordinary multiplication and addition. An empty channel contraction starts at positive
      * zero. Reassociation and fused multiply-add are permitted without a fixed-order or bitwise
-     * cross-backend guarantee. Under {@code ACCELERATOR FLOAT32}, exact geometry, padding, and
-     * contributors remain unchanged while the contraction recurses through the primitive and
-     * aggregate floors above. Every term participates once; convolution gains no MATMUL-specific
+     * cross-backend guarantee. Geometry, padding, and contributors remain exact; every product
+     * participates once in a rounded contraction tree. Only named floating arithmetic primitives
+     * may use the dtype-specific DAZ/FTZ permission above. Convolution gains no MATMUL-specific
      * final-zero freedom or final-output tolerance.</p>
      *
      * <p>The fresh canonical result has promoted type, exact derived Shape, unresolved layout,
@@ -1089,9 +1087,9 @@ public final class Tensor {
      * provenance containing {@link MatmulKind#MATMUL}, {@code NoOperationAttrs.INSTANCE}, ordered
      * exact inputs {@code [this, right]}, and output index zero. FLOAT64 results accumulate in
      * FLOAT64; BFLOAT16, FLOAT16, and FLOAT32 results accumulate in FLOAT32, with one final
-     * low-format conversion. Under {@code ACCELERATOR FLOAT32}, exact broadcast and contraction membership stay
-     * unchanged; every pairwise product participates once, and the cell recurses through the
-     * primitive and aggregate floors above. The existing qualifying nonempty final exact-zero
+     * low-format conversion. Broadcast and contraction membership stay exact; every pairwise
+     * product participates once in a rounded sum tree, and only named floating arithmetic sites
+     * may use dtype-specific DAZ/FTZ. The existing qualifying nonempty final exact-zero
      * publication choice remains local to the complete MATMUL result; no intermediate gains that
      * choice, a one-term contraction gains no identity or new FMA, and an empty contraction stays
      * positive zero. Signed-integral accumulation remains modular in the promoted width. This is
@@ -1288,8 +1286,8 @@ public final class Tensor {
      * no label or storage, and MATMUL provenance at output index zero. The transposed weight may
      * retain a resolved logical view layout when the original weight layout is resolved.</p>
      *
-     * <p>The produced MATMUL inherits the total recursive profile-indexed result set documented by
-     * {@link #matmul(Tensor)}. This convenience adds no numerical site, guard, contributor, or
+     * <p>The produced MATMUL inherits the family formula documented by {@link #matmul(Tensor)}.
+     * This convenience adds no numerical site, guard, contributor, or
      * final-output freedom.</p>
      *
      * <p>Null, promotion, rank, and locally provable contraction validation completes before the
@@ -1335,10 +1333,10 @@ public final class Tensor {
      * object references from that product, but ordinary ADD may create a distinct outer Shape
      * object. Its type is product/bias promotion, layout is unresolved, gradient eligibility is
      * the logical OR of input, weight, and bias requests, and label and storage are absent.
-     * Floating and signed-integral composition inherits current MATMUL and ADD numerical policy.
-     * Under {@code ACCELERATOR FLOAT32}, each visible operation recurses through its own formula
-     * sites: MATMUL's publication rule stays local to the inner product and the following ADD uses
-     * its ordinary primitive floor. The convenience adds no cross-node fusion, algebraic rewrite,
+     * Floating and signed-integral composition inherits MATMUL and ADD family semantics. Each
+     * visible operation retains its own formula and named arithmetic sites: MATMUL's publication
+     * rule stays local to the inner product and the following ADD has only its own arithmetic-site
+     * DAZ/FTZ permission. The convenience adds no cross-node fusion, algebraic rewrite,
      * or final-output envelope.</p>
      *
      * <p>Null, promotion, rank, contraction, and exact bias validation completes before PERMUTE,
@@ -2426,8 +2424,8 @@ public final class Tensor {
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#ABS},
      * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The formula and special classes
-     * documented by {@link UnaryElementwiseKind#ABS} are authoritative and recurse through the
-     * profile floors above without a method-level envelope. Gradient rules, execution, and backend
+     * documented by {@link UnaryElementwiseKind#ABS} are exact represented-value rules without
+     * arithmetic DAZ/FTZ. Gradient rules, execution, and backend
      * support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
@@ -2445,8 +2443,8 @@ public final class Tensor {
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#NEG},
      * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The formula and special classes
-     * documented by {@link UnaryElementwiseKind#NEG} are authoritative and recurse through the
-     * profile floors above without cross-node canonicalization. Gradient rules, execution, and
+     * documented by {@link UnaryElementwiseKind#NEG} are exact represented-value rules without
+     * arithmetic DAZ/FTZ or cross-node canonicalization. Gradient rules, execution, and
      * backend support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
@@ -2464,8 +2462,9 @@ public final class Tensor {
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#RECIPROCAL},
      * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The zero, domain, and special
-     * classes documented by {@link UnaryElementwiseKind#RECIPROCAL} are authoritative and recurse
-     * through the profile floors above without a method-level envelope. Gradient rules, execution,
+     * classes documented by {@link UnaryElementwiseKind#RECIPROCAL} remain authoritative; its
+     *  named division is the only arithmetic site and gains no method-level envelope. Gradient
+     * rules, execution,
      * and backend support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
@@ -2483,8 +2482,8 @@ public final class Tensor {
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#LOG},
      * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The domain and special classes
-     * documented by {@link UnaryElementwiseKind#LOG} are authoritative; the elementary site uses
-     * the Model-owned profile result set without a final-output envelope. Gradient rules,
+     * documented by {@link UnaryElementwiseKind#LOG} are authoritative; finite accuracy is
+     * qualified per backend route in tests without a public result envelope. Gradient rules,
      * execution, and backend support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
@@ -2504,7 +2503,8 @@ public final class Tensor {
      * unresolved, and has no label or storage. The mathematical target preserves signed zero,
      * produces negative infinity at negative one, NaN below negative one or for NaN input, and
      * positive infinity for positive infinity. Its first-class exact reference uses the
-     * Model-owned profile result set without a method-level envelope. Model construction does not
+     * Model-owned mathematical function and special-value rules. Finite accuracy is qualified in
+     * route tests, not by a method-level envelope. Model construction does not
      * evaluate those values or select a gradient rule, execution route, or backend.</p>
      *
      * @return a non-null fresh derived Tensor preserving type, shape, and gradient eligibility
@@ -2523,8 +2523,8 @@ public final class Tensor {
      * and provenance containing the portable mathematical request {@link
      * UnaryElementwiseKind#EXP}, {@code NoOperationAttrs.INSTANCE}, and exactly this input. The
      * request selects no algorithm or backend route. The formula and special classes documented by
-     * {@link UnaryElementwiseKind#EXP} are authoritative; the elementary site uses the Model-owned
-     * profile result set without a final-output envelope. Gradient rules, execution, and backend
+     * {@link UnaryElementwiseKind#EXP} are authoritative; finite accuracy is qualified per backend
+     * route in tests without a public result envelope. Gradient rules, execution, and backend
      * support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
@@ -2543,8 +2543,9 @@ public final class Tensor {
      * preserves the exact input type, shape reference, and gradient-eligibility request, leaves
      * layout unresolved, and has no label or storage. The mathematical target preserves signed
      * zero, maps negative infinity to negative one, maps positive infinity to positive infinity,
-     * and produces NaN for NaN input. Its first-class exact reference uses the Model-owned profile
-     * result set without a method-level envelope. Model construction does not evaluate those values
+     * and produces NaN for NaN input. Its first-class mathematical reference retains those
+     * special-value rules; finite accuracy is route-qualified, not a method-level envelope.
+     * Model construction does not evaluate those values
      * or select a gradient rule, execution route, or backend.</p>
      *
      * @return a non-null fresh derived Tensor preserving type, shape, and gradient eligibility
@@ -2562,8 +2563,8 @@ public final class Tensor {
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#ERF},
      * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The special classes documented by
-     * {@link UnaryElementwiseKind#ERF} are authoritative; the elementary site uses the Model-owned
-     * per-type absolute/relative result set without a final-output envelope. Gradient rules,
+     * {@link UnaryElementwiseKind#ERF} are authoritative; finite accuracy is qualified per
+     * backend route in tests without a public result envelope. Gradient rules,
      * execution, and backend support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
@@ -2581,8 +2582,8 @@ public final class Tensor {
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#SQRT},
      * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The domain and special classes
-     * documented by {@link UnaryElementwiseKind#SQRT} are authoritative; the elementary site uses
-     * the Model-owned ordered-distance result set without a final-output envelope. Gradient rules,
+     * documented by {@link UnaryElementwiseKind#SQRT} are authoritative; finite accuracy is
+     * qualified per backend route in tests without a public result envelope. Gradient rules,
      * execution, and backend support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
@@ -2600,9 +2601,9 @@ public final class Tensor {
      * request rather than stored square-root and reciprocal operations. The fresh result preserves
      * the exact input type, shape reference, and gradient-eligibility request, leaves layout
      * unresolved, and has no label or storage. Its mathematical target is {@code 1 / sqrt(x)};
-     * its strict result set recursively chooses a Model-owned square-root result and one-round
-     * division in a native or one-wider realization. The accelerator formula exposes the same
-     * square-root and division sites without creating graph nodes. Model construction does not
+     * its formula uses a named square-root site followed by typed-one division. Only the
+     * division's arithmetic inputs/result may use dtype-specific DAZ/FTZ; homogeneous low work
+     * uses FLOAT32 and one final low narrowing. Model construction does not
      * evaluate values or select an algorithm, gradient rule, execution route, or backend.</p>
      *
      * @return a non-null fresh derived Tensor preserving type, shape, and gradient eligibility
@@ -2621,7 +2622,8 @@ public final class Tensor {
      * and provenance containing {@link UnaryElementwiseKind#FLOOR},
      * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The representation and special
      * classes documented by {@link UnaryElementwiseKind#FLOOR} are authoritative and use the
-     * Model-owned exact profile rule. Gradient policy, execution, and backend support remain
+     * Model-owned exact represented-value rule without arithmetic DAZ/FTZ. Gradient policy,
+     * execution, and backend support remain
      * outside Model construction; preserving {@code requiresGrad} does not define a derivative.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
@@ -2640,7 +2642,8 @@ public final class Tensor {
      * and provenance containing {@link UnaryElementwiseKind#CEIL},
      * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The representation and special
      * classes documented by {@link UnaryElementwiseKind#CEIL} are authoritative and use the
-     * Model-owned exact profile rule. Gradient policy, execution, and backend support remain
+     * Model-owned exact represented-value rule without arithmetic DAZ/FTZ. Gradient policy,
+     * execution, and backend support remain
      * outside Model construction; preserving {@code requiresGrad} does not define a derivative.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
@@ -2659,7 +2662,8 @@ public final class Tensor {
      * and provenance containing {@link UnaryElementwiseKind#SIGN},
      * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The exact representation,
      * signed-zero, and NaN rules documented by {@link UnaryElementwiseKind#SIGN} are authoritative
-     * and use the Model-owned exact profile rule. Gradient policy, execution, and backend support
+     *  and use the Model-owned exact represented-value rule without arithmetic DAZ/FTZ. Gradient
+     * policy, execution, and backend support
      * remain outside Model construction; preserving {@code requiresGrad} defines no derivative.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
@@ -2677,8 +2681,8 @@ public final class Tensor {
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#RELU},
      * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The zero and special classes
-     * documented by {@link UnaryElementwiseKind#RELU} are authoritative and recurse through the
-     * profile floors above without a method-level envelope. Gradient convention, execution, and
+     * documented by {@link UnaryElementwiseKind#RELU} are exact represented-value rules without
+     * arithmetic DAZ/FTZ or a method-level envelope. Gradient convention, execution, and
      * backend support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
@@ -2695,9 +2699,9 @@ public final class Tensor {
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#SIGMOID},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Native and one-wider strict
-     * realizations use the kind's stable branch and recursively choose a Model-owned exponential
-     * result before one-round addition and division sites. Gradient rules, execution, and backend
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The exact sign guard chooses the
+     * kind's EXP, typed-one addition, and division sites; only named arithmetic primitives may
+     * use dtype-specific DAZ/FTZ. Gradient rules, execution, and backend
      * support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
@@ -2716,8 +2720,8 @@ public final class Tensor {
      * and provenance containing the portable mathematical request {@link
      * UnaryElementwiseKind#TANH}, {@code NoOperationAttrs.INSTANCE}, and exactly this input. The
      * request selects no algorithm or backend route. The special classes documented by {@link
-     * UnaryElementwiseKind#TANH} are authoritative; the elementary site uses the Model-owned
-     * ordered-distance result set without a final-output envelope. Gradient rules, execution, and
+     * UnaryElementwiseKind#TANH} are authoritative; finite accuracy is qualified per backend route
+     * in tests without a public result envelope. Gradient rules, execution, and
      * backend support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
@@ -2733,8 +2737,8 @@ public final class Tensor {
      *
      * <p>The Model-owned target is {@code 0.5 * x * (1 + erf(x / sqrt(2)))}. Constants, square
      * root, division, error-function, addition, and multiplications are the complete sites
-     * documented by {@link UnaryElementwiseKind#GELU}. Strict realizes those sites recursively in
-     * the native or one-wider format, and the operation has no whole-result accelerator envelope.
+     * documented by {@link UnaryElementwiseKind#GELU}. Only its named arithmetic primitives may
+     * use dtype-specific DAZ/FTZ; the operation has no whole-result tolerance.
      * Its continuous extension maps negative infinity to negative zero, preserves signed zero,
      * maps positive infinity to positive infinity, and produces NaN for NaN input. The input must
      * be floating. The fresh result retains the exact data type and Shape reference, unresolved
@@ -2756,9 +2760,9 @@ public final class Tensor {
      * <p>The Model-owned target is
      * {@code 0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))}. Constants, {@code x*x},
      * {@code x^2*x}, root, division, additions, remaining multiplications, and tanh are the
-     * complete sites documented by {@link UnaryElementwiseKind#GELU_TANH_APPROXIMATION}. Strict
-     * realizes those sites recursively in the native or one-wider format, and the operation has
-     * no whole-result accelerator envelope. Its continuous extension maps negative infinity to
+     * complete sites documented by {@link UnaryElementwiseKind#GELU_TANH_APPROXIMATION}. Only
+     * named arithmetic primitives may use dtype-specific DAZ/FTZ; the operation has no
+     * whole-result tolerance. Its continuous extension maps negative infinity to
      * negative zero, preserves signed zero, maps positive infinity to positive infinity, and
      * produces NaN for NaN input. The fresh result retains the exact floating metadata and
      * one-input provenance. The fixed target permits no other approximation. Construction neither
@@ -2778,8 +2782,8 @@ public final class Tensor {
      * <p>The Model-owned stable target is {@code x / (1 + exp(-x))} for nonnegative input and
      * {@code x * exp(x) / (1 + exp(x))} for negative input. Comparison, negation, exponential,
      * additions, multiplication, and divisions are the complete sites documented by {@link
-     * UnaryElementwiseKind#SILU}. Strict realizes those sites recursively in the native or
-     * one-wider format, and the operation has no whole-result accelerator envelope. Its continuous
+     * UnaryElementwiseKind#SILU}. Only named arithmetic primitives may use dtype-specific DAZ/FTZ;
+     * the operation has no whole-result tolerance. Its continuous
      * extension maps negative infinity to negative zero, preserves signed zero, maps positive
      * infinity to positive infinity, and produces NaN for NaN input. The fresh result retains the
      * exact floating metadata and one-input provenance. Construction neither evaluates nor
@@ -2935,10 +2939,11 @@ public final class Tensor {
      *
      * <p>For INT32 and INT64 input, addition occurs in the exact result type modulo
      * {@code 2^32} or {@code 2^64}; reassociation is permitted, and an empty domain produces zero.
-     * Under {@code STRICT_IEEE}, floating sum follows the documented NaN, infinity, signed-zero,
-     * and positive-zero empty-domain policy. Under {@code ACCELERATOR FLOAT32}, exact contributor
-     * membership and identity remain mandatory while all contributors participate once under the
-     * aggregate floor above. Scalar, static, zero-extent, and dynamic Shapes are accepted
+     * Floating SUM preserves its NaN, infinity, signed-zero, and positive-zero empty-domain
+     * rules. Exact contributor membership and identity remain mandatory while every contributor
+     * participates once in a rounded addition tree. Only named arithmetic additions may use
+     * dtype-specific DAZ/FTZ; FLOAT64 never does, and homogeneous low sums accumulate in FLOAT32
+     * with one final low narrowing. Scalar, static, zero-extent, and dynamic Shapes are accepted
      * structurally. This method records semantics only: it does not read storage, sum values,
      * implement an algorithm, create a gradient rule, capture a graph, lower an operation, or
      * execute work.</p>
@@ -3084,11 +3089,12 @@ public final class Tensor {
      * {@link AggregateReductionKind#MEAN}, {@code NoOperationAttrs.INSTANCE}, and exactly this
      * tensor. Scalar, static, zero-extent, and dynamic shapes are accepted structurally.</p>
      *
-     * <p>Under {@code STRICT_IEEE}, mean is exact sum divided by count: NaN and opposite
-     * infinities produce NaN, a sole infinity sign is preserved, an empty domain produces NaN, and
-     * zero sign follows SUM. Under {@code ACCELERATOR FLOAT32}, exact contributor membership,
-     * empty behavior, count, and mandatory quotient remain; the sum uses the aggregate floor and
-     * division uses the primitive floor above. This method reads no values and selects no
+     * <p>Mean combines every selected value once in a rounded sum, then divides by the exact
+     * count: NaN and opposite infinities produce NaN, a sole infinity sign is preserved, an empty
+     * domain produces NaN, and zero sign follows SUM. Exact contributor membership, empty behavior,
+     * count, and mandatory quotient remain; only the named additions and division may use the
+     * dtype-specific arithmetic-site DAZ/FTZ permission. Homogeneous low mean uses FLOAT32 work
+     * and one final low narrowing. This method reads no values and selects no
      * execution algorithm, gradient, compiler, or backend behavior.</p>
      *
      * @return a non-null fresh storage-free scalar tensor with unchanged floating data type and
@@ -3674,10 +3680,10 @@ public final class Tensor {
      *
      * <p>Axes are normalized once in caller order; normalized duplicates are rejected. An empty
      * array selects a point domain and returns the exact point bits, unlike {@link #sum()} full
-     * reduction. Under {@code STRICT_IEEE}, floating sum uses the documented NaN, infinity,
-     * signed-zero, positive-zero empty, and result-format rounding policy. Under
-     * {@code ACCELERATOR FLOAT32}, exact axes, point behavior, contributor membership, and
-     * identity remain while arithmetic uses the aggregate floor above. Integral sum retains exact
+     * reduction. Floating sum retains its NaN, infinity, signed-zero, and positive-zero empty
+     * rules. Axes, point behavior, contributor membership, and identity remain exact while
+     * arithmetic combines every term once in a rounded addition tree, using dtype-specific
+     * DAZ/FTZ only at named arithmetic sites; FLOAT64 permits neither. Integral sum retains exact
      * type and modular semantics.</p>
      *
      * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
@@ -3733,9 +3739,10 @@ public final class Tensor {
      * scalar target.</p>
      *
      * <p>The operation inherits ordinary SUM semantics. INT32 and INT64 use fixed-width modular
-     * addition. Under {@code STRICT_IEEE}, floating NaN, infinity, signed-zero, reassociation, and
-     * rounding follow ordinary SUM. Under {@code ACCELERATOR FLOAT32}, exact target mapping and
-     * contributors remain while each actually reduced cell uses the aggregate floor above.
+     * addition. Floating NaN, infinity, signed-zero, reassociation, and rounding follow SUM's
+     * family rules. Exact target mapping and contributors remain while each actually reduced cell
+     * combines every term once in a rounded addition tree; only named arithmetic sites may use
+     * dtype-specific DAZ/FTZ, never for FLOAT64.
      * Existing qualifying final exact-zero publication freedom remains local to the final cell.
      * An actually reduced empty domain remains numeric positive zero; an equal-Shape or otherwise
      * unreduced coordinate preserves input bits without adding an identity. This method reads no
@@ -3762,11 +3769,11 @@ public final class Tensor {
     /**
      * Builds a floating arithmetic mean over ordered distinct axes and removes them.
      *
-     * <p>The result preserves exact floating type/eligibility. Under {@code STRICT_IEEE}, mean is
-     * exact sum divided by count: NaN and opposite infinities produce NaN, a sole infinity sign is
-     * preserved, empty domains produce NaN, and zero sign follows SUM. Under
-     * {@code ACCELERATOR FLOAT32}, exact axes, contributors, empty behavior, count, and mandatory
-     * quotient remain; aggregation and division recurse through the floors above. Empty axes
+     * <p>The result preserves exact floating type/eligibility. Mean combines every selected term
+     * once in a rounded sum, then divides by the exact count: NaN and opposite infinities produce
+     * NaN, a sole infinity sign is preserved, empty domains produce NaN, and zero sign follows SUM.
+     * Exact axes, contributors, empty behavior, count, and mandatory quotient remain; only named
+     * arithmetic additions and division may use dtype-specific DAZ/FTZ, never for FLOAT64. Empty axes
      * select one point and still divide by one. Existing qualifying final exact-zero publication
      * freedom remains local to the final quotient.</p>
      *

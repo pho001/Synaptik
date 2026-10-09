@@ -11,16 +11,17 @@ import java.util.Optional;
  * or retains a provider, coordinator, native segment, or close action. Persistent compatibility
  * is available only for an absolute-path binary whose complete bytes and executable header were
  * inspected. This evidence establishes compatibility only for the target, required symbols,
- * ordinary 32-bit-{@code blasint} contract, and bounded numerical cases recorded here. It does
- * not authenticate the binary or certify arbitrary ABI behavior, numerical behavior, or
- * performance.
+ * ordinary 32-bit-{@code blasint} contract, and bounded GEMM smoke cases recorded here. The
+ * finite cases check exact known outputs from small integer operands, and the special cases check
+ * result classes and zero sign; neither is a general numerical policy. This evidence does not
+ * authenticate the binary or certify arbitrary ABI behavior, numerical behavior, or performance.
  */
 public final class CpuOpenBlasQualification {
     /** Current qualification schema. */
     public static final int SCHEMA_VERSION = 1;
-    /** Exact bounded numerical-case schema. */
+    /** Version of the bounded GEMM smoke cases, including exact known finite outputs. */
     public static final String NUMERICAL_CASE_VERSION =
-            "SYNAPTIK_OPENBLAS_GEMM_QUALIFICATION_V1";
+            "SYNAPTIK_OPENBLAS_GEMM_QUALIFICATION_V2";
     /** Required symbols in provider ABI order. */
     public static final List<String> REQUIRED_SYMBOLS = List.of(
             "cblas_sgemm", "cblas_dgemm", "openblas_set_num_threads",
@@ -126,7 +127,7 @@ public final class CpuOpenBlasQualification {
      * @param targetFingerprint exact supported target facts
      * @param requiredSymbols exact ordered four-symbol inventory
      * @param blasIntAbi exact ordinary provider integer ABI evidence
-     * @param numericalCaseVersion exact bounded numerical-case version
+     * @param numericalCaseVersion exact bounded GEMM smoke-case version
      * @param binaryIdentity complete inspected binary content identity
      */
     public record PersistentIdentity(int qualificationSchemaVersion,
@@ -217,8 +218,8 @@ public final class CpuOpenBlasQualification {
     /** Returns the provider integer ABI assumed and exercised by bounded checks.
      * @return locked ordinary 32-bit C integer ABI evidence; never {@code null} */
     public BlasIntAbi blasIntAbi() { return blasIntAbi; }
-    /** Returns the version of the bounded numerical cases that were executed.
-     * @return exact bounded numerical-case schema; never {@code null} */
+    /** Returns the version of the bounded exact-output and special-value GEMM smoke cases.
+     * @return exact bounded GEMM smoke-case version; never {@code null} */
     public String numericalCaseVersion() { return numericalCaseVersion; }
     /** Returns the complete-file identity when exact path inspection was possible.
      * @return non-null binary identity optional, present exactly for persistent-binary scope */

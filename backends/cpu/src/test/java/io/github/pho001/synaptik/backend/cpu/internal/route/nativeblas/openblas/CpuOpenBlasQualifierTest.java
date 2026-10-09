@@ -102,6 +102,34 @@ final class CpuOpenBlasQualifierTest {
         coordinator.close();
     }
 
+    @Test void oneUlpFloatErrorFailsTheExactFiniteSmokeCase() {
+        FakeInvocation fake = new FakeInvocation();
+        fake.perturbFiniteFloat = true;
+        CpuOpenBlasCoordinator coordinator = coordinator(fake, nameResult("float-one-ulp"));
+        var failure = assertThrows(CpuOpenBlasQualification.QualificationException.class,
+                () -> CpuOpenBlasQualifier.qualify(nameResult("float-one-ulp"), coordinator,
+                        linuxX86(), new CpuOpenBlasBinaryInspector()));
+        assertAll(() -> assertEquals("FLOAT32 finite qualification result disagrees",
+                        failure.getCause().getMessage()),
+                () -> assertEquals(1, fake.gemmCalls),
+                () -> assertTrue(coordinator.isOpen()));
+        coordinator.close();
+    }
+
+    @Test void oneUlpDoubleErrorFailsTheExactFiniteSmokeCase() {
+        FakeInvocation fake = new FakeInvocation();
+        fake.perturbFiniteDouble = true;
+        CpuOpenBlasCoordinator coordinator = coordinator(fake, nameResult("double-one-ulp"));
+        var failure = assertThrows(CpuOpenBlasQualification.QualificationException.class,
+                () -> CpuOpenBlasQualifier.qualify(nameResult("double-one-ulp"), coordinator,
+                        linuxX86(), new CpuOpenBlasBinaryInspector()));
+        assertAll(() -> assertEquals("FLOAT64 finite qualification result disagrees",
+                        failure.getCause().getMessage()),
+                () -> assertEquals(2, fake.gemmCalls),
+                () -> assertTrue(coordinator.isOpen()));
+        coordinator.close();
+    }
+
     @Test void persistentMembersAndDigestValidationAreExact() {
         var binary = new CpuOpenBlasQualification.BinaryIdentity(1, "SHA-256", "ab".repeat(32),
                 64, CpuOpenBlasQualification.ExecutableFormat.ELF_64,
@@ -112,6 +140,8 @@ final class CpuOpenBlasQualifierTest {
                 CpuOpenBlasQualification.NUMERICAL_CASE_VERSION, binary);
         assertAll(() -> assertEquals(List.copyOf(CpuOpenBlasQualification.REQUIRED_SYMBOLS),
                         identity.requiredSymbols()),
+                () -> assertEquals("SYNAPTIK_OPENBLAS_GEMM_QUALIFICATION_V2",
+                        identity.numericalCaseVersion()),
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> new CpuOpenBlasQualification.BinaryIdentity(1, "SHA-256",
                                 "AB".repeat(32), 64,
@@ -121,7 +151,12 @@ final class CpuOpenBlasQualifierTest {
                         () -> new CpuOpenBlasQualification.PersistentIdentity(2, linuxX86(),
                                 CpuOpenBlasQualification.REQUIRED_SYMBOLS,
                                 CpuOpenBlasQualification.BlasIntAbi.C_INT_32,
-                                CpuOpenBlasQualification.NUMERICAL_CASE_VERSION, binary)));
+                                CpuOpenBlasQualification.NUMERICAL_CASE_VERSION, binary)),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new CpuOpenBlasQualification.PersistentIdentity(1, linuxX86(),
+                                CpuOpenBlasQualification.REQUIRED_SYMBOLS,
+                                CpuOpenBlasQualification.BlasIntAbi.C_INT_32,
+                                "SYNAPTIK_OPENBLAS_GEMM_QUALIFICATION_V1", binary)));
     }
 
     private static CpuOpenBlasCoordinator coordinator(FakeInvocation fake,
@@ -161,6 +196,8 @@ final class CpuOpenBlasQualifierTest {
         int threads = 1;
         int gemmCalls;
         boolean corruptFinite;
+        boolean perturbFiniteFloat;
+        boolean perturbFiniteDouble;
         @Override public boolean isOpen() { return open.get(); }
         @Override public int threadCount() { return threads; }
         @Override public void setThreadCount(int value) { threads = value; }
@@ -171,8 +208,9 @@ final class CpuOpenBlasQualifierTest {
                 float sum = 0;
                 for (int p = 0; p < k; p++) sum += a.getAtIndex(ValueLayout.JAVA_FLOAT,
                         row * k + p) * b.getAtIndex(ValueLayout.JAVA_FLOAT, p * n + column);
-                c.setAtIndex(ValueLayout.JAVA_FLOAT, row * n + column,
-                        corruptFinite && m == 2 ? sum + 10 : sum);
+                float result = corruptFinite && m == 2 ? sum + 10 : sum;
+                if (perturbFiniteFloat && m == 2) result = Math.nextUp(result);
+                c.setAtIndex(ValueLayout.JAVA_FLOAT, row * n + column, result);
             }
         }
         @Override public void dgemm(int m, int n, int k, double alpha, MemorySegment a,
@@ -182,8 +220,9 @@ final class CpuOpenBlasQualifierTest {
                 double sum = 0;
                 for (int p = 0; p < k; p++) sum += a.getAtIndex(ValueLayout.JAVA_DOUBLE,
                         row * k + p) * b.getAtIndex(ValueLayout.JAVA_DOUBLE, p * n + column);
-                c.setAtIndex(ValueLayout.JAVA_DOUBLE, row * n + column,
-                        corruptFinite && m == 2 ? sum + 10 : sum);
+                double result = corruptFinite && m == 2 ? sum + 10 : sum;
+                if (perturbFiniteDouble && m == 2) result = Math.nextUp(result);
+                c.setAtIndex(ValueLayout.JAVA_DOUBLE, row * n + column, result);
             }
         }
     }

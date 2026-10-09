@@ -1,7 +1,6 @@
 package io.github.pho001.synaptik.backend.cpu;
 
 import io.github.pho001.synaptik.backend.contract.BackendId;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
@@ -86,10 +85,9 @@ import java.util.Objects;
 import java.util.Arrays;
 
 /**
- * <p>{@link NumericalProfile#STRICT_IEEE} and {@link NumericalProfile#ACCELERATOR} share one
- * exact occurrence predicate. Accelerator selection grants no relaxed operation, type, shape,
- * layout, attribute, gradient, or route support.</p>
- * Reports the executable semantic coverage currently delivered by the CPU backend.
+ * Reports the profile-free occurrence predicate and executable semantic coverage currently
+ * delivered by the CPU backend. Capability remains an exact answer for the supplied operation,
+ * descriptors, attributes, and gradient roles; it does not widen route support.
  *
  * <p>The provider has a stable CPU ownership identity and advertises the bounded, fully static
  * pointwise matrix implemented by the portable route: selected same-type arithmetic including

@@ -186,12 +186,12 @@ ordered gradient contributions and accumulated gradients. This is ephemeral reve
 bookkeeping, not public Tensor state and not another graph representation. Multiple contributions
 are accumulated with ordinary `Tensor.add`.
 
-Those generated operations have exactly the same graph-wide numerical profile as the forward
-graph. Their Model formulas recurse through the selected profile's exact/discrete, primitive, and
-aggregate floors at ordinary Tensor-operation sites; the compiler creates no gradient-only
-tolerance or alternate numerical policy. Saved outputs, masks, indices, statistics, and state
-remain the exact stored values named by the derivative formula. A backend is eligible only if it
-supports the entire generated topology under that same profile.
+Generated operations use the same single Model family semantics as forward operations. Their
+formulas inherit arithmetic-site DAZ/FTZ permission only at named FLOAT32/BFLOAT16/FLOAT16
+floating primitives, never at FLOAT64 arithmetic or exact/discrete/stored-value sites. The
+compiler creates no gradient-only tolerance or alternate numerical policy. Saved outputs, masks,
+indices, statistics, and state remain the exact stored values named by the derivative formula. A
+backend is eligible only if it supports the entire generated topology as queried.
 
 Before constructing any backward expression, the compiler must inventory every
 backward-reachable operation occurrence and its exact attributes and derivative policies. Any
@@ -216,13 +216,16 @@ Distinct differentiation targets may legitimately resolve to the same captured g
 boundary contains each distinct gradient value once. The compiler must not create identity nodes
 solely to make those result values distinct.
 
-Optimization operates on the immutable combined graph. The exact arithmetic rules, constant
-folding, dead-code elimination, and common-subexpression elimination already established by
+Optimization operates on the immutable combined graph. The guarded seven-rule exact arithmetic
+scan, constant folding, dead-code elimination, and common-subexpression elimination established by
 compiler tasks 0003, 0003A, and 0003B must be reassessed for both phases and applied only where
 their existing semantic guards remain valid. Common-subexpression elimination is phase-local
 unless a later architecture update and proof establishes a broader safe rule. Every changed
-candidate is revalidated through the compiler's inference-and-validation boundary. This contract
-does not authorize new algebraic rewrites.
+candidate is revalidated through the compiler's inference-and-validation boundary. Rewrites must
+retain phase, descriptor, output, saved-value, gradient, special-value, and rounding guards.
+Finite tolerance or a provider observation cannot license `x * 0`, `x - x`, reassociation,
+contraction, or fusion across an observable boundary. Unproved legality keeps the old graph path.
+This contract does not authorize new algebraic rewrites.
 
 Generated gradient formulas are ordinary differentiable Tensor expressions. A functional request
 contains exactly one or two ordered reverse-mode stages. Every stage has non-empty ordered output
@@ -307,9 +310,11 @@ Compile must not create:
 - runtime workspaces
 - backend-specific DAGs
 
-## Numerical-profile compile identity
+## Profile-free compile identity
 
-The compile port accepts one exact non-null `NumericalProfile`. Compiler passes it unchanged to
-every capability query and stores it in `CompileArtifacts`; compilation does not interpret its
-semantics or evaluate its recursive floors. The profile is cold compile identity, not a graph
-value or runtime input.
+<a id="numerical-profile-compile-identity"></a>
+
+The compile port, capability queries, and
+`CompileArtifacts` carry no numerical-profile selector or replacement identity. Compiler retains
+its semantic guards, graph-phase and derivative metadata, and complete occurrence facts. It does
+not convert test-only arithmetic tolerances into optimization permissions or provider capability.

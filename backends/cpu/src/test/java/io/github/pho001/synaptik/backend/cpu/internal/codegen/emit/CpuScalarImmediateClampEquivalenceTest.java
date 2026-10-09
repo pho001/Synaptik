@@ -28,8 +28,6 @@ class CpuScalarImmediateClampEquivalenceTest {
     @Test void fixturesAreExactCompleteForTheDeclaredBoundedMechanism() throws Exception {
         var table = table(FIXTURES, FIXTURE_HEADER);
         assertEquals(Set.of("bf16-mul-one", "bf16-mul-two"), table.rows().keySet());
-        assertEquals(resourceDigest(table), table.rows().get("bf16-mul-one").get(15));
-        assertEquals(resourceDigest(table), table.rows().get("bf16-mul-two").get(15));
         for (var fixture : CpuScalarImmediateClampEquivalenceOracle.fixtures()) {
             var artifact = CpuScalarImmediateClampEquivalenceOracle.artifact(fixture);
             var row = Objects.requireNonNull(table.rows().get(fixture.id()), fixture.id());
@@ -37,6 +35,8 @@ class CpuScalarImmediateClampEquivalenceTest {
                     artifact.specialization().entryType().descriptorString(), Integer.toString(artifact.specialization().classIdentitySchema()),
                     "MUL", "BFLOAT16", "SHORT_ARRAY", "SHORT_ARRAY", "CONTIGUOUS", "SCALAR", "[8]", "represented", fixture.immediateLocation()), row.subList(1, 15), fixture.id());
         }
+        assertEquals(resourceDigest(table), table.rows().get("bf16-mul-one").get(15));
+        assertEquals(resourceDigest(table), table.rows().get("bf16-mul-two").get(15));
     }
 
     @Test void generatedClassesExecuteAgainstIndependentTypedCleanJavaLoopsOnOrdinaryAndEdgeInputs() throws Throwable {

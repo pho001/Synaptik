@@ -12,7 +12,6 @@ import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
 import io.github.pho001.synaptik.backend.metal.MetalTraceObserver;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.EngineMixedOwnerTestAccess;
@@ -112,7 +111,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         Object structure = events.get(0).payload();
         assertEquals("MetalPreparationStructure", structure.getClass().getSimpleName());
         assertEquals("PREPARE", events.get(0).phase());
-        assertEquals("STRICT_IEEE", enumName(component(structure, "profile")));
         assertEquals("CUSTOM_KERNEL", enumName(component(structure, "route")));
         Object preparation = events.get(1).payload();
         assertEquals("PREPARE", events.get(1).phase());
@@ -121,7 +119,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         assertEquals(0L, idValue(component(preparation, "deviceId")));
         assertEquals(0L, idValue(component(preparation, "preparedUnitId")));
         assertEquals("SUCCEEDED", enumName(component(preparation, "status")));
-        assertEquals("STRICT_IEEE", enumName(component(preparation, "profile")));
         assertEquals("CUSTOM_KERNEL", enumName(component(preparation, "route")));
         assertEquals("NOT_QUERIED", enumName(component(preparation, "cacheStatus")));
         assertEquals("SUCCESS", nativeStatusKind(preparation));
@@ -141,7 +138,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             assertEquals(invocationIndex,
                     idValue(component(invocation, "invocationId")));
             assertEquals("SUCCEEDED", enumName(component(invocation, "status")));
-            assertEquals("STRICT_IEEE", enumName(component(invocation, "profile")));
             assertEquals("CUSTOM_KERNEL", enumName(component(invocation, "route")));
             assertEquals("SUCCESS", nativeStatusKind(invocation));
             assertEquals(0, nativeStatusCode(invocation));
@@ -149,7 +145,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void subnormalBinaryGraphIsCpuOwnedOrRejectedBeforeMetalPreparation() {
+    void subnormalArithmeticRunsOnBothOwnersWithinNamedSiteRules() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared()) {
             TensorDescriptor descriptor = descriptor(Shape.of(2));
@@ -163,17 +159,22 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
-                    IllegalStateException failure = assertThrows(
-                            IllegalStateException.class,
-                            () -> engine.compile(List.of(output)));
-                    assertTrue(failure.getMessage().contains(
-                            "no hard-eligible backend is available for ownership selection"));
+                    var compiled = engine.compile(List.of(output));
+                    assertEquals(List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                    try (InferenceSession session = engine.session(compiled);
+                            var result = session.run(List.of(left, right))) {
+                        int[] actual = rawBits(result.materialize(
+                                result.publications().getFirst(), 8L).bytes(), 2);
+                        assertFloat32PrimitiveSiteResult(BinaryArithmeticKind.ADD,
+                                0x00000001, 0x00000001, actual[0], "Metal positive subnormal");
+                        assertFloat32PrimitiveSiteResult(BinaryArithmeticKind.ADD,
+                                0x80000001, 0x80000001, actual[1], "Metal negative subnormal");
+                    }
                 }
             }
 
             try (Engine.Builder builder = Engine.builder()) {
-                builder.takeOwnership(MetalBackendIntegration.open(
-                        new MetalBackendConfiguration(library)));
                 builder.takeOwnership(CpuBackendIntegration.open());
                 try (Engine engine = builder.build()) {
                     var compiled = engine.compile(List.of(output));
@@ -194,11 +195,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void cpuFreeAcceleratorMetalRunsAllBinaryOperationsWithinBoundedRawBitSets() {
+    void cpuFreeMetalRunsAllBinaryOperationsWithinNamedSiteResultSets() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared();
                 Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
@@ -286,7 +286,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             (long) matrixBits.length * Integer.BYTES).bytes(),
                             matrixBits.length);
                     for (int lane = 0; lane < matrixBits.length; lane++) {
-                        assertAcceleratorAllowed(
+                        assertFloat32PrimitiveSiteResult(
                                 BinaryArithmeticKind.ADD,
                                 matrixBits[lane],
                                 columnBits[lane / 4],
@@ -299,7 +299,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void cpuFreeAcceleratorMetalRunsCanonicalReductionsAndScalarMaterialization()
+    void cpuFreeMetalRunsCanonicalReductionsAndScalarMaterialization()
             throws Exception {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared()) {
@@ -330,20 +330,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     sumTo,
                     composed);
 
-            try (Engine.Builder strictBuilder = Engine.builder()) {
-                strictBuilder.takeOwnership(MetalBackendIntegration.open(
-                        new MetalBackendConfiguration(library)));
-                try (Engine strictEngine = strictBuilder.build()) {
-                    IllegalStateException failure = assertThrows(
-                            IllegalStateException.class,
-                            () -> strictEngine.compile(publications));
-                    assertTrue(failure.getMessage().contains(
-                            "no hard-eligible backend is available for ownership selection"));
-                }
-            }
-
             try (Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(NumericalProfile.ACCELERATOR);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
@@ -408,7 +395,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void task0062CpuFreeAcceleratorRunsMseForwardAndGeneratedBackward() {
+    void task0062CpuFreeMetalRunsMseForwardAndGeneratedBackward() {
         Path library = configuredMetalLibrary();
         List<ObservedTrace> events = new CopyOnWriteArrayList<>();
         int[] predictionBits = {
@@ -444,18 +431,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             List<Tensor> publications =
                     List.of(none, sum, mean, noGradNone, noGradSum, noGradMean);
 
-            try (Engine.Builder strictBuilder = Engine.builder()) {
-                strictBuilder.takeOwnership(MetalBackendIntegration.open(
-                        new MetalBackendConfiguration(library)));
-                try (Engine strictEngine = strictBuilder.build()) {
-                    assertThrows(
-                            IllegalStateException.class,
-                            () -> strictEngine.compile(publications));
-                }
-            }
-
             try (Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(NumericalProfile.ACCELERATOR);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library), traceCollector(events)));
                 try (Engine engine = builder.build()) {
@@ -606,7 +582,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void cpuFreeMetalEngineExecutesExactAbsLifecycleUnderBothProfiles() {
+    void cpuFreeMetalEngineExecutesExactAbsAcrossRawAndArithmeticCompositions() {
         Path library = configuredMetalLibrary();
         int[] inputBits = {
             0x00000000, 0x80000000,
@@ -620,39 +596,24 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             0x7fc12345, 0xffc54321,
             0x7f812345, 0xff854321
         };
-        for (NumericalProfile profile : NumericalProfile.values()) {
             try (Arena arena = Arena.ofShared();
                     Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(profile);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
                     Tensor input = nativeTensorBits(
                             descriptor(Shape.of(inputBits.length)), arena, inputBits);
                     Tensor direct = input.abs();
-                    Tensor intermediate;
-                    Tensor composed;
-                    List<Tensor> publications;
-                    List<Tensor> inputs;
-                    if (profile == NumericalProfile.STRICT_IEEE) {
-                        intermediate = direct;
-                        composed = input.reshape(2, inputBits.length / 2)
-                                .contiguous()
-                                .abs()
-                                .neg()
-                                .abs();
-                        publications = List.of(direct, composed);
-                        inputs = List.of(input);
-                    } else {
-                        Tensor zeros = nativeTensorBits(
-                                descriptor(Shape.of(inputBits.length)),
-                                arena,
-                                new int[inputBits.length]);
-                        intermediate = input.add(zeros);
-                        composed = intermediate.abs();
-                        publications = List.of(direct, intermediate, composed);
-                        inputs = List.of(input, zeros);
-                    }
+                    Tensor zeros = nativeTensorBits(
+                            descriptor(Shape.of(inputBits.length)),
+                            arena,
+                            new int[inputBits.length]);
+                    Tensor intermediate = input.add(zeros);
+                    Tensor composed = intermediate.abs();
+                    Tensor affine = input.reshape(2, inputBits.length / 2)
+                            .contiguous().abs().neg().abs();
+                    List<Tensor> publications = List.of(direct, intermediate, composed, affine);
+                    List<Tensor> inputs = List.of(input, zeros);
                     var compiled = engine.compile(publications);
                     assertEquals(List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
@@ -661,21 +622,21 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     try (InferenceSession independent = engine.session(compiled)) {
                         Object firstPublication;
                         try (var first = reused.run(inputs)) {
-                            assertAbsEngineResults(profile, first, inputBits);
+                            assertAbsEngineResults(first, inputBits);
                             firstPublication = EngineMixedOwnerTestAccess
                                     .runOwnedIdentities(first)
                                     .publications()
                                     .getFirst();
                         }
                         try (var second = reused.run(inputs)) {
-                            assertAbsEngineResults(profile, second, inputBits);
+                            assertAbsEngineResults(second, inputBits);
                             assertNotSame(firstPublication, EngineMixedOwnerTestAccess
                                     .runOwnedIdentities(second)
                                     .publications()
                                     .getFirst());
                         }
                         try (var separate = independent.run(inputs)) {
-                            assertAbsEngineResults(profile, separate, inputBits);
+                            assertAbsEngineResults(separate, inputBits);
                         }
                         reused.close();
                         assertTrue(reused.isClosed());
@@ -685,10 +646,9 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     }
                 }
             }
-        }
     }
     @Test
-    void task0069PublicAcceleratorEngineRunsSourceOwnedL1NormForBothOutputForms() {
+    void task0069PublicEngineRunsSourceOwnedL1NormForBothOutputForms() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared()) {
             Tensor input = nativeTensorBits(
@@ -698,18 +658,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             Tensor scalar = input.l1Norm(0);
             Tensor retained = input.l1Norm(new int[] {0}, true);
 
-            try (Engine.Builder strictBuilder = Engine.builder()) {
-                strictBuilder.takeOwnership(MetalBackendIntegration.open(
-                        new MetalBackendConfiguration(library)));
-                try (Engine strictEngine = strictBuilder.build()) {
-                    assertThrows(
-                            IllegalStateException.class,
-                            () -> strictEngine.compile(List.of(scalar, retained)));
-                }
-            }
-
             try (Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(NumericalProfile.ACCELERATOR);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
@@ -735,7 +684,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void task0069PublicAcceleratorEngineRunsSingletonVarianceForBothOutputFormsAndSpecials() {
+    void task0069PublicEngineRunsSingletonVarianceForBothOutputFormsAndSpecials() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared()) {
             Tensor finite = nativeTensorBits(
@@ -750,18 +699,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     infinity.variance(0),
                     nan.variance(0));
 
-            try (Engine.Builder strictBuilder = Engine.builder()) {
-                strictBuilder.takeOwnership(MetalBackendIntegration.open(
-                        new MetalBackendConfiguration(library)));
-                try (Engine strictEngine = strictBuilder.build()) {
-                    assertThrows(
-                            IllegalStateException.class,
-                            () -> strictEngine.compile(outputs));
-                }
-            }
-
             try (Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(NumericalProfile.ACCELERATOR);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
@@ -790,7 +728,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void cpuFreeMetalEngineRunsAllRemainingExactUnaryOperationsUnderBothProfiles()
+    void cpuFreeMetalEngineRunsAllRemainingExactUnaryOperations()
             throws Exception {
         Path library = configuredMetalLibrary();
         int[] inputBits = {
@@ -804,11 +742,9 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             0x7f800000, 0xff800000,
             0x7fc12345, 0xff812346
         };
-        for (NumericalProfile profile : NumericalProfile.values()) {
             List<ObservedTrace> events = new CopyOnWriteArrayList<>();
             try (Arena arena = Arena.ofShared();
                     Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(profile);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library), traceCollector(events)));
                 try (Engine engine = builder.build()) {
@@ -867,7 +803,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertArrayEquals(inputBits, inputBytes.toArray(ValueLayout.JAVA_INT));
                 }
             }
-        }
     }
 
     @Test
@@ -875,11 +810,9 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         Path library = configuredMetalLibrary();
         int[] inputBits = {0xc020_0000, 0x8000_0000, 0x3e80_0000, 0x7fc1_2345};
         int[] expectedBits = {0xbf80_0000, 0x8000_0000, 0x0000_0000, 0x7fc1_2345};
-        for (NumericalProfile profile : NumericalProfile.values()) {
             List<ObservedTrace> events = new CopyOnWriteArrayList<>();
             try (Arena arena = Arena.ofShared();
                     Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(profile);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library), traceCollector(events)));
                 try (Engine engine = builder.build()) {
@@ -904,17 +837,15 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals("RUN", events.getLast().phase());
                 }
             }
-        }
     }
 
 
     @Test
-    void acceleratorMetalEngineRunsFusedMatmulAndConv2dEpiloguesWithStructuralTrace() {
+    void metalEngineRunsFusedMatmulAndConv2dEpiloguesWithStructuralTrace() {
         Path library = configuredMetalLibrary();
         List<ObservedTrace> matmulEvents = new CopyOnWriteArrayList<>();
         try (Arena arena = Arena.ofShared();
                 Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library), traceCollector(matmulEvents)));
             try (Engine engine = builder.build()) {
@@ -956,7 +887,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         List<ObservedTrace> convEvents = new CopyOnWriteArrayList<>();
         try (Arena arena = Arena.ofShared();
                 Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library), traceCollector(convEvents)));
             try (Engine engine = builder.build()) {
@@ -996,12 +926,11 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void acceleratorMetalEngineRunsGeneralFusedMatmulGeometryAsOnePlannedDispatch() {
+    void metalEngineRunsGeneralFusedMatmulGeometryAsOnePlannedDispatch() {
         Path library = configuredMetalLibrary();
         List<ObservedTrace> events = new CopyOnWriteArrayList<>();
         try (Arena arena = Arena.ofShared();
                 Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library), traceCollector(events)));
             try (Engine engine = builder.build()) {
@@ -1108,7 +1037,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void acceleratorMetalEngineRunsScalarArithmeticReciprocalAndGeneratedGradients() {
+    void metalEngineRunsScalarArithmeticReciprocalAndGeneratedGradients() {
         Path library = configuredMetalLibrary();
         int[] inputBits = {
             0x3f80_0000, 0xc020_0000, 0x0000_0000,
@@ -1124,7 +1053,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         List<ObservedTrace> events = new CopyOnWriteArrayList<>();
         try (Arena arena = Arena.ofShared();
                 Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library), traceCollector(events)));
             try (Engine engine = builder.build()) {
@@ -1362,7 +1290,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void cpuFreeMetalEngineRunsExactUnfoldAxisUnderBothProfiles() {
+    void cpuFreeMetalEngineRunsExactUnfoldAxis() {
         Path library = configuredMetalLibrary();
         int[] inputBits = {
             0x00000000, 0x80000000, 0x00000001, 0x80000001, 0x7f800000, 0xff800000,
@@ -1374,10 +1302,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             inputBits[6], inputBits[7], inputBits[8],
             inputBits[8], inputBits[9], inputBits[10]
         };
-        for (NumericalProfile profile : NumericalProfile.values()) {
             try (Arena arena = Arena.ofShared();
                     Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(profile);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
@@ -1400,7 +1326,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertArrayEquals(inputBits, inputBytes.toArray(ValueLayout.JAVA_INT));
                 }
             }
-        }
     }
 
     @Test
@@ -1415,10 +1340,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             0x00000001, 0x80000001, 0x7f800000, 0xff800000,
             0x7fc00042, 0xffc00043, 0x3f800000, 0xbf800000
         };
-        for (NumericalProfile profile : NumericalProfile.values()) {
             try (Arena arena = Arena.ofShared();
                     Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(profile);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
@@ -1571,7 +1494,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                     .segment().toArray(ValueLayout.JAVA_BYTE));
                 }
             }
-        }
     }
 
     @Test
@@ -1581,10 +1503,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 new Window2dAttrs(2, 2, 2, 2, 0, 0, 1, 1, false);
         Window3dAttrs window3d =
                 new Window3dAttrs(2, 2, 2, 2, 2, 2, 0, 0, 0, 1, 1, 1, false);
-        for (NumericalProfile profile : NumericalProfile.values()) {
             try (Arena arena = Arena.ofShared();
                     Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(profile);
                 Tensor integralAxis =
                         nativeIntTensor(Shape.of(2, 2), arena, 1, 2, 3, 4);
                 Tensor integral2d =
@@ -1630,7 +1550,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     }
                 }
             }
-        }
     }
 
     @Test
@@ -1904,11 +1823,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void cpuFreeAcceleratorPublishesAffineViewsAndRunsMixedExactComposition() {
+    void cpuFreeMetalPublishesAffineViewsAndRunsMixedExactComposition() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared();
                 Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
@@ -2039,7 +1957,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared();
                 Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             builder.takeOwnership(CpuBackendIntegration.open());
@@ -2227,7 +2144,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void cpuFreeAcceleratorMetalRunsRankTwoMatmulLinearAndSeededGradients() {
+    void cpuFreeMetalRunsRankTwoMatmulLinearAndSeededGradients() {
         Path library = configuredMetalLibrary();
         float[] leftValues = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
         float[] rightValues = {
@@ -2257,20 +2174,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             Tensor output = left.matmul(right);
             Tensor linear = left.linear(weight);
 
-            try (Engine.Builder strictBuilder = Engine.builder()) {
-                strictBuilder.takeOwnership(MetalBackendIntegration.open(
-                        new MetalBackendConfiguration(library)));
-                try (Engine strictEngine = strictBuilder.build()) {
-                    IllegalStateException failure = assertThrows(
-                            IllegalStateException.class,
-                            () -> strictEngine.compile(List.of(output)));
-                    assertTrue(failure.getMessage().contains(
-                            "no hard-eligible backend is available for ownership selection"));
-                }
-            }
-
             try (Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(NumericalProfile.ACCELERATOR);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
@@ -2400,7 +2304,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     descriptor(Shape.of(2)), arena, 10, 20);
 
             try (Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(NumericalProfile.ACCELERATOR);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
@@ -2527,7 +2430,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             Tensor promotedRight = nativeLongTensor(
                     Shape.of(2, 1), arena, Long.MAX_VALUE, 3);
             try (Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(NumericalProfile.ACCELERATOR);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
@@ -2617,18 +2519,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     false));
 
             try (Engine.Builder builder = Engine.builder()) {
-                builder.takeOwnership(MetalBackendIntegration.open(
-                        new MetalBackendConfiguration(library)));
-                try (Engine engine = builder.build()) {
-                    assertThrows(
-                            IllegalStateException.class,
-                            () -> engine.compile(List.of(floatLeft.matmul(floatRight))),
-                            "strict floating MATMUL has no Metal fallback");
-                }
-            }
-
-            try (Engine.Builder builder = Engine.builder()) {
-                builder.numericalProfile(NumericalProfile.ACCELERATOR);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
@@ -2813,7 +2703,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     case 3 -> scalar[0];
                     default -> throw new AssertionError();
                 };
-                assertAcceleratorAllowed(
+                assertFloat32PrimitiveSiteResult(
                         kinds[target],
                         left,
                         right,
@@ -2823,7 +2713,17 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         }
     }
 
-    private static void assertAcceleratorAllowed(
+    /**
+     * Checks one FLOAT32 arithmetic primitive against its exact rounded result and the
+     * permitted input DAZ/result FTZ choices. This is a test oracle, not runtime policy.
+     *
+     * @param kind arithmetic primitive being checked
+     * @param declaredLeft stored left operand bits, not mutated by DAZ
+     * @param declaredRight stored right operand bits, not mutated by DAZ
+     * @param observed published result bits
+     * @param label context for an assertion failure
+     */
+    private static void assertFloat32PrimitiveSiteResult(
             BinaryArithmeticKind kind,
             int declaredLeft,
             int declaredRight,
@@ -2840,13 +2740,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     allowed.add(result);
                 }
                 if (isSubnormal(result)) {
-                    allowed.add(0x00000000);
-                    allowed.add(0x80000000);
-                }
-                if ((kind == BinaryArithmeticKind.ADD || kind == BinaryArithmeticKind.SUB)
-                        && (result & 0x7fffffff) == 0) {
-                    allowed.add(0x00000000);
-                    allowed.add(0x80000000);
+                    allowed.add(result & 0x80000000);
                 }
             }
         }
@@ -2910,7 +2804,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                         Integer.BYTES)).bytes(),
                         inputBits.length);
                 for (int lane = 0; lane < inputBits.length; lane++) {
-                    assertAcceleratorAllowed(
+                    assertFloat32PrimitiveSiteResult(
                             kind,
                             inputBits[lane],
                             scalar,
@@ -2928,7 +2822,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         Math.multiplyExact((long) inputBits.length, Integer.BYTES)).bytes(),
                 inputBits.length);
         for (int lane = 0; lane < inputBits.length; lane++) {
-            assertAcceleratorAllowed(
+            assertFloat32PrimitiveSiteResult(
                     BinaryArithmeticKind.DIV,
                     0x3f80_0000,
                     inputBits[lane],
@@ -2973,11 +2867,17 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         }
     }
 
+    /**
+     * Verifies exact ABS across direct, arithmetic, and affine paths while checking the one
+     * arithmetic intermediate against the FLOAT32 named-site DAZ/FTZ choices.
+     *
+     * @param result open run result with four ordered publications
+     * @param inputBits stored input words, including signed zeros and subnormals
+     */
     private static void assertAbsEngineResults(
-            NumericalProfile profile,
             io.github.pho001.synaptik.engine.RunResult result,
             int[] inputBits) {
-        int expectedPublications = profile == NumericalProfile.STRICT_IEEE ? 2 : 3;
+        int expectedPublications = 4;
         assertEquals(expectedPublications, result.resultCount());
         int[][] actual = new int[expectedPublications][];
         for (int publication = 0; publication < expectedPublications; publication++) {
@@ -2986,20 +2886,17 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     Math.multiplyExact((long) inputBits.length, Integer.BYTES)).bytes(),
                     inputBits.length);
         }
-        assertExactAbs(inputBits, actual[0], profile + " direct ABS");
-        if (profile == NumericalProfile.STRICT_IEEE) {
-            assertExactAbs(inputBits, actual[1], "strict affine/CONTIGUOUS/ABS/NEG/ABS");
-        } else {
-            for (int lane = 0; lane < inputBits.length; lane++) {
-                assertAcceleratorAllowed(
-                        BinaryArithmeticKind.ADD,
-                        inputBits[lane],
-                        0,
-                        actual[1][lane],
-                        "accelerator ABS composition lane=" + lane);
-            }
-            assertExactAbs(actual[1], actual[2], "accelerator binary-to-ABS");
+        assertExactAbs(inputBits, actual[0], "direct ABS");
+        for (int lane = 0; lane < inputBits.length; lane++) {
+            assertFloat32PrimitiveSiteResult(
+                    BinaryArithmeticKind.ADD,
+                    inputBits[lane],
+                    0,
+                    actual[1][lane],
+                    "ABS arithmetic composition lane=" + lane);
         }
+        assertExactAbs(actual[1], actual[2], "binary-to-ABS");
+        assertExactAbs(inputBits, actual[3], "affine/CONTIGUOUS/ABS/NEG/ABS");
     }
 
     private static void assertExactAbs(int[] inputs, int[] outputs, String label) {
@@ -3080,7 +2977,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         List<ObservedTrace> events = new CopyOnWriteArrayList<>();
         try (Arena arena = Arena.ofShared();
                 Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library), traceCollector(events)));
             try (Engine engine = builder.build()) {
@@ -3200,12 +3096,11 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void cpuFreeAcceleratorMetalRunsTask0052CustomPartitionsThroughPublicEngine()
+    void cpuFreeMetalRunsTask0052CustomPartitionsThroughPublicEngine()
             throws Exception {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared();
                 Engine.Builder builder = Engine.builder()) {
-            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {

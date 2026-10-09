@@ -16,12 +16,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** Validates the active Model, CPU, and Metal low-precision allocations. */
+/** Validates active Model and backend identities against the retained pre-cutover allocation record. */
 final class LowPrecisionIdentityContractTest {
     private static final String IDENTITIES = "/low-precision-identity-allocations-v1.tsv";
 
     @Test
-    void modelCpuAndMetalFloat16AllocationsAreActive() throws Exception {
+    void modelCpuAndMetalProfileFreeIdentitiesRetainHistoricalAllocations() throws Exception {
         Map<String, String[]> rows = rows(resource(IDENTITIES), 7, 2);
         assertEquals(13, rows.size());
         assertArrayEquals(
@@ -36,10 +36,10 @@ final class LowPrecisionIdentityContractTest {
                 },
                 DataType.values());
 
-        assertEquals(68, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(69, CpuGeneratorSchema.CURRENT_VERSION);
 
         assertEquals(
-                19,
+                20,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalMpsGraphProgram",
                         "SCHEMA_VERSION"));
@@ -48,32 +48,32 @@ final class LowPrecisionIdentityContractTest {
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNativeApi", "ABI_VERSION"));
         assertEquals(
-                29,
+                30,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegTuningBatch",
                         "CANDIDATE_SCHEMA_VERSION"));
         assertEquals(
-                29,
+                30,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegTuningBatch",
                         "COMPATIBILITY_SCHEMA_VERSION"));
         assertEquals(
-                29,
+                30,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegTuningBatch",
                         "ROUTE_POLICY_VERSION"));
         assertEquals(
-                29,
+                30,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegTuningCodec",
                         "CODEC_VERSION"));
         assertEquals(
-                29,
+                30,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegRouteCandidateGenerator",
                         "WORKLOAD_SIGNATURE_VERSION"));
         assertEquals(
-                29,
+                30,
                 staticInt(
                         "io.github.pho001.synaptik.backend.metal.MetalNegRouteCandidateGenerator",
                         "EXACT_DEFAULT_POLICY"));

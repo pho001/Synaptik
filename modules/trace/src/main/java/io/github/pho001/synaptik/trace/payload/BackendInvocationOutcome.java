@@ -21,7 +21,6 @@ import java.util.Optional;
  * @param preparedUnitId non-null trace-local prepared-unit correlation
  * @param invocationId non-null trace-local invocation correlation
  * @param status non-null invocation outcome
- * @param profile non-null numerical profile retained by the prepared unit
  * @param route non-null neutral execution mechanism selected for the prepared unit
  * @param nativeStatus non-null optional exact native status; present success is required for
  *     {@code SUCCEEDED}, while {@code FAILED} permits empty or present non-success
@@ -32,7 +31,6 @@ public record BackendInvocationOutcome(
         TracePreparedUnitId preparedUnitId,
         TraceInvocationId invocationId,
         TraceOutcomeStatus status,
-        TraceNumericalProfile profile,
         TraceRouteKind route,
         Optional<TraceNativeStatus> nativeStatus) implements TracePayload {
     /**
@@ -43,7 +41,6 @@ public record BackendInvocationOutcome(
      * @param preparedUnitId non-null trace-local prepared-unit correlation
      * @param invocationId non-null trace-local invocation correlation
      * @param status non-null invocation outcome
-     * @param profile non-null numerical profile
      * @param route non-null neutral route kind
      * @param nativeStatus non-null optional native status
      * @throws NullPointerException if a reference component is null; validation follows component
@@ -57,7 +54,6 @@ public record BackendInvocationOutcome(
         Objects.requireNonNull(preparedUnitId, "preparedUnitId");
         Objects.requireNonNull(invocationId, "invocationId");
         Objects.requireNonNull(status, "status");
-        Objects.requireNonNull(profile, "profile");
         Objects.requireNonNull(route, "route");
         Objects.requireNonNull(nativeStatus, "nativeStatus");
         validateStatus(status, nativeStatus);

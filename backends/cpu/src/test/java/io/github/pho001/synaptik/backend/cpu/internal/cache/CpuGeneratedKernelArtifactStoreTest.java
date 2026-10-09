@@ -29,13 +29,13 @@ import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 class CpuGeneratedKernelArtifactStoreTest {
     @TempDir Path root;
 
-    @Test void aggregateSegmentArtifactRejectsPreSchema68EnvelopeAndRegenerates() throws Exception {
+    @Test void aggregateSegmentArtifactRejectsSchema68EnvelopeAndRegenerates() throws Exception {
         var base = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLoweringTest
                 .context(io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.SUM,
                         DataType.FLOAT32, Shape.of(2, 3),
                         new io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs(1,
                                 false), Shape.of(2));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
                         CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT),
                 CpuPartitionAnalysisInputs.DEFAULT.portableExecution()));
@@ -46,7 +46,7 @@ class CpuGeneratedKernelArtifactStoreTest {
         CpuGeneratedKernelArtifactStore.clearLoadedForTests();
         var initial = store.loadOrGenerateObserved(route.specialization(), route.kernelIr());
         byte[] stale = Files.readAllBytes(envelope);
-        java.nio.ByteBuffer.wrap(stale).putInt(4, 65);
+        java.nio.ByteBuffer.wrap(stale).putInt(4, 68);
         Files.write(envelope, stale);
         CpuGeneratedKernelArtifactStore.clearLoadedForTests();
         var regenerated = store.loadOrGenerateObserved(route.specialization(), route.kernelIr());
@@ -58,7 +58,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                         regenerated.source()),
                 () -> assertArrayEquals(initial.artifact().classBytes(),
                         regenerated.artifact().classBytes()),
-                () -> assertEquals(68, java.nio.ByteBuffer.wrap(Files.readAllBytes(envelope))
+                () -> assertEquals(69, java.nio.ByteBuffer.wrap(Files.readAllBytes(envelope))
                         .getInt(4)));
     }
 
@@ -66,7 +66,7 @@ class CpuGeneratedKernelArtifactStoreTest {
      * Proves current-only envelope invalidation against admitted composition routes, rather than
      * a hand-written compatibility payload.
      */
-    @Test void concatAndStackRejectSameKeySchema64EnvelopesThenPersistSchema68Hits() throws Exception {
+    @Test void concatAndStackRejectSameKeySchema64EnvelopesThenPersistSchema69Hits() throws Exception {
         for (TensorCompositionKind kind : List.of(TensorCompositionKind.CONCAT,
                 TensorCompositionKind.STACK)) {
             var route = compositionRoute(kind);
@@ -97,7 +97,7 @@ class CpuGeneratedKernelArtifactStoreTest {
             var regenerated = store.loadOrGenerateObserved(specialization, kernelIr);
             assertEquals(CpuGeneratedKernelArtifactStore.RealizationSource.GENERATED,
                     regenerated.source(), kind + " stale same-key envelope is rejected");
-            assertEquals(68, java.nio.ByteBuffer.wrap(Files.readAllBytes(file)).getInt(4),
+            assertEquals(69, java.nio.ByteBuffer.wrap(Files.readAllBytes(file)).getInt(4),
                     kind + " regenerated envelope schema");
 
             CpuGeneratedKernelArtifactStore.clearLoadedForTests();
@@ -134,7 +134,7 @@ class CpuGeneratedKernelArtifactStoreTest {
         return new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
     }
 
-    @Test void publishesReloadsSchema68ConvAndRejectsStaleSchema64Envelope() throws Exception {
+    @Test void publishesReloadsSchema69ConvAndRejectsStaleSchema64Envelope() throws Exception {
         var base = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv2dLoweringTest
                 .context(List.of(io.github.pho001.synaptik.model.datatype.DataType.FLOAT32,
                                 io.github.pho001.synaptik.model.datatype.DataType.FLOAT32),
@@ -148,8 +148,8 @@ class CpuGeneratedKernelArtifactStoreTest {
                 new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1));
         var scalarInputs = new CpuPartitionAnalysisInputs(false, carriers,
                 new PortableExecutionConfig(ComputePreference.SCALAR, 1, 1, 1));
-        var vectorContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), vectorInputs);
-        var scalarContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), scalarInputs);
+        var vectorContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), vectorInputs);
+        var scalarContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), scalarInputs);
         var preparer = new io.github.pho001.synaptik.backend.cpu.internal.prepare
                 .CpuPartitionPreparer();
         var vectorRoute = preparer.analyze(vectorContext).plan().units().getFirst().portablePlan();
@@ -171,7 +171,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                 vectorRoute.kernelIr());
 
         assertAll(
-                () -> assertEquals(68, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(69, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertEquals(63, vectorRoute.specialization().classIdentitySchema()),
                 () -> assertEquals(52, scalarRoute.specialization().classIdentitySchema()),
                 () -> assertNotEquals(scalarRoute.specialization().structuralKey(),
@@ -188,7 +188,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                         recovered.source()),
                 () -> assertArrayEquals(generated.artifact().classBytes(),
                         recovered.artifact().classBytes()),
-                () -> assertEquals(68, java.nio.ByteBuffer.wrap(Files.readAllBytes(envelope))
+                () -> assertEquals(69, java.nio.ByteBuffer.wrap(Files.readAllBytes(envelope))
                         .getInt(4)));
     }
 
@@ -209,7 +209,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                 route.specialization(), route.kernelIr());
         var hit = hitResult.artifact();
         assertAll(
-                () -> assertEquals(68, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(69, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertTrue(Files.exists(root.resolve("legacy-v1.class"))),
                 () -> assertArrayEquals(memoryOnly.classBytes(), persisted.classBytes()),
                 () -> assertTrue(Files.size(current) > persisted.classBytes().length),
@@ -227,7 +227,7 @@ class CpuGeneratedKernelArtifactStoreTest {
         var vectorInputs = new CpuPartitionAnalysisInputs(false,
                 CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
                 new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1));
-        var vectorContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, descriptor.partition(), descriptor.nodes(), descriptor.values(), descriptor.memoryRequirements(), descriptor.constants(), vectorInputs);
+        var vectorContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(descriptor.partition(), descriptor.nodes(), descriptor.values(), descriptor.memoryRequirements(), descriptor.constants(), vectorInputs);
         var vectorRoute = new io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer()
                 .analyze(vectorContext).plan().units().getFirst().portablePlan();
         var scalarRoute = CpuPartitionPreparerTest.analyze(Shape.of(lanes * 2)).plan().units()
@@ -293,7 +293,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                             recovered.source()),
                     () -> assertArrayEquals(seed.artifact().classBytes(),
                             recovered.artifact().classBytes()),
-                    () -> assertEquals(68, java.nio.ByteBuffer.wrap(Files.readAllBytes(file))
+                    () -> assertEquals(69, java.nio.ByteBuffer.wrap(Files.readAllBytes(file))
                             .getInt(4)),
                     () -> assertTrue(Files.size(file) <=
                             CpuGeneratedKernelArtifactStore.MAX_ENVELOPE_BYTES));

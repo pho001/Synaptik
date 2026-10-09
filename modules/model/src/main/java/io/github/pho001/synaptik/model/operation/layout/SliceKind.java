@@ -22,12 +22,10 @@ import java.util.List;
  * represents an exact target-relative extraction or functional replacement whose extents may
  * remain symbolic.</p>
  *
- * <p>The Model-owned numerical-profile contract leaves slicing exact under
- * {@code STRICT_IEEE} and {@code ACCELERATOR}: bounds, axes, strides, output mapping, and each
- * selected original payload representation remain exact. Slicing applies no DAZ, FTZ, or
- * arithmetic tolerance. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Bounds, axes, strides, output mapping, and selected original stored payloads remain exact.
+ * Slicing applies no arithmetic DAZ, FTZ, or finite tolerance. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  *
  * <p>General slice, both single-axis conveniences, and multi-axis flip use this same kind; flip is
  * represented by negative-step entries rather than another semantic kind. This enum calculates no

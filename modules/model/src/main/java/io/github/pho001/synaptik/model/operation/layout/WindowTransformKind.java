@@ -28,15 +28,14 @@ import java.util.List;
  * {@code [1, 1, 3, 3]} output: the center receives four contributions while each corner receives
  * one, with no overlap averaging.</p>
  *
- * <p>Under the Model-owned numerical-profile contract, every unfold preserves exact addressed
- * mapping and payload representations in both profiles. Every fold preserves exact geometry,
- * contributor membership, and empty behavior; for {@code ACCELERATOR FLOAT32} overlapping
- * additions include every addressed contributor exactly once and may use any binary tree,
- * per-step FLOAT32 rounding, DAZ/FTZ, and only corresponding multiply/add fusion. Nonoverlapping
- * copies stay exact. Every current non-FLOAT32 occurrence remains strict; the inactive low-
- * precision reservation changes none of them. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Every unfold preserves exact addressed mapping and stored payloads. Every fold preserves
+ * exact geometry, contributor membership, and empty behavior. Nonoverlapping folds copy or place
+ * values exactly; overlapping floating folds combine every contributor once in a rounded addition
+ * tree. Only named arithmetic additions permit dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, and
+ * FLOAT16, never FLOAT64; homogeneous low arithmetic accumulates in FLOAT32 and narrows once at the
+ * declared output. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  *
  * <p>The exact kind-to-attributes pairings are UNFOLD_AXIS with {@link UnfoldAxisAttrs}, FOLD_AXIS
  * with {@link FoldAxisAttrs}, UNFOLD2D with either {@link Window2dAttrs} for conceptual

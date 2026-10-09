@@ -43,7 +43,7 @@ class CpuVectorScalarPowerSelfContainmentTest {
             CpuKernelIr.PowerRealization.RECIPROCAL);
 
     @Test void everyTypeRealizationAndOrderedCarrierPairIsSelfContained() {
-        assertEquals(68, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(69, CpuGeneratorSchema.CURRENT_VERSION);
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
             CpuKernelSpecialization.CarrierAccess array = arrayCarrier(type);
             for (CpuKernelIr.PowerRealization realization : REALIZATIONS) {
@@ -155,7 +155,7 @@ class CpuVectorScalarPowerSelfContainmentTest {
         var carriers = List.of(CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
                 CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
                 CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY);
-        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
         List.of(type, type, type), carriers,
         FloatVector.SPECIES_PREFERRED.vectorBitSize(), -1,
         List.of(CpuKernelIr.PowerRealization.POSITIVE_ONE), false, 52);
@@ -190,7 +190,7 @@ class CpuVectorScalarPowerSelfContainmentTest {
         var carriers = List.of(CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
                 CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
                 CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY);
-        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
         List.of(type, type, type), carriers,
         FloatVector.SPECIES_PREFERRED.vectorBitSize(), -1,
         List.of(CpuKernelIr.PowerRealization.IDENTITY), false, 52);
@@ -313,7 +313,7 @@ class CpuVectorScalarPowerSelfContainmentTest {
             CpuPartitionPreparationPlan.ExecutionStrategy strategy) {
         int species = type == DataType.FLOAT32 ? FloatVector.SPECIES_PREFERRED.vectorBitSize()
                 : DoubleVector.SPECIES_PREFERRED.vectorBitSize();
-        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, strategy,
+        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), strategy,
         List.of(type, type), carriers, species, -1, List.of(realization), false, 52);
     }
 

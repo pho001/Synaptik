@@ -19,7 +19,6 @@ import java.util.Optional;
  * @param deviceId non-null trace-local device correlation
  * @param preparedUnitId non-null trace-local prepared-unit correlation
  * @param status non-null finalization outcome
- * @param profile non-null numerical profile retained by the prepared unit
  * @param route non-null neutral execution mechanism selected for the prepared unit
  * @param cacheStatus non-null cache fact known to the producer
  * @param nativeStatus non-null optional exact native status; present success is required for
@@ -30,7 +29,6 @@ public record BackendPreparationOutcome(
         TraceDeviceId deviceId,
         TracePreparedUnitId preparedUnitId,
         TraceOutcomeStatus status,
-        TraceNumericalProfile profile,
         TraceRouteKind route,
         TraceCacheStatus cacheStatus,
         Optional<TraceNativeStatus> nativeStatus) implements TracePayload {
@@ -41,7 +39,6 @@ public record BackendPreparationOutcome(
      * @param deviceId non-null trace-local device correlation
      * @param preparedUnitId non-null trace-local prepared-unit correlation
      * @param status non-null finalization outcome
-     * @param profile non-null numerical profile
      * @param route non-null neutral route kind
      * @param cacheStatus non-null producer cache fact
      * @param nativeStatus non-null optional native status
@@ -55,7 +52,6 @@ public record BackendPreparationOutcome(
         Objects.requireNonNull(deviceId, "deviceId");
         Objects.requireNonNull(preparedUnitId, "preparedUnitId");
         Objects.requireNonNull(status, "status");
-        Objects.requireNonNull(profile, "profile");
         Objects.requireNonNull(route, "route");
         Objects.requireNonNull(cacheStatus, "cacheStatus");
         Objects.requireNonNull(nativeStatus, "nativeStatus");

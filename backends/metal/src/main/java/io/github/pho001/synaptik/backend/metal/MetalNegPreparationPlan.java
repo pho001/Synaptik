@@ -1,6 +1,5 @@
 package io.github.pho001.synaptik.backend.metal;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
@@ -18,9 +17,8 @@ import java.util.Optional;
  * Retains the immutable, shape-specialized lowering and route facts for one whole supported Metal
  * partition.
  *
- * <p>The retained numerical profile closes the operation domain: both profiles admit the common
- * exact rows and no-gradient promoted INT32/INT64 MATMUL, while accelerator additionally admits its
- * arithmetic/reduction rows, general positive-static FLOAT32 MATMUL, and no-gradient mixed
+ * <p>The provider-qualified operation domain retains exact rows, no-gradient promoted INT32/INT64
+ * MATMUL, arithmetic/reduction rows, positive-static FLOAT32 MATMUL, and no-gradient mixed
  * BFLOAT16/FLOAT32 MATMUL. Task-0066 selected occurrences retain all-carrier logical layout,
  * physical materialization, type, index, and exact gradient-role facts. Every partition containing
  * BFLOAT16 or FLOAT16 values retains the fixed custom whole-program route. An affine MATMUL input
@@ -36,7 +34,6 @@ import java.util.Optional;
  */
 final class MetalNegPreparationPlan implements BackendPreparationPlan {
 
-    private final NumericalProfile numericalProfile;
     private final PlannedPartition partition;
     private final PartitionDag partitionDag;
     private final MetalDeviceContext context;
@@ -66,7 +63,6 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     /**
      * Creates one completely validated analysis result snapshot.
      *
-     * @param numericalProfile non-null immutable graph-wide numerical-profile identity
      * @param partition exact non-null planned partition analyzed to produce this plan
      * @param partitionDag exact non-null partition topology retaining {@code partition}
      * @param context exact non-null Metal device context retained by identity
@@ -97,7 +93,6 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
      * materialization, or workspace facts disagree
      */
     MetalNegPreparationPlan(
-            NumericalProfile numericalProfile,
             PlannedPartition partition,
             PartitionDag partitionDag,
             MetalDeviceContext context,
@@ -122,7 +117,6 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             long[] feedRequiredBytes,
             long[] targetRequiredBytes) {
         this(
-                numericalProfile,
                 partition,
                 partitionDag,
                 context,
@@ -154,7 +148,6 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
      * Collections are immutable snapshots and primitive arrays are copied; no native resource is
      * acquired or transferred by this constructor.
      *
-     * @param numericalProfile non-null graph-wide numerical profile
      * @param partition non-null planned partition represented by the plan
      * @param partitionDag non-null topology retaining the exact partition instance
      * @param context non-null exact device context, retained but not owned
@@ -186,7 +179,6 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
      * materialization, or workspace facts disagree
      */
     MetalNegPreparationPlan(
-            NumericalProfile numericalProfile,
             PlannedPartition partition,
             PartitionDag partitionDag,
             MetalDeviceContext context,
@@ -212,8 +204,6 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             long[] targetRequiredBytes,
             MetalTraceProducer.PreparedUnit traceUnit) {
         this.partition = Objects.requireNonNull(partition, "partition");
-        this.numericalProfile =
-                Objects.requireNonNull(numericalProfile, "numericalProfile");
         this.partitionDag = Objects.requireNonNull(partitionDag, "partitionDag");
         if (this.partitionDag.partition() != this.partition) {
             throw new IllegalArgumentException(
@@ -254,7 +244,6 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         this.targetValueIndices = targetValueIndices.clone();
         this.pointwiseFusionPlan = this.route == MetalPreparedRoute.CUSTOM_PROGRAM
                 ? MetalPointwiseFusionPlanner.plan(
-                        this.numericalProfile,
                         this.graphProgram,
                         this.programValueDescriptors,
                         this.feedValueIndices,
@@ -293,7 +282,6 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             }
         }
         boolean containsAnchorEpilogue = !MetalAnchorEpilogueRecognizer.recognize(
-                this.numericalProfile,
                 this.graphProgram,
                 this.programValueDescriptors,
                 this.targetValueIndices).isEmpty();
@@ -357,10 +345,6 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                 || right.shape().rank() != 2
                 || output.shape().rank() != 2;
     }
-
-    /**
-   * @return exact immutable graph-wide numerical-profile identity */
-    NumericalProfile numericalProfile() { return numericalProfile; }
 
     PlannedPartition partition() { return partition; }
     PartitionDag partitionDag() { return partitionDag; }

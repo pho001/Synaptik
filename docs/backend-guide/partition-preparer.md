@@ -528,19 +528,17 @@ See the [Runtime/Prepare/Backend boundary](../architecture/runtime-prepare-backe
 [Planning ownership and partition scoring](../architecture/partition-scoring.md), and
 [kernel routes](kernel-routes.md).
 
-## Numerical-profile admission
+## Numerical-semantics admission
 
-A preparer receives the exact graph-wide `NumericalProfile` in `PrepareContext`. Model alone
-defines the unchanged strict set and total recursive `FLOAT32` accelerator floors. Preparation
-must not reinterpret or evaluate those floors: it rejects an unsupported profile/operation
-combination before route analysis, preserves the strict-subset capability invariant, proves an
-eligible route stays within Model's result set, and retains the profile in every plan and
-compatibility identity that could otherwise be reused. CPU admits both profiles with identical
-exact routes and distinct identities.
-Metal admits the exact common unary, affine, canonicalization, indexing, BOOL-domain, Task-0059 raw
+A preparer receives complete occurrence facts in `PrepareContext`, not a graph-wide numerical
+selector. Model alone defines each family/dtype formula, exact stored and discrete boundaries, and
+named arithmetic-site permissions. Preparation rejects unsupported occurrences before route
+analysis; each retained route must qualify against Model semantics, with finite tolerance used
+only in tests. CPU keeps its qualified generated and OpenBLAS routes and non-profile identities.
+Metal admits exact unary, affine, canonicalization, indexing, BOOL-domain, Task-0059 raw
 movement, Task-0060 replacement/fold/aggregate, Task-0063 ordering/top-K/numeric arg-extrema,
-promoted integral MATMUL, Task-0064 maximum-pooling, and Task-0065 raw INITIAL_STATE rows under both
-profiles. Accelerator additionally admits the established arithmetic/reduction/scan rows,
+promoted integral MATMUL, Task-0064 maximum-pooling, and Task-0065 raw INITIAL_STATE rows. Metal
+also admits the established arithmetic/reduction/scan rows,
 same-type canonical positive-rank FLOAT32 MSE, every positive-static FLOAT32 MATMUL geometry,
 no-gradient mixed BFLOAT16/FLOAT32 MATMUL, Task-0064 convolution/average-pooling, Task-0065 FLOAT32
 dropout, and the exact Task-0069 rank-one FLOAT32 L1_NORM, SCATTER_ADD, and singleton VARIANCE
@@ -554,9 +552,9 @@ folds, exact modular/logical reductions, every Task-0063 row, and selected Task-
 occurrences to their fixed custom programs without atomics or fallback. Every partition containing
 BFLOAT16 or FLOAT16 values uses that custom-only route, including homogeneous no-gradient
 RESHAPE, simple PERMUTE, materializing CONTIGUOUS, SLICE, CONCAT, and TILE. It may replace only an
-exact private ACCELERATOR MATMUL/Conv2d suffix with one typed anchor instruction. It preserves typed
+qualified private MATMUL/Conv2d suffix with one typed anchor instruction. It preserves typed
 ingress, target and internal physical byte geometry, window/index obligations, unsigned-32-bit
-geometry, and the profile in the schema-nineteen/version-twenty-nine route identity without
+geometry and the schema-twenty/version-thirty route identity without
 widening capability. Every other identity fails closed.
 
 Metal's one closed prepared-route identity owns the existing candidate wires `1..3` and the

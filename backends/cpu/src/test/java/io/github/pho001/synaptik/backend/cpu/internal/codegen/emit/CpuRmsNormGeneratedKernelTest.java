@@ -25,7 +25,7 @@ class CpuRmsNormGeneratedKernelTest {
                     Shape.of(2, 3), Shape.of(3), scaled ? List.of(0, 1) : List.of(0));
             var carriers = new java.util.ArrayList<CarrierAccess>();
             for (int i = 0; i <= inputs; i++) carriers.add(array(type));
-            var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
+            var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
             var plan = new CpuPartitionPreparer().analyze(context).plan();
             var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
             byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
@@ -80,7 +80,7 @@ class CpuRmsNormGeneratedKernelTest {
     @Test void bfloatBodyRequiresNoScratchAndPreservesSigns() throws Throwable {
         var base = CpuTrailingNormalizationLoweringTest.context(false, false, DataType.BFLOAT16,
                 Shape.of(1, 3), Shape.of(3), List.of(0));
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
         List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.SHORT_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
@@ -96,7 +96,7 @@ class CpuRmsNormGeneratedKernelTest {
     @Test void scaledFloatBodyReusesTrailingScale() throws Throwable {
         var base = CpuTrailingNormalizationLoweringTest.context(false, true, DataType.FLOAT32,
                 Shape.of(2, 3), Shape.of(3), List.of(0, 1));
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
         List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY,
                 CarrierAccess.FLOAT_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
@@ -114,7 +114,7 @@ class CpuRmsNormGeneratedKernelTest {
     @Test void directTwoPassBodyUsesUncenteredPopulationRoot() throws Throwable {
         var base = CpuTrailingNormalizationLoweringTest.context(false, false, DataType.FLOAT64,
                 Shape.of(2, 3), Shape.of(3), List.of(0));
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
         List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
@@ -132,7 +132,7 @@ class CpuRmsNormGeneratedKernelTest {
     @Test void zerosInfinityAndNanPreserveSpecifiedClassesAndSigns() throws Throwable {
         var base = CpuTrailingNormalizationLoweringTest.context(false, false, DataType.FLOAT64,
                 Shape.of(3, 2), Shape.of(2), List.of(0));
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
         List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();

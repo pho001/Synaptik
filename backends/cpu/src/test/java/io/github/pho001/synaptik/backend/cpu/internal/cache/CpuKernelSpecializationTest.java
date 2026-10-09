@@ -32,10 +32,9 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTe
 import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 
 class CpuKernelSpecializationTest {
-    @Test void schema68ProfileCompatibilityRetainsSchema52BodyContract()
+    @Test void schema69IdentityRetainsFamily52BodyShape()
             throws Exception {
         Shape shape = Shape.of(64, 64);
         var descriptor = new TensorDescriptor(DataType.FLOAT64, shape,
@@ -47,78 +46,47 @@ class CpuKernelSpecializationTest {
                 route.specialization(), route.kernelIr());
         assertAll(
                 () -> assertTrue(new String(route.specialization().compatibilityBytes(),
-                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("68|")),
+                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("69|")),
                 () -> assertTrue(new String(route.specialization().classIdentityBytes(),
-                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("52|")),
-                () -> assertEquals(
+                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("69|52|")),
+                () -> assertNotEquals(
                         "0f60718d8a663e211143e17eb31efb7d6264eb065224c0aea88fd8de259e6079",
                         route.specialization().structuralKey()),
-                () -> assertEquals(
-                        "81856d576479e73544bca88cd2770144ed0556d8af961770a52064426529336f",
-                        java.util.HexFormat.of().formatHex(java.security.MessageDigest
-                                .getInstance("SHA-256").digest(bytes))));
+                () -> assertArrayEquals(bytes, new CpuClassFileKernelGenerator().generateClassBytes(
+                        route.specialization(), route.kernelIr())));
     }
 
     @Test
-    void numericalProfileSeparatesIdentityButKeepsNormalizedGeneratedBody() throws Exception {
+    void repeatedPreparationKeepsIdentityAndGeneratedBody() throws Exception {
         var base = CpuPartitionPreparerTest.context(Shape.of(8));
-        CpuKernelSpecialization strict = new CpuPartitionPreparer().analyze(
-                new PrepareContext<>(NumericalProfile.STRICT_IEEE, base.partitionDag(),
+        CpuKernelSpecialization first = new CpuPartitionPreparer().analyze(
+                new PrepareContext<>(base.partitionDag(),
                         base.values(), base.memoryRequirements(), base.constants(),
                         base.backendInputs()))
                 .plan().units().getFirst().portablePlan().specialization();
-        CpuKernelSpecialization accelerator = new CpuPartitionPreparer().analyze(
-                new PrepareContext<>(NumericalProfile.ACCELERATOR, base.partitionDag(),
+        CpuKernelSpecialization second = new CpuPartitionPreparer().analyze(
+                new PrepareContext<>(base.partitionDag(),
                         base.values(), base.memoryRequirements(), base.constants(),
                         base.backendInputs()))
                 .plan().units().getFirst().portablePlan().specialization();
-        var strictRoute = new CpuPartitionPreparer().analyze(
-                new PrepareContext<>(NumericalProfile.STRICT_IEEE, base.partitionDag(),
+        var firstRoute = new CpuPartitionPreparer().analyze(
+                new PrepareContext<>(base.partitionDag(),
                         base.values(), base.memoryRequirements(), base.constants(),
                         base.backendInputs())).plan().units().getFirst().portablePlan();
-        var acceleratorRoute = new CpuPartitionPreparer().analyze(
-                new PrepareContext<>(NumericalProfile.ACCELERATOR, base.partitionDag(),
+        var secondRoute = new CpuPartitionPreparer().analyze(
+                new PrepareContext<>(base.partitionDag(),
                         base.values(), base.memoryRequirements(), base.constants(),
                         base.backendInputs())).plan().units().getFirst().portablePlan();
 
         assertAll(
-                () -> assertNotEquals(strict, accelerator),
-                () -> assertNotEquals(strict.structuralKey(), accelerator.structuralKey()),
-                () -> assertFalse(java.util.Arrays.equals(
-                        strict.compatibilityBytes(), accelerator.compatibilityBytes())),
-                () -> assertFalse(java.util.Arrays.equals(
-                        strict.classIdentityBytes(), accelerator.classIdentityBytes())),
-                () -> assertEquals(normalizedGeneratedHash(strictRoute),
-                        normalizedGeneratedHash(acceleratorRoute)));
-    }
-
-    private static String normalizedGeneratedHash(
-            io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan route)
-            throws Exception {
-        byte[] normalized = new CpuClassFileKernelGenerator().generateClassBytes(
-                route.specialization(), route.kernelIr());
-        byte[] identity = CpuGeneratorSchema.generatedBinaryName(route.specialization())
-                .replace('.', '/').getBytes(java.nio.charset.StandardCharsets.US_ASCII);
-        byte[] replacement = new byte[identity.length];
-        java.util.Arrays.fill(replacement, (byte) '#');
-        int replacements = 0;
-        for (int offset = 0; offset <= normalized.length - identity.length; offset++) {
-            boolean match = true;
-            for (int index = 0; index < identity.length; index++) {
-                if (normalized[offset + index] != identity[index]) {
-                    match = false;
-                    break;
-                }
-            }
-            if (match) {
-                System.arraycopy(replacement, 0, normalized, offset, replacement.length);
-                replacements++;
-                offset += identity.length - 1;
-            }
-        }
-        assertTrue(replacements > 0, "generated class identity must be normalized");
-        return java.util.HexFormat.of().formatHex(
-                java.security.MessageDigest.getInstance("SHA-256").digest(normalized));
+                () -> assertEquals(first, second),
+                () -> assertEquals(first.structuralKey(), second.structuralKey()),
+                () -> assertArrayEquals(first.compatibilityBytes(), second.compatibilityBytes()),
+                () -> assertArrayEquals(first.classIdentityBytes(), second.classIdentityBytes()),
+                () -> assertArrayEquals(new CpuClassFileKernelGenerator().generateClassBytes(
+                                firstRoute.specialization(), firstRoute.kernelIr()),
+                        new CpuClassFileKernelGenerator().generateClassBytes(
+                                secondRoute.specialization(), secondRoute.kernelIr())));
     }
 
     @Test void foldIdentityExcludesColdGeometryAndSeparatesFamilyTypeCarrierAndRank() {
@@ -167,7 +135,7 @@ class CpuKernelSpecializationTest {
                 () -> assertFalse(small.specialization().scratchParameter()),
                 () -> assertTrue(product.specialization().scratchParameter()));
     }
-    @Test void excludesCompatibleExtentsButIncludesNumericalAndStrategyFacts() {
+    @Test void excludesCompatibleExtentsButIncludesStrategyFacts() {
         var one = CpuPartitionPreparerTest.analyze(Shape.of(1)).plan().units().getFirst()
                 .portablePlan().specialization();
         var many = CpuPartitionPreparerTest.analyze(Shape.of(99)).plan().units().getFirst()
@@ -175,9 +143,6 @@ class CpuKernelSpecializationTest {
         assertAll(
                 () -> assertEquals(one, many),
                 () -> assertEquals(one.structuralKey(), many.structuralKey()),
-                () -> assertSame(
-                        io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
-                        one.numericalProfile()),
                 () -> assertArrayEquals(one.compatibilityBytes(), many.compatibilityBytes()));
     }
 
@@ -210,7 +175,7 @@ class CpuKernelSpecializationTest {
                         vector.vectorSpeciesBitSize()),
                 () -> assertNotEquals(scalarSingle.structuralKey(), vector.structuralKey()),
                 () -> assertThrows(IllegalArgumentException.class,
-                        () -> new CpuKernelSpecialization(vector.loweringFingerprint(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, vector.executionStrategy(),
+                        () -> new CpuKernelSpecialization(vector.loweringFingerprint(), vector.executionStrategy(),
                         vector.boundaryDataTypes(), vector.carrierPattern(),
                         vector.vectorSpeciesBitSize() / 2,
                         vector.materializedSourcePosition(),
@@ -282,10 +247,10 @@ class CpuKernelSpecializationTest {
     @Test void scalarPowerRealizationIsExplicitCompatibilityMetadata() {
         var base = CpuPartitionPreparerTest.analyze(Shape.of(3)).plan().units().getFirst()
                 .portablePlan().specialization();
-        var direct = new CpuKernelSpecialization(base.loweringFingerprint(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.executionStrategy(), base.boundaryDataTypes(), base.carrierPattern(),
+        var direct = new CpuKernelSpecialization(base.loweringFingerprint(), base.executionStrategy(), base.boundaryDataTypes(), base.carrierPattern(),
         base.vectorSpeciesBitSize(), base.materializedSourcePosition(),
         List.of(CpuKernelIr.PowerRealization.DIRECT));
-        var square = new CpuKernelSpecialization(base.loweringFingerprint(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.executionStrategy(), base.boundaryDataTypes(), base.carrierPattern(),
+        var square = new CpuKernelSpecialization(base.loweringFingerprint(), base.executionStrategy(), base.boundaryDataTypes(), base.carrierPattern(),
         base.vectorSpeciesBitSize(), base.materializedSourcePosition(),
         List.of(CpuKernelIr.PowerRealization.SQUARE));
         assertAll(
@@ -293,7 +258,7 @@ class CpuKernelSpecializationTest {
                 () -> assertFalse(java.util.Arrays.equals(direct.compatibilityBytes(),
                         square.compatibilityBytes())),
                 () -> assertThrows(NullPointerException.class,
-                        () -> new CpuKernelSpecialization(base.loweringFingerprint(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.executionStrategy(),
+                        () -> new CpuKernelSpecialization(base.loweringFingerprint(), base.executionStrategy(),
                         base.boundaryDataTypes(), base.carrierPattern(),
                         base.vectorSpeciesBitSize(), base.materializedSourcePosition(), null)));
     }
@@ -302,7 +267,6 @@ class CpuKernelSpecializationTest {
         var fingerprint = CpuLoweringFingerprint.fromHex("0".repeat(64));
         var bfloat = new CpuKernelSpecialization(
                 fingerprint,
-                io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
                 io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan
                         .ExecutionStrategy.SCALAR,
                 List.of(DataType.BFLOAT16, DataType.BFLOAT16),
@@ -310,7 +274,6 @@ class CpuKernelSpecializationTest {
                 0, -1, List.of());
         var float16 = new CpuKernelSpecialization(
                 fingerprint,
-                io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
                 io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan
                         .ExecutionStrategy.SCALAR,
                 List.of(DataType.FLOAT16, DataType.FLOAT16),
@@ -326,7 +289,6 @@ class CpuKernelSpecializationTest {
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> new CpuKernelSpecialization(
                                 fingerprint,
-                                io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
                                 io.github.pho001.synaptik.backend.cpu.internal.prepare
                                         .CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
                                 List.of(DataType.FLOAT32, DataType.FLOAT32),
@@ -335,7 +297,6 @@ class CpuKernelSpecializationTest {
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> new CpuKernelSpecialization(
                                 fingerprint,
-                                io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
                                 io.github.pho001.synaptik.backend.cpu.internal.prepare
                                         .CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
                                 List.of(DataType.BFLOAT16, DataType.BFLOAT16),
@@ -374,13 +335,13 @@ class CpuKernelSpecializationTest {
                                 otherExtents.kernelIr())),
                 () -> assertNotEquals(axisZero.specialization(), otherFamily.specialization()),
                 () -> assertNotEquals(axisZero.specialization(), otherCarrier.specialization()),
-                () -> assertEquals(68, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(69, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertEquals(-1, axisZero.specialization().materializedSourcePosition()));
     }
 
     private static CpuKernelSpecialization specialization(
             PrepareContext<CpuPartitionAnalysisInputs> old, PortableExecutionConfig config) {
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, old.partition(), old.nodes(), old.values(), old.memoryRequirements(), old.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new PrepareContext<>(old.partition(), old.nodes(), old.values(), old.memoryRequirements(), old.constants(), new CpuPartitionAnalysisInputs(false,
                 CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), config));
         return new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
                 .portablePlan().specialization();
@@ -388,7 +349,7 @@ class CpuKernelSpecializationTest {
 
     private static CpuKernelSpecialization specialization(List<CarrierAccess> pattern) {
         var old = CpuPartitionPreparerTest.context(Shape.of(3));
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, old.partition(), old.nodes(), old.values(), old.memoryRequirements(), old.constants(), new CpuPartitionAnalysisInputs(false, pattern));
+        var context = new PrepareContext<>(old.partition(), old.nodes(), old.values(), old.memoryRequirements(), old.constants(), new CpuPartitionAnalysisInputs(false, pattern));
         return new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
                 .portablePlan().specialization();
     }
@@ -401,7 +362,7 @@ class CpuKernelSpecializationTest {
                 List.of(0, 1), List.of(CpuIndexingLoweringTest.descriptor(dataType, dataShape),
                         CpuIndexingLoweringTest.descriptor(indexType, indexShape)),
                 CpuIndexingLoweringTest.descriptor(dataType, outputShape));
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         return new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
                 .portablePlan();
     }
@@ -414,7 +375,7 @@ class CpuKernelSpecializationTest {
                         CpuScatterLoweringTest.desc(DataType.INT32,updateShape),
                         CpuScatterLoweringTest.desc(type,updateShape)),
                 CpuScatterLoweringTest.desc(type,dataShape));
-        var context=new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context=new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(type==DataType.FLOAT32?CarrierAccess.FLOAT_ARRAY:CarrierAccess.INT_ARRAY,
                         CarrierAccess.INT_ARRAY,
                         type==DataType.FLOAT32?CarrierAccess.FLOAT_ARRAY:CarrierAccess.INT_ARRAY,
@@ -426,7 +387,7 @@ class CpuKernelSpecializationTest {
             fold(Operation operation, DataType type, Shape input, Shape output,
                     List<CarrierAccess> carriers) {
         var base = CpuFoldLoweringTest.context(operation, type, input, output);
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         return new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
     }
 }

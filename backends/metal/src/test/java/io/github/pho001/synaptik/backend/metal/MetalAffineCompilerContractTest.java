@@ -95,7 +95,7 @@ final class MetalAffineCompilerContractTest {
                         List.of(input),
                         false,
                         FunctionalGradientRequest.DisconnectedPolicy.ERROR)));
-        CompileArtifacts artifacts = GraphCompilationPort.compile(CompileMode.FORWARD_AND_BACKWARD, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.of(request), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider()), List.of(snapshot()));
+        CompileArtifacts artifacts = GraphCompilationPort.compile(CompileMode.FORWARD_AND_BACKWARD, List.of(output), Optional.of(request), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider()), List.of(snapshot()));
 
         CompiledNode forward = node(artifacts, 0, forwardKind);
         assertEquals(new Operation(forwardKind, forwardAttrs), forward.operation());

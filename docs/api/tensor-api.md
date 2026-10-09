@@ -96,37 +96,26 @@ unsupported operation, data-type, Shape, or layout combinations. This current li
 move compiler, prepared-execution, runtime-residency, or backend state into Tensor. Tensor-owned
 device residency, generic or mixed-backend composition, and universal execution coverage remain
 absent.
-The current Model contract also defines `STRICT_IEEE` and `ACCELERATOR` graph numerical-profile
-result sets. `STRICT_IEEE` preserves each operation's existing family-specific promises and
-freedoms; it is not a universal bitwise or fixed-instruction guarantee. `ACCELERATOR` currently
-adds its total recursive `FLOAT32` superset and the activated BFLOAT16/FLOAT16 domain under the
-[normative exact/discrete, primitive, aggregate, composite-inheritance, and low-precision
-contract](../architecture/contracts/foundational-modules.md#numerical-profiles). Kinds,
-attributes, mapping, contributors, masks, indices, state, traversal, casts, ordering, guards,
-identities, divisors, and publication stay exact. Named primitive sites may use DAZ/FTZ and one-
-round basic arithmetic; only irreducible elementary-function sites admit an inclusive ordered-
-binary32 distance of at most five from the correctly rounded exact result. The normative contract
-defines that distance through a monotonic raw-bit key. Aggregate sites may use any binary tree only
-while including every declared contributor exactly once. Composite and Compiler-generated
-gradient formulas recurse through those sites and gain no final-output tolerance. Every unlisted
-non-FLOAT32 occurrence remains unchanged. Current low occurrences retain exact
-discrete/raw/cast/public/saved/final-RNE boundaries and one custom-program route, and may use only
-their declared DAZ/FTZ, arithmetic zero-sign/NaN-class, reassociation/FMA, and
-unobservable-single-use fusion freedoms. Every BFLOAT16/FLOAT16 Metal partition, including the six
-homogeneous no-gradient raw-preserving kinds, is custom-program-only. Generic `allclose` does not
-qualify an implementation. Existing operation-local final exact-zero publication choices remain
-local to their named final results.
-Tensor construction still performs no numerical evaluation and stores no profile choice.
+The current Model contract defines one numerical meaning per family and dtype, with no graph-wide
+selector. Kinds, attributes, mapping, contributors, masks, indices, state, traversal, casts,
+ordering, guards, identities, divisors, stored comparisons and extrema, raw movement and
+selection, and publication remain exact. Denormals-are-zero (DAZ) at named arithmetic inputs and
+flush-to-zero (FTZ) at named arithmetic results are permitted for FLOAT32, BFLOAT16, and FLOAT16,
+including low multiplication, but forbidden for FLOAT64. They do not apply to stored comparison,
+extrema, cast, raw movement, selection, or the exact unary ABS/NEG/SIGN/FLOOR/CEIL/RELU sites.
+Every floating scatter MUL includes the base and each addressed update exactly once but may use a
+rounded tree; integral modular multiplication and raw unaddressed cells remain exact.
+Qualified low arithmetic uses FLOAT32 working values and accumulators followed by one final
+ties-to-even narrowing per declared low output, without hidden intermediate low narrowing.
+Finite accuracy thresholds qualify backend routes only in tests; they do not define a public
+envelope or authorize compiler rewrites. Composite and generated-gradient formulas inherit only
+their named primitive-site permissions. Tensor construction performs no numerical evaluation.
 
-`NumericalProfile` remains outside Tensor: Tensor has no profile method or stored selection. The
-ordinary Engine captures one profile for its lifetime and transports it through profile-qualified
-capability, compile artifacts, Prepare, and backend identity. For any backend, strict capability
-and behavior are an accelerator subset for the same occurrence domain. CPU executes both profiles
-with the same exact current semantics. Metal's common exact domain contains the exact unary,
+Metal's exact domain contains the exact unary,
 affine, canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060
 replacement/fold/aggregate, Task-0063 ordering/top-K/numeric arg-extrema, no-gradient promoted
-INT32/INT64 MATMUL, Task-0064 maximum pooling, and Task-0065 raw INITIAL_STATE rows. Accelerator
-additionally admits the documented FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows;
+INT32/INT64 MATMUL, Task-0064 maximum pooling, and Task-0065 raw INITIAL_STATE rows. Metal
+also admits the documented FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows;
 every positive-static FLOAT32 MATMUL vector, matrix, batched, and broadcast geometry; no-gradient
 BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 output; Task-0064 convolution/average pooling; Task-0065
 FLOAT32 dropout; and three Task-0069 source-owned custom programs. Task 0069 admits no-gradient,
@@ -141,13 +130,13 @@ exactly 86 admitted kinds and 29 remaining false, with 101 structurally executab
 remaining nonexecutable. These are shape-restricted production domains, not whole-kind admission;
 every unlisted occurrence fails closed before route selection.
 
-Metal uses ABI 7 with thirteen exports and one bounded schema-19 route-bearing program image.
+Metal uses ABI 7 with thirteen exports and one bounded schema-20 route-bearing program image.
 Operation wires `1..115`, attribute wires `0..41`, and type wires `1..7` cover current structural
 vocabulary. The custom-program image authenticates compact materialized slots, deterministic
-pointwise units, and exact ACCELERATOR MATMUL/Conv2d anchor epilogues. Metal-local workload,
-exact-policy, candidate, compatibility, route-policy, and session codec identities are version 29;
+pointwise units, and qualified MATMUL/Conv2d anchor epilogues. Metal-local workload,
+exact-policy, candidate, compatibility, route-policy, and session codec identities are version 30;
 every other identity fails closed rather than falling back. Model remains the sole semantic owner
-of profile meaning.
+of numerical meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
@@ -202,7 +191,7 @@ current. The closed first-order matrix also currently reverses `CONTIGUOUS`, `RE
 `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` through public Tensor metadata operations. Mandatory
 graph-local ID canonicalization and whole-graph DCE plus phase-local CSE are current internal
 behavior. CPU physical execution is current for its documented bounded affine units. Metal forward
-execution has a common exact baseline under both profiles: canonical `FLOAT32` `NEG`, `ABS`,
+execution has an exact occurrence baseline: canonical `FLOAT32` `NEG`, `ABS`,
 `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; bounded canonical
 `FLOAT32` `UNFOLD_AXIS`; canonical positive-rank `FLOAT32` data `GATHER` with canonical `INT32`
 indices; positive-rank `INT32`-to-`BOOL` `ONE_HOT`; and canonical positive-rank
@@ -216,12 +205,12 @@ row-major ordinal order, and targets and inputs remain unchanged on failure. Met
 authenticated SELECT/SLICE publication, and CPU/Metal transfer cover all seven carriers over their
 exact supported descriptors. Cross-owner values may be rank-zero through rank-sixteen and use a
 canonical or positive-stride non-overlapping storage layout with a checked physical span; BOOL
-validates logical zero/one bytes while leaving storage holes uninterpreted. Accelerator Metal
-additionally executes its documented FLOAT32 arithmetic/reduction/scan rows, every positive-static
-FLOAT32 MATMUL geometry, and no-gradient BFLOAT16/FLOAT32 mixed MATMUL. Both profiles execute
-no-gradient promoted INT32/INT64 MATMUL; strict Metal rejects only the accelerator additions.
+validates logical zero/one bytes while leaving storage holes uninterpreted. Metal additionally
+executes its documented FLOAT32 arithmetic/reduction/scan rows, every positive-static FLOAT32
+MATMUL geometry, no-gradient BFLOAT16/FLOAT32 mixed MATMUL, and no-gradient promoted INT32/INT64
+MATMUL. Independently admitted homogeneous BFLOAT16/FLOAT16 counterparts use the custom route.
 Existing rank-two FLOAT32 matrix products retain direct MPSGraph, while new MATMUL forms use the
-fixed custom program. General accelerator FLOAT32 MATMUL also executes the Compiler-generated
+fixed custom program. General FLOAT32 MATMUL also executes the Compiler-generated
 explicitly seeded first-order formulas for both operands through exact local last-two-axis
 transposes beneath the existing shape-restoration boundaries. This introduces no complete
 window/indexing backward, implicit seeding, or unrestricted Metal training claim.
@@ -2191,8 +2180,8 @@ Dropped values are positive zero even for negative zero, NaN, or infinite input.
 and infinity retain their sign; kept NaN remains NaN without a payload promise. Construction does
 not evaluate this formula or select its finite-precision algorithm.
 
-The current Metal backend executes `GraphRngState.initial` under both profiles and canonical
-FLOAT32 dropout only under `ACCELERATOR`, for static rank `0..16` geometry whose extents, element
+The current Metal backend executes `GraphRngState.initial` and canonical
+FLOAT32 dropout for static rank `0..16` geometry whose extents, element
 count, referenced span, and dispatch width fit unsigned 32 bits. Both rows select one fixed custom
 program. Its private `SYNAPTIK_METAL_SPLITMIX64_COUNTER_V1` replay identity derives each word from
 the raw key, counter, and row-major ordinal; draw membership compares the top 53 bits with exact
@@ -2534,6 +2523,9 @@ The seven current expression methods build model semantics; they do not calculat
 The receiver is always the ordered left input and the argument is always the ordered right input.
 This order remains in provenance even for operations whose mathematical result is commonly
 commutative.
+
+Floating ADD retains its primitive signed-zero rule: `-0 + +0` produces `+0`. The permitted
+arithmetic-site DAZ/FTZ latitude does not relax that result sign.
 
 Pairwise `minimum` and `maximum` propagate NaN, order infinities normally, and choose negative
 zero for minimum or positive zero for maximum when comparing opposite signed zeros, independent
@@ -3211,20 +3203,14 @@ input data type, immutable `Shape` reference, and `requiresGrad` flag, while lea
 That flag is eligibility metadata; it does not assert that a derivative or backward rule exists.
 
 `rsqrt`, `log1p`, `expm1`, both GELU variants, and SiLU are first-class transforms, not stored
-compositions. Their `STRICT_IEEE` allowed-result sets are complete for all four accepted floating
-types. Strict permits no DAZ or FTZ. Exact/discrete kinds retain their exact represented result.
-Relative to the correctly rounded exact same-format reference, `log`, `log1p`, `exp`, and `expm1`
-permit at most two ordered representations, `sqrt` one, and `tanh` five; all bounds are inclusive
-and separate from class, domain, range, and zero-sign rules. `erf` uses the exact integral
-reference and inclusive `max(A, R*abs(reference))` error, with `A=R=2^-7` for BFLOAT16, `2^-10`
-for FLOAT16, `2e-5` for FLOAT32, and `2e-7` for FLOAT64.
-
-`RSQRT`, sigmoid, GELU, tanh GELU, and SiLU are recursive Model-owned result sets. Strict
-evaluation may use the result type or one wider format—BFLOAT16/FLOAT16 to FLOAT32 or FLOAT32 to
-FLOAT64—followed by one final ties-to-even narrowing. FLOAT64 has only native evaluation. Every
-named constant is rounded once in that evaluation format; every named arithmetic site rounds
-once; and each elementary site chooses only from the primitive result set above. This union is
-independent of backend route and coefficient tables.
+compositions. Model owns one family/dtype result contract for these and the other unary kinds.
+The six exact represented-value kinds `ABS`, `NEG`, `SIGN`, `FLOOR`, `CEIL`, and `RELU` have no
+arithmetic DAZ/FTZ permission. Other named FLOAT32/BFLOAT16/FLOAT16 arithmetic primitive inputs
+may use denormals-are-zero (DAZ), and results may use flush-to-zero (FTZ); FLOAT64 forbids both.
+Each kind retains its mathematical function, domain, special class, range, and required zero-sign
+rules. Finite thresholds are route-qualified in tests, not public ordered-distance or forward-
+error envelopes. Composite `RSQRT`, sigmoid, GELU, tanh GELU, and SiLU inherit only their named
+primitive sites and exact guards; no final-output tolerance applies.
 
 Exact GELU uses `0.5 * x * (1 + erf(x / sqrt(2)))`. Its constants, square root, division, `ERF`,
 addition, and two multiplications are its complete sites. The explicitly named tanh approximation
@@ -3234,7 +3220,7 @@ root, division, additions, remaining multiplications, and `TANH` are complete. S
 `x/(1+exp(-x))` and `x*exp(x)/(1+exp(x))` on the corresponding branches. Comparison, negation,
 exponential, additions, multiplication, and divisions are explicit sites. The API uses canonical
 `silu` naming and provides no `swish` alias. None of these first-class operations gains a
-whole-result accelerator envelope.
+whole-result tolerance envelope.
 
 Their Model-owned special-value meanings are:
 
@@ -3599,14 +3585,13 @@ or `MAX` aggregate operation and exactly the receiver reference. The eligibility
 request in model metadata; preserving it for product or an extrema reduction does not install or
 promise a gradient rule or a policy for distributing gradients across tied extrema.
 
-Floating result rules are profile-indexed. Under `STRICT_IEEE`, SUM and MEAN retain their
-family-specific signed-zero rules below. Under `ACCELERATOR`, a FLOAT32 SUM cell with at least two
+Floating result rules are family- and dtype-specific under one Model contract. A FLOAT32 SUM cell with at least two
 declared terms may publish either zero sign only when its selected binary tree's root addition is
 exact zero. A FLOAT32 MEAN still divides a permitted sum by the declared positive selected count
 and gains that choice only when the quotient is exact zero. The rule grants no intermediate
 exact-zero choice, tolerance, term change, reciprocal multiply, reduced precision, or
 classification change. Empty-axis point SUM copies preserve input bits, empty SUM remains positive
-zero, and zero-count MEAN remains NaN. Expression construction neither selects a profile nor
+zero, and zero-count MEAN remains NaN. Expression construction neither selects a numerical mode nor
 evaluates these results.
 
 Current package-private compiler autograd supports ordinary floating full and single-axis
@@ -3785,7 +3770,7 @@ Scalar targets reduce all input axes; a scalar input accepts only a scalar targe
 follow ordinary SUM semantics: an actually reduced empty domain yields numeric positive zero.
 Equal-Shape and other coordinates with no reduced axis preserve the corresponding input bits and
 perform no addition; an implementation may not insert a positive-zero identity. Under
-`ACCELERATOR FLOAT32`, exact target mapping and contributor membership remain mandatory while each
+the current FLOAT32 contract, exact target mapping and contributor membership remain mandatory while each
 actually reduced cell uses the all-contributors-once aggregate floor. Existing qualifying final
 exact-zero publication freedom remains local to the final cell; intermediate arithmetic gains no
 such publication rule.
@@ -3906,11 +3891,11 @@ It restores removed axes in ascending axis order before expanding to the input S
 axis list passes the cotangent through. Statistical, norm, log-sum-exp, product, extrema, mean, and
 BOOL families remain excluded from the closed first matrix.
 
-Under `STRICT_IEEE`, the portable floating target is exact real arithmetic plus the rules below,
-rounded once to result format with round-to-nearest, ties-to-even. Equal-or-wider intermediates and
-family-permitted reassociation do not change the stated represented result; narrower accumulation,
-model-visible promotion, saturation, and tolerance acceptance are not selected. Finite overflow
-is signed infinity. NaN payload/sign and signaling preservation are unspecified.
+Under the current Model contract, exact mappings and contributor sets combine with the family
+rules below. Floating arithmetic may use a rounded all-contributors-once tree and the named-site
+DAZ/FTZ permissions; qualified low arithmetic uses FLOAT32 working/accumulator values and one
+final ties-to-even narrowing. Finite tolerance is test-only. NaN payload/sign and signaling
+preservation are unspecified unless an exact stored-value family rule says otherwise.
 
 - SUM propagates NaN; opposite infinities produce NaN; empty is positive zero. Exact non-empty
   zero is negative only when every selected value is negative zero.
@@ -3930,15 +3915,12 @@ is signed infinity. NaN payload/sign and signaling preservation are unspecified.
 - L1 norm is `sum(abs(x_i))`; L2 norm is `sqrt(sum(x_i*x_i))`. Empty is positive zero, point is
   absolute value, NaN produces NaN, and infinity produces positive infinity unless NaN exists.
 
-Under `ACCELERATOR FLOAT32`, every arithmetic aggregate in this section inherits the recursive
-floors. Exact axes, mappings, contributor sets, identities, counts, correction, and divisors remain
-mandatory. Every selected contributor participates exactly once under any binary tree with
-per-step FLOAT32 rounding, DAZ/FTZ, and only corresponding multiply/add fusion. Irreducible
-elementary sites inside log-sum-exp, standard deviation, and L2 norm use the inclusive
-ordered-binary32 distance-at-most-five primitive-site ceiling, not a final aggregate envelope.
-Extrema, arg-extrema, and Boolean reductions preserve their exact selection/index/truth rules. No
-reciprocal substitution, term loss, invented identity, or classification change is allowed;
-non-FLOAT32 reductions stay strict.
+Every arithmetic aggregate inherits only its named primitive sites. Exact axes, mappings,
+contributor sets, identities, counts, correction, and divisors remain mandatory. Every selected
+contributor participates exactly once under a rounded tree with permitted site-local DAZ/FTZ and
+only corresponding multiply/add fusion. Extrema, arg-extrema, and Boolean reductions preserve
+their exact stored-value selection, index, and truth rules. No reciprocal substitution, term loss,
+invented identity, or classification change is allowed; FLOAT64 has no DAZ/FTZ permission.
 
 Integral ordinary reductions retain task 0018U1's exact-width modular sum/product, signed extrema,
 and bounded empty identities. No algorithm, pass count, compensation scheme, traversal, vector
@@ -4036,7 +4018,7 @@ or all-false dynamic slice follows the same semantic rule. Expression constructi
 rules but does not align storage, materialize a mask, inspect values, count positions, aggregate,
 divide, create a gradient rule, capture a graph, or execute work.
 
-For `ACCELERATOR FLOAT32`, masking and the true-count determine the exact contributor set before
+For FLOAT32, masking and the true-count determine the exact contributor set before
 arithmetic. Every selected value participates exactly once under the aggregate floor; masked MEAN
 still performs the mandatory division by the positive true-count. Existing qualifying final
 exact-zero publication freedoms remain local to the final SUM or quotient. False positions stay
@@ -4233,7 +4215,7 @@ positive when later proven or bound; no sentinel index represents an empty domai
 does not read storage, compare values, select an index, create gradients, capture a graph, lower an
 operation, report backend support, or execute.
 
-Current Metal execution covers the six numeric carriers under both profiles for fully static
+Current Metal execution covers the six numeric carriers for fully static
 canonical dense ranks `1..16` whose positive geometry and logical indices fit unsigned 32 bits. It
 uses one exact custom program, retains INT64 outputs, and implements NaN preference and both tie
 policies; BOOL, dynamic/empty selected axes, over-limit geometry, and generated backward graphs
@@ -5032,7 +5014,7 @@ Package-private compiler first-order autograd now supports prediction and target
 three reductions, restores reduced cotangents through logical Tensor element counts, and uses
 exact typed scalar-operation coefficients `2` and `-2`. Compiler capture and deferred equality
 proof are current. CPU owns its documented full MSE matrix. Metal additionally owns the
-ACCELERATOR homogeneous BFLOAT16/FLOAT16/FLOAT32 canonical positive-rank forward MSE domain for
+admitted homogeneous BFLOAT16/FLOAT16/FLOAT32 canonical positive-rank forward MSE domain for
 `NONE`, `SUM`, and `MEAN`; it preserves the input-gradient logical OR as metadata but does not own
 the generated backward graph. Every other Metal loss or normalization family remains fail-closed.
 Broader decomposition, backend support, runtime behavior, and training-session coordination remain separate
@@ -7091,7 +7073,7 @@ Both results have Shape `[2, 3, 4]`. The negative axis normalizes to `1`; replac
 structural expression construction and reduction retention, not indexed writes or execution.
 
 The current Metal backend executes only the canonical positive-rank `FLOAT32`/`INT32`/`FLOAT32`
-replacement form above under both profiles. It requires unique complete targets, validates every
+replacement form above. It requires unique complete targets, validates every
 bound before uniqueness and any selector dispatch or output write, copies addressed update and
 unaddressed base bits exactly, and leaves all inputs unchanged. `MAX` and every other arithmetic
 scatter, INT64, views, dynamic Shapes, Scatter-ND, output aliasing, and complete Metal backward
@@ -7834,7 +7816,7 @@ is the result type. BOOL and floating/integral pairs fail, and construction inse
 
 For a `FLOAT64` result, pairwise products accumulate in FLOAT64. BFLOAT16, FLOAT16, and FLOAT32
 results accumulate in FLOAT32, with one final conversion for a low result. Under
-`ACCELERATOR FLOAT32`, exact broadcast/contraction mapping and contributor membership stay fixed;
+the current FLOAT32 contract, exact broadcast/contraction mapping and contributor membership stay fixed;
 every pairwise product participates exactly once under any aggregate tree with per-step FLOAT32
 rounding, DAZ/FTZ, and only corresponding multiply/add fusion. The existing qualifying nonempty
 final exact-zero publication choice remains local to the complete MATMUL cell. Standalone product
@@ -7882,7 +7864,7 @@ out-features. A null bias is invalid; omit bias by selecting the one-argument ov
 | `[B, T, K]` | `[N, K]` | absent or `[N]` | `[B, T, N]` |
 
 Floating pairs and signed-integral pairs inherit current MATMUL promotion. The inner MATMUL also
-inherits its recursive profile-indexed result set described above. In the biased form, the product
+inherits its family/dtype result contract described above. In the biased form, the product
 and bias are promoted again by ordinary ADD, and each visible operation applies only its own named
 sites: no cross-node fusion or algebraic rewrite is introduced. A wider bias may widen only the
 final result. The linear conveniences add no numerical freedom, final-output envelope, or inserted
@@ -8377,7 +8359,7 @@ batch and output-channel axes remain valid. Implementations may reassociate term
 multiply-add, so traversal order, bitwise equality, and identical cross-backend rounding are not
 promised.
 
-For `ACCELERATOR FLOAT32`, exact CONV2D geometry, conceptual padding, bias, and contributors remain
+For FLOAT32, exact CONV2D geometry, conceptual padding, bias, and contributors remain
 fixed. Every term participates exactly once under the primitive and aggregate floors. Convolution
 does not gain MATMUL's final-publication exact-zero choice or a final-output tolerance.
 
@@ -8511,7 +8493,7 @@ ordinary multiplication and addition. An empty input-channel contraction starts 
 zero before optional bias; empty batch and output-channel axes are valid. Reassociation and fused
 multiply-add are permitted, so no fixed summation order or bitwise-identical rounding is promised.
 
-For `ACCELERATOR FLOAT32`, exact CONV3D geometry, conceptual padding, bias, and contributors remain
+For FLOAT32, exact CONV3D geometry, conceptual padding, bias, and contributors remain
 fixed. Every term participates exactly once under the primitive and aggregate floors. Convolution
 does not gain MATMUL's final-publication exact-zero choice or a final-output tolerance.
 
@@ -8625,7 +8607,7 @@ Backend support is the conjunction of support for the exact `EXPAND_DIMS`, match
 whole topology as an optimization only if it preserves that meaning; neither this Model API nor
 such recognition creates or advertises a Pool1d operation capability. The current CPU backend
 recognizes only this exact private single-use topology with resolved singleton-height affine
-layouts. It keeps both rank edits virtual and reuses the same schema-68 generated Pool2d class
+layouts. It keeps both rank edits virtual and reuses the schema-69 Pool2d family projection
 bytes that the matching direct Pool2d occurrence uses. Near matches retain ordinary decomposition.
 The example itself still proves Model metadata and provenance only: constructing it does not read
 values, execute pooling, guarantee that CPU recognition will apply, or promise fusion.
@@ -8969,7 +8951,7 @@ distinguishable; its selected mask is fixed for a later derivative stage. Curren
 general `unfold3d`/`fold3d` algebra. The CPU backend now supports direct non-gradient Pool3d
 execution only for fully static Shapes, resolved non-negative layouts, injective output layouts,
 BFLOAT16/FLOAT16/FLOAT32/FLOAT64 carriers, and representable checked geometry. Its scalar or
-caller-parallel generated schema-68 body owns complete output cells and uses zero workspace or
+caller-parallel generated schema-69 body owns complete output cells and uses zero workspace or
 materialization. This is backend-internal prepared execution, not value evaluation by the Model
 call, general Pool3d support for dynamic geometry, execution of `unfold3d`/`fold3d`, or a
 vector/native/fused route.
@@ -9049,7 +9031,7 @@ Construction checks only metadata and creates provenance. It neither compares va
 an algorithm, gradient rule, compiler behavior, backend route, runtime behavior, or execution
 support.
 
-Current Metal execution covers both kinds for all seven carriers under both profiles for canonical
+Current Metal execution covers both kinds for all seven carriers for canonical
 dense ranks `1..16` whose positive dimensions, element counts, strides, selected extents, and
 one-dimensional grid fit unsigned 32 bits. Its integer-only custom route implements the order above
 and copies selected representations exactly. Dynamic, empty, noncanonical, over-limit, and
@@ -9138,7 +9120,7 @@ outputs. This current API constructs backend-neutral metadata and immutable pre-
 provenance. It does not provide a selection algorithm, value evaluation, gradient rule, compiler
 capture or dynamic-bound enforcement, backend support, runtime behavior, or execution.
 
-Current Metal execution covers positive-K TOP_K for all seven carriers under both profiles over the
+Current Metal execution covers positive-K TOP_K for all seven carriers over the
 same canonical dense unsigned-32-bit-bounded geometry. One custom native step always validates,
 materializes, and keeps the paired values and INT64 indices, including when only one role is a
 public target. Zero/dynamic K, empty/dynamic geometry, over-limit/noncanonical layouts, and
@@ -11045,8 +11027,8 @@ derives exact vector/matrix/broadcast-batch Shape metadata, defers only the docu
 obligations, and records fresh ordered two-input provenance. It performs no multiplication,
 gradient construction, graph transformation, backend selection, or execution. Compiler capture,
 verification, and generated first-order formulas are current; concrete execution remains
-profile-, carrier-, gradient-, and backend-qualified. CPU realizes its documented full domain.
-Metal realizes promoted no-gradient INT32/INT64 pairs under both profiles; accelerator additionally
+carrier-, gradient-, and backend-qualified. CPU realizes its documented full domain.
+Metal realizes promoted no-gradient INT32/INT64 pairs and also
 realizes general FLOAT32 with generated gradients and no-gradient BFLOAT16/FLOAT32 mixed pairs.
 The two public `linear` overloads are current explicit composition over rank-two PERMUTE, MATMUL,
 and optional exact rank-one ADD bias. They introduce no LINEAR kind or layer state, fully

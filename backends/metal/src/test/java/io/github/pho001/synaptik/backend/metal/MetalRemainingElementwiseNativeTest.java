@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -79,73 +78,69 @@ class MetalRemainingElementwiseNativeTest {
     };
 
     @Test
-    void productionCustomProgramExecutesAllFourExactRawOperationsUnderBothProfiles() {
+    void productionCustomProgramExecutesAllFourExactRawOperations() {
         Path library = configuredLibrary();
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            var program = new MetalMpsGraphProgram(List.of(
-                    unary(MetalMpsGraphProgram.NodeKind.FLOOR, 0, 1),
-                    unary(MetalMpsGraphProgram.NodeKind.CEIL, 0, 2),
-                    unary(MetalMpsGraphProgram.NodeKind.SIGN, 0, 3),
-                    unary(MetalMpsGraphProgram.NodeKind.RELU, 0, 4)));
-            List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
-                    value(INPUT.length), value(INPUT.length), value(INPUT.length),
-                    value(INPUT.length), value(INPUT.length));
-            List<int[]> actual = executeCustom(
-                    library, profile, program, values, new int[] {0},
-                    new int[] {1, 2, 3, 4}, List.of(INPUT));
-            assertModelWords(FLOOR, actual.get(0));
-            assertModelWords(CEIL, actual.get(1));
-            int[] sign = new int[INPUT.length];
-            int[] relu = new int[INPUT.length];
-            for (int index = 0; index < INPUT.length; index++) {
-                int word = INPUT[index];
-                if (isNaN(word) || (word & 0x7fff_ffff) == 0) sign[index] = word;
-                else sign[index] = word < 0 ? 0xbf80_0000 : 0x3f80_0000;
-                relu[index] = isNaN(word) ? word : word < 0 ? 0 : word;
-            }
-            assertModelWords(sign, actual.get(2));
-            assertModelWords(relu, actual.get(3));
+        var program = new MetalMpsGraphProgram(List.of(
+                unary(MetalMpsGraphProgram.NodeKind.FLOOR, 0, 1),
+                unary(MetalMpsGraphProgram.NodeKind.CEIL, 0, 2),
+                unary(MetalMpsGraphProgram.NodeKind.SIGN, 0, 3),
+                unary(MetalMpsGraphProgram.NodeKind.RELU, 0, 4)));
+        List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                value(INPUT.length), value(INPUT.length), value(INPUT.length),
+                value(INPUT.length), value(INPUT.length));
+        List<int[]> actual = executeCustom(
+                library, program, values, new int[] {0},
+                new int[] {1, 2, 3, 4}, List.of(INPUT));
+        assertModelWords(FLOOR, actual.get(0));
+        assertModelWords(CEIL, actual.get(1));
+        int[] sign = new int[INPUT.length];
+        int[] relu = new int[INPUT.length];
+        for (int index = 0; index < INPUT.length; index++) {
+            int word = INPUT[index];
+            if (isNaN(word) || (word & 0x7fff_ffff) == 0) sign[index] = word;
+            else sign[index] = word < 0 ? 0xbf80_0000 : 0x3f80_0000;
+            relu[index] = isNaN(word) ? word : word < 0 ? 0 : word;
         }
+        assertModelWords(sign, actual.get(2));
+        assertModelWords(relu, actual.get(3));
+
     }
 
     @Test
-    void generatedChainsExecuteAllFourRawOperationsUnderBothProfiles() {
+    void generatedChainsExecuteAllFourRawOperations() {
         Path library = configuredLibrary();
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            for (MetalMpsGraphProgram.NodeKind kind : List.of(
-                    MetalMpsGraphProgram.NodeKind.FLOOR,
-                    MetalMpsGraphProgram.NodeKind.CEIL,
-                    MetalMpsGraphProgram.NodeKind.SIGN,
-                    MetalMpsGraphProgram.NodeKind.RELU)) {
-                var program = new MetalMpsGraphProgram(List.of(
-                        unary(kind, 0, 1),
-                        unary(kind, 1, 2)));
-                List<MetalMpsGraphProgram.ValueDescriptor> values =
-                        List.of(value(INPUT.length), value(INPUT.length), value(INPUT.length));
-                MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
-                        profile,
-                        program,
-                        values,
-                        new int[] {0},
-                        new int[] {2},
-                        MetalPreparedRoute.CUSTOM_PROGRAM);
-                assertEquals(1, fusion.generatedUnitCount(), kind + " " + profile);
-                assertEquals(2, fusion.instructions().size(), kind + " " + profile);
-                assertArrayEquals(
-                        new int[] {0, 2},
-                        fusion.materializedProgramValueIndices(),
-                        kind + " " + profile);
-                List<int[]> actual = executeCustom(
-                        library,
-                        profile,
-                        program,
-                        values,
-                        new int[] {0},
-                        new int[] {2},
-                        List.of(INPUT));
-                assertModelWords(exactPointwiseExpected(kind), actual.getFirst());
-            }
+        for (MetalMpsGraphProgram.NodeKind kind : List.of(
+                MetalMpsGraphProgram.NodeKind.FLOOR,
+                MetalMpsGraphProgram.NodeKind.CEIL,
+                MetalMpsGraphProgram.NodeKind.SIGN,
+                MetalMpsGraphProgram.NodeKind.RELU)) {
+            var program = new MetalMpsGraphProgram(List.of(
+                    unary(kind, 0, 1),
+                    unary(kind, 1, 2)));
+            List<MetalMpsGraphProgram.ValueDescriptor> values =
+                    List.of(value(INPUT.length), value(INPUT.length), value(INPUT.length));
+            MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
+                    program,
+                    values,
+                    new int[] {0},
+                    new int[] {2},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            assertEquals(1, fusion.generatedUnitCount(), kind.toString());
+            assertEquals(2, fusion.instructions().size(), kind.toString());
+            assertArrayEquals(
+                    new int[] {0, 2},
+                    fusion.materializedProgramValueIndices(),
+                    kind.toString());
+            List<int[]> actual = executeCustom(
+                    library,
+                    program,
+                    values,
+                    new int[] {0},
+                    new int[] {2},
+                    List.of(INPUT));
+            assertModelWords(exactPointwiseExpected(kind), actual.getFirst());
         }
+
     }
 
     @Test
@@ -157,33 +152,30 @@ class MetalRemainingElementwiseNativeTest {
                 unary(MetalMpsGraphProgram.NodeKind.SIGN, 2, 3)));
         List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
                 value(INPUT.length), value(INPUT.length), value(INPUT.length), value(INPUT.length));
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
-                    profile,
-                    program,
-                    values,
-                    new int[] {0},
-                    new int[] {3},
-                    MetalPreparedRoute.CUSTOM_PROGRAM);
-            assertEquals(1, fusion.generatedUnitCount());
-            assertEquals(3, fusion.instructions().size());
-            assertArrayEquals(new int[] {0, 3}, fusion.materializedProgramValueIndices());
-            int[] expected = new int[INPUT.length];
-            for (int index = 0; index < INPUT.length; index++) {
-                int word = FLOOR[index];
-                if (isNaN(word) || (word & 0x7fff_ffff) == 0) expected[index] = word;
-                else expected[index] = word < 0 ? 0xbf80_0000 : 0x3f80_0000;
-            }
-            List<int[]> actual = executeCustom(
-                    library,
-                    profile,
-                    program,
-                    values,
-                    new int[] {0},
-                    new int[] {3},
-                    List.of(INPUT));
-            assertModelWords(expected, actual.getFirst());
+        MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
+                program,
+                values,
+                new int[] {0},
+                new int[] {3},
+                MetalPreparedRoute.CUSTOM_PROGRAM);
+        assertEquals(1, fusion.generatedUnitCount());
+        assertEquals(3, fusion.instructions().size());
+        assertArrayEquals(new int[] {0, 3}, fusion.materializedProgramValueIndices());
+        int[] expected = new int[INPUT.length];
+        for (int index = 0; index < INPUT.length; index++) {
+            int word = FLOOR[index];
+            if (isNaN(word) || (word & 0x7fff_ffff) == 0) expected[index] = word;
+            else expected[index] = word < 0 ? 0xbf80_0000 : 0x3f80_0000;
         }
+        List<int[]> actual = executeCustom(
+                library,
+                program,
+                values,
+                new int[] {0},
+                new int[] {3},
+                List.of(INPUT));
+        assertModelWords(expected, actual.getFirst());
+
     }
 
     @Test
@@ -264,7 +256,6 @@ class MetalRemainingElementwiseNativeTest {
         int[] targets = {2, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16};
         List<int[]> actual = executeCustom(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 program,
                 values,
                 new int[] {0, 1, 3, 11, 13, 15},
@@ -314,7 +305,7 @@ class MetalRemainingElementwiseNativeTest {
     }
 
     @Test
-    void task0060CustomIntegerProductCompilesAndExecutesUnderBothProfiles() {
+    void task0060CustomIntegerProductCompilesAndExecutes() {
         Path library = configuredLibrary();
         var program = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.reduction(
@@ -326,17 +317,15 @@ class MetalRemainingElementwiseNativeTest {
                         false)));
         List<MetalMpsGraphProgram.ValueDescriptor> values =
                 List.of(typed(DataType.INT32, 2, 3), typed(DataType.INT32));
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            List<byte[]> actual = executeCustomBytes(
-                    library,
-                    profile,
-                    program,
-                    values,
-                    new int[] {0},
-                    new int[] {1},
-                    List.of(bytes32(Integer.MAX_VALUE, 2, -1, 3, 5, 7)));
-            assertArrayEquals(bytes32(210), actual.getFirst());
-        }
+        List<byte[]> actual = executeCustomBytes(
+                library,
+                program,
+                values,
+                new int[] {0},
+                new int[] {1},
+                List.of(bytes32(Integer.MAX_VALUE, 2, -1, 3, 5, 7)));
+        assertArrayEquals(bytes32(210), actual.getFirst());
+
     }
 
 
@@ -381,19 +370,17 @@ class MetalRemainingElementwiseNativeTest {
             byte[] cropExpected = data.clone();
             copyCarrierElement(updates, 0, cropExpected, 1, carrier.byteWidth());
             copyCarrierElement(updates, 1, cropExpected, 2, carrier.byteWidth());
-            for (NumericalProfile profile : NumericalProfile.values()) {
-                List<byte[]> actual = executeCustomBytes(
-                        library,
-                        profile,
-                        program,
-                        values,
-                        new int[] {0, 1, 2, 4, 5},
-                        new int[] {3, 6, 7},
-                        List.of(data, bytes32(3, 1), updates, data, updates));
-                assertArrayEquals(scatterExpected, actual.get(0), carrier + " scatter");
-                assertArrayEquals(sliceExpected, actual.get(1), carrier + " slice update");
-                assertArrayEquals(cropExpected, actual.get(2), carrier + " crop update");
-            }
+            List<byte[]> actual = executeCustomBytes(
+                    library,
+                    program,
+                    values,
+                    new int[] {0, 1, 2, 4, 5},
+                    new int[] {3, 6, 7},
+                    List.of(data, bytes32(3, 1), updates, data, updates));
+            assertArrayEquals(scatterExpected, actual.get(0), carrier + " scatter");
+            assertArrayEquals(sliceExpected, actual.get(1), carrier + " slice update");
+            assertArrayEquals(cropExpected, actual.get(2), carrier + " crop update");
+
         }
     }
 
@@ -457,27 +444,25 @@ class MetalRemainingElementwiseNativeTest {
                     }
                 }
             }
-            for (NumericalProfile profile : NumericalProfile.values()) {
-                List<byte[]> actual = executeCustomBytes(
-                        library,
-                        profile,
-                        program,
-                        values,
-                        new int[] {0, 2, 4},
-                        new int[] {1, 3, 5},
-                        List.of(foldAxisInput, fold2dInput, fold3dInput));
-                assertArrayEquals(foldAxisExpected, actual.get(0), carrier + " fold axis");
-                assertArrayEquals(
-                        selectCarrierElements(
-                                fold2dInput, carrier.byteWidth(), fold2dSources),
-                        actual.get(1),
-                        carrier + " fold2d");
-                assertArrayEquals(
-                        selectCarrierElements(
-                                fold3dInput, carrier.byteWidth(), fold3dSources),
-                        actual.get(2),
-                        carrier + " fold3d");
-            }
+            List<byte[]> actual = executeCustomBytes(
+                    library,
+                    program,
+                    values,
+                    new int[] {0, 2, 4},
+                    new int[] {1, 3, 5},
+                    List.of(foldAxisInput, fold2dInput, fold3dInput));
+            assertArrayEquals(foldAxisExpected, actual.get(0), carrier + " fold axis");
+            assertArrayEquals(
+                    selectCarrierElements(
+                            fold2dInput, carrier.byteWidth(), fold2dSources),
+                    actual.get(1),
+                    carrier + " fold2d");
+            assertArrayEquals(
+                    selectCarrierElements(
+                            fold3dInput, carrier.byteWidth(), fold3dSources),
+                    actual.get(2),
+                    carrier + " fold3d");
+
         }
     }
 
@@ -503,7 +488,6 @@ class MetalRemainingElementwiseNativeTest {
       copyCarrierElement(input, 3, expected, 4, carrier.byteWidth());
       List<byte[]> actual = executeCustomBytes(
                             library,
-                            NumericalProfile.STRICT_IEEE,
                             program,
                             values,
                             new int[] {0},
@@ -519,7 +503,6 @@ class MetalRemainingElementwiseNativeTest {
         () ->
             executeCustomBytes(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 program,
                 boolValues,
                 new int[] {0
@@ -617,28 +600,26 @@ class MetalRemainingElementwiseNativeTest {
                 bytes32(0x8000_0001),
                 bytes32(210),
                 new byte[] {0});
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            for (int repetition = 0; repetition < 3; repetition++) {
-                List<byte[]> actual = executeCustomBytes(
-                        library,
-                        profile,
-                        program,
-                        values,
-                        new int[] {0, 2, 4, 7, 9},
-                        new int[] {1, 3, 5, 6, 8, 10, 11, 12},
-                        feeds);
-                for (int target = 0; target < expected.size(); target++) {
-                    assertArrayEquals(
-                            expected.get(target),
-                            actual.get(target),
-                            profile + " repetition " + repetition + " target " + target);
-                }
+        for (int repetition = 0; repetition < 3; repetition++) {
+            List<byte[]> actual = executeCustomBytes(
+                    library,
+                    program,
+                    values,
+                    new int[] {0, 2, 4, 7, 9},
+                    new int[] {1, 3, 5, 6, 8, 10, 11, 12},
+                    feeds);
+            for (int target = 0; target < expected.size(); target++) {
+                assertArrayEquals(
+                        expected.get(target),
+                        actual.get(target),
+                        " repetition " + repetition + " target " + target);
             }
         }
+
     }
 
     @Test
-    void task0059CopyRecipesPreserveEveryCarrierWidthUnderBothProfiles() {
+    void task0059CopyRecipesPreserveEveryCarrierWidth() {
         Path library = configuredLibrary();
         for (DataType carrier : DataType.values()) {
             byte[] source = task0059CarrierWords(carrier);
@@ -692,26 +673,24 @@ class MetalRemainingElementwiseNativeTest {
                     concatBytes(source, source),
                     concatBytes(source, source),
                     selectElements(source, width, 0, 1, 2, 0, 1, 2, 3, 4, 5, 3, 4, 5));
-            for (NumericalProfile profile : NumericalProfile.values()) {
-                List<byte[]> actual = executeCustomBytes(
-                        library,
-                        profile,
-                        program,
-                        values,
-                        new int[] {0, 1, 3},
-                        new int[] {2, 4, 5, 6, 7, 8},
-                        List.of(
-                                source,
-                                bytes32(2, 0, 1, 1),
-                                bytes64(1, 0)));
-                assertEquals(expected.size(), actual.size());
-                for (int index = 0; index < expected.size(); index++) {
-                    assertArrayEquals(
-                            expected.get(index),
-                            actual.get(index),
-                            carrier + " " + profile + " target " + index);
-                }
+            List<byte[]> actual = executeCustomBytes(
+                    library,
+                    program,
+                    values,
+                    new int[] {0, 1, 3},
+                    new int[] {2, 4, 5, 6, 7, 8},
+                    List.of(
+                            source,
+                            bytes32(2, 0, 1, 1),
+                            bytes64(1, 0)));
+            assertEquals(expected.size(), actual.size());
+            for (int index = 0; index < expected.size(); index++) {
+                assertArrayEquals(
+                        expected.get(index),
+                        actual.get(index),
+                        carrier + " target " + index);
             }
+
         }
     }
 
@@ -761,7 +740,6 @@ class MetalRemainingElementwiseNativeTest {
 
         List<byte[]> actual = executeCustomBytes(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 new MetalMpsGraphProgram(nodes),
                 values,
                 new int[] {0, 1, 2, 3, 4, 5, 6},
@@ -963,7 +941,6 @@ class MetalRemainingElementwiseNativeTest {
                 castNode(0, 6, DataType.BOOL)));
         List<byte[]> actual = executeCustomBytes(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 program,
                 List.of(
                         typed(DataType.BFLOAT16, count),
@@ -1027,7 +1004,6 @@ class MetalRemainingElementwiseNativeTest {
         }
         List<byte[]> actual = executeCustomBytes(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 new MetalMpsGraphProgram(List.of(
                         castNode(0, 2, DataType.INT64),
                         castNode(1, 3, DataType.INT32),
@@ -1060,7 +1036,6 @@ class MetalRemainingElementwiseNativeTest {
                 new int[] {-1, -1, 7, 0},
                 NonProductionStructuralFixture.executeCurrent(
                         library,
-                        NumericalProfile.STRICT_IEEE,
                         MetalMpsGraphProgram.Node.generic(
                                 MetalMpsGraphProgram.NodeKind.CAST,
                                 new int[] {0}, new int[] {1},
@@ -1070,7 +1045,6 @@ class MetalRemainingElementwiseNativeTest {
                         List.of(new int[] {-1, 7})));
         assertEquals(4, NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.GATHER_ELEMENTS,
                         new int[] {0, 1}, new int[] {2},
@@ -1082,7 +1056,6 @@ class MetalRemainingElementwiseNativeTest {
                 List.of(data, new int[] {2, 0, 1, 1})).length);
         assertEquals(6, NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.GATHER_ND,
                         new int[] {0, 1}, new int[] {2},
@@ -1094,7 +1067,6 @@ class MetalRemainingElementwiseNativeTest {
                 List.of(data, new int[] {1, 0})).length);
         assertEquals(6, NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.SCATTER_ND,
                         new int[] {0, 1, 2}, new int[] {3},
@@ -1108,7 +1080,6 @@ class MetalRemainingElementwiseNativeTest {
                 List.of(data, new int[] {1, 0}, bits(10, 20, 30, 40, 50, 60))).length);
         assertEquals(10, NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.PAD,
                         new int[] {0}, new int[] {1},
@@ -1118,7 +1089,6 @@ class MetalRemainingElementwiseNativeTest {
                 List.of(data)).length);
         assertEquals(6, NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.SLICE_UPDATE,
                         new int[] {0, 1}, new int[] {2},
@@ -1131,7 +1101,6 @@ class MetalRemainingElementwiseNativeTest {
                 List.of(data, bits(10, 20, 30, 40))).length);
         assertEquals(12, NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.CONCAT,
                         new int[] {0, 1}, new int[] {2},
@@ -1143,7 +1112,6 @@ class MetalRemainingElementwiseNativeTest {
                 List.of(data, data)).length);
         assertEquals(12, NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.STACK,
                         new int[] {0, 1}, new int[] {2},
@@ -1155,7 +1123,6 @@ class MetalRemainingElementwiseNativeTest {
                 List.of(data, data)).length);
         assertEquals(12, NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.TILE,
                         new int[] {0}, new int[] {1},
@@ -1165,7 +1132,6 @@ class MetalRemainingElementwiseNativeTest {
         assertEquals(
         4, NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.FOLD_AXIS,
                         new int[] {0}, new int[] {1},
@@ -1176,7 +1142,6 @@ class MetalRemainingElementwiseNativeTest {
         long[] window2d = {2, 2, 1, 1, 0, 0, 1, 1, 0};
         assertEquals(4, NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.UNFOLD2D,
                         new int[] {0}, new int[] {1},
@@ -1187,7 +1152,6 @@ class MetalRemainingElementwiseNativeTest {
                 List.of(image2d)).length);
         assertEquals(4, NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.FOLD2D,
                         new int[] {0}, new int[] {1},
@@ -1200,7 +1164,6 @@ class MetalRemainingElementwiseNativeTest {
         long[] window3d = {2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0};
         assertEquals(8, NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.UNFOLD3D,
                         new int[] {0}, new int[] {1},
@@ -1211,7 +1174,6 @@ class MetalRemainingElementwiseNativeTest {
                 List.of(image3d)).length);
         assertEquals(8, NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.FOLD3D,
                         new int[] {0}, new int[] {1},
@@ -1257,26 +1219,23 @@ class MetalRemainingElementwiseNativeTest {
                 typed(DataType.BOOL, 2, 2),
                 typed(DataType.BOOL, 2),
                 typed(DataType.BOOL, 2));
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            List<byte[]> exact = NonProductionStructuralFixture.executeDirectBytes(
-                    library,
-                    profile,
-                    exactProgram,
-                    exactValues,
-                    new int[] {0, 2},
-                    new int[] {1, 3, 4},
-                    List.of(bytes32(2, 3, -1, 5), new byte[] {1, 1, 0, 1}));
-            assertArrayEquals(bytes32(6, -5), exact.get(0));
-            assertArrayEquals(new byte[] {1, 0}, exact.get(1));
-            assertArrayEquals(new byte[] {1, 1}, exact.get(2));
-        }
+        List<byte[]> exact = NonProductionStructuralFixture.executeDirectBytes(
+                library,
+                exactProgram,
+                exactValues,
+                new int[] {0, 2},
+                new int[] {1, 3, 4},
+                List.of(bytes32(2, 3, -1, 5), new byte[] {1, 1, 0, 1}));
+        assertArrayEquals(bytes32(6, -5), exact.get(0));
+        assertArrayEquals(new byte[] {1, 0}, exact.get(1));
+        assertArrayEquals(new byte[] {1, 1}, exact.get(2));
+
 
         int[] input = bits(1.0f, 2.0f, 3.0f, 4.0f);
         List<MetalMpsGraphProgram.ValueDescriptor> values =
                 List.of(typed(DataType.FLOAT32, 2, 2), typed(DataType.FLOAT32, 2));
         int[] logSumExp = NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.ACCELERATOR,
                 MetalMpsGraphProgram.Node.reduction(
                         MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP,
                         0,
@@ -1293,7 +1252,6 @@ class MetalRemainingElementwiseNativeTest {
 
         int[] variance = NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.ACCELERATOR,
                 MetalMpsGraphProgram.Node.statisticalReduction(
                         MetalMpsGraphProgram.NodeKind.VARIANCE,
                         0,
@@ -1308,7 +1266,6 @@ class MetalRemainingElementwiseNativeTest {
 
         int[] deviation = NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.ACCELERATOR,
                 MetalMpsGraphProgram.Node.statisticalReduction(
                         MetalMpsGraphProgram.NodeKind.STANDARD_DEVIATION,
                         0,
@@ -1323,7 +1280,6 @@ class MetalRemainingElementwiseNativeTest {
 
         int[] l2 = NonProductionStructuralFixture.executeCurrent(
                 library,
-                NumericalProfile.ACCELERATOR,
                 MetalMpsGraphProgram.Node.reduction(
                         MetalMpsGraphProgram.NodeKind.L2_NORM,
                         0,
@@ -1340,7 +1296,6 @@ class MetalRemainingElementwiseNativeTest {
                 input,
                 NonProductionStructuralFixture.executeCurrent(
                         library,
-                        NumericalProfile.ACCELERATOR,
                         MetalMpsGraphProgram.Node.reduction(
                                 MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP,
                                 0,
@@ -1382,7 +1337,6 @@ class MetalRemainingElementwiseNativeTest {
                 bits(7),
                 executeCustom(
                         library,
-                        NumericalProfile.STRICT_IEEE,
                         new MetalMpsGraphProgram(List.of(fullRankSlice)),
                         singletonValues,
                         new int[] {0},
@@ -1406,7 +1360,6 @@ class MetalRemainingElementwiseNativeTest {
                 bits(0, 13),
                 executeCustom(
                         library,
-                        NumericalProfile.STRICT_IEEE,
                         new MetalMpsGraphProgram(List.of(positiveExtremeSlice)),
                         positiveExtremeValues,
                         new int[] {0},
@@ -1422,7 +1375,6 @@ class MetalRemainingElementwiseNativeTest {
                 IllegalArgumentException.class,
                 () -> executeCustom(
                         library,
-                        NumericalProfile.STRICT_IEEE,
                         new MetalMpsGraphProgram(List.of(negativeExtremeSlice)),
                         List.of(
                                 typed(DataType.FLOAT32, 2),
@@ -1444,7 +1396,6 @@ class MetalRemainingElementwiseNativeTest {
                 bits(1, 0, 0, 0),
                 executeCustom(
                         library,
-                        NumericalProfile.STRICT_IEEE,
                         new MetalMpsGraphProgram(List.of(
                                 MetalMpsGraphProgram.Node.generic(
                                         MetalMpsGraphProgram.NodeKind.UNFOLD2D,
@@ -1462,7 +1413,6 @@ class MetalRemainingElementwiseNativeTest {
                 bits(0, 7, 0, 0),
                 executeCustom(
                         library,
-                        NumericalProfile.STRICT_IEEE,
                         new MetalMpsGraphProgram(List.of(
                                 MetalMpsGraphProgram.Node.generic(
                                         MetalMpsGraphProgram.NodeKind.UNFOLD2D,
@@ -1482,7 +1432,6 @@ class MetalRemainingElementwiseNativeTest {
                 bits(7),
                 executeCustom(
                         library,
-                        NumericalProfile.STRICT_IEEE,
                         new MetalMpsGraphProgram(List.of(
                                 MetalMpsGraphProgram.Node.generic(
                                         MetalMpsGraphProgram.NodeKind.FOLD2D,
@@ -1503,7 +1452,6 @@ class MetalRemainingElementwiseNativeTest {
                 bits(1, 0, 0, 0),
                 executeCustom(
                         library,
-                        NumericalProfile.STRICT_IEEE,
                         new MetalMpsGraphProgram(List.of(
                                 MetalMpsGraphProgram.Node.generic(
                                         MetalMpsGraphProgram.NodeKind.FOLD2D,
@@ -1524,7 +1472,6 @@ class MetalRemainingElementwiseNativeTest {
                 bits(7),
                 executeCustom(
                         library,
-                        NumericalProfile.STRICT_IEEE,
                         new MetalMpsGraphProgram(List.of(
                                 MetalMpsGraphProgram.Node.generic(
                                         MetalMpsGraphProgram.NodeKind.FOLD3D,
@@ -1546,7 +1493,6 @@ class MetalRemainingElementwiseNativeTest {
                 bits(2),
                 executeCustom(
                         library,
-                        NumericalProfile.STRICT_IEEE,
                         new MetalMpsGraphProgram(List.of(
                                 MetalMpsGraphProgram.Node.generic(
                                         MetalMpsGraphProgram.NodeKind.FOLD3D,
@@ -1570,19 +1516,18 @@ class MetalRemainingElementwiseNativeTest {
     void directMpsGraphCandidatesRemainForceableForAllFourExactRawOperations() {
         Path library = configuredLibrary();
         int[] ordinary = bits(-2.5f, -0.0f, 0.0f, 1.25f, 4.0f);
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            for (MetalMpsGraphProgram.NodeKind kind : List.of(
-                    MetalMpsGraphProgram.NodeKind.FLOOR,
-                    MetalMpsGraphProgram.NodeKind.CEIL,
-                    MetalMpsGraphProgram.NodeKind.SIGN,
-                    MetalMpsGraphProgram.NodeKind.RELU)) {
-                int[] output = NonProductionStructuralFixture.executeCurrent(
-                        library, profile, unary(kind, 0, 1),
-                        List.of(value(ordinary.length), value(ordinary.length)),
-                        List.of(ordinary));
-                assertEquals(ordinary.length, output.length, kind.name());
-            }
+        for (MetalMpsGraphProgram.NodeKind kind : List.of(
+                MetalMpsGraphProgram.NodeKind.FLOOR,
+                MetalMpsGraphProgram.NodeKind.CEIL,
+                MetalMpsGraphProgram.NodeKind.SIGN,
+                MetalMpsGraphProgram.NodeKind.RELU)) {
+            int[] output = NonProductionStructuralFixture.executeCurrent(
+                    library, unary(kind, 0, 1),
+                    List.of(value(ordinary.length), value(ordinary.length)),
+                    List.of(ordinary));
+            assertEquals(ordinary.length, output.length, kind.name());
         }
+
     }
 
     @Test
@@ -1593,15 +1538,13 @@ class MetalRemainingElementwiseNativeTest {
         int outputWords = input.length;
 
         int[] tensorPow = NonProductionStructuralFixture.executeCurrent(
-                library, NumericalProfile.ACCELERATOR,
-                binary(MetalMpsGraphProgram.NodeKind.TENSOR_POW, 0, 1, 2),
+                library, binary(MetalMpsGraphProgram.NodeKind.TENSOR_POW, 0, 1, 2),
                 List.of(value(outputWords), value(outputWords), value(outputWords)),
                 List.of(input, exponent));
         assertEquals(outputWords, tensorPow.length);
 
         int[] scalarPow = NonProductionStructuralFixture.executeCurrent(
-                library, NumericalProfile.ACCELERATOR,
-                scalar(
+                library, scalar(
                         MetalMpsGraphProgram.NodeKind.SCALAR_POW,
                         0,
                         1,
@@ -1621,7 +1564,7 @@ class MetalRemainingElementwiseNativeTest {
                 MetalMpsGraphProgram.NodeKind.GELU_TANH_APPROXIMATION,
                 MetalMpsGraphProgram.NodeKind.SILU)) {
             int[] output = NonProductionStructuralFixture.executeCurrent(
-                    library, NumericalProfile.ACCELERATOR, unary(kind, 0, 1),
+                    library, unary(kind, 0, 1),
                     List.of(value(outputWords), value(outputWords)), List.of(input));
             assertEquals(outputWords, output.length, kind.name());
         }
@@ -1636,7 +1579,7 @@ class MetalRemainingElementwiseNativeTest {
                 unary(MetalMpsGraphProgram.NodeKind.ABS, 1, 2),
                 unary(MetalMpsGraphProgram.NodeKind.SIGN, 2, 3)));
         List<int[]> actual = executeCustom(
-                library, NumericalProfile.STRICT_IEEE, program,
+                library, program,
                 List.of(value(4), value(4), value(4), value(4)),
                 new int[] {0}, new int[] {1, 2, 3}, List.of(input));
         assertArrayEquals(bits(-2.0f, -1.0f, 0.0f, 1.0f), actual.get(0));
@@ -1683,15 +1626,13 @@ class MetalRemainingElementwiseNativeTest {
             int[] targets) throws NoSuchAlgorithmException {
         try (Arena arena = Arena.ofConfined()) {
             byte[] image = program.encodeNative(
-                    arena, NumericalProfile.STRICT_IEEE,
-                    values, feeds, targets, MetalPreparedRoute.MPSGRAPH).toArray(JAVA_BYTE);
+                    arena, values, feeds, targets, MetalPreparedRoute.MPSGRAPH).toArray(JAVA_BYTE);
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(image));
         }
     }
 
     private static List<int[]> executeCustom(
             Path library,
-            NumericalProfile profile,
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] feeds,
@@ -1704,8 +1645,8 @@ class MetalRemainingElementwiseNativeTest {
         try {
             context = api.createContext();
             MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
-                    profile, program, values, feeds, targets, MetalPreparedRoute.CUSTOM_PROGRAM);
-            executable = api.createProgramExecutable(context, profile, values, program, feeds, targets,
+                    program, values, feeds, targets, MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context, values, program, feeds, targets,
             MetalPreparedRoute.CUSTOM_PROGRAM, fusion);
             int[] materialized = fusion.materializedProgramValueIndices();
             int[] programToSlot = fusion.programToMaterializedSlot();
@@ -1745,7 +1686,6 @@ class MetalRemainingElementwiseNativeTest {
 
     private static List<byte[]> executeCustomBytes(
             Path library,
-            NumericalProfile profile,
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] feeds,
@@ -1753,7 +1693,6 @@ class MetalRemainingElementwiseNativeTest {
             List<byte[]> feedBytes) {
         return executeBytes(
                 library,
-                profile,
                 program,
                 values,
                 feeds,
@@ -1764,7 +1703,6 @@ class MetalRemainingElementwiseNativeTest {
 
     private static List<byte[]> executeBytes(
             Path library,
-            NumericalProfile profile,
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] feeds,
@@ -1778,9 +1716,9 @@ class MetalRemainingElementwiseNativeTest {
         try {
             context = api.createContext();
             MetalPointwiseFusionPlan fusion = route == MetalPreparedRoute.CUSTOM_PROGRAM
-                    ? MetalPointwiseFusionPlanner.plan(profile, program, values, feeds, targets, route)
+                    ? MetalPointwiseFusionPlanner.plan(program, values, feeds, targets, route)
                     : null;
-            executable = api.createProgramExecutable(context, profile, values, program, feeds, targets, route, fusion);
+            executable = api.createProgramExecutable(context, values, program, feeds, targets, route, fusion);
             int[] materialized;
             int[] programToSlot;
             if (fusion != null) {
@@ -1830,7 +1768,6 @@ class MetalRemainingElementwiseNativeTest {
     private static final class NonProductionStructuralFixture {
         static List<byte[]> executeDirectBytes(
                 Path library,
-                NumericalProfile profile,
                 MetalMpsGraphProgram program,
                 List<MetalMpsGraphProgram.ValueDescriptor> values,
                 int[] feeds,
@@ -1844,7 +1781,6 @@ class MetalRemainingElementwiseNativeTest {
             try {
                 context = api.createContext();
                 executable = api.createProgramExecutable(context,
-                profile,
                 values,
                 program,
                 feeds,
@@ -1895,7 +1831,6 @@ class MetalRemainingElementwiseNativeTest {
 
         static int[] executeCurrent(
                 Path library,
-                NumericalProfile profile,
                 MetalMpsGraphProgram.Node node,
                 List<MetalMpsGraphProgram.ValueDescriptor> values,
                 List<int[]> feedWords) {
@@ -1913,7 +1848,7 @@ class MetalRemainingElementwiseNativeTest {
             node.kind().isTask0066Selected()
                 ? MetalPreparedRoute.CUSTOM_PROGRAM
                 : MetalPreparedRoute.MPSGRAPH;
-                executable = api.createProgramExecutable(context, profile, values, program, feeds, new int[] {target}, route);
+                executable = api.createProgramExecutable(context, values, program, feeds, new int[] {target}, route);
                 for (int[] words : feedWords) {
                     MetalNativeApi.Handle input = api.createBuffer(
                             context, Math.multiplyExact((long) words.length, Integer.BYTES));
@@ -1972,7 +1907,6 @@ class MetalRemainingElementwiseNativeTest {
     var program = new MetalMpsGraphProgram(List.of(castNode(0, 1, target)));
     return executeCustomBytes(
             library,
-            NumericalProfile.STRICT_IEEE,
             program,
             List.of(typed(source, count), typed(target, count)),
             new int[] {0},

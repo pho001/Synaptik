@@ -22,7 +22,6 @@ import io.github.pho001.synaptik.compiler.GraphCompilationPort;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
@@ -161,7 +160,7 @@ class MetalNegPreparedExecutionTest {
         try {
             SingleNegRoute heuristic = singleNegRoute(
                     context, Shape.of(4), Optional.empty());
-            PrepareContext<MetalNegAnalysisInputs> source = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, heuristic.analysis().plan().partitionDag(), List.of(
+            PrepareContext<MetalNegAnalysisInputs> source = new PrepareContext<>(heuristic.analysis().plan().partitionDag(), List.of(
                     new GraphValue(heuristic.feed(), descriptor(Shape.of(4))),
                     new GraphValue(heuristic.target(), descriptor(Shape.of(4)))), List.of(
                     requirement(heuristic.feed(), descriptor(Shape.of(4)),
@@ -173,7 +172,7 @@ class MetalNegPreparedExecutionTest {
             var handoff = generator.presentHandoff(
                     heuristic.partition(), batch, MetalNegTuningBatch.Candidate.MPSGRAPH);
             BackendPartitionAnalysis<MetalNegPreparationPlan> selected =
-                    new MetalNegPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, source.partitionDag(), source.values(), source.memoryRequirements(), source.constants(), new MetalNegAnalysisInputs(context, Optional.of(handoff))));
+                    new MetalNegPartitionPreparer().analyze(new PrepareContext<>(source.partitionDag(), source.values(), source.memoryRequirements(), source.constants(), new MetalNegAnalysisInputs(context, Optional.of(handoff))));
             assertEquals(MetalPreparedRoute.MPSGRAPH, selected.plan().route());
             assertEquals(3, selected.requirements().size());
             assertTrue(selected.plan().addressWorkspace().isPresent());
@@ -196,7 +195,7 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
-    void forcedSingletonRoutesIndependentlySatisfyTheStrictModelNegContractAndStayFixed() {
+    void forcedSingletonRoutesIndependentlySatisfyTheExactModelNegContractAndStayFixed() {
         RecordingNativeApi api = new RecordingNativeApi();
         api.emulateSingletonMpsGraphNeg = true;
         MetalDeviceContext context = MetalDeviceContext.open(api);
@@ -1735,17 +1734,12 @@ class MetalNegPreparedExecutionTest {
         try {
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
                     new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
-                            NumericalProfile.ACCELERATOR,
                             new PartitionDag(fixture.partition(), fixture.nodes()),
                             fixture.values(),
                             fixture.requirements(),
                             Map.of(fixture.v1(), ScalarValue.float32(-0.5f)),
                             new MetalNegAnalysisInputs(context)));
-            MetalNegPreparationPlan plan = analysis.plan();
-            assertEquals(
-                    NumericalProfile.ACCELERATOR,
-                    plan.numericalProfile());
-            assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
+            MetalNegPreparationPlan plan = analysis.plan();assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
             assertEquals(List.of(
                     MetalMpsGraphProgram.NodeKind.ADD,
                     MetalMpsGraphProgram.NodeKind.SUB,
@@ -1773,9 +1767,7 @@ class MetalNegPreparedExecutionTest {
             try {
                 assertEquals(1, api.executableCreates.get());
                 assertArrayEquals(
-                        plan.graphProgram().encodedProgramImage(
-                                plan.numericalProfile(),
-                                plan.programValueDescriptors(),
+                        plan.graphProgram().encodedProgramImage(plan.programValueDescriptors(),
                                 plan.feedValueIndices(),
                                 plan.targetValueIndices()),
                         api.createdProgramImage);
@@ -1792,10 +1784,7 @@ class MetalNegPreparedExecutionTest {
         Fixture fixture = matmulFixture();
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
-        try {
-            assertThrows(IllegalArgumentException.class,
-                    () -> analyze(fixture, context, NumericalProfile.STRICT_IEEE));
-            assertEquals(0, api.executableCreates.get());
+        try {assertEquals(0, api.executableCreates.get());
 
             TensorDescriptor transposedLeft = descriptorFor(fixture, fixture.v2());
             Fixture boundaryTranspose = withRequirement(
@@ -1807,11 +1796,11 @@ class MetalNegPreparedExecutionTest {
                             List.of(fixture.partition()),
                             true));
             BackendPartitionAnalysis<MetalNegPreparationPlan> publishedTranspose =
-                    analyze(boundaryTranspose, context, NumericalProfile.ACCELERATOR);
+                    analyze(boundaryTranspose, context);
             assertTrue(publishedTranspose.plan().targetValueIds().contains(fixture.v2()));
 
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
-                    analyze(fixture, context, NumericalProfile.ACCELERATOR);
+                    analyze(fixture, context);
             MetalNegPreparationPlan plan = analysis.plan();
             assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, plan.route());
             assertEquals(List.of(
@@ -1858,9 +1847,7 @@ class MetalNegPreparedExecutionTest {
                 assertEquals(1, api.executableCreates.get());
                 assertEquals(2, api.runCalls.get());
                 assertArrayEquals(
-                        plan.graphProgram().encodedProgramImage(
-                                plan.numericalProfile(),
-                                plan.programValueDescriptors(),
+                        plan.graphProgram().encodedProgramImage(plan.programValueDescriptors(),
                                 plan.feedValueIndices(),
                                 plan.targetValueIndices(),
                                 plan.route()),
@@ -1876,11 +1863,8 @@ class MetalNegPreparedExecutionTest {
     void generalGeometryMatmulSelectsCustomProgramBeforeResourceDeclaration() {
         Fixture fixture = batchedMatmulFixture();
         RecordingNativeApi api = new RecordingNativeApi();
-        try (MetalDeviceContext context = MetalDeviceContext.open(api)) {
-            assertThrows(IllegalArgumentException.class,
-                    () -> analyze(fixture, context, NumericalProfile.STRICT_IEEE));
-            BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
-                    analyze(fixture, context, NumericalProfile.ACCELERATOR);
+        try (MetalDeviceContext context = MetalDeviceContext.open(api)) {BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
+                    analyze(fixture, context);
             MetalNegPreparationPlan plan = analysis.plan();
             assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, plan.route());
             assertEquals(
@@ -1908,16 +1892,11 @@ class MetalNegPreparedExecutionTest {
         Fixture fixture = reductionFixture();
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
-        try {
-            assertThrows(IllegalArgumentException.class,
-                    () -> analyze(fixture, context, NumericalProfile.STRICT_IEEE));
-            assertEquals(0, api.executableCreates.get());
+        try {assertEquals(0, api.executableCreates.get());
 
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
-                    analyze(fixture, context, NumericalProfile.ACCELERATOR);
-            MetalNegPreparationPlan plan = analysis.plan();
-            assertEquals(NumericalProfile.ACCELERATOR, plan.numericalProfile());
-            assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
+                    analyze(fixture, context);
+            MetalNegPreparationPlan plan = analysis.plan();assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
             assertEquals(List.of(
                     MetalMpsGraphProgram.NodeKind.MEAN,
                     MetalMpsGraphProgram.NodeKind.ABS,
@@ -1969,9 +1948,7 @@ class MetalNegPreparedExecutionTest {
                 assertEquals(1, api.executableCreates.get());
                 assertEquals(2, api.runCalls.get());
                 assertArrayEquals(
-                        plan.graphProgram().encodedProgramImage(
-                                plan.numericalProfile(),
-                                plan.programValueDescriptors(),
+                        plan.graphProgram().encodedProgramImage(plan.programValueDescriptors(),
                                 plan.feedValueIndices(),
                                 plan.targetValueIndices()),
                         api.createdProgramImage);
@@ -1988,13 +1965,10 @@ class MetalNegPreparedExecutionTest {
         Fixture fixture = mseFixture();
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
-        try {
-            assertThrows(IllegalArgumentException.class,
-                    () -> analyze(fixture, context, NumericalProfile.STRICT_IEEE));
-            assertEquals(0, api.executableCreates.get());
+        try {assertEquals(0, api.executableCreates.get());
 
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
-                    analyze(fixture, context, NumericalProfile.ACCELERATOR);
+                    analyze(fixture, context);
             MetalNegPreparationPlan plan = analysis.plan();
             assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
             assertEquals(
@@ -2902,7 +2876,7 @@ class MetalNegPreparedExecutionTest {
                     MetalCapabilityProvider.METAL_BACKEND_ID,
                     Map.of(new BackendDeviceId(MetalCapabilityProvider.METAL_BACKEND_ID, "default"),
                             DeviceClass.ACCELERATOR));
-            var artifacts = GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(shared, chain, independent), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(new MetalCapabilityProvider()), List.of(availability));
+            var artifacts = GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, List.of(shared, chain, independent), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(new MetalCapabilityProvider()), List.of(availability));
             assertEquals(1, artifacts.partitions().size());
 
             var analyzed = new AtomicReference<MetalNegPreparationPlan>();
@@ -3053,9 +3027,7 @@ class MetalNegPreparedExecutionTest {
             }
             assertEquals(1, api.executableCreates.get());
             assertArrayEquals(
-                    plan.graphProgram().encodedProgramImage(
-                            plan.numericalProfile(),
-                            plan.programValueDescriptors(),
+                    plan.graphProgram().encodedProgramImage(plan.programValueDescriptors(),
                             plan.feedValueIndices(),
                             plan.targetValueIndices(),
                             plan.route()),
@@ -3269,7 +3241,7 @@ class MetalNegPreparedExecutionTest {
             PlannedPartition partition = new PlannedPartition(
                     MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
-                    new MetalNegPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new PartitionDag(partition, List.of(node)), List.of(
+                    new MetalNegPartitionPreparer().analyze(new PrepareContext<>(new PartitionDag(partition, List.of(node)), List.of(
                             new GraphValue(feed, inputDescriptor),
                             new GraphValue(target, outputDescriptor)), List.of(
                             requirement(
@@ -3368,7 +3340,6 @@ class MetalNegPreparedExecutionTest {
                         MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
                 BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
                         new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
-                                NumericalProfile.STRICT_IEEE,
                                 new PartitionDag(partition, List.of(node)),
                                 List.of(
                                         new GraphValue(feed, inputDescriptor),
@@ -3507,7 +3478,6 @@ class MetalNegPreparedExecutionTest {
           new MetalNegPartitionPreparer()
               .analyze(
                   new PrepareContext<>(
-                      NumericalProfile.STRICT_IEEE,
                       new PartitionDag(partition, List.of(expand, crop)),
                       List.of(
                           new GraphValue(feed, feedDescriptor),
@@ -3649,7 +3619,7 @@ class MetalNegPreparedExecutionTest {
                         Float.intBitsToFloat(splatBits[index])));
             }
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
-                    new MetalNegPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new PartitionDag(partition, nodes), values, requirements, constants, new MetalNegAnalysisInputs(context)));
+                    new MetalNegPartitionPreparer().analyze(new PrepareContext<>(new PartitionDag(partition, nodes), values, requirements, constants, new MetalNegAnalysisInputs(context)));
             MetalNegPreparationPlan plan = analysis.plan();
             assertEquals(concat(List.of(caller), splats), plan.feedValueIds());
             int quietNanInput =
@@ -3768,18 +3738,7 @@ class MetalNegPreparedExecutionTest {
 
     private static BackendPartitionAnalysis<MetalNegPreparationPlan> analyze(
             Fixture fixture, MetalDeviceContext context) {
-        return analyze(
-                fixture,
-                context,
-                NumericalProfile.STRICT_IEEE);
-    }
-
-    private static BackendPartitionAnalysis<MetalNegPreparationPlan> analyze(
-            Fixture fixture,
-            MetalDeviceContext context,
-            NumericalProfile numericalProfile) {
         return new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
-                numericalProfile,
                 new PartitionDag(fixture.partition, fixture.nodes),
                 fixture.values,
                 fixture.requirements,
@@ -3788,7 +3747,7 @@ class MetalNegPreparedExecutionTest {
     }
     private static BackendPartitionAnalysis<MetalNegPreparationPlan> analyze(
             AffineFixture fixture, MetalDeviceContext context) {
-        return new MetalNegPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new PartitionDag(fixture.partition(), fixture.nodes()), fixture.values(), fixture.requirements(), Map.of(), new MetalNegAnalysisInputs(context)));
+        return new MetalNegPartitionPreparer().analyze(new PrepareContext<>(new PartitionDag(fixture.partition(), fixture.nodes()), fixture.values(), fixture.requirements(), Map.of(), new MetalNegAnalysisInputs(context)));
     }
 
     private static void assertTypedNode(
@@ -4369,7 +4328,6 @@ class MetalNegPreparedExecutionTest {
                         Optional.of(partition), List.of(), true));
         BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
                 new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
-                        NumericalProfile.STRICT_IEEE,
                         new PartitionDag(partition, nodes),
                         values,
                         requirements,
@@ -4413,7 +4371,6 @@ class MetalNegPreparedExecutionTest {
                         Optional.of(partition), List.of(), true));
         BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
                 new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
-                        NumericalProfile.STRICT_IEEE,
                         new PartitionDag(partition, List.of(node)),
                         values,
                         requirements,
@@ -4441,7 +4398,6 @@ class MetalNegPreparedExecutionTest {
         PlannedPartition partition = new PlannedPartition(
                 MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
         return new PrepareContext<>(
-                NumericalProfile.ACCELERATOR,
                 new PartitionDag(partition, List.of(node)),
                 List.of(
                         new GraphValue(left, descriptor),
@@ -4496,7 +4452,6 @@ class MetalNegPreparedExecutionTest {
                 .<Map<ValueId, ScalarValue>>map(value -> Map.of(feed, value))
                 .orElseGet(Map::of);
         var prepareContext = new PrepareContext<>(
-                NumericalProfile.STRICT_IEEE,
                 new PartitionDag(partition, List.of(node)),
                 values,
                 requirements,
@@ -4539,7 +4494,6 @@ class MetalNegPreparedExecutionTest {
             List<PlannedPartition> consumers,
             MetalTraceProducer traceProducer) {
         return new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
-                NumericalProfile.STRICT_IEEE,
                 new PartitionDag(partition, List.of(node)),
                 List.of(new GraphValue(feed, descriptor), new GraphValue(target, descriptor)),
                 List.of(

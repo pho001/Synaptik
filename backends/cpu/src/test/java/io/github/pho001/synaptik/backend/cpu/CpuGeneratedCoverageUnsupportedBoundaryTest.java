@@ -32,7 +32,7 @@ public class CpuGeneratedCoverageUnsupportedBoundaryTest {
         CpuCapabilityProvider provider = new CpuCapabilityProvider();
         for (var fixture : rejectedFixtures().subList(1, 3)) assertFalse(provider.supports(fixture.query()), fixture.id());
         Shape shape = Shape.of(2, 3); TensorDescriptor f32 = descriptor(DataType.FLOAT32, shape);
-        assertTrue(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE), List.of(f32, f32), List.of(f32))), "control occurrence must remain supported");
+        assertTrue(provider.supports(new OperationCapabilityQuery(new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE), List.of(f32, f32), List.of(f32))), "control occurrence must remain supported");
     }
 
     /**
@@ -48,9 +48,9 @@ public class CpuGeneratedCoverageUnsupportedBoundaryTest {
         TensorDescriptor f32_2x3 = descriptor(DataType.FLOAT32, Shape.of(2, 3));
         TensorDescriptor int32_2 = descriptor(DataType.INT32, Shape.of(2));
         TensorDescriptor bool_2 = descriptor(DataType.BOOL, Shape.of(2));
-        assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(1)), List.of(f32_2x3, descriptor(DataType.FLOAT32, Shape.of(2))), List.of(descriptor(DataType.FLOAT32, Shape.of(2, 2))))), "INVALID_INDEX_ROLE");
-        assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(3)), List.of(int32_2), List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3))))), "INVALID_OUTPUT_ROLE");
-        assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(0)), List.of(bool_2, int32_2, bool_2), List.of(bool_2))), "BOOL_INAPPLICABLE");
+        assertFalse(provider.supports(new OperationCapabilityQuery(new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(1)), List.of(f32_2x3, descriptor(DataType.FLOAT32, Shape.of(2))), List.of(descriptor(DataType.FLOAT32, Shape.of(2, 2))))), "INVALID_INDEX_ROLE");
+        assertFalse(provider.supports(new OperationCapabilityQuery(new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(3)), List.of(int32_2), List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3))))), "INVALID_OUTPUT_ROLE");
+        assertFalse(provider.supports(new OperationCapabilityQuery(new Operation(AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(0)), List.of(bool_2, int32_2, bool_2), List.of(bool_2))), "BOOL_INAPPLICABLE");
     }
 
     /** Exact independently-owned provider rejections, exposed to the inventory checkpoint. */
@@ -71,7 +71,7 @@ public class CpuGeneratedCoverageUnsupportedBoundaryTest {
 
     public record RejectedFixture(String id, Operation operation, List<TensorDescriptor> inputs,
             List<TensorDescriptor> outputs, String reason) {
-        public OperationCapabilityQuery query() { return new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation, inputs, outputs); }
+        public OperationCapabilityQuery query() { return new OperationCapabilityQuery(operation, inputs, outputs); }
     }
 
     private static TensorDescriptor descriptor(DataType type, Shape shape) {

@@ -136,7 +136,7 @@ final class CpuScalarImmediateClampMatrixOracle {
                 ? new Operation(fixture.operation(), new ClampRangeAttrs(
                         fixture.immediate(), fixture.upper()))
                 : new Operation(fixture.operation(), new ScalarValueAttrs(fixture.immediate()));
-        return new CpuCapabilityProvider().supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation, List.of(input), List.of(output)));
+        return new CpuCapabilityProvider().supports(new OperationCapabilityQuery(operation, List.of(input), List.of(output)));
     }
 
     /**
@@ -376,7 +376,7 @@ final class CpuScalarImmediateClampMatrixOracle {
         var node = new CompiledNode(nodeId, operation, List.of(input), List.of(output));
         var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID, List.of(nodeId));
         var config = new CpuPartitionAnalysisInputs.PortableExecutionConfig(fixture.preference(), fixture.parallelism(), fixture.parallelism(), 1);
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), List.of(new GraphValue(input, descriptor), new GraphValue(output, descriptor)), List.of(new LogicalMemoryRequirement(input, descriptor, Optional.empty(), List.of(partition), false),
+        return new PrepareContext<>(partition, List.of(node), List.of(new GraphValue(input, descriptor), new GraphValue(output, descriptor)), List.of(new LogicalMemoryRequirement(input, descriptor, Optional.empty(), List.of(partition), false),
                 new LogicalMemoryRequirement(output, descriptor, Optional.of(partition), List.of(), true)), java.util.Map.of(), new CpuPartitionAnalysisInputs(true, fixture.carriers(), config));
     }
     /** Exact source-derived preparation context, exposed only to the matrix carrier execution test. */
@@ -406,7 +406,7 @@ final class CpuScalarImmediateClampMatrixOracle {
                 Optional.of(inputLayout), false);
         var outputDescriptor = new TensorDescriptor(fixture.type(), outputShape,
                 Optional.of(outputLayout), false);
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), List.of(new GraphValue(input, inputDescriptor), new GraphValue(output, outputDescriptor)), List.of(new LogicalMemoryRequirement(input, inputDescriptor, Optional.empty(), List.of(partition), false),
+        return new PrepareContext<>(partition, List.of(node), List.of(new GraphValue(input, inputDescriptor), new GraphValue(output, outputDescriptor)), List.of(new LogicalMemoryRequirement(input, inputDescriptor, Optional.empty(), List.of(partition), false),
                 new LogicalMemoryRequirement(output, outputDescriptor, Optional.of(partition), List.of(), true)), java.util.Map.of(), new CpuPartitionAnalysisInputs(true, fixture.carriers(), config,
                 materializationPolicy));
     }

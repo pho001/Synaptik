@@ -102,7 +102,7 @@ class CpuPool3dGeneratedKernelTest {
                 new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE,regime,5,roles,
                         regime==CpuAccessPlan.Regime.DENSE_LINEAR?5:0));
         var ir=pool.encodedKernelIr();
-        var specialization=new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,List.of(type,type),
+        var specialization=new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,List.of(type,type),
         List.of(inputCarrier,outputCarrier),0,-1,List.of(),false,56);
         var generator=new CpuClassFileKernelGenerator();
         byte[] bytes=generator.generateClassBytes(specialization,ir);

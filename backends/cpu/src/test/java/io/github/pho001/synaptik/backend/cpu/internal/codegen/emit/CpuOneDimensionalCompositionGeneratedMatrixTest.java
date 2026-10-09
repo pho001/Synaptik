@@ -150,7 +150,7 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
         int generated = 0;
         for (Request request : Request.values()) {
             var context = configure(base, request);
-            assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, context.nodes().get(2).operation(), descriptors(context, context.nodes().get(2).inputs()), descriptors(context, context.nodes().get(2).outputs()))), id + "/mapped Conv2d");
+            assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(context.nodes().get(2).operation(), descriptors(context, context.nodes().get(2).inputs()), descriptors(context, context.nodes().get(2).outputs()))), id + "/mapped Conv2d");
             var plan = new CpuPartitionPreparer().analyze(context).plan();
             assertEquals(1, plan.units().size(), id + '/' + request + " must remain one owned unit");
             var unit = plan.units().getFirst();
@@ -183,7 +183,7 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
                 assertPoolRejection(id, request, context);
                 continue;
             }
-            assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, context.nodes().get(1).operation(), descriptors(context, context.nodes().get(1).inputs()), descriptors(context, context.nodes().get(1).outputs()))), id + "/mapped Pool2d");
+            assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(context.nodes().get(1).operation(), descriptors(context, context.nodes().get(1).inputs()), descriptors(context, context.nodes().get(1).outputs()))), id + "/mapped Pool2d");
             var plan = assertDoesNotThrow(() -> new CpuPartitionPreparer().analyze(context).plan(),
                     id + '/' + request + " admitted pool request must prepare");
             assertEquals(1, plan.units().size(), id + '/' + request);
@@ -216,7 +216,7 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         var provider = new CpuCapabilityProvider();
         var pool = context.nodes().get(1);
-        assertTrue(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, pool.operation(), descriptors(context, pool.inputs()), descriptors(context, pool.outputs()))),
+        assertTrue(provider.supports(new OperationCapabilityQuery(pool.operation(), descriptors(context, pool.inputs()), descriptors(context, pool.outputs()))),
                 id + '/' + request + " direct Pool2d capability is not composition admission");
         var failure = assertThrows(IllegalArgumentException.class,
                 () -> new CpuPartitionPreparer().analyze(context), id + '/' + request);
@@ -234,7 +234,7 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
 
     private static void assertCapability(PrepareContext<CpuPartitionAnalysisInputs> context, String id) {
         var provider = new CpuCapabilityProvider();
-        for (CompiledNode node : context.nodes()) assertTrue(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, node.operation(), descriptors(context, node.inputs()), descriptors(context, node.outputs()))), id + '/' + node.id());
+        for (CompiledNode node : context.nodes()) assertTrue(provider.supports(new OperationCapabilityQuery(node.operation(), descriptors(context, node.inputs()), descriptors(context, node.outputs()))), id + '/' + node.id());
     }
 
     private static List<TensorDescriptor> descriptors(PrepareContext<?> context, List<ValueId> ids) {
@@ -265,7 +265,7 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
     private static PrepareContext<CpuPartitionAnalysisInputs> withRequest(
             PrepareContext<CpuPartitionAnalysisInputs> direct,
             PrepareContext<CpuPartitionAnalysisInputs> source) {
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, direct.partition(), direct.nodes(), direct.values(), direct.memoryRequirements(), direct.constants(), source.backendInputs());
+        return new PrepareContext<>(direct.partition(), direct.nodes(), direct.values(), direct.memoryRequirements(), direct.constants(), source.backendInputs());
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> configure(PrepareContext<CpuPartitionAnalysisInputs> base, Request request) {
@@ -283,7 +283,7 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
         for (int i = 0; i < values.size(); i++) if (memory.get(i).producerPartition().isEmpty()
                 || memory.get(i).graphOutput()) carriers.add(request.segment || request.mixed && i % 2 == 1
                 ? CarrierAccess.MEMORY_SEGMENT : CpuGeneratedDirectEvidenceClosureTest.heapCarrier(values.get(i).descriptor().dataType()));
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), values, memory, Map.of(), new CpuPartitionAnalysisInputs(false, carriers,
+        return new PrepareContext<>(base.partition(), base.nodes(), values, memory, Map.of(), new CpuPartitionAnalysisInputs(false, carriers,
                 request.execution, request.materialization ? new CpuPartitionAnalysisInputs.MaterializationPolicy(true, 0, 1, 20, 1, 3, 1_000_000, 1, 1) : CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED));
     }
 
@@ -325,13 +325,13 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
         int expandedWeightIndex = expandedInputIndex + 1;
         for (int i = 0; i < shapes.size(); i++) { ValueId id = ids.get(i); DataType type = convolution ? (i == 0 || i == expandedInputIndex ? types.get(0) : i == 1 || i == expandedWeightIndex ? types.get(1) : i == biasIndex ? types.get(2) : yType(types)) : types.getFirst();
             var descriptor = new TensorDescriptor(type, shapes.get(i), Optional.of(LayoutDescriptor.contiguous(shapes.get(i))), false); values.add(new GraphValue(id, descriptor)); boolean produced = nodes.stream().anyMatch(n -> n.outputs().contains(id)); memory.add(new LogicalMemoryRequirement(id, descriptor, produced ? Optional.of(partition) : Optional.empty(), i == shapes.size() - 1 ? List.of() : List.of(partition), i == shapes.size() - 1)); }
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 
     private static DataType yType(List<DataType> types) { DataType result = types.get(0); for (int i = 1; i < types.size(); i++) if (types.get(i) != null) result = io.github.pho001.synaptik.model.datatype.DataTypePromotion.promoteFloating(result, types.get(i)); return result; }
     private static void assertActualConvTopology(PrepareContext<?> c, String id) { assertEquals(List.of(AxisTransformKind.EXPAND_DIMS, AxisTransformKind.EXPAND_DIMS, Conv2dKind.CONV2D, AxisTransformKind.SQUEEZE), c.nodes().stream().map(n -> n.operation().kind()).toList(), id); }
     private static void assertActualPoolTopology(PrepareContext<?> c, String id) { assertEquals(List.of(AxisTransformKind.EXPAND_DIMS, c.nodes().get(1).operation().kind(), AxisTransformKind.SQUEEZE), c.nodes().stream().map(n -> n.operation().kind()).toList(), id); }
-    private static PrepareContext<CpuPartitionAnalysisInputs> replace(PrepareContext<CpuPartitionAnalysisInputs> base, int index, Operation operation, boolean publish) { var nodes = new ArrayList<>(base.nodes()); if (index >= 0) { var old = nodes.get(index); nodes.set(index, new CompiledNode(old.id(), operation, old.inputs(), old.outputs())); } var memory = new ArrayList<LogicalMemoryRequirement>(); for (var value : base.memoryRequirements()) memory.add(new LogicalMemoryRequirement(value.valueId(), value.descriptor(), value.producerPartition(), value.consumerPartitions(), publish && value.valueId().equals(new ValueId(2)) || value.graphOutput())); return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), nodes, base.values(), memory, Map.of(), base.backendInputs()); }
+    private static PrepareContext<CpuPartitionAnalysisInputs> replace(PrepareContext<CpuPartitionAnalysisInputs> base, int index, Operation operation, boolean publish) { var nodes = new ArrayList<>(base.nodes()); if (index >= 0) { var old = nodes.get(index); nodes.set(index, new CompiledNode(old.id(), operation, old.inputs(), old.outputs())); } var memory = new ArrayList<LogicalMemoryRequirement>(); for (var value : base.memoryRequirements()) memory.add(new LogicalMemoryRequirement(value.valueId(), value.descriptor(), value.producerPartition(), value.consumerPartitions(), publish && value.valueId().equals(new ValueId(2)) || value.graphOutput())); return new PrepareContext<>(base.partition(), nodes, base.values(), memory, Map.of(), base.backendInputs()); }
     private static List<ConvCase> convCases() { return List.of(new ConvCase("ordinary", new Conv1dAttrs(2, 1, 2, 1), Shape.of(1, 2, 9), Shape.of(4, 2, 3)), new ConvCase("grouped", new Conv1dAttrs(1, 1, 1, 2), Shape.of(1, 2, 7), Shape.of(4, 1, 2)), new ConvCase("depthwise", new Conv1dAttrs(2, 2, 1, 2), Shape.of(1, 2, 8), Shape.of(2, 1, 3))); }
     private static List<PoolCase> poolCases() { return List.of(new PoolCase("max-floor", true, 3, 2, 1, 2, false, Shape.of(1, 2, 9)), new PoolCase("max-ceil", true, 2, 3, 2, 1, true, Shape.of(1, 2, 3)), new PoolCase("average-floor", false, 3, 2, 1, 2, false, Shape.of(1, 2, 9)), new PoolCase("average-ceil", false, 2, 3, 2, 1, true, Shape.of(1, 2, 3))); }
     private record ConvCase(String id, Conv1dAttrs attrs, Shape input, Shape weight) { }

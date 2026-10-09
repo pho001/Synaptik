@@ -22,18 +22,17 @@ import java.util.List;
  * {@code next = (1 - momentum) * old + momentum * batch}. Its exact domain is
  * {@code C == 0 || N >= 2}; an empty channel evaluates no values.</p>
  *
- * <p>Under the Model-owned numerical-profile contract, exact axes, memberships, {@code N},
- * epsilon, momentum, guards, output slots, saved statistics, and state transition remain
- * unchanged. For {@code ACCELERATOR FLOAT32}, inference recurses through subtraction,
- * variance/epsilon addition, square root, division, scale multiplication, and bias addition.
- * Training additionally recurses through sum/count mean, centered {@code x*x}, the exact
- * {@code N}/{@code N-1} divisors, and fixed running-statistic multiply/add transitions. Aggregates
- * include every contributor once; the irreducible square-root site uses the inclusive
- * ordered-binary32 distance ceiling of five. The composite gains no final-output envelope and
- * saved outputs are exact stored results. Every current non-FLOAT32 occurrence remains strict;
- * the inactive low-precision reservation changes none of them. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Exact axes, memberships, count, epsilon, momentum, guards, output slots, saved statistics,
+ * and running-state transition remain fixed. Inference uses subtraction, variance/epsilon addition,
+ * SQRT, division, scale multiplication, and bias addition. Training also uses sum/count mean,
+ * centered x*x sums with exact N and N-1 divisors, and fixed running-statistic multiply/add
+ * transitions. Every contributor participates once; only named floating arithmetic primitive
+ * inputs/results may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64.
+ * Homogeneous low arithmetic works and accumulates in FLOAT32, with one final low narrowing per
+ * declared output; saved and state values are exact published results, not extra tolerance sites.
+ * See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum BatchNormKind implements OperationKind {
     /** Requests explicit five-input per-channel batch-normalization inference. */

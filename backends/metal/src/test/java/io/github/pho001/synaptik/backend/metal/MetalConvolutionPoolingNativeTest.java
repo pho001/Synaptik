@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
@@ -139,7 +138,6 @@ class MetalConvolutionPoolingNativeTest {
                     MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
                     1, 2, 1, 2, 0, 0, 1, 1, 0);
             List<byte[]> result = execute(
-                    NumericalProfile.STRICT_IEEE,
                     new MetalMpsGraphProgram(List.of(numericMax)),
                     List.of(typed(type, 1, 1, 1, 10), typed(type, 1, 1, 1, 5)),
                     new int[] {0}, new int[] {1},
@@ -390,17 +388,6 @@ class MetalConvolutionPoolingNativeTest {
             int[] feeds,
             int[] targets,
             List<byte[]> inputs) {
-        return execute(
-                NumericalProfile.ACCELERATOR, program, values, feeds, targets, inputs);
-    }
-
-    private static List<byte[]> execute(
-            NumericalProfile profile,
-            MetalMpsGraphProgram program,
-            List<MetalMpsGraphProgram.ValueDescriptor> values,
-            int[] feeds,
-            int[] targets,
-            List<byte[]> inputs) {
         String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
         assumeTrue(configured != null && !configured.isBlank(),
                 "SYNAPTIK_METAL_TEST_LIBRARY is not set");
@@ -412,7 +399,7 @@ class MetalConvolutionPoolingNativeTest {
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
-            executable = api.createProgramExecutable(context, profile, values, program, feeds, targets,
+            executable = api.createProgramExecutable(context, values, program, feeds, targets,
             MetalPreparedRoute.CUSTOM_PROGRAM);
             for (var value : values) buffers.add(api.createBuffer(context, value.byteCount()));
             for (int index = 0; index < feeds.length; index++) {

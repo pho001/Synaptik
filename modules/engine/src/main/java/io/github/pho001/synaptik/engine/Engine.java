@@ -2,7 +2,6 @@ package io.github.pho001.synaptik.engine;
 
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +37,6 @@ import java.util.Objects;
  */
 public final class Engine implements AutoCloseable {
     private final AdvancedEngine delegate;
-    private final NumericalProfile numericalProfile;
 
     /**
      * Creates an empty single-use construction owner.
@@ -64,30 +62,10 @@ public final class Engine implements AutoCloseable {
         private final ArrayList<EngineBackendRegistry.Registration> registrations =
                 new ArrayList<>();
         private State state = State.OPEN;
-        private NumericalProfile numericalProfile = NumericalProfile.STRICT_IEEE;
         private Throwable closeFailure;
 
         private Builder() {
         }
-        /**
-         * Selects the immutable graph-wide numerical profile captured by the built Engine.
-         *
-         * <p>Null is rejected before builder-state validation. A non-null call on an open builder
-         * retains the exact enum singleton, returns this same builder, and replaces any previous
-         * selection. A non-null call on a spent or closed builder fails without mutation.</p>
-         *
-         * @param numericalProfile non-null graph-wide numerical-profile identity
-         * @return this same open builder
-         * @throws NullPointerException if {@code numericalProfile} is {@code null}
-         * @throws IllegalStateException if this builder is spent or closed
-         */
-        public synchronized Builder numericalProfile(NumericalProfile numericalProfile) {
-            Objects.requireNonNull(numericalProfile, "numericalProfile");
-            requireOpen();
-            this.numericalProfile = numericalProfile;
-            return this;
-        }
-
         /**
          * Transfers ownership of one CPU integration at method entry.
          *
@@ -147,10 +125,7 @@ public final class Engine implements AutoCloseable {
          * @throws Error if construction or rollback reports a fatal failure
          */
         public synchronized Engine build() {
-            return build(registry -> {
-                NumericalProfile captured = numericalProfile;
-                return new Engine(new AdvancedEngine(registry, captured), captured);
-            });
+            return build(registry -> new Engine(new AdvancedEngine(registry)));
         }
 
         /**
@@ -295,30 +270,18 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
-     * Creates an ordinary Engine that takes cleanup ownership of one exact lifecycle owner and
-     * captures one immutable numerical-profile identity.
+     * Creates an ordinary Engine that takes cleanup ownership of one exact lifecycle owner.
      *
      * @param delegate non-null lifecycle owner whose cleanup ownership transfers on success;
      *     this constructor does not inspect its current lifecycle state
-     * @param numericalProfile non-null graph-wide numerical-profile identity, which must be the
-     *     exact identity captured by {@code delegate}
-     * @throws NullPointerException if an argument is null, with its parameter name
-     * @throws IllegalArgumentException if the delegate captured another profile
+     * @throws NullPointerException if {@code delegate} is null
      */
-    Engine(AdvancedEngine delegate, NumericalProfile numericalProfile) {
+    Engine(AdvancedEngine delegate) {
         this.delegate = Objects.requireNonNull(delegate, "delegate");
-        this.numericalProfile = Objects.requireNonNull(numericalProfile, "numericalProfile");
-        if (delegate.numericalProfile() != numericalProfile) {
-            throw new IllegalArgumentException("delegate numerical profile must match Engine");
-        }
     }
 
     AdvancedEngine lifecycleOwner() {
         return delegate;
-    }
-
-    NumericalProfile numericalProfile() {
-        return numericalProfile;
     }
 
     /**
@@ -363,9 +326,10 @@ public final class Engine implements AutoCloseable {
     /**
      * Prepares one compile handle created by this exact Engine. Preparation requires a non-empty
      * plan whose owners exactly match registered adapters. It accepts single-owner plans and mixed
-     * CPU/Metal plans in the bounded positive rank-1..16 static canonical contiguous FLOAT32
-     * transfer domain; unsupported ownership, direction, layout, type, or geometry may therefore
-     * reject an artifact that compiled successfully before backend analysis.
+     * CPU/Metal plans in the bounded fully static rank-0..16 transfer domain for all seven current
+     * data types. Transfers accept canonical or resolved positive-stride non-overlapping layouts
+     * with a checked physical span; unsupported ownership, direction, layout, type, or geometry
+     * may therefore reject an artifact that compiled successfully before backend analysis.
      *
      * <p>The returned handle owns the exact inward Runtime preparation and must be closed when
      * reuse ends, preferably with try-with-resources. Closing this Engine closes any retained

@@ -72,7 +72,7 @@ class CpuPartitionDagGeneratedEvidenceTest {
         String constants = new String(first, StandardCharsets.ISO_8859_1);
         assertAll(
                 () -> assertFalse(plan.fusionDecisions().isEmpty()),
-                () -> assertEquals(68, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(69, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertArrayEquals(first, second),
                 () -> assertFalse(constants.contains("CpuFusionDecision")),
                 () -> assertFalse(constants.contains("CpuFusionProfitabilitySelector")),
@@ -505,7 +505,7 @@ class CpuPartitionDagGeneratedEvidenceTest {
     }
 
     private static CpuKernelSpecialization intSpecialization(CpuKernelIr ir) {
-        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
         List.of(DataType.INT32, DataType.INT32),
         List.of(CpuKernelSpecialization.CarrierAccess.INT_ARRAY,
                 CpuKernelSpecialization.CarrierAccess.INT_ARRAY), 0, -1);
@@ -533,7 +533,7 @@ class CpuPartitionDagGeneratedEvidenceTest {
                         List.of(partition), false),
                 new LogicalMemoryRequirement(new ValueId(2), descriptor, Optional.of(partition),
                         List.of(), true));
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 
     private static CpuKernelIr ir() {
@@ -551,7 +551,7 @@ class CpuPartitionDagGeneratedEvidenceTest {
     }
 
     private static CpuKernelSpecialization specialization(CpuKernelIr ir) {
-        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
         List.of(DataType.FLOAT64, DataType.FLOAT64, DataType.FLOAT64, DataType.FLOAT64),
         List.of(CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,
                 CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,

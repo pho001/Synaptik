@@ -352,7 +352,7 @@ final class CpuBackendCompositionTest {
                 return true;
             }
         };
-        CompileArtifacts base = GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(left.matmul(right)), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider), List.of(composition.availabilitySnapshot()));
+        CompileArtifacts base = GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, List.of(left.matmul(right)), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider), List.of(composition.availabilitySnapshot()));
         var outputIds = java.util.Set.copyOf(base.graph().outputs());
         var values = base.graph().values().stream().map(value -> {
             if (!outputIds.contains(value.id())) return value;
@@ -370,7 +370,7 @@ final class CpuBackendCompositionTest {
                 new Class<?>[] {List.class, List.class}, List.of(), graph.inputs().stream()
                         .map(id -> new CompileConstantPlan.ConstantSource(
                                 id, ScalarValue.float32(1.0f))).toList());
-        return new CompileArtifacts(base.mode(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, base.partitions(), LogicalMemoryPlanning.plan(graph, base.partitions()), publication, constants, base.diagnostics(), new DerivativeGraphMetadata(
+        return new CompileArtifacts(base.mode(), graph, base.partitions(), LogicalMemoryPlanning.plan(graph, base.partitions()), publication, constants, base.diagnostics(), new DerivativeGraphMetadata(
                 graph, base.derivatives().derivativeOrderByNode()));
     }
 
@@ -383,7 +383,7 @@ final class CpuBackendCompositionTest {
         Shape shape = Shape.of(4);
         Tensor input = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)), false));
-        return GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(input.contiguous()), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(new CpuCapabilityProvider()), List.of(composition.availabilitySnapshot()));
+        return GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, List.of(input.contiguous()), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(new CpuCapabilityProvider()), List.of(composition.availabilitySnapshot()));
     }
 
     private static ConstantCase constant(DataType type, Shape shape, ScalarValue value) {
@@ -416,7 +416,7 @@ final class CpuBackendCompositionTest {
         var publication = construct(PublicationPlan.class,
                 new Class<?>[] {CompiledGraphModel.class, List.class, List.class},
                 graph, publications, List.of());
-        return new CompileArtifacts(base.mode(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, base.partitions(), LogicalMemoryPlanning.plan(graph, base.partitions()), publication, constantPlan, base.diagnostics(), new DerivativeGraphMetadata(
+        return new CompileArtifacts(base.mode(), graph, base.partitions(), LogicalMemoryPlanning.plan(graph, base.partitions()), publication, constantPlan, base.diagnostics(), new DerivativeGraphMetadata(
                 graph, base.derivatives().derivativeOrderByNode()));
     }
 

@@ -123,8 +123,14 @@ Runtime profiling is passive observation of actual execution. `modules/runtime` 
 execution context and `modules/trace` owns typed diagnostic DTOs; neither profiling nor tracing
 selects settings.
 
-For Metal route qualification, candidate comparison begins only after identical proven semantics
-and domain plus numerical acceptance. A single survivor needs no comparative cost gate. Multiple
+For Metal route qualification, candidate comparison begins only after candidates cover the same
+complete occurrence domain and qualify against Model semantics. Exact structure, stored-value,
+discrete, cast, raw-movement, special-value, and domain cases require separate conformance;
+ordinary finite arithmetic requires explicit test-only backend/route/family/dtype/size oracles,
+metrics, thresholds, and cancellation boundaries. NaN/infinity, signed zero, subnormal/underflow,
+empty/domain, and fail-before-mutation checks are not finite-tolerance cases. Qualification does
+not infer provider support or license Compiler rewrites. A single survivor needs no comparative
+cost gate. Multiple
 survivors may be selected without timing only by strict structural dominance: no more compute
 dispatches, no more route-owned temporary bytes, and at least one strict improvement. Supported
 observation of actual framework-internal dispatches and temporary resources remains mandatory for
@@ -144,7 +150,7 @@ production preparation and adds no runtime timing, fallback, retry, or workload 
 The Model, CPU, and Metal `FLOAT16` allocation, value, provider, route, and execution semantics are
 active. The canonical capability ledger is generated from actual `CpuCapabilityProvider` and
 `MetalCapabilityProvider` queries over a stable representative basis. Each row records backend,
-profile, occurrence identity, kind and attributes, ordered input/output descriptors, data type,
+occurrence identity, kind and attributes, ordered input/output descriptors, data type,
 Shape, layout, gradient metadata, arity, and the boolean provider answer. Checked-in supported and
 explicit unsupported rows are both normative drift evidence for that basis.
 
@@ -156,24 +162,27 @@ domains. Canonical manifests use explicit UTF-8 TSV fields, LF endings, stable s
 keys; a duplicate key is rejected after exact row-byte comparison, and validation reports the
 first missing, added, or changed row.
 
-Every supported frozen `ACCELERATOR FLOAT32` Metal occurrence has independently queried,
-homogeneous `BFLOAT16` and `FLOAT16` current rows. Strict low rows remain the exact valid subset of
-their corresponding current strict FLOAT32 rows. Unsupported rows remain explicit exclusions.
-Exact movement, Shape/layout, indexing, selection, ordering, state, and cast occurrences remain
-profile-common substrate. Direct BFLOAT16/FLOAT16 mixed-low operations are unsupported; an explicit
+Project actual current ACCELERATOR CPU and Metal provider true and false answers into profile-free
+occurrence keys without adding support. Every supported frozen ACCELERATOR FLOAT32 Metal occurrence
+has independently queried homogeneous BFLOAT16 and FLOAT16 current rows; negative predicates
+remain explicit exclusions. The representative 508-row v1 ledger detects drift, not an enumerated
+support domain or numerical certification. Exact movement, Shape/layout, indexing, selection,
+ordering, state, and cast occurrences remain exact substrate. Direct BFLOAT16/FLOAT16 mixed-low
+operations are unsupported; an explicit
 cast to FLOAT32 is the sole mixed-low boundary. Forward capability remains distinct from
 generated-backward ownership.
 
-Every active low family has a complete custom implementation with FLOAT32 working/accumulator
-values and Model-owned exact discrete/raw/cast/final-RNE floors. Its family contract declares
-DAZ/FTZ, arithmetic exact-zero sign, and arithmetic NaN class/domain freedoms. Operation-local
+Every active low family has a qualified custom implementation with FLOAT32 working/accumulator
+values and Model-owned exact discrete/raw/cast/one-final-ties-to-even-narrowing rules. The
+Model's named arithmetic-site DAZ/FTZ table and family exact-zero sign and NaN class/domain
+rules govern it. Operation-local
 reassociation/FMA is permitted only within the qualified implementation; low partitions cannot
 enter generated-pointwise or anchor-epilogue fusion. Public, saved, fan-out, predicate, index, mask,
 selection, and state boundaries remain barriers.
 
-An opaque or transformed route is eligible only with a complete-output-set proof against the
-Model-owned public per-family accuracy envelope. The envelope is cancellation- and size-aware; a
-route name, examples, or generic `allclose` alone is insufficient.
+An opaque or transformed route is eligible only after the same occurrence-scoped exact/special
+and finite test qualification as an explicit route. A route name, examples, or generic `allclose`
+alone are insufficient; no runtime proof evaluator or numerical certificate replaces those tests.
 
 Every Metal partition containing BFLOAT16 or FLOAT16 values selects `CUSTOM_PROGRAM` and exposes
 only that candidate. This applies equally to arithmetic and to raw-preserving RESHAPE, simple
@@ -188,8 +197,8 @@ FLOAT32-only nodes. The partition policy is independent of device, OS, SDK, comp
 loaded-binary identity. MPSGraph is not a low-valued operation or whole-partition route
 alternative; classic MPS, MPP, CPU, retry, and fallback are not alternatives either.
 
-Low-precision PREPARE trace metadata names the selected custom route, ordered feed-then-target
-logical dtype tuple, and numerical profile. It has no accumulator or working-type field; the
+Low-precision PREPARE trace metadata names the selected custom route and ordered feed-then-target
+logical dtype tuple. It has no accumulator or working-type field; the
 Model's FLOAT32 arithmetic working/accumulator guarantee is separate from diagnostic metadata.
 The DTO contains no candidate, certificate, accuracy, determinism, or environment state and rejects
 a graph selected route.
@@ -198,27 +207,31 @@ Metal owns no executable, compilation, or prepared-resource cache: finalization 
 native resources and its outcome reports `NOT_QUERIED`. The only reusable Metal route artifacts are
 the tuning compatibility, candidate, and decision values. They are explicitly session-scoped, and
 the tools cache never persists or reads a `SESSION` value. Their canonical identity contains the
-compatibility/candidate/route-policy/workload/codec versions, numerical profile, native ABI,
-per-context random session nonce, schema-19 program and plan semantics, every descriptor's explicit
+compatibility/candidate/route-policy/workload/codec versions, native ABI,
+per-context random session nonce, versioned program and plan semantics, every descriptor's explicit
 dtype wire and Shape/layout/gradient facts, ordered edges, raw constants, and the selected candidate
 route wire. Complete-plan identity nests the exact phase-one decision. Dtype, ABI, schema, route, or
 semantic changes therefore change the relevant bytes. Every reopened context receives a different
 session nonce, so no decision crosses a context boundary.
 
-CPU generated-artifact cache identity is separately closed at generator schema 68. Both BFLOAT16
+CPU generated-artifact cache identity was at generator schema 68 before cutover. Both BFLOAT16
 and FLOAT16 use the same Java `short` carrier where applicable, but the canonical lowering IR,
-ordered `boundaryDataTypes`, numerical profile, carrier pattern, execution strategy, generated-class
+ordered `boundaryDataTypes`, carrier pattern, execution strategy, generated-class
 identity schema, and code-shaping facts participate in the specialization identity. Consequently
 the two raw-16 types have different compatibility bytes and structural keys despite an identical
 method descriptor. Persisted envelopes additionally require the current generator schema, exact
 structural key, exact compatibility bytes, class-shape validation, and checksum before reuse.
 
-The active allocation appends `DataType.FLOAT16` at ordinal 6 after `BOOL`. Metal type wire 7,
-program schema 19, coordinated Metal candidate/compatibility/route-policy/workload/codec identity
-29, CPU generator schema 68, operation wires 1..115, attribute wires 0..41, route wires 1..3, and
-native ABI 7 are active. ABI 7 removes the former certification-environment export and exposes
-exactly thirteen symbols; every remaining export signature and all existing route and program wire
-identities remain unchanged.
+The pre-cutover allocation appended `DataType.FLOAT16` at ordinal 6 after `BOOL`: Metal type wire
+7, program schema 19, coordinated Metal candidate/compatibility/route-policy/workload/codec
+identity 29, CPU generator schema 68, operation wires 1..115, attribute wires 0..41, route wires
+1..3, and native ABI 7. The implementation cutover must append versions for every changed
+serialized program, generated artifact, route/candidate/compatibility/workload/codec or tuning
+identity, reject stale inputs and cache hits, and retain unaffected wire allocations. Remove the
+Metal profile wire atomically in Java and native; review a native ABI bump if an export signature
+changes, otherwise retain all thirteen names/signatures. Preserve source/manifest/package
+authentication, decoder/preflight, bounds, ownership, compiled-code checks, and fail-before-
+mutation rules. No version number is assigned by this documentation stage.
 
 ## CPU backend routes
 
@@ -325,7 +338,7 @@ and also supports canonical rank-zero through rank-sixteen targets for all seven
 host ingress preserves exact represented storage bytes; descriptor-aware execution, transfer, and
 publication paths validate logical BOOL values without treating storage holes as BOOL elements.
 
-The current common-profile Metal movement domain uses fixed custom kernels for the selected
+The current profile-free Metal movement domain uses fixed custom kernels for the selected
 occurrences. All seven carriers admit exact `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`,
 `SQUEEZE`, `CONTIGUOUS`, affine positive-step `SELECT`/`SLICE`, `GATHER`,
 `GATHER_ELEMENTS`, `GATHER_ND`, replacement `SCATTER_ELEMENTS`/`SCATTER_ND`, `PAD`,
@@ -390,15 +403,23 @@ contract. Root global invariants and dependency rules therefore apply; if CLI wo
 architecture-sensitive ownership, dependency, or lifecycle question not answered there, the
 missing scope requires an explicit architecture update.
 
-## Numerical-profile backend identity
+## Profile-free backend capability and identity
 
-A concrete backend must qualify capability, preparation plans, specialization, generated
-artifacts, tuning candidates and decisions, and cache compatibility by the exact selected
-`NumericalProfile`. For the same occurrence domain, strict capability is an accelerator subset and
-strict behavior is a subset of accelerator behavior. CPU currently supports both profiles through
-one identical exact matrix and unchanged routes.
+<a id="numerical-profile-backend-identity"></a>
 
-Metal's common exact occurrence domain under both profiles contains exact unary operations; all 49
+A concrete backend must use profile-free, occurrence-specific provider capability and qualified
+routes. Plans, specialization, generated artifacts, tuning candidates and decisions, and cache
+compatibility retain their non-profile semantic, type, target, ABI, source, and version identities;
+changed formats reject stale inputs. CPU retains its supported routes without a profile selector.
+
+Current generated CPU artifact envelopes use schema 69. Current Metal images use schema 20 with a
+124-byte header, and coordinated workload, exact-policy, candidate, compatibility, route, and
+codec identities use version 30. Native ABI 7 still exposes thirteen symbols. CPU schema 68 and
+Metal schema 19/identity 29 are historical pre-cutover baselines, not valid current inputs.
+Native source, manifest, and package authentication remain safety gates; historical schema-19
+source certificates do not certify schema-20 programs.
+
+Metal's current exact occurrence domain contains exact unary operations; all 49
 ordered casts; FLOAT64/FLOAT32/BFLOAT16/FLOAT16 classification; scalar and right-aligned BOOL
 logic; the fourteen supported promoted floating `WHERE` signatures; exact seven-carrier
 affine/index/replacement/movement rows; non-overlapping folds/windows over the carrier subsets
@@ -419,19 +440,20 @@ higher-order closure. Dynamic/empty geometry, additive scatter, overlap accumula
 backward, and every production-false semantic family remain fail-closed. L1 and VARIANCE are
 deliberately no-gradient.
 
-Both profiles additionally admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant
-promotion and modular result arithmetic. For every supported accelerator FLOAT32 occurrence,
-Metal admits homogeneous BFLOAT16 and FLOAT16 counterparts. This covers the documented
+The current provider also admits no-gradient INT32/INT64 MATMUL pairs with INT64-dominant
+promotion and modular result arithmetic. For the frozen supported ACCELERATOR FLOAT32 occurrences,
+Metal's independently queried homogeneous BFLOAT16 and FLOAT16 counterparts remain true. This
+covers the documented
 tensor/scalar arithmetic, comparisons, extrema, reductions, scans, positive-static MATMUL
 geometries, MSE, L1, ScatterAdd, singleton VARIANCE, convolution, average pooling, and explicit
 state dropout domains. Each low input is decoded exactly, every working value and accumulator is
 FLOAT32, and each observable low result is narrowed once with round-to-nearest, ties-to-even.
-Conv1d/Pool1d may use only authenticated local singleton-height views. Strict capability remains
-an accelerator subset.
+Conv1d/Pool1d may use only authenticated local singleton-height views. This paragraph does not
+widen unlisted or false provider occurrences.
 
 Every partition containing BFLOAT16 or FLOAT16 values selects the fixed `CUSTOM_PROGRAM`
 whole-partition route. This includes homogeneous no-gradient raw-preserving `RESHAPE`, simple
-`PERMUTE`, materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and `TILE` schema-19 images.
+`PERMUTE`, materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and `TILE` schema-20 images.
 `CUSTOM_PROGRAM` is their only candidate, and the selected route is immutable before shared
 declarations escape analysis. Existing eligible FLOAT32 occurrences retain their qualified direct
 or composed routes, including direct rank-two FLOAT32 MATMUL. Any FLOAT32-only node, including one
@@ -442,14 +464,17 @@ anchor-epilogue fusion remain disabled for the whole low-containing partition. T
 route uses fixed reviewed raw-word/integer/movement/predicate kernels behind one whole-program invocation with
 declared assigned buffers for every logical value and no host repair.
 
-Task-0069 L1 at wire `114`, ScatterAdd at wire `70`, and singleton VARIANCE at wire `112` are fixed
-`CUSTOM_PROGRAM` under `CA_0069`; Java and native creation reject their direct MPSGraph routes. L1
-requires accelerator profile, FLOAT32, one canonical positive-static rank-one no-gradient input,
+The Task-0069 specialized FLOAT32 L1 at wire `114`, ScatterAdd at wire `70`, and singleton
+VARIANCE at wire `112` select `CUSTOM_PROGRAM` under `CA_0069`; Java and native creation reject
+their direct MPSGraph routes. These FLOAT32 kernel restrictions do not remove the independently
+admitted homogeneous BFLOAT16/FLOAT16 occurrences, which use the general low custom program and
+its `lp_l1_norm`, `lp_scatter_add`, and `lp_variance` operations under their own occurrence checks.
+The specialized FLOAT32 L1 slice requires one canonical positive-static rank-one no-gradient input,
 ordered multi-axis `[0]`, a canonical scalar or retained `[1]` output, unsigned-32-bit bounds, one
 output thread, and distinct buffers. It raw-clears every contributor sign and performs exactly
 `N-1` source-ordered safe additions; `N=1` performs none.
 
-ScatterAdd requires accelerator profile, canonical FLOAT32 rank-one base/update/output with positive
+The specialized FLOAT32 ScatterAdd slice requires canonical rank-one base/update/output with positive
 static extents, axis zero, no gradient flags, and a materialized canonical rank-one INT32/INT64
 index partition feed. The compiler places explicit `CONTIGUOUS` between its generated zero-base
 `EXPAND` and Scatter. A complete CPU index scan precedes every command encoding and mutation. One
@@ -458,25 +483,27 @@ once; unaddressed targets copy the raw base, and there are no atomics or races. 
 closes the existing rank-one Gather data cotangent without admitting gradient-bearing ScatterAdd
 or higher-order ownership.
 
-VARIANCE requires accelerator profile, canonical FLOAT32 rank-one `[1]` input, axes exactly `[0]`,
+The specialized FLOAT32 VARIANCE slice requires canonical rank-one `[1]` input, axes exactly `[0]`,
 correction zero, no gradient flags, distinct buffers, and a canonical scalar or retained `[1]`
 output. One thread evaluates exactly `DIV(x,+1)`, `SUB(x,mean)`, `MUL(difference,difference)`, and
 `DIV(square,+1)`, then stores the sole canonical cell once. The task-local Lean proof covers every
 DAZ/FTZ choice: all finite inputs yield exact positive zero, while NaN and either infinity sign
-yield NaN class. There is no classifier, aggregate add, reciprocal, FMA, clamp, tolerance, fallback,
+yield NaN class. There is no classifier, aggregate add, reciprocal, FMA, clamp, fallback,
 retry, timing, or alternate publication.
 
-The shared Lean proof, source certificate, and pinned Xcode-27 compiled-MSL/AIR audit establish all
-three bounded Model result-set memberships.
+The retained shared Lean proof, source-bound declaration, and pinned Xcode-27 compiled-MSL/AIR
+audit remain source and compiled-code review evidence for the three bounded implementations, not a
+runtime numerical certificate or a substitute for post-cutover route conformance.
 
 Direct CPU/Metal transfer supports all seven current data types at ranks `0..16` over canonical or
 resolved positive-stride non-overlapping storage layouts; BOOL validation visits logical elements
 only. Local selected publication gathers logical elements from authenticated physical storage and
 preserves exact target-relative offsets and holes without exposing aliases.
 
-The package uses ABI 7 with thirteen exports. Node schema 19 is one bounded self-describing,
+The pre-cutover package uses ABI 7 with thirteen exports. Node schema 19 is the frozen bounded self-describing,
 route-bearing image over type wires `1..7`, operation wires `1..115`, attribute wires `0..41`,
-route wires `1..3`, an exact numerical-profile wire, and complete optional storage-layout geometry.
+route wires `1..3` and complete optional storage-layout geometry. The changed header/decoder
+format receives an append-only schema identity and rejects profile-bearing stale images.
 Its fixed 128-byte `SM19` header authenticates the core image and, only for `CUSTOM_PROGRAM`, the
 canonical step/member/binding/materialized-value/typed-instruction/manifest extension. Every core
 and extension section is adjacent; references are never padded before 64-bit attributes. The
@@ -496,7 +523,7 @@ allocates the exact byte count, and traverses the same emitter once for compiler
 fixed corpus is 84,541 UTF-8 bytes: native SHA-256-checks each of its ten ordered components and
 their total and independently authenticates the assembled source before compiler entry.
 
-The same schema admits ACCELERATOR-only typed anchor-epilogue instructions. An eligible MATMUL
+The versioned program image admits the existing qualified typed anchor-epilogue instructions. An eligible MATMUL
 preserves optional literal scalar multiplication, at most one source-ordered ordinary right-aligned
 tensor ADD, and optional terminal RELU or no-gradient CLAMP. Conv2d admits at most ADD followed by
 the same terminal pair and never scalar multiplication. Intrinsic rank-one `[C]` remains only the
@@ -516,6 +543,8 @@ noncanonical layouts, gradients, fan-out, targets, and cap rejection preserve fi
 MPSGraph boundaries; Task-0069 VARIANCE remains custom only for its exact singleton domain.
 
 Structural execution covers exactly 101 kinds with 14 remaining nonexecutable; production
-capability is exactly 86 kinds with 29 remaining false. Workload, exact-policy, candidate,
-compatibility, route-policy, and codec identities are version twenty-nine; every other identity
-fails closed. The complete-plan wrapper remains version one.
+capability is exactly 86 kinds with 29 remaining false at the frozen provider baseline. Workload,
+exact-policy, candidate, compatibility, route-policy, and codec identities were version
+twenty-nine before cutover. Assign append-only changed identities in implementation, reject stale
+versions, and retain the complete-plan wrapper's unrelated version-one format unless its bytes
+change.

@@ -21,17 +21,15 @@ import java.util.List;
  * zero at finite terms for {@code SOFTMAX}; and an all-negative-infinity nonempty slice produces
  * NaN by zero division or infinity subtraction. Empty slices have no positions to evaluate.</p>
  *
- * <p>Under the Model-owned numerical-profile contract, {@code STRICT_IEEE} retains those formulas
- * and current freedoms. For {@code ACCELERATOR FLOAT32}, exact axis, slice membership, position,
- * and contributor sets are unchanged. Irreducible exponential and logarithmic sites use DAZ/FTZ
- * and the inclusive ordered-binary32 distance ceiling of five; sums use the
- * all-contributors-once aggregate floor and the final division/subtraction uses one FLOAT32
- * operation. Stable algorithms are valid only when their complete results remain inside that
- * recursive set. There is no four-ULP softmax-output oracle or other final-output envelope. Every
- * current non-FLOAT32 occurrence remains strict; the inactive low-precision reservation changes
- * none of them. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Axis, slice membership, positions, and contributor sets remain exact. Literal softmax
+ * evaluates EXP per value, an all-contributors-once rounded sum, and division per output; literal
+ * log-softmax uses the same EXP and sum, then LOG and output subtraction. Only named floating
+ * arithmetic primitive inputs/results may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, and
+ * FLOAT16, never FLOAT64. Homogeneous low arithmetic works and accumulates in FLOAT32, with one
+ * final low narrowing per output. Existing NaN, infinity, and empty-slice rules remain; neither
+ * composite receives a blanket output tolerance. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  *
  * <p>These kinds define Model meaning only. They do not define result descriptors, provenance,
  * gradients, compiler decomposition, storage, execution, or backend availability. Enum identity
@@ -48,8 +46,8 @@ public enum SoftmaxKind implements OperationKind {
      * {@code [0.09003057, 0.24472847, 0.66524096]}.</p>
      *
      * <p>The operation preserves slice positions and axis order; it does not reduce rank or retain
-     * a singleton reduction axis. The class contract above owns its numerical formula and profile
-     * inheritance. Input eligibility, result construction, gradients, execution, and backend
+     * a singleton reduction axis. The class contract above owns its numerical formula and named
+     * arithmetic-site permissions. Input eligibility, result construction, gradients, execution, and backend
      * support belong to later owning contracts.</p>
      */
     SOFTMAX,
@@ -65,7 +63,7 @@ public enum SoftmaxKind implements OperationKind {
      *
      * <p>This is a distinct first-class semantic kind rather than an implicit softmax-plus-log
      * graph fragment. It preserves slice positions and axis order. The class contract above owns
-     * its numerical formula and profile inheritance. Input eligibility, result construction,
+     * its numerical formula and named arithmetic-site permissions. Input eligibility, result construction,
      * gradients, compiler decomposition, execution, and backend support belong to later owning
      * contracts.</p>
      */

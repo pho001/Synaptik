@@ -174,7 +174,7 @@ public class CpuNonAffineMovementLoweringTest {
                 List.of(new NodeId(0), new NodeId(1)));
         assertAll(
                 () -> assertThrows(IllegalArgumentException.class,
-                        () -> new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, twoNodePartition, List.of(oneNode.nodes().getFirst(), secondNode), oneNode.values(), oneNode.memoryRequirements(), oneNode.constants(), oneNode.backendInputs())),
+                        () -> new PrepareContext<>(twoNodePartition, List.of(oneNode.nodes().getFirst(), secondNode), oneNode.values(), oneNode.memoryRequirements(), oneNode.constants(), oneNode.backendInputs())),
                 () -> assertThrows(IllegalArgumentException.class, () -> lower(context(
                         new Operation(WindowTransformKind.UNFOLD2D, window), List.of(0, 0),
                         List.of(input), output))),
@@ -243,7 +243,7 @@ public class CpuNonAffineMovementLoweringTest {
         values.add(new GraphValue(outputId, output));
         memory.add(new LogicalMemoryRequirement(outputId, output, Optional.of(partition),
                 List.of(), true));
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 
     public static TensorDescriptor descriptor(DataType type, Shape shape) {

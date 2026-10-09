@@ -23,7 +23,7 @@ class CpuConv3dCapabilityTest {
         assertAll(()->assertFalse(provider.supports(query(attrs,List.of(descriptor(DataType.INT32,x,false),descriptor(DataType.FLOAT32,w,false)),descriptor(DataType.FLOAT32,y,false)))),()->assertFalse(provider.supports(query(attrs,List.of(unresolved(DataType.FLOAT32,x),descriptor(DataType.FLOAT32,w,false)),descriptor(DataType.FLOAT32,y,false)))),()->assertFalse(provider.supports(query(attrs,List.of(descriptor(DataType.FLOAT32,x,false),descriptor(DataType.FLOAT32,w,false)),descriptor(DataType.FLOAT32,Shape.of(2,6,3,4,5),false)))));
     }
 
-    private static OperationCapabilityQuery query(Conv3dAttrs attrs,List<TensorDescriptor> inputs,TensorDescriptor output){return new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(Conv3dKind.CONV3D,attrs), inputs, List.of(output));}
+    private static OperationCapabilityQuery query(Conv3dAttrs attrs,List<TensorDescriptor> inputs,TensorDescriptor output){return new OperationCapabilityQuery(new Operation(Conv3dKind.CONV3D,attrs), inputs, List.of(output));}
     private static TensorDescriptor descriptor(DataType type,Shape shape,boolean grad){return new TensorDescriptor(type,shape,Optional.of(LayoutDescriptor.contiguous(shape)),grad);}
     private static TensorDescriptor unresolved(DataType type,Shape shape){return new TensorDescriptor(type,shape,Optional.empty(),false);}
 }

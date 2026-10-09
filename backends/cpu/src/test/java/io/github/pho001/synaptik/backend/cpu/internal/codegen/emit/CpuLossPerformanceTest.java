@@ -861,7 +861,7 @@ class CpuLossPerformanceTest {
         List<DataType> types = new ArrayList<>(inputs.stream().map(TensorDescriptor::dataType).toList()); types.add(row.result());
         List<CarrierAccess> carriers = carriers(types, row.bits());
         var base = CpuScatterLoweringTest.context(operation, row.roles(), inputs, descriptor(row.result(), output));
-        var plan = new CpuPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers))).plan();
+        var plan = new CpuPartitionPreparer().analyze(new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers))).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         var kernel = generator.defineClassBytes(route.specialization(), generator.generateClassBytes(route.specialization(), route.kernelIr()));

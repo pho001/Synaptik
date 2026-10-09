@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
@@ -54,7 +53,6 @@ class MetalPointwiseDispatchObserverNativeTest {
                     DataType.FLOAT32, new long[] {4}, false));
         var program = new MetalMpsGraphProgram(nodes);
         MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.STRICT_IEEE,
                 program,
                 values,
                 new int[] {0},
@@ -116,7 +114,6 @@ class MetalPointwiseDispatchObserverNativeTest {
                 new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {4}, false),
                 new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {4}, false));
         MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.STRICT_IEEE,
                 program,
                 values,
                 new int[] {0},
@@ -184,7 +181,6 @@ class MetalPointwiseDispatchObserverNativeTest {
         int[] feeds = {0, 5, 7, 9, 10, 11};
         int[] targets = {4, 6, 8, 12};
         MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.ACCELERATOR,
                 program,
                 values,
                 feeds,
@@ -206,7 +202,6 @@ class MetalPointwiseDispatchObserverNativeTest {
             observer.reset();
             execute(
                     library,
-                    NumericalProfile.ACCELERATOR,
                     program,
                     values,
                     feeds,
@@ -281,7 +276,6 @@ class MetalPointwiseDispatchObserverNativeTest {
         int[] feeds = {0, 1, 2};
         int[] targets = {6};
         MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.ACCELERATOR,
                 program,
                 values,
                 feeds,
@@ -294,7 +288,6 @@ class MetalPointwiseDispatchObserverNativeTest {
             observer.reset();
             int[] actual = execute(
                     library,
-                    NumericalProfile.ACCELERATOR,
                     program,
                     values,
                     feeds,
@@ -370,7 +363,6 @@ class MetalPointwiseDispatchObserverNativeTest {
                         value(DataType.FLOAT32, testCase.outputShape()),
                         value(DataType.FLOAT32, testCase.outputShape()));
                 MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
-                        NumericalProfile.ACCELERATOR,
                         program,
                         values,
                         feeds,
@@ -382,7 +374,6 @@ class MetalPointwiseDispatchObserverNativeTest {
                 observer.reset();
                 int[] actual = execute(
                         library,
-                        NumericalProfile.ACCELERATOR,
                         program,
                         values,
                         feeds,
@@ -425,7 +416,6 @@ class MetalPointwiseDispatchObserverNativeTest {
         int[] feeds = {0, 1};
         int[] targets = {4};
         MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.ACCELERATOR,
                 program,
                 values,
                 feeds,
@@ -436,7 +426,6 @@ class MetalPointwiseDispatchObserverNativeTest {
             observer.reset();
             int[] actual = execute(
                     library,
-                    NumericalProfile.ACCELERATOR,
                     program,
                     values,
                     feeds,
@@ -477,7 +466,6 @@ class MetalPointwiseDispatchObserverNativeTest {
         int[] feeds = {0, 1, 2};
         int[] targets = {4};
         MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.ACCELERATOR,
                 program,
                 values,
                 feeds,
@@ -490,7 +478,6 @@ class MetalPointwiseDispatchObserverNativeTest {
             observer.reset();
             int[] actual = execute(
                     library,
-                    NumericalProfile.ACCELERATOR,
                     program,
                     values,
                     feeds,
@@ -535,7 +522,6 @@ class MetalPointwiseDispatchObserverNativeTest {
         int[] feeds = {0, 1};
         int[] targets = {5};
         MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.ACCELERATOR,
                 program,
                 values,
                 feeds,
@@ -551,7 +537,6 @@ class MetalPointwiseDispatchObserverNativeTest {
             observer.reset();
             int[] actual = execute(
                     library,
-                    NumericalProfile.ACCELERATOR,
                     program,
                     values,
                     feeds,
@@ -604,7 +589,6 @@ class MetalPointwiseDispatchObserverNativeTest {
         int[] feeds = {0, 1, 3};
         int[] targets = {4};
         MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.ACCELERATOR,
                 program,
                 values,
                 feeds,
@@ -617,7 +601,6 @@ class MetalPointwiseDispatchObserverNativeTest {
             observer.reset();
             int[] actual = execute(
                     library,
-                    NumericalProfile.ACCELERATOR,
                     program,
                     values,
                     feeds,
@@ -665,7 +648,6 @@ class MetalPointwiseDispatchObserverNativeTest {
         int[] feeds = {0, 1};
         int[] targets = {3};
         MetalPointwiseFusionPlan fusion = MetalPointwiseFusionPlanner.plan(
-                NumericalProfile.ACCELERATOR,
                 program,
                 values,
                 feeds,
@@ -675,7 +657,6 @@ class MetalPointwiseDispatchObserverNativeTest {
             observer.reset();
             int[] actual = execute(
                     library,
-                    NumericalProfile.ACCELERATOR,
                     program,
                     values,
                     feeds,
@@ -735,7 +716,6 @@ class MetalPointwiseDispatchObserverNativeTest {
             MetalPointwiseFusionPlan fusion) {
         execute(
                 library,
-                NumericalProfile.STRICT_IEEE,
                 program,
                 values,
                 new int[] {0},
@@ -748,7 +728,6 @@ class MetalPointwiseDispatchObserverNativeTest {
 
     private static int[] execute(
             Path library,
-            NumericalProfile profile,
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] feeds,
@@ -756,12 +735,11 @@ class MetalPointwiseDispatchObserverNativeTest {
             MetalPointwiseFusionPlan fusion,
             List<int[]> feedWords) {
         return execute(
-                library, profile, program, values, feeds, targets, fusion, feedWords, true);
+                library, program, values, feeds, targets, fusion, feedWords, true);
     }
 
     private static int[] execute(
             Path library,
-            NumericalProfile profile,
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] feeds,
@@ -778,7 +756,6 @@ class MetalPointwiseDispatchObserverNativeTest {
             context = api.createContext();
             executable = supplyFusionPlan
                     ? api.createProgramExecutable(context,
-                    profile,
                     values,
                     program,
                     feeds,
@@ -786,7 +763,6 @@ class MetalPointwiseDispatchObserverNativeTest {
                     MetalPreparedRoute.CUSTOM_PROGRAM,
                     fusion)
                     : api.createProgramExecutable(context,
-                    profile,
                     values,
                     program,
                     feeds,

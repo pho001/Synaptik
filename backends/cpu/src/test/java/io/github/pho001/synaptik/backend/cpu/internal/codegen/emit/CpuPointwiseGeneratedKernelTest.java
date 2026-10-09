@@ -61,7 +61,7 @@ class CpuPointwiseGeneratedKernelTest {
                     != CpuKernelIr.Value.Kind.VIRTUAL).map(CpuKernelIr.Value::dataType).toList();
             List<CpuKernelSpecialization.CarrierAccess> carriers = carrierPatterns.get(index);
             var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(
-                    fixture.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1,
+                    fixture.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1,
             fixture.instructions().stream().filter(instruction -> instruction.opcode()
                     == CpuPointwiseOpcode.SCALAR_POW)
                     .map(CpuKernelIr.Instruction::powerRealization).toList(), false, 59);
@@ -95,7 +95,7 @@ class CpuPointwiseGeneratedKernelTest {
         List<DataType> boundaryTypes = List.of(DataType.BFLOAT16, DataType.BFLOAT16,
                 DataType.BFLOAT16, DataType.BFLOAT16);
         var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(
-                ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, boundaryTypes,
+                ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, boundaryTypes,
         Collections.nCopies(4, CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY), 0, -1,
         List.of(), false, 59);
         var generator = new CpuClassFileKernelGenerator();
@@ -130,7 +130,7 @@ class CpuPointwiseGeneratedKernelTest {
     @Test void guardedFrozenScalarGeneralMatchesDirectRangesAndRetainsFallback()
             throws Throwable {
         CpuKernelIr ir = frozenScalarGeneralIr();
-        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
         List.of(DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT32),
         List.of(CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
                 CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
@@ -200,7 +200,7 @@ class CpuPointwiseGeneratedKernelTest {
             for (CpuPointwiseOpcode opcode : SELF_CONTAINED_ACTIVATIONS) {
                 CpuKernelIr ir = ir(new Case(opcode, type));
                 List<DataType> types = ir.values().stream().map(CpuKernelIr.Value::dataType).toList();
-                var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types,
+                var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types,
                 types.stream().map(CpuPointwiseGeneratedKernelTest::heapCarrier).toList(),
                 0, -1);
                 byte[] bytes = generator.generateClassBytes(specialization, ir);
@@ -221,7 +221,7 @@ class CpuPointwiseGeneratedKernelTest {
                     CpuPointwiseOpcode.GELU_EXACT)) {
                 CpuKernelIr ir = ir(new Case(opcode, type));
                 List<DataType> types = ir.values().stream().map(CpuKernelIr.Value::dataType).toList();
-                var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types,
+                var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types,
                 types.stream().map(CpuPointwiseGeneratedKernelTest::heapCarrier).toList(),
                 vectorSpeciesBits(type), -1);
                 var model = ClassFile.of().parse(generator.generateClassBytes(specialization, ir));
@@ -280,10 +280,10 @@ class CpuPointwiseGeneratedKernelTest {
         List<DataType> types = ir.values().stream().map(CpuKernelIr.Value::dataType).toList();
         List<CpuKernelSpecialization.CarrierAccess> carriers = types.stream()
                 .map(CpuPointwiseGeneratedKernelTest::heapCarrier).toList();
-        var scalar = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1);
-        var vector = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
+        var scalar = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1);
+        var vector = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
         DoubleVector.SPECIES_PREFERRED.vectorBitSize(), -1);
-        var segments = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types,
+        var segments = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types,
         Collections.nCopies(types.size(), CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT),
         0, -1);
         var generator = new CpuClassFileKernelGenerator();
@@ -381,7 +381,7 @@ class CpuPointwiseGeneratedKernelTest {
             List<DataType> types = ir.values().stream().map(CpuKernelIr.Value::dataType).toList();
             List<CpuKernelSpecialization.CarrierAccess> carriers = types.stream()
                     .map(CpuPointwiseGeneratedKernelTest::heapCarrier).toList();
-            var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
+            var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
             DoubleVector.SPECIES_PREFERRED.vectorBitSize(), -1);
             var generator = new CpuClassFileKernelGenerator();
             var artifact = generator.defineClassBytes(specialization,
@@ -411,7 +411,7 @@ class CpuPointwiseGeneratedKernelTest {
             List<DataType> types = ir.values().stream().map(CpuKernelIr.Value::dataType).toList();
             List<CpuKernelSpecialization.CarrierAccess> carriers = types.stream()
                     .map(CpuPointwiseGeneratedKernelTest::heapCarrier).toList();
-            var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
+            var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
             FloatVector.SPECIES_PREFERRED.vectorBitSize(), -1);
             var generator = new CpuClassFileKernelGenerator();
             var artifact = generator.defineClassBytes(specialization,
@@ -450,7 +450,7 @@ class CpuPointwiseGeneratedKernelTest {
                             List.of(ordinal - 1), ordinal));
             CpuKernelIr ir = new CpuKernelIr(values, instructions,
                     new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(length, 0)));
-            var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+            var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
             List.of(DataType.FLOAT32, DataType.FLOAT32),
             List.of(CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
                     CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY),
@@ -817,7 +817,7 @@ class CpuPointwiseGeneratedKernelTest {
                 List<CpuKernelSpecialization.CarrierAccess> carriers = List.of(
                         CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
                         CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT);
-                var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1);
+                var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1);
                 var generator = new CpuClassFileKernelGenerator();
                 var artifact = generator.defineClassBytes(specialization,
                         generator.generateClassBytes(specialization, ir));
@@ -932,7 +932,7 @@ class CpuPointwiseGeneratedKernelTest {
 
     private static CpuGeneratedKernel artifact(CpuKernelIr ir, List<DataType> types,
             List<CpuKernelSpecialization.CarrierAccess> carriers) {
-        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1,
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1,
         ir.instructions().stream()
                 .filter(instruction -> instruction.opcode() == CpuPointwiseOpcode.SCALAR_POW)
                 .map(CpuKernelIr.Instruction::powerRealization).toList(), false,
@@ -1010,7 +1010,7 @@ class CpuPointwiseGeneratedKernelTest {
 
     private static CpuGeneratedKernel vectorArtifact(CpuKernelIr ir, List<DataType> types,
             List<CpuKernelSpecialization.CarrierAccess> carriers, DataType laneType) {
-        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
         vectorSpeciesBits(laneType), -1);
         var generator = new CpuClassFileKernelGenerator();
         return generator.defineClassBytes(specialization,
@@ -1052,7 +1052,7 @@ class CpuPointwiseGeneratedKernelTest {
         List<DataType> types = ir.values().stream()
                 .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL)
                 .map(CpuKernelIr.Value::dataType).toList();
-        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
         vectorSpeciesBits(laneType), -1);
         var generator = new CpuClassFileKernelGenerator();
         var artifact = generator.defineClassBytes(specialization,
@@ -1166,7 +1166,7 @@ class CpuPointwiseGeneratedKernelTest {
                 == CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR
                 ? type == DataType.FLOAT32 ? FloatVector.SPECIES_PREFERRED.vectorBitSize()
                         : DoubleVector.SPECIES_PREFERRED.vectorBitSize() : 0;
-        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, strategy,
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), strategy,
         List.of(type, type), List.of(heapCarrier(type), heapCarrier(type)), species, -1,
         List.of(ir.instructions().getFirst().powerRealization()), false,
         type == DataType.BFLOAT16 ? 59 : 52);
@@ -1422,7 +1422,7 @@ class CpuPointwiseGeneratedKernelTest {
         List<DataType> types = boundaries.stream().map(CpuKernelIr.Value::dataType).toList();
         List<CpuKernelSpecialization.CarrierAccess> carriers = types.stream()
                 .map(CpuPointwiseGeneratedKernelTest::heapCarrier).toList();
-        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1,
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1,
         ir.instructions().stream().filter(instruction -> instruction.opcode()
                 == CpuPointwiseOpcode.SCALAR_POW)
                 .map(CpuKernelIr.Instruction::powerRealization).toList(), false,

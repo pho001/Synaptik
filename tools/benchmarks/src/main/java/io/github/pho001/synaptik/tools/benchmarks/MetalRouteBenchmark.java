@@ -11,7 +11,6 @@ import io.github.pho001.synaptik.compiler.GraphCompilationPort;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -33,7 +32,6 @@ import io.github.pho001.synaptik.trace.payload.BackendInvocationOutcome;
 import io.github.pho001.synaptik.trace.payload.BackendPreparationOutcome;
 import io.github.pho001.synaptik.trace.payload.TraceCacheStatus;
 import io.github.pho001.synaptik.trace.payload.TraceNativeStatusKind;
-import io.github.pho001.synaptik.trace.payload.TraceNumericalProfile;
 import io.github.pho001.synaptik.trace.payload.TraceOutcomeStatus;
 import io.github.pho001.synaptik.trace.payload.TraceRouteKind;
 import java.io.IOException;
@@ -61,8 +59,9 @@ import java.util.Optional;
  *
  * <p>Route attestation uses a separate traced integration and contributes no timings. Timed work
  * uses the ordinary no-trace integration, enumerates both opaque candidates, and records both
- * without selecting a winner or interacting with tuning caches. Reports are machine-local
- * observations and are never eligible to authorize a production decision.</p>
+ * without selecting a winner or interacting with tuning caches. The smoke and baseline profiles
+ * select sampling protocols, not numerical semantics. Reports are machine-local observations and
+ * are never eligible to authorize a production decision.</p>
  */
 public final class MetalRouteBenchmark {
     private static final int ELEMENT_COUNT = 1_048_576;
@@ -99,10 +98,16 @@ public final class MetalRouteBenchmark {
     private MetalRouteBenchmark() {}
 
     /**
-     * Runs exactly one fixed profile and writes one schema-1 JSON document to standard output.
+     * Runs exactly one fixed sampling profile and writes one schema-2 JSON document to standard
+     * output. The report records the chosen sampling profile, workload, and both route results,
+     * but no graph-wide numerical profile.
      *
-     * @param args zero arguments for {@code smoke}, or exactly one {@code smoke} or
+     * @param args non-null arguments; empty for {@code smoke}, or exactly one {@code smoke} or
      *     {@code baseline} argument
+     * @throws IllegalArgumentException if the sampling profile, required baseline metadata, or
+     *     configured native-library path is invalid
+     * @throws IllegalStateException if the host, native library, route attestation, or exact
+     *     output checks do not satisfy this benchmark's fixed protocol
      */
     public static void main(String[] args) {
         Profile profile = profile(args);
@@ -275,11 +280,11 @@ public final class MetalRouteBenchmark {
             throw new IllegalStateException("attestation invocation event has wrong shape");
         }
         requireSuccessfulTrace(
-                preparation.status(), preparation.profile(), preparation.route(),
+                preparation.status(), preparation.route(),
                 preparation.nativeStatus().orElseThrow().kind(),
                 preparation.nativeStatus().orElseThrow().code(), expectedRoute, "PREPARE");
         requireSuccessfulTrace(
-                invocation.status(), invocation.profile(), invocation.route(),
+                invocation.status(), invocation.route(),
                 invocation.nativeStatus().orElseThrow().kind(),
                 invocation.nativeStatus().orElseThrow().code(), expectedRoute, "RUN");
         if (preparation.cacheStatus() != TraceCacheStatus.NOT_QUERIED) {
@@ -293,14 +298,12 @@ public final class MetalRouteBenchmark {
 
     private static void requireSuccessfulTrace(
             TraceOutcomeStatus status,
-            TraceNumericalProfile profile,
             TraceRouteKind route,
             TraceNativeStatusKind nativeStatus,
             int nativeCode,
             TraceRouteKind expectedRoute,
             String phase) {
         if (status != TraceOutcomeStatus.SUCCEEDED
-                || profile != TraceNumericalProfile.STRICT_IEEE
                 || route != expectedRoute
                 || nativeStatus != TraceNativeStatusKind.SUCCESS
                 || nativeCode != 0) {
@@ -500,7 +503,6 @@ public final class MetalRouteBenchmark {
         long begin = System.nanoTime();
         CompileArtifacts artifacts = GraphCompilationPort.compile(
                 CompileMode.FORWARD_ONLY,
-                NumericalProfile.STRICT_IEEE,
                 List.of(workload.output()),
                 Optional.empty(),
                 GraphOptimizationConfig.disabled(),
@@ -581,7 +583,7 @@ public final class MetalRouteBenchmark {
             long elapsedNanos) {
         var runtime = ManagementFactory.getRuntimeMXBean();
         StringBuilder out = new StringBuilder(16_384);
-        out.append("{\"schema\":1")
+        out.append("{\"schema\":2")
                 .append(",\"benchmark\":\"metal-singleton-neg-routes\"")
                 .append(",\"profile\":\"").append(profile.name()).append('"')
                 .append(",\"eligibleForProductionDecision\":false")
@@ -645,7 +647,6 @@ public final class MetalRouteBenchmark {
                 .append(",\"encoding\":\"Float.floatToRawIntBits\"}")
                 .append(",\"expectedRawWordFormula\":\"inputRawWord XOR 0x80000000\"")
                 .append(",\"operation\":\"NEG\"")
-                .append(",\"numericalProfile\":\"STRICT_IEEE\"")
                 .append(",\"graphOptimizations\":\"disabled\"")
                 .append(",\"dataType\":\"FLOAT32\"")
                 .append(",\"layout\":\"CONTIGUOUS\"")

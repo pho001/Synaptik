@@ -26,13 +26,13 @@ import java.util.List;
  * #name()} and {@link #toString()} text is diagnostic only, not a serialization, parsing,
  * registry, reflection, dispatch, or kernel contract.</p>
  *
- * <p>The Model-owned numerical-profile contract leaves every cast conversion exact under both
- * {@code STRICT_IEEE} and {@code ACCELERATOR}. Source and target types, rounding, saturation,
- * overflow, NaN, infinity, signed-zero, and Boolean conversion rules are unchanged; DAZ/FTZ and
- * the irreducible-elementary-site ordered-distance ceiling do not apply to casts. Non-floating and
- * non-FLOAT32 cases therefore gain no profile-dependent behavior. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Every declared cast is an exact conversion rather than a floating arithmetic primitive.
+ * Source and target types, rounding, saturation, overflow, NaN, infinity, signed-zero, and Boolean
+ * conversion rules remain in force; no input DAZ, result FTZ, or finite arithmetic tolerance
+ * applies. A low subnormal can therefore convert according to its stored represented value. See the
+ * <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum CastKind implements OperationKind {
     /**

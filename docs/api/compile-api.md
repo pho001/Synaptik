@@ -31,17 +31,13 @@ Final compile artifacts now associate every caller-bindable graph input with the
 `TensorId` of its originating logical caller Tensor. The ordinary Engine uses that metadata for
 current logical binding; the association itself retains no Tensor, descriptor copy, host storage,
 or runtime representation.
-The current config module provides five immutable standalone values that a later compile
+The current config module provides four immutable standalone values that a later compile
 configuration aggregate can contain: `BackendIntent`, `CompileMode`,
-`GraphOptimizationConfig`, `PartitionScoringConfig`, and `NumericalProfile`. Model remains the sole
-authority for the strict set, current recursive `FLOAT32` accelerator superset, and activated
-BFLOAT16/FLOAT16 occurrence contracts. Config owns only the two stable profile identities.
-`Engine.Builder` defaults the graph-wide selection to `STRICT_IEEE`; an explicit selection is
-captured once and passed to Planning capability queries, Compiler artifacts, Prepare projections,
-and backend plan/cache identities. Config itself supplies no default. Compiler interprets none of
-the floors: every generated gradient formula is made from ordinary public Tensor operations in the
-same graph-wide profile, with exact guards/saved values and no gradient-only output envelope.
-The current planning module provides the immutable profile-qualified
+`GraphOptimizationConfig`, and `PartitionScoringConfig`. Model alone owns the one profile-free
+family/dtype semantic contract. Compiler-generated gradients use ordinary public Tensor
+operations under that contract, with exact guards and saved values and no gradient-only output
+envelope. Finite tolerances are test-only and never license a Compiler rewrite.
+The current planning module provides the immutable occurrence-specific
 `OperationCapabilityQuery` and the explicitly supplied `BackendCapabilityProvider` collaboration.
 It keeps per-query hard eligibility and baseline comparison package-private and exposes one public
 `BackendOwnerPlanning.selectOwner(...)` collaboration that composes them without exposing the
@@ -1182,7 +1178,7 @@ proves or retains its descriptor-only constraints. The current fail-closed CPU p
 lowers, prepares, and executes only the fully static, resolved-layout
 BFLOAT16/FLOAT16/FLOAT32/FLOAT64 grouped NCHW forward subset with exact group, channel, optional-
 bias, spatial, promoted-type, and injective-output relationships. Metal separately admits its
-profile-qualified homogeneous four-floating-type domain and documented accelerator promotions.
+occurrence-qualified homogeneous four-floating-type domain and documented promotions.
 This includes authenticated Conv1d singleton-height composition. Current package-private first-order autograd constructs every
 selected input, weight, and optional bias cotangent for grouped convolution through exact-group
 `unfold2d`, matrix contraction, reduction, and overlap-accumulating `fold2d`. It places explicit
@@ -1204,8 +1200,8 @@ diagnostics, and Planning handoff preserve the exact operation and ordered descr
 current fail-closed CPU path advertises, lowers, prepares, and executes only the fully static,
 resolved-layout BFLOAT16/FLOAT16/FLOAT32/FLOAT64 grouped NCDHW forward subset with exact group,
 channel, optional-bias, spatial, promoted-type, and injective-output relationships. Metal
-separately admits its profile-qualified homogeneous four-floating-type domain and documented
-accelerator promotions. Draft
+separately admits its occurrence-qualified homogeneous four-floating-type domain and documented
+promotions. Draft
 0006C remains separate: backward-capable requests containing `CONV3D` fail before derivative
 allocation. Dynamic binding, Conv3d gradients and adjoints, and other algorithms remain planned.
 `Tensor.maxPool2d(attrs)` is current first-class NCHW maximum-pooling model construction. One
@@ -1217,8 +1213,8 @@ ceiling-grid window, even when the terminal window is all-padding; padding exclu
 infinity empty windows, NaN propagation, signed-zero ordering, and first-logical-sample ties are
 semantic metadata. Package-private structural capture and descriptor verification are current.
 The CPU backend executes the fully static resolved-layout non-gradient subset through its direct
-schema-68 generated route. Metal executes the fully static FLOAT64/FLOAT32/BFLOAT16/FLOAT16 subset
-under both profiles through its fixed custom program, preserving exact gradient metadata for later
+schema-69 generated route. Metal executes the fully static FLOAT64/FLOAT32/BFLOAT16/FLOAT16 subset
+through its fixed custom program, preserving exact gradient metadata for later
 ownership decisions. Current package-private first-order autograd reconstructs the exact first
 eligible logical winner from the original input and the same-occurrence public output, including
 padding exclusion and the specified NaN and signed-zero equality, then routes through public
@@ -1235,8 +1231,8 @@ BFLOAT16, FLOAT16, and FLOAT32, FLOAT64 accumulation/division for FLOAT64, one f
 documented NaN/infinity/signed-zero/all-padding policies. Dynamic spatial non-negativity remains a
 future compiler-validation or concrete-binding obligation. Package-private structural capture and
 descriptor verification are current. The CPU backend executes the fully static resolved-layout
-non-gradient subset through its direct schema-68 generated route. Metal executes fully static
-accelerator FLOAT32 through its fixed custom program. Current package-private first-order autograd
+non-gradient subset through its direct schema-69 generated route. Metal executes fully static
+qualified FLOAT32 through its fixed custom program. Current package-private first-order autograd
 divides by a logical typed `kernelHeight * kernelWidth` count and routes every window position
 through public expansion and overlap-accumulating fold expressions. Explicit `contiguous()`
 materializations make the expanded divisor, seed, and columns canonical. The final Pool2d fold
@@ -1265,10 +1261,10 @@ same-occurrence output. Its equality preserves dominant NaN, signed-zero orderin
 infinity, first-winner, and all-padding behavior before one-hot routing and `fold3d` accumulation.
 The maximum selector is a fixed non-differentiable mask for a later derivative stage, while the
 incoming branch remains differentiable. The CPU backend advertises and prepares only the fully
-static resolved-layout non-gradient BFLOAT16/FLOAT16/FLOAT32/FLOAT64 subset. Its schema-68 direct
+static resolved-layout non-gradient BFLOAT16/FLOAT16/FLOAT32/FLOAT64 subset. Its schema-69 direct
 generated body uses scalar compute, optionally distributes complete output-cell ranges through
 caller-owned workers, and declares zero workspace or materialization. Metal separately executes
-fully static maximum Pool3d for the same four carriers under both profiles and accelerator
+fully static maximum Pool3d for the same four carriers and qualified
 homogeneous low/FLOAT32 average
 Pool3d through its fixed custom program. Explicit gradient-formula materialization produces
 canonical columns and results; Metal owns only non-overlapping average Pool3d cotangents and no
@@ -1288,7 +1284,7 @@ that permutation. The current fail-closed CPU path advertises, lowers, prepares,
 fully static, resolved-layout SORT/ARGSORT occurrences over all seven represented input types with
 an exact normalized axis, input-shaped same-type values or INT64 indices, stable NaN-last and
 signed-zero order, and an injective output. The current Metal path separately admits both kinds
-under both profiles for canonical dense ranks `1..16` whose positive geometry and logical indices
+for canonical dense ranks `1..16` whose positive geometry and logical indices
 fit unsigned 32 bits, and always selects its fixed custom program. Gradient support remains limited
 to the floating SORT role above. Dynamic binding and unlisted-backend execution remain planned.
 
@@ -1311,7 +1307,7 @@ The current fail-closed CPU path advertises, lowers, prepares, and executes only
 resolved-layout TOP_K occurrences over all seven represented input types with exact normalized
 axis, `0 <= k <= selected extent`, largest/smallest and sorted/unsorted attributes, same-type
 values plus non-differentiable INT64 indices, equal output Shapes, and two injective outputs. The
-current Metal path separately admits positive K under both profiles for canonical dense ranks
+current Metal path separately admits positive K for canonical dense ranks
 `1..16` whose positive geometry and logical indices fit unsigned 32 bits. One fixed custom step
 retains both outputs through target subsets, composition, reuse, and publication. Dynamic selected-
 extent binding and unlisted-backend execution remain planned. Current floating TOP_K values-slot
@@ -1326,7 +1322,7 @@ and is structurally capturable; current Compiler autograd treats it as the ordin
 occurrence, including repeated-index accumulation. The current fail-closed CPU path advertises,
 lowers, prepares, and executes the fully static, resolved-layout axis-zero GATHER subset with
 INT32/INT64 indices, exact Shape, and injective output. The current Metal path additionally admits
-the exact canonical positive-rank FLOAT32+INT32 form under both profiles and validates every index
+the exact canonical positive-rank FLOAT32+INT32 form and validates every index
 before selector dispatch or output writes. Constant-index analysis and dynamic binding remain
 planned. No `EMBEDDING` kind or padding/sparse/max-norm/frequency option exists.
 `Tensor.oneHot(depth)` currently validates exact INT32/INT64 receiver metadata before positive
@@ -1337,7 +1333,7 @@ entry and is structurally capturable. Construction reads no index values; valid 
 `0 <= i < depth`. The current fail-closed CPU path advertises, lowers, prepares, and executes the
 fully static, resolved-layout INT32/INT64-index subset with exact positive depth, BOOL result Shape,
 and injective output. The current Metal path additionally admits the exact canonical positive-rank
-INT32-to-BOOL form under both profiles, prevalidates every index, and publishes exact zero/one
+INT32-to-BOOL form, prevalidates every index, and publishes exact zero/one
 bytes without widening BOOL transfer or consumers. Constant analysis and dynamic bounds
 enforcement remain planned; the index input and BOOL result remain non-differentiable.
 `Tensor.rsqrt`, `log1p`, `expm1`, `gelu`, `geluTanhApproximation`, and `silu` accept floating input,
@@ -1548,7 +1544,7 @@ first-order autograd supports both prediction and target roles, restores `NONE`,
 coefficients `2` and `-2`. The current fail-closed CPU path advertises, lowers, prepares, and
 executes only fully static, resolved-layout BFLOAT16/FLOAT16/FLOAT32/FLOAT64 MSE occurrences with
 exact equal prediction/target Shape, ordered promotion, reduction/result Shape, gradient eligibility,
-and injective output. Metal additionally owns the ACCELERATOR homogeneous BFLOAT16/FLOAT16/FLOAT32
+and injective output. Metal additionally owns the admitted homogeneous BFLOAT16/FLOAT16/FLOAT32
 canonical positive-rank forward MSE domain for all three reductions; the result gradient flag is
 the exact input OR, but generated backward nodes receive no Metal ownership. Dynamic binding,
 training coordination, other carriers, mixed carriers, and all other Metal loss or normalization families remain
@@ -1745,7 +1741,7 @@ additive `scatterElements`; indices remain non-differentiable. The current fail-
 advertises, lowers, prepares, and executes fully static, resolved-layout GATHER/GATHER_ELEMENTS
 occurrences with INT32/INT64 indices, exact family Shape alignment, preserved data type, and
 injective output. The current Metal path additionally admits exact canonical positive-rank
-FLOAT32+INT32 GATHER under both profiles, with no GATHER_ELEMENTS or INT64 support, and validates
+FLOAT32+INT32 GATHER, with no GATHER_ELEMENTS or INT64 support, and validates
 every index before selector dispatch or target writes. Dynamic binding remains planned.
 `Tensor.gatherNd` consumes exact ordered `[data, indices]` inputs with `INT32` or `INT64` indices.
 Its short form uses zero shared batch Dimensions; its complete form retains one normalized
@@ -1778,7 +1774,7 @@ INT32/INT64 indices, exact data/update type and same-rank Shape relationships, p
 represented reduction, data-shaped distinct injective output, and execution-time index/duplicate
 validation. Gradient support remains limited to the exact floating roles above. The current Metal
 path additionally admits only canonical positive-rank FLOAT32 data/updates/results with INT32
-indices and `NONE`, identically under both profiles. It validates the complete bounds domain before
+indices and `NONE` under the one Model contract. It validates the complete bounds domain before
 complete-coordinate uniqueness and before dispatch or writes, preserves exact addressed-update and
 unaddressed-base bits, and leaves every input unchanged. This does not add Compiler production or a
 complete Metal backward route: the existing update cotangent needs unsupported GATHER_ELEMENTS.
@@ -1856,7 +1852,7 @@ resolved-layout one-node UNFOLD_AXIS occurrences over all seven represented type
 FLOAT64/FLOAT32/BFLOAT16/FLOAT16/INT32/INT64, and UNFOLD2D/FOLD2D over
 BFLOAT16/FLOAT16/FLOAT32/FLOAT64, with exact window, direct-zero or typed-padding, overlap-add,
 Shape, and distinct injective-output relationships. Metal independently admits canonical
-all-carrier UNFOLD_AXIS within its bounded rank/window domain under both profiles. It also admits
+all-carrier UNFOLD_AXIS within its bounded rank/window domain. It also admits
 the static canonical four-floating-type UNFOLD2D/UNFOLD3D raw-movement forms and non-overlapping
 FLOAT64/FLOAT32/BFLOAT16/FLOAT16 FOLD_AXIS/FOLD2D/FOLD3D forms. These forward
 routes preserve represented bits; folds write exact represented zero to uncovered output cells.

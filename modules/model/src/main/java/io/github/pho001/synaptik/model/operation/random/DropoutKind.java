@@ -18,14 +18,14 @@ import java.util.List;
  * {@code input * (1 / (1 - probability))}. Probability zero still advances state; an empty shape
  * draws zero values.</p>
  *
- * <p>Under the Model-owned numerical-profile contract, sampling membership, mask, state
- * transition, probability, guards, traversal, and dropped value remain exact in both profiles.
- * For {@code ACCELERATOR FLOAT32}, only a kept value's typed-one-minus-probability, typed-one
- * division, and input multiplication sites use DAZ/FTZ and one-round FLOAT32 operations. The mask
- * and next state cannot inherit arithmetic tolerance, and the composite gains no final-output
- * envelope. Non-FLOAT32 behavior stays strict. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Sampling membership, mask, graph-random-number-generator state transition, probability,
+ * guards, traversal, and dropped positive zero remain exact. A kept value uses
+ * typed-one-minus-probability, typed-one division, then input multiplication. Only these named
+ * floating arithmetic primitive inputs/results may use dtype-specific DAZ/FTZ for FLOAT32,
+ * BFLOAT16, and FLOAT16, never FLOAT64. Homogeneous low arithmetic works in FLOAT32 with one final
+ * low narrowing per value; the mask and next state gain no tolerance. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum DropoutKind implements OperationKind {
     /** Training-only inverted dropout with one non-public auxiliary BOOL keep-mask output. */

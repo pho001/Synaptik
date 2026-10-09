@@ -251,12 +251,12 @@ class CpuConv3dGeneratedKernelTest {
     }
     private static PrepareContext<CpuPartitionAnalysisInputs> withInputs(
             PrepareContext<CpuPartitionAnalysisInputs> base, int count, CarrierAccess access) {
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        return new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
         java.util.Collections.nCopies(count, access)));
     }
 
     private static CpuKernelSpecialization vector(CpuKernelSpecialization scalar, int bits) {
-        return new CpuKernelSpecialization(scalar.loweringFingerprint(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, io.github.pho001.synaptik.backend.cpu.internal.prepare
+        return new CpuKernelSpecialization(scalar.loweringFingerprint(), io.github.pho001.synaptik.backend.cpu.internal.prepare
                 .CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
         scalar.boundaryDataTypes(), scalar.carrierPattern(), bits, -1,
         scalar.scalarPowerRealizations(), false, 63);

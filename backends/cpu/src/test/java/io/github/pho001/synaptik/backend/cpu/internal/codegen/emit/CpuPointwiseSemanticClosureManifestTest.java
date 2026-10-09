@@ -27,7 +27,7 @@ class CpuPointwiseSemanticClosureManifestTest {
     private static final String INVENTORY = "generated-coverage-inventory.tsv";
     private static final String MANIFEST = "generated-pointwise-semantic-closure.tsv";
     private static final String INVENTORY_SHA256 =
-            "9c06f9898dc287c6d2c3805088460c699052d14dbe707de146845659ce5450eb";
+            "ccbde775b20797ceb2b245bc0676a9aa516535007d0861d02f161991000a11a4";
 
     @Test void manifestIsCurrentExactAndAccountsForEveryGeneratedPointwiseRow() throws Exception {
         Closure closure = parseManifest(resource(MANIFEST));

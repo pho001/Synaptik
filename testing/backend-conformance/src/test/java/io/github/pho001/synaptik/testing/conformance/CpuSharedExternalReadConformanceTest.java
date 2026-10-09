@@ -9,7 +9,6 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalys
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
@@ -85,7 +84,7 @@ final class CpuSharedExternalReadConformanceTest {
                     consumed ? List.of(partition) : List.of(),
                     nodes.getLast().outputs().contains(id)));
         }
-        return new PrepareContext<>(NumericalProfile.STRICT_IEEE, partition, nodes, values,
+        return new PrepareContext<>(partition, nodes, values,
                 requirements, Map.of(), new CpuPartitionAnalysisInputs(false, List.of(),
                 new PortableExecutionConfig(ComputePreference.SCALAR, 1, 1, 1)));
     }

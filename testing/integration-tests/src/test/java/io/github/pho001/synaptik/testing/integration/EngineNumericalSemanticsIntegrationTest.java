@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
 import io.github.pho001.synaptik.engine.ScalarObjectiveBackwardResult;
@@ -21,8 +20,8 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/** Exercises both numerical profiles through actual reusable forward and generated-backward CPU runs. */
-final class EngineNumericalProfileIntegrationTest {
+/** Exercises profile-free arithmetic through reusable forward and generated-backward CPU runs. */
+final class EngineNumericalSemanticsIntegrationTest {
     private static final TensorDescriptor DESCRIPTOR = new TensorDescriptor(
             DataType.FLOAT32,
             Shape.of(3),
@@ -30,16 +29,13 @@ final class EngineNumericalProfileIntegrationTest {
             true);
 
     @Test
-    void strictAndAcceleratorExecuteIdenticalForwardBackwardAndReusableSessions() {
-        Evidence strict = execute(NumericalProfile.STRICT_IEEE);
-        Evidence accelerator = execute(NumericalProfile.ACCELERATOR);
-        assertAllEqual(strict, accelerator);
+    void forwardBackwardAndReusableSessionsPreserveDeclaredResults() {
+        execute();
     }
 
-    private static Evidence execute(NumericalProfile profile) {
+    private static void execute() {
         try (Arena arena = Arena.ofConfined();
                 Engine engine = Engine.builder()
-                        .numericalProfile(profile)
                         .takeOwnership(CpuBackendIntegration.open())
                         .build()) {
             Tensor input = input(arena);
@@ -68,15 +64,7 @@ final class EngineNumericalProfileIntegrationTest {
             float[] gradient = floats(backward.gradients().getFirst());
             assertEquals(6.0f, objectiveValue);
             assertArrayEquals(new float[] {5.0f}, gradient);
-            return new Evidence(first, second, objectiveValue, gradient);
         }
-    }
-
-    private static void assertAllEqual(Evidence strict, Evidence accelerator) {
-        assertArrayEquals(strict.firstForward(), accelerator.firstForward());
-        assertArrayEquals(strict.secondForward(), accelerator.secondForward());
-        assertEquals(strict.objective(), accelerator.objective());
-        assertArrayEquals(strict.gradient(), accelerator.gradient());
     }
 
     private static float[] floats(HostTensorValue value) {
@@ -106,12 +94,4 @@ final class EngineNumericalProfileIntegrationTest {
                 new MemorySegmentStorage(DataType.FLOAT32, 1, storage)));
     }
 
-    private record Evidence(float[] firstForward, float[] secondForward, float objective,
-            float[] gradient) {
-        private Evidence {
-            firstForward = firstForward.clone();
-            secondForward = secondForward.clone();
-            gradient = gradient.clone();
-        }
-    }
 }

@@ -233,7 +233,7 @@ class CpuSpecializedGeneratedMatrixTest {
         var rejected = rejectedProviderFixtures();
         assertEquals(3, rejected.size());
         for (var value : rejected) assertFalse(new CpuCapabilityProvider().supports(
-                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, value.operation(), value.inputs(), value.outputs())), value.id());
+                new OperationCapabilityQuery(value.operation(), value.inputs(), value.outputs())), value.id());
         assertEquals(0, List.of().size(), "Model/CPU exposes group or instance normalization only as non-direct composition");
     }
 
@@ -305,7 +305,7 @@ class CpuSpecializedGeneratedMatrixTest {
     }
 
     private static boolean supports(PrepareContext<CpuPartitionAnalysisInputs> context) {
-        var node = context.nodes().getFirst(); return new CpuCapabilityProvider().supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, node.operation(), CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.inputs()), CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.outputs())));
+        var node = context.nodes().getFirst(); return new CpuCapabilityProvider().supports(new OperationCapabilityQuery(node.operation(), CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.inputs()), CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.outputs())));
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> configure(PrepareContext<CpuPartitionAnalysisInputs> base, Request request) {
@@ -319,7 +319,7 @@ class CpuSpecializedGeneratedMatrixTest {
         var carriers = new ArrayList<CpuKernelSpecialization.CarrierAccess>();
         for (int i = 0; i < values.size(); i++) carriers.add(request.segment || request.mixed && i % 2 == 1 ? CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
                 : CpuGeneratedDirectEvidenceClosureTest.heapCarrier(values.get(i).descriptor().dataType()));
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), values, memory, base.constants(), new CpuPartitionAnalysisInputs(false, carriers,
+        return new PrepareContext<>(base.partition(), base.nodes(), values, memory, base.constants(), new CpuPartitionAnalysisInputs(false, carriers,
                 request.execution, request.materialization ? MATERIALIZATION : CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED));
     }
 
@@ -385,7 +385,7 @@ class CpuSpecializedGeneratedMatrixTest {
             values.add(new GraphValue(outputIds.get(1), weightsDescriptor));
             memory.add(new LogicalMemoryRequirement(outputIds.get(1), weightsDescriptor, Optional.of(partition), List.of(), true));
         }
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
     static List<List<Integer>> attentionRoles(boolean mask, DataType query, DataType key,
             DataType value) {

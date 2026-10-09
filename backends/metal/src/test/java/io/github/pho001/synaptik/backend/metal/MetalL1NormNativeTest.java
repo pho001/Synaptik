@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -35,7 +34,6 @@ class MetalL1NormNativeTest {
     void customAbiRejectsEveryAlternateReductionFormGradientTypeAndGeometry() {
         var valid = program(4, false, MetalMpsGraphProgram.ReductionForm.MULTI_AXIS, List.of(0));
         MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                NumericalProfile.ACCELERATOR,
                 values(4, false, false, DataType.FLOAT32),
                 valid,
                 new int[] {0},
@@ -45,7 +43,6 @@ class MetalL1NormNativeTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
                         values(4, false, false, DataType.FLOAT32),
                         valid,
                         new int[] {0},
@@ -58,7 +55,6 @@ class MetalL1NormNativeTest {
             assertThrows(
                     IllegalArgumentException.class,
                     () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                            NumericalProfile.ACCELERATOR,
                             values(4, false, false, DataType.FLOAT32),
                             malformed,
                             new int[] {0},
@@ -68,7 +64,6 @@ class MetalL1NormNativeTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
                         values(4, true, false, DataType.FLOAT32),
                         valid,
                         new int[] {0},
@@ -77,7 +72,6 @@ class MetalL1NormNativeTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
                         values(4, false, false, DataType.FLOAT64),
                         valid,
                         new int[] {0},
@@ -86,7 +80,6 @@ class MetalL1NormNativeTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
                         values(0xffff_ffffL / Float.BYTES + 1L, false, false, DataType.FLOAT32),
                         program(
                                 0xffff_ffffL / Float.BYTES + 1L,
@@ -109,7 +102,6 @@ class MetalL1NormNativeTest {
             context = api.createContext();
             var program = program(1, false, MetalMpsGraphProgram.ReductionForm.MULTI_AXIS, List.of(0));
             executable = api.createProgramExecutable(context,
-            NumericalProfile.ACCELERATOR,
             values(1, false, false, DataType.FLOAT32),
             program,
             new int[] {0},
@@ -151,7 +143,6 @@ class MetalL1NormNativeTest {
                     MetalMpsGraphProgram.ReductionForm.MULTI_AXIS,
                     List.of(0));
             executable = api.createProgramExecutable(context,
-            NumericalProfile.ACCELERATOR,
             values(words.length, false, keepDimensions, DataType.FLOAT32),
             program,
             new int[] {0},

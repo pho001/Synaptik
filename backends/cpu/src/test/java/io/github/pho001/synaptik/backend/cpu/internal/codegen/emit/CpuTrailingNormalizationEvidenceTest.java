@@ -206,7 +206,7 @@ public final class CpuTrailingNormalizationEvidenceTest {
         var base = CpuTrailingNormalizationLoweringTest.context(layer, affine, type,
                 Shape.of(ROWS, WIDTH), Shape.of(WIDTH), affine
                         ? layer ? List.of(0, 1, 2) : List.of(0, 1) : List.of(0));
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -522,7 +522,7 @@ public final class CpuTrailingNormalizationEvidenceTest {
 
     private static Prepared mixedPrepared(PrepareContext<CpuPartitionAnalysisInputs> base,
             List<CarrierAccess> carriers, Arena arena, String name) throws Exception {
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         var plan = new CpuPartitionPreparer().analyze(context).plan(); var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator(); byte[] bytes = generator.generateClassBytes(
                 route.specialization(), route.kernelIr()); var artifact = generator.defineClassBytes(route.specialization(), bytes);
@@ -562,7 +562,7 @@ public final class CpuTrailingNormalizationEvidenceTest {
         var base = CpuAggregateLoweringTest.context(AggregateReductionKind.VARIANCE,
                 DataType.FLOAT32, Shape.of(ROWS, WIDTH),
                 new StatisticalReductionAttrs(List.of(1), false, 1), Shape.of(ROWS));
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan(); var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator(); byte[] bytes = generator.generateClassBytes(
@@ -595,7 +595,7 @@ public final class CpuTrailingNormalizationEvidenceTest {
         var base = CpuSoftmaxLoweringTest.context(
                 io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind.SOFTMAX,
                 DataType.FLOAT32, Shape.of(ROWS, WIDTH), 1);
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan(); var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator(); byte[] bytes = generator.generateClassBytes(
@@ -632,7 +632,7 @@ public final class CpuTrailingNormalizationEvidenceTest {
                         CpuPointwiseOpcode.ADD, List.of(0, 1), 2)), new CpuKernelIr.Loop("start", "end"),
                 List.of(new CpuKernelIr.Store(2, 0)));
         var specialization = new CpuKernelSpecialization(io.github.pho001.synaptik.backend.cpu.internal.cache.CpuLoweringFingerprint.fromHex(
-                ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
         List.of(DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT32),
         List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY),
         0, -1); var generator = new CpuClassFileKernelGenerator(); byte[] bytes =

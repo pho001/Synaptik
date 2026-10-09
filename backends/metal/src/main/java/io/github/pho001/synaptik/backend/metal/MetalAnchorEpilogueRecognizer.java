@@ -1,6 +1,5 @@
 package io.github.pho001.synaptik.backend.metal;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
 import java.util.ArrayList;
@@ -8,38 +7,33 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-/** Cold, deterministic recognizer for the bounded schema-19 Metal anchor-epilogue domain. */
+/** Cold, deterministic recognizer for the bounded schema-20 Metal anchor-epilogue domain. */
 final class MetalAnchorEpilogueRecognizer {
     private MetalAnchorEpilogueRecognizer() {}
 
     static List<MetalAnchorEpilogue> recognize(
-            NumericalProfile numericalProfile,
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] targets) {
         List<MetalAnchorEpilogue> result =
-                recognizeBounded(numericalProfile, program, values, targets);
+                recognizeBounded(program, values, targets);
         return result.size() <= MetalPointwiseFusionPlan.MAX_ANCHOR_UNITS
                 ? result : List.of();
     }
 
     static List<MetalAnchorEpilogue> recognizeForDiagnostics(
-            NumericalProfile numericalProfile,
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] targets) {
-        return recognizeBounded(numericalProfile, program, values, targets);
+        return recognizeBounded(program, values, targets);
     }
 
     private static List<MetalAnchorEpilogue> recognizeBounded(
-            NumericalProfile numericalProfile,
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] targets) {
-        Objects.requireNonNull(numericalProfile, "numericalProfile");
         Objects.requireNonNull(program, "program");
         List<MetalMpsGraphProgram.ValueDescriptor> descriptors = List.copyOf(values);
-        if (numericalProfile != NumericalProfile.ACCELERATOR) return List.of();
 
         List<MetalMpsGraphProgram.Node> nodes = program.nodes();
         int[] consumers = new int[descriptors.size()];

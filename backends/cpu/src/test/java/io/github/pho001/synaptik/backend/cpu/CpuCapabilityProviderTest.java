@@ -2,7 +2,6 @@ package io.github.pho001.synaptik.backend.cpu;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -38,14 +37,13 @@ import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
     @Test
-    void acceleratorProfileAdmitsTheSameSupportedOccurrence() {
+    void admitsSupportedOccurrenceWithoutNumericalSelector() {
         var input = descriptor(DataType.FLOAT32, Shape.of(2));
         var query = new OperationCapabilityQuery(
-                NumericalProfile.STRICT_IEEE,
                 new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE),
                 List.of(input),
                 List.of(input));
-        assertTrue(supportsBothProfiles(new CpuCapabilityProvider(), query));
+        assertTrue(new CpuCapabilityProvider().supports(query));
     }
 
     @Test void reportsOnlyExactStaticResolvedFloatingNchwPool2dOccurrences() {
@@ -56,9 +54,9 @@ class CpuCapabilityProviderTest {
             var input = descriptor(type, Shape.of(1, 2, 4, 5));
             var output = descriptor(type, Shape.of(1, 2, 3, 5));
             assertAll(type.toString(),
-                    () -> assertTrue(supportsBothProfiles(provider, query(Pool2dKind.MAX_POOL2D, max,
+                    () -> assertTrue(provider.supports(query(Pool2dKind.MAX_POOL2D, max,
                             List.of(input), output))),
-                    () -> assertTrue(supportsBothProfiles(provider, query(Pool2dKind.AVERAGE_POOL2D, average,
+                    () -> assertTrue(provider.supports(query(Pool2dKind.AVERAGE_POOL2D, average,
                             List.of(input), output))));
         }
         var input = descriptor(DataType.FLOAT32, Shape.of(1, 2, 4, 5));
@@ -69,17 +67,17 @@ class CpuCapabilityProviderTest {
                 Optional.of(LayoutDescriptor.of(Shape.of(1, 2, 3, 5),
                         new long[]{30, 0, 5, 1}, 0, true)), false);
         assertAll(
-                () -> assertFalse(supportsBothProfiles(provider, query(Pool2dKind.MAX_POOL2D, max,
+                () -> assertFalse(provider.supports(query(Pool2dKind.MAX_POOL2D, max,
                         List.of(descriptor(DataType.INT32, Shape.of(1, 2, 4, 5))), output))),
-                () -> assertFalse(supportsBothProfiles(provider, query(Pool2dKind.MAX_POOL2D, max,
+                () -> assertFalse(provider.supports(query(Pool2dKind.MAX_POOL2D, max,
                         List.of(input), descriptor(DataType.FLOAT64, Shape.of(1, 2, 3, 5))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(Pool2dKind.MAX_POOL2D, max,
+                () -> assertFalse(provider.supports(query(Pool2dKind.MAX_POOL2D, max,
                         List.of(input), descriptor(DataType.FLOAT32, Shape.of(1, 2, 3, 4))))),
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> query(Pool2dKind.MAX_POOL2D, average, List.of(input), output)),
-                () -> assertFalse(supportsBothProfiles(provider, query(Pool2dKind.MAX_POOL2D, max,
+                () -> assertFalse(provider.supports(query(Pool2dKind.MAX_POOL2D, max,
                         List.of(input), unresolved))),
-                () -> assertFalse(supportsBothProfiles(provider, query(Pool2dKind.MAX_POOL2D, max,
+                () -> assertFalse(provider.supports(query(Pool2dKind.MAX_POOL2D, max,
                         List.of(input), nonInjective))));
     }
 
@@ -90,8 +88,8 @@ class CpuCapabilityProviderTest {
         for(DataType type:List.of(DataType.BFLOAT16,DataType.FLOAT32,DataType.FLOAT64)){
             var input=descriptor(type,Shape.of(1,2,3,3,3));
             var output=descriptor(type,Shape.of(1,2,4,4,4));
-            assertAll(()->assertTrue(supportsBothProfiles(provider, query(Pool3dKind.MAX_POOL3D,max,List.of(input),output))),
-                    ()->assertTrue(supportsBothProfiles(provider, query(Pool3dKind.AVERAGE_POOL3D,average,List.of(input),output))));
+            assertAll(()->assertTrue(provider.supports(query(Pool3dKind.MAX_POOL3D,max,List.of(input),output))),
+                    ()->assertTrue(provider.supports(query(Pool3dKind.AVERAGE_POOL3D,average,List.of(input),output))));
         }
         var input=descriptor(DataType.FLOAT32,Shape.of(1,2,3,3,3));
         var output=descriptor(DataType.FLOAT32,Shape.of(1,2,4,4,4));
@@ -105,17 +103,17 @@ class CpuCapabilityProviderTest {
         Shape inputShape=Shape.of(1,2,3,3,3);
         var nonInjectiveInput=new TensorDescriptor(DataType.FLOAT32,inputShape,
                 Optional.of(LayoutDescriptor.of(inputShape,new long[]{0,0,0,0,0},0,true)),false);
-        assertAll(()->assertFalse(supportsBothProfiles(provider, query(Pool3dKind.MAX_POOL3D,max,
+        assertAll(()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
                         List.of(descriptor(DataType.INT32,Shape.of(1,2,3,3,3))),output))),
-                ()->assertTrue(supportsBothProfiles(provider, query(Pool3dKind.MAX_POOL3D,max,
+                ()->assertTrue(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
                         List.of(nonInjectiveInput),output))),
-                ()->assertFalse(supportsBothProfiles(provider, query(Pool3dKind.MAX_POOL3D,max,List.of(input),
+                ()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,List.of(input),
                         descriptor(DataType.FLOAT32,Shape.of(1,2,4,4,3))))),
-                ()->assertFalse(supportsBothProfiles(provider, query(Pool3dKind.MAX_POOL3D,max,
+                ()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
                         List.of(gradientInput),gradientOutput))),
-                ()->assertFalse(supportsBothProfiles(provider, query(Pool3dKind.MAX_POOL3D,max,
+                ()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
                         List.of(input),nonInjective))),
-                ()->assertFalse(supportsBothProfiles(provider, query(Pool3dKind.MAX_POOL3D,max,
+                ()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
                         List.of(descriptor(DataType.FLOAT32,Shape.of(1,2,3,3))),
                         descriptor(DataType.FLOAT32,Shape.of(1,2,4,4))))),
                 ()->assertThrows(IllegalArgumentException.class,()->query(Pool3dKind.MAX_POOL3D,
@@ -133,26 +131,26 @@ class CpuCapabilityProviderTest {
             admitted++;
             DataType resultType = io.github.pho001.synaptik.model.datatype.DataTypePromotion
                     .promoteNumeric(leftType, rightType);
-            assertTrue(supportsBothProfiles(provider, query(MatmulKind.MATMUL,
+            assertTrue(provider.supports(query(MatmulKind.MATMUL,
                     List.of(descriptor(leftType, Shape.of(2, 3)),
                             descriptor(rightType, Shape.of(3, 4))),
                     descriptor(resultType, Shape.of(2, 4)))));
         }
         assertEquals(13, admitted);
         assertAll(
-                () -> assertTrue(supportsBothProfiles(provider, query(MatmulKind.MATMUL,
+                () -> assertTrue(provider.supports(query(MatmulKind.MATMUL,
                         List.of(descriptor(DataType.FLOAT32, Shape.of(0, 2, 3)),
                                 descriptor(DataType.FLOAT32, Shape.of(1, 3, 4))),
                         descriptor(DataType.FLOAT32, Shape.of(0, 2, 4))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(MatmulKind.MATMUL,
+                () -> assertFalse(provider.supports(query(MatmulKind.MATMUL,
                         List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3)),
                                 descriptor(DataType.FLOAT32, Shape.of(2, 4))),
                         descriptor(DataType.FLOAT32, Shape.of(2, 4))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(MatmulKind.MATMUL,
+                () -> assertFalse(provider.supports(query(MatmulKind.MATMUL,
                         List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3)),
                                 descriptor(DataType.INT32, Shape.of(3, 4))),
                         descriptor(DataType.FLOAT32, Shape.of(2, 4))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(MatmulKind.MATMUL,
+                () -> assertFalse(provider.supports(query(MatmulKind.MATMUL,
                         List.of(descriptor(DataType.BOOL, Shape.of(2, 3)),
                                 descriptor(DataType.BOOL, Shape.of(3, 4))),
                         descriptor(DataType.BOOL, Shape.of(2, 4))))));
@@ -167,19 +165,19 @@ class CpuCapabilityProviderTest {
         var weight = descriptor(DataType.FLOAT32, weightShape);
         var bias = descriptor(DataType.FLOAT64, biasShape);
         var output = descriptor(DataType.FLOAT64, outputShape);
-        assertAll(() -> assertTrue(supportsBothProfiles(provider, query(Conv2dKind.CONV2D, attrs,
+        assertAll(() -> assertTrue(provider.supports(query(Conv2dKind.CONV2D, attrs,
                         List.of(input, weight, bias), output))),
-                () -> assertTrue(supportsBothProfiles(provider, query(Conv2dKind.CONV2D, attrs,
+                () -> assertTrue(provider.supports(query(Conv2dKind.CONV2D, attrs,
                         List.of(input, weight), descriptor(DataType.FLOAT32, outputShape)))),
-                () -> assertFalse(supportsBothProfiles(provider, query(Conv2dKind.CONV2D, attrs,
+                () -> assertFalse(provider.supports(query(Conv2dKind.CONV2D, attrs,
                         List.of(input, weight, bias), descriptor(DataType.FLOAT32, outputShape)))),
-                () -> assertFalse(supportsBothProfiles(provider, query(Conv2dKind.CONV2D, attrs,
+                () -> assertFalse(provider.supports(query(Conv2dKind.CONV2D, attrs,
                         List.of(descriptor(DataType.INT32, inputShape), weight),
                         descriptor(DataType.FLOAT32, outputShape)))),
-                () -> assertFalse(supportsBothProfiles(provider, query(Conv2dKind.CONV2D, attrs,
+                () -> assertFalse(provider.supports(query(Conv2dKind.CONV2D, attrs,
                         List.of(input, descriptor(DataType.FLOAT32, Shape.of(6, 3, 3, 2))),
                         descriptor(DataType.FLOAT32, outputShape)))),
-                () -> assertFalse(supportsBothProfiles(provider, query(Conv2dKind.CONV2D, attrs,
+                () -> assertFalse(provider.supports(query(Conv2dKind.CONV2D, attrs,
                         List.of(input, weight), descriptor(DataType.FLOAT32, Shape.of(2, 6, 4, 5))))));
         assertArrayEquals(new DataType[] {DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
                 DataType.INT32, DataType.INT64, DataType.BOOL, DataType.FLOAT16}, DataType.values());
@@ -191,17 +189,17 @@ class CpuCapabilityProviderTest {
                 descriptor(DataType.FLOAT32, channel), descriptor(DataType.BFLOAT16, channel),
                 descriptor(DataType.FLOAT64, channel), descriptor(DataType.FLOAT32, channel));
         assertAll(
-                () -> assertTrue(supportsBothProfiles(provider, query(BatchNormKind.BATCH_NORM_INFERENCE,
+                () -> assertTrue(provider.supports(query(BatchNormKind.BATCH_NORM_INFERENCE,
                         new BatchNormInferenceAttrs(1, ScalarValue.float64(1e-5)), inputs,
                         descriptor(DataType.FLOAT64, input)))),
-                () -> assertFalse(supportsBothProfiles(provider, query(BatchNormKind.BATCH_NORM_INFERENCE,
+                () -> assertFalse(provider.supports(query(BatchNormKind.BATCH_NORM_INFERENCE,
                         new BatchNormInferenceAttrs(1, ScalarValue.float32(1e-5f)), inputs,
                         descriptor(DataType.FLOAT64, input)))),
                 () -> assertThrows(IllegalArgumentException.class, () -> query(
                         BatchNormKind.BATCH_NORM_INFERENCE,
                         new BatchNormInferenceAttrs(1, ScalarValue.float64(1e-5)),
                         inputs.subList(0, 4), descriptor(DataType.FLOAT64, input))),
-                () -> assertFalse(supportsBothProfiles(provider, query(BatchNormKind.BATCH_NORM_INFERENCE,
+                () -> assertFalse(provider.supports(query(BatchNormKind.BATCH_NORM_INFERENCE,
                         new BatchNormInferenceAttrs(1, ScalarValue.float64(1e-5)),
                         List.of(inputs.get(0), inputs.get(1), inputs.get(2), inputs.get(3),
                                 descriptor(DataType.FLOAT32, Shape.of(4))),
@@ -216,26 +214,26 @@ class CpuCapabilityProviderTest {
         var provider = new CpuCapabilityProvider(); Shape input = Shape.of(2, 3);
         Shape normalized = Shape.of(3);
         assertAll(
-                () -> assertTrue(supportsBothProfiles(provider, query(LayerNormKind.LAYER_NORM,
+                () -> assertTrue(provider.supports(query(LayerNormKind.LAYER_NORM,
                         new LayerNormAttrs(normalized, ScalarValue.float32(1e-5f)),
                         List.of(descriptor(DataType.FLOAT32, input)),
                         descriptor(DataType.FLOAT32, input)))),
-                () -> assertTrue(supportsBothProfiles(provider, query(LayerNormKind.LAYER_NORM,
+                () -> assertTrue(provider.supports(query(LayerNormKind.LAYER_NORM,
                         new AffineLayerNormAttrs(normalized, ScalarValue.float64(1e-5)),
                         List.of(descriptor(DataType.BFLOAT16, input),
                                 descriptor(DataType.FLOAT32, normalized),
                                 descriptor(DataType.FLOAT64, normalized)),
                         descriptor(DataType.FLOAT64, input)))),
-                () -> assertTrue(supportsBothProfiles(provider, query(RmsNormKind.RMS_NORM,
+                () -> assertTrue(provider.supports(query(RmsNormKind.RMS_NORM,
                         new RmsNormAttrs(normalized, ScalarValue.float32(1e-5f)),
                         List.of(descriptor(DataType.BFLOAT16, input),
                                 descriptor(DataType.FLOAT32, normalized)),
                         descriptor(DataType.FLOAT32, input)))),
-                () -> assertFalse(supportsBothProfiles(provider, query(RmsNormKind.RMS_NORM,
+                () -> assertFalse(provider.supports(query(RmsNormKind.RMS_NORM,
                         new RmsNormAttrs(Shape.of(2), ScalarValue.float32(1e-5f)),
                         List.of(descriptor(DataType.FLOAT32, input)),
                         descriptor(DataType.FLOAT32, input)))),
-                () -> assertFalse(supportsBothProfiles(provider, query(LayerNormKind.LAYER_NORM,
+                () -> assertFalse(provider.supports(query(LayerNormKind.LAYER_NORM,
                         new LayerNormAttrs(normalized, ScalarValue.float64(1e-5)),
                         List.of(descriptor(DataType.FLOAT32, input)),
                         descriptor(DataType.FLOAT32, input)))));
@@ -245,16 +243,16 @@ class CpuCapabilityProviderTest {
         var provider = new CpuCapabilityProvider();
         for (SoftmaxKind kind : SoftmaxKind.values()) for (DataType type : List.of(
                 DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) assertTrue(
-                supportsBothProfiles(provider, query(kind, new SoftmaxAttrs(1),
+                provider.supports(query(kind, new SoftmaxAttrs(1),
                         List.of(descriptor(type, Shape.of(2, 3))),
                         descriptor(type, Shape.of(2, 3)))));
-        assertAll(() -> assertFalse(supportsBothProfiles(provider, query(SoftmaxKind.SOFTMAX,
+        assertAll(() -> assertFalse(provider.supports(query(SoftmaxKind.SOFTMAX,
                         new SoftmaxAttrs(1), List.of(descriptor(DataType.FLOAT32, Shape.of(2, 0))),
                         descriptor(DataType.FLOAT32, Shape.of(2, 0))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(SoftmaxKind.LOG_SOFTMAX,
+                () -> assertFalse(provider.supports(query(SoftmaxKind.LOG_SOFTMAX,
                         new SoftmaxAttrs(1), List.of(descriptor(DataType.INT32, Shape.of(2, 3))),
                         descriptor(DataType.INT32, Shape.of(2, 3))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(SoftmaxKind.SOFTMAX,
+                () -> assertFalse(provider.supports(query(SoftmaxKind.SOFTMAX,
                         new SoftmaxAttrs(1), List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3))),
                         descriptor(DataType.FLOAT32, Shape.of(3, 2))))));
     }
@@ -264,13 +262,13 @@ class CpuCapabilityProviderTest {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
             for (AggregateReductionKind kind : List.of(AggregateReductionKind.LOG_SUM_EXP,
                     AggregateReductionKind.L1_NORM, AggregateReductionKind.L2_NORM)) {
-                assertTrue(supportsBothProfiles(provider, query(kind,
+                assertTrue(provider.supports(query(kind,
                         new MultiAxisReductionAttrs(List.of(2, 0), false),
                         List.of(descriptor(type, inputShape)), descriptor(type, Shape.of(3)))));
             }
             for (AggregateReductionKind kind : List.of(AggregateReductionKind.VARIANCE,
                     AggregateReductionKind.STANDARD_DEVIATION)) {
-                assertTrue(supportsBothProfiles(provider, query(kind,
+                assertTrue(provider.supports(query(kind,
                         new StatisticalReductionAttrs(List.of(2, 0), true, 1),
                         List.of(descriptor(type, inputShape)),
                         descriptor(type, Shape.of(1, 3, 1)))));
@@ -281,17 +279,17 @@ class CpuCapabilityProviderTest {
         TensorDescriptor nonInjective = new TensorDescriptor(DataType.FLOAT64, Shape.of(2, 4),
                 Optional.of(LayoutDescriptor.of(Shape.of(2, 4), new long[] {0, 1}, 0, true)), false);
         assertAll(
-                () -> assertFalse(supportsBothProfiles(provider, query(AggregateReductionKind.L1_NORM,
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.L1_NORM,
                         new MultiAxisReductionAttrs(List.of(1), false),
                         List.of(descriptor(DataType.INT32, inputShape)),
                         descriptor(DataType.INT32, Shape.of(2, 4))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AggregateReductionKind.L2_NORM,
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.L2_NORM,
                         new MultiAxisReductionAttrs(List.of(1), false), List.of(gradientInput),
                         descriptor(DataType.FLOAT64, Shape.of(2, 4))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AggregateReductionKind.LOG_SUM_EXP,
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.LOG_SUM_EXP,
                         new MultiAxisReductionAttrs(List.of(1), false),
                         List.of(descriptor(DataType.FLOAT64, inputShape)), nonInjective))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AggregateReductionKind.VARIANCE,
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.VARIANCE,
                         new StatisticalReductionAttrs(List.of(1), false, 3),
                         List.of(descriptor(DataType.FLOAT64, inputShape)),
                         descriptor(DataType.FLOAT64, Shape.of(2, 4))))),
@@ -307,24 +305,24 @@ class CpuCapabilityProviderTest {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
             for (AggregateReductionKind kind : List.of(AggregateReductionKind.SUM,
                     AggregateReductionKind.MEAN)) {
-                assertTrue(supportsBothProfiles(provider, query(kind, new MaskedReductionAttrs(1),
+                assertTrue(provider.supports(query(kind, new MaskedReductionAttrs(1),
                         List.of(descriptor(type, Shape.of(2, 3, 4)),
                                 descriptor(DataType.BOOL, Shape.of(3, 1))),
                         descriptor(type, Shape.of(2, 4)))));
             }
         }
         assertAll(
-                () -> assertFalse(supportsBothProfiles(provider, query(AggregateReductionKind.SUM,
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.SUM,
                         new MaskedReductionAttrs(1), List.of(
                                 descriptor(DataType.INT32, Shape.of(2, 3)),
                                 descriptor(DataType.BOOL, Shape.of(3))),
                         descriptor(DataType.INT32, Shape.of(2))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AggregateReductionKind.SUM,
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.SUM,
                         new MaskedReductionAttrs(1), List.of(
                                 descriptor(DataType.FLOAT32, Shape.of(2, 3, 4)),
                                 descriptor(DataType.BOOL, Shape.of(2, 3))),
                         descriptor(DataType.FLOAT32, Shape.of(2, 4))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AggregateReductionKind.SUM,
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.SUM,
                         new MaskedReductionAttrs(1), List.of(
                                 descriptor(DataType.FLOAT32, Shape.of(2, 3)),
                                 descriptor(DataType.FLOAT32, Shape.of(3))),
@@ -343,29 +341,29 @@ class CpuCapabilityProviderTest {
             for (AggregateReductionKind kind : List.of(AggregateReductionKind.ARG_MIN,
                     AggregateReductionKind.ARG_MAX)) {
                 for (ArgExtremaTiePolicy tie : ArgExtremaTiePolicy.values()) {
-                    assertTrue(supportsBothProfiles(provider, query(kind, new ArgExtremaAttrs(1, false, tie),
+                    assertTrue(provider.supports(query(kind, new ArgExtremaAttrs(1, false, tie),
                             List.of(descriptor(type, Shape.of(2, 3))),
                             descriptor(DataType.INT64, Shape.of(2)))));
-                    assertTrue(supportsBothProfiles(provider, query(kind, new ArgExtremaAttrs(1, true, tie),
+                    assertTrue(provider.supports(query(kind, new ArgExtremaAttrs(1, true, tie),
                             List.of(descriptor(type, Shape.of(2, 3))),
                             descriptor(DataType.INT64, Shape.of(2, 1)))));
                 }
             }
         }
         assertAll(
-                () -> assertFalse(supportsBothProfiles(provider, query(AggregateReductionKind.ARG_MIN,
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.ARG_MIN,
                         new ArgExtremaAttrs(1, false, ArgExtremaTiePolicy.FIRST_INDEX),
                         List.of(descriptor(DataType.BOOL, Shape.of(2, 3))),
                         descriptor(DataType.INT64, Shape.of(2))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AggregateReductionKind.ARG_MAX,
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.ARG_MAX,
                         new ArgExtremaAttrs(1, false, ArgExtremaTiePolicy.FIRST_INDEX),
                         List.of(descriptor(DataType.FLOAT32, Shape.of(2, 0))),
                         descriptor(DataType.INT64, Shape.of(2))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AggregateReductionKind.ARG_MAX,
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.ARG_MAX,
                         new ArgExtremaAttrs(1, false, ArgExtremaTiePolicy.FIRST_INDEX),
                         List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3))),
                         descriptor(DataType.INT32, Shape.of(2))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AggregateReductionKind.ARG_MAX,
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.ARG_MAX,
                         new ArgExtremaAttrs(1, true, ArgExtremaTiePolicy.FIRST_INDEX),
                         List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3))),
                         descriptor(DataType.INT64, Shape.of(2))))));
@@ -375,7 +373,7 @@ class CpuCapabilityProviderTest {
         var provider = new CpuCapabilityProvider();
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
                 DataType.INT32, DataType.INT64)) {
-            assertTrue(supportsBothProfiles(provider, query(AggregateReductionKind.SUM,
+            assertTrue(provider.supports(query(AggregateReductionKind.SUM,
                     new SumToShapeAttrs(Shape.of(3, 1)),
                     List.of(descriptor(type, Shape.of(2, 3, 4))),
                     descriptor(type, Shape.of(3, 1)))));
@@ -386,15 +384,15 @@ class CpuCapabilityProviderTest {
                         new SumToShapeAttrs(Shape.of(3, 1)),
                         List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3, 4))),
                         descriptor(DataType.FLOAT32, Shape.of(3, 1)))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AggregateReductionKind.SUM,
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.SUM,
                         new SumToShapeAttrs(Shape.of(3, 2)),
                         List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3, 4))),
                         descriptor(DataType.FLOAT32, Shape.of(3, 2))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AggregateReductionKind.SUM,
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.SUM,
                         new SumToShapeAttrs(Shape.of(1, 2, 3, 4)),
                         List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3, 4))),
                         descriptor(DataType.FLOAT32, Shape.of(1, 2, 3, 4))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AggregateReductionKind.SUM,
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.SUM,
                         new SumToShapeAttrs(Shape.of(3, 1)),
                         List.of(descriptor(DataType.BOOL, Shape.of(2, 3, 4))),
                         descriptor(DataType.BOOL, Shape.of(3, 1))))));
@@ -405,10 +403,10 @@ class CpuCapabilityProviderTest {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
                 DataType.INT32, DataType.INT64)) for (AggregateReductionKind kind : List.of(
                         AggregateReductionKind.SUM, AggregateReductionKind.PROD))
-            assertTrue(supportsBothProfiles(provider, query(kind, new AxisReductionAttrs(1, false),
+            assertTrue(provider.supports(query(kind, new AxisReductionAttrs(1, false),
                     List.of(descriptor(type, Shape.of(2, 3))), descriptor(type, Shape.of(2)))));
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
-            assertTrue(supportsBothProfiles(provider, query(AggregateReductionKind.MEAN,
+            assertTrue(provider.supports(query(AggregateReductionKind.MEAN,
                     new MultiAxisReductionAttrs(List.of(1), false),
                     List.of(descriptor(type, Shape.of(2, 3))), descriptor(type, Shape.of(2)))));
         var integralMean = query(AggregateReductionKind.MEAN, NoOperationAttrs.INSTANCE,
@@ -417,20 +415,20 @@ class CpuCapabilityProviderTest {
         var booleanSum = query(AggregateReductionKind.SUM, NoOperationAttrs.INSTANCE,
                 List.of(descriptor(DataType.BOOL, Shape.of(2))),
                 descriptor(DataType.BOOL, Shape.scalar()));
-        assertAll(() -> assertFalse(supportsBothProfiles(provider, integralMean)),
-                () -> assertFalse(supportsBothProfiles(provider, booleanSum)));
+        assertAll(() -> assertFalse(provider.supports(integralMean)),
+                () -> assertFalse(provider.supports(booleanSum)));
     }
     @Test void reportsOnlyExactStaticResolvedCumulativeScanMatrix() {
         var provider = new CpuCapabilityProvider();
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
                 DataType.INT32, DataType.INT64)) for (CumulativeScanKind kind : CumulativeScanKind.values())
-            assertTrue(supportsBothProfiles(provider, query(kind, new CumulativeScanAttrs(1, true, true),
+            assertTrue(provider.supports(query(kind, new CumulativeScanAttrs(1, true, true),
                     List.of(descriptor(type, Shape.of(2, 3))), descriptor(type, Shape.of(2, 3)))));
-        assertAll(() -> assertFalse(supportsBothProfiles(provider, query(CumulativeScanKind.CUM_SUM,
+        assertAll(() -> assertFalse(provider.supports(query(CumulativeScanKind.CUM_SUM,
                         new CumulativeScanAttrs(0, false, false),
                         List.of(descriptor(DataType.BOOL, Shape.of(2))),
                         descriptor(DataType.BOOL, Shape.of(2))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(CumulativeScanKind.CUM_PROD,
+                () -> assertFalse(provider.supports(query(CumulativeScanKind.CUM_PROD,
                         new CumulativeScanAttrs(1, false, false),
                         List.of(descriptor(DataType.FLOAT64, Shape.of(2))),
                         descriptor(DataType.FLOAT64, Shape.of(2))))));
@@ -445,15 +443,15 @@ class CpuCapabilityProviderTest {
         var bf16 = descriptor(DataType.BFLOAT16, Shape.of(2, 3));
         var mask = descriptor(DataType.BOOL, Shape.of(2, 3));
         assertAll(
-                () -> assertTrue(supportsBothProfiles(provider, new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(io.github.pho001.synaptik.model.operation.random.GraphRngKind.INITIAL_STATE,
+                () -> assertTrue(provider.supports(new OperationCapabilityQuery(new Operation(io.github.pho001.synaptik.model.operation.random.GraphRngKind.INITIAL_STATE,
                         new io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs(1, 2)), List.of(), List.of(state)))),
-                () -> assertTrue(supportsBothProfiles(provider, new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                () -> assertTrue(provider.supports(new OperationCapabilityQuery(new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
                         new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(f64, state), List.of(f64, mask, state)))),
-                () -> assertTrue(supportsBothProfiles(provider, new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                () -> assertTrue(provider.supports(new OperationCapabilityQuery(new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
                         new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(f32, state), List.of(f32, mask, state)))),
-                () -> assertTrue(supportsBothProfiles(provider, new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                () -> assertTrue(provider.supports(new OperationCapabilityQuery(new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
                         new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(bf16, state), List.of(bf16, mask, state)))),
-                () -> assertFalse(supportsBothProfiles(provider, new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                () -> assertFalse(provider.supports(new OperationCapabilityQuery(new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
                         new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(f64, aliasedState), List.of(f64, mask, state))))) ;
     }
     @Test void reportsExactStaticStableOrderingAndTwoOutputTopK() {
@@ -461,13 +459,13 @@ class CpuCapabilityProviderTest {
         var input = descriptor(DataType.BFLOAT16, Shape.of(2, 5));
         var values = descriptor(DataType.BFLOAT16, Shape.of(2, 3));
         var indices = descriptor(DataType.INT64, Shape.of(2, 3));
-        assertAll(() -> assertTrue(supportsBothProfiles(provider, query(OrderingKind.SORT,
+        assertAll(() -> assertTrue(provider.supports(query(OrderingKind.SORT,
                         new SortAttrs(1, true), List.of(input), input))),
-                () -> assertTrue(supportsBothProfiles(provider, query(OrderingKind.ARGSORT,
+                () -> assertTrue(provider.supports(query(OrderingKind.ARGSORT,
                         new SortAttrs(1, false), List.of(input),
                         descriptor(DataType.INT64, Shape.of(2, 5))))),
-                () -> assertTrue(supportsBothProfiles(provider, new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(TopKKind.TOP_K, new TopKAttrs(1, 3, true, false)), List.of(input), List.of(values, indices)))),
-                () -> assertFalse(supportsBothProfiles(provider, new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(TopKKind.TOP_K, new TopKAttrs(1, 3, true, false)), List.of(input), List.of(indices, values)))));
+                () -> assertTrue(provider.supports(new OperationCapabilityQuery(new Operation(TopKKind.TOP_K, new TopKAttrs(1, 3, true, false)), List.of(input), List.of(values, indices)))),
+                () -> assertFalse(provider.supports(new OperationCapabilityQuery(new Operation(TopKKind.TOP_K, new TopKAttrs(1, 3, true, false)), List.of(input), List.of(indices, values)))));
     }
     @Test void reportsOnlyExactStaticSliceUpdateOccurrences() {
         var provider = new CpuCapabilityProvider();
@@ -477,16 +475,16 @@ class CpuCapabilityProviderTest {
         var signed = new SliceAttrs(List.of(4L), List.of(2L), List.of(0), List.of(-2L));
         var crop = new CropToShapeAttrs(Shape.of(2), Shape.of(3));
         assertAll(
-                () -> assertTrue(supportsBothProfiles(provider, query(SliceKind.SLICE_UPDATE, signed,
+                () -> assertTrue(provider.supports(query(SliceKind.SLICE_UPDATE, signed,
                         List.of(base, update), output))),
-                () -> assertTrue(supportsBothProfiles(provider, query(SliceKind.SLICE_UPDATE, crop,
+                () -> assertTrue(provider.supports(query(SliceKind.SLICE_UPDATE, crop,
                         List.of(base, update), output))),
-                () -> assertFalse(supportsBothProfiles(provider, query(SliceKind.SLICE_UPDATE,
+                () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE,
                         new CropToShapeAttrs(Shape.of(1), Shape.of(3)),
                         List.of(base, update), output))),
-                () -> assertFalse(supportsBothProfiles(provider, query(SliceKind.SLICE_UPDATE, signed,
+                () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE, signed,
                         List.of(base, descriptor(DataType.BFLOAT16, Shape.of(3))), output))),
-                () -> assertFalse(supportsBothProfiles(provider, query(SliceKind.SLICE_UPDATE, signed,
+                () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE, signed,
                         List.of(base, update), descriptor(DataType.BFLOAT16, Shape.of(4))))));
     }
 
@@ -498,20 +496,20 @@ class CpuCapabilityProviderTest {
         var positiveBoundary = new SliceAttrs(List.of(0L), List.of(2L), List.of(0), List.of(4L));
         var negativeBoundary = new SliceAttrs(List.of(4L), List.of(2L), List.of(0), List.of(-4L));
         assertAll(
-                () -> assertTrue(supportsBothProfiles(provider, query(SliceKind.SLICE_UPDATE,
+                () -> assertTrue(provider.supports(query(SliceKind.SLICE_UPDATE,
                         positiveBoundary, List.of(base, update), output))),
-                () -> assertTrue(supportsBothProfiles(provider, query(SliceKind.SLICE_UPDATE,
+                () -> assertTrue(provider.supports(query(SliceKind.SLICE_UPDATE,
                         negativeBoundary, List.of(base, update), output))),
-                () -> assertFalse(supportsBothProfiles(provider, query(SliceKind.SLICE_UPDATE,
+                () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE,
                         new SliceAttrs(List.of(1L), List.of(2L), List.of(0), List.of(4L)),
                         List.of(base, update), output))),
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> new SliceAttrs(List.of(3L), List.of(2L), List.of(0),
                                 List.of(-4L))),
-                () -> assertTrue(supportsBothProfiles(provider, query(SliceKind.SLICE_UPDATE,
+                () -> assertTrue(provider.supports(query(SliceKind.SLICE_UPDATE,
                         new CropToShapeAttrs(Shape.of(2), Shape.of(3)),
                         List.of(base, update), output))),
-                () -> assertFalse(supportsBothProfiles(provider, query(SliceKind.SLICE_UPDATE,
+                () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE,
                         new CropToShapeAttrs(Shape.of(2), Shape.of(4)),
                         List.of(base, update), output))));
     }
@@ -523,24 +521,24 @@ class CpuCapabilityProviderTest {
                 Optional.of(LayoutDescriptor.contiguous(shape)), false);
         assertAll(
                 () -> assertSame(CpuCapabilityProvider.CPU_BACKEND_ID, provider.backendId()),
-                () -> assertTrue(supportsBothProfiles(provider, query(BinaryArithmeticKind.ADD,
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.ADD,
                         List.of(dense, dense), dense))),
-                () -> assertTrue(supportsBothProfiles(provider, query(UnaryElementwiseKind.GELU,
+                () -> assertTrue(provider.supports(query(UnaryElementwiseKind.GELU,
                         List.of(dense), dense))),
-                () -> assertTrue(supportsBothProfiles(provider, query(BinaryArithmeticKind.MUL,
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.MUL,
                         List.of(dense, dense), dense))),
-                () -> assertTrue(supportsBothProfiles(provider, query(UnaryElementwiseKind.GELU_TANH_APPROXIMATION,
+                () -> assertTrue(provider.supports(query(UnaryElementwiseKind.GELU_TANH_APPROXIMATION,
                         List.of(dense), dense))));
         var unresolved = new TensorDescriptor(DataType.FLOAT64, shape, Optional.empty(), false);
         var float32 = new TensorDescriptor(DataType.FLOAT32, shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)), false);
         assertAll(
-                () -> assertFalse(supportsBothProfiles(provider, query(BinaryArithmeticKind.ADD,
+                () -> assertFalse(provider.supports(query(BinaryArithmeticKind.ADD,
                         List.of(unresolved, unresolved), unresolved))),
-                () -> assertTrue(supportsBothProfiles(provider, query(BinaryArithmeticKind.ADD,
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.ADD,
                         List.of(float32, float32), float32))),
                 () -> assertEquals("query", assertThrows(NullPointerException.class,
-                        () -> supportsBothProfiles(provider, null)).getMessage()));
+                        () -> provider.supports(null)).getMessage()));
     }
 
     @Test void reportsStaticRightBroadcastAndResolvedStridedOccurrencesTruthfully() {
@@ -553,11 +551,11 @@ class CpuCapabilityProviderTest {
         var output = descriptor(outputShape, LayoutDescriptor.contiguous(outputShape));
         var wrong = descriptor(Shape.of(2, 3), LayoutDescriptor.contiguous(Shape.of(2, 3)));
         assertAll(
-                () -> assertTrue(supportsBothProfiles(provider, query(BinaryArithmeticKind.ADD,
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.ADD,
                         List.of(left, right), output))),
-                () -> assertFalse(supportsBothProfiles(provider, query(BinaryArithmeticKind.ADD,
+                () -> assertFalse(provider.supports(query(BinaryArithmeticKind.ADD,
                         List.of(left, right), wrong))),
-                () -> assertFalse(supportsBothProfiles(provider, query(UnaryElementwiseKind.GELU,
+                () -> assertFalse(provider.supports(query(UnaryElementwiseKind.GELU,
                         List.of(left), output))));
     }
 
@@ -571,75 +569,75 @@ class CpuCapabilityProviderTest {
         var bool = descriptor(DataType.BOOL, shape);
         var bf16 = descriptor(DataType.BFLOAT16, shape);
         for (var kind : UnaryElementwiseKind.values()) {
-            assertTrue(supportsBothProfiles(provider, query(kind, List.of(f64), f64)), kind + " FLOAT64");
-            assertTrue(supportsBothProfiles(provider, query(kind, List.of(f32), f32)), kind + " FLOAT32");
-            assertTrue(supportsBothProfiles(provider, query(kind, List.of(bf16), bf16)), kind + " BFLOAT16");
+            assertTrue(provider.supports(query(kind, List.of(f64), f64)), kind + " FLOAT64");
+            assertTrue(provider.supports(query(kind, List.of(f32), f32)), kind + " FLOAT32");
+            assertTrue(provider.supports(query(kind, List.of(bf16), bf16)), kind + " BFLOAT16");
         }
         for (var type : List.of(f64, f32, bf16, i32, i64)) {
             for (var kind : List.of(BinaryArithmeticKind.ADD, BinaryArithmeticKind.SUB,
-                    BinaryArithmeticKind.MUL)) assertTrue(supportsBothProfiles(provider, query(kind,
+                    BinaryArithmeticKind.MUL)) assertTrue(provider.supports(query(kind,
                     NoOperationAttrs.INSTANCE, List.of(type, type), type)));
-            for (var kind : BinaryComparisonKind.values()) assertTrue(supportsBothProfiles(provider, query(kind,
+            for (var kind : BinaryComparisonKind.values()) assertTrue(provider.supports(query(kind,
                     NoOperationAttrs.INSTANCE, List.of(type, type), bool)));
         }
         assertAll(
-                () -> assertTrue(supportsBothProfiles(provider, query(ScalarElementwiseKind.ADD,
+                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.ADD,
                         new ScalarValueAttrs(ScalarValue.int32(7)), List.of(i32), i32))),
-                () -> assertFalse(supportsBothProfiles(provider, query(ScalarElementwiseKind.ADD,
+                () -> assertFalse(provider.supports(query(ScalarElementwiseKind.ADD,
                         new ScalarValueAttrs(ScalarValue.int64(7)), List.of(i32), i32))),
-                () -> assertTrue(supportsBothProfiles(provider, query(FloatingClassificationKind.IS_NAN,
+                () -> assertTrue(provider.supports(query(FloatingClassificationKind.IS_NAN,
                         NoOperationAttrs.INSTANCE, List.of(f32), bool))),
-                () -> assertTrue(supportsBothProfiles(provider, query(WhereSelectionKind.WHERE,
+                () -> assertTrue(provider.supports(query(WhereSelectionKind.WHERE,
                         NoOperationAttrs.INSTANCE, List.of(bool, f64, f64), f64))),
-                () -> assertFalse(supportsBothProfiles(provider, query(WhereSelectionKind.WHERE,
+                () -> assertFalse(provider.supports(query(WhereSelectionKind.WHERE,
                         NoOperationAttrs.INSTANCE, List.of(bool, i32, i32), i32))),
-                () -> assertTrue(supportsBothProfiles(provider, query(CastKind.CAST,
+                () -> assertTrue(provider.supports(query(CastKind.CAST,
                         new CastAttrs(DataType.BOOL), List.of(bool), bool))),
-                () -> assertTrue(supportsBothProfiles(provider, query(CastKind.CAST,
+                () -> assertTrue(provider.supports(query(CastKind.CAST,
                         new CastAttrs(DataType.FLOAT64), List.of(f32), f64))),
-                () -> assertTrue(supportsBothProfiles(provider, query(CastKind.CAST,
+                () -> assertTrue(provider.supports(query(CastKind.CAST,
                         new CastAttrs(DataType.BFLOAT16), List.of(bf16), bf16))),
-                () -> assertFalse(supportsBothProfiles(provider, query(BinaryArithmeticKind.ADD,
+                () -> assertFalse(provider.supports(query(BinaryArithmeticKind.ADD,
                         NoOperationAttrs.INSTANCE, List.of(f32, f64), f64))),
-                () -> assertTrue(supportsBothProfiles(provider, query(BinaryArithmeticKind.DIV,
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.DIV,
                         NoOperationAttrs.INSTANCE, List.of(f64, f64), f64))),
-                () -> assertTrue(supportsBothProfiles(provider, query(BinaryArithmeticKind.DIV,
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.DIV,
                         NoOperationAttrs.INSTANCE, List.of(f32, f32), f32))),
-                () -> assertFalse(supportsBothProfiles(provider, query(BinaryArithmeticKind.DIV,
+                () -> assertFalse(provider.supports(query(BinaryArithmeticKind.DIV,
                         NoOperationAttrs.INSTANCE, List.of(i32, i32), i32))),
-                () -> assertTrue(supportsBothProfiles(provider, query(BinaryArithmeticKind.DIV,
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.DIV,
                         NoOperationAttrs.INSTANCE, List.of(bf16, bf16), bf16))),
-                () -> assertTrue(supportsBothProfiles(provider, query(ScalarElementwiseKind.DIV,
+                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.DIV,
                         new ScalarValueAttrs(ScalarValue.float32(-0.0f)), List.of(f32), f32))),
-                () -> assertTrue(supportsBothProfiles(provider, query(ScalarElementwiseKind.POW,
+                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.POW,
                         new ScalarValueAttrs(ScalarValue.float64(0.5d)), List.of(f64), f64))),
-                () -> assertFalse(supportsBothProfiles(provider, query(ScalarElementwiseKind.DIV,
+                () -> assertFalse(provider.supports(query(ScalarElementwiseKind.DIV,
                         new ScalarValueAttrs(ScalarValue.float64(2.0d)), List.of(f32), f32))),
-                () -> assertFalse(supportsBothProfiles(provider, query(ScalarElementwiseKind.POW,
+                () -> assertFalse(provider.supports(query(ScalarElementwiseKind.POW,
                         new ScalarValueAttrs(ScalarValue.int32(2)), List.of(i32), i32))),
-                () -> assertTrue(supportsBothProfiles(provider, query(ScalarElementwiseKind.POW,
+                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.POW,
                         new ScalarValueAttrs(ScalarValue.bfloat16(2.0f)), List.of(bf16), bf16))),
-                () -> assertTrue(supportsBothProfiles(provider, query(BinaryArithmeticKind.MIN,
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.MIN,
                         NoOperationAttrs.INSTANCE, List.of(i64, i64), i64))),
-                () -> assertTrue(supportsBothProfiles(provider, query(BinaryArithmeticKind.MAX,
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.MAX,
                         NoOperationAttrs.INSTANCE, List.of(f32, f32), f32))),
-                () -> assertTrue(supportsBothProfiles(provider, query(BinaryArithmeticKind.POW,
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.POW,
                         NoOperationAttrs.INSTANCE, List.of(f64, f64), f64))),
-                () -> assertFalse(supportsBothProfiles(provider, query(BinaryArithmeticKind.POW,
+                () -> assertFalse(provider.supports(query(BinaryArithmeticKind.POW,
                         NoOperationAttrs.INSTANCE, List.of(i32, i32), i32))),
-                () -> assertTrue(supportsBothProfiles(provider, query(ScalarElementwiseKind.MIN,
+                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.MIN,
                         new ScalarValueAttrs(ScalarValue.int32(-1)), List.of(i32), i32))),
-                () -> assertTrue(supportsBothProfiles(provider, query(ScalarElementwiseKind.CLAMP,
+                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.CLAMP,
                         new ClampRangeAttrs(ScalarValue.float32(-0.0f), ScalarValue.float32(+0.0f)),
                         List.of(f32), f32))),
-                () -> assertFalse(supportsBothProfiles(provider, query(ScalarElementwiseKind.CLAMP,
+                () -> assertFalse(provider.supports(query(ScalarElementwiseKind.CLAMP,
                         new ClampRangeAttrs(ScalarValue.int32(-1), ScalarValue.int32(1)),
                         List.of(i32), i32))),
-                () -> assertTrue(supportsBothProfiles(provider, query(BooleanLogicalKind.AND,
+                () -> assertTrue(provider.supports(query(BooleanLogicalKind.AND,
                         NoOperationAttrs.INSTANCE, List.of(bool, bool), bool))),
-                () -> assertTrue(supportsBothProfiles(provider, query(BooleanLogicalKind.NOT,
+                () -> assertTrue(provider.supports(query(BooleanLogicalKind.NOT,
                         NoOperationAttrs.INSTANCE, List.of(bool), bool))),
-                () -> assertFalse(supportsBothProfiles(provider, query(BooleanLogicalKind.OR,
+                () -> assertFalse(provider.supports(query(BooleanLogicalKind.OR,
                         NoOperationAttrs.INSTANCE, List.of(i32, i32), bool))));
     }
 
@@ -650,7 +648,7 @@ class CpuCapabilityProviderTest {
             var input = descriptor(type, inputShape);
             var selected = new TensorDescriptor(type, selectedShape, Optional.of(
                     LayoutDescriptor.of(selectedShape, new long[]{3}, 1, true)), false);
-            assertTrue(supportsBothProfiles(provider, query(SelectKind.SELECT, new SelectAttrs(1,1),
+            assertTrue(provider.supports(query(SelectKind.SELECT, new SelectAttrs(1,1),
                     List.of(input), selected)), type.toString());
         }
         var input = descriptor(DataType.FLOAT64, inputShape);
@@ -662,19 +660,19 @@ class CpuCapabilityProviderTest {
                 LayoutDescriptor.of(selectedShape, new long[]{3}, 1, true)), false);
         var unresolved = new TensorDescriptor(DataType.FLOAT64, selectedShape, Optional.empty(), false);
         assertAll(
-                () -> assertTrue(supportsBothProfiles(provider, query(ContiguousKind.CONTIGUOUS,
+                () -> assertTrue(provider.supports(query(ContiguousKind.CONTIGUOUS,
                         NoOperationAttrs.INSTANCE, List.of(input), input))),
-                () -> assertTrue(supportsBothProfiles(provider, query(ShapeTransformKind.RESHAPE,
+                () -> assertTrue(provider.supports(query(ShapeTransformKind.RESHAPE,
                         new TargetShapeAttrs(Shape.of(3,2)), List.of(input),
                         new TensorDescriptor(DataType.FLOAT64, Shape.of(3,2), Optional.of(
                                 LayoutDescriptor.of(Shape.of(3,2), new long[]{2,1}, 0, true)), false)))),
-                () -> assertFalse(supportsBothProfiles(provider, query(SelectKind.SELECT, new SelectAttrs(1,1),
+                () -> assertFalse(provider.supports(query(SelectKind.SELECT, new SelectAttrs(1,1),
                         List.of(input), wrongLayout))),
-                () -> assertFalse(supportsBothProfiles(provider, query(SelectKind.SELECT, new SelectAttrs(1,1),
+                () -> assertFalse(provider.supports(query(SelectKind.SELECT, new SelectAttrs(1,1),
                         List.of(input), wrongType))),
-                () -> assertFalse(supportsBothProfiles(provider, query(SelectKind.SELECT, new SelectAttrs(1,1),
+                () -> assertFalse(provider.supports(query(SelectKind.SELECT, new SelectAttrs(1,1),
                         List.of(input), unresolved))),
-                () -> assertFalse(supportsBothProfiles(provider, query(SliceKind.SLICE_UPDATE,
+                () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE,
                         new SliceAttrs(List.of(0L), List.of(1L), List.of(0), List.of(1L)),
                         List.of(input, input), input))));
     }
@@ -689,18 +687,18 @@ class CpuCapabilityProviderTest {
         var nonInjective = new TensorDescriptor(DataType.INT32, Shape.of(4), Optional.of(
                 LayoutDescriptor.of(Shape.of(4), new long[]{0}, 0, true)), false);
         assertAll(
-                () -> assertTrue(supportsBothProfiles(provider, query(PadKind.PAD,
+                () -> assertTrue(provider.supports(query(PadKind.PAD,
                         new PadAttrs(List.of(1L), List.of(2L), ScalarValue.int32(-1)),
                         List.of(two), five))),
-                () -> assertTrue(supportsBothProfiles(provider, query(TileKind.TILE,
+                () -> assertTrue(provider.supports(query(TileKind.TILE,
                         new TileAttrs(List.of(3L)), List.of(two), six))),
-                () -> assertTrue(supportsBothProfiles(provider, query(TensorCompositionKind.CONCAT,
+                () -> assertTrue(provider.supports(query(TensorCompositionKind.CONCAT,
                         new CompositionAxisAttrs(0), List.of(two, one, two), five))),
-                () -> assertTrue(supportsBothProfiles(provider, query(TensorCompositionKind.STACK,
+                () -> assertTrue(provider.supports(query(TensorCompositionKind.STACK,
                         new CompositionAxisAttrs(1), List.of(two, two), stacked))),
-                () -> assertFalse(supportsBothProfiles(provider, query(TileKind.TILE,
+                () -> assertFalse(provider.supports(query(TileKind.TILE,
                         new TileAttrs(List.of(2L)), List.of(two), nonInjective))),
-                () -> assertFalse(supportsBothProfiles(provider, query(PadKind.PAD,
+                () -> assertFalse(provider.supports(query(PadKind.PAD,
                         new PadAttrs(List.of(1L), List.of(2L), ScalarValue.int64(-1)),
                         List.of(two), five))));
     }
@@ -715,25 +713,25 @@ class CpuCapabilityProviderTest {
         var columnsI32 = descriptor(DataType.INT32, Shape.of(1, 4, 16));
         var window = new Window2dAttrs(2, 2, 1, 1, 1, 1, 1, 1, false);
         assertAll(
-                () -> assertTrue(supportsBothProfiles(provider, query(WindowTransformKind.UNFOLD_AXIS,
+                () -> assertTrue(provider.supports(query(WindowTransformKind.UNFOLD_AXIS,
                         new UnfoldAxisAttrs(1, 2, 1), List.of(boolInput), boolOutput))),
-                () -> assertTrue(supportsBothProfiles(provider, query(WindowTransformKind.UNFOLD2D,
+                () -> assertTrue(provider.supports(query(WindowTransformKind.UNFOLD2D,
                         window, List.of(imageF32), columnsF32))),
-                () -> assertTrue(supportsBothProfiles(provider, query(WindowTransformKind.UNFOLD2D,
+                () -> assertTrue(provider.supports(query(WindowTransformKind.UNFOLD2D,
                         new Unfold2dAttrs(window, ScalarValue.float32(-0.0f)),
                         List.of(imageF32), columnsF32))),
-                () -> assertFalse(supportsBothProfiles(provider, query(WindowTransformKind.UNFOLD2D,
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
                         window, List.of(imageI32), columnsI32))),
-                () -> assertFalse(supportsBothProfiles(provider, query(WindowTransformKind.UNFOLD2D,
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
                         new Unfold2dAttrs(window, ScalarValue.float64(0.0)),
                         List.of(imageF32), columnsF32))),
-                () -> assertTrue(supportsBothProfiles(provider, query(WindowTransformKind.FOLD2D,
+                () -> assertTrue(provider.supports(query(WindowTransformKind.FOLD2D,
                         new Fold2dAttrs(Shape.of(1, 1, 3, 3), window),
                         List.of(columnsF32), imageF32))),
-                () -> assertFalse(supportsBothProfiles(provider, query(WindowTransformKind.FOLD2D,
+                () -> assertFalse(provider.supports(query(WindowTransformKind.FOLD2D,
                         new Fold2dAttrs(Shape.of(1, 1, 3, 3), window),
                         List.of(columnsI32), imageI32))),
-                () -> assertTrue(supportsBothProfiles(provider, query(WindowTransformKind.FOLD_AXIS,
+                () -> assertTrue(provider.supports(query(WindowTransformKind.FOLD_AXIS,
                         new FoldAxisAttrs(0, 5, 1),
                         List.of(descriptor(DataType.INT64, Shape.of(3, 3))),
                         descriptor(DataType.INT64, Shape.of(5))))));
@@ -759,24 +757,24 @@ class CpuCapabilityProviderTest {
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> query(WindowTransformKind.UNFOLD2D,
                                 window, List.of(input, input), output)),
-                () -> assertFalse(supportsBothProfiles(provider, query(WindowTransformKind.UNFOLD2D,
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
                         window, List.of(descriptor(DataType.FLOAT32, Shape.of(1, 3, 3))), output))),
-                () -> assertFalse(supportsBothProfiles(provider, query(WindowTransformKind.UNFOLD2D,
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
                         window, List.of(input), descriptor(DataType.FLOAT32, Shape.of(1, 4, 5))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(WindowTransformKind.UNFOLD2D,
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
                         window, List.of(input), unresolved))),
-                () -> assertFalse(supportsBothProfiles(provider, query(WindowTransformKind.UNFOLD2D,
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
                         window, List.of(input), dynamic))),
-                () -> assertFalse(supportsBothProfiles(provider, query(WindowTransformKind.UNFOLD2D,
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
                         window, List.of(input), nonInjective))),
-                () -> assertFalse(supportsBothProfiles(provider, query(WindowTransformKind.UNFOLD2D,
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
                         overflowWindow, List.of(input), output))),
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> query(WindowTransformKind.UNFOLD_AXIS,
                                 window, List.of(input), output)),
-                () -> assertFalse(supportsBothProfiles(provider, query(WindowTransformKind.FOLD_AXIS,
+                () -> assertFalse(provider.supports(query(WindowTransformKind.FOLD_AXIS,
                         new FoldAxisAttrs(1, 3, 1), List.of(input), output))),
-                () -> assertFalse(supportsBothProfiles(provider, query(WindowTransformKind.UNFOLD_AXIS,
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD_AXIS,
                         new UnfoldAxisAttrs(3, 1, 1), List.of(input), output))));
     }
 
@@ -789,30 +787,30 @@ class CpuCapabilityProviderTest {
                 var elementIndices = descriptor(indexType, Shape.of(2, 4));
                 var ndIndices = descriptor(indexType, Shape.of(4, 1));
                 assertAll(dataType + "/" + indexType,
-                        () -> assertTrue(supportsBothProfiles(provider, query(AxisGatherKind.GATHER,
+                        () -> assertTrue(provider.supports(query(AxisGatherKind.GATHER,
                                 new IndexAxisAttrs(1), List.of(data, axisIndices),
                                 descriptor(dataType, Shape.of(2, 4))))),
-                        () -> assertTrue(supportsBothProfiles(provider, query(
+                        () -> assertTrue(provider.supports(query(
                                 AxisGatherKind.GATHER_ELEMENTS, new IndexAxisAttrs(1),
                                 List.of(data, elementIndices),
                                 descriptor(dataType, Shape.of(2, 4))))),
-                        () -> assertTrue(supportsBothProfiles(provider, query(GatherNdKind.GATHER_ND,
+                        () -> assertTrue(provider.supports(query(GatherNdKind.GATHER_ND,
                                 new GatherNdAttrs(0), List.of(data, ndIndices),
                                 descriptor(dataType, Shape.of(4, 3))))));
             }
         }
         for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
             assertAll(indexType.toString(),
-                    () -> assertTrue(supportsBothProfiles(provider, query(AxisGatherKind.GATHER,
+                    () -> assertTrue(provider.supports(query(AxisGatherKind.GATHER,
                             new IndexAxisAttrs(0),
                             List.of(descriptor(DataType.INT64, Shape.of(3)),
                                     descriptor(indexType, Shape.scalar())),
                             descriptor(DataType.INT64, Shape.scalar())))),
-                    () -> assertTrue(supportsBothProfiles(provider, query(OneHotKind.ONE_HOT,
+                    () -> assertTrue(provider.supports(query(OneHotKind.ONE_HOT,
                             new OneHotAttrs(5), List.of(descriptor(indexType, Shape.of(2, 3))),
                             descriptor(DataType.BOOL, Shape.of(2, 3, 5))))));
         }
-        assertTrue(supportsBothProfiles(provider, query(GatherNdKind.GATHER_ND, new GatherNdAttrs(1),
+        assertTrue(provider.supports(query(GatherNdKind.GATHER_ND, new GatherNdAttrs(1),
                 List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3, 4)),
                         descriptor(DataType.INT64, Shape.of(2, 5, 2))),
                 descriptor(DataType.FLOAT32, Shape.of(2, 5)))));
@@ -828,36 +826,36 @@ class CpuCapabilityProviderTest {
         var nonInjective = new TensorDescriptor(DataType.FLOAT32, Shape.of(2, 2), Optional.of(
                 LayoutDescriptor.of(Shape.of(2, 2), new long[]{0, 1}, 0, true)), false);
         assertAll(
-                () -> assertFalse(supportsBothProfiles(provider, query(AxisGatherKind.GATHER,
+                () -> assertFalse(provider.supports(query(AxisGatherKind.GATHER,
                         new IndexAxisAttrs(2), List.of(data, indices), validOutput))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AxisGatherKind.GATHER,
+                () -> assertFalse(provider.supports(query(AxisGatherKind.GATHER,
                         new IndexAxisAttrs(1), List.of(data, descriptor(DataType.FLOAT32,
                                 Shape.of(2))), validOutput))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AxisGatherKind.GATHER,
+                () -> assertFalse(provider.supports(query(AxisGatherKind.GATHER,
                         new IndexAxisAttrs(1), List.of(data, indices),
                         descriptor(DataType.INT32, Shape.of(2, 2))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AxisGatherKind.GATHER,
+                () -> assertFalse(provider.supports(query(AxisGatherKind.GATHER,
                         new IndexAxisAttrs(1), List.of(data, indices),
                         descriptor(DataType.FLOAT32, Shape.of(2, 3))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AxisGatherKind.GATHER,
+                () -> assertFalse(provider.supports(query(AxisGatherKind.GATHER,
                         new IndexAxisAttrs(1), List.of(data, indices), unresolved))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AxisGatherKind.GATHER,
+                () -> assertFalse(provider.supports(query(AxisGatherKind.GATHER,
                         new IndexAxisAttrs(1), List.of(data, indices), nonInjective))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AxisGatherKind.GATHER_ELEMENTS,
+                () -> assertFalse(provider.supports(query(AxisGatherKind.GATHER_ELEMENTS,
                         new IndexAxisAttrs(1), List.of(data,
                                 descriptor(DataType.INT32, Shape.of(3, 2))), validOutput))),
-                () -> assertFalse(supportsBothProfiles(provider, query(GatherNdKind.GATHER_ND,
+                () -> assertFalse(provider.supports(query(GatherNdKind.GATHER_ND,
                         new GatherNdAttrs(1), List.of(data,
                                 descriptor(DataType.INT32, Shape.of(3, 1))),
                         descriptor(DataType.FLOAT32, Shape.of(3))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(GatherNdKind.GATHER_ND,
+                () -> assertFalse(provider.supports(query(GatherNdKind.GATHER_ND,
                         new GatherNdAttrs(0), List.of(data,
                                 descriptor(DataType.INT32, Shape.of(2, 3))),
                         descriptor(DataType.FLOAT32, Shape.of(2))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(OneHotKind.ONE_HOT,
+                () -> assertFalse(provider.supports(query(OneHotKind.ONE_HOT,
                         new OneHotAttrs(3), List.of(descriptor(DataType.INT32, Shape.of(2))),
                         descriptor(DataType.INT32, Shape.of(2, 3))))),
-                () -> assertFalse(supportsBothProfiles(provider, query(OneHotKind.ONE_HOT,
+                () -> assertFalse(provider.supports(query(OneHotKind.ONE_HOT,
                         new OneHotAttrs(3), List.of(descriptor(DataType.INT32, Shape.of(2))),
                         descriptor(DataType.BOOL, Shape.of(3, 2))))));
     }
@@ -868,65 +866,48 @@ class CpuCapabilityProviderTest {
         var indices=descriptor(DataType.INT64,Shape.of(2,4));
         var updates=descriptor(DataType.FLOAT32,Shape.of(2,4));
         var output=descriptor(DataType.FLOAT32,Shape.of(2,3));
-        assertAll(() -> assertTrue(supportsBothProfiles(provider, query(AxisScatterKind.SCATTER_ELEMENTS,
+        assertAll(() -> assertTrue(provider.supports(query(AxisScatterKind.SCATTER_ELEMENTS,
                         new ScatterElementsAttrs(1,ScatterReduction.MUL),List.of(data,indices,updates),output))),
-                () -> assertTrue(supportsBothProfiles(provider, query(AxisScatterKind.SCATTER_ADD,
+                () -> assertTrue(provider.supports(query(AxisScatterKind.SCATTER_ADD,
                         new IndexAxisAttrs(1),List.of(data,descriptor(DataType.INT32,Shape.of(4)),
                                 descriptor(DataType.FLOAT32,Shape.of(2,4))),output))),
-                () -> assertTrue(supportsBothProfiles(provider, query(ScatterNdKind.SCATTER_ND,
+                () -> assertTrue(provider.supports(query(ScatterNdKind.SCATTER_ND,
                         new ScatterNdAttrs(0,ScatterReduction.NONE),List.of(data,
                                 descriptor(DataType.INT32,Shape.of(5,1)),
                                 descriptor(DataType.FLOAT32,Shape.of(5,3))),output))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AxisScatterKind.SCATTER_ADD,
+                () -> assertFalse(provider.supports(query(AxisScatterKind.SCATTER_ADD,
                         new IndexAxisAttrs(1),List.of(data,descriptor(DataType.INT32,Shape.of(4)),
                                 descriptor(DataType.FLOAT32,Shape.of(4))),output))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AxisScatterKind.SCATTER_ELEMENTS,
+                () -> assertFalse(provider.supports(query(AxisScatterKind.SCATTER_ELEMENTS,
                         new ScatterElementsAttrs(1,ScatterReduction.ADD),List.of(
                                 descriptor(DataType.BOOL,Shape.of(2,3)),
                                 descriptor(DataType.INT32,Shape.of(2,4)),
                                 descriptor(DataType.BOOL,Shape.of(2,4))),
                         descriptor(DataType.BOOL,Shape.of(2,3))))),
                 () -> assertThrows(IllegalArgumentException.class, () ->
-                        new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                        new OperationCapabilityQuery(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
                                 new ScatterElementsAttrs(1, ScatterReduction.NONE)), List.of(data, indices), List.of(output))),
                 () -> assertThrows(IllegalArgumentException.class, () ->
-                        new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                        new OperationCapabilityQuery(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
                                 new ScatterElementsAttrs(1, ScatterReduction.NONE)), List.of(data, indices, updates), List.of())),
                 () -> assertThrows(IllegalArgumentException.class, () ->
-                        new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                        new OperationCapabilityQuery(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
                                 new ScatterElementsAttrs(1, ScatterReduction.NONE)), List.of(data, indices, updates), List.of(output, output))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AxisScatterKind.SCATTER_ELEMENTS,
+                () -> assertFalse(provider.supports(query(AxisScatterKind.SCATTER_ELEMENTS,
                         new ScatterElementsAttrs(1, ScatterReduction.NONE), List.of(data,
                                 descriptor(DataType.FLOAT32, Shape.of(2, 4)), updates), output))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AxisScatterKind.SCATTER_ELEMENTS,
+                () -> assertFalse(provider.supports(query(AxisScatterKind.SCATTER_ELEMENTS,
                         new ScatterElementsAttrs(1, ScatterReduction.NONE), List.of(data, indices,
                                 descriptor(DataType.INT32, Shape.of(2, 4))), output))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AxisScatterKind.SCATTER_ELEMENTS,
+                () -> assertFalse(provider.supports(query(AxisScatterKind.SCATTER_ELEMENTS,
                         new ScatterElementsAttrs(1, ScatterReduction.NONE), List.of(data, indices,
                                 updates), new TensorDescriptor(DataType.FLOAT32, Shape.of(2, 3),
                                 Optional.empty(), false)))),
-                () -> assertFalse(supportsBothProfiles(provider, query(AxisScatterKind.SCATTER_ELEMENTS,
+                () -> assertFalse(provider.supports(query(AxisScatterKind.SCATTER_ELEMENTS,
                         new ScatterElementsAttrs(1, ScatterReduction.NONE), List.of(data, indices,
                                 updates), new TensorDescriptor(DataType.FLOAT32, Shape.of(2, 3),
                                 Optional.of(LayoutDescriptor.of(Shape.of(2, 3),
                                         new long[]{0, 1}, 0, true)), false)))));
-    }
-
-    private static boolean supportsBothProfiles(CpuCapabilityProvider provider,
-            OperationCapabilityQuery strictQuery) {
-        if (strictQuery == null) {
-            return provider.supports(null);
-        }
-        assertSame(NumericalProfile.STRICT_IEEE, strictQuery.numericalProfile());
-        boolean strict = provider.supports(strictQuery);
-        var acceleratorQuery = new OperationCapabilityQuery(
-                NumericalProfile.ACCELERATOR,
-                strictQuery.operation(),
-                strictQuery.inputs(),
-                strictQuery.outputs());
-        assertEquals(strict, provider.supports(acceleratorQuery),
-                () -> "profile capability mismatch for " + strictQuery.operation());
-        return strict;
     }
 
     private static TensorDescriptor descriptor(Shape shape, LayoutDescriptor layout) {
@@ -945,7 +926,7 @@ class CpuCapabilityProviderTest {
     private static OperationCapabilityQuery query(Object kind,
             io.github.pho001.synaptik.model.operation.OperationAttrs attrs,
             List<TensorDescriptor> inputs, TensorDescriptor output) {
-        return new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(
+        return new OperationCapabilityQuery(new Operation(
                 (io.github.pho001.synaptik.model.operation.OperationKind) kind, attrs), inputs, List.of(output));
     }
 }

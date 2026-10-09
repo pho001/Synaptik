@@ -268,7 +268,7 @@ class CpuPool2dGeneratedKernelTest {
                         new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE, regime, 4, roles, general ? 0 : 4));
         var ir = pool.encodedKernelIr();
         var specialization =
-                new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
                 List.of(type, type),
                 List.of(inputCarrier, outputCarrier),
                 0,

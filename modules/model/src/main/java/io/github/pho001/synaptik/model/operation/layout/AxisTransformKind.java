@@ -21,12 +21,10 @@ import java.util.List;
  * pairings and declare one input and one output.</p>
  *
  *
- * <p>The Model-owned numerical-profile contract leaves this exact/discrete family unchanged under
- * {@code STRICT_IEEE} and {@code ACCELERATOR}: axis normalization, Shape/layout mapping, logical
- * ordering, and every moved stored payload representation remain exact. These transformations
- * apply no DAZ, FTZ, or arithmetic tolerance. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Axis normalization, Shape and layout mapping, logical order, and copied stored payloads
+ * remain exact. Axis transformations apply no arithmetic DAZ, FTZ, or finite tolerance. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  * <p>The current rank-two {@code transpose()} convenience is represented by {@code PERMUTE} with
  * {@code PermutationAttrs(List.of(1, 0))}; transpose is not a separate semantic kind. This enum
  * stores no input, rank, Shape, layout, result descriptor, storage view, provenance, gradient,

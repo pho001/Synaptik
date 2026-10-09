@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -50,52 +49,41 @@ class MetalVarianceNativeTest {
     }
 
     @Test
-    void customAbiRejectsEveryAlternateProfileRouteAttributeGradientTypeAndGeometry() {
+    void customAbiRejectsAlternateRouteAttributeGradientTypeAndGeometry() {
         var valid = program(false, List.of(0), 0L);
         var values = values(new long[] {1L}, false, false, false, DataType.FLOAT32);
         MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                NumericalProfile.ACCELERATOR,
                 values,
                 valid,
                 new int[] {0},
                 new int[] {1},
                 MetalPreparedRoute.CUSTOM_PROGRAM);
         MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                NumericalProfile.ACCELERATOR,
                 values(new long[] {1L}, false, true, false, DataType.FLOAT32),
                 program(true, List.of(0), 0L),
                 new int[] {0},
                 new int[] {1},
                 MetalPreparedRoute.CUSTOM_PROGRAM);
 
-        assertRejected(NumericalProfile.STRICT_IEEE, values, valid,
-                MetalPreparedRoute.CUSTOM_PROGRAM);
-        assertRejected(NumericalProfile.ACCELERATOR, values, valid,
+        assertRejected(values, valid,
                 MetalPreparedRoute.MPSGRAPH);
-        assertRejected(NumericalProfile.ACCELERATOR, values,
+        assertRejected(values,
                 program(false, List.of(), 0L), MetalPreparedRoute.CUSTOM_PROGRAM);
-        assertRejected(NumericalProfile.ACCELERATOR,
-                values(new long[] {1L, 1L}, false, false, false, DataType.FLOAT32),
+        assertRejected(values(new long[] {1L, 1L}, false, false, false, DataType.FLOAT32),
                 program(false, List.of(0), 0L), MetalPreparedRoute.CUSTOM_PROGRAM);
-        assertRejected(NumericalProfile.ACCELERATOR,
-                values(new long[] {2L}, false, false, false, DataType.FLOAT32),
+        assertRejected(values(new long[] {2L}, false, false, false, DataType.FLOAT32),
                 program(false, List.of(0), 0L), MetalPreparedRoute.CUSTOM_PROGRAM);
-        assertRejected(NumericalProfile.ACCELERATOR, values,
+        assertRejected(values,
                 program(false, List.of(0), 1L), MetalPreparedRoute.CUSTOM_PROGRAM);
-        assertRejected(NumericalProfile.ACCELERATOR,
-                values(new long[] {1L}, false, false, false, DataType.FLOAT32),
+        assertRejected(values(new long[] {1L}, false, false, false, DataType.FLOAT32),
                 program(false, List.of(1), 0L), MetalPreparedRoute.CUSTOM_PROGRAM);
-        assertRejected(NumericalProfile.ACCELERATOR,
-                values(new long[] {1L}, true, false, false, DataType.FLOAT32),
+        assertRejected(values(new long[] {1L}, true, false, false, DataType.FLOAT32),
                 valid, MetalPreparedRoute.CUSTOM_PROGRAM);
-        assertRejected(NumericalProfile.ACCELERATOR,
-                values(new long[] {1L}, false, false, true, DataType.FLOAT32),
+        assertRejected(values(new long[] {1L}, false, false, true, DataType.FLOAT32),
                 valid, MetalPreparedRoute.CUSTOM_PROGRAM);
-        assertRejected(NumericalProfile.ACCELERATOR,
-                values(new long[] {1L}, false, false, false, DataType.FLOAT64),
+        assertRejected(values(new long[] {1L}, false, false, false, DataType.FLOAT64),
                 valid, MetalPreparedRoute.CUSTOM_PROGRAM);
-        assertRejected(NumericalProfile.ACCELERATOR,
-                values(new long[] {1L}, false, true, false, DataType.FLOAT32),
+        assertRejected(values(new long[] {1L}, false, true, false, DataType.FLOAT32),
                 valid, MetalPreparedRoute.CUSTOM_PROGRAM);
     }
 
@@ -109,7 +97,6 @@ class MetalVarianceNativeTest {
         try {
             context = api.createContext();
             executable = api.createProgramExecutable(context,
-            NumericalProfile.ACCELERATOR,
             values(new long[] {1L}, false, false, false, DataType.FLOAT32),
             program(false, List.of(0), 0L),
             new int[] {0},
@@ -139,14 +126,13 @@ class MetalVarianceNativeTest {
     }
 
     private static void assertRejected(
-            NumericalProfile profile,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             MetalMpsGraphProgram program,
             MetalPreparedRoute route) {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        profile, values, program, new int[] {0}, new int[] {1}, route));
+                        values, program, new int[] {0}, new int[] {1}, route));
     }
 
     private static int execute(Path library, int word, boolean keepDimensions) {
@@ -157,7 +143,6 @@ class MetalVarianceNativeTest {
         try {
             context = api.createContext();
             executable = api.createProgramExecutable(context,
-            NumericalProfile.ACCELERATOR,
             values(new long[] {1L}, false, keepDimensions, false, DataType.FLOAT32),
             program(keepDimensions, List.of(0), 0L),
             new int[] {0},

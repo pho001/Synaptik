@@ -33,15 +33,15 @@ The query snapshots ordered input and output list membership while retaining the
 `Operation` and `TensorDescriptor` references. It validates occurrence counts, not descriptor
 compatibility or eventual executability.
 
-## Frozen P0 low-precision evidence
+## Profile-free low-precision capability evidence
 
 The checked-in
-[`low-precision-capability-ledger-v1.tsv`](../../testing/backend-conformance/src/test/resources/low-precision-capability-ledger-v1.tsv)
-is a canonical representative snapshot produced by calling the actual CPU and Metal providers
-under both profiles. It contains 508 data rows: 127 stable representative occurrences for each of
-two providers and two profiles. The two additional occurrences are the F32/FLOAT16 cast directions
-made representable by the active Model type. The CPU rows reflect their current support, while
-Metal remains fail-closed. Supported and explicit unsupported answers are both retained.
+[`low-precision-capability-ledger-v2.tsv`](../../testing/backend-conformance/src/test/resources/low-precision-capability-ledger-v2.tsv)
+is the canonical profile-free representative snapshot of actual CPU and Metal provider answers.
+It preserves supported and explicit unsupported FLOAT32 occurrences, plus independently queried
+BFLOAT16 and FLOAT16 counterparts. The 508-row
+[`v1 ledger`](../../testing/backend-conformance/src/test/resources/low-precision-capability-ledger-v1.tsv)
+is historical two-profile evidence; it is not a current provider query or numerical certificate.
 `LowPrecisionCapabilityLedgerTest` reconstructs the basis, calls the providers, serializes UTF-8
 TSV with LF endings, enforces stable ordering and unique keys, and reports the first missing,
 added, or byte-changed row.
@@ -50,16 +50,18 @@ Each F32 provider portion ends at the `supported` boolean. Separate
 `bf16_current_supported` and `fp16_current_supported` fields are the actual answers from the same
 provider for the corresponding mapped occurrence: every F32 descriptor and F32-typed scalar or
 cast target is replaced by the selected low-precision type while every other field is retained.
-Neither answer is inferred from F32 or from the other mapped type. The following BF16/FP16 target,
-target-profile, and exclusion fields are architecture mapping, not provider output. No row asserts
+Neither answer is inferred from F32 or from the other mapped type. Historical v1 target and
+exclusion columns were architecture mapping, not provider output; v2 omits them. No row asserts
 route, runtime, device, or generated-backward ownership.
 The basis is representative rather than an enumeration of every legal shape, layout, attribute,
 or gradient combination; the provider's focused tests remain authoritative for its complete
 current predicate.
 
 This mechanism does not redesign `BackendCapabilityProvider`. The separate identity-allocation
-ledger records active Model `DataType.FLOAT16` ordinal 6, CPU generator schema 68, Metal type wire
-7, program schema 19, backend identities 29, and native ABI 7.
+ledger records historical allocations: Model `DataType.FLOAT16` ordinal 6, CPU generator schema
+68, Metal type wire 7, program schema 19, backend identities 29, and native ABI 7. Current CPU
+generator schema is 69; current Metal program schema is 20 with a 124-byte header and tuning
+identity 30; native ABI remains 7. The ledger is not a current-schema certificate.
 
 ## Current shared identity, availability, and requirement vocabulary
 
@@ -272,19 +274,17 @@ See [Partition scoring](../architecture/partition-scoring.md), [backend
 selection](../user-guide/backend-selection.md), and the [backend guide
 style](../developer-guide/documentation/backend-guide-style.md).
 
-## Profile-qualified capability
+## Profile-free capability
 
-Read `query.numericalProfile()` as part of the complete capability question. Model defines the
-unchanged strict result set and total recursive `FLOAT32` accelerator superset; a provider does not
-interpret those floors or infer support from semantic reachability. For the same occurrence domain,
-strict capability is an accelerator subset: every strict-positive answer must also be
-accelerator-positive. Return `false` for an unsupported profile/operation pair rather than
-ignoring the profile or inferring support from `DeviceClass`. The current CPU provider returns the
-same exact answer under `STRICT_IEEE` and `ACCELERATOR`.
+`OperationCapabilityQuery` carries complete occurrence facts but no numerical selector. Model
+defines one family/dtype semantic contract. A provider answers the concrete occurrence and must
+not infer support from semantic reachability or `DeviceClass`; return `false` for unsupported
+descriptors or attributes. The CPU and Metal providers retain their independently queried true
+and false answers from the pre-cutover accelerator baseline.
 
 The current Metal provider admits the exact common unary, affine, canonicalization, indexing,
 classification, BOOL, replacement, movement, non-overlapping fold/window, ordering/top-K/numeric
-arg-extrema, maximum-pool, initial-state, and promoted integral MATMUL rows under both profiles.
+arg-extrema, maximum-pool, initial-state, and promoted integral MATMUL rows.
 All 49 ordered casts, FLOAT64/FLOAT32/BFLOAT16/FLOAT16 classification, scalar and right-aligned
 BOOL logic, the 14 floating `WHERE` signatures other than direct BFLOAT16/FLOAT16 mixing, exact
 seven-carrier movement, INT32/INT64 index parity, `FOLD_AXIS` over all six numeric carriers, and
@@ -293,15 +293,15 @@ seven-carrier movement, INT32/INT64 index parity, `FOLD_AXIS` over all six numer
 `SORT`, `ARGSORT`, and positive-K `TOP_K` admit all seven carriers; `ARG_MAX` and `ARG_MIN` admit
 the six numeric carriers over canonical dense ranks `1..16` with unsigned-32-bit-bounded geometry.
 
-Accelerator additionally admits the documented FLOAT32 arithmetic, extrema, scalar, reduction,
+Metal also admits the documented FLOAT32 arithmetic, extrema, scalar, reduction,
 scan, MSE, general MATMUL, average-pooling, convolution, explicit-state dropout, and exact
 rank-one no-gradient FLOAT32 `L1_NORM` and `SCATTER_ADD`, plus singleton `VARIANCE`. Every
-supported homogeneous accelerator FLOAT32 occurrence has BFLOAT16 and FLOAT16 counterparts;
+supported homogeneous FLOAT32 occurrence has independently queried BFLOAT16 and FLOAT16 counterparts;
 direct BFLOAT16/FLOAT16 mixed-low execution remains unsupported. ScatterAdd uses axis zero,
 canonical base/index/update/output roles, and a materialized INT32/INT64 index feed; the compiler
 explicitly canonicalizes its generated zero base, and the complete range scan precedes dispatch
 and mutation. Variance requires no-gradient input `[1]`, axis `[0]`, correction zero, and canonical
-scalar or retained `[1]` output. Both profiles admit no-gradient INT32/INT64 MATMUL pairs with
+scalar or retained `[1]` output. Metal admits no-gradient INT32/INT64 MATMUL pairs with
 INT64-dominant promotion and modular result arithmetic. Every partition containing BFLOAT16 or
 FLOAT16 values and the three exact rank-one FLOAT32 special occurrences use one fixed
 `CUSTOM_PROGRAM` route. Low-precision partitions expose no MPSGraph, classic-MPS, MPP, CPU, retry,
@@ -311,10 +311,10 @@ spans and rejects dynamic/empty geometry, zero or negative external strides, ove
 additive scatter, reduction-dependent adjoints, and every other unlisted occurrence before route
 selection.
 
-ABI 7 exposes thirteen functions and consumes one bounded schema-19 route-bearing program image.
+ABI 7 exposes thirteen functions and consumes one bounded schema-20 route-bearing program image.
 Operation wires `1..115`, attribute wires `0..41`, route wires `1..3`, and type wires `1..7` are
 structural vocabulary only. The custom-program extension authenticates compact materialized slots,
-deterministic generated pointwise units, and exact ACCELERATOR MATMUL/Conv2d anchor epilogues
-without widening capability. Version-twenty-nine workload, policy, candidate, compatibility,
+deterministic generated pointwise units, and qualified MATMUL/Conv2d anchor epilogues
+without widening capability. Version-thirty workload, policy, candidate, compatibility,
 route, and codec identities authenticate that meaning; every other identity fails closed.
 Production capability is `86/29`, and structural execution remains `101/14`.

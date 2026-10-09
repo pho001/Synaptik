@@ -2,13 +2,15 @@
 
 ## Status
 
-Accepted — 2026-09-25
+Superseded — 2026-10-08 by [ADR 0026](0026-profile-free-numerical-semantics.md).
+Originally accepted 2026-09-25.
 
-Supersedes [ADR 0019](0019-explicit-numerical-profiles.md).
+Originally superseded [ADR 0019](0019-explicit-numerical-profiles.md).
 
-Qualified for future newly admitted low-precision `ACCELERATOR` arithmetic by
-[ADR 0023](0023-low-precision-accelerator-parity.md). This record remains authoritative for every
-current occurrence, every `STRICT_IEEE` result set, and the complete `FLOAT32` recursive floors.
+Historically qualified for newly admitted low-precision `ACCELERATOR` arithmetic by
+[ADR 0023](0023-low-precision-accelerator-parity.md). The profile-indexed floors and every
+"current" statement below describe the pre-Task-0032 baseline only. The present Model rule is
+the [profile-free numerical-semantics contract](../../architecture/contracts/foundational-modules.md#profile-free-numerical-semantics).
 
 ## Context
 
@@ -18,7 +20,7 @@ had direct evidence, but it does not compose. Every new primitive, composite, ge
 or backend route would need another exceptional row, and the same formula could receive different
 meaning depending on whether it was visible or nested inside another operation.
 
-The current Model owns formulas, guards, contributor sets, masks, mappings, state transitions,
+At the time, Model owned formulas, guards, contributor sets, masks, mappings, state transitions,
 special-value behavior, and saved values. Model 0031 established backend-independent exact-
 reference strict unary sets for BFLOAT16, FLOAT32, and FLOAT64; the cumulative P12/P13 cutover
 extends those sets to FLOAT16. This decision adds only the recursive accelerator superset. For
@@ -37,7 +39,7 @@ operation-specific exception registry.
 ## Decision drivers
 
 - Preserve the public two-value API: `STRICT_IEEE` and `ACCELERATOR`.
-- Preserve every current `STRICT_IEEE` promise and freedom.
+- Preserve every then-current `STRICT_IEEE` promise and freedom.
 - Keep Model as the sole numerical-semantic authority and keep the selected profile graph-wide and
   cold.
 - Cover every current and future Model formula without adding a new policy layer.
@@ -68,6 +70,9 @@ aggregate sites retain every declared contributor exactly once. Composite formul
 floors. Accepted.
 
 ## Decision
+
+The following was the accepted pre-Task-0032 profile rule. It is retained to explain the
+historical baseline and no longer governs current results.
 
 `STRICT_IEEE` is the explicit union of every current per-operation allowed-result set, including
 the completed Model 0031 unary baseline.

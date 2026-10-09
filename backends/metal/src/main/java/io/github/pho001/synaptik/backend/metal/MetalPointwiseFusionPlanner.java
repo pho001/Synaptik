@@ -1,6 +1,5 @@
 package io.github.pho001.synaptik.backend.metal;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
 import java.nio.charset.StandardCharsets;
@@ -23,7 +22,6 @@ final class MetalPointwiseFusionPlanner {
      * Plans the authenticated custom-program steps for a whole partition. Generated pointwise and
      * anchor-epilogue steps are eligible only when every indexed value is non-low-precision.
      *
-     * @param numericalProfile non-null graph-wide numerical profile
      * @param program non-null typed program in partition order
      * @param values non-null descriptors for every indexed program value
      * @param feeds non-null ordered boundary-feed indices; copied before planning
@@ -35,13 +33,11 @@ final class MetalPointwiseFusionPlanner {
      * @throws IllegalArgumentException if the route or boundary indices are invalid
      */
     static MetalPointwiseFusionPlan plan(
-            NumericalProfile numericalProfile,
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] feeds,
             int[] targets,
             MetalPreparedRoute route) {
-        Objects.requireNonNull(numericalProfile, "numericalProfile");
         Objects.requireNonNull(program, "program");
         List<MetalMpsGraphProgram.ValueDescriptor> descriptors = List.copyOf(values);
         int[] feedValues = feeds.clone();
@@ -62,7 +58,7 @@ final class MetalPointwiseFusionPlanner {
         for (int value : targetValues) target[value] = true;
         List<MetalAnchorEpilogue> anchors = containsLowPrecision ? List.of()
                 : MetalAnchorEpilogueRecognizer.recognize(
-                        numericalProfile, program, descriptors, targetValues);
+                        program, descriptors, targetValues);
         MetalAnchorEpilogue[] anchorAt = new MetalAnchorEpilogue[nodes.size()];
         boolean[] anchorMember = new boolean[nodes.size()];
         for (MetalAnchorEpilogue anchor : anchors) {
@@ -249,7 +245,6 @@ final class MetalPointwiseFusionPlanner {
 
         int[] memberArray = members.stream().mapToInt(Integer::intValue).toArray();
         byte[] manifest = manifest(
-                numericalProfile,
                 descriptors,
                 nodes,
                 feedValues,
@@ -684,7 +679,6 @@ final class MetalPointwiseFusionPlanner {
     }
 
     private static byte[] manifest(
-            NumericalProfile profile,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             List<MetalMpsGraphProgram.Node> nodes,
             int[] feeds,
@@ -701,11 +695,9 @@ final class MetalPointwiseFusionPlanner {
             MetalPointwiseFusionPlan.CapReason reason) {
         StringBuilder text = new StringBuilder(4096);
         text.append("format 2\n")
-                .append("schema 19\n")
+                .append("schema 20\n")
                 .append("generator 2\n")
                 .append("route 3\n")
-                .append("profile ").append(Integer.toUnsignedString(
-                        MetalMpsGraphProgram.numericalProfileWireValue(profile))).append('\n')
                 .append("counts ").append(values.size()).append(' ').append(nodes.size()).append(' ')
                 .append(feeds.length).append(' ').append(targets.length).append(' ')
                 .append(steps.size()).append(' ').append(members.length).append(' ')

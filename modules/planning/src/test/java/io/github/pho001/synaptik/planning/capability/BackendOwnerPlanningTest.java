@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 final class BackendOwnerPlanningTest {
     private static final TensorDescriptor DESCRIPTOR =
             new TensorDescriptor(DataType.FLOAT32, Shape.of(2), Optional.empty(), false);
-    private static final OperationCapabilityQuery QUERY = new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE), List.of(DESCRIPTOR), List.of(DESCRIPTOR));
+    private static final OperationCapabilityQuery QUERY = new OperationCapabilityQuery(new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE), List.of(DESCRIPTOR), List.of(DESCRIPTOR));
 
     @Test
     void exposesOnlyTheExactPublicStatelessOwnerSelectionOperation() throws Exception {

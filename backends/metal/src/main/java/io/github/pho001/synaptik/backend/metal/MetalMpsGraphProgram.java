@@ -1,5 +1,4 @@
 package io.github.pho001.synaptik.backend.metal;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -18,27 +17,25 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Immutable schema-nineteen Metal program and its canonical bounded image encoder.
+ * Immutable schema-twenty Metal program and its canonical bounded image encoder.
  *
- * <p>The fixed 128-byte header binds the complete core-image and execution-extension counts.
+ * <p>The fixed 124-byte header binds the complete core-image and execution-extension counts.
  * {@code CUSTOM_PROGRAM} images carry authoritative step, binding, materialization, instruction,
  * and canonical-manifest records. MPSGraph images clear the extension flag and physically omit
  * every extension section.</p>
  */
 final class MetalMpsGraphProgram {
-    static final int SCHEMA_VERSION = 19;
+    static final int SCHEMA_VERSION = 20;
     static final int MAX_RANK = 16;
     static final int MAX_SELECTOR_EXPANSION = 16;
-    static final int HEADER_BYTES = 128;
+    static final int HEADER_BYTES = 124;
     static final int VALUE_DESCRIPTOR_BYTES = 40;
     static final int NODE_DESCRIPTOR_BYTES = 32;
     static final int STEP_DESCRIPTOR_BYTES = 40;
     static final int BINDING_DESCRIPTOR_BYTES = 24;
     static final int INSTRUCTION_DESCRIPTOR_BYTES = 64;
-    static final int MAGIC = 0x39314d53; // little-endian bytes "SM19"
-    static final int STRICT_IEEE_PROFILE_WIRE = 0x53545249; // little-endian bytes "IRTS"
+    static final int MAGIC = 0x30324d53; // little-endian bytes "SM20"
     private static final int EXECUTION_EXTENSION_PRESENT = 1;
-    static final int ACCELERATOR_PROFILE_WIRE = 0x41434345; // little-endian bytes "ECCA"
     static final int NO_SECOND_INPUT = -1;
     static final int NO_AXIS = -1;
 
@@ -1055,17 +1052,15 @@ final class MetalMpsGraphProgram {
 
     MemorySegment encodeNative(
             Arena arena,
-            NumericalProfile numericalProfile,
             List<ValueDescriptor> values,
             int[] feeds,
             int[] targets,
             MetalPreparedRoute route) {
-        return encodeNative(arena, numericalProfile, values, feeds, targets, route, null);
+        return encodeNative(arena, values, feeds, targets, route, null);
     }
 
     MemorySegment encodeNative(
             Arena arena,
-            NumericalProfile numericalProfile,
             List<ValueDescriptor> values,
             int[] feeds,
             int[] targets,
@@ -1073,57 +1068,51 @@ final class MetalMpsGraphProgram {
             MetalPointwiseFusionPlan suppliedPlan) {
         Objects.requireNonNull(arena, "arena");
         MetalPointwiseFusionPlan plan = resolvePlan(
-                numericalProfile, values, feeds, targets, route, suppliedPlan);
+                values, feeds, targets, route, suppliedPlan);
         Layout layout = layout(values, feeds, targets, plan);
         MemorySegment segment = arena.allocate(layout.totalBytes, Long.BYTES);
         write(segment.asByteBuffer().order(ByteOrder.LITTLE_ENDIAN),
-                numericalProfile, values, feeds, targets, layout, route, plan);
+                values, feeds, targets, layout, route, plan);
         return segment;
     }
 
     byte[] encodedProgramImage(
-            NumericalProfile numericalProfile,
             List<ValueDescriptor> values,
             int[] feeds,
             int[] targets) {
-        return encodedProgramImage(
-                numericalProfile, values, feeds, targets, MetalPreparedRoute.MPSGRAPH);
+        return encodedProgramImage(values, feeds, targets, MetalPreparedRoute.MPSGRAPH);
     }
 
     byte[] encodedProgramImage(
-            NumericalProfile numericalProfile,
             List<ValueDescriptor> values,
             int[] feeds,
             int[] targets,
             MetalPreparedRoute route) {
-        return encodedProgramImage(numericalProfile, values, feeds, targets, route, null);
+        return encodedProgramImage(values, feeds, targets, route, null);
     }
 
     byte[] encodedProgramImage(
-            NumericalProfile numericalProfile,
             List<ValueDescriptor> values,
             int[] feeds,
             int[] targets,
             MetalPreparedRoute route,
             MetalPointwiseFusionPlan suppliedPlan) {
         MetalPointwiseFusionPlan plan = resolvePlan(
-                numericalProfile, values, feeds, targets, route, suppliedPlan);
+                values, feeds, targets, route, suppliedPlan);
         Layout layout = layout(values, feeds, targets, plan);
         ByteBuffer buffer = ByteBuffer.allocate(layout.totalBytes).order(ByteOrder.LITTLE_ENDIAN);
-        write(buffer, numericalProfile, values, feeds, targets, layout, route, plan);
+        write(buffer, values, feeds, targets, layout, route, plan);
         return buffer.array();
     }
 
     void updateDigest(
             MessageDigest digest,
-            NumericalProfile numericalProfile,
             List<ValueDescriptor> values,
             int[] feeds,
             int[] targets,
             MetalPreparedRoute route) {
         Objects.requireNonNull(digest, "digest");
-        digest.update(encodedProgramImage(
-                numericalProfile, values, feeds, targets, route));
+        digest.update(encodedProgramImage(values, feeds, targets, route));
         for (Node node : nodes) {
             switch (node.kind()) {
                 case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV -> {
@@ -1163,26 +1152,23 @@ final class MetalMpsGraphProgram {
      * Resolves the custom-program extension used by both native encoding and authenticated image
      * previews. A supplied plan cannot reintroduce fusion into a low-precision partition.
      *
-     * @param numericalProfile non-null graph-wide numerical profile
      * @param values non-null indexed value descriptors
      * @param feeds non-null ordered boundary-feed indices
      * @param targets non-null ordered boundary-target indices
      * @param route non-null program route; singleton NEG has no image
      * @param suppliedPlan optional precomputed custom-program plan, or {@code null} to plan anew
      * @return custom-program extension, or {@code null} for MPSGraph
-     * @throws NullPointerException if the profile, route, or required value data is {@code null}
+     * @throws NullPointerException if the route or required value data is {@code null}
      * @throws IllegalArgumentException if the route is singleton NEG, an MPSGraph image carries a
      * supplied plan, or a low-precision custom program carries a supplied generated-pointwise or
      * anchor-epilogue step
      */
     MetalPointwiseFusionPlan resolvePlan(
-            NumericalProfile numericalProfile,
             List<ValueDescriptor> values,
             int[] feeds,
             int[] targets,
             MetalPreparedRoute route,
             MetalPointwiseFusionPlan suppliedPlan) {
-        Objects.requireNonNull(numericalProfile, "numericalProfile");
         Objects.requireNonNull(route, "route");
         if (route == MetalPreparedRoute.CUSTOM_SINGLE_NEG) {
             throw new IllegalArgumentException("singleton custom NEG does not use a program image");
@@ -1204,8 +1190,7 @@ final class MetalMpsGraphProgram {
             }
             return suppliedPlan;
         }
-        return MetalPointwiseFusionPlanner.plan(
-                numericalProfile, this, values, feeds, targets, route);
+        return MetalPointwiseFusionPlanner.plan(this, values, feeds, targets, route);
     }
 
     private static NodeKind scalarPrimitive(NodeKind kind) {
@@ -1340,21 +1325,19 @@ final class MetalMpsGraphProgram {
 
     private void write(
             ByteBuffer out,
-            NumericalProfile numericalProfile,
             List<ValueDescriptor> values,
             int[] feeds,
             int[] targets,
             Layout layout,
             MetalPreparedRoute route,
             MetalPointwiseFusionPlan plan) {
-        Objects.requireNonNull(numericalProfile, "numericalProfile");
         Objects.requireNonNull(route, "route");
         boolean extension = plan != null;
         int[] members = extension ? plan.memberNodePositions() : new int[0];
         byte[] manifest = extension ? plan.canonicalManifest() : new byte[0];
         byte[] manifestDigest = extension ? plan.canonicalManifestDigest() : new byte[0];
         out.putInt(MAGIC).putInt(SCHEMA_VERSION).putInt(HEADER_BYTES).putInt(layout.totalBytes)
-                .putInt(route.wireIdentity()).putInt(numericalProfileWireValue(numericalProfile))
+                .putInt(route.wireIdentity())
                 .putInt(extension ? MetalPointwiseFusionPlan.GENERATOR_SCHEMA : 0)
                 .putInt(extension ? EXECUTION_EXTENSION_PRESENT : 0)
                 .putInt(values.size()).putInt(nodes.size()).putInt(feeds.length).putInt(targets.length)
@@ -1537,10 +1520,4 @@ final class MetalMpsGraphProgram {
             int strideCount,
             int referenceCount,
             int attributeCount) {}
-    static int numericalProfileWireValue(NumericalProfile numericalProfile) {
-        return switch (numericalProfile) {
-            case STRICT_IEEE -> STRICT_IEEE_PROFILE_WIRE;
-            case ACCELERATOR -> ACCELERATOR_PROFILE_WIRE;
-        };
-    }
 }

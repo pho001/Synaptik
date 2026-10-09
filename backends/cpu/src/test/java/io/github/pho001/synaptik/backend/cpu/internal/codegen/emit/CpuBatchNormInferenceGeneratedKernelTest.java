@@ -163,6 +163,6 @@ class CpuBatchNormInferenceGeneratedKernelTest {
 
     private static PrepareContext<CpuPartitionAnalysisInputs> withInputs(
             PrepareContext<CpuPartitionAnalysisInputs> base, CpuPartitionAnalysisInputs inputs) {
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), inputs);
+        return new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), inputs);
     }
 }

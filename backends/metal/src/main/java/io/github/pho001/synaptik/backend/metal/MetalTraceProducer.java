@@ -1,6 +1,5 @@
 package io.github.pho001.synaptik.backend.metal;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.trace.TraceEvent;
 import io.github.pho001.synaptik.trace.TraceEventId;
@@ -17,7 +16,6 @@ import io.github.pho001.synaptik.trace.payload.LowPrecisionTraceMetadata;
 import io.github.pho001.synaptik.trace.payload.TraceCacheStatus;
 import io.github.pho001.synaptik.trace.payload.TraceNativeStatus;
 import io.github.pho001.synaptik.trace.payload.TraceNativeStatusKind;
-import io.github.pho001.synaptik.trace.payload.TraceNumericalProfile;
 import io.github.pho001.synaptik.trace.payload.TraceOutcomeStatus;
 import io.github.pho001.synaptik.trace.payload.TraceRouteKind;
 import java.security.MessageDigest;
@@ -54,13 +52,11 @@ final class MetalTraceProducer {
     /**
      * Allocates and maps one prepared unit after route selection is final.
      *
-     * @param numericalProfile selected graph-wide profile to report without interpreting it
      * @param route selected prepared route to report
      * @return immutable trace facts, or {@code null} when tracing is disabled, exhausted, or
      *         fails while mapping the facts
      */
-    PreparedUnit prepareUnit(
-            NumericalProfile numericalProfile, MetalPreparedRoute route) {
+    PreparedUnit prepareUnit(MetalPreparedRoute route) {
         if (!enabled.get()) {
             return null;
         }
@@ -73,7 +69,6 @@ final class MetalTraceProducer {
             return new PreparedUnit(
                     this,
                     id,
-                    mapProfile(numericalProfile),
                     mapRoute(route),
                     TraceCacheStatus.NOT_QUERIED,
                     List.of(),
@@ -86,10 +81,9 @@ final class MetalTraceProducer {
 
     /**
      * Allocates one prepared trace unit and emits advisory structure. Low-precision programs also
-     * emit the selected custom route, feed-then-target logical dtype tuple, and profile; a trace
+     * emit the selected custom route and feed-then-target logical dtype tuple; a trace
      * failure disables tracing without changing preparation.
      *
-     * @param numericalProfile selected graph-wide profile to report without interpreting it
      * @param route selected prepared route, which must be custom if any value is low precision
      * @param program prepared program used only for structural trace facts
      * @param values ordered descriptors indexed by the program and boundary arrays
@@ -100,7 +94,6 @@ final class MetalTraceProducer {
      *         fails while mapping or emitting facts
      */
     PreparedUnit prepareUnit(
-            NumericalProfile numericalProfile,
             MetalPreparedRoute route,
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
@@ -117,11 +110,10 @@ final class MetalTraceProducer {
                 return null;
             }
             PlanFacts facts = planFacts(
-                    numericalProfile, route, program, values, feeds, targets, internalCount);
+                    route, program, values, feeds, targets, internalCount);
             var unit = new PreparedUnit(
                     this,
                     id,
-                    mapProfile(numericalProfile),
                     mapRoute(route),
                     TraceCacheStatus.NOT_QUERIED,
                     facts.plannedCustomSteps(),
@@ -202,7 +194,6 @@ final class MetalTraceProducer {
                 TraceLevel.INFO,
                 new MetalPreparationStructure(
                         unit.preparedUnitId,
-                        unit.profile,
                         unit.route,
                         facts.anchorFamily(),
                         facts.anchorDisposition(),
@@ -227,10 +218,10 @@ final class MetalTraceProducer {
     }
 
     /**
-     * Emits selected-route, boundary dtype, and profile facts only when the prepared values
+     * Emits selected-route and boundary dtype facts only when the prepared values
      * contain a low-precision type. It does not infer an accumulator from program node kinds.
      *
-     * @param unit prepared trace unit carrying the selected route and profile
+     * @param unit prepared trace unit carrying the selected route
      * @param route selected backend route, required to be custom for low-precision values
      * @param values ordered prepared descriptors indexed by {@code feeds} and {@code targets}
      * @param feeds ordered indices of boundary feeds into {@code values}
@@ -261,8 +252,7 @@ final class MetalTraceProducer {
                 TraceLevel.INFO,
                 new LowPrecisionTraceMetadata(
                         unit.route,
-                        dtypeTuple,
-                        unit.profile));
+                        dtypeTuple));
     }
 
     void preparationSucceeded(PreparedUnit unit) {
@@ -320,7 +310,6 @@ final class MetalTraceProducer {
                             DEVICE_ID,
                             unit.preparedUnitId,
                             status,
-                            unit.profile,
                             unit.route,
                             unit.cacheStatus,
                             nativeStatus));
@@ -347,7 +336,6 @@ final class MetalTraceProducer {
                             unit.preparedUnitId,
                             invocationId,
                             status,
-                            unit.profile,
                             unit.route,
                             nativeStatus));
         } catch (RuntimeException failure) {
@@ -399,7 +387,6 @@ final class MetalTraceProducer {
     }
 
     private static PlanFacts planFacts(
-            NumericalProfile numericalProfile,
             MetalPreparedRoute route,
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
@@ -414,7 +401,7 @@ final class MetalTraceProducer {
                 sourceAnchors(program, values, targets);
         MetalPointwiseFusionPlan fusion = route == MetalPreparedRoute.CUSTOM_PROGRAM
                 ? MetalPointwiseFusionPlanner.plan(
-                        numericalProfile, program, values, feeds, targets, route)
+                        program, values, feeds, targets, route)
                 : null;
         int fusedAnchors = 0;
         int fusedMembers = 0;
@@ -497,7 +484,7 @@ final class MetalTraceProducer {
                 internalCount,
                 fusion == null ? program.nodes().size() : fusion.steps().size(),
                 fusion == null ? 0 : fusion.instructions().size(),
-                canonicalDigest(numericalProfile, route, program, values, feeds, targets),
+                canonicalDigest(route, program, values, feeds, targets),
                 List.copyOf(summaries),
                 summariesTruncated);
     }
@@ -508,7 +495,7 @@ final class MetalTraceProducer {
             int[] targets) {
         List<MetalAnchorEpilogue> recognized =
                 MetalAnchorEpilogueRecognizer.recognizeForDiagnostics(
-                        NumericalProfile.ACCELERATOR, program, values, targets);
+                        program, values, targets);
         var result = new ArrayList<AnchorFacts>(recognized.size());
         for (MetalAnchorEpilogue anchor : recognized) {
             var opcodes = new ArrayList<Integer>(anchor.operations().size());
@@ -579,7 +566,6 @@ final class MetalTraceProducer {
     }
 
     private static String canonicalDigest(
-            NumericalProfile numericalProfile,
             MetalPreparedRoute route,
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
@@ -593,7 +579,7 @@ final class MetalTraceProducer {
         }
         MetalPreparedRoute imageRoute = route == MetalPreparedRoute.CUSTOM_SINGLE_NEG
                 ? MetalPreparedRoute.MPSGRAPH : route;
-        program.updateDigest(digest, numericalProfile, values, feeds, targets, imageRoute);
+        program.updateDigest(digest, values, feeds, targets, imageRoute);
         return HexFormat.of().formatHex(digest.digest());
     }
 
@@ -684,13 +670,6 @@ final class MetalTraceProducer {
         };
     }
 
-    private static TraceNumericalProfile mapProfile(NumericalProfile profile) {
-        return switch (Objects.requireNonNull(profile, "numericalProfile")) {
-            case STRICT_IEEE -> TraceNumericalProfile.STRICT_IEEE;
-            case ACCELERATOR -> TraceNumericalProfile.ACCELERATOR;
-        };
-    }
-
     private static TraceRouteKind mapRoute(MetalPreparedRoute route) {
         return switch (Objects.requireNonNull(route, "route").family()) {
             case CUSTOM_KERNEL -> TraceRouteKind.CUSTOM_KERNEL;
@@ -706,7 +685,6 @@ final class MetalTraceProducer {
     static final class PreparedUnit {
         private final MetalTraceProducer producer;
         private final TracePreparedUnitId preparedUnitId;
-        private final TraceNumericalProfile profile;
         private final TraceRouteKind route;
         private final TraceCacheStatus cacheStatus;
         private final List<MetalPreparationStructure.CustomStepSummary> plannedCustomSteps;
@@ -715,14 +693,12 @@ final class MetalTraceProducer {
         private PreparedUnit(
                 MetalTraceProducer producer,
                 TracePreparedUnitId preparedUnitId,
-                TraceNumericalProfile profile,
                 TraceRouteKind route,
                 TraceCacheStatus cacheStatus,
                 List<MetalPreparationStructure.CustomStepSummary> plannedCustomSteps,
                 boolean plannedCustomStepsTruncated) {
             this.producer = producer;
             this.preparedUnitId = preparedUnitId;
-            this.profile = profile;
             this.route = route;
             this.cacheStatus = cacheStatus;
             this.plannedCustomSteps = plannedCustomSteps;

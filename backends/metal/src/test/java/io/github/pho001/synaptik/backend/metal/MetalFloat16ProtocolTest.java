@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
@@ -41,7 +40,6 @@ import io.github.pho001.synaptik.trace.TraceEvent;
 import io.github.pho001.synaptik.trace.TracePayload;
 import io.github.pho001.synaptik.trace.payload.LowPrecisionTraceMetadata;
 import io.github.pho001.synaptik.trace.payload.TraceRouteKind;
-import io.github.pho001.synaptik.trace.payload.TraceNumericalProfile;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
@@ -63,14 +61,13 @@ class MetalFloat16ProtocolTest {
         List<MetalMpsGraphProgram.ValueDescriptor> float16Values =
                 List.of(float16, float16);
         byte[] image = program.encodedProgramImage(
-                NumericalProfile.STRICT_IEEE,
                 float16Values,
                 new int[] {0},
                 new int[] {1});
         ByteBuffer header = ByteBuffer.wrap(image).order(ByteOrder.LITTLE_ENDIAN);
 
-        assertEquals(0x39314d53, header.getInt(0));
-        assertEquals(19, header.getInt(Integer.BYTES));
+        assertEquals(0x30324d53, header.getInt(0));
+        assertEquals(20, header.getInt(Integer.BYTES));
         assertEquals(7, header.getInt(MetalMpsGraphProgram.HEADER_BYTES));
         assertEquals(7, header.getInt(
                 MetalMpsGraphProgram.HEADER_BYTES
@@ -78,7 +75,6 @@ class MetalFloat16ProtocolTest {
         assertEquals(3L, float16.elementCount());
         assertEquals(6L, float16.byteCount());
         MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                NumericalProfile.STRICT_IEEE,
                 float16Values,
                 program,
                 new int[] {0},
@@ -87,7 +83,6 @@ class MetalFloat16ProtocolTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        NumericalProfile.STRICT_IEEE,
                         float16Values,
                         program,
                         new int[] {0},
@@ -96,7 +91,6 @@ class MetalFloat16ProtocolTest {
         var movementProgram = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.contiguous(0, 1)));
         MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                NumericalProfile.STRICT_IEEE,
                 float16Values,
                 movementProgram,
                 new int[] {0},
@@ -105,7 +99,6 @@ class MetalFloat16ProtocolTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        NumericalProfile.STRICT_IEEE,
                         float16Values,
                         movementProgram,
                         new int[] {0},
@@ -121,7 +114,6 @@ class MetalFloat16ProtocolTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
                         float16Values,
                         wrongScalarType,
                         new int[] {0},
@@ -143,7 +135,6 @@ class MetalFloat16ProtocolTest {
                                         lowWord(DataType.BFLOAT16, 1.0f)
                                     })));
                     MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                            NumericalProfile.ACCELERATOR,
                             float16Values,
                             splitClamp,
                             new int[] {0},
@@ -158,25 +149,21 @@ class MetalFloat16ProtocolTest {
                 Optional.of(LayoutDescriptor.of(Shape.of(3), new long[] {1}, 0L, true)),
                 false);
         var provider = new MetalCapabilityProvider();
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            assertTrue(provider.supports(new OperationCapabilityQuery(
-                    profile,
-                    new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE),
-                    List.of(descriptor),
-                    List.of(descriptor))));
-            assertTrue(provider.supports(new OperationCapabilityQuery(
-                    profile,
-                    new Operation(
-                            ShapeTransformKind.RESHAPE,
-                            new TargetShapeAttrs(Shape.of(3))),
-                    List.of(descriptor),
-                    List.of(reshaped))));
-        }
+        assertTrue(provider.supports(new OperationCapabilityQuery(
+                new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE),
+                List.of(descriptor),
+                List.of(descriptor))));
+        assertTrue(provider.supports(new OperationCapabilityQuery(
+                new Operation(
+                        ShapeTransformKind.RESHAPE,
+                        new TargetShapeAttrs(Shape.of(3))),
+                List.of(descriptor),
+                List.of(reshaped))));
+
 
         List<TraceEvent<? extends TracePayload>> events = new ArrayList<>();
         var trace = new MetalTraceProducer(events::add);
         assertNotNull(trace.prepareUnit(
-                NumericalProfile.STRICT_IEEE,
                 MetalPreparedRoute.CUSTOM_PROGRAM,
                 program,
                 float16Values,
@@ -186,7 +173,6 @@ class MetalFloat16ProtocolTest {
         var bfloat16 = new MetalMpsGraphProgram.ValueDescriptor(
                 DataType.BFLOAT16, new long[] {3}, false);
         assertNotNull(trace.prepareUnit(
-                NumericalProfile.STRICT_IEEE,
                 MetalPreparedRoute.CUSTOM_PROGRAM,
                 program,
                 List.of(bfloat16, bfloat16),
@@ -198,7 +184,7 @@ class MetalFloat16ProtocolTest {
                 (MetalPreparationStructure) events.get(0).payload();
         MetalPreparationStructure bfloat16Structure =
                 (MetalPreparationStructure) events.get(2).payload();
-        assertEquals(19, float16Structure.schemaVersion());
+        assertEquals(20, float16Structure.schemaVersion());
         assertNotEquals(
                 bfloat16Structure.canonicalDigest(),
                 float16Structure.canonicalDigest());
@@ -272,16 +258,6 @@ class MetalFloat16ProtocolTest {
             assertThrows(
                     IllegalArgumentException.class,
                     () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                            NumericalProfile.STRICT_IEEE,
-                            values,
-                            program,
-                            feeds,
-                            targets,
-                            MetalPreparedRoute.CUSTOM_PROGRAM));
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                            NumericalProfile.ACCELERATOR,
                             values,
                             program,
                             feeds,
@@ -534,8 +510,6 @@ class MetalFloat16ProtocolTest {
                 LowPrecisionTraceMetadata rawTrace = onlyLowPrecisionTrace(rawEvents);
                 assertEquals(TraceRouteKind.CUSTOM_KERNEL, rawTrace.selectedRoute());
                 assertEquals(List.of(type.name(), type.name()), rawTrace.logicalDtypeTuple());
-                assertEquals(TraceNumericalProfile.STRICT_IEEE,
-                        rawTrace.numericalProfile());
 
                 List<TraceEvent<? extends TracePayload>> arithmeticEvents = new ArrayList<>();
                 PrepareContext<MetalNegAnalysisInputs> arithmeticContext =
@@ -558,8 +532,6 @@ class MetalFloat16ProtocolTest {
                 assertEquals(
                         List.of(type.name(), type.name()),
                         arithmeticTrace.logicalDtypeTuple());
-                assertEquals(TraceNumericalProfile.STRICT_IEEE,
-                        arithmeticTrace.numericalProfile());
 
                 PrepareContext<MetalNegAnalysisInputs> sliceContext =
                         rawSlicePrepareContext(context, type);
@@ -664,7 +636,6 @@ class MetalFloat16ProtocolTest {
         try {
             context = api.createContext();
             executable = api.createProgramExecutable(context,
-            NumericalProfile.ACCELERATOR,
             values,
             program,
             feeds,
@@ -749,7 +720,6 @@ class MetalFloat16ProtocolTest {
         PlannedPartition partition = new PlannedPartition(
                 MetalCapabilityProvider.METAL_BACKEND_ID, List.of(first.id(), second.id()));
         return new PrepareContext<>(
-                NumericalProfile.STRICT_IEEE,
                 new PartitionDag(partition, List.of(first, second)),
                 List.of(
                         new GraphValue(feed, descriptor),
@@ -809,7 +779,6 @@ class MetalFloat16ProtocolTest {
         PlannedPartition partition = new PlannedPartition(
                 MetalCapabilityProvider.METAL_BACKEND_ID, List.of(reshape.id()));
         return new PrepareContext<>(
-                NumericalProfile.STRICT_IEEE,
                 new PartitionDag(partition, List.of(reshape)),
                 List.of(new GraphValue(feed, input), new GraphValue(target, output)),
                 List.of(
@@ -843,7 +812,6 @@ class MetalFloat16ProtocolTest {
         PlannedPartition partition = new PlannedPartition(
                 MetalCapabilityProvider.METAL_BACKEND_ID, List.of(slice.id()));
         return new PrepareContext<>(
-                NumericalProfile.STRICT_IEEE,
                 new PartitionDag(partition, List.of(slice)),
                 List.of(new GraphValue(feed, input), new GraphValue(target, output)),
                 List.of(

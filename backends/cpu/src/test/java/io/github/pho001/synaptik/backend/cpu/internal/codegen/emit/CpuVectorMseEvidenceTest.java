@@ -895,7 +895,7 @@ class CpuVectorMseEvidenceTest {
                         new MeanSquaredErrorAttrs(LossReduction.NONE)), roles, inputs, output);
         var config = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE,
                 workers, workers, 1);
-        return new CpuPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers, config)));
+        return new CpuPartitionPreparer().analyze(new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers, config)));
     }
 
     private static CpuPreparedExecutable prepared(DataType type, Shape shape, List<Integer> roles,
@@ -921,7 +921,7 @@ class CpuVectorMseEvidenceTest {
                 new Operation(LossKind.MEAN_SQUARED_ERROR, new MeanSquaredErrorAttrs(reduction)), roles,
                 inputs, CpuScatterLoweringTest.desc(type, output));
         var config = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, workers, workers, 1);
-        var plan = new CpuPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers, config))).plan();
+        var plan = new CpuPartitionPreparer().analyze(new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers, config))).plan();
         return plan.units().getFirst().portablePlan();
     }
 

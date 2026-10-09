@@ -84,7 +84,6 @@ final class GraphCompilerTest {
         var completeCompile = GraphCompiler.class.getDeclaredMethod(
                 "compile",
                 CompileMode.class,
-                io.github.pho001.synaptik.config.compile.NumericalProfile.class,
                 List.class,
                 Optional.class,
                 CompileTimeConstantGraph.Ingress.class,
@@ -109,7 +108,7 @@ final class GraphCompilerTest {
         List<OperationCapabilityQuery> queries = new ArrayList<>();
         BackendCapabilityProvider provider = provider(backendId, queries, true);
 
-        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider), List.of(snapshot(backendId)));
+        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider), List.of(snapshot(backendId)));
 
         assertEquals(artifacts.graph().nodes().size(), queries.size());
         assertEquals(1, artifacts.partitions().size());
@@ -157,7 +156,7 @@ final class GraphCompilerTest {
         List<BackendAvailabilitySnapshot> snapshots = new ArrayList<>();
         snapshots.add(null);
 
-        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), providers, snapshots);
+        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), providers, snapshots);
 
         assertTrue(artifacts.graph().nodes().isEmpty());
         assertTrue(artifacts.partitions().isEmpty());
@@ -180,25 +179,25 @@ final class GraphCompilerTest {
                 "backendIntent",
                 assertThrows(
                         NullPointerException.class,
-                        () -> GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), null, null, providers, snapshots))
+                        () -> GraphCompiler.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), null, null, providers, snapshots))
                         .getMessage());
         assertEquals(
                 "partitionScoringConfig",
                 assertThrows(
                         NullPointerException.class,
-                        () -> GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), null, providers, snapshots))
+                        () -> GraphCompiler.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), null, providers, snapshots))
                         .getMessage());
         assertEquals(
                 "capabilityProviders",
                 assertThrows(
                         NullPointerException.class,
-                        () -> GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), null, snapshots))
+                        () -> GraphCompiler.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), null, snapshots))
                         .getMessage());
         assertEquals(
                 "availabilitySnapshots",
                 assertThrows(
                         NullPointerException.class,
-                        () -> GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), providers, null))
+                        () -> GraphCompiler.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), providers, null))
                         .getMessage());
     }
 
@@ -207,7 +206,7 @@ final class GraphCompilerTest {
         Tensor constant = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, Shape.of(2), Optional.empty(), false));
         ScalarValue value = ScalarValue.float32(-0.0f);
-        CompileArtifacts constantArtifacts = GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(constant), Optional.empty(), new CompileTimeConstantGraph.Ingress(List.of(
+        CompileArtifacts constantArtifacts = GraphCompiler.compile(CompileMode.FORWARD_ONLY, List.of(constant), Optional.empty(), new CompileTimeConstantGraph.Ingress(List.of(
                 new CompileTimeConstantGraph.Binding(
                         constant, new CompileTimeConstantGraph.Splat(value)))), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(), List.of());
 
@@ -227,7 +226,7 @@ final class GraphCompilerTest {
         Tensor target = tensor();
         Tensor objective = target.mul(target).sum();
         BackendId backendId = new BackendId("cpu");
-        CompileArtifacts backwardArtifacts = GraphCompiler.compile(CompileMode.FORWARD_AND_BACKWARD, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(objective), Optional.of(FunctionalGradientTestSupport.request(
+        CompileArtifacts backwardArtifacts = GraphCompiler.compile(CompileMode.FORWARD_AND_BACKWARD, List.of(objective), Optional.of(FunctionalGradientTestSupport.request(
                 objective, List.of(target))), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.standard(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, new ArrayList<>(), true)), List.of(snapshot(backendId)));
 
         assertEquals(1, backwardArtifacts.publication().gradientBindings().size());
@@ -242,7 +241,7 @@ final class GraphCompilerTest {
     @Test
     void closesAbsentUnitSeedGradientAndCompleteLogicalMemoryTruth() {
         Tensor objectiveAndTarget = scalarTensor();
-        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_AND_BACKWARD, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(objectiveAndTarget), Optional.of(FunctionalGradientTestSupport.request(
+        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_AND_BACKWARD, List.of(objectiveAndTarget), Optional.of(FunctionalGradientTestSupport.request(
                 objectiveAndTarget, List.of(objectiveAndTarget))), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.standard(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(), List.of());
 
         ValueId gradientValue = artifacts.publication()
@@ -279,7 +278,7 @@ final class GraphCompilerTest {
         Tensor output = first.add(first).add(equalDescriptorButDistinct);
         BackendId backendId = new BackendId("cpu");
 
-        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.standard(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, new ArrayList<>(), true)), List.of(snapshot(backendId)));
+        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.standard(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, new ArrayList<>(), true)), List.of(snapshot(backendId)));
 
         assertEquals(List.of(first.id(), equalDescriptorButDistinct.id()),
                 artifacts.constants().bindableInputBindings().stream()
@@ -313,7 +312,7 @@ final class GraphCompilerTest {
                 FunctionalGradientRequest.DisconnectedPolicy.ERROR);
         BackendId backendId = new BackendId("cpu");
 
-        CompileArtifacts explicit = GraphCompiler.compile(CompileMode.FORWARD_AND_BACKWARD, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(objective), Optional.of(new FunctionalGradientRequest(List.of(first, second))), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.standard(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, new ArrayList<>(), true)), List.of(snapshot(backendId)));
+        CompileArtifacts explicit = GraphCompiler.compile(CompileMode.FORWARD_AND_BACKWARD, List.of(objective), Optional.of(new FunctionalGradientRequest(List.of(first, second))), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.standard(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, new ArrayList<>(), true)), List.of(snapshot(backendId)));
 
         assertTrue(explicit.constants().bindableInputBindings().stream()
                 .map(CompileConstantPlan.BindableInput::tensorId)
@@ -328,7 +327,7 @@ final class GraphCompilerTest {
                 List.of(target),
                 false,
                 FunctionalGradientRequest.DisconnectedPolicy.ERROR);
-        CompileArtifacts generated = GraphCompiler.compile(CompileMode.TRAINING_STEP, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(objective), Optional.of(new FunctionalGradientRequest(List.of(defaultSeed))), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.standard(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, new ArrayList<>(), true)), List.of(snapshot(backendId)));
+        CompileArtifacts generated = GraphCompiler.compile(CompileMode.TRAINING_STEP, List.of(objective), Optional.of(new FunctionalGradientRequest(List.of(defaultSeed))), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.standard(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, new ArrayList<>(), true)), List.of(snapshot(backendId)));
 
         assertEquals(List.of(target.id()), generated.constants().bindableInputBindings().stream()
                 .map(CompileConstantPlan.BindableInput::tensorId)
@@ -343,7 +342,7 @@ final class GraphCompilerTest {
 
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
-                () -> GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, new ArrayList<>(), false)), List.of(snapshot(backendId))));
+                () -> GraphCompiler.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, new ArrayList<>(), false)), List.of(snapshot(backendId))));
 
         var node = GraphCompiler.compile(
                         CompileMode.FORWARD_ONLY,
@@ -379,7 +378,7 @@ final class GraphCompilerTest {
         BackendId backendId = new BackendId("recording");
         List<OperationCapabilityQuery> queries = new ArrayList<>();
 
-        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(conv1d, conv2d, conv3d), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, queries, true)), List.of(snapshot(backendId)));
+        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_ONLY, List.of(conv1d, conv2d, conv3d), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, queries, true)), List.of(snapshot(backendId)));
 
         OperationCapabilityQuery conv1dMapped = queries.stream()
                 .filter(query -> query.operation().kind() == Conv2dKind.CONV2D)
@@ -425,7 +424,7 @@ final class GraphCompilerTest {
         BackendId backendId = new BackendId("recording");
         List<OperationCapabilityQuery> queries = new ArrayList<>();
 
-        assertThrows(IllegalStateException.class, () -> GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, queries, false)), List.of(snapshot(backendId))));
+        assertThrows(IllegalStateException.class, () -> GraphCompiler.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, queries, false)), List.of(snapshot(backendId))));
 
         assertEquals(1, queries.size());
         assertSame(Conv2dKind.CONV2D, queries.getFirst().operation().kind());
@@ -442,7 +441,7 @@ final class GraphCompilerTest {
         BackendId backendId = new BackendId("recording");
         List<OperationCapabilityQuery> queries = new ArrayList<>();
 
-        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), new CompileTimeConstantGraph.Ingress(List.of(
+        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), new CompileTimeConstantGraph.Ingress(List.of(
                 new CompileTimeConstantGraph.Binding(
                         constant, new CompileTimeConstantGraph.Splat(scalar)))), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, queries, true)), List.of(snapshot(backendId)));
 
@@ -466,7 +465,7 @@ final class GraphCompilerTest {
         BackendId backendId = new BackendId("recording");
         List<OperationCapabilityQuery> queries = new ArrayList<>();
 
-        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_AND_BACKWARD, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(objective), Optional.of(FunctionalGradientTestSupport.request(
+        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_AND_BACKWARD, List.of(objective), Optional.of(FunctionalGradientTestSupport.request(
                 objective, List.of(target))), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, queries, true)), List.of(snapshot(backendId)));
 
         int forwardNegIndex = -1;
@@ -496,7 +495,7 @@ final class GraphCompilerTest {
         BackendId backendId = new BackendId("recording");
         List<OperationCapabilityQuery> queries = new ArrayList<>();
 
-        assertThrows(IllegalStateException.class, () -> GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, queries, false)), List.of(snapshot(backendId))));
+        assertThrows(IllegalStateException.class, () -> GraphCompiler.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId, queries, false)), List.of(snapshot(backendId))));
 
         assertAll(
                 () -> assertEquals(1, queries.size()),

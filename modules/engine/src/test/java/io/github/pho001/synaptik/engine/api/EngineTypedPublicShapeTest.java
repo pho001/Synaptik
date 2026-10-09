@@ -50,9 +50,10 @@ final class EngineTypedPublicShapeTest {
         assertEquals(List.of("backward", "builder", "close", "compile", "compile", "compute",
                 "compute", "compute", "compute", "isClosed", "prepare", "prepareTuned", "run",
                 "session", "standard"), methodNames(Engine.class));
-        assertEquals(List.of("build", "close", "numericalProfile", "takeOwnership",
-                        "takeOwnership"),
+        assertEquals(List.of("build", "close", "takeOwnership", "takeOwnership"),
                 methodNames(Engine.Builder.class));
+        assertFalse(Arrays.stream(Engine.Builder.class.getDeclaredMethods())
+                .anyMatch(method -> method.getName().equals("numericalProfile")));
         assertEquals(List.of("inputs"), methodNames(CompiledGraph.class));
         assertEquals(List.of("close", "compiledGraph", "isClosed"),
                 methodNames(PreparedExecution.class));

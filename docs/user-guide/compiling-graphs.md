@@ -77,35 +77,35 @@ It contains no caller Tensor storage reference and performs no execution.
 | A caller expects `CompileConfig.auto()` | Config aggregate facades are not current. | Use ordinary fixed `Engine.compile(...)` or the explicitly advanced standalone settings. |
 
 
-## Numerical profile
+## Numerical semantics and capability
 
-Compilation uses the profile captured by the Engine for every capability query and carries it into
-preparation. The default is `STRICT_IEEE`. CPU answers the same exact capability matrix under
-either profile. Metal's common exact domain includes its unary/affine/canonicalization/indexing/
+Compilation has no graph-wide numerical selector. Model defines one operation-family and dtype
+contract; Planning queries the actual provider for each complete occurrence. Metal's exact domain
+includes its unary/affine/canonicalization/indexing/
 BOOL/movement/replacement/fold/aggregate, ordering/top-K/numeric arg-extrema, no-gradient promoted
-INT32/INT64 MATMUL, maximum-pooling, and raw INITIAL_STATE rows. `ACCELERATOR` additionally admits
+INT32/INT64 MATMUL, maximum-pooling, and raw INITIAL_STATE rows. Metal also admits
 the documented FLOAT32 arithmetic/reduction/scan rows; same-type canonical positive-rank FLOAT32
 MSE; every positive-static FLOAT32 MATMUL geometry; no-gradient BFLOAT16/FLOAT32 mixed MATMUL;
 convolution, average pooling, and FLOAT32 dropout; and the no-gradient rank-one FLOAT32 L1_NORM,
 axis-zero SCATTER_ADD, and singleton VARIANCE custom programs. The current ledger is 86 admitted
-kinds and 29 remaining false. Strict rejects accelerator-only occurrences; every other unlisted
-occurrence fails before route selection. Compilation neither changes the requested profile nor
-falls back when an occurrence has no eligible owner.
+kinds and 29 remaining false. Every unlisted occurrence fails before route selection; compilation
+does not infer provider support from Model semantic reachability or fall back to another owner.
 
 ## Limitations
 
 Current public composition supports fixed CPU execution and explicit CPU/Metal mixed-owner
 execution. Rank-0..16 fully static cross-owner values may use all seven model data types over
 canonical or positive-stride non-overlapping layouts with checked physical spans. Every supported
-homogeneous accelerator FLOAT32 Metal occurrence has BFLOAT16 and FLOAT16 counterparts. Every
+homogeneous FLOAT32 Metal occurrence in the preserved former accelerator baseline has
+independently admitted BFLOAT16 and FLOAT16 counterparts. Every
 partition containing a low-precision value uses one fixed native custom-program call with compact
 run-owned materialized slots and direct targets, including exact homogeneous no-gradient
 raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and
 `TILE`. Eligible linear canonical FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use deterministic
-bounded generated units. ABI 7 exports thirteen symbols and consumes one bounded schema-19 program
+bounded generated units. ABI 7 exports thirteen symbols and consumes one bounded schema-20 program
 image with type wires `1..7`, operation wires `1..115`, attributes `0..41`, and route wires `1..3`.
 Workload, exact-policy, candidate, compatibility, route-policy, and session-codec identities are
-version 29; every other identity fails closed. Registry presence does not widen capability;
+version 30; every other identity fails closed. Registry presence does not widen capability;
 unsupported operations fail closed.
 
 Model construction leaves Conv2d and Conv3d result layouts unresolved; Compiler closes

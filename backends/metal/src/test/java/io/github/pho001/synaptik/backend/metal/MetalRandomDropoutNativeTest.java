@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
@@ -37,18 +36,17 @@ class MetalRandomDropoutNativeTest {
     };
 
     @Test
-    void initialStateIsBitExactInBothProfilesWithZeroFeedsAndRepeatedRuns() {
+    void initialStateIsBitExactWithZeroFeedsAndRepeatedRuns() {
         long key = 0xfedc_ba98_7654_3210L;
         long counter = 0x0123_4567_89ab_cdefL;
         MetalMpsGraphProgram program = new MetalMpsGraphProgram(List.of(initial(0, key, counter)));
         List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(typed(DataType.INT64, 2));
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            List<List<byte[]>> runs = execute(
-                    profile, program, values, new int[0], new int[] {0}, List.of(), 2);
-            assertArrayEquals(longWords(key, counter), runs.get(0).getFirst(), profile.toString());
-            assertArrayEquals(runs.get(0).getFirst(), runs.get(1).getFirst(),
-                    profile + " repeated execution");
-        }
+        List<List<byte[]>> runs = execute(
+                program, values, new int[0], new int[] {0}, List.of(), 2);
+        assertArrayEquals(longWords(key, counter), runs.get(0).getFirst(), "selected occurrence");
+        assertArrayEquals(runs.get(0).getFirst(), runs.get(1).getFirst(),
+                " repeated execution");
+
     }
 
     @Test
@@ -74,7 +72,6 @@ class MetalRandomDropoutNativeTest {
                     typed(DataType.BOOL, EDGE_INPUT.length),
                     typed(DataType.INT64, 2));
             List<List<byte[]>> runs = execute(
-                    NumericalProfile.ACCELERATOR,
                     program,
                     values,
                     new int[] {0},
@@ -102,7 +99,6 @@ class MetalRandomDropoutNativeTest {
                     dropout(0, 1, 2, 3, 4, 0.0d)));
             List<byte[]> input = List.of(lowWords(type, 1.0f, -2.0f, 0.5f, -0.0f));
             List<byte[]> result = execute(
-                    NumericalProfile.ACCELERATOR,
                     program,
                     List.of(
                             typed(type, 4),
@@ -152,7 +148,6 @@ class MetalRandomDropoutNativeTest {
         values.add(typed(DataType.INT64, 2));
 
         List<byte[]> result = execute(
-                NumericalProfile.ACCELERATOR,
                 program,
                 List.copyOf(values),
                 new int[] {0},
@@ -185,7 +180,6 @@ class MetalRandomDropoutNativeTest {
                 typed(DataType.FLOAT32, EDGE_INPUT.length), typed(DataType.BOOL, EDGE_INPUT.length),
                 typed(DataType.INT64, 2));
         Callable<List<byte[]>> session = () -> execute(
-                NumericalProfile.ACCELERATOR,
                 program,
                 values,
                 new int[] {0},
@@ -259,7 +253,6 @@ class MetalRandomDropoutNativeTest {
     }
 
     private static List<List<byte[]>> execute(
-            NumericalProfile profile,
             MetalMpsGraphProgram program,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] feeds,
@@ -276,7 +269,7 @@ class MetalRandomDropoutNativeTest {
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
-            executable = api.createProgramExecutable(context, profile, values, program, feeds, targets,
+            executable = api.createProgramExecutable(context, values, program, feeds, targets,
             MetalPreparedRoute.CUSTOM_PROGRAM);
             for (var value : values) buffers.add(api.createBuffer(context, value.byteCount()));
             for (int index = 0; index < feeds.length; index++) {

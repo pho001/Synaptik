@@ -17,15 +17,15 @@ import java.util.List;
  * define eligible input types, result descriptors, accumulation precision, gradients, value
  * execution, storage, compiler behavior, or backend availability.</p>
  *
- * <p>Under the Model-owned graph numerical-profile contract, {@code STRICT_IEEE} retains the
- * scan formula. For {@code ACCELERATOR FLOAT32}, direction, exclusivity, output placement,
- * identity, and each logical prefix's contributor membership remain exact. Every prefix
- * contributor participates exactly once; its arithmetic may use any binary tree, per-step
- * FLOAT32 rounding, DAZ/FTZ, and only corresponding multiply/add fusion. No contributor may be
- * dropped, duplicated, invented, pretruncated, or replaced. Non-FLOAT32 scans remain strict. See
- * the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Direction, exclusivity, output placement, identities, and each logical prefix's contributor
+ * membership remain exact. Every prefix contributor participates once in its rounded ADD or MUL
+ * tree; no term may be dropped, duplicated, invented, or pretruncated. Named floating arithmetic
+ * primitives may use DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, including low multiplication, but
+ * never FLOAT64. Homogeneous low scans work and accumulate in FLOAT32 with one final ties-to-even
+ * narrowing for each declared output. Integral scans retain fixed-width modular arithmetic. See the
+ * <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum CumulativeScanKind implements OperationKind {
     /**

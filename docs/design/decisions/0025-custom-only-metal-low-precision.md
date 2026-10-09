@@ -5,8 +5,10 @@
 Accepted — 2026-09-29
 
 Supersedes [ADR 0024](0024-environment-bound-metal-raw-certificates.md). The Model-owned
-low-precision numerical contract remains in the [foundational-modules contract](../../architecture/contracts/foundational-modules.md#model-low-precision-contract-and-active-accelerator-extension);
-[ADR 0023](0023-low-precision-accelerator-parity.md) records its rationale and provider evidence.
+low-precision numerical contract remains in the [foundational-modules contract](../../architecture/contracts/foundational-modules.md#model-low-precision-contract);
+[ADR 0023](0023-low-precision-accelerator-parity.md) records historical rationale and provider
+evidence. [ADR 0026](0026-profile-free-numerical-semantics.md) supersedes only this record's
+profile-dependent trace and identity provisions. The custom-only Metal route remains accepted.
 
 ## Context
 

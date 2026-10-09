@@ -76,7 +76,7 @@ final class CpuGeneratedCoverageEvidenceRegistry {
         var inputs = descriptors(context, node.inputs());
         var outputs = descriptors(context, node.outputs());
         boolean supported = new CpuCapabilityProvider().supports(
-                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, node.operation(), inputs, outputs));
+                new OperationCapabilityQuery(node.operation(), inputs, outputs));
         var unit = plan.units().getFirst();
         var route = unit.portablePlan();
         byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(
@@ -123,7 +123,7 @@ final class CpuGeneratedCoverageEvidenceRegistry {
         var inputs = descriptors(context, node.inputs());
         var outputs = descriptors(context, node.outputs());
         boolean supported = new CpuCapabilityProvider().supports(
-                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, node.operation(), inputs, outputs));
+                new OperationCapabilityQuery(node.operation(), inputs, outputs));
         var record = new Record(occurrenceId, form, "NO_GENERATED_UNIT",
                 descriptorRoles(context, node.inputs(), node.outputs()), "[]", virtualIds(context, List.of()),
                 0, 0, "[]", "[]",
@@ -146,7 +146,7 @@ final class CpuGeneratedCoverageEvidenceRegistry {
     static synchronized Record rejectedByProvider(String occurrenceId, String operationForm,
             Operation operation, List<io.github.pho001.synaptik.model.tensor.TensorDescriptor> inputs,
             List<io.github.pho001.synaptik.model.tensor.TensorDescriptor> outputs, String reason) {
-        boolean supported = new CpuCapabilityProvider().supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation, inputs, outputs));
+        boolean supported = new CpuCapabilityProvider().supports(new OperationCapabilityQuery(operation, inputs, outputs));
         if (supported) throw new AssertionError("provider admitted rejected fixture: " + occurrenceId);
         var record = new Record(occurrenceId, operationForm, "NO_PREPARED_IR",
                 queryDescriptorRoles(inputs, outputs), "N/A_PROVIDER_REJECTED", "N/A_PROVIDER_REJECTED",
@@ -165,7 +165,7 @@ final class CpuGeneratedCoverageEvidenceRegistry {
     static synchronized Record rejectedByPreparer(String occurrenceId, String operationForm,
             PrepareContext<CpuPartitionAnalysisInputs> context, String reason) {
         var mapped = context.nodes().get(context.nodes().size() == 3 ? 1 : 2);
-        boolean supported = new CpuCapabilityProvider().supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, mapped.operation(), descriptors(context, mapped.inputs()), descriptors(context, mapped.outputs())));
+        boolean supported = new CpuCapabilityProvider().supports(new OperationCapabilityQuery(mapped.operation(), descriptors(context, mapped.inputs()), descriptors(context, mapped.outputs())));
         if (!supported) throw new AssertionError("provider did not admit preparer-rejected fixture: " + occurrenceId);
         IllegalArgumentException failure;
         try {

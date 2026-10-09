@@ -10,9 +10,11 @@ import java.util.Optional;
 
 /**
  * Field-free cold issuer for bounded target, binary, ABI, symbol, and general matrix
- * multiplication (GEMM) evidence. A successful result is a compatibility credential for the
- * exact loaded session; it is not binary authentication or broad ABI, numerical, determinism,
- * or performance certification.
+ * multiplication (GEMM) smoke evidence. The finite cases use small integer operands whose
+ * outputs are exactly representable in both supported floating types; they check the known
+ * results without a production tolerance policy. A successful result is a compatibility
+ * credential for the exact loaded session, not binary authentication or broad ABI, numerical,
+ * determinism, or performance certification.
  */
 final class CpuOpenBlasQualifier {
     private CpuOpenBlasQualifier() { }
@@ -113,6 +115,12 @@ final class CpuOpenBlasQualifier {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * Exercises bounded exact-output and special-value GEMM calls as ABI smoke checks.
+     *
+     * @param invocation live provider invocation whose GEMM symbols are being checked
+     * @throws IllegalStateException if a bounded result disagrees
+     */
     private static void runNumericalCases(CpuOpenBlasInvocation invocation) {
         finiteFloat(invocation);
         finiteDouble(invocation);
@@ -126,10 +134,16 @@ final class CpuOpenBlasQualifier {
         specialDouble(invocation, 0.0, 0.0);
     }
 
+    /**
+     * Checks a small FLOAT32 matrix product with exactly representable integer results.
+     *
+     * @param invocation live provider invocation whose FLOAT32 GEMM symbol is being checked
+     * @throws IllegalStateException if any output differs from its known result
+     */
     private static void finiteFloat(CpuOpenBlasInvocation invocation) {
         float[] a = {1, -2, 3, 4, 5, -6};
         float[] b = {7, 8, -9, 10, 11, -12};
-        double[] expected = {58, -48, -83, 154};
+        float[] expected = {58, -48, -83, 154};
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment left = arena.allocate(6 * 4L, 4);
             MemorySegment right = arena.allocate(6 * 4L, 4);
@@ -138,12 +152,17 @@ final class CpuOpenBlasQualifier {
             for (int i = 0; i < b.length; i++) right.setAtIndex(ValueLayout.JAVA_FLOAT, i, b[i]);
             for (int i = 0; i < 4; i++) output.setAtIndex(ValueLayout.JAVA_FLOAT, i, 12345.5f);
             invocation.sgemm(2, 2, 3, 1.0f, left, right, 0.0f, output);
-            for (int i = 0; i < 4; i++) checkFiniteFloat(
-                    output.getAtIndex(ValueLayout.JAVA_FLOAT, i), expected[i], 3,
-                    sumAbs(a, b, i / 2, i % 2, 2, 3));
+            for (int i = 0; i < 4; i++) checkExactFloat(
+                    output.getAtIndex(ValueLayout.JAVA_FLOAT, i), expected[i]);
         }
     }
 
+    /**
+     * Checks a small FLOAT64 matrix product with exactly representable integer results.
+     *
+     * @param invocation live provider invocation whose FLOAT64 GEMM symbol is being checked
+     * @throws IllegalStateException if any output differs from its known result
+     */
     private static void finiteDouble(CpuOpenBlasInvocation invocation) {
         double[] a = {1, -2, 3, 4, 5, -6};
         double[] b = {7, 8, -9, 10, 11, -12};
@@ -156,9 +175,8 @@ final class CpuOpenBlasQualifier {
             for (int i = 0; i < b.length; i++) right.setAtIndex(ValueLayout.JAVA_DOUBLE, i, b[i]);
             for (int i = 0; i < 4; i++) output.setAtIndex(ValueLayout.JAVA_DOUBLE, i, 12345.5);
             invocation.dgemm(2, 2, 3, 1.0, left, right, 0.0, output);
-            for (int i = 0; i < 4; i++) checkFiniteDouble(
-                    output.getAtIndex(ValueLayout.JAVA_DOUBLE, i), expected[i], 3,
-                    sumAbs(a, b, i / 2, i % 2, 2, 3));
+            for (int i = 0; i < 4; i++) checkExactDouble(
+                    output.getAtIndex(ValueLayout.JAVA_DOUBLE, i), expected[i]);
         }
     }
 
@@ -208,33 +226,28 @@ final class CpuOpenBlasQualifier {
         }
     }
 
-    private static double sumAbs(float[] a, float[] b, int row, int column, int n, int k) {
-        double sum = 0;
-        for (int p = 0; p < k; p++) sum += Math.abs((double) a[row * k + p] * b[p * n + column]);
-        return sum;
-    }
-
-    private static double sumAbs(double[] a, double[] b, int row, int column, int n, int k) {
-        double sum = 0;
-        for (int p = 0; p < k; p++) sum += Math.abs(a[row * k + p] * b[p * n + column]);
-        return sum;
-    }
-
-    private static void checkFiniteFloat(float actual, double expected, int k, double sumAbs) {
-        float rounded = (float) expected;
-        double u = Math.scalb(1.0, -24);
-        double gamma = 2.0 * k * u / (1.0 - 2.0 * k * u);
-        double tolerance = Math.max(gamma * sumAbs, 4.0 * Math.ulp(rounded));
-        if (!Float.isFinite(actual) || Math.abs(actual - expected) > tolerance) {
+    /**
+     * Rejects even a one-unit-in-the-last-place error in the exact FLOAT32 ABI smoke case.
+     *
+     * @param actual provider output for one exactly representable integer result
+     * @param expected known exact FLOAT32 result
+     * @throws IllegalStateException if the output differs or is not finite
+     */
+    private static void checkExactFloat(float actual, float expected) {
+        if (!Float.isFinite(actual) || actual != expected) {
             throw new IllegalStateException("FLOAT32 finite qualification result disagrees");
         }
     }
 
-    private static void checkFiniteDouble(double actual, double expected, int k, double sumAbs) {
-        double u = Math.scalb(1.0, -53);
-        double gamma = 2.0 * k * u / (1.0 - 2.0 * k * u);
-        double tolerance = Math.max(gamma * sumAbs, 4.0 * Math.ulp(expected));
-        if (!Double.isFinite(actual) || Math.abs(actual - expected) > tolerance) {
+    /**
+     * Rejects even a one-unit-in-the-last-place error in the exact FLOAT64 ABI smoke case.
+     *
+     * @param actual provider output for one exactly representable integer result
+     * @param expected known exact FLOAT64 result
+     * @throws IllegalStateException if the output differs or is not finite
+     */
+    private static void checkExactDouble(double actual, double expected) {
+        if (!Double.isFinite(actual) || actual != expected) {
             throw new IllegalStateException("FLOAT64 finite qualification result disagrees");
         }
     }

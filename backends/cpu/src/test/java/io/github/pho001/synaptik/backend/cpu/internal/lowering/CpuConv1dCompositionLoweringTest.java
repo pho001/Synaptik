@@ -47,7 +47,7 @@ class CpuConv1dCompositionLoweringTest {
                 CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference
                         .VECTOR_IF_ELIGIBLE,
                 1, 1, 1);
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY,
                         CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY), vector));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
@@ -71,7 +71,7 @@ class CpuConv1dCompositionLoweringTest {
         List<CompiledNode> nodes=List.of(new CompiledNode(new NodeId(0),new Operation(AxisTransformKind.EXPAND_DIMS,new AxisTransformAttrs(axis)),List.of(ids.get(0)),List.of(ids.get(3))),new CompiledNode(new NodeId(1),new Operation(AxisTransformKind.EXPAND_DIMS,new AxisTransformAttrs(2)),List.of(ids.get(1)),List.of(ids.get(4))),new CompiledNode(new NodeId(2),new Operation(Conv2dKind.CONV2D,new Conv2dAttrs(1,1,0,1,1,1,1)),List.of(ids.get(3),ids.get(4),ids.get(2)),List.of(ids.get(5))),new CompiledNode(new NodeId(3),new Operation(AxisTransformKind.SQUEEZE,new AxisTransformAttrs(2)),List.of(ids.get(5)),List.of(ids.get(6))));
         var partition=new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,nodes.stream().map(CompiledNode::id).toList());var values=new ArrayList<GraphValue>();var memory=new ArrayList<LogicalMemoryRequirement>();
         for(int i=0;i<ids.size();i++){var descriptor=new TensorDescriptor(types.get(i),shapes.get(i),Optional.of(LayoutDescriptor.contiguous(shapes.get(i))),false);values.add(new GraphValue(ids.get(i),descriptor));boolean produced=i>=3,published=i==6;memory.add(new LogicalMemoryRequirement(ids.get(i),descriptor,produced?Optional.of(partition):Optional.empty(),published?List.of():List.of(partition),published));}
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), new CpuPartitionAnalysisInputs(false,java.util.Collections.nCopies(4,CarrierAccess.FLOAT_ARRAY)));
+        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), new CpuPartitionAnalysisInputs(false,java.util.Collections.nCopies(4,CarrierAccess.FLOAT_ARRAY)));
     }
 
     static PrepareContext<CpuPartitionAnalysisInputs> contextWithSuffix(boolean thirdOperation) {
@@ -103,6 +103,6 @@ class CpuConv1dCompositionLoweringTest {
                     produced ? Optional.of(partition) : Optional.empty(),
                     consumed && !published ? List.of(partition) : List.of(), published));
         }
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 }

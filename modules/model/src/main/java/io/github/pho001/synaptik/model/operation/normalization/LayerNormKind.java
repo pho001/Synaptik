@@ -20,16 +20,15 @@ import java.util.List;
  * standardized value NaN; a finite constant slice produces exact positive-zero standardized
  * values; an empty result evaluates no slice.</p>
  *
- * <p>Under the Model-owned numerical-profile contract, exact slice membership, {@code N},
- * epsilon, guards, affine mapping, and special classes remain unchanged. For
- * {@code ACCELERATOR FLOAT32}, the formula recurses through sum/count mean, subtraction,
- * {@code x*x}, sum/count variance, epsilon addition, square root, division, and optional scale
- * multiplication/bias addition. Every contributor participates once under the aggregate floor,
- * and the irreducible square-root site uses the inclusive ordered-binary32 distance ceiling of
- * five. The composite gains no final-output envelope. Every current non-FLOAT32 occurrence
- * remains strict; the inactive low-precision reservation changes none of them. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Exact slice membership, count, epsilon, guards, affine mapping, and special classes remain
+ * fixed. The formula recurses through sum/count mean, subtraction, x*x, sum/count variance, epsilon
+ * addition, SQRT, division, and optional scale multiplication and bias addition. Every contributor
+ * participates once; only named floating arithmetic primitive inputs/results may use dtype-specific
+ * DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64. Homogeneous low arithmetic uses
+ * FLOAT32 working and accumulator values and one final low narrowing per output. The composite has
+ * no blanket result tolerance. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum LayerNormKind implements OperationKind {
     /**

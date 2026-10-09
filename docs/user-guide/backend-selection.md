@@ -114,13 +114,12 @@ backend.
 | A tuning result is treated as a generic plan | The bounded CPU-local handoff was generalized. | Keep later multi-occurrence and graph/plan tuning separate. |
 
 
-## Select numerical behavior
+## Numerical behavior and backend support
 
-`Engine.builder()` defaults to `NumericalProfile.STRICT_IEEE`. Call
-`numericalProfile(NumericalProfile.ACCELERATOR)` before `build()` to request the bounded Model
-profile explicitly. CPU executes either choice through the same exact capability and routes. Metal
-admits a broad exact common domain under both profiles and a larger `ACCELERATOR` domain. Every
-supported homogeneous accelerator FLOAT32 occurrence has BFLOAT16 and FLOAT16 counterparts with
+`Engine.builder()` has no numerical-profile selector. Model defines one family- and dtype-specific
+semantic contract; backend capability remains an exact question about an operation occurrence.
+Metal admits its documented exact and arithmetic domains. Every supported homogeneous FLOAT32
+occurrence has independently queried BFLOAT16 and FLOAT16 counterparts with
 FLOAT32 working values and accumulators and one final ties-to-even narrowing. Direct
 BFLOAT16/FLOAT16 mixed-low arithmetic remains unsupported; use explicit FLOAT32 casts. Every
 partition containing BFLOAT16 or FLOAT16 values uses `CUSTOM_PROGRAM`, including exact homogeneous
@@ -128,8 +127,8 @@ no-gradient raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOU
 `CONCAT`, and `TILE`. It exposes no alternate MPSGraph, classic-MPS, MPP, CPU, retry, or fallback
 route. Locally produced scalar
 reductions may publish and cross the CPU/Metal boundary through the same exact all-seven-carrier
-rank-0..16 transfer contract. There is no fallback to strict or owner substitution after an
-accelerator request; every unsupported occurrence fails closed.
+rank-0..16 transfer contract. There is no owner substitution after an unsupported occurrence;
+preparation fails closed.
 
 ## Limitations
 

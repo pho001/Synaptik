@@ -69,7 +69,7 @@ class CpuAffineGeneratedCoverageFixtureTest {
         assertEquals(1_536, rows.size());
         for (int index = 0; index < rows.size(); index++) {
             var context = rows.get(index); var node = context.nodes().getFirst();
-            assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, node.operation(), List.of(context.values().getFirst().descriptor()), List.of(context.values().get(1).descriptor()))),
+            assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(node.operation(), List.of(context.values().getFirst().descriptor()), List.of(context.values().get(1).descriptor()))),
                     "provider affine row " + index);
             try { assertEquals(1, new CpuPartitionPreparer().analyze(context).plan().units().size()); }
             catch (IllegalArgumentException failure) { throw new AssertionError("preparer affine row " + index, failure); }
@@ -126,7 +126,7 @@ class CpuAffineGeneratedCoverageFixtureTest {
             assertTrue(stream != null, "generated coverage inventory");
             inventory = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         }
-        assertEquals("9c06f9898dc287c6d2c3805088460c699052d14dbe707de146845659ce5450eb",
+        assertEquals("ccbde775b20797ceb2b245bc0676a9aa516535007d0861d02f161991000a11a4",
                 java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                         .digest(inventory.getBytes(StandardCharsets.UTF_8))), "inventory SHA-256");
         Set<String> owners = new TreeSet<>();
@@ -241,7 +241,7 @@ class CpuAffineGeneratedCoverageFixtureTest {
                 new LogicalMemoryRequirement(new ValueId(1), output, Optional.of(partition), List.of(), true));
         var policy = enabled ? new CpuPartitionAnalysisInputs.MaterializationPolicy(true, 0, 0, 10, 1, 2, 1_000_000, 0, 0)
                 : CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED;
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), values, memory, Map.of(), new CpuPartitionAnalysisInputs(false, carriers, request, policy));
+        return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(), new CpuPartitionAnalysisInputs(false, carriers, request, policy));
     }
     private static TensorDescriptor typed(TensorDescriptor source, DataType type) { return new TensorDescriptor(type, source.shape(), source.layout(), false); }
     private static TensorDescriptor dc(Shape shape) { return new TensorDescriptor(DataType.FLOAT32, shape, Optional.of(LayoutDescriptor.contiguous(shape)), false); }

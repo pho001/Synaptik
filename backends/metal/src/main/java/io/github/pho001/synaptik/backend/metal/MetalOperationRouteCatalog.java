@@ -3,7 +3,7 @@ package io.github.pho001.synaptik.backend.metal;
 import java.util.Objects;
 
 /**
- * Describes the current structural route state of every schema-nineteen Metal operation kind.
+ * Describes the current structural route state of every schema-twenty Metal operation kind.
  *
  * <p>This package-private catalog is cold descriptive metadata. It neither admits an occurrence nor
  * approves an implementation route: {@link MetalCapabilityProvider} remains the capability
@@ -290,7 +290,7 @@ final class MetalOperationRouteCatalog {
     /**
      * Returns the shared descriptive entry for one exact registered operation kind.
      *
-     * @param kind non-null schema-nineteen node kind
+     * @param kind non-null schema-twenty node kind
      * @return non-null shared immutable catalog entry
      * @throws NullPointerException if {@code kind} is {@code null}
      */

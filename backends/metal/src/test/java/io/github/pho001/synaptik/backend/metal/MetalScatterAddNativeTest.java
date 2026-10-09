@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
@@ -173,11 +172,10 @@ class MetalScatterAddNativeTest {
     }
 
     @Test
-    void JavaPreflightRejectsAlternateProfileRouteGradientFeedAndAliasing() {
+    void JavaPreflightRejectsAlternateRouteGradientFeedAndAliasing() {
         var validProgram = program(0, 1, 2, 3);
         var values = values(DataType.INT32, false);
         MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                NumericalProfile.ACCELERATOR,
                 values,
                 validProgram,
                 new int[] {0, 1, 2},
@@ -185,15 +183,6 @@ class MetalScatterAddNativeTest {
                 MetalPreparedRoute.CUSTOM_PROGRAM);
         assertThrows(IllegalArgumentException.class, () ->
                 MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        NumericalProfile.STRICT_IEEE,
-                        values,
-                        validProgram,
-                        new int[] {0, 1, 2},
-                        new int[] {3},
-                        MetalPreparedRoute.CUSTOM_PROGRAM));
-        assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
                         values,
                         validProgram,
                         new int[] {0, 1, 2},
@@ -201,7 +190,6 @@ class MetalScatterAddNativeTest {
                         MetalPreparedRoute.MPSGRAPH));
         assertThrows(IllegalArgumentException.class, () ->
                 MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
                         values(DataType.INT32, true),
                         validProgram,
                         new int[] {0, 1, 2},
@@ -209,7 +197,6 @@ class MetalScatterAddNativeTest {
                         MetalPreparedRoute.CUSTOM_PROGRAM));
         assertThrows(IllegalArgumentException.class, () ->
                 MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
                         values,
                         validProgram,
                         new int[] {0, 2},
@@ -217,7 +204,6 @@ class MetalScatterAddNativeTest {
                         MetalPreparedRoute.CUSTOM_PROGRAM));
         assertThrows(IllegalArgumentException.class, () ->
                 MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
                         values,
                         program(0, 1, 0, 3),
                         new int[] {0, 1, 2},
@@ -238,7 +224,6 @@ class MetalScatterAddNativeTest {
         try {
             context = api.createContext();
             executable = api.createProgramExecutable(context,
-            NumericalProfile.ACCELERATOR,
             values(indexType, valueType, false),
             program(0, 1, 2, 3),
             new int[] {0, 1, 2},

@@ -41,13 +41,14 @@ Focused architecture documentation:
 - [ADR 0016: CPU/Metal mixed-owner prepared schedule](../design/decisions/0016-cpu-metal-mixed-owner-schedule.md)
 - [ADR 0017: Reusable inference session facade](../design/decisions/0017-reusable-inference-session-facade.md)
 - [ADR 0018: Public Training Session and SGD lifecycle](../design/decisions/0018-public-training-session-and-sgd-lifecycle.md)
-- [ADR 0019: Explicit numerical profiles](../design/decisions/0019-explicit-numerical-profiles.md)
+- [ADR 0019: Explicit numerical profiles (historical)](../design/decisions/0019-explicit-numerical-profiles.md)
 - [ADR 0020: Synchronous single-default-device Metal execution](../design/decisions/0020-synchronous-single-default-device-metal-execution.md)
-- [ADR 0021: Total recursive ACCELERATOR numerical floor](../design/decisions/0021-total-recursive-accelerator-numerical-floor.md)
+- [ADR 0021: Total recursive ACCELERATOR numerical floor (superseded)](../design/decisions/0021-total-recursive-accelerator-numerical-floor.md)
 - [ADR 0022: Auditable custom Metal route cost evidence](../design/decisions/0022-auditable-custom-metal-route-cost-evidence.md)
-- [ADR 0023: Low-precision ACCELERATOR parity and P0 evidence](../design/decisions/0023-low-precision-accelerator-parity.md)
+- [ADR 0023: Low-precision ACCELERATOR parity and P0 evidence (profile rule superseded)](../design/decisions/0023-low-precision-accelerator-parity.md)
 - [ADR 0024: Environment-bound Metal raw-route certificates (superseded)](../design/decisions/0024-environment-bound-metal-raw-certificates.md)
 - [ADR 0025: Custom-only Metal low precision](../design/decisions/0025-custom-only-metal-low-precision.md)
+- [ADR 0026: Profile-free numerical semantics (Accepted)](../design/decisions/0026-profile-free-numerical-semantics.md)
 
 ## Status
 
@@ -61,10 +62,13 @@ lifecycle. Ordinary preparation composes non-empty plans across registered owner
 deterministic owner-indexed representations and explicit direct CPU-to-Metal and Metal-to-CPU
 transfers for all seven current data types over fully static rank-0..16 canonical or positive-stride
 non-overlapping layouts with checked physical spans.
-CPU realizes both numerical profiles through identical exact behavior and routes. Model defines
-`STRICT_IEEE` as its exact per-operation contract and `ACCELERATOR` as the recursive FLOAT32 and
-homogeneous low-precision superset; semantic reach does not imply backend support. Metal execution
-remains occurrence- and profile-qualified. Its common domain includes exact unary operations; all
+Completed Task 0032 defines one Model family/dtype numerical semantics without a graph-wide
+numerical selector. Exact stored/discrete/cast/raw boundaries remain separate from named floating
+arithmetic sites; FLOAT32/BFLOAT16/FLOAT16 arithmetic may use site-local DAZ/FTZ, whereas FLOAT64
+may not. The main-worktree implementation removes the selector and cold transport; provider
+answers and route qualification remain separate. Integrated validation and independent Class C
+review passed. This describes validated implementation; Git history records publication.
+Metal's supported exact domain includes unary operations; all
 49 ordered casts; FLOAT64/FLOAT32/BFLOAT16/FLOAT16 classification; scalar and right-aligned BOOL
 logic; all 14 floating `WHERE` signatures other than the two direct mixed-low signatures; and
 exact seven-carrier affine, indexing, replacement, ordering, and movement occurrences. Exact index
@@ -74,9 +78,9 @@ remains `NONE` only, and window folds remain non-overlapping. The bounded genera
 closure covers floating casts, inverse affine movement, exact replacement, saved condition/index
 roles, and non-overlapping window adjoints without inferring arithmetic reductions, additive
 scatter, overlap accumulation, or dynamic or empty geometry.
-Both profiles additionally admit no-gradient INT32/INT64 MATMUL with INT64-dominant promotion and
+The current provider additionally admits no-gradient INT32/INT64 MATMUL with INT64-dominant promotion and
 exact modular result arithmetic, exact maximum pooling over all four floating carriers, and raw
-INT64 initial state. Under `ACCELERATOR`, every supported homogeneous FLOAT32 occurrence has
+INT64 initial state. In the frozen ACCELERATOR provider baseline, supported homogeneous FLOAT32 occurrences have
 BFLOAT16 and FLOAT16 counterparts. This includes the admitted arithmetic, extrema, scalar,
 reduction, scan, MATMUL, MSE, convolution, average-pooling, dropout, rank-one L1 and ScatterAdd,
 and singleton-variance domains. Direct BFLOAT16/FLOAT16 mixed-low execution remains unsupported;
@@ -106,29 +110,31 @@ encoding or mutation, keeps duplicates in source order, raw-copies unaddressed c
 the existing rank-one Gather data cotangent. Singleton VARIANCE dispatches one writer through
 exactly `DIV`, `SUB`, `MUL`, `DIV`, yielding positive zero for every finite input and NaN class for
 NaN or infinity. Eligible linear canonical FLOAT32 `FLOOR`/`CEIL`/`SIGN`/`RELU` chains use bounded
-deterministic generated units without intermediate materialization. Eligible ACCELERATOR
+deterministic generated units without intermediate materialization. Eligible qualified
 MATMUL/Conv2d suffixes use one ordered typed anchor step, one dispatch, and one final store without
 a materialized suffix intermediate.
 
-Current Metal uses ABI 7 with thirteen exports and one bounded schema-19 route-bearing program
+Current Metal uses ABI 7 with thirteen exports and one bounded schema-20 route-bearing program
 image over type wires `1..7`, operation wires `1..115`, attribute wires `0..41`, and route wires
 `1..3`. Structural coverage is `101 / 14`; production capability is exactly `86 / 29`.
-Backend-local identities are version twenty-nine, and every other identity fails closed.
+Backend-local tuning identities are version 30. Schema 19 and identity 29 remain historical
+pre-cutover allocations and are rejected as stale.
 
-One canonical 508-row representative capability ledger is generated from the actual CPU and Metal
-providers under both profiles. The ledger retains supported and explicit unsupported FLOAT32
-answers plus independently queried corresponding BFLOAT16 and FLOAT16 answers. Target/exclusion
-columns are architecture mapping, not inferred provider facts, and no row asserts route,
-runtime/device, or generated-backward ownership. The separate append-only identity-allocation
-ledger records active Model ordinal 6, Metal type wire 7, schema 19, identities 29, CPU generator
-schema 68, and native ABI 7.
+The historical 508-row v1 capability ledger recorded both numerical profiles. The current
+254-row v2 projection retains the actual pre-cutover ACCELERATOR true and false FLOAT32 provider
+answers plus independently queried corresponding BFLOAT16 and FLOAT16 answers, without profile or
+target/exclusion columns. Neither ledger asserts route, runtime/device, or generated-backward
+ownership. The separate append-only identity-allocation
+ledger records the pre-cutover Model ordinal 6, Metal type wire 7, schema 19, identities 29, CPU
+generator schema 68, and native ABI 7. Current CPU generator schema is 69; current Metal program
+schema is 20 with a 124-byte header; current tuning identity is 30; native ABI remains 7.
 
 Low-precision trace identifies the selected custom route and reports its ordered logical boundary
-dtype tuple and profile. It has no accumulator or working-type field: FLOAT32 working values and
+dtype tuple, with no profile. It has no accumulator or working-type field: FLOAT32 working values and
 accumulators remain a separate Model arithmetic guarantee, not a trace fact. The trace carries no
 hypothetical candidate or removed certificate/environment state. Metal has no
 compilation/executable/preparation cache. Its tuning values are session-scoped and bind the dtype,
-ABI, schema/policy, program semantics, route candidate, and random context nonce. CPU schema-68
+ABI, schema/policy, program semantics, route candidate, and random context nonce. CPU schema-69
 artifact identity also distinguishes BFLOAT16 from FLOAT16 despite their shared short carrier.
 
 The Training extension now owns a public reusable

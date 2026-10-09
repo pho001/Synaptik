@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -315,7 +314,7 @@ class MetalOrderingNativeTest {
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
-            executable = api.createProgramExecutable(context, NumericalProfile.STRICT_IEEE, values, program, feeds, targets,
+            executable = api.createProgramExecutable(context, values, program, feeds, targets,
             MetalPreparedRoute.CUSTOM_PROGRAM);
             for (var value : values) {
                 buffers.add(api.createBuffer(context, value.byteCount()));

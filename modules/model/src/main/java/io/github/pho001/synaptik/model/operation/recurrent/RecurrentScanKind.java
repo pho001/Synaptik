@@ -34,18 +34,17 @@ import java.util.List;
  * <p>The equations define semantic association and packing, not decomposition, accumulator
  * widening, fusion, or another execution algorithm. There is no recurrent-side bias.</p>
  *
- * <p>Under the Model-owned numerical-profile contract, direction, sequence traversal, valid-
- * length guards, packing, initial/final state mapping, output placement, and every declared
- * recurrence term remain exact. For {@code ACCELERATOR FLOAT32}, RNN recurses through its two
- * contractions, bias/addition, and tanh; GRU and LSTM recurse through all packed contractions,
- * optional biases, gate additions, sigmoid/tanh branches, state multiplications/additions, and
- * published-state sites. Each contraction includes every contributor once; each sigmoid expands
- * through its exact guard and selected exponential branch, and each irreducible tanh site uses
- * the inclusive ordered-binary32 distance ceiling of five. Exact guards run before arithmetic,
- * skipped timesteps do not participate, stored states are exact published recurrence results, and
- * the composite gains no final-output envelope. Non-FLOAT32 behavior stays strict. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Direction, traversal, valid-length guards, packing, initial/final state mapping, output
+ * placement, and every declared recurrence term remain exact. RNN uses two contractions, optional
+ * bias, addition, and TANH; GRU and LSTM recurse through their packed contractions, gate additions,
+ * sigmoid/tanh branches, and state arithmetic. Each contraction includes every contributor once,
+ * and skipped timesteps perform no arithmetic. Only named floating arithmetic primitive
+ * inputs/results may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64.
+ * Homogeneous low arithmetic works and accumulates in FLOAT32 with one final low narrowing per
+ * published value. Stored states and saved outputs remain exact published results, not blanket
+ * tolerance sites. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum RecurrentScanKind implements OperationKind {
     /**

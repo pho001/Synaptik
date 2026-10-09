@@ -9,7 +9,6 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFusionDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.analysis.BackendPreparationPlan;
 import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
@@ -56,8 +55,6 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering
  * families such as affine copies whose generated address-table domain intentionally differs from
  * their validated physical boundary geometry.</p>
  *
- * @param numericalProfile non-null immutable graph-wide numerical-profile identity retained
- *     exactly and shared by every unit specialization
  * @param units non-null computation-oriented units in stable topological order; copied
  *     defensively, with no eight-unit ceiling for a direct long plan
  * @param route non-null route selected after common lowering
@@ -142,8 +139,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering
  * @param selectedOpenBlasTuningCandidate non-null optional exact selected candidate identity;
  *     present exactly with {@code openBlasTuningBatch}
  */
-public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
-        List<ExecutionUnitPlan> units, Route route,
+public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
         List<PreparationResourceRequirement.Buffer> bufferDeclarations,
         List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
@@ -230,8 +226,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
      * @throws NullPointerException if a required reference or list entry is {@code null}
      * @throws IllegalArgumentException if the supplied complete plan facts disagree
      */
-    public CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
-            List<ExecutionUnitPlan> units, Route route,
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
             ExecutionStrategy executionStrategy,
             List<PreparationResourceRequirement.Buffer> bufferDeclarations,
             List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
@@ -264,7 +259,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
             List<RepresentationUnitPlan> representationUnits,
             List<CpuRepresentationDecision> representationDecisions,
             Optional<PartialReductionRecipe> partialReductionRecipe) {
-        this(numericalProfile, units, route, executionStrategy, bufferDeclarations, boundaryValues,
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues,
                 accessBindings,
                 carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
                 selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
@@ -280,8 +275,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
     }
 
     /** Preserves the pre-partial-reduction canonical construction surface. */
-    public CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
-            List<ExecutionUnitPlan> units, Route route,
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
             ExecutionStrategy executionStrategy,
             List<PreparationResourceRequirement.Buffer> bufferDeclarations,
             List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
@@ -313,7 +307,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
             List<CpuMaterializationPlan> materializations,
             List<RepresentationUnitPlan> representationUnits,
             List<CpuRepresentationDecision> representationDecisions) {
-        this(numericalProfile, units, route, executionStrategy, bufferDeclarations, boundaryValues,
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues,
                 accessBindings,
                 carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
                 selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
@@ -372,8 +366,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
      *     recognition, or other component invariants disagree
      * @throws ArithmeticException if exact validation arithmetic overflows
      */
-    public CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
-            List<ExecutionUnitPlan> units, Route route,
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
             ExecutionStrategy executionStrategy,
             List<PreparationResourceRequirement.Buffer> bufferDeclarations,
             List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
@@ -400,7 +393,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
             Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
             Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
             List<CpuSpecializedSubgraph> specializedSubgraphs) {
-        this(numericalProfile, units, route, executionStrategy, bufferDeclarations, boundaryValues,
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues,
                 accessBindings,
                 carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
                 selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
@@ -455,8 +448,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
      *     disagree
      * @throws ArithmeticException if checked range or geometry arithmetic overflows
      */
-    public CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
-            List<ExecutionUnitPlan> units, Route route,
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
             ExecutionStrategy executionStrategy,
             List<PreparationResourceRequirement.Buffer> bufferDeclarations,
             List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
@@ -481,7 +473,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
             Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
             Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
             Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry) {
-        this(numericalProfile, units, route, executionStrategy, bufferDeclarations, boundaryValues,
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues,
                 accessBindings,
                 carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
                 selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize, loweringManifest,
@@ -536,8 +528,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
      *     geometry facts disagree
      * @throws ArithmeticException if exact geometry or resource validation overflows
      */
-    public CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
-            List<ExecutionUnitPlan> units, Route route,
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
             ExecutionStrategy executionStrategy,
             List<PreparationResourceRequirement.Buffer> bufferDeclarations,
             List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
@@ -560,7 +551,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
             Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
             Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
             Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry) {
-        this(numericalProfile, units, route, executionStrategy, bufferDeclarations, boundaryValues,
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues,
                 accessBindings,
                 carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
                 selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize, loweringManifest,
@@ -611,8 +602,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
      *     geometry facts disagree
      * @throws ArithmeticException if exact geometry or resource validation overflows
      */
-    public CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
-            List<ExecutionUnitPlan> units, Route route,
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
             ExecutionStrategy executionStrategy,
             List<PreparationResourceRequirement.Buffer> bufferDeclarations,
             List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
@@ -634,7 +624,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
             Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
             Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
             Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry) {
-        this(numericalProfile, units, route, executionStrategy, bufferDeclarations, boundaryValues,
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues,
                 accessBindings,
                 carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
                 selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize, loweringManifest,
@@ -677,8 +667,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
      *     geometry facts disagree
      * @throws ArithmeticException if exact geometry or resource validation overflows
      */
-    public CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
-            List<ExecutionUnitPlan> units, Route route,
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
             ExecutionStrategy executionStrategy,
             List<PreparationResourceRequirement.Buffer> bufferDeclarations,
             List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
@@ -693,7 +682,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
             Optional<CpuScatterLowering.Geometry> scatterGeometry,
             Optional<CpuFoldLowering.Geometry> foldGeometry,
             Optional<CpuOrderingLowering.Geometry> orderingGeometry) {
-        this(numericalProfile, units, route, executionStrategy, bufferDeclarations, boundaryValues,
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues,
                 accessBindings,
                 carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
                 selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
@@ -729,8 +718,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
      * @throws IllegalArgumentException if strategy, declarations, boundaries, carrier forms,
      *     ranges, materialization, or specialization facts disagree
      */
-    public CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
-            List<ExecutionUnitPlan> units, Route route,
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
             ExecutionStrategy executionStrategy,
             List<PreparationResourceRequirement.Buffer> bufferDeclarations,
             List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
@@ -740,7 +728,7 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
             String loweringManifest, Optional<CpuMaterializationPlan> materialization,
             Optional<PreparationResourceRequirement.Workspace> workspaceDeclaration,
             CpuSpecializationBudget specializationBudget) {
-        this(numericalProfile, units, route, executionStrategy, bufferDeclarations, boundaryValues,
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues,
                 accessBindings,
                 carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
                 selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
@@ -1469,7 +1457,6 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
      *     species, specialization, and optional OpenBLAS facts
      */
     public CpuPartitionPreparationPlan {
-        Objects.requireNonNull(numericalProfile, "numericalProfile");
         units = List.copyOf(units);
         Objects.requireNonNull(route, "route");
         Objects.requireNonNull(executionStrategy, "executionStrategy");
@@ -1547,13 +1534,6 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
                 || carrierPattern.size() != bufferDeclarations.size()
                 || generatedCarrierPattern.size() != bufferDeclarations.size()) {
                 throw new IllegalArgumentException("CPU plan must contain one portable unit and matching boundaries");
-        }
-        for (int index = 0; index < units.size(); index++) {
-            if (units.get(index).portablePlan().specialization().numericalProfile()
-                    != numericalProfile) {
-                throw new IllegalArgumentException(
-                        "units[" + index + "] numerical profile must match plan");
-            }
         }
         if ((route == Route.OPENBLAS) != openBlasPlan.isPresent()) {
             throw new IllegalArgumentException("CPU route and OpenBLAS plan must agree");

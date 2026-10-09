@@ -64,7 +64,7 @@ class CpuScanGeneratedKernelTest {
     @Test void generatedClassContainsTypedScanLoopWithoutGenericDispatchBridge() {
         var base = CpuScanLoweringTest.context(CumulativeScanKind.CUM_SUM, DataType.FLOAT32,
                 Shape.of(1024), 0, false, false);
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
         var code = ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
@@ -141,7 +141,7 @@ class CpuScanGeneratedKernelTest {
                 List.of(CpuIndexingLoweringTest.descriptor(
                         DataType.INT64, shape, inputLayout)),
                 CpuIndexingLoweringTest.descriptor(DataType.INT64, shape, outputLayout));
-        PrepareContext<CpuPartitionAnalysisInputs> prepared = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, context.partition(), context.nodes(), context.values(), context.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+        PrepareContext<CpuPartitionAnalysisInputs> prepared = new PrepareContext<>(context.partition(), context.nodes(), context.values(), context.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT)));
         var plan = new CpuPartitionPreparer().analyze(prepared).plan();
         var route = plan.units().getFirst().portablePlan();
@@ -246,7 +246,7 @@ class CpuScanGeneratedKernelTest {
             case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> throw new AssertionError();
             case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scan unsupported");
         };
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(carrier, carrier)));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(carrier, carrier)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -264,7 +264,7 @@ class CpuScanGeneratedKernelTest {
         var base = CpuScanLoweringTest.context(kind, type, Shape.of(8), 0, false, false);
         CarrierAccess carrier = type == DataType.BFLOAT16 ? CarrierAccess.SHORT_ARRAY
                 : CarrierAccess.FLOAT_ARRAY;
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(carrier, carrier)));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(carrier, carrier)));
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
         return ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
                 route.specialization(), route.kernelIr()));

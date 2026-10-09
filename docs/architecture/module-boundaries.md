@@ -3,7 +3,7 @@
 This document explains the module responsibilities established by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract is authoritative when a summary here is incomplete.
 
 The boundaries apply to both implemented and planned modules. Model, Backend Contract, Planning,
-Compiler, Runtime, Prepare, Engine, CPU, and the profile-qualified Metal execution domain have
+Compiler, Runtime, Prepare, Engine, CPU, and the occurrence-qualified Metal execution domain have
 substantive implementations; Config and Trace are partial.
 The current public execution path supports fixed CPU ownership and explicit CPU/Metal composition,
 including mixed-owner schedules with bounded bidirectional all-seven-carrier transfer over exact
@@ -37,30 +37,19 @@ remain distinct compile-time state.
 
 The model does not know backend support, device residency, kernel selection, backend-specific storage, prepared execution, or runtime state. `Operation` expresses semantics and never exposes `supportedBackends()`. Runtime device storage belongs outside this module.
 
-Model is also the sole owner of the two graph numerical-profile result sets. `STRICT_IEEE` means
-each operation's unchanged current contract rather than universal bitwise strictness.
-`ACCELERATOR` adds its total recursive `FLOAT32` superset and active low-precision extension under
-the [normative exact/discrete, primitive, aggregate, composite-inheritance, and low-precision
-contract](contracts/foundational-modules.md#numerical-profiles). Its FLOAT32 floors preserve exact
-kind/attributes, mapping, contributors, masks, indices, state, traversal, casts, ordering, guards,
-identities, divisors, and publication; permit DAZ/FTZ, one-round basic arithmetic, and an inclusive
-ordered-binary32 distance-at-most-five ceiling only at irreducible elementary-function sites; and
-let aggregates use any all-contributors-once binary tree with corresponding FMA. Composite and
-generated-gradient formulas recurse through those sites and gain no final-output tolerance.
+Model is the sole owner of one profile-free family/dtype numerical contract. Its
+[normative numerical semantics](contracts/foundational-modules.md#profile-free-numerical-semantics)
+keep stored comparisons/extrema, discrete choices, casts, and raw movement exact. Named FLOAT32,
+BFLOAT16, and FLOAT16 arithmetic primitive sites may use denormals-are-zero (DAZ) at inputs and
+flush-to-zero (FTZ) at results; FLOAT64 sites may not. Composites and generated gradients inherit
+only their named arithmetic sites' permissions. Homogeneous low arithmetic uses FLOAT32 work and
+accumulators followed by one final ties-to-even narrowing. Finite tolerances are test-only route
+qualification, not public envelopes or Compiler rewrite authority. Provider answers remain
+separate from semantic reachability, routes, backward ownership, and runtime/device facts.
 
-Admitted low arithmetic retains exact discrete/raw/cast/public/saved/final-RNE boundaries, uses a
-complete `FLOAT32`-working custom baseline, and permits only the family-declared DAZ/FTZ,
-arithmetic zero-sign/NaN-class freedoms, operation-local reassociation/FMA, and fusion across
-unobservable single-use intermediates. Model owns the cancellation- and size-aware family
-envelope; backend implementations qualify by complete-output-set proof, not names, examples, or
-generic `allclose`. Provider-derived parity answers remain separate from route, backward, and
-runtime/device facts.
-
-For any backend and occurrence domain, strict capability and behavior are an accelerator subset.
-CPU supports both profiles identically with exact current behavior. Metal supports the exact
-bounded seven-carrier movement, indexing, replacement, fold, aggregate, ordering/top-K/numeric
-arg-extrema, and no-gradient promoted INT32/INT64 MATMUL domains under both profiles. Under
-`ACCELERATOR`, Metal additionally supports every qualified homogeneous
+Metal supports exact bounded seven-carrier movement, indexing, replacement, fold, aggregate,
+ordering/top-K/numeric arg-extrema, and no-gradient promoted INT32/INT64 MATMUL domains. It also
+supports qualified homogeneous
 FLOAT32/BFLOAT16/FLOAT16 arithmetic, reduction, scan, MATMUL, MSE, convolution, pooling, dropout,
 L1, ScatterAdd, and singleton-variance occurrence. Every partition containing BFLOAT16 or FLOAT16
 values is custom-program-only, including exact no-gradient raw-preserving
@@ -94,10 +83,8 @@ policy, but it contains no benchmark runner, search algorithm, live discovery, m
 live service, concrete backend class, executable unit, runtime state, or kernel class reference.
 A concrete backend interprets its backend-specific prepare inputs inside that backend.
 
-Owns the immutable graph numerical-profile identity vocabulary through `NumericalProfile`. Model
-remains the sole owner of profile-indexed allowed-result sets; Config does not interpret profile
-meaning or select a backend route. Engine selects one graph-wide identity, and later cold layers
-transport it unchanged.
+Config owns no numerical-profile selector. Its remaining immutable values describe compile,
+prepare, run, scoring, and tuning inputs without defining Model numerical meaning.
 
 ### `modules/planning`
 
@@ -109,9 +96,9 @@ Planning may interpret a backend-neutral cost model to choose `BackendId` owners
 interprets route names, vector species or lanes, unroll factors, thread counts, chunks, tiles, or
 other backend parameter vocabulary.
 
-Planning asks whether a backend supports an operation occurrence under the selected profile through
-`OperationCapabilityQuery`. It carries that graph-wide identity without reinterpreting Model's
-result sets; concrete backend preparation, not Planning, realizes an allowed result.
+Planning asks whether a backend supports a complete operation occurrence through
+`OperationCapabilityQuery`, with no numerical selector. Concrete backend preparation, not
+Planning, qualifies and realizes a route under Model semantics.
 
 When the fixed recurrent scan becomes executable, it enters Planning through the unchanged
 ordinary operation capability query. Planning selects an owner but does not interpret cell

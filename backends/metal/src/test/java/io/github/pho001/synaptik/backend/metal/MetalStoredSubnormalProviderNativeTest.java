@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -18,8 +17,8 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pins the current real-device Metal CUSTOM_PROGRAM realization of stored FLOAT32 subnormals.
- * This backend regression does not tighten Model's ACCELERATOR comparison/extrema allowance.
+ * Pins current real-device Metal CUSTOM_PROGRAM observations for stored FLOAT32 and low-precision
+ * subnormals. These tests qualify raw, cast, stored-value and arithmetic sites separately.
  */
 class MetalStoredSubnormalProviderNativeTest {
     private static final int MIN_SUBNORMAL = 0x0000_0001;
@@ -35,16 +34,22 @@ class MetalStoredSubnormalProviderNativeTest {
                 scalar(MetalMpsGraphProgram.NodeKind.SCALAR_MIN, 0, 6, POSITIVE_ZERO),
                 scalar(MetalMpsGraphProgram.NodeKind.SCALAR_MAX, 0, 7, POSITIVE_ZERO),
                 scalar(MetalMpsGraphProgram.NodeKind.SCALAR_MIN, 0, 8, MIN_SUBNORMAL),
-                scalar(MetalMpsGraphProgram.NodeKind.SCALAR_MAX, 0, 9, MIN_SUBNORMAL)));
+                scalar(MetalMpsGraphProgram.NodeKind.SCALAR_MAX, 0, 9, MIN_SUBNORMAL),
+                binary(MetalMpsGraphProgram.NodeKind.GE, 0, 1, 10),
+                binary(MetalMpsGraphProgram.NodeKind.LT, 0, 1, 11),
+                binary(MetalMpsGraphProgram.NodeKind.LE, 0, 1, 12),
+                binary(MetalMpsGraphProgram.NodeKind.NE, 0, 1, 13)));
         var values = List.of(typed(DataType.FLOAT32, 2), typed(DataType.FLOAT32, 2),
                 typed(DataType.BOOL, 2), typed(DataType.BOOL, 2),
                 typed(DataType.FLOAT32, 2), typed(DataType.FLOAT32, 2),
                 typed(DataType.FLOAT32, 2), typed(DataType.FLOAT32, 2),
-                typed(DataType.FLOAT32, 2), typed(DataType.FLOAT32, 2));
+                typed(DataType.FLOAT32, 2), typed(DataType.FLOAT32, 2),
+                typed(DataType.BOOL, 2), typed(DataType.BOOL, 2),
+                typed(DataType.BOOL, 2), typed(DataType.BOOL, 2));
         List<byte[]> actual = execute(program, values, List.of(
                 intWords(MIN_SUBNORMAL, POSITIVE_ZERO),
                 intWords(POSITIVE_ZERO, MIN_SUBNORMAL)),
-                new int[] {2, 3, 4, 5, 6, 7, 8, 9});
+                new int[] {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13});
         assertArrayEquals(new byte[] {1, 0}, actual.get(0), "GT raw BOOL bytes");
         assertArrayEquals(new byte[] {0, 0}, actual.get(1), "EQ raw BOOL bytes");
         assertArrayEquals(intWords(POSITIVE_ZERO, POSITIVE_ZERO), actual.get(2),
@@ -59,6 +64,10 @@ class MetalStoredSubnormalProviderNativeTest {
                 "scalar MIN(min-subnormal) raw bits");
         assertArrayEquals(intWords(MIN_SUBNORMAL, MIN_SUBNORMAL), actual.get(7),
                 "scalar MAX(min-subnormal) raw bits");
+        assertArrayEquals(new byte[] {1, 0}, actual.get(8), "GE raw BOOL bytes");
+        assertArrayEquals(new byte[] {0, 1}, actual.get(9), "LT raw BOOL bytes");
+        assertArrayEquals(new byte[] {0, 1}, actual.get(10), "LE raw BOOL bytes");
+        assertArrayEquals(new byte[] {1, 1}, actual.get(11), "NE raw BOOL bytes");
     }
 
     @Test
@@ -76,6 +85,59 @@ class MetalStoredSubnormalProviderNativeTest {
         assertArrayEquals(longWords(1), actual.get(1), "unique winner LAST index bytes");
         assertArrayEquals(longWords(0), actual.get(2), "true-equal FIRST index bytes");
         assertArrayEquals(longWords(1), actual.get(3), "true-equal LAST index bytes");
+    }
+
+    @Test
+    void customProgramKeepsLowSubnormalCastAndMovementSeparateFromArithmetic() {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            int floatBits = type == DataType.BFLOAT16 ? 0x0001_0000 : 0x3380_0000;
+            int halfBits = type == DataType.BFLOAT16 ? 0x3f00 : 0x3800;
+            long oneBits = type == DataType.BFLOAT16 ? 0x3f80L : 0x3c00L;
+            var program = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.contiguous(0, 4),
+                    MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.CAST,
+                            new int[] {2}, new int[] {5},
+                            MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
+                            new long[] {MetalMpsGraphProgram.dataTypeWire(type)}),
+                    binary(MetalMpsGraphProgram.NodeKind.MUL, 0, 3, 6),
+                    binary(MetalMpsGraphProgram.NodeKind.GT, 0, 1, 7),
+                    binary(MetalMpsGraphProgram.NodeKind.EQ, 0, 1, 8),
+                    binary(MetalMpsGraphProgram.NodeKind.TENSOR_MIN, 0, 1, 9),
+                    binary(MetalMpsGraphProgram.NodeKind.TENSOR_MAX, 0, 1, 10),
+                    MetalMpsGraphProgram.Node.scalarValue(
+                            MetalMpsGraphProgram.NodeKind.SCALAR_MUL, 0, 11, type, oneBits)));
+            var low = typed(type, 2);
+            var values = List.of(low, low, typed(DataType.FLOAT32, 2), low,
+                    low, low, low, typed(DataType.BOOL, 2), typed(DataType.BOOL, 2),
+                    low, low, low);
+            List<byte[]> actual = execute(program, values, List.of(
+                    shortWords(0x0001, 0x0000), shortWords(0x0000, 0x0001),
+                    intWords(floatBits, floatBits), shortWords(halfBits, halfBits)),
+                    new int[] {4, 5, 6, 7, 8, 9, 10, 11});
+
+            assertArrayEquals(shortWords(0x0001, 0x0000), actual.get(0), type + " raw CONTIGUOUS");
+            assertArrayEquals(shortWords(0x0001, 0x0001), actual.get(1), type + " exact FLOAT32 cast");
+            assertArrayEquals(shortWords(0x0000, 0x0000), actual.get(2), type + " arithmetic underflow");
+            assertArrayEquals(new byte[] {1, 0}, actual.get(3), type + " GT");
+            assertArrayEquals(new byte[] {0, 0}, actual.get(4), type + " EQ");
+            assertArrayEquals(shortWords(0x0000, 0x0000), actual.get(5), type + " MIN");
+            assertArrayEquals(shortWords(0x0001, 0x0001), actual.get(6), type + " MAX");
+            assertArrayEquals(shortWords(type == DataType.BFLOAT16 ? 0x0000 : 0x0001, 0x0000),
+                    actual.get(7), type + " min-subnormal times one");
+        }
+    }
+
+    @Test
+    void customProgramBfloat16MinSubnormalTimes128ProducesZero() {
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.scalarValue(
+                        MetalMpsGraphProgram.NodeKind.SCALAR_MUL, 0, 1,
+                        DataType.BFLOAT16, 0x4300L)));
+        var low = typed(DataType.BFLOAT16, 1);
+        List<byte[]> actual = execute(program, List.of(low, low),
+                List.of(shortWords(0x0001)), new int[] {1});
+        assertArrayEquals(shortWords(0x0000), actual.get(0),
+                "BFLOAT16 min-subnormal times 128 CUSTOM_PROGRAM raw bits");
     }
 
     private static MetalMpsGraphProgram.Node binary(MetalMpsGraphProgram.NodeKind kind,
@@ -119,8 +181,7 @@ class MetalStoredSubnormalProviderNativeTest {
             context = api.createContext(); // A configured run must reach a real device or fail.
             int[] feeds = new int[inputs.size()];
             for (int index = 0; index < feeds.length; index++) feeds[index] = index;
-            executable = api.createProgramExecutable(context, NumericalProfile.ACCELERATOR,
-                    values, program, feeds, targets, MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createProgramExecutable(context, values, program, feeds, targets, MetalPreparedRoute.CUSTOM_PROGRAM);
             for (var value : values) buffers.add(api.createBuffer(context, value.byteCount()));
             for (int index = 0; index < inputs.size(); index++) {
                 upload(api, buffers.get(index), inputs.get(index));
@@ -173,6 +234,12 @@ class MetalStoredSubnormalProviderNativeTest {
     private static byte[] intWords(int... words) {
         ByteBuffer bytes = ByteBuffer.allocate(4 * words.length).order(ByteOrder.nativeOrder());
         for (int word : words) bytes.putInt(word);
+        return bytes.array();
+    }
+
+    private static byte[] shortWords(int... words) {
+        ByteBuffer bytes = ByteBuffer.allocate(2 * words.length).order(ByteOrder.nativeOrder());
+        for (int word : words) bytes.putShort((short) word);
         return bytes.array();
     }
 

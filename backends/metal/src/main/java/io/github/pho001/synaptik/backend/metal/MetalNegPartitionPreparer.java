@@ -1,6 +1,5 @@
 package io.github.pho001.synaptik.backend.metal;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
@@ -102,29 +101,30 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Analyzes and lowers one complete maximal Metal-owned profile-qualified partition.
+ * Analyzes and lowers one complete maximal Metal-owned partition.
  *
  * <p>The deterministic analysis assigns stable native value indices, retains every node kind and
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
  * It walks in node order through the retained exact unary, affine, canonicalization,
  * movement/indexing,
  * replacement/fold/aggregate, BOOL, ordering/arg-extrema, maximum-pooling, promoted integral
- * MATMUL, and zero-input {@code INITIAL_STATE} domains. The schema-nineteen execution cutover
+ * MATMUL, and zero-input {@code INITIAL_STATE} domains. The schema-twenty execution cutover
  * carries all seven types through exact affine movement, INT32/INT64 index roles, all 49 cast pairs,
  * floating classification and promotion, and the precise legal first-order saved-role relations.
  * Authenticated local zero-stride descendants retain their logical layouts while preparation
- * assigns independently safe physical buffers. For every frozen ACCELERATOR FLOAT32 occurrence,
+ * assigns independently safe physical buffers. For every FLOAT32 occurrence in the frozen,
+ * formerly ACCELERATOR support baseline,
  * homogeneous BFLOAT16 and FLOAT16 descriptors are admitted with the same geometry and attributes
  * and lowered to a fixed custom implementation. That closure includes arithmetic, reductions and
  * scans, MSE, MATMUL, convolution/pooling, ordering, dropout, L1, ScatterAdd, and singleton
- * variance. Exact low-precision operations remain available under STRICT_IEEE only where their
- * represented result is exact; relaxed arithmetic is ACCELERATOR-only. Scatter requires canonical
+ * variance. The low-precision capability is the selected occurrence-scoped predicate; arithmetic
+ * may flush only at the named arithmetic sites. Scatter requires canonical
  * base/index/update/output representations; the compiler inserts explicit {@code CONTIGUOUS}
  * between its generated zero-base {@code EXPAND} and Scatter. Its INT32/INT64 indices must remain a
  * materialized partition feed. Random lowering preserves initializer key/counter words, dropout's
  * raw binary64 probability, and all ordered value, mask, and state edges; recurrent nodes remain
  * rejected. An affine MATMUL operand is authenticated to the exact earlier local identity-prefix,
- * last-two-axis {@code PERMUTE} on that consuming edge. Schema-nineteen lowering emits one bounded
+ * last-two-axis {@code PERMUTE} on that consuming edge. Schema-twenty lowering emits one bounded
  * self-describing image over stable type wires 1..7, complete operation registry 1..115, attribute
  * registry 0..41, the explicit prepared route, and its authenticated execution plan. Production
  * capability remains bounded by the provider predicate and its low-precision proxy. Every selected
@@ -133,7 +133,7 @@ import java.util.Optional;
  * Neither low routes nor existing FLOAT32 routes permit retry, CPU fallback, timing, or autotuning.
  * Rank-zero values participate only where exact capability permits them. Analysis freshly
  * regenerates the complete candidate batch. Every supplied handoff authenticates its exact
- * partition, schema, workload, profile, and session target; an absent decision preserves the
+ * partition, schema, workload, and session target; an absent decision preserves the
  * singleton-NEG heuristic, while a present decision must additionally authenticate its candidate
  * identity. Any shared custom-program node fixes the whole partition to its custom program route
  * before exact declarations, including a declared run-owned buffer for every compact materialized
@@ -184,7 +184,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     private BackendPartitionAnalysis<MetalNegPreparationPlan> analyzeInternal(
             PrepareContext<MetalNegAnalysisInputs> context, MetalPreparedRoute forcedRoute) {
         Objects.requireNonNull(context, "context");
-        NumericalProfile numericalProfile = context.numericalProfile();
         if (!context.partition().owner().equals(MetalCapabilityProvider.METAL_BACKEND_ID)) {
             throw new IllegalArgumentException("partition owner must be Metal");
         }
@@ -254,12 +253,10 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 outputDescriptors.add(outputValue.descriptor());
             }
             if (!MetalCapabilityProvider.supportsOccurrence(
-                            numericalProfile,
                             node.operation(),
                             inputDescriptors,
                             outputDescriptors)
                     && !supportsLowPrecisionBaseline(
-                            numericalProfile,
                             node.operation(),
                             inputDescriptors,
                             outputDescriptors)) {
@@ -429,7 +426,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     descriptors.get(value), valueStates.get(value)));
         }
         boolean containsAnchorEpilogue = !MetalAnchorEpilogueRecognizer.recognize(
-                context.numericalProfile(),
                 graphProgram,
                 programValueDescriptors,
                 targetIndices).isEmpty();
@@ -453,7 +449,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalPointwiseFusionPlan fusionPlan =
                 route == MetalPreparedRoute.CUSTOM_PROGRAM
                         ? MetalPointwiseFusionPlanner.plan(
-                                context.numericalProfile(),
                                 graphProgram,
                                 programValueDescriptors,
                                 feedIndices,
@@ -499,7 +494,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                                 physicalLayouts.get(value), "physical value layout"))
                         .toList();
         var heuristicPlan = new MetalNegPreparationPlan(
-                context.numericalProfile(),
                 context.partition(),
                 context.partitionDag(),
                 deviceContext,
@@ -576,7 +570,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 traceProducer == null || !traceProducer.enabled()
                         ? null
                         : traceProducer.prepareUnit(
-                        context.numericalProfile(),
                         route,
                         graphProgram,
                         programValueDescriptors,
@@ -589,7 +582,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 plan = heuristicPlan;
             } else {
                 plan = new MetalNegPreparationPlan(
-                        context.numericalProfile(),
                         context.partition(),
                         context.partitionDag(),
                         deviceContext,
@@ -616,7 +608,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             }
         } else {
             plan = new MetalNegPreparationPlan(
-                    context.numericalProfile(),
                     context.partition(),
                     context.partitionDag(),
                     deviceContext,
@@ -817,7 +808,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     }
 
     private static boolean supportsLowPrecisionBaseline(
-            NumericalProfile numericalProfile,
             Operation operation,
             List<TensorDescriptor> inputs,
             List<TensorDescriptor> outputs) {
@@ -845,7 +835,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 .map(MetalNegPartitionPreparer::float32Proxy)
                 .toList();
         return MetalCapabilityProvider.supportsOccurrence(
-                numericalProfile, proxy, proxyInputs, proxyOutputs);
+                proxy, proxyInputs, proxyOutputs);
     }
 
     private static List<TensorDescriptor> concat(

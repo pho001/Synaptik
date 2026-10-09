@@ -2,7 +2,6 @@ package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.trace.TracePayload;
 import io.github.pho001.synaptik.trace.id.TracePreparedUnitId;
-import io.github.pho001.synaptik.trace.payload.TraceNumericalProfile;
 import io.github.pho001.synaptik.trace.payload.TraceRouteKind;
 import java.util.List;
 import java.util.Objects;
@@ -14,10 +13,32 @@ import java.util.Objects;
  * {@code MAX_ANCHOR_UNITS + 1} is the exceeded-cap sentinel and means at least that many eligible
  * source anchors were observed; {@link #anchorMemberCount()} then covers exactly those bounded
  * diagnostic anchors. Fusion admission remains all-or-none at the lower cap.
+ *
+ * @param preparedUnitId non-null trace identity of the finalized unit
+ * @param route non-null selected trace route for that unit
+ * @param anchorFamily non-null bounded summary of recognized anchor families
+ * @param anchorDisposition non-null composed/fused summary of recognized anchors
+ * @param scalarMultiply whether any bounded anchor suffix contains scalar multiplication
+ * @param externalAdd whether any bounded anchor suffix contains an external tensor addition
+ * @param epilogueOrder non-null exact suffix order for one anchor, or {@code MULTIPLE}
+ * @param terminal non-null terminal suffix operation for one anchor, or {@code MULTIPLE}
+ * @param anchorCount non-negative bounded source-anchor count, including the exceeded-cap sentinel
+ * @param anchorMemberCount non-negative member count for the bounded diagnostic anchors
+ * @param schemaVersion non-negative encoded Metal program schema supplied by the producer
+ * @param generatorVersion non-negative pointwise generator schema, or zero when no generated unit
+ * @param valueCount non-negative program-value count
+ * @param nodeCount non-negative program-node count
+ * @param feedCount non-negative boundary-feed count
+ * @param targetCount non-negative boundary-target count
+ * @param internalCount non-negative internal-value count
+ * @param stepCount non-negative planned native-step count
+ * @param instructionCount non-negative generated-instruction count
+ * @param canonicalDigest non-null lowercase 64-hex-digit digest of the selected plan facts
+ * @param plannedCustomSteps non-null bounded planned-step summaries; copied on construction
+ * @param plannedCustomStepsTruncated whether the planned-step summaries were truncated
  */
 public record MetalPreparationStructure(
         TracePreparedUnitId preparedUnitId,
-        TraceNumericalProfile profile,
         TraceRouteKind route,
         AnchorFamily anchorFamily,
         AnchorDisposition anchorDisposition,
@@ -42,9 +63,38 @@ public record MetalPreparationStructure(
     /** Maximum summaries exposed by one structural event. */
     public static final int MAX_PLANNED_CUSTOM_STEPS = 32;
 
+    /**
+     * Validates and snapshots one bounded structural preparation payload.
+     *
+     * @param preparedUnitId non-null finalized-unit identity
+     * @param route non-null selected trace route
+     * @param anchorFamily non-null recognized anchor family
+     * @param anchorDisposition non-null composed/fused disposition
+     * @param scalarMultiply whether any bounded anchor suffix multiplies by a scalar
+     * @param externalAdd whether any bounded anchor suffix adds an external tensor
+     * @param epilogueOrder non-null suffix order or {@code MULTIPLE}
+     * @param terminal non-null terminal operation or {@code MULTIPLE}
+     * @param anchorCount non-negative bounded source-anchor count
+     * @param anchorMemberCount non-negative bounded anchor-member count
+     * @param schemaVersion non-negative program schema supplied by the producer
+     * @param generatorVersion non-negative generator schema, or zero when absent
+     * @param valueCount non-negative program-value count
+     * @param nodeCount non-negative program-node count
+     * @param feedCount non-negative boundary-feed count
+     * @param targetCount non-negative boundary-target count
+     * @param internalCount non-negative internal-value count
+     * @param stepCount non-negative planned-step count
+     * @param instructionCount non-negative generated-instruction count
+     * @param canonicalDigest non-null lowercase SHA-256 hex digest
+     * @param plannedCustomSteps non-null bounded list to snapshot
+     * @param plannedCustomStepsTruncated whether that list was truncated
+     * @throws NullPointerException if an identity, route, summary enum, digest, step list, or
+     *     step element is {@code null}
+     * @throws IllegalArgumentException if a count is negative, the digest is not lowercase SHA-256,
+     *     or the step list exceeds {@link #MAX_PLANNED_CUSTOM_STEPS}
+     */
     public MetalPreparationStructure {
         Objects.requireNonNull(preparedUnitId, "preparedUnitId");
-        Objects.requireNonNull(profile, "profile");
         Objects.requireNonNull(route, "route");
         Objects.requireNonNull(anchorFamily, "anchorFamily");
         Objects.requireNonNull(anchorDisposition, "anchorDisposition");
@@ -128,13 +178,33 @@ public record MetalPreparationStructure(
         ANCHOR_EPILOGUE
     }
 
-    /** Bounded planned-step fact; it never claims submission or completion. */
+    /**
+     * Bounded planned-step fact; it never claims submission or completion.
+     *
+     * @param ordinal non-negative position in the planned custom-step sequence
+     * @param kind non-null neutral kind of the planned step
+     * @param anchorFamily non-null anchor family associated with the step
+     * @param memberCount positive number of member nodes summarized by this step
+     * @param instructionCount non-negative number of generated instructions in this step
+     */
     public record CustomStepSummary(
             int ordinal,
             CustomStepKind kind,
             AnchorFamily anchorFamily,
             int memberCount,
             int instructionCount) {
+        /**
+         * Validates one bounded planned-step summary without claiming execution.
+         *
+         * @param ordinal non-negative planned-step ordinal
+         * @param kind non-null neutral step kind
+         * @param anchorFamily non-null associated anchor family
+         * @param memberCount positive summarized member count
+         * @param instructionCount non-negative generated-instruction count
+         * @throws NullPointerException if {@code kind} or {@code anchorFamily} is {@code null}
+         * @throws IllegalArgumentException if {@code ordinal} or {@code instructionCount} is
+         *     negative, or {@code memberCount} is not positive
+         */
         public CustomStepSummary {
             Objects.requireNonNull(kind, "kind");
             Objects.requireNonNull(anchorFamily, "anchorFamily");

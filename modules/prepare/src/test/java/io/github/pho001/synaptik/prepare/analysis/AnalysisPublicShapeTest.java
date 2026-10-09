@@ -1,7 +1,6 @@
 package io.github.pho001.synaptik.prepare.analysis;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -67,7 +66,7 @@ class AnalysisPublicShapeTest {
     }
 
     @Test
-    void exposesTheExactMarkerRolesPartitionDagAndSixComponentContextRecord() {
+    void exposesTheExactMarkerRolesPartitionDagAndFiveComponentContextRecord() {
         Class<BackendAnalysisInputs> inputs = BackendAnalysisInputs.class;
         Class<BackendPreparationPlan> plan = BackendPreparationPlan.class;
         Class<PrepareContext> context = PrepareContext.class;
@@ -125,12 +124,13 @@ class AnalysisPublicShapeTest {
                 () -> assertTrue(Modifier.isPublic(context.getModifiers())),
                 () -> assertTrue(Modifier.isFinal(context.getModifiers())),
                 () -> assertTrue(context.isRecord()),
+                () -> assertFalse(Arrays.stream(context.getDeclaredMethods())
+                        .anyMatch(method -> method.getName().equals("numericalProfile"))),
                 () -> assertEquals(2, context.getDeclaredConstructors().length),
                 () -> assertTrue(Arrays.stream(context.getDeclaredConstructors()).anyMatch(
                         constructor -> Arrays.equals(
                                 constructor.getParameterTypes(),
                                 new Class<?>[] {
-                                    NumericalProfile.class,
                                     PartitionDag.class,
                                     List.class,
                                     List.class,
@@ -141,7 +141,6 @@ class AnalysisPublicShapeTest {
                         constructor -> Arrays.equals(
                                 constructor.getParameterTypes(),
                                 new Class<?>[] {
-                                    NumericalProfile.class,
                                     PlannedPartition.class,
                                     List.class,
                                     List.class,
@@ -153,7 +152,6 @@ class AnalysisPublicShapeTest {
                 () -> assertEquals(BackendAnalysisInputs.class, contextBound),
                 () -> assertEquals(
                         List.of(
-                                "numericalProfile",
                                 "partitionDag",
                                 "values",
                                 "memoryRequirements",
@@ -162,7 +160,6 @@ class AnalysisPublicShapeTest {
                         Arrays.stream(components).map(component -> component.getName()).toList()),
                 () -> assertArrayEquals(
                         new Class<?>[] {
-                            NumericalProfile.class,
                             PartitionDag.class,
                             List.class,
                             List.class,
@@ -171,13 +168,13 @@ class AnalysisPublicShapeTest {
                         },
                         Arrays.stream(components).map(component -> component.getType())
                                 .toArray(Class<?>[]::new)),
-                () -> assertListArgument(components[2].getGenericType(), GraphValue.class),
+                () -> assertListArgument(components[1].getGenericType(), GraphValue.class),
                 () -> assertListArgument(
-                        components[3].getGenericType(), LogicalMemoryRequirement.class),
+                        components[2].getGenericType(), LogicalMemoryRequirement.class),
                 () -> assertMapArguments(
-                        components[4].getGenericType(), ValueId.class, ScalarValue.class),
+                        components[3].getGenericType(), ValueId.class, ScalarValue.class),
                 () -> assertEquals(
-                        context.getTypeParameters()[0], components[5].getGenericType()));
+                        context.getTypeParameters()[0], components[4].getGenericType()));
     }
 
     @Test

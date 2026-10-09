@@ -130,7 +130,7 @@ class CpuPreparedPartitionExecutableTest {
                     produced ? Optional.of(partition) : Optional.empty(),
                     published ? List.of() : List.of(partition), published));
         }
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), new CpuPartitionAnalysisInputs(false,
+        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), new CpuPartitionAnalysisInputs(false,
                 Collections.nCopies(publishAdd ? 7 : 6, CarrierAccess.FLOAT_ARRAY)));
     }
 

@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.trace.TraceEvent;
 import io.github.pho001.synaptik.trace.TraceLevel;
@@ -21,7 +20,6 @@ import io.github.pho001.synaptik.trace.payload.BackendPreparationOutcome;
 import io.github.pho001.synaptik.trace.payload.LowPrecisionTraceMetadata;
 import io.github.pho001.synaptik.trace.payload.TraceCacheStatus;
 import io.github.pho001.synaptik.trace.payload.TraceNativeStatusKind;
-import io.github.pho001.synaptik.trace.payload.TraceNumericalProfile;
 import io.github.pho001.synaptik.trace.payload.TraceOutcomeStatus;
 import io.github.pho001.synaptik.trace.payload.TraceRouteKind;
 import java.lang.reflect.Modifier;
@@ -90,10 +88,8 @@ class MetalTraceProducerTest {
         List<TraceEvent<? extends TracePayload>> events = new CopyOnWriteArrayList<>();
         MetalTraceProducer producer = new MetalTraceProducer(events::add);
         MetalTraceProducer.PreparedUnit first = producer.prepareUnit(
-                NumericalProfile.STRICT_IEEE,
                 MetalPreparedRoute.CUSTOM_SINGLE_NEG);
         MetalTraceProducer.PreparedUnit second = producer.prepareUnit(
-                NumericalProfile.ACCELERATOR,
                 MetalPreparedRoute.MPSGRAPH);
 
         first.preparationSucceeded();
@@ -114,7 +110,6 @@ class MetalTraceProducerTest {
         assertEquals(0L, prepared.deviceId().value());
         assertEquals(0L, prepared.preparedUnitId().value());
         assertEquals(TraceOutcomeStatus.SUCCEEDED, prepared.status());
-        assertEquals(TraceNumericalProfile.STRICT_IEEE, prepared.profile());
         assertEquals(TraceRouteKind.CUSTOM_KERNEL, prepared.route());
         assertEquals(TraceCacheStatus.NOT_QUERIED, prepared.cacheStatus());
         assertEquals(TraceNativeStatusKind.SUCCESS,
@@ -134,7 +129,6 @@ class MetalTraceProducerTest {
                 (BackendPreparationOutcome) events.get(2).payload();
         assertEquals(1L, failed.preparedUnitId().value());
         assertEquals(TraceOutcomeStatus.FAILED, failed.status());
-        assertEquals(TraceNumericalProfile.ACCELERATOR, failed.profile());
         assertEquals(TraceRouteKind.GRAPH_EXECUTABLE, failed.route());
         assertTrue(failed.nativeStatus().isEmpty());
     }
@@ -144,7 +138,6 @@ class MetalTraceProducerTest {
         List<TraceEvent<? extends TracePayload>> events = new CopyOnWriteArrayList<>();
         MetalTraceProducer producer = new MetalTraceProducer(events::add);
         MetalTraceProducer.PreparedUnit unit = producer.prepareUnit(
-                NumericalProfile.STRICT_IEEE,
                 MetalPreparedRoute.MPSGRAPH);
         int[] codes = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, -91, 91};
         TraceNativeStatusKind[] kinds = {
@@ -191,7 +184,6 @@ class MetalTraceProducerTest {
             throw callbackFailure;
         });
         MetalTraceProducer.PreparedUnit unit = contained.prepareUnit(
-                NumericalProfile.STRICT_IEEE,
                 MetalPreparedRoute.CUSTOM_SINGLE_NEG);
 
         unit.preparationSucceeded();
@@ -205,7 +197,6 @@ class MetalTraceProducerTest {
             throw fatal;
         });
         MetalTraceProducer.PreparedUnit fatalUnit = propagating.prepareUnit(
-                NumericalProfile.STRICT_IEEE,
                 MetalPreparedRoute.CUSTOM_SINGLE_NEG);
         assertSame(fatal, assertThrows(AssertionError.class, fatalUnit::preparationSucceeded));
         assertTrue(propagating.enabled());
@@ -218,7 +209,6 @@ class MetalTraceProducerTest {
             throw observerFailure;
         });
         MetalTraceProducer.PreparedUnit unit = producer.prepareUnit(
-                NumericalProfile.STRICT_IEEE,
                 MetalPreparedRoute.CUSTOM_SINGLE_NEG);
         RuntimeException preparationFailure = new RuntimeException("preparation");
         RuntimeException invocationFailure = new RuntimeException("invocation");
@@ -237,7 +227,6 @@ class MetalTraceProducerTest {
             throw errorObserverFailure;
         });
         MetalTraceProducer.PreparedUnit errorUnit = errorProducer.prepareUnit(
-                NumericalProfile.STRICT_IEEE,
                 MetalPreparedRoute.CUSTOM_SINGLE_NEG);
         errorUnit.preparationFailed(backendError);
         assertArrayEquals(
@@ -249,7 +238,6 @@ class MetalTraceProducerTest {
             throw self;
         });
         MetalTraceProducer.PreparedUnit selfUnit = selfProducer.prepareUnit(
-                NumericalProfile.STRICT_IEEE,
                 MetalPreparedRoute.CUSTOM_SINGLE_NEG);
         selfUnit.preparationFailed(self);
         assertEquals(0, self.getSuppressed().length);
@@ -261,7 +249,6 @@ class MetalTraceProducerTest {
             throw cyclic;
         });
         MetalTraceProducer.PreparedUnit cyclicUnit = cyclicProducer.prepareUnit(
-                NumericalProfile.STRICT_IEEE,
                 MetalPreparedRoute.CUSTOM_SINGLE_NEG);
         cyclicUnit.preparationFailed(primary);
         assertEquals(0, primary.getSuppressed().length);
@@ -270,27 +257,19 @@ class MetalTraceProducerTest {
 
     @Test
     void constructionFailureAndEachSequenceExhaustionDisableWithoutWraparound() throws Exception {
-        MetalTraceProducer invalid = new MetalTraceProducer(event -> {});
-        assertNull(invalid.prepareUnit(
-                null, MetalPreparedRoute.CUSTOM_SINGLE_NEG));
-        assertFalse(invalid.enabled());
-
         List<TraceEvent<? extends TracePayload>> preparedEvents = new CopyOnWriteArrayList<>();
         MetalTraceProducer prepared = new MetalTraceProducer(preparedEvents::add);
         sequence(prepared, "nextPreparedUnitId").set(Long.MAX_VALUE);
         MetalTraceProducer.PreparedUnit lastPrepared = prepared.prepareUnit(
-                NumericalProfile.STRICT_IEEE,
                 MetalPreparedRoute.CUSTOM_SINGLE_NEG);
         assertEquals(Long.MAX_VALUE, lastPrepared.preparedUnitId().value());
         assertNull(prepared.prepareUnit(
-                NumericalProfile.STRICT_IEEE,
                 MetalPreparedRoute.CUSTOM_SINGLE_NEG));
         assertFalse(prepared.enabled());
 
         List<TraceEvent<? extends TracePayload>> invocationEvents = new CopyOnWriteArrayList<>();
         MetalTraceProducer invocation = new MetalTraceProducer(invocationEvents::add);
         MetalTraceProducer.PreparedUnit invocationUnit = invocation.prepareUnit(
-                NumericalProfile.STRICT_IEEE,
                 MetalPreparedRoute.CUSTOM_SINGLE_NEG);
         sequence(invocation, "nextInvocationId").set(Long.MAX_VALUE);
         var lastInvocation = invocationUnit.beginInvocation();
@@ -302,7 +281,6 @@ class MetalTraceProducerTest {
         List<TraceEvent<? extends TracePayload>> eventEvents = new CopyOnWriteArrayList<>();
         MetalTraceProducer event = new MetalTraceProducer(eventEvents::add);
         MetalTraceProducer.PreparedUnit eventUnit = event.prepareUnit(
-                NumericalProfile.STRICT_IEEE,
                 MetalPreparedRoute.CUSTOM_SINGLE_NEG);
         sequence(event, "nextEventId").set(Long.MAX_VALUE);
         eventUnit.preparationSucceeded();
@@ -327,7 +305,6 @@ class MetalTraceProducerTest {
         List<TraceEvent<? extends TracePayload>> fusedEvents = new ArrayList<>();
         var fusedProducer = new MetalTraceProducer(fusedEvents::add);
         MetalTraceProducer.PreparedUnit fused = fusedProducer.prepareUnit(
-                NumericalProfile.ACCELERATOR,
                 MetalPreparedRoute.CUSTOM_PROGRAM,
                 program,
                 values,
@@ -357,7 +334,7 @@ class MetalTraceProducerTest {
                 fusedStructure.epilogueOrder());
         assertEquals(MetalPreparationStructure.EpilogueTerminal.RELU,
                 fusedStructure.terminal());
-        assertEquals(19, fusedStructure.schemaVersion());
+        assertEquals(20, fusedStructure.schemaVersion());
         assertEquals(2, fusedStructure.generatorVersion());
         assertEquals(1, fusedStructure.anchorCount());
         assertEquals(2, fusedStructure.anchorMemberCount());
@@ -378,8 +355,7 @@ class MetalTraceProducerTest {
         List<TraceEvent<? extends TracePayload>> composedEvents = new ArrayList<>();
         var composedProducer = new MetalTraceProducer(composedEvents::add);
         MetalTraceProducer.PreparedUnit composed = composedProducer.prepareUnit(
-                NumericalProfile.STRICT_IEEE,
-                MetalPreparedRoute.CUSTOM_PROGRAM,
+                MetalPreparedRoute.MPSGRAPH,
                 program,
                 values,
                 new int[] {0, 1},
@@ -396,7 +372,6 @@ class MetalTraceProducerTest {
         List<TraceEvent<? extends TracePayload>> repeatedEvents = new ArrayList<>();
         var repeatedProducer = new MetalTraceProducer(repeatedEvents::add);
         repeatedProducer.prepareUnit(
-                NumericalProfile.ACCELERATOR,
                 MetalPreparedRoute.CUSTOM_PROGRAM,
                 program,
                 values,
@@ -426,7 +401,6 @@ class MetalTraceProducerTest {
         var gather = MetalMpsGraphProgram.Node.gather(0, 1, 2, 1);
         List<TraceEvent<? extends TracePayload>> rawEvents = new ArrayList<>();
         var raw = new MetalTraceProducer(rawEvents::add).prepareUnit(
-                NumericalProfile.ACCELERATOR,
                 MetalPreparedRoute.CUSTOM_PROGRAM,
                 new MetalMpsGraphProgram(List.of(gather)),
                 values.subList(0, 3),
@@ -442,11 +416,9 @@ class MetalTraceProducerTest {
         assertEquals(List.of("FLOAT16", "INT32", "FLOAT16"),
                 rawMetadata.logicalDtypeTuple());
         assertEquals(TraceRouteKind.CUSTOM_KERNEL, rawMetadata.selectedRoute());
-        assertEquals(TraceNumericalProfile.ACCELERATOR, rawMetadata.numericalProfile());
 
         List<TraceEvent<? extends TracePayload>> mixedEvents = new ArrayList<>();
         var mixed = new MetalTraceProducer(mixedEvents::add).prepareUnit(
-                NumericalProfile.ACCELERATOR,
                 MetalPreparedRoute.CUSTOM_PROGRAM,
                 new MetalMpsGraphProgram(List.of(
                         gather,
@@ -465,8 +437,7 @@ class MetalTraceProducerTest {
         assertEquals(List.of("FLOAT16", "INT32", "FLOAT16", "FLOAT16"),
                 mixedMetadata.logicalDtypeTuple());
         assertEquals(TraceRouteKind.CUSTOM_KERNEL, mixedMetadata.selectedRoute());
-        assertEquals(TraceNumericalProfile.ACCELERATOR, mixedMetadata.numericalProfile());
-        assertEquals(List.of("selectedRoute", "logicalDtypeTuple", "numericalProfile"),
+        assertEquals(List.of("selectedRoute", "logicalDtypeTuple"),
                 Arrays.stream(LowPrecisionTraceMetadata.class.getRecordComponents())
                         .map(component -> component.getName()).toList());
     }
@@ -498,7 +469,6 @@ class MetalTraceProducerTest {
         var producer = new MetalTraceProducer(events::add);
 
         MetalTraceProducer.PreparedUnit unit = producer.prepareUnit(
-                NumericalProfile.ACCELERATOR,
                 MetalPreparedRoute.CUSTOM_PROGRAM,
                 new MetalMpsGraphProgram(nodes),
                 values,
@@ -534,7 +504,6 @@ class MetalTraceProducerTest {
             throw new IllegalStateException("observer-runtime");
         });
         MetalTraceProducer.PreparedUnit contained = runtimeProducer.prepareUnit(
-                NumericalProfile.ACCELERATOR,
                 MetalPreparedRoute.MPSGRAPH,
                 traceNegProgram(),
                 List.of(traceValue(1), traceValue(1)),
@@ -552,7 +521,6 @@ class MetalTraceProducerTest {
             throw new AssertionError("observer-error");
         });
         MetalTraceProducer.PreparedUnit errorContained = errorProducer.prepareUnit(
-                NumericalProfile.ACCELERATOR,
                 MetalPreparedRoute.MPSGRAPH,
                 traceNegProgram(),
                 List.of(traceValue(1), traceValue(1)),
@@ -572,7 +540,6 @@ class MetalTraceProducerTest {
             }
         });
         MetalTraceProducer.PreparedUnit planningContained = planningProducer.prepareUnit(
-                NumericalProfile.ACCELERATOR,
                 MetalPreparedRoute.MPSGRAPH,
                 traceNegProgram(),
                 List.of(traceValue(1), traceValue(1)),
@@ -631,7 +598,6 @@ class MetalTraceProducerTest {
             invocationIds.add(outcome.invocationId().value());
         });
         MetalTraceProducer.PreparedUnit unit = producer.prepareUnit(
-                NumericalProfile.ACCELERATOR,
                 MetalPreparedRoute.MPSGRAPH);
 
         int invocations = 32;

@@ -1,7 +1,6 @@
 package io.github.pho001.synaptik.backend.cpu.internal.cache;
 
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr;
 import java.lang.foreign.MemorySegment;
@@ -26,7 +25,6 @@ import jdk.incubator.vector.LongVector;
  * addresses, run identity, worker identity, and artifact-root identity are deliberately absent.
  *
  * @param loweringFingerprint non-null canonical lowering fingerprint
- * @param numericalProfile non-null graph-wide numerical-profile identity
  * @param executionStrategy non-null generated compute strategy; orchestration is single-thread
  *     because parallel plans reuse the corresponding scalar or vector artifact
  * @param boundaryDataTypes non-null immutable ordered data type for every derived boundary
@@ -51,7 +49,6 @@ import jdk.incubator.vector.LongVector;
  * @param matmulIr exact typed MATMUL code-shaping facts, or empty for every unchanged family
  */
 public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
-        NumericalProfile numericalProfile,
         CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
         List<DataType> boundaryDataTypes, List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize,
         int materializedSourcePosition, List<CpuKernelIr.PowerRealization> scalarPowerRealizations,
@@ -77,19 +74,11 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         /** Observable direct canonical {@code byte[]} access. */ BYTE_ARRAY,
         /** Exact selected {@link MemorySegment} access. */ MEMORY_SEGMENT
     }
-    /** Stable backend-local numerical-profile wire value; never derived from enum ordinal. */
-    private static String numericalProfileWireValue(NumericalProfile numericalProfile) {
-        return switch (numericalProfile) {
-            case STRICT_IEEE -> "strict-ieee";
-            case ACCELERATOR -> "accelerator";
-        };
-    }
-
     /**
-     * Preserves the pre-0008F constructor and byte-identical schema-52 class projection.
+     * Retains the established scalar/vector constructor shape and the schema-52 family
+     * code-shaping projection. The generator-69 prefix deliberately changes class identity.
      *
      * @param loweringFingerprint canonical lowering fingerprint
-     * @param numericalProfile graph-wide numerical profile
      * @param executionStrategy generated compute strategy
      * @param boundaryDataTypes ordered boundary types
      * @param carrierPattern ordered carriers
@@ -99,13 +88,12 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * @param scratchParameter whether scratch is present
      */
     public CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
-            NumericalProfile numericalProfile,
             CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
             List<DataType> boundaryDataTypes, List<CarrierAccess> carrierPattern,
             int vectorSpeciesBitSize, int materializedSourcePosition,
             List<CpuKernelIr.PowerRealization> scalarPowerRealizations,
             boolean scratchParameter) {
-        this(loweringFingerprint, numericalProfile, executionStrategy, boundaryDataTypes,
+        this(loweringFingerprint, executionStrategy, boundaryDataTypes,
                 carrierPattern, vectorSpeciesBitSize, materializedSourcePosition,
                 scalarPowerRealizations, scratchParameter, 52, Optional.empty());
     }
@@ -114,7 +102,6 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * Creates a specialization with an explicit class-identity projection and no MATMUL facts.
      *
      * @param loweringFingerprint canonical lowering fingerprint
-     * @param numericalProfile graph-wide numerical profile
      * @param executionStrategy generated compute strategy
      * @param boundaryDataTypes ordered boundary types
      * @param carrierPattern ordered carriers
@@ -129,13 +116,12 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      *     Conv2d/Conv3d output-width vector IR with unit width stride and dilation
      */
     public CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
-            NumericalProfile numericalProfile,
             CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
             List<DataType> boundaryDataTypes, List<CarrierAccess> carrierPattern,
             int vectorSpeciesBitSize, int materializedSourcePosition,
             List<CpuKernelIr.PowerRealization> scalarPowerRealizations,
             boolean scratchParameter, int classIdentitySchema) {
-        this(loweringFingerprint, numericalProfile, executionStrategy, boundaryDataTypes,
+        this(loweringFingerprint, executionStrategy, boundaryDataTypes,
                 carrierPattern, vectorSpeciesBitSize, materializedSourcePosition,
                 scalarPowerRealizations, scratchParameter, classIdentitySchema, Optional.empty());
     }
@@ -143,7 +129,6 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * Creates a direct, non-materialized compatibility specialization.
      *
      * @param loweringFingerprint non-null canonical lowering fingerprint
-     * @param numericalProfile non-null selected graph-wide numerical profile
      * @param executionStrategy non-null generated scalar or vector compute strategy
      * @param carrierPattern non-null ordered FLOAT64 compatibility carrier pattern
      * @param vectorSpeciesBitSize positive preferred FLOAT64 species size for vector compute, or
@@ -153,10 +138,9 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      *     constructor's FLOAT64 boundary contract
      */
     public CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
-            NumericalProfile numericalProfile,
             CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
             List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize) {
-        this(loweringFingerprint, numericalProfile, executionStrategy,
+        this(loweringFingerprint, executionStrategy,
                 java.util.Collections.nCopies(carrierPattern.size(), DataType.FLOAT64), carrierPattern,
                 vectorSpeciesBitSize, -1, List.of(), false);
     }
@@ -165,7 +149,6 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * Creates a FLOAT64 compatibility specialization with optional one-input materialization.
      *
      * @param loweringFingerprint non-null canonical lowering fingerprint
-     * @param numericalProfile non-null selected graph-wide numerical profile
      * @param executionStrategy non-null generated scalar or vector compute strategy
      * @param carrierPattern non-null ordered FLOAT64 compatibility carrier pattern
      * @param vectorSpeciesBitSize positive preferred FLOAT64 species size for vector compute, or
@@ -176,11 +159,10 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      *     disagree
      */
     public CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
-            NumericalProfile numericalProfile,
             CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
             List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize,
             int materializedSourcePosition) {
-        this(loweringFingerprint, numericalProfile, executionStrategy,
+        this(loweringFingerprint, executionStrategy,
                 java.util.Collections.nCopies(carrierPattern.size(), DataType.FLOAT64),
                 carrierPattern, vectorSpeciesBitSize, materializedSourcePosition, List.of(), false);
     }
@@ -189,7 +171,6 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * Creates a specialization without scalar-power realization facts.
      *
      * @param loweringFingerprint non-null canonical lowering fingerprint
-     * @param numericalProfile non-null selected graph-wide numerical profile
      * @param executionStrategy non-null generated scalar or vector compute strategy
      * @param boundaryDataTypes non-null ordered boundary data types
      * @param carrierPattern non-null ordered boundary carrier forms
@@ -199,11 +180,10 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * @throws IllegalArgumentException if specialization facts disagree
      */
     public CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
-            NumericalProfile numericalProfile,
             CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
             List<DataType> boundaryDataTypes, List<CarrierAccess> carrierPattern,
             int vectorSpeciesBitSize, int materializedSourcePosition) {
-        this(loweringFingerprint, numericalProfile, executionStrategy, boundaryDataTypes,
+        this(loweringFingerprint, executionStrategy, boundaryDataTypes,
                 carrierPattern, vectorSpeciesBitSize, materializedSourcePosition, List.of(), false);
     }
 
@@ -211,7 +191,6 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * Creates a specialization with scalar-power facts and no generated scratch parameter.
      *
      * @param loweringFingerprint non-null canonical lowering fingerprint
-     * @param numericalProfile non-null selected graph-wide numerical profile
      * @param executionStrategy non-null generated scalar or vector compute strategy
      * @param boundaryDataTypes non-null ordered boundary data types; copied defensively
      * @param carrierPattern non-null ordered boundary carrier forms; copied defensively
@@ -223,12 +202,11 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * @throws IllegalArgumentException if specialization facts disagree
      */
     public CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
-            NumericalProfile numericalProfile,
             CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
             List<DataType> boundaryDataTypes, List<CarrierAccess> carrierPattern,
             int vectorSpeciesBitSize, int materializedSourcePosition,
             List<CpuKernelIr.PowerRealization> scalarPowerRealizations) {
-        this(loweringFingerprint, numericalProfile, executionStrategy, boundaryDataTypes,
+        this(loweringFingerprint, executionStrategy, boundaryDataTypes,
                 carrierPattern, vectorSpeciesBitSize, materializedSourcePosition,
                 scalarPowerRealizations, false);
     }
@@ -236,7 +214,6 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * Validates the exact/default scalar-or-vector generated specialization.
      *
      * @param loweringFingerprint non-null canonical lowering fingerprint
-     * @param numericalProfile non-null selected graph-wide numerical profile
      * @param executionStrategy non-null single-thread generated compute strategy
      * @param boundaryDataTypes non-null ordered boundary types; copied defensively
      * @param carrierPattern non-null ordered boundary carrier pattern; copied defensively
@@ -251,7 +228,6 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      */
     public CpuKernelSpecialization {
         Objects.requireNonNull(loweringFingerprint, "loweringFingerprint");
-        Objects.requireNonNull(numericalProfile, "numericalProfile");
         Objects.requireNonNull(executionStrategy, "executionStrategy");
         boundaryDataTypes = List.copyOf(boundaryDataTypes);
         carrierPattern = List.copyOf(carrierPattern);
@@ -332,7 +308,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * @return a new deterministic schema byte array */
     public byte[] compatibilityBytes() {
         return (CpuGeneratorSchema.CURRENT_VERSION + "|" + loweringFingerprint.hex() + "|"
-                + numericalProfileWireValue(numericalProfile) + "|" + executionStrategy.compute()
+                + executionStrategy.compute()
                 + "|" + boundaryDataTypes
                 + "|" + carrierPattern
                 + "|" + vectorSpeciesBitSize + "|materialized=" + materializedSourcePosition
@@ -342,18 +318,16 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
     /**
      * Returns the stable generated-class identity projection.
      *
-     * <p>Family-specific class-identity schema numbers remain selective: unchanged families retain
-     * schema 52 while MATMUL begins at schema 54 and later specialized families use their assigned
-     * schemas. Generator schema 67 nevertheless inserts the stable numerical-profile wire identity
-     * into every projection. Consequently, otherwise-equal specializations remain deterministic
-     * within one profile, while pre-67 and cross-profile binary names and class bytes are
-     * intentionally incompatible.</p>
+     * <p>The current generator schema prefixes the family-specific projection so a pre-cutover
+     * class cannot share a binary name with a profile-free class. Family-specific code-shaping
+     * facts remain selective and all boundary data types remain distinct, including BFLOAT16 and
+     * FLOAT16 even when both use a short carrier.</p>
      *
-     * @return a new deterministic family-schema and numerical-profile identity byte array
+     * @return a new deterministic generator- and family-schema identity byte array
      */
     public byte[] classIdentityBytes() {
-        return (classIdentitySchema + "|" + loweringFingerprint.hex() + "|"
-                + numericalProfileWireValue(numericalProfile) + "|" + executionStrategy.compute()
+        return (CpuGeneratorSchema.CURRENT_VERSION + "|" + classIdentitySchema + "|"
+                + loweringFingerprint.hex() + "|" + executionStrategy.compute()
                 + "|" + boundaryDataTypes
                 + "|" + carrierPattern
                 + "|" + vectorSpeciesBitSize + "|materialized=" + materializedSourcePosition

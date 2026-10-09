@@ -19,17 +19,16 @@ import java.util.List;
  * logical output. Enum identity is the semantic identity; inherited text is diagnostic only and
  * is not a registry, serialization, dispatch, route, or kernel contract.</p>
  *
- * <p>Under the Model-owned graph numerical-profile contract, {@code STRICT_IEEE} retains this
- * contraction. For {@code ACCELERATOR FLOAT32}, exact broadcast mapping, contraction extent,
- * contributor membership, empty identity, and output placement are unchanged. Every pairwise
- * product participates exactly once; evaluation may use any binary tree, per-step FLOAT32
- * rounding, DAZ/FTZ, and corresponding product/add fusion. It may not drop, duplicate, invent,
- * pretruncate, or replace a term. The existing qualifying nonempty final exact-zero publication
- * freedom remains local to the final MATMUL cell; an empty contraction stays positive zero. This
- * is recursive construction freedom, not a final-output tolerance. Every current non-FLOAT32
- * occurrence remains strict; the inactive low-precision reservation changes none of them. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Broadcast mapping, contraction extent, contributor membership, empty identity, and output
+ * placement remain exact. Each mapped product contributes once to a rounded sum tree; corresponding
+ * multiply/add fusion is permitted only without an observable intermediate. FLOAT32, BFLOAT16, and
+ * FLOAT16 may use DAZ/FTZ only at named floating arithmetic primitive inputs/results, including low
+ * multiplication; FLOAT64 may not. Homogeneous low contractions work and accumulate in FLOAT32,
+ * followed by one final ties-to-even low narrowing. The established final exact-zero publication
+ * freedom applies only to qualifying nonempty MATMUL results; an empty contraction remains positive
+ * zero. No term may be lost or invented and no whole-output tolerance is implied. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum MatmulKind implements OperationKind {
     /**

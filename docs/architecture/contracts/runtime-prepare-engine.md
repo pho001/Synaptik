@@ -592,9 +592,14 @@ Any future generic backend registration must be explicit through Engine composit
 
 It must not become a runtime hot-path mechanism.
 
-## Numerical-profile lifecycle
+## Profile-free Engine and Prepare lifecycle
 
-Engine construction captures one graph-wide `NumericalProfile`, defaulting to `STRICT_IEEE`.
-Compiler artifacts and every `PrepareContext` projection retain that exact value. Backend
-preparation may use it for capability, routes, and compatibility identity; Runtime and Trace do not
-receive it and perform no per-run profile lookup.
+<a id="numerical-profile-lifecycle"></a>
+
+Engine construction offers no
+numerical-profile selection or replacement mode. Compiler artifacts and `PrepareContext`
+projections carry no profile field; backend preparation uses complete occurrence facts, actual
+provider capability, qualified routes, and versioned non-profile compatibility identity.
+Runtime and Trace remain numerical-policy-free and perform no per-run tolerance, certificate,
+capability, or route lookup. Removing the selector does not change Engine ownership, Prepare
+transactions, resource lifetimes, transfers, tuning, or synchronous run/publication behavior.

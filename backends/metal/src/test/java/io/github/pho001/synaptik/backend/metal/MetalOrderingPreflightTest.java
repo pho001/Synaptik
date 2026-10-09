@@ -3,7 +3,6 @@ package io.github.pho001.synaptik.backend.metal;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -72,18 +71,17 @@ class MetalOrderingPreflightTest {
         var valid = program(node(MetalMpsGraphProgram.NodeKind.TOP_K,
                 new int[] {0}, new int[] {1, 2},
                 MetalMpsGraphProgram.AttributeKind.TOP_K, 1, 2, 0, 1));
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            assertDoesNotThrow(() -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                    profile, descriptors, valid, new int[] {0}, new int[] {1},
-                    MetalPreparedRoute.CUSTOM_PROGRAM));
-            assertDoesNotThrow(() -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                    profile, descriptors, valid, new int[] {0}, new int[] {2},
-                    MetalPreparedRoute.CUSTOM_PROGRAM));
-            assertThrows(IllegalArgumentException.class,
-                    () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                            profile, descriptors, valid, new int[] {0}, new int[] {1, 2},
-                            MetalPreparedRoute.MPSGRAPH));
-        }
+        assertDoesNotThrow(() -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                descriptors, valid, new int[] {0}, new int[] {1},
+                MetalPreparedRoute.CUSTOM_PROGRAM));
+        assertDoesNotThrow(() -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                descriptors, valid, new int[] {0}, new int[] {2},
+                MetalPreparedRoute.CUSTOM_PROGRAM));
+        assertThrows(IllegalArgumentException.class,
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                        descriptors, valid, new int[] {0}, new int[] {1, 2},
+                        MetalPreparedRoute.MPSGRAPH));
+
 
         var wrongIndexType = List.of(
                 value(DataType.FLOAT32, 2, 4),
@@ -143,7 +141,6 @@ class MetalOrderingPreflightTest {
             int[] feeds,
             int[] targets) {
         MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                NumericalProfile.STRICT_IEEE,
                 values,
                 program,
                 feeds,

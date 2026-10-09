@@ -4,7 +4,6 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -27,10 +26,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <p>Handles remain opaque carrier segments inside this package. Implementations consume each
  * successful context or buffer handle exactly once through its matching release call. The
- * schema-nineteen creator accepts zero feeds and compact materialized slots, while execution
+ * schema-twenty creator accepts zero feeds and compact materialized slots, while execution
  * still binds every ordered live slot buffer. Java preflight independently authenticates all seven
  * carriers, the 49 ordered casts, logical-versus-physical layouts, saved gradient roles, exact
- * replacement safety, fixed custom routing, and profile constraints before native entry.
+ * replacement safety and fixed custom routing before native entry.
  * Every BFLOAT16/FLOAT16 value is custom-program-only. Native status failures are unchecked and
  * retain both the operation name and raw status value.
  */
@@ -136,9 +135,8 @@ abstract class MetalNativeApi implements AutoCloseable {
      * release the returned executable exactly once, including when later preparation fails.
      *
      * @param context non-null live context whose ownership remains with the caller
-     * @param numericalProfile non-null cold plan profile used by Java fail-closed preflight
-     * @param values non-null explicit schema-nineteen value descriptors in program-value order
-     * @param graphProgram non-null schema-nineteen typed node program in partition order
+     * @param values non-null explicit schema-twenty value descriptors in program-value order
+     * @param graphProgram non-null schema-twenty typed node program in partition order
      * @param feedValueIndices non-null ordered boundary-feed value indices, not retained
      * @param targetValueIndices non-null ordered boundary-target value indices, not retained
      * @param route non-null selected {@code MPSGRAPH} or {@code CUSTOM_PROGRAM} partition route;
@@ -152,7 +150,6 @@ abstract class MetalNativeApi implements AutoCloseable {
      */
     final Handle createProgramExecutable(
             Handle context,
-            NumericalProfile numericalProfile,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             MetalMpsGraphProgram graphProgram,
             int[] feedValueIndices,
@@ -160,7 +157,6 @@ abstract class MetalNativeApi implements AutoCloseable {
             MetalPreparedRoute route) {
         return createProgramExecutable(
                 context,
-                numericalProfile,
                 values,
                 graphProgram,
                 feedValueIndices,
@@ -176,8 +172,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * preparation failure.
      *
      * @param context non-null live context retained by the caller
-     * @param numericalProfile non-null cold graph-wide profile
-     * @param values non-null schema-nineteen descriptors in program-value order
+     * @param values non-null schema-twenty descriptors in program-value order
      * @param graphProgram non-null typed node program in partition order
      * @param feedValueIndices non-null ordered boundary-feed indices, not retained
      * @param targetValueIndices non-null ordered boundary-target indices, not retained
@@ -193,7 +188,6 @@ abstract class MetalNativeApi implements AutoCloseable {
      */
     final Handle createProgramExecutable(
             Handle context,
-            NumericalProfile numericalProfile,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             MetalMpsGraphProgram graphProgram,
             int[] feedValueIndices,
@@ -203,19 +197,17 @@ abstract class MetalNativeApi implements AutoCloseable {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(graphProgram, "graphProgram");
         MetalPointwiseFusionPlan effectiveFusionPlan = graphProgram.resolvePlan(
-                numericalProfile,
                 values,
                 feedValueIndices,
                 targetValueIndices,
                 route,
                 fusionPlan);
         ProgramExecutableAbi.validateCreate(
-                numericalProfile, values, graphProgram, feedValueIndices, targetValueIndices,
+                values, graphProgram, feedValueIndices, targetValueIndices,
                 route, effectiveFusionPlan);
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment image = graphProgram.encodeNative(
                     arena,
-                    numericalProfile,
                     values,
                     feedValueIndices,
                     targetValueIndices,
@@ -232,7 +224,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * Performs one already validated ABI-v7 program-image create invocation synchronously.
      *
      * @param context non-null live context whose ownership remains with the caller
-     * @param programImage exact readable schema-nineteen image, valid only for this call
+     * @param programImage exact readable schema-twenty image, valid only for this call
      * @return non-null raw status/output-cell result for checked interpretation
      */
     abstract NativeCreateResult createProgramExecutableNative(
@@ -554,7 +546,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the schema-nineteen typed Metal program create contract. */
+    /** Exact Java preflight for the schema-twenty typed Metal program create contract. */
     static final class ProgramExecutableAbi {
         private static final int MAX_RANK = 16;
         private static final long UINT32_MAX = 0xffff_ffffL;
@@ -563,25 +555,22 @@ abstract class MetalNativeApi implements AutoCloseable {
         private ProgramExecutableAbi() {}
 
         static void validateCreate(
-                NumericalProfile numericalProfile,
                 List<MetalMpsGraphProgram.ValueDescriptor> values,
                 MetalMpsGraphProgram graphProgram,
                 int[] feeds,
                 int[] targets,
                 MetalPreparedRoute route) {
             validateCreate(
-                    numericalProfile, values, graphProgram, feeds, targets, route, null);
+                    values, graphProgram, feeds, targets, route, null);
         }
 
         static void validateCreate(
-                NumericalProfile numericalProfile,
                 List<MetalMpsGraphProgram.ValueDescriptor> values,
                 MetalMpsGraphProgram graphProgram,
                 int[] feeds,
                 int[] targets,
                 MetalPreparedRoute route,
                 MetalPointwiseFusionPlan fusionPlan) {
-            Objects.requireNonNull(numericalProfile, "numericalProfile");
             Objects.requireNonNull(values, "values");
             Objects.requireNonNull(graphProgram, "graphProgram");
             Objects.requireNonNull(feeds, "feedValueIndices");
@@ -639,9 +628,9 @@ abstract class MetalNativeApi implements AutoCloseable {
                 fed[feed] = true;
             }
             for (MetalMpsGraphProgram.Node node : graphProgram.nodes()) {
-                if (!profileAllows(numericalProfile, node.kind())) {
+                if (!node.kind().executable()) {
                     throw new IllegalArgumentException(
-                            "Metal MPSGraph node kind is incompatible with numerical profile");
+                            "Metal MPSGraph node kind is not executable");
                 }
             }
             boolean containsCustomOperation = graphProgram.nodes().stream()
@@ -674,7 +663,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                         "custom-only operations have no approved direct MPSGraph route");
             }
             RankZeroAnchorRoles rankZeroAnchorRoles = authenticatedRankZeroAnchorRoles(
-                    numericalProfile,
                     route,
                     graphProgram,
                     values,
@@ -1299,7 +1287,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                     }
                     case MATMUL ->
                             validateMatmulTypesAndGradients(
-                                    numericalProfile, left, right, output, types, values);
+                                    left, right, output, types, values);
                     case GT, GE, LT, LE, EQ, NE -> {
                         if (types[left] != ValueType.FLOAT32 && !lowPrecision(types[left])
                                 || types[right] != types[left]) {
@@ -1514,7 +1502,6 @@ abstract class MetalNativeApi implements AutoCloseable {
             }
         }
         private static RankZeroAnchorRoles authenticatedRankZeroAnchorRoles(
-                NumericalProfile numericalProfile,
                 MetalPreparedRoute route,
                 MetalMpsGraphProgram program,
                 List<MetalMpsGraphProgram.ValueDescriptor> values,
@@ -1528,7 +1515,7 @@ abstract class MetalNativeApi implements AutoCloseable {
             int[] members = fusionPlan.memberNodePositions();
             List<MetalAnchorEpilogue> recognized =
                     MetalAnchorEpilogueRecognizer.recognize(
-                            numericalProfile, program, values, targets);
+                            program, values, targets);
             for (MetalPointwiseFusionPlan.Step step : fusionPlan.steps()) {
                 if (step.kind() != MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE
                         || step.memberStart() >= members.length) {
@@ -2748,7 +2735,6 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
 
         private static void validateMatmulTypesAndGradients(
-                NumericalProfile profile,
                 int left,
                 int right,
                 int output,
@@ -2767,48 +2753,25 @@ abstract class MetalNativeApi implements AutoCloseable {
                         leftType == ValueType.INT64 || rightType == ValueType.INT64
                                 ? ValueType.INT64 : ValueType.INT32;
                 if (outputType == promoted && !leftGrad && !rightGrad && !outputGrad) return;
-            } else if (profile == NumericalProfile.ACCELERATOR
-                    && leftType == ValueType.FLOAT32
+            } else if (leftType == ValueType.FLOAT32
                     && rightType == ValueType.FLOAT32
                     && outputType == ValueType.FLOAT32
                     && outputGrad == (leftGrad || rightGrad)) {
                 return;
-            } else if (profile == NumericalProfile.ACCELERATOR
-                    && outputType == ValueType.FLOAT32
+            } else if (outputType == ValueType.FLOAT32
                     && (leftType == ValueType.BFLOAT16 && rightType == ValueType.FLOAT32
                             || leftType == ValueType.FLOAT32
                                     && rightType == ValueType.BFLOAT16)
                     && !leftGrad && !rightGrad && !outputGrad) {
                 return;
-            } else if (profile == NumericalProfile.ACCELERATOR
-                    && lowPrecision(leftType)
+            } else if (lowPrecision(leftType)
                     && rightType == leftType
                     && outputType == leftType
                     && outputGrad == (leftGrad || rightGrad)) {
                 return;
             }
             throw new IllegalArgumentException(
-                    "MATMUL type, profile, and gradient metadata are incompatible");
-        }
-
-        private static boolean profileAllows(
-                NumericalProfile numericalProfile, MetalMpsGraphProgram.NodeKind kind) {
-            if (!kind.executable()) return false;
-            return switch (numericalProfile) {
-                case STRICT_IEEE -> switch (kind) {
-                    case NEG, ABS, FLOOR, CEIL, SIGN, RELU,
-                            RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
-                            CONTIGUOUS, GATHER, ONE_HOT, SCATTER_ELEMENTS, UNFOLD_AXIS,
-                            IS_FINITE, IS_NAN, IS_INF, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
-                            WHERE, CAST, GATHER_ELEMENTS, GATHER_ND, SCATTER_ND,
-                            SELECT, PAD, SLICE, SLICE_UPDATE, CONCAT, STACK, TILE, FOLD_AXIS,
-                            UNFOLD2D, FOLD2D, UNFOLD3D, FOLD3D, PROD, ALL, ANY, MATMUL,
-                            SORT, ARGSORT, TOP_K, ARG_MAX, ARG_MIN, MAX_POOL2D, MAX_POOL3D,
-                            INITIAL_STATE -> true;
-                    default -> false;
-                };
-                case ACCELERATOR -> true;
-            };
+                    "MATMUL type and gradient metadata are incompatible");
         }
 
         private static boolean matmulMatches(

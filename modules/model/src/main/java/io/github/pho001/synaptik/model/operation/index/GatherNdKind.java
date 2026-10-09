@@ -40,12 +40,11 @@ import java.util.List;
  * graph or compiler policy, backend support, or execution state. Its inherited enum name is
  * diagnostic text rather than a serialization, dispatch, registry, route, or kernel identifier.</p>
  *
- * <p>The Model-owned numerical-profile contract leaves gather-ND exact under
- * {@code STRICT_IEEE} and {@code ACCELERATOR}: coordinate tuples, bounds, batch/suffix mapping,
- * output placement, and every selected original payload representation remain exact. Gathering
- * applies no DAZ, FTZ, or arithmetic tolerance. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Gather-ND retains exact coordinate tuples, bounds, batch and suffix mapping, output
+ * placement, and every selected original stored payload. It applies no arithmetic DAZ, FTZ, or
+ * finite tolerance. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  */
 public enum GatherNdKind implements OperationKind {
     /**

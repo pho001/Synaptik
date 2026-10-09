@@ -9,8 +9,8 @@
 ## Scope
 
 This contract owns the detailed responsibilities and prohibitions for Trace, Backend Contract,
-Model, Config, and Planning. Model's scope includes the sole normative definition of graph
-numerical profiles and profile-indexed allowed-result sets. Planning scope here is the module
+Model, Config, and Planning. Model's scope includes the sole normative definition of profile-free
+operation-family numerical semantics and allowed results. Planning scope here is the module
 boundary and ownership question; the detailed partition-scoring algorithm boundary belongs to the
 compiler/autograd contract. This file does not own recurrent-scan semantics, compiler behavior,
 execution lifecycles, concrete backend implementation, or extensions.
@@ -101,7 +101,7 @@ Allowed:
 - `GraphPhase`
 - `ForwardPublicationBinding`
 - `TensorDescriptor`
-- profile-indexed operation allowed-result sets
+- operation-family formulas and allowed-result sets
 
 Forbidden:
 
@@ -127,87 +127,32 @@ pre-capture model relationship is not graph IR, graph membership, or graph-local
 
 Device storage belongs to runtime/backend layers, not model.
 
-### Numerical profiles
+### Profile-free numerical semantics
 
-Model is the sole semantic owner of graph numerical profiles and the allowed-result set for every
-operation under each profile. The profile names in this contract establish semantic identities;
-they do not by themselves add a Java enum, configuration API, backend capability, runtime policy,
-native schema, cache codec, or trace field.
+<a id="numerical-profiles"></a>
 
-`STRICT_IEEE` means the exact current per-operation Model contract. It preserves every existing
-family-specific rounding, approximation, NaN-payload, signed-zero, accumulation, reassociation,
-and fused-multiply-add promise or freedom. The name does not promise universal bitwise identity,
-correct rounding, Java `strictfp`, a fixed instruction sequence, or cross-backend equality beyond
-each operation's existing contract.
+The legacy anchor above preserves links from historical profile-era records. Model
+alone owns each operation family's formula, contributor domain, guards, precision/rounding sites,
+special-value behavior, and allowed results. There is no numerical selector, strict/accelerator
+result-set union, public accuracy envelope, production tolerance registry, or runtime numerical
+certificate. Backend support remains an occurrence-specific provider answer, not a consequence of
+removing a selector.
 
-For unary semantics, the strict baseline is complete for every current kind and every accepted
-`BFLOAT16`, `FLOAT16`, `FLOAT32`, and `FLOAT64` input. Let `F` denote one of those formats, let
-`RN_F(z)` round the exact real `z` once to `F` using round-to-nearest, ties-to-even with gradual
-underflow, and let `q_F(f,x) = RN_F(f(real(x)))`. Overflow produces the correctly signed infinity.
-No denormals-are-zero (DAZ), flush-to-zero (FTZ), reduced precision, reciprocal estimate,
-unlisted reassociation, or contraction applies.
+#### Family formulas and unary sites
 
-Finite accuracy uses an ordered-representation distance where stated. For an unsigned raw
-`BFLOAT16` or `FLOAT16` word `b`, `key16(b)` is unsigned `~b` when its sign bit is set and unsigned
-`b ^ 0x8000` otherwise. `key32` and `key64` apply the same transform with their respective sign
-bits and word widths. `distance_F(a,b)` is the mathematical absolute difference between the two
-unsigned keys. Thus identical references have distance zero and negative zero and positive zero
-are adjacent. Every bound below is inclusive.
-
-For a distance-bounded primitive, a zero or infinity reference requires that exact signed result.
-A finite nonzero reference requires a finite same-sign result within the stated distance; a
-subnormal reference may not become zero. The result also remains inside the mathematical range:
-`EXP` is nonnegative, `SQRT` is nonnegative, and `TANH` is in `[-1,1]`. These class, sign, range,
-overflow, underflow, and domain requirements are independent of distance.
-
-The Model-owned strict primitive result sets are:
-
-| Kinds | Exact mathematical reference and strict result rule |
-|---|---|
-| `ABS`, `NEG` | Exact represented sign clearing or sign inversion respectively. |
-| `RECIPROCAL` | Exactly `RN_F(1 / real(x))`; this is one `F` division site, not an estimate. |
-| `FLOOR`, `CEIL` | The exact represented greatest integer not above, or least integer not below, the input respectively. |
-| `SIGN` | Exact same-format `-1`, signed zero, or `+1` according to the represented input sign and zero class. |
-| `RELU` | Exact family-extrema `max(x,+0)`. |
-| `LOG` | `q_F(ln,x)`, with `distance_F <= 2`. |
-| `LOG1P` | `q_F(x -> ln(1+x),x)`, with `distance_F <= 2`; the real addition is part of the mathematical reference and is not rounded first. |
-| `EXP` | `q_F(exp,x)`, with `distance_F <= 2`. |
-| `EXPM1` | `q_F(x -> exp(x)-1,x)`, with `distance_F <= 2`; the real subtraction is not rounded separately. |
-| `SQRT` | `q_F(sqrt,x)`, with `distance_F <= 1`. |
-| `TANH` | `q_F(tanh,x)`, with `distance_F <= 5`. |
-
-`ERF` has exact real reference
-`erf(x) = 2/sqrt(pi) * integral from 0 to x of exp(-t*t) dt`. For a finite nonzero input
-its strict result
-`y` is finite, nonzero, same-signed, in `[-1,1]`, and satisfies
-`abs(real(y)-erf(real(x))) <= max(A_F, R_F*abs(erf(real(x))))`, with inclusive constants:
-
-| Format `F` | `A_F` | `R_F` |
-|---|---:|---:|
-| `BFLOAT16` | `2^-7` | `2^-7` |
-| `FLOAT16` | `2^-10` | `2^-10` |
-| `FLOAT32` | `2e-5` | `2e-5` |
-| `FLOAT64` | `2e-7` | `2e-7` |
-
-All remaining first-class unary functions are Model-owned recursive result sets, not aliases and
-not backend-algorithm identities. A strict realization format `E` is either the native `F`, or
-one wider format (`BFLOAT16 -> FLOAT32`, `FLOAT16 -> FLOAT32`, or `FLOAT32 -> FLOAT64`);
-`FLOAT64` has only its native realization. The represented input injects exactly into `E`. Each
-named real constant is rounded once by `RN_E` before first use; every named negation, addition, multiplication, and division is
-one `RN_E` site; every elementary call chooses a result from the strict primitive set above for
-`E`. Evaluation follows the listed data dependencies with no reassociation or fused operation,
-then rounds the final value once by `RN_F`. The strict result is the union over those Model-owned
-native and one-wider realizations:
-
-| Kind | Recursive sites, in dependency order |
-|---|---|
-| `RSQRT` | `s in SQRT_E(x)`; `y = RN_E(1 / s)`. |
-| `SIGMOID`, `x >= 0` | `n = RN_E(-x)`; `e in EXP_E(n)`; `d = RN_E(1+e)`; `y = RN_E(1/d)`. |
-| `SIGMOID`, `x < 0` | `e in EXP_E(x)`; `d = RN_E(1+e)`; `y = RN_E(e/d)`. |
-| `GELU` | `m = RN_E(0.5*x)`; `s in SQRT_E(2)`; `u = RN_E(x/s)`; `e in ERF_E(u)`; `v = RN_E(1+e)`; `y = RN_E(m*v)`. |
-| `GELU_TANH_APPROXIMATION` | `x2 = RN_E(x*x)`; `x3 = RN_E(x2*x)`; `c = RN_E(0.044715*x3)`; `u = RN_E(x+c)`; `r = RN_E(2/pi)`; `s in SQRT_E(r)`; `v = RN_E(s*u)`; `h in TANH_E(v)`; `j = RN_E(1+h)`; `m = RN_E(0.5*x)`; `y = RN_E(m*j)`. |
-| `SILU`, `x >= 0` | `n = RN_E(-x)`; `e in EXP_E(n)`; `d = RN_E(1+e)`; `y = RN_E(x/d)`. |
-| `SILU`, `x < 0` | `e in EXP_E(x)`; `p = RN_E(x*e)`; `d = RN_E(1+e)`; `y = RN_E(p/d)`. |
+Every current unary kind retains its formula for each accepted BFLOAT16, FLOAT16, FLOAT32, and
+FLOAT64 type. ABS and NEG perform exact represented sign clearing/inversion. SIGN, FLOOR, CEIL,
+and RELU retain their exact represented-value family rules. Those six sites never use arithmetic
+DAZ/FTZ. RECIPROCAL is one division at the declared working dtype, not an implicit reciprocal
+estimate. LOG, LOG1P, EXP, EXPM1, ERF, SQRT, and TANH retain their mathematical function, domain,
+range, class, and sign rules. LOG1P refers to the real `ln(1+x)` and EXPM1 to real `exp(x)-1`;
+their reference additions/subtractions are not separately rounded primitive sites. ERF retains
+`erf(x) = 2/sqrt(pi) * integral from 0 to x of exp(-t*t) dt` as its mathematical reference.
+RSQRT and the activation composites retain the named-site dependency formulas below; none is
+one blanket approximate output. A named real constant is rounded before first use as the family
+specifies. Finite accuracy is qualified with test-only backend/route/family/dtype/size tolerances
+and an explicit oracle, metric, threshold, and cancellation boundary, not Model-owned
+ordered-distance or forward-error envelopes.
 
 The following top-level domain and special-value results override the ordinary-finite constructions.
 Every listed NaN result must be NaN, but payload, quieting, and sign are unspecified.
@@ -231,22 +176,25 @@ Every listed NaN result must be NaN, but payload, quieting, and sign are unspeci
 | `TANH` | Signed zero is preserved; infinities become same-signed unit values; NaN remains NaN. |
 | `GELU`, `GELU_TANH_APPROXIMATION`, `SILU` | `-infinity` becomes `-0` by continuous extension; signed zero is preserved; `+infinity` remains; NaN remains NaN. |
 
-The bounds are Model decisions supported, not defined, by retained conformance evidence. The
-one-ULP logarithmic/exponential evidence converts to at most two ordered steps at a binade
-boundary; the 2.5-ULP `TANH` evidence converts to at most five; retained square-root qualification
-fits one. The retained direct-reference `ERF` gates supply `2e-5` for `FLOAT32` and `2e-7` for
-`FLOAT64`. For `BFLOAT16`, `2^-7` dominates one ties-to-even BFLOAT16 narrowing plus the retained
-FLOAT32 `ERF` error, while the distance bounds admit a conforming wider-format evaluation after one
-final narrowing. Current CPU routes are members because native FLOAT64, native FLOAT32, and
-one-wider FLOAT32 evaluation all use the same mathematical references and site graph; no CPU,
-library, or coefficient table is semantic authority.
+#### Arithmetic-site DAZ/FTZ
 
-`ACCELERATOR` is an opt-in superset of the complete `STRICT_IEEE` allowed-result set. A backend may
-always produce a strict result. `FLOAT32` uses the three recursive floors below. Homogeneous
-BFLOAT16/FLOAT16 occurrences admitted under ACCELERATOR use the separate low-precision contract
-below; exact-valid low occurrences may also remain profile-common. For one operation occurrence
-and descriptor domain, strict capability and behavior must remain subsets of accelerator
-capability and behavior.
+Denormals-are-zero (DAZ) may read a subnormal named floating arithmetic primitive input as
+same-signed zero without changing its stored bits. Flush-to-zero (FTZ) may map a finite subnormal
+named primitive result to zero subject to the existing family-specific signed-zero rule; it
+grants no universal choice of zero sign.
+
+| Primitive-site dtype | Input DAZ | Result FTZ |
+|---|---|---|
+| FLOAT32 | Permitted | Permitted |
+| BFLOAT16 | Permitted, including multiplication | Permitted, including multiplication |
+| FLOAT16 | Permitted, including multiplication | Permitted, including multiplication |
+| FLOAT64 | Forbidden | Forbidden |
+
+This permission does not attach to an operation output merely because it is floating. Neither
+applies at stored comparison, extrema/winner selection, raw movement, cast, selection, index,
+mask, state, or exact unary ABS/NEG/SIGN/FLOOR/CEIL/RELU sites. Composite formulas and
+Compiler-generated gradients inherit only their named arithmetic sites' permissions. NaN class,
+infinity, overflow, domain, and exact guard rules are not finite-tolerance decisions.
 
 #### Exact and discrete floor
 
@@ -254,52 +202,36 @@ Kind and attributes, input/output arity and descriptors, Shape/layout/axis mappi
 membership, masks, indices, graph-RNG state transitions, traversal, casts, conversions, ordering,
 stability, ties, empty-domain behavior, identities, divisors, and publication remain exact. A
 selected stored value is one original candidate representation. Predicates gain no epsilon, and
-approximation cannot choose an index, mask, winner, ordering, or state transition. A floating
-comparison may compare DAZ-normalized operands, and an extrema operation may treat DAZ-normalized
-values as tied; its existing NaN and signed-zero rules still apply and a selected result remains an
-original candidate. Movement, copying, `CONTIGUOUS`, `WHERE`, classification, Boolean logic,
-casts, indexing, ordering, arg-extrema, RNG state/masks, and max-pooling selection otherwise gain
-no arithmetic relaxation from adjacent work.
+approximation cannot choose an index, mask, winner, ordering, or state transition. Floating
+comparisons and extrema observe stored numeric values, including represented subnormals; they
+retain family NaN, opposite-signed-zero, tie, winner, and index rules. A selected result remains
+an original candidate. For example, positive minimum subnormal compares greater than +0 and
+remains the MAX winner; MIN selects +0. WHERE makes an exact Boolean branch choice, then applies
+the declared cast if promotion requires one; same-type selection preserves the chosen bits.
+Movement, copying,
+CONTIGUOUS, classification, Boolean logic, casts, indexing, ordering, arg-extrema, RNG
+state/masks, and max-pooling selection gain no arithmetic relaxation from adjacent work.
 
-#### Primitive `FLOAT32` floor
+#### Floating arithmetic primitives
 
-At each arithmetic primitive site named by the operation's Model formula, a subnormal operand may
-be read as same-signed zero (denormals-are-zero, DAZ), and a finite subnormal site result may become
-either signed zero (flush-to-zero, FTZ). These choices do not rewrite a stored input or another
-observable value. Basic `ADD`, `SUB`, `MUL`, and `DIV` still perform one `FLOAT32`
-round-to-nearest-even operation. A multiply and corresponding add with no Model-observable
-intermediate may use one `FLOAT32` fused multiply-add; contraction never crosses graph nodes.
-
-Only an irreducible elementary-function site — `POW`, `LOG`, `LOG1P`, `EXP`, `EXPM1`, `ERF`,
-`SQRT`, or `TANH` — receives an elementary allowance. Let `r` be the correctly rounded exact
-binary32 result after DAZ and before FTZ, and let `a` be the site's result. For an ordinary finite
-non-subnormal `r`, the ordered-representation distance defined above must satisfy
-`distance(a,r) <= 5`; the ceiling is inclusive. A subnormal `r` is either exact or FTZ.
-
-An ordered-representation distance ceiling of five is conservative, not “five ULP” and not a
-claim of an observed or globally minimal error. Java's scalar and Vector `TANH` operations carry
-the equivalent Java method's at-most-2.5-ULP exact-result contract; FLOAT32 lanes use the specified
-widen-to-binary64, evaluate, narrow-to-binary32 adaptation. At a power-of-two binade boundary the
-spacing on the smaller side is half the Java ULP at the boundary, so 2.5 Java ULP can span an
-ordered distance of five adjacent-representation steps; away from that boundary the distance is
-at most four. The Java one-ULP logarithmic/exponential contract converts to ordered distance at
-most two, and
-retained Metal `EXP`/`SIGMOID` observations are also within two, so they do not raise the uniform
-ceiling. No claim that five is minimal is made.
-
-Domain and special classes remain formula-derived. NaN cannot become ordinary. An ordinary finite
-result cannot become NaN or infinity except through genuine overflow or a domain path after DAZ.
-Required infinity and zero signs remain intact except for explicit DAZ/FTZ, the established
-extrema tie rule, or an operation's existing final exact-zero publication freedom. Distance never
-substitutes for those class and sign checks.
+Each named ADD, SUB, MUL, and DIV site uses the family's declared working dtype and rounding.
+A corresponding multiply/add may fuse only without a Model-observable intermediate; no
+cross-node contraction is authorized. Elementary POW, LOG, LOG1P, EXP, EXPM1, ERF, SQRT, and
+TANH sites retain their named mathematical function and domain/special-value rules. Finite
+ordinary-result accuracy is route-qualified in tests, not bounded by a public ordered-distance
+ceiling. An ordinary finite result cannot become NaN or infinity except through genuine
+overflow or a domain path after a permitted DAZ choice. Required infinity and zero signs remain
+intact except at approved arithmetic DAZ/FTZ sites or under the family's existing final
+exact-zero publication rule. No finite tolerance substitutes for class or sign checks.
 
 #### Aggregate floor
 
 After exact mapping, masking, padding, bounds, and selection determine one logical cell, every
-declared contributor participates exactly once. `FLOAT32` evaluation may choose any binary tree,
-reassociate, round each arithmetic step to `FLOAT32`, use the primitive DAZ/FTZ rules, and fuse
-only a corresponding multiply/add. Exact empty/point identities and mandatory divisors remain.
-No evaluation may drop, duplicate, invent, pretruncate, or replace a term.
+declared contributor participates exactly once. Floating evaluation may choose a rounded binary
+tree, use the permitted arithmetic-site DAZ/FTZ rules, and fuse only a corresponding multiply/add
+without an observable intermediate. FLOAT32 sites round to FLOAT32; homogeneous low sites work
+and accumulate in FLOAT32 with one final low narrowing. Exact empty/point identities and mandatory
+divisors remain. No evaluation may drop, duplicate, invent, pretruncate, or replace a term.
 
 This floor applies recursively to ordinary and masked reductions, sum-to-Shape, scans,
 overlap/scatter reductions, statistics and norms, loss reductions, matrix/convolution/attention/
@@ -308,14 +240,20 @@ floor. The established final exact-zero publication freedoms for qualifying SUM,
 SUM-to-Shape, and nonempty MATMUL results remain part of their Model formulas; they do not grant
 intermediate or neighboring-operation sign freedom.
 
+For floating scatter MUL, the base and every addressed update contribute exactly once, but a
+rounded multiplication tree may differ from a once-rounded exact abstract product: an
+overflow-first `maxFinite * 2 * +0` may produce NaN. A NaN factor or a zero/infinity pair still
+requires NaN class. Integral fixed-width modular MUL, exact target mapping, and raw unaddressed
+cells remain unchanged.
+
 #### Composite inheritance
 
 Normalization, activation, loss, attention, pooling, convolution, random/dropout, recurrent,
 visible convenience composition, and Compiler-generated gradient formulas receive no separate
 error envelope. Their exact guards run first, and their authoritative Model formulas recurse
-through the exact/discrete, primitive, and aggregate floors. Saved outputs, statistics, masks, and
-indices are exact stored values. An opaque vendor selector is eligible only when its complete
-output set is proved to be a subset of this recursive set.
+through the exact/discrete, primitive, and aggregate sites. Saved outputs, statistics, masks, and
+indices are exact stored values. Opaque routes require the same occurrence-scoped exact, special,
+and finite test qualification as explicit routes; no operation name or sample grants support.
 
 The recursive sites for every current first-class composite formula are closed as follows. An
 exact typed attribute or stored input is an exact leaf. A formula-named real constant is rounded
@@ -324,22 +262,23 @@ once to nearest-even `FLOAT32` before its first use and is not an approximation 
 | Formula family | Complete recursive sites |
 |---|---|
 | Unary composites | `RSQRT` is `SQRT` then typed `+1 / root`. `SIGMOID` first applies its exact sign guard; the nonnegative branch has negation, `EXP`, typed-one addition, and division, while the negative branch has `EXP`, typed-one addition, and division. Exact GELU has typed `0.5`, `1`, and `2`, `SQRT(2)`, `x / sqrt(2)`, `ERF`, addition, and two multiplications. Tanh GELU has typed `0.5`, `1`, `2`, `pi`, and `0.044715`, `x*x`, `x^2*x`, `2/pi`, `SQRT`, the inner multiply/adds, `TANH`, and the outer add/multiplies. SiLU uses the exact sign guard and the corresponding sigmoid branch plus the final multiplication; equivalently its nonnegative branch is `x/(1+EXP(-x))` and its negative branch is `x*EXP(x)/(1+EXP(x))`. None of `RSQRT`, `SIGMOID`, GELU, tanh GELU, or SiLU is one elementary site. |
-| Aggregate/statistical composites | `MEAN` is an all-terms-once sum then mandatory count division. `VARIANCE` is mean, one subtraction and `x*x` per contributor, aggregate sum, then `N-correction` division; standard deviation adds `SQRT`. L1 norm applies `ABS` then sum. L2 norm applies `x*x`, sum, then `SQRT`. `LOG_SUM_EXP` applies `EXP` once per contributor, aggregate sum, then `LOG`; a stable replacement is valid only by complete-subset proof. Cumulative and overlap/scatter arithmetic use their declared per-contributor operation and aggregate tree. |
+| Aggregate/statistical composites | `MEAN` is an all-terms-once sum then mandatory count division. `VARIANCE` is mean, one subtraction and `x*x` per contributor, aggregate sum, then `N-correction` division; standard deviation adds `SQRT`. L1 norm applies `ABS` then sum. L2 norm applies `x*x`, sum, then `SQRT`. `LOG_SUM_EXP` applies `EXP` once per contributor, aggregate sum, then `LOG`; a stable replacement must preserve guards, special values, and family formula under route qualification. Cumulative and overlap/scatter arithmetic use their declared per-contributor operation and aggregate tree. |
 | Softmax and normalization | Literal softmax applies `EXP` per slice value, aggregate sum, then division per output; literal log-softmax applies the same `EXP`/sum, then `LOG` and output subtraction. Layer norm uses sum/count mean, per-value subtraction and `x*x`, sum/count variance, epsilon addition, `SQRT`, division, and optional scale multiply/bias add. RMS norm uses `x*x`, sum/count, epsilon addition, `SQRT`, division, and optional scale multiply. BatchNorm inference uses subtraction, variance/epsilon addition, `SQRT`, division, scale multiply, and bias add. Training additionally uses sum/count mean, centered `x*x` sums with the exact `N` and `N-1` divisors, epsilon addition, `SQRT`, typed-one division, and the fixed multiply/add running-statistic transitions. |
 | Losses | MSE uses one subtraction and `delta*delta` per position, then its exact reduction and optional divisor. Categorical cross-entropy uses exact max selection, score-minus-max subtraction, `EXP`, class sum, `LOG`, max addition, logit subtraction, exact zero-target/ignore guards, target multiplication where declared, loss sum, negation, and optional reduction divisor. |
 | Linear, convolution, pooling, and attention | MATMUL and Conv2d/Conv3d use one multiply per exact mapped pair and an all-terms-once contraction; Conv2d/Conv3d then apply their optional bias addition, while visible linear/Conv1d composition adds only its documented bias or rank edits. Average Pool2d/Pool3d sums every declared kernel position then divides by the exact fixed divisor; max pooling is exact winner selection. Attention scores use query/key multiply-contractions and scale multiplication; an absent scale uses exact positive embedding extent conversion, `SQRT`, and typed-one division. Exact mask/causal guards precede the literal softmax sites above, and output rows use value-weight multiply-contractions. |
 | Random and recurrent | A kept dropout value uses typed-one-minus-probability, typed-one division, then input multiplication; the draw, mask, dropped positive zero, and state transition are exact. RNN uses two multiply-contractions, optional bias addition, addition, and `TANH`. GRU uses the documented packed contractions/bias adds, gate additions and sigmoid branches, reset multiplication, candidate `TANH`, `h-n`, update multiplication, and final addition. LSTM uses its packed contractions/bias adds, gate additions and sigmoid/tanh branches, cell multiplications/addition, final `TANH`, and hidden multiplication. Traversal, valid-length guards, skipped work, outputs, and state publication remain exact. |
 
+Guarded attention's no-eligible, all-negative-infinity, and positive-infinity-tie cases retain
+their family-specific results rather than inheriting literal softmax's result by approximation.
+
 Visible convenience compositions recurse through the actual public Tensor operations they create.
 Compiler-generated gradients likewise recurse through every captured arithmetic, elementary,
-aggregate, comparison, `WHERE`, cast, layout, index, and saved-value site. For the current
-`ACCELERATOR FLOAT32` recursive floors, a first-class or opaque selector may use another internal
-algorithm only after its complete output set, for the complete descriptor domain, is proved to be
-a subset of the results generated by the current ledger and three floors; a passing sample,
-operation name, or final-output tolerance is insufficient. The active low-precision contract below
-instead uses its public cancellation- and size-aware family envelope.
+aggregate, comparison, `WHERE`, cast, layout, index, and saved-value site. Another internal
+algorithm must retain exact guards, contributor domain, observable boundaries, and special-value
+rules and pass route-specific finite qualification. A passing sample or tolerance cannot license
+an algebraic rewrite, omitted contributor, or new provider capability.
 
-#### Model low-precision contract and active ACCELERATOR extension
+#### Model low-precision contract
 
 The Model-level `FLOAT16` type and its value, promotion, cast, and factory semantics are active.
 CPU and Metal backend wire/schema/identity/provider/route/runtime support is active for the
@@ -358,9 +297,9 @@ outputs, and saved values remain exact. Casts retain their declared conversion. 
 arithmetic output performs one final round-to-nearest, ties-to-even narrowing; no implementation
 may pre-narrow an input, contributor, accumulator, public value, or saved value.
 
-Every admitted family has a complete custom implementation whose low arithmetic uses `FLOAT32`
-working and accumulator values. Its Model contract declares the permitted low-input DAZ,
-low-result FTZ, and arithmetic exact-zero sign choices. Arithmetic NaN must retain NaN class and
+Every admitted family must have a qualified implementation whose low arithmetic uses `FLOAT32`
+working and accumulator values and the arithmetic-site DAZ/FTZ table above. Its Model contract
+retains family-specific arithmetic exact-zero sign choices. Arithmetic NaN must retain NaN class and
 the Model formula's domain behavior, but its payload and sign are not accuracy requirements. These
 freedoms never affect a predicate, index, mask, selection, state transition, raw copy, or cast.
 
@@ -368,15 +307,15 @@ Within one operation, arithmetic may reassociate and use corresponding `FLOAT32`
 cross only a semantically unobservable intermediate with exactly one consumer. It may never cross
 a public output, saved value, fan-out, predicate, index, mask, selection, or state boundary.
 
-Model owns a public accuracy envelope for each admitted low-precision family. It fixes the exact
-domain and special-class rules, reference result, accumulator/final narrowing, and a forward-error
-bound whose scale depends explicitly on family size and cancellation sensitivity. It is not a
-generic absolute/relative `allclose` tolerance. Every implementation must satisfy that envelope;
-an operation name, vendor claim, passing examples, or `allclose` sample alone is insufficient.
+Finite accuracy qualification belongs only in tests with explicit family/dtype/backend/route/size
+oracles, metrics, thresholds, and cancellation boundaries. NaN/infinity, signed zero, subnormal/
+underflow, domain and exact cases have separate conformance checks. Model owns no public forward-
+error envelope; tests do not become production policy.
 
-Activation is occurrence- and backend-specific. A row is capable only when it maps to a supported
-frozen `ACCELERATOR FLOAT32` occurrence for that backend, while every frozen unsupported row
-remains excluded. Provider capability and target mapping remain separate from route,
+Activation is occurrence- and backend-specific. Project actual current ACCELERATOR true and false
+CPU/Metal provider answers to profile-free occurrence keys; independently query low types and
+retain negative predicates. No answer is inferred from semantic reach or another dtype. Provider
+capability and any architecture target mapping remain separate from route,
 runtime/device, and generated-backward facts.
 
 Metal realizes every admitted BFLOAT16/FLOAT16 occurrence through its fixed custom program.
@@ -387,22 +326,19 @@ contract and
 and append-only allocations originated in
 [ADR 0023](../../design/decisions/0023-low-precision-accelerator-parity.md).
 
-For the current `FLOAT32` recursive floors, neither profile permits reciprocal substitution,
+No family permits unguarded reciprocal substitution,
 algebraic identities absent from the Model formula, cross-node contraction, term loss, hidden
 state changes, or tolerance-based predicate/selection changes. In particular,
 `maxFinite / maxFinite -> 0`, `+infinity / maxFinite -> NaN`, `RELU(NaN) -> +0`, and
-`TANH(NaN) -> +1` remain invalid. The low-precision extension does not weaken its exact discrete
-boundaries, but its bounded transformed algorithms and observable-single-use fusion are governed
-by its public per-family envelope instead of the literal `FLOAT32` tree rule.
+`TANH(NaN) -> +1` remain invalid. Low-precision transformed algorithms and observable-single-use
+fusion remain subject to the same exact/special boundaries and route qualification.
 
-The selected profile is graph-wide and cold. Model defines its result sets. A later Config change
-may own only the immutable declarative selector, without semantic or route logic. Planning may
-later ask profile-qualified capability questions but must not reinterpret a result set. Later
-concrete-backend preparation may realize any result allowed by the selected profile and must fail
-closed when it cannot; shared Prepare transports the selection without owning numerical meaning.
-The selection must participate in backend route, specialization, generated-artifact, and tuning-
-cache identity before relaxed capability is advertised. Runtime and Trace remain profile-free
-unless a later coordinated architecture update explicitly changes their contracts.
+Model defines the single allowed-result contract. Config, Planning, Compiler, Prepare, Engine,
+Runtime, Trace, and backends do not transport a replacement numerical selector. Planning queries
+actual backend occurrence capability without interpreting numerical semantics. Backend preparation
+must fail closed if its route is unqualified. Changed route, generated-artifact, native, and tuning
+identities are append-only and must reject stale serialized or cached input; the implementation
+cutover assigns exact new versions.
 
 ### `modules/config`
 
@@ -486,8 +422,11 @@ Planning must not answer:
 Which concrete kernel, executable, BLAS route, MPSGraph route, or CUDA implementation should run it?
 ```
 
-## Numerical-profile transport
+## Profile-free capability queries
 
-Planning has a public API dependency on Config so each `OperationCapabilityQuery` carries the exact
-non-null graph-wide `NumericalProfile`. Planning treats that value as query identity only; it does
-not define allowed results, select a default, or infer a profile from backend or device facts.
+<a id="numerical-profile-transport"></a>
+
+Profile transport is removed. `OperationCapabilityQuery`
+retains complete operation, attribute, ordered descriptor, and gradient facts, but no numerical
+profile. Its deterministic boolean provider answer cannot be inferred from a family formula,
+another dtype, device sample, or the removed selector.

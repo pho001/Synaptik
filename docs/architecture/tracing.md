@@ -108,18 +108,18 @@ Among the immutable `TracePayload` records in `io.github.pho001.synaptik.trace.p
 backend outcome records are:
 
 - `BackendPreparationOutcome` correlates backend, device, and prepared unit; it carries a final
-  outcome, numerical profile, neutral route kind, cache fact, and optional native status.
+  outcome, neutral route kind, cache fact, and optional native status.
 - `BackendInvocationOutcome` additionally correlates one invocation and carries the same outcome,
-  profile, route, and optional native status, without a cache claim.
+  route, and optional native status, without a cache claim.
 
 `LowPrecisionTraceMetadata` is a separate PREPARE payload for a selected low-precision custom
-route. It reports that route, the ordered boundary-feed-then-target logical dtype names, and the
-selected numerical profile. It has no accumulator or working-type field: FLOAT32 low-arithmetic
+route. It reports that route and the ordered boundary-feed-then-target logical dtype names. It
+has no numerical-profile, accumulator, or working-type field: FLOAT32 low-arithmetic
 working values and accumulators belong to Model semantics, while raw-preserving operations copy
 represented words. It carries no certificate or candidate evidence.
 
-The closed vocabulary is deliberately narrow. Outcomes are `SUCCEEDED` or `FAILED`; profiles are
-`STRICT_IEEE` or `ACCELERATOR`; routes are `CUSTOM_KERNEL` or `GRAPH_EXECUTABLE`; and the only
+The closed vocabulary is deliberately narrow. Outcomes are `SUCCEEDED` or `FAILED`; routes are
+`CUSTOM_KERNEL` or `GRAPH_EXECUTABLE`; and the only
 current cache fact is `NOT_QUERIED`. `NOT_QUERIED` means the producer performed no cache lookup and
 must not be read as a cache miss. Route kinds describe the first producer's stable mechanisms, not
 a universal registry for every backend.
@@ -192,7 +192,7 @@ them.
 
 A producer can wrap `BackendPreparationOutcome` in a `TraceEvent` with phase `PREPARE` after a
 prepared unit is finalized, then wrap each `BackendInvocationOutcome` with phase `RUN`. The shared
-DTOs preserve the prepared-unit and invocation correlations, selected profile and neutral route,
+DTOs preserve the prepared-unit and invocation correlations, selected neutral route,
 and exact native outcome without exposing producer state. Trace itself still emits nothing: the
 producer supplies the event ID, monotonic timestamp, correlations, and event delivery. A single
 string such as `"backend failure"` would lose these typed facts and could incorrectly suggest that
@@ -207,7 +207,7 @@ zero, and `System.nanoTime()` timestamps. The caller owns the `MetalTraceObserve
 be concurrent and Metal never closes it. The existing one-argument `open(configuration)` path
 creates no producer, payload, ID, clock read, or callback.
 
-After Metal fixes a profile and route, it emits one structural `PREPARE` event before native
+After Metal fixes a route, it emits one structural `PREPARE` event before native
 finalization. A low-precision program also emits `LowPrecisionTraceMetadata` before the
 `PREPARE` outcome while tracing remains enabled. Each route-specific
 native invocation emits one bounded invocation-plan `RUN` event before native execution and one

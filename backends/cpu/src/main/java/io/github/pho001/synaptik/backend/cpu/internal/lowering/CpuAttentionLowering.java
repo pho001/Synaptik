@@ -52,7 +52,7 @@ public final class CpuAttentionLowering {
     Map<ValueId, GraphValue> values = new LinkedHashMap<>();
     context.values().forEach(value -> values.put(value.id(), value));
     var query =
-        new OperationCapabilityQuery(context.numericalProfile(), node.operation(), node.inputs().stream().map(id -> require(values, id).descriptor()).toList(), node.outputs().stream().map(id -> require(values, id).descriptor()).toList());
+        new OperationCapabilityQuery(node.operation(), node.inputs().stream().map(id -> require(values, id).descriptor()).toList(), node.outputs().stream().map(id -> require(values, id).descriptor()).toList());
     if (!capabilities.supports(query)
         || node.operation().kind() != ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION
         || !(node.operation().attrs() instanceof ScaledDotProductAttentionAttrs attrs))

@@ -72,11 +72,11 @@
  * that exact Phase-1 state. It authenticates opaque decisions and freshly prepares the selected
  * recipe without execution, measurement, ranking, cache access, or fallback.
  *
- * <p>Capability and preparation realize both {@code STRICT_IEEE} and {@code ACCELERATOR} through
- * the same exact current arithmetic and route policy. The selected numerical profile participates
- * unchanged in partition-plan, generated-artifact, OpenBLAS workload, and both tuning-phase
- * compatibility identities, so work cannot cross profiles. Accelerator selection grants no fast
- * math, reassociation, reduced precision, approximate instruction, DAZ, or FTZ behavior.</p>
+ * <p>Capability and preparation use one profile-free occurrence predicate and retain the existing
+ * scalar, Vector API, generated-kernel, and qualified OpenBLAS routes. Generated artifacts and
+ * tuning decisions bind versioned non-profile operation, type, lowering, target, and resource
+ * facts. Named floating arithmetic sites follow Model's dtype-specific DAZ/FTZ permissions;
+ * stored comparison, extrema, casts, and raw movement do not inherit those permissions.</p>
  *
  * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-
  * partition lowering, code generation, storage, and execution. No type in that namespace is a

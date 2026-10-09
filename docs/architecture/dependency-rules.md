@@ -184,8 +184,10 @@ Tests under `testing/architecture-tests/` should fail when forbidden module or p
 
 Architecture tests enforce the contract; they do not redefine it. When a dependency rule changes, update [`ARCHITECTURE.md`](../../ARCHITECTURE.md), the relevant explanatory document, an ADR when significant, and the architecture tests in the same change.
 
-## Numerical-profile dependency direction
+## Numerical-semantics dependency direction
 
-Config owns the identity, so Planning may depend on Config to put `NumericalProfile` in capability
-queries. Compiler, Prepare, Engine, CPU, and Metal may transport or realize it. Model remains the
-semantic authority, and Runtime and Trace remain profile-free.
+Model owns the one family/dtype numerical contract. Planning queries occurrence-specific provider
+capability without a graph-wide numerical selector; Compiler keeps guarded transformation
+legality, and concrete backends qualify their routes. Config, Prepare, Engine, Runtime, and Trace
+carry no numerical-profile identity or production tolerance policy. This preserves the same
+dependency direction without making Config a semantics owner.

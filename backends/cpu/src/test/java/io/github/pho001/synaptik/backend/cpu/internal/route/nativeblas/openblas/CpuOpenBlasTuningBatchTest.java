@@ -59,54 +59,30 @@ final class CpuOpenBlasTuningBatchTest {
                 () -> assertSame(decision, selected.selectedDecision().orElseThrow()));
     }
 
-    @Test void qualifiedMatmulRetainsProfileInCurrentSeparatedOpenBlasIdentity() {
+    @Test void qualifiedMatmulRetainsDeterministicProfileFreeOpenBlasIdentity() {
         var inputs = CpuOpenBlasRouteSelectorTest.maskInputs(DataType.FLOAT32, false, false,
                 false, 1, CpuOpenBlasRouteSelectorTest.defaultConfig());
         var strictContext = CpuOpenBlasRouteSelectorTest.context(
                 DataType.FLOAT32, dense(Shape.of(2, 3)), dense(Shape.of(3, 4)),
                 dense(Shape.of(2, 4)), inputs);
-        var acceleratorContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
-                io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR,
-                strictContext.partitionDag(), strictContext.values(),
-                strictContext.memoryRequirements(), strictContext.constants(),
-                strictContext.backendInputs());
         var preparer = new CpuPartitionPreparer();
-        CpuPartitionPreparationPlan strict = preparer.analyze(strictContext).plan();
-        CpuPartitionPreparationPlan accelerator = preparer.analyze(acceleratorContext).plan();
-        CpuOpenBlasTuningBatch strictBatch = strict.openBlasTuningBatch().orElseThrow();
-        CpuOpenBlasTuningBatch acceleratorBatch =
-                accelerator.openBlasTuningBatch().orElseThrow();
-        var projected = with(strictBatch.workload(), "numericalProfile",
-                io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR);
+        CpuPartitionPreparationPlan first = preparer.analyze(strictContext).plan();
+        CpuPartitionPreparationPlan repeated = preparer.analyze(strictContext).plan();
+        CpuOpenBlasTuningBatch firstBatch = first.openBlasTuningBatch().orElseThrow();
+        CpuOpenBlasTuningBatch repeatedBatch = repeated.openBlasTuningBatch().orElseThrow();
         assertAll(
-                () -> assertEquals(2, CpuOpenBlasTuningBatch.SCHEMA_VERSION),
+                () -> assertEquals(3, CpuOpenBlasTuningBatch.SCHEMA_VERSION),
                 () -> assertEquals(2, CpuOpenBlasTuningBatch.ROUTE_POLICY_VERSION),
-                () -> assertSame(
-                        io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
-                        strict.numericalProfile()),
-                () -> assertSame(
-                        io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR,
-                        accelerator.numericalProfile()),
-                () -> assertSame(
-                        io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
-                        strictBatch.workload().numericalProfile()),
-                () -> assertSame(
-                        io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR,
-                        acceleratorBatch.workload().numericalProfile()),
-                () -> assertEquals(projected, acceleratorBatch.workload()),
-                () -> assertEquals(strictBatch.candidates().stream()
+                () -> assertEquals(firstBatch.workload(), repeatedBatch.workload()),
+                () -> assertEquals(firstBatch.candidates().stream()
                                 .map(CpuOpenBlasTuningBatch.Candidate::route).toList(),
-                        acceleratorBatch.candidates().stream()
+                        repeatedBatch.candidates().stream()
                                 .map(CpuOpenBlasTuningBatch.Candidate::route).toList()),
-                () -> assertNotEquals(strictBatch.candidates(), acceleratorBatch.candidates()),
-                () -> assertEquals(strict.route(), accelerator.route()),
-                () -> assertEquals(strict.openBlasPlan().orElseThrow().representation(),
-                        accelerator.openBlasPlan().orElseThrow().representation()),
-                () -> assertEquals(strict.openBlasPlan().orElseThrow().threadCount(),
-                        accelerator.openBlasPlan().orElseThrow().threadCount()),
-                () -> assertEquals(strict.openBlasPlan().orElseThrow().openBlasCost(),
-                        accelerator.openBlasPlan().orElseThrow().openBlasCost()),
-                () -> assertNotEquals(strictBatch.workload(), acceleratorBatch.workload()));
+                () -> assertEquals(firstBatch.candidates().stream()
+                                .map(CpuOpenBlasTuningBatch.Candidate::identity).toList(),
+                        repeatedBatch.candidates().stream()
+                                .map(CpuOpenBlasTuningBatch.Candidate::identity).toList()),
+                () -> assertEquals(first.route(), repeated.route()));
     }
 
     @Test void emitsPortableThenEveryRepresentationAndFittingThreadInStableOrder() {
@@ -289,7 +265,7 @@ final class CpuOpenBlasTuningBatchTest {
 
         assertRecordComponents(CpuOpenBlasTuningBatch.WorkloadSignature.class,
                 "operationKind", "operationAttributes", "leftType", "rightType",
-                "accumulationType", "outputType", "boundaries", "numericalProfile",
+                "accumulationType", "outputType", "boundaries",
                 "determinismMode", "qualification", "hardware", "cpuConcurrencyCapacity",
                 "portableExecution", "portableStrategy", "portableRangeCount",
                 "portableVectorSpeciesBits", "openBlasThreadCounts", "cohort",
@@ -302,20 +278,15 @@ final class CpuOpenBlasTuningBatchTest {
         assertClosedEnum(CpuOpenBlasTuningBatch.OperationKind.values(), "operationKind");
         assertClosedEnum(CpuOpenBlasTuningBatch.OperationAttributes.values(),
                 "operationAttributes");
-        assertSame(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
-                workload.numericalProfile());
-        var acceleratorWorkload = with(workload, "numericalProfile",
-                io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR);
-        assertNotEquals(workload, acceleratorWorkload);
         assertClosedEnum(CpuOpenBlasTuningBatch.DeterminismMode.values(), "determinismMode");
-        for (String component : List.of("operationKind", "operationAttributes", "numericalProfile",
+        for (String component : List.of("operationKind", "operationAttributes",
                 "determinismMode")) {
             assertThrows(NullPointerException.class, () -> with(workload, component, null),
                     component + " rejects null and has no second valid schema value");
         }
         for (String type : List.of("leftType", "rightType", "accumulationType", "outputType")) {
             assertConstructionRejected(workload, type, DataType.FLOAT64,
-                    type + " cannot differ independently because schema 2 requires one exact type");
+                    type + " cannot differ independently because schema 3 requires one exact type");
         }
         assertConstructionRejected(workload, "openBlasThreadCounts", List.of(2),
                 "thread counts cannot differ independently from thread-candidate identities");

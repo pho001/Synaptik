@@ -42,11 +42,6 @@ class BackendOutcomePayloadTest {
                     TraceOutcomeStatus.SUCCEEDED, TraceOutcomeStatus.FAILED
                 });
         assertExactEnum(
-                TraceNumericalProfile.class,
-                new TraceNumericalProfile[] {
-                    TraceNumericalProfile.STRICT_IEEE, TraceNumericalProfile.ACCELERATOR
-                });
-        assertExactEnum(
                 TraceRouteKind.class,
                 new TraceRouteKind[] {
                     TraceRouteKind.CUSTOM_KERNEL, TraceRouteKind.GRAPH_EXECUTABLE
@@ -74,6 +69,12 @@ class BackendOutcomePayloadTest {
     }
 
     @Test
+    void removedNumericalSelectorIsNotAnAvailableTraceType() {
+        assertThrows(ClassNotFoundException.class, () -> Class.forName(
+                "io.github.pho001.synaptik.trace.payload.TraceNumericalProfile"));
+    }
+
+    @Test
     void nativeStatusHasTheExactPublicRecordShape() throws ReflectiveOperationException {
         assertRecordShape(
                 TraceNativeStatus.class,
@@ -92,7 +93,6 @@ class BackendOutcomePayloadTest {
                     "deviceId",
                     "preparedUnitId",
                     "status",
-                    "profile",
                     "route",
                     "cacheStatus",
                     "nativeStatus"
@@ -102,7 +102,6 @@ class BackendOutcomePayloadTest {
                     TraceDeviceId.class,
                     TracePreparedUnitId.class,
                     TraceOutcomeStatus.class,
-                    TraceNumericalProfile.class,
                     TraceRouteKind.class,
                     TraceCacheStatus.class,
                     Optional.class
@@ -116,12 +115,11 @@ class BackendOutcomePayloadTest {
                         "deviceId",
                         "preparedUnitId",
                         "status",
-                        "profile",
                         "route",
                         "cacheStatus",
                         "nativeStatus"));
         assertOptionalNativeStatusComponent(
-                BackendPreparationOutcome.class.getRecordComponents()[7]);
+                BackendPreparationOutcome.class.getRecordComponents()[6]);
     }
 
     @Test
@@ -134,7 +132,6 @@ class BackendOutcomePayloadTest {
                     "preparedUnitId",
                     "invocationId",
                     "status",
-                    "profile",
                     "route",
                     "nativeStatus"
                 },
@@ -144,7 +141,6 @@ class BackendOutcomePayloadTest {
                     TracePreparedUnitId.class,
                     TraceInvocationId.class,
                     TraceOutcomeStatus.class,
-                    TraceNumericalProfile.class,
                     TraceRouteKind.class,
                     Optional.class
                 },
@@ -158,11 +154,10 @@ class BackendOutcomePayloadTest {
                         "preparedUnitId",
                         "invocationId",
                         "status",
-                        "profile",
                         "route",
                         "nativeStatus"));
         assertOptionalNativeStatusComponent(
-                BackendInvocationOutcome.class.getRecordComponents()[7]);
+                BackendInvocationOutcome.class.getRecordComponents()[6]);
     }
 
     @Test
@@ -231,28 +226,18 @@ class BackendOutcomePayloadTest {
     @Test
     void preparationOutcomeChecksNullsInExactComponentOrder() {
         assertNullMessage("backendId", () -> new BackendPreparationOutcome(
-                null, null, null, null, null, null, null, null));
+                null, null, null, null, null, null, null));
         assertNullMessage("deviceId", () -> new BackendPreparationOutcome(
-                BACKEND_ID, null, null, null, null, null, null, null));
+                BACKEND_ID, null, null, null, null, null, null));
         assertNullMessage("preparedUnitId", () -> new BackendPreparationOutcome(
-                BACKEND_ID, DEVICE_ID, null, null, null, null, null, null));
+                BACKEND_ID, DEVICE_ID, null, null, null, null, null));
         assertNullMessage("status", () -> new BackendPreparationOutcome(
-                BACKEND_ID, DEVICE_ID, PREPARED_UNIT_ID, null, null, null, null, null));
-        assertNullMessage("profile", () -> new BackendPreparationOutcome(
-                BACKEND_ID,
-                DEVICE_ID,
-                PREPARED_UNIT_ID,
-                TraceOutcomeStatus.SUCCEEDED,
-                null,
-                null,
-                null,
-                null));
+                BACKEND_ID, DEVICE_ID, PREPARED_UNIT_ID, null, null, null, null));
         assertNullMessage("route", () -> new BackendPreparationOutcome(
                 BACKEND_ID,
                 DEVICE_ID,
                 PREPARED_UNIT_ID,
                 TraceOutcomeStatus.SUCCEEDED,
-                TraceNumericalProfile.STRICT_IEEE,
                 null,
                 null,
                 null));
@@ -261,7 +246,6 @@ class BackendOutcomePayloadTest {
                 DEVICE_ID,
                 PREPARED_UNIT_ID,
                 TraceOutcomeStatus.SUCCEEDED,
-                TraceNumericalProfile.STRICT_IEEE,
                 TraceRouteKind.CUSTOM_KERNEL,
                 null,
                 null));
@@ -270,7 +254,6 @@ class BackendOutcomePayloadTest {
                 DEVICE_ID,
                 PREPARED_UNIT_ID,
                 TraceOutcomeStatus.SUCCEEDED,
-                TraceNumericalProfile.STRICT_IEEE,
                 TraceRouteKind.CUSTOM_KERNEL,
                 TraceCacheStatus.NOT_QUERIED,
                 null));
@@ -279,31 +262,21 @@ class BackendOutcomePayloadTest {
     @Test
     void invocationOutcomeChecksNullsInExactComponentOrder() {
         assertNullMessage("backendId", () -> new BackendInvocationOutcome(
-                null, null, null, null, null, null, null, null));
+                null, null, null, null, null, null, null));
         assertNullMessage("deviceId", () -> new BackendInvocationOutcome(
-                BACKEND_ID, null, null, null, null, null, null, null));
+                BACKEND_ID, null, null, null, null, null, null));
         assertNullMessage("preparedUnitId", () -> new BackendInvocationOutcome(
-                BACKEND_ID, DEVICE_ID, null, null, null, null, null, null));
+                BACKEND_ID, DEVICE_ID, null, null, null, null, null));
         assertNullMessage("invocationId", () -> new BackendInvocationOutcome(
-                BACKEND_ID, DEVICE_ID, PREPARED_UNIT_ID, null, null, null, null, null));
+                BACKEND_ID, DEVICE_ID, PREPARED_UNIT_ID, null, null, null, null));
         assertNullMessage("status", () -> new BackendInvocationOutcome(
-                BACKEND_ID, DEVICE_ID, PREPARED_UNIT_ID, INVOCATION_ID, null, null, null, null));
-        assertNullMessage("profile", () -> new BackendInvocationOutcome(
-                BACKEND_ID,
-                DEVICE_ID,
-                PREPARED_UNIT_ID,
-                INVOCATION_ID,
-                TraceOutcomeStatus.SUCCEEDED,
-                null,
-                null,
-                null));
+                BACKEND_ID, DEVICE_ID, PREPARED_UNIT_ID, INVOCATION_ID, null, null, null));
         assertNullMessage("route", () -> new BackendInvocationOutcome(
                 BACKEND_ID,
                 DEVICE_ID,
                 PREPARED_UNIT_ID,
                 INVOCATION_ID,
                 TraceOutcomeStatus.SUCCEEDED,
-                TraceNumericalProfile.STRICT_IEEE,
                 null,
                 null));
         assertNullMessage("nativeStatus", () -> new BackendInvocationOutcome(
@@ -312,7 +285,6 @@ class BackendOutcomePayloadTest {
                 PREPARED_UNIT_ID,
                 INVOCATION_ID,
                 TraceOutcomeStatus.SUCCEEDED,
-                TraceNumericalProfile.STRICT_IEEE,
                 TraceRouteKind.GRAPH_EXECUTABLE,
                 null));
     }
@@ -373,7 +345,6 @@ class BackendOutcomePayloadTest {
                                 new TraceDeviceId(12L),
                                 new TracePreparedUnitId(13L),
                                 TraceOutcomeStatus.SUCCEEDED,
-                                TraceNumericalProfile.STRICT_IEEE,
                                 TraceRouteKind.CUSTOM_KERNEL,
                                 TraceCacheStatus.NOT_QUERIED,
                                 Optional.of(new TraceNativeStatus(
@@ -390,7 +361,6 @@ class BackendOutcomePayloadTest {
                 DEVICE_ID,
                 PREPARED_UNIT_ID,
                 status,
-                TraceNumericalProfile.STRICT_IEEE,
                 TraceRouteKind.CUSTOM_KERNEL,
                 TraceCacheStatus.NOT_QUERIED,
                 nativeStatus);
@@ -404,7 +374,6 @@ class BackendOutcomePayloadTest {
                 PREPARED_UNIT_ID,
                 INVOCATION_ID,
                 status,
-                TraceNumericalProfile.STRICT_IEEE,
                 TraceRouteKind.CUSTOM_KERNEL,
                 nativeStatus);
     }

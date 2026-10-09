@@ -156,29 +156,17 @@ final class CpuOpenBlasRouteConformanceTest {
         }
     }
 
-    @Test void acceleratorProfileExecutesTheSameQualifiedOpenBlasRouteAndResult() {
-        var strictContext = context(DataType.FLOAT32);
-        var acceleratorContext = new PrepareContext<>(
-                io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR,
-                strictContext.partitionDag(), strictContext.values(),
-                strictContext.memoryRequirements(), strictContext.constants(),
-                strictContext.backendInputs());
-        BackendPartitionAnalysis<CpuPartitionPreparationPlan> strict =
-                new CpuPartitionPreparer().analyze(strictContext);
-        BackendPartitionAnalysis<CpuPartitionPreparationPlan> accelerator =
-                new CpuPartitionPreparer().analyze(acceleratorContext);
+    @Test void profileFreeQualifiedOpenBlasRouteAndResultAreStable() {
+        var context = context(DataType.FLOAT32);
+        BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis =
+                new CpuPartitionPreparer().analyze(context);
         assertAll(
                 () -> assertEquals(CpuPartitionPreparationPlan.Route.OPENBLAS,
-                        accelerator.plan().route()),
-                () -> assertEquals(strict.plan().openBlasPlan(),
-                        accelerator.plan().openBlasPlan()),
-                () -> assertEquals(strict.plan().executionStrategy(),
-                        accelerator.plan().executionStrategy()),
-                () -> assertNotEquals(
-                        strict.plan().openBlasTuningBatch().orElseThrow().workload(),
-                        accelerator.plan().openBlasTuningBatch().orElseThrow().workload()));
+                        analysis.plan().route()),
+                () -> assertTrue(analysis.plan().openBlasPlan().isPresent()),
+                () -> assertTrue(analysis.plan().openBlasTuningBatch().isPresent()));
         var fake = new ComputingInvocation(DataType.FLOAT32);
-        PreparedExecutable executable = finalize(accelerator, fake);
+        PreparedExecutable executable = finalize(analysis, fake);
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment left = arena.allocate(6L * Float.BYTES, Float.BYTES);
             MemorySegment right = arena.allocate(6L * Float.BYTES, Float.BYTES);
@@ -466,7 +454,7 @@ final class CpuOpenBlasRouteConformanceTest {
                         CpuPartitionAnalysisInputs.CostTerms.complete(100, 2, 10),
                         CpuPartitionAnalysisInputs.RepresentationCostTerms.ZERO,
                         java.util.OptionalLong.of(1), java.util.OptionalInt.of(1)));
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), values, memory, Map.of(), inputs);
+        return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(), inputs);
     }
 
     private static TensorDescriptor descriptor(DataType type, Shape shape) {

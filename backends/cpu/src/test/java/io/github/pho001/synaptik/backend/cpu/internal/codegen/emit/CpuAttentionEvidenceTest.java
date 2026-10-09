@@ -107,7 +107,7 @@ class CpuAttentionEvidenceTest {
               CpuAttentionIr attention = attention(mapping, masked, causal, outputs, boundaryTypes);
               var ir = attention.encodedKernelIr();
               var specialization =
-                  new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                  new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
                   boundaryTypes,
                   carriers,
                   0,
@@ -370,7 +370,7 @@ class CpuAttentionEvidenceTest {
     List<DataType> types = boundaryTypes(mapping, masked, outputs);
     CpuAttentionIr attention = attention(mapping, masked, causal, outputs, types);
     var ir = attention.encodedKernelIr();
-    var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1, List.of(),
+    var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1, List.of(),
     true, 57);
     byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(specialization, ir);
     return new Generated(specialization.structuralKey(), specialization, ir, types, bytes);

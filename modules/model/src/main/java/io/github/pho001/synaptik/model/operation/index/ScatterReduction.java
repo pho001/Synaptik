@@ -14,30 +14,28 @@ package io.github.pho001.synaptik.model.operation.index;
  * {@code data[c]}; an implementation must not evaluate an identity operation or otherwise
  * canonicalize that value.</p>
  *
- * <p>For {@link #MUL}, {@link #MIN}, and {@link #MAX}, the abstract result is independent of
- * update encounter order, physical layout, strides, atomic scheduling, tree shape, and backend
- * traversal. This fixes a represented-value target, not an execution algorithm. Data and updates
- * have the same exact type: there is no model-visible promotion, widening, conversion, or
- * saturation. These arithmetic reductions accept floating and signed-integral values and do not
- * accept BOOL.</p>
+ * <p>Target membership is independent of update encounter order, physical layout, strides,
+ * atomic scheduling, and backend traversal. Floating reduction arithmetic may depend on the
+ * rounded evaluation tree; extrema retain their exact winner rules. Data and updates have the
+ * same declared type, with no model-visible promotion or saturation. These reductions accept
+ * floating and signed-integral values, not BOOL.</p>
  *
- * <p>For floating {@code MUL} when {@code U(c)} is non-empty, the exact represented factors are
- * interpreted as one abstract product in the unchanged result format. Any NaN factor produces
- * NaN. A group
- * containing both any zero and any infinity produces NaN. Otherwise, any infinity produces
- * infinity and any zero produces zero; in either case the sign is the parity of all negative
- * factors, including negative zero and negative infinity. A finite non-zero exact product is
- * rounded to the unchanged result format with round-to-nearest, ties-to-even. Finite overflow
- * produces signed infinity; subnormal, underflow, and signed-zero results follow that rounding
- * and the exact product sign. FLOAT32 and FLOAT64 use their represented IEEE-754 values, while
- * BFLOAT16 and FLOAT16 use the values represented by their exact current 16-bit storage and round
- * the final abstract product to the unchanged low format. The contract does not select a NaN payload, sign, signaling
- * behavior, or source. Reassociation and equal-or-wider intermediates are permitted only when
- * they conform to this target and any future conformance tolerance; narrower accumulation,
- * saturation, a fixed factor sequence, payload preservation, and bitwise reproducibility are not
- * promised.</p>
+ * <p>For floating {@code MUL} with nonempty {@code U(c)}, the base and every addressed update
+ * participate exactly once in a rounded multiplication tree. A NaN factor or a zero/infinity
+ * pair requires NaN class. Intermediate overflow can also produce NaN: with factors
+ * {@code maxFinite}, {@code 2}, and {@code +0}, an overflow-first tree can produce NaN while a
+ * different grouping can produce positive zero. NaN payload, sign, and signaling behavior are
+ * unspecified. FLOAT32 multiplication rounds at named FLOAT32 sites; FLOAT64 sites do not permit
+ * denormals-are-zero (DAZ) or flush-to-zero (FTZ). Homogeneous BFLOAT16 and FLOAT16 factors use
+ * FLOAT32 working and accumulator values, then one final round-to-nearest, ties-to-even narrowing
+ * to the declared low output. Named FLOAT32, BFLOAT16, and FLOAT16 multiplication inputs may use
+ * same-signed-zero DAZ and finite subnormal primitive results may use FTZ under the family's
+ * zero-sign rule, including low multiplication. Unaddressed cells retain their original bits.
+ * No factor may be dropped, duplicated, or pre-narrowed; no once-rounded exact-product or bitwise
+ * reproducibility promise applies.</p>
  *
- * <p>When {@code U(c)} is non-empty, floating {@code MIN} and {@code MAX} propagate NaN, with no
+ * <p>When {@code U(c)} is non-empty, floating {@code MIN} and {@code MAX} compare stored
+ * represented values, including subnormals, without DAZ or FTZ. They propagate NaN, with no
  * payload, sign, signaling, source, or bitwise promise. Otherwise they use ordinary numeric order,
  * including infinities. When both zero signs occur, {@code MIN} produces negative zero and
  * {@code MAX} produces positive zero, independently of encounter order. Equal non-zero values
@@ -69,10 +67,10 @@ public enum ScatterReduction {
     ADD,
 
     /**
-     * Produces the order-independent abstract product of the base and all addressed updates.
+     * Combines the base and all addressed updates once in a rounded multiplication tree.
      *
-     * <p>Floating special values, final result-format rounding, and integral modular arithmetic
-     * follow the type-level contract above. An unaddressed target preserves the exact base
+     * <p>Floating special values and intermediate overflow follow the type-level contract above;
+     * integral multiplication is modular. An unaddressed target preserves the exact base
      * representation.</p>
      */
     MUL,

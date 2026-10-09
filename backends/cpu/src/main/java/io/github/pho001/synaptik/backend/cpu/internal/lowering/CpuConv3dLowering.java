@@ -47,7 +47,7 @@ public final class CpuConv3dLowering {
         if (context.nodes().size()!=1) throw new IllegalArgumentException("CPU Conv3d requires exactly one node");
         var node=context.nodes().getFirst();
         Map<ValueId,GraphValue> values=new LinkedHashMap<>(); context.values().forEach(v->values.put(v.id(),v));
-        var query=new OperationCapabilityQuery(context.numericalProfile(), node.operation(), node.inputs().stream().map(id->require(values,id).descriptor()).toList(), node.outputs().stream().map(id->require(values,id).descriptor()).toList());
+        var query=new OperationCapabilityQuery(node.operation(), node.inputs().stream().map(id->require(values,id).descriptor()).toList(), node.outputs().stream().map(id->require(values,id).descriptor()).toList());
         if(!capabilities.supports(query)||node.operation().kind()!=Conv3dKind.CONV3D||!(node.operation().attrs() instanceof Conv3dAttrs attrs))throw new IllegalArgumentException("partition contains an unsupported CPU Conv3d occurrence");
         ValueId outputId=node.outputs().getFirst(); if(node.inputs().contains(outputId))throw new IllegalArgumentException("Conv3d output must be distinct from every input");
         var boundaryIds=new ArrayList<>(node.inputs());boundaryIds.add(outputId);

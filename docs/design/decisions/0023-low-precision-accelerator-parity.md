@@ -2,30 +2,37 @@
 
 ## Status
 
-Accepted — 2026-09-28
+Superseded — 2026-10-08 by [ADR 0026](0026-profile-free-numerical-semantics.md) for the
+profile-indexed low-precision numerical contract, envelope/proof choice, and current-state
+claims. Originally accepted 2026-09-28. Its provider-ledger and append-only identity rationale
+remain historical evidence; the current profile-free ledger and identities are specified by the
+architecture root and incorporated backend contract.
 
-Qualifies the non-`FLOAT32` scope of
+Historically qualified the non-`FLOAT32` scope of
 [ADR 0021](0021-total-recursive-accelerator-numerical-floor.md). ADR 0021 records the rationale
-for its `FLOAT32` recursive floors and existing `STRICT_IEEE` result sets; the current normative
+for its `FLOAT32` recursive floors and existing `STRICT_IEEE` result sets; current normative
 rules are in the [architecture root](../../../ARCHITECTURE.md#core-invariants) and its incorporated
-[Model contract](../../architecture/contracts/foundational-modules.md#modulesmodel).
+[profile-free Model contract](../../architecture/contracts/foundational-modules.md#profile-free-numerical-semantics).
 
-[ADR 0025](0025-custom-only-metal-low-precision.md) supersedes this decision's certificate-schema
+[ADR 0025](0025-custom-only-metal-low-precision.md) superseded this decision's certificate-schema
 and Metal opaque-route qualification provisions. This ADR preserves the historical rationale for
-the Model-owned low-precision result sets, provider ledger, and append-only identity allocation;
+the former Model-owned low-precision result sets, provider ledger, and append-only identity allocation;
 their current obligations are in the architecture root and incorporated
-[Model](../../architecture/contracts/foundational-modules.md#model-low-precision-contract-and-active-accelerator-extension)
+[Model](../../architecture/contracts/foundational-modules.md#model-low-precision-contract)
 and [backend execution](../../architecture/contracts/backend-execution.md#low-precision-capability-evidence)
 contracts.
 
+All "current", future, and inactive-allocation statements below are a snapshot of the P0
+pre-cutover decision, not present capability or an implementation instruction.
+
 ## Context
 
-The public model currently has seven data types. `FLOAT16` is appended at ordinal 6 after `BOOL`
+At the P0 decision, the public model had seven data types. `FLOAT16` was appended at ordinal 6 after `BOOL`
 with Model-owned value, promotion, cast, and factory semantics; it has no active CPU generator or
-Metal wire, schema, identity, route, or executable capability. `ACCELERATOR` currently widens
+Metal wire, schema, identity, route, or executable capability. `ACCELERATOR` then widened
 backend capability and allowed results only for documented `FLOAT32` occurrences. Existing
 `BFLOAT16` occurrences retain their current family-specific behavior, and low-precision backend
-coverage remains unsupported where not explicitly reported. Metal currently uses program schema
+coverage remained unsupported where not explicitly reported. Metal then used program schema
 18, data-type wires 1 through 6, operation wires 1 through 115, attribute wires 0 through 41,
 route wires 1 through 3, backend-local identity version 27, and native ABI 5. The CPU generator
 schema is 67.
@@ -37,8 +44,8 @@ have P0 evidence sources and therefore cannot be invented in this manifest.
 
 ## Decision drivers
 
-- Preserve every current `STRICT_IEEE` result and capability snapshot.
-- Preserve the current `ACCELERATOR FLOAT32` result and capability snapshots.
+- Preserve every then-current `STRICT_IEEE` result and capability snapshot.
+- Preserve the then-current `ACCELERATOR FLOAT32` result and capability snapshots.
 - Preserve append-only `FLOAT16` identity allocation across every durable boundary.
 - Define one Model-owned low-precision arithmetic contract without making backend capability active
   in P0.
@@ -52,6 +59,9 @@ have P0 evidence sources and therefore cannot be invented in this manifest.
 - Reserve append-only backend identity values without activating their later consumers.
 
 ## Decision
+
+The following was the P0 pre-cutover decision, retained as historical evidence rather than
+present numerical authority or an active identity-allocation instruction.
 
 ### P0 freezes evidence; it enables no capability
 
@@ -194,9 +204,9 @@ requires a separate ABI decision.
   observable-single-use fusion. An opaque transformed route may qualify by deductive proof or
   versioned certification against the public cancellation/size-aware family envelope.
 - Determinism evidence remains independent from accuracy evidence.
-- ADR 0021's statement that non-`FLOAT32` behavior remains strict describes the current system and
-  every pre-existing occurrence. This decision owns the only future exception: newly admitted
-  low-precision arithmetic under the contract above.
+- ADR 0021's statement that non-`FLOAT32` behavior remained strict described the P0 system and
+  every occurrence then present. At the time, this decision reserved the future exception for
+  newly admitted low-precision arithmetic; ADR 0026 now governs present numerical semantics.
 
 ## Rejected alternatives
 

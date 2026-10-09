@@ -309,7 +309,7 @@ class CpuCastPerformanceTest {
     private static Prepared prepare(Row row) {
         DataType source = source(row), target = target(row); CpuKernelIr ir = ir(row, source, target);
         List<CpuKernelIr.Value> boundary = ir.values().stream().filter(v -> v.kind()!=CpuKernelIr.Value.Kind.VIRTUAL).toList();
-        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
         boundary.stream().map(CpuKernelIr.Value::dataType).toList(), carriers(row), 0, -1,
         List.of(), false, source == target ? 52 : 60);
         var generator = new CpuClassFileKernelGenerator(); MethodHandle entry;

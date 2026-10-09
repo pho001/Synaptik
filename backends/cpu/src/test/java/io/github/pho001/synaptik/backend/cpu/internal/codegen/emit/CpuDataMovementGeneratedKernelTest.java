@@ -186,7 +186,7 @@ class CpuDataMovementGeneratedKernelTest {
                     () -> assertTrue(opcodeCount(code, Opcode.IINC) >= 2));
         }
         var heap = cases.get(1);
-        var segment = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, heap.partition(), heap.nodes(), heap.values(), heap.memoryRequirements(), heap.constants(), new CpuPartitionAnalysisInputs(false,
+        var segment = new PrepareContext<>(heap.partition(), heap.nodes(), heap.values(), heap.memoryRequirements(), heap.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT)));
         var general = route(segment);
         var generalCode = ClassFile.of().parse(generator.generateClassBytes(
@@ -345,7 +345,7 @@ class CpuDataMovementGeneratedKernelTest {
                         DataType.INT32, Shape.of(1, 9))),
                 CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(1, 4, 3))));
         var generator = new CpuClassFileKernelGenerator();
-        var segmentContext = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, directContext.partition(), directContext.nodes(), directContext.values(), directContext.memoryRequirements(), directContext.constants(), new CpuPartitionAnalysisInputs(false,
+        var segmentContext = new PrepareContext<>(directContext.partition(), directContext.nodes(), directContext.values(), directContext.memoryRequirements(), directContext.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT)));
         var segment = route(segmentContext);
         var doubleType = route(context(new Operation(WindowTransformKind.UNFOLD2D, window),
@@ -651,13 +651,13 @@ class CpuDataMovementGeneratedKernelTest {
             case BOOL -> CarrierAccess.BYTE_ARRAY;
             case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU data movement unsupported");
         };
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+        return new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
         java.util.Collections.nCopies(inputs.size() + 1, carrier)));
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> withCarrierPattern(
             PrepareContext<CpuPartitionAnalysisInputs> base, List<CarrierAccess> pattern) {
-        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, pattern));
+        return new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, pattern));
     }
 
     private static byte[] invoke(PrepareContext<CpuPartitionAnalysisInputs> context,

@@ -6,7 +6,6 @@ import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasQualification;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasTuningBatch;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasTuningDecision;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
@@ -39,7 +38,7 @@ import java.util.UUID;
  * recipes borrow that integration's provider and coordination lifetime and must not outlive it.</p>
  */
 public final class CpuLocalWorkloadTuning {
-    private static final int VALUE_SCHEMA = 2;
+    private static final int VALUE_SCHEMA = 3;
     private static final int DECISION_MAGIC = 0x53435055;
     private static final int MAXIMUM_DECISION_BYTES = 512;
 
@@ -429,7 +428,7 @@ public final class CpuLocalWorkloadTuning {
                     .longValue(boundary.storage().byteAlignment());
             encodeBinding(sink, boundary.access());
         });
-        sink.profile(value.numericalProfile()).tag(value.determinismMode());
+        sink.tag(value.determinismMode());
         encodeQualification(sink, value.qualification());
         var hardware = value.hardware();
         sink.integer(hardware.schemaVersion()).text(hardware.architecture()).text(hardware.vendor())
@@ -642,12 +641,6 @@ public final class CpuLocalWorkloadTuning {
         }
         private CanonicalSink bool(boolean value) { return integer(value ? 1 : 0); }
         private CanonicalSink tag(Enum<?> value) { return integer(value.ordinal() + 1); }
-        private CanonicalSink profile(NumericalProfile profile) {
-            return integer(switch (profile) {
-                case STRICT_IEEE -> 0x53545249;
-                case ACCELERATOR -> 0x41434345;
-            });
-        }
         private CanonicalSink integer(int value) {
             digest.update(ByteBuffer.allocate(4).putInt(value).array());
             return this;

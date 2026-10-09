@@ -31,7 +31,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 
 | Order | Project area | Current status | Entry or next gate |
 |---:|---|---|---|
-| 1 | [`modules/model`](modules/model/master-plan.md) | Complete through 0032A; 0026 and 0032 Draft | [Model 0032A](modules/model/tasks/0032a-stored-subnormal-provider-regressions.md) completed the test-only provider gate; [Model 0032](modules/model/tasks/0032-profile-free-numerical-semantics-reset.md) remains unapproved. |
+| 1 | [`modules/model`](modules/model/master-plan.md) | Complete through 0032; 0026 Draft | [Model 0032](modules/model/tasks/0032-profile-free-numerical-semantics-reset.md) completed the main-worktree profile-free cutover and final review. No Model task is Ready; 0026 is an unselected stale Draft. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | Complete through 0003; 0004–0008 Draft | [Trace 0003](modules/trace/tasks/0003-backend-preparation-and-invocation-diagnostic-dtos.md) completed its JDK-only DTO/ID surface and validation; no Trace task is Ready. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete through 0004 | Reopen only for a concrete shared-contract need. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress, interleaved; 0001–0003, 0006, and 0006A–0006B Complete; 0004–0005 and 0007–0008 Draft | 0006 completed at `314e049` plus `37e9e9db`; no Config task is Ready. |
@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0018 Blocked; 0007A1D Review needed; 0010D1 and 0011 Blocked | [CPU 0018](backends/cpu/tasks/0018-shared-external-read-recognition-validation.md) is partial; independent Class C review found a P2 forged virtual-output/shared-weight boundary position. User must choose authenticated `ValueId` binding or safe nonfused fallback. Separate >8-node decision remains open; no CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | [0073](backends/metal/tasks/0073-custom-only-low-precision-cutover.md) Complete; 0053 Blocked | The custom-only BFLOAT16/FLOAT16 cutover uses ABI 7, schema 19, type wires `1..7`, identity 29, and thirteen exports. Every low-containing partition has one `CUSTOM_PROGRAM` candidate; the certificate/environment/vendor path is removed. Integrated validation and independent Class C rereview passed. The full build required a one-off CPU Test heap override; no publication is claimed. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | [0073](backends/metal/tasks/0073-custom-only-low-precision-cutover.md) Complete; 0053 Blocked | Task 0073's ABI 7/schema 19/identity 29 are historical. Main-worktree Task 0032 uses ABI 7, schema 20/header 124 and identity 30. Every low-containing partition retains one `CUSTOM_PROGRAM` candidate; historical certificates do not certify schema 20, while source/package authentication remains required. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -65,7 +65,7 @@ is `Blocked`, not an authorized implementation frontier. Its P2 requires a user 
   long CPU partitions now execute as bounded local units. No next CPU task is Ready;
   CPU 0007A1D remains independently `Review needed`.
 
-Model numerical profiles
+Model numerical-semantics cutover
 
 [Model 0031](modules/model/tasks/0031-strict-unary-numerical-baseline.md) and
 [Model 0030](modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md) are
@@ -80,11 +80,19 @@ Its focused CPU and verified-package Metal tests passed for current-provider sto
 subnormal behavior. This records provider observations, not a stronger Model rule or semantic
 cutover.
 
-[Model 0032](modules/model/tasks/0032-profile-free-numerical-semantics-reset.md) is `Draft` only.
-It proposes a coordinated Class C profile-free cutover without changing current profile-based
-authority, capability, or code. No interim `ACCELERATOR` rename is planned. No implementation
-frontier is authorized until architecture and evidence gates pass, a stable base and integration
-owner are recorded, and the brief becomes `Ready`.
+[Model 0032](modules/model/tasks/0032-profile-free-numerical-semantics-reset.md) is `Complete`,
+closing the Model numerical-semantics frontier. The user's 2026-10-08 approval permits
+denormals-are-zero at named floating arithmetic primitive inputs and flush-to-zero at named
+primitive results for `FLOAT32`, `BFLOAT16`,
+and `FLOAT16`, including low multiplication; both are forbidden for `FLOAT64`. Exact stored,
+comparison/extrema, cast, raw movement, selection, index/mask/state, and six exact-unary boundaries
+remain outside that permission. The root and owning scoped contracts govern the complete
+main-worktree cutover. The isolated full repository build ran 3,853 total tests with zero failures
+and 39 explained skips; independent Class C review corrected the OpenBLAS ABI-smoke P1 and stale-
+documentation P2. The source-matched main Metal package passed verification and focused device
+tests (7 total, zero failures/skips). [ADR 0026](../design/decisions/0026-profile-free-numerical-semantics.md)
+is Accepted. Git history records publication separately from this validation result. No next
+Model task is Ready; the old `ACCELERATOR` name is only historical provider-baseline vocabulary.
 
 Trace and Metal diagnostics
 
@@ -171,7 +179,11 @@ skips; the two real-Metal public `prepareTuned` cases are included in the integr
 
 `Metal 0049 (Complete) -> Metal 0050 (Complete final program verification)`
 
-Numerical profiles
+Historical numerical-profile implementation record
+
+The task summaries below preserve their at-completion profile, schema, and certificate vocabulary;
+they are not the current Task 0032 contract or schema-20 qualification. Use the active frontier
+above for current status and the root architecture contract for current semantics.
 
 [Model 0030](modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md) is `Complete`
 after remediation `2d95ab71683698753c9ac64d9373fde8301c9404` and strict-baseline remediation
@@ -191,7 +203,7 @@ obligations and remains historical. Task 0053 retained its integer-only candidat
 certificate, but is now Blocked on an unavailable pinned no-axiom constructive-real exponential
 bridge; its checkpoint review granted no `DOMAIN-PASS`. Tasks 0057 and 0058 are Complete without
 Task-0053 scope. Task 0051 reserved no production vocabulary; Task 0052 later
-consumed wires `20..34`, and current schema 19 still registers `EXP=55`/`SIGMOID=64` without making
+consumed wires `20..34`, and the then-current schema 19 registered `EXP=55`/`SIGMOID=64` without making
 them executable or importing their evidence-only candidate source.
 CPU requires no migration because its exact realizations remain valid members of the widened result
 set.
@@ -532,7 +544,15 @@ no production, native, test, or probe changes remain.
 is `Complete` at `42c4cfbf` plus `fb102a46` after the operation-by-operation DAZ/FTZ oracle, focused
 validation, combined serial checkpoint, and independent Class C approval all passed.
 
-Current Metal uses ABI 7, thirteen exports, and one bounded schema-19 route-bearing program image.
+At Task 0073 completion, Metal used ABI 7, thirteen exports, and a bounded schema-19
+route-bearing program image. Main-worktree Task 0032 now uses ABI 7, schema 20 with a 124-byte
+header, and identity 30. Task 0032 is Complete and ADR 0026 Accepted; this is not a claim of
+remote publication. The following profile-bearing details record the historical pre-cutover
+state, not the current schema-20 image.
+
+The retained `low-precision-identity-allocations-v1.tsv` wording is a contemporaneous allocation
+record; the current identity test treats it as historical, not as a schema-20 image.
+
 The common exact domain includes seven-carrier movement, affine, indexing, ordering, selection,
 predicate, cast, replacement, non-overlapping window, maximum-pool, promoted integral MATMUL, and
 raw INITIAL_STATE occurrences. Accelerator additionally admits supported homogeneous
@@ -553,11 +573,11 @@ Admitted generated gradients preserve saved values and close first order plus ow
 non-overlapping maximum-pool backward is active, while overlap accumulation and Conv3d backward
 remain fail-closed.
 
-The active image carries type wires `1..7`, operation wires `1..115`, attribute wires `0..41`,
-route wires `1..3`, the exact numerical-profile wire, complete storage-layout geometry, and the
-custom execution extension/manifest digest. Exactly 101 operation kinds are structurally
+The pre-cutover schema-19 image carried type wires `1..7`, operation wires `1..115`, attribute
+wires `0..41`, route wires `1..3`, the exact numerical-profile wire, complete storage-layout
+geometry, and the custom execution extension/manifest digest. Exactly 101 operation kinds are structurally
 executable and 86 are production-capable. Workload, policy, candidate, compatibility, route, and
-codec identities are version 29; every other identity fails closed. Candidate wires and the
+codec identities were version 29; every other identity failed closed. Candidate wires and the
 complete-plan wrapper remain stable.
 
 P9 closes the low-precision capability ledger without adding an operation kind, attribute, route,
@@ -785,8 +805,9 @@ real-reflection and dispatch-observer evidence, and a separate compiled generate
 Task 0071 adds authenticated accelerator MATMUL/Conv2d anchor-epilogue steps, structural
 PREPARE and planned RUN trace payloads, a Lean order/store/broadcast/DAZ-FTZ proof, compiled AIR
 instruction/site evidence, real-device one-dispatch coverage, and public Engine smoke coverage.
-The current ledger is capability `86/29`, structural `101/14`, schema 19, ABI 7, thirteen exports,
-and identity 29. Every other identity fails closed.
+The Task-0071-era ledger was capability `86/29`, structural `101/14`, schema 19, ABI 7, thirteen
+exports, and identity 29. The main worktree now uses schema 20 with a 124-byte header and identity
+30; historical certificates do not certify that image. Every other identity fails closed.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly

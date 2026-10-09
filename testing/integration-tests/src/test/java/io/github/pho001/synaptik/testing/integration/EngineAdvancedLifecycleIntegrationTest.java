@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
 final class EngineAdvancedLifecycleIntegrationTest {
     @Test
     void compilesPreparesAndRunsOneCpuGraphConcurrently() throws Exception {
-        try (AdvancedEngine engine = AdvancedEngine.takeOwnership(CpuBackendIntegration.open(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE)) {
+        try (AdvancedEngine engine = AdvancedEngine.takeOwnership(CpuBackendIntegration.open())) {
             Shape shape = Shape.of(4);
             var input = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, shape,
                     Optional.of(LayoutDescriptor.contiguous(shape)), false));
@@ -57,7 +57,7 @@ final class EngineAdvancedLifecycleIntegrationTest {
 
     @Test
     void preservesCpuZeroNodePreparationRejection() {
-        try (AdvancedEngine engine = AdvancedEngine.takeOwnership(CpuBackendIntegration.open(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE)) {
+        try (AdvancedEngine engine = AdvancedEngine.takeOwnership(CpuBackendIntegration.open())) {
             Shape shape = Shape.of(1);
             var leaf = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, shape,
                     Optional.of(LayoutDescriptor.contiguous(shape)), false));

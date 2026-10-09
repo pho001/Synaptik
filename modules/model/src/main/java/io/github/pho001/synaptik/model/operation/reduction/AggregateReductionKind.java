@@ -26,20 +26,17 @@ import java.util.List;
  * signatures enforce one input for ordinary, target-Shape, and advanced forms or two ordered
  * inputs for masked forms.</p>
  *
- * <p>Under the Model-owned graph numerical-profile contract, {@code STRICT_IEEE} retains every
- * formula, identity, divisor, tie, and special-value rule above. For {@code ACCELERATOR FLOAT32},
- * exact axes, masks, mappings, contributors, empty/point identities, and mandatory divisors are
- * unchanged. Every selected contributor participates exactly once; arithmetic aggregates may
- * use any binary tree, FLOAT32 rounding at every step, DAZ/FTZ, and only corresponding
- * multiply/add fusion. They may not drop, duplicate, invent, pretruncate, or replace a term.
- * Extrema and arg-extrema preserve exact winner/index policy and return original candidates;
- * Boolean aggregates remain exact. Irreducible exponent/log sites in {@code LOG_SUM_EXP} and
- * square-root sites in standard deviation and L2 norm use the inclusive ordered-binary32
- * distance-at-most-five primitive-site ceiling, never a final aggregate envelope. Existing
- * qualifying final exact-zero SUM/MEAN freedoms remain local to the final cell; non-FLOAT32
- * behavior stays strict. See the
- * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
- * numerical-profile contract</a>.</p>
+ * <p>Each family preserves exact axes, contributor membership, empty or point identity, mandatory
+ * divisor, and special-value rule. Floating SUM, MEAN, PRODUCT, SUM_TO_SHAPE, statistics, and norms
+ * evaluate every declared contributor once under a rounded tree; named arithmetic primitives may
+ * use DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, including low multiplication, never FLOAT64.
+ * Homogeneous low arithmetic accumulates in FLOAT32 and narrows once at each declared output.
+ * MIN/MAX and arg-extrema instead compare stored represented values, including subnormals, and
+ * preserve NaN, signed-zero, tie, and selected-index rules without DAZ/FTZ. Final exact-zero
+ * publication freedom remains local to qualifying SUM, MEAN, and SUM_TO_SHAPE outputs, not
+ * intermediate sums. See the <a
+ * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
+ * numerical-semantics contract</a>.</p>
  *
  * <p>Each constant identifies requested mathematics only. The ordinary Tensor-construction
  * contract accepts floating input for all five numeric kinds and signed-integral input for
@@ -66,13 +63,14 @@ public enum AggregateReductionKind implements OperationKind {
      * transformations. Input and output types are selected by Tensor construction. For INT32 and
      * INT64 ordinary and target-Shape forms,
      * the result retains the input type, addition is modulo {@code 2^32} or {@code 2^64},
-     * reassociation is permitted, and an empty reduction domain has result zero. Under
-     * {@code STRICT_IEEE}, floating semantics use exact real addition followed by result-format
-     * rounding: NaN propagates, opposite infinities produce NaN, a sole infinity sign is
-     * preserved, an empty domain is positive zero, and exact non-empty zero is negative only when
-     * every selected value is negative zero. The type-level profile contract above describes the
-     * bounded {@code ACCELERATOR} addition. Gradients, execution algorithms, and backend support
-     * remain outside this semantic kind.</p>
+     * reassociation is permitted, and an empty reduction domain has result zero. Floating SUM
+     * combines every selected term once in a rounded addition tree: NaN propagates, opposite
+     * infinities produce NaN, a sole infinity sign is preserved, and an empty domain is positive
+     * zero. Only named arithmetic additions may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16,
+     * and FLOAT16, never FLOAT64; homogeneous low sums accumulate in FLOAT32 with one final low
+     * narrowing. The family's qualifying final exact-zero publication rule does not change an
+     * intermediate sum. Gradients, execution algorithms, and backend support remain outside this
+     * semantic kind.</p>
      */
     SUM,
 
@@ -85,10 +83,12 @@ public enum AggregateReductionKind implements OperationKind {
      * aggregation, including positions whose input is NaN or infinity; the denominator is the
      * selected true-count for each output, and a zero selected-count produces NaN in the result
      * floating type. Callers express non-right-aligned intent through visible Shape
-     * transformations. Under {@code STRICT_IEEE}, ordinary floating mean is exact sum divided by
-     * positive count: NaN and opposite infinities produce NaN, a sole infinity sign is preserved,
-     * empty is NaN, and zero sign follows SUM. The type-level profile contract above describes the
-     * mandatory quotient and bounded {@code ACCELERATOR} exact-zero sign freedom. NaN payload,
+     * transformations. Floating MEAN combines every selected term once in a rounded sum and
+     * divides by the exact positive count: NaN and opposite infinities produce NaN, a sole
+     * infinity sign is preserved, and empty is NaN. Its zero-sign rule follows SUM, including the
+     * qualifying final exact-zero publication choice. Only named arithmetic additions and the
+     * quotient may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64;
+     * homogeneous low arithmetic accumulates in FLOAT32 with one final low narrowing. NaN payload,
      * execution algorithm, gradients, and backend support remain deliberately unspecified or
      * separately owned.</p>
      */

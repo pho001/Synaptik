@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -35,7 +34,7 @@ class MetalMpsGraphMseNativeTest {
     private static final int SIGNALING_NAN = 0x7f800123;
 
     @Test
-    void JavaPreflightClosesMseProfileShapeTypeAndGradientMetadata() {
+    void JavaPreflightClosesMseShapeTypeAndGradientMetadata() {
         Shape tensor = Shape.of(2, 3);
         for (long reduction = 1L; reduction <= 3L; reduction++) {
             Shape outputShape = reduction == 1L ? tensor : Shape.scalar();
@@ -51,21 +50,11 @@ class MetalMpsGraphMseNativeTest {
                                     outputShape,
                                     predictionGrad || targetGrad));
                     MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                            NumericalProfile.ACCELERATOR,
                             values,
                             program,
                             new int[] {0, 1},
                             new int[] {2},
                             MetalPreparedRoute.MPSGRAPH);
-                    assertThrows(
-                            IllegalArgumentException.class,
-                            () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                                    NumericalProfile.STRICT_IEEE,
-                                    values,
-                                    program,
-                                    new int[] {0, 1},
-                                    new int[] {2},
-                                    MetalPreparedRoute.MPSGRAPH));
                     List<MetalMpsGraphProgram.ValueDescriptor> wrongGradient = List.of(
                             values.get(0),
                             values.get(1),
@@ -76,7 +65,6 @@ class MetalMpsGraphMseNativeTest {
                     assertThrows(
                             IllegalArgumentException.class,
                             () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                                    NumericalProfile.ACCELERATOR,
                                     wrongGradient,
                                     program,
                                     new int[] {0, 1},
@@ -91,7 +79,6 @@ class MetalMpsGraphMseNativeTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
                         List.of(
                                 descriptor(DataType.FLOAT32, Shape.of(2), false),
                                 descriptor(DataType.FLOAT32, Shape.of(3), false),
@@ -103,7 +90,6 @@ class MetalMpsGraphMseNativeTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
                         List.of(
                                 descriptor(DataType.FLOAT32, Shape.scalar(), false),
                                 descriptor(DataType.FLOAT32, Shape.scalar(), false),
@@ -115,7 +101,6 @@ class MetalMpsGraphMseNativeTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
                         List.of(
                                 descriptor(DataType.FLOAT32, Shape.of(2), false),
                                 descriptor(DataType.FLOAT64, Shape.of(2), false),
@@ -131,7 +116,6 @@ class MetalMpsGraphMseNativeTest {
         MetalMpsGraphProgram repeated = new MetalMpsGraphProgram(
                 List.of(mseNode(0, 0, 1, 1L)));
         MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                NumericalProfile.ACCELERATOR,
                 List.of(
                         descriptor(DataType.FLOAT32, Shape.of(2), true),
                         descriptor(DataType.FLOAT32, Shape.of(2), true)),
@@ -214,7 +198,6 @@ class MetalMpsGraphMseNativeTest {
         try {
             context = api.createContext();
             executable = api.createProgramExecutable(context,
-            NumericalProfile.ACCELERATOR,
             descriptors,
             program,
             new int[] {0, 1},
@@ -285,7 +268,6 @@ class MetalMpsGraphMseNativeTest {
         try {
             context = api.createContext();
             executable = api.createProgramExecutable(context,
-            NumericalProfile.ACCELERATOR,
             descriptors,
             program,
             new int[] {0, 1},

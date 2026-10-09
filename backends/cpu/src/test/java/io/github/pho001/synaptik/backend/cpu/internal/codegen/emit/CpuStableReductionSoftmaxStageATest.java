@@ -198,7 +198,7 @@ final class CpuStableReductionSoftmaxStageATest {
         Shape shape = Shape.of(extents);
         List<CarrierAccess> accesses = List.of(inputAccess(type, carrier), outputAccess(type, carrier));
         var base = CpuSoftmaxLoweringTest.context(kind, type, shape, axis);
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), java.util.Map.of(), new CpuPartitionAnalysisInputs(false, accesses));
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), java.util.Map.of(), new CpuPartitionAnalysisInputs(false, accesses));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
