@@ -11,6 +11,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecisi
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.analysis.BackendPreparationPlan;
+import io.github.pho001.synaptik.prepare.analysis.PartitionDag;
 import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
 import java.util.List;
 import java.util.ArrayList;
@@ -138,6 +139,10 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering
  *     cold CPU preparation state
  * @param selectedOpenBlasTuningCandidate non-null optional exact selected candidate identity;
  *     present exactly with {@code openBlasTuningBatch}
+ * @param retainedBaselineBinding non-null optional CPU-private graph-value provenance captured
+ *     only from the projected DAG and unfused baseline and bound to these selected unit objects;
+ *     includes virtualized outputs, is absent before recognition, and enters no generated or
+ *     tuning identity
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -175,8 +180,271 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         Optional<PartialReductionRecipe> partialReductionRecipe,
         Optional<CpuOpenBlasRoutePlan> openBlasPlan,
         Optional<CpuOpenBlasTuningBatch> openBlasTuningBatch,
-        Optional<CpuOpenBlasTuningBatch.CandidateIdentity> selectedOpenBlasTuningCandidate)
+        Optional<CpuOpenBlasTuningBatch.CandidateIdentity> selectedOpenBlasTuningCandidate,
+        Optional<RetainedBaselineBinding> retainedBaselineBinding)
         implements BackendPreparationPlan {
+
+    /**
+     * Immutable cold provenance captured only by CPU analysis from the actual projected DAG and
+     * unfused baseline. No caller can construct or edit its value/producer claims. The captured
+     * selected-unit references bind this evidence to one analyzed topology while allowing its
+     * ordinary plan copies and route/representation wrappers to reuse it.
+     */
+    public static final class RetainedBaselineBinding {
+        private final List<ValueId> boundaryValues;
+        private final List<BaselineUnitBinding> units;
+        private final List<ExecutionUnitPlan> selectedUnits;
+
+        /**
+         * Retains already authenticated immutable graph facts and selected-unit references.
+         * @param boundaryValues non-null distinct unfused values in declaration order
+         * @param units non-null graph-authenticated unfused unit boundaries
+         * @param selectedUnits non-null exact selected unit objects to which this evidence belongs
+         */
+        private RetainedBaselineBinding(List<ValueId> boundaryValues,
+                List<BaselineUnitBinding> units, List<ExecutionUnitPlan> selectedUnits) {
+            this.boundaryValues = List.copyOf(boundaryValues);
+            this.units = List.copyOf(units);
+            this.selectedUnits = List.copyOf(selectedUnits);
+        }
+
+        /**
+         * Derives a capability only from checked projected graph ports and unfused unit facts.
+         * It is deliberately unavailable outside the CPU preparation package.
+         *
+         * @param dag non-null trusted partition DAG
+         * @param baseline non-null unfused plan analyzed from that DAG
+         * @param selectedUnits non-null final selected execution units
+         * @param publications non-null graph-publication values from memory requirements
+         * @return immutable provenance bound to these selected unit objects
+         * @throws IllegalArgumentException if a baseline boundary disagrees with graph ports
+         */
+        static RetainedBaselineBinding capture(PartitionDag dag,
+                CpuPartitionPreparationPlan baseline, List<ExecutionUnitPlan> selectedUnits,
+                java.util.Set<ValueId> publications) {
+            Objects.requireNonNull(dag, "dag");
+            Objects.requireNonNull(baseline, "baseline");
+            Objects.requireNonNull(selectedUnits, "selectedUnits");
+            Objects.requireNonNull(publications, "publications");
+            var boundUnits = new ArrayList<BaselineUnitBinding>();
+            for (var unit : baseline.units()) {
+                var irBoundaries = unit.portablePlan().kernelIr().values().stream()
+                        .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL).toList();
+                if (irBoundaries.size() != unit.boundaryValues().size()) throw
+                        new IllegalArgumentException("unfused CPU boundary topology disagrees");
+                var boundaries = new ArrayList<BaselineBoundaryBinding>();
+                for (int index = 0; index < irBoundaries.size(); index++) {
+                    ValueId value = unit.boundaryValues().get(index);
+                    var kind = irBoundaries.get(index).kind();
+                    boolean portMatches = unit.memberNodeOrdinals().stream().anyMatch(position -> {
+                        var node = dag.nodes().get(position);
+                        return kind == CpuKernelIr.Value.Kind.INPUT
+                                ? node.inputs().contains(value) : node.outputs().contains(value);
+                    });
+                    var producer = dag.producer(value);
+                    if (!portMatches || kind == CpuKernelIr.Value.Kind.OUTPUT
+                            && (producer.isEmpty() || !unit.memberNodeOrdinals().contains(
+                                    producer.orElseThrow().nodePosition()))
+                            || !baseline.boundaryValues().contains(value)) throw
+                            new IllegalArgumentException("unfused CPU boundary provenance disagrees");
+                    boundaries.add(new BaselineBoundaryBinding(value, kind,
+                            producer.isPresent(), publications.contains(value)));
+                }
+                boundUnits.add(new BaselineUnitBinding(unit.memberNodeOrdinals(),
+                        unit.dependencies(), List.copyOf(boundaries)));
+            }
+            return new RetainedBaselineBinding(baseline.boundaryValues(), boundUnits,
+                    selectedUnits);
+        }
+
+        /**
+         * Returns the exact unfused graph value for a unit boundary, including virtualized
+         * selected outputs; this is diagnostic access, never candidate identity.
+         * @param unitIndex zero-based unfused unit index
+         * @param boundaryIndex zero-based boundary index in that unit
+         * @return non-null graph value identity
+         * @throws IndexOutOfBoundsException if either index is out of range
+         */
+        public ValueId boundaryValue(int unitIndex, int boundaryIndex) {
+            return units.get(unitIndex).boundaries().get(boundaryIndex).valueId();
+        }
+
+        /**
+         * Reports the DAG producer relationship for one unfused boundary.
+         * @param unitIndex zero-based unfused unit index
+         * @param boundaryIndex zero-based boundary index in that unit
+         * @return true exactly when the projected partition DAG produces this value
+         * @throws IndexOutOfBoundsException if either index is out of range
+         */
+        public boolean producedInPartition(int unitIndex, int boundaryIndex) {
+            return units.get(unitIndex).boundaries().get(boundaryIndex).producedInPartition();
+        }
+
+        /**
+         * Reports the number of unfused boundaries in one unit for diagnostic inspection.
+         * @param unitIndex zero-based unfused unit index
+         * @return non-negative boundary count
+         * @throws IndexOutOfBoundsException if the unit index is out of range
+         */
+        public int boundaryCount(int unitIndex) {
+            return units.get(unitIndex).boundaries().size();
+        }
+
+        /**
+         * Checks that a copied plan still contains the exact selected unit objects originally
+         * paired with this DAG evidence, not merely structurally equal foreign units.
+         * @param candidates non-null selected execution units to compare by reference
+         * @return true only for the original unit-object sequence
+         */
+        private boolean binds(List<ExecutionUnitPlan> candidates) {
+            if (candidates.size() != selectedUnits.size()) return false;
+            for (int index = 0; index < candidates.size(); index++) {
+                if (candidates.get(index) != selectedUnits.get(index)) return false;
+            }
+            return true;
+        }
+
+        /**
+         * Compares immutable graph facts structurally; acceptance still requires the separate
+         * exact selected-unit reference check and never follows from this equality alone.
+         * @param other object to compare with this binding
+         * @return true when its unfused value order and unit facts are equal
+         */
+        @Override public boolean equals(Object other) {
+            return this == other || other instanceof RetainedBaselineBinding binding
+                    && boundaryValues.equals(binding.boundaryValues)
+                    && units.equals(binding.units);
+        }
+
+        /**
+         * Hashes immutable unfused graph facts consistently with structural equality.
+         * @return hash of the value order and unit facts
+         */
+        @Override public int hashCode() { return Objects.hash(boundaryValues, units); }
+    }
+
+    /**
+     * One unfused unit's immutable graph association, constructible only inside trusted capture.
+     * @param memberNodePositions stable DAG node positions of the unfused unit
+     * @param dependencies baseline unit dependencies
+     * @param boundaries exact ordered value/port bindings
+     */
+    private record BaselineUnitBinding(List<Integer> memberNodePositions,
+            List<Integer> dependencies, List<BaselineBoundaryBinding> boundaries) { }
+
+    /**
+     * One boundary's value and producer/publication facts derived from graph ports.
+     * @param valueId graph value at the unfused boundary
+     * @param kind non-virtual input or output kind
+     * @param producedInPartition whether the partition DAG has a producer for this value
+     * @param graphOutput whether shared memory requirements publish this value
+     */
+    private record BaselineBoundaryBinding(ValueId valueId, CpuKernelIr.Value.Kind kind,
+            boolean producedInPartition, boolean graphOutput) { }
+
+    /**
+     * Preserves the pre-authenticated-binding construction surface. It cannot reconstruct a
+     * plan carrying retained recognition decisions: such a plan must supply its trusted DAG
+     * binding to the canonical constructor and fails closed when that binding is absent.
+     *
+     * @param units non-null ordered execution units
+     * @param route non-null selected route
+     * @param executionStrategy non-null selected strategy
+     * @param bufferDeclarations non-null exact buffer declarations
+     * @param boundaryValues non-null materialized value IDs
+     * @param accessBindings non-null boundary access bindings
+     * @param carrierPattern non-null direct carrier forms
+     * @param generatedCarrierPattern non-null generated carrier forms
+     * @param extents non-null logical extents
+     * @param elementCount checked logical element count
+     * @param affineAddressPairs non-null affine source/result address pairs
+     * @param selectedRangeCount positive selected range count
+     * @param minimumElementsPerWorker positive minimum work per worker
+     * @param vectorSpeciesBitSize selected vector species width, or zero
+     * @param loweringManifest non-null optional diagnostic text
+     * @param materialization non-null optional selected materialization
+     * @param workspaceDeclaration non-null optional one-unit workspace
+     * @param workspaceUse non-null workspace role
+     * @param specializationBudget non-null specialization limit
+     * @param movementGeometry non-null optional movement geometry
+     * @param indexingGeometry non-null optional indexing geometry
+     * @param scatterGeometry non-null optional scatter geometry
+     * @param foldGeometry non-null optional fold geometry
+     * @param orderingGeometry non-null optional ordering geometry
+     * @param randomGeometry non-null optional random geometry
+     * @param scanGeometry non-null optional scan geometry
+     * @param aggregateGeometry non-null optional aggregate geometry
+     * @param argExtremaGeometry non-null optional arg-extrema geometry
+     * @param maskedReductionGeometry non-null optional masked-reduction geometry
+     * @param advancedReductionGeometry non-null optional advanced-reduction geometry
+     * @param softmaxGeometry non-null optional softmax geometry
+     * @param trailingNormalizationGeometry non-null optional trailing-normalization geometry
+     * @param batchNormInferenceGeometry non-null optional batch-inference geometry
+     * @param batchNormTrainingGeometry non-null optional batch-training geometry
+     * @param conv2dGeometry non-null optional Conv2d geometry
+     * @param specializedSubgraphs non-null ordered recognition facts
+     * @param fusionDecisions non-null ordered candidate and selection facts
+     * @param publicationBoundaryPositions non-null graph-publication boundary positions
+     * @param materializations non-null selected representation copies
+     * @param representationUnits non-null adjusted consumer plans
+     * @param representationDecisions non-null representation selection facts
+     * @param partialReductionRecipe non-null optional partial-reduction recipe
+     * @param openBlasPlan non-null optional exact OpenBLAS route plan
+     * @param openBlasTuningBatch non-null optional complete tuning batch
+     * @param selectedOpenBlasTuningCandidate non-null optional selected tuning identity
+     * @throws IllegalArgumentException if retained decisions lack a trusted baseline binding or
+     *     another plan invariant fails
+     */
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
+            ExecutionStrategy executionStrategy,
+            List<PreparationResourceRequirement.Buffer> bufferDeclarations,
+            List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long[] extents, long elementCount, long[] affineAddressPairs,
+            int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
+            String loweringManifest, Optional<CpuMaterializationPlan> materialization,
+            Optional<PreparationResourceRequirement.Workspace> workspaceDeclaration,
+            WorkspaceUse workspaceUse, CpuSpecializationBudget specializationBudget,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry,
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+            Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+            Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+            Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
+            Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+            List<CpuSpecializedSubgraph> specializedSubgraphs,
+            List<CpuFusionDecision> fusionDecisions,
+            List<Integer> publicationBoundaryPositions,
+            List<CpuMaterializationPlan> materializations,
+            List<RepresentationUnitPlan> representationUnits,
+            List<CpuRepresentationDecision> representationDecisions,
+            Optional<PartialReductionRecipe> partialReductionRecipe,
+            Optional<CpuOpenBlasRoutePlan> openBlasPlan,
+            Optional<CpuOpenBlasTuningBatch> openBlasTuningBatch,
+            Optional<CpuOpenBlasTuningBatch.CandidateIdentity> selectedOpenBlasTuningCandidate) {
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues,
+                accessBindings, carrierPattern, generatedCarrierPattern, extents, elementCount,
+                affineAddressPairs, selectedRangeCount, minimumElementsPerWorker,
+                vectorSpeciesBitSize, loweringManifest, materialization, workspaceDeclaration,
+                workspaceUse, specializationBudget, movementGeometry, indexingGeometry,
+                scatterGeometry, foldGeometry, orderingGeometry, randomGeometry, scanGeometry,
+                aggregateGeometry, argExtremaGeometry, maskedReductionGeometry,
+                advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
+                batchNormInferenceGeometry, batchNormTrainingGeometry, conv2dGeometry,
+                specializedSubgraphs, fusionDecisions, publicationBoundaryPositions,
+                materializations, representationUnits, representationDecisions,
+                partialReductionRecipe, openBlasPlan, openBlasTuningBatch,
+                selectedOpenBlasTuningCandidate, Optional.empty());
+    }
 
     /**
      * Preserves the complete pre-0010 construction surface with no OpenBLAS route plan.
@@ -1451,10 +1719,12 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      *     retained in cold preparation state
      * @param selectedOpenBlasTuningCandidate non-null optional immutable selected identity,
      *     present exactly when {@code openBlasTuningBatch} is present and naming one of its members
+     * @param retainedBaselineBinding non-null optional graph-derived unfused boundary binding;
+     *     required with recognized decisions and accepted only for its original selected units
      * @throws NullPointerException if a required component is {@code null}
      * @throws IllegalArgumentException if the plan lacks valid CPU units with
      *     matching route, boundary, dependency, strategy, range, materialization, workspace,
-     *     species, specialization, and optional OpenBLAS facts
+     *     species, specialization, optional OpenBLAS facts, or trusted binding provenance
      */
     public CpuPartitionPreparationPlan {
         units = List.copyOf(units);
@@ -1506,6 +1776,11 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 "openBlasTuningBatch");
         selectedOpenBlasTuningCandidate = Objects.requireNonNull(
                 selectedOpenBlasTuningCandidate, "selectedOpenBlasTuningCandidate");
+        retainedBaselineBinding = Objects.requireNonNull(retainedBaselineBinding,
+                "retainedBaselineBinding");
+        if (retainedBaselineBinding.isPresent()
+                && !retainedBaselineBinding.orElseThrow().binds(units)) throw
+                new IllegalArgumentException("retained recognition binding belongs to another plan");
         if (materializations.size() > 2
                 || materializations.stream().map(CpuMaterializationPlan::sourceBoundaryIndex)
                     .distinct().count() != materializations.size()
@@ -1996,29 +2271,28 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         }
         }
         if (fusionDecisions.isEmpty()) validateSpecializedSubgraphs(units, specializedSubgraphs);
-        else validateRetainedSpecializedSubgraphs(units, specializedSubgraphs, fusionDecisions);
+        else validateRetainedSpecializedSubgraphs(units, specializedSubgraphs, fusionDecisions,
+                retainedBaselineBinding.orElseThrow(() -> new IllegalArgumentException(
+                        "recognition has no trusted baseline binding")));
         validateFusionDecisions(units, boundaryValues, bufferDeclarations,
                 publicationBoundaryPositions, fusionDecisions, representationDecisions);
     }
 
     /**
-     * Compares recognition with the retained compatibility baseline and records which of its
-     * boundary positions correspond to recognized outputs. A position must also bind
-     * consistently to the actual retained {@link ValueId} wherever its unit boundary survives
-     * selection. Selected execution may fuse an external suffix, so recognized output facts
-     * remain necessary even when a baseline output becomes virtual. Such an output has no
-     * retained {@code ValueId}, so its claimed relative position is not independently
-     * authenticated here.
+     * Compares recognition with the retained compatibility baseline and the graph-authenticated
+     * unfused unit boundaries. The latter bind every claimed relative position to its actual
+     * {@link ValueId}, including a MATMUL output virtualized by selected epilogue fusion.
      *
      * @param units non-null retained selected execution units
      * @param facts non-null ordered recognition snapshots
      * @param decisions non-null retained candidate decisions ending in a selection
+     * @param binding non-null cold provenance captured from the projected DAG before fusion
      * @throws IllegalArgumentException if recognition exceeds its bound or disagrees with the
      *     selected compatibility baseline
      */
     private static void validateRetainedSpecializedSubgraphs(
             List<ExecutionUnitPlan> units, List<CpuSpecializedSubgraph> facts,
-            List<CpuFusionDecision> decisions) {
+            List<CpuFusionDecision> decisions, RetainedBaselineBinding binding) {
         if (facts.size() > 8) throw new IllegalArgumentException(
                 "CPU plan retains at most eight recognition facts");
         CpuFusionDecision.Selection selection = decisions.stream()
@@ -2027,63 +2301,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                         new IllegalArgumentException("recognition has no retained baseline selection"));
         List<CpuFusionDecision.UnitIdentity> baseline =
                 selection.compatibilityBaseline().units();
-        var recognizedProducers = new java.util.HashSet<Integer>();
-        var valueByClaimedPosition = new java.util.HashMap<Integer, ValueId>();
-        var claimedPositionByValue = new java.util.HashMap<ValueId, Integer>();
-        for (CpuSpecializedSubgraph fact : facts) {
-            if (fact.baselineUnitIndices().size()
-                    != fact.structuralIdentity().baselineUnits().size()) {
-                throw new IllegalArgumentException("retained recognition baseline is invalid");
-            }
-            for (int local = 0; local < fact.baselineUnitIndices().size(); local++) {
-                int unitIndex = fact.baselineUnitIndices().get(local);
-                if (unitIndex < 0 || unitIndex >= baseline.size()) {
-                    throw new IllegalArgumentException("retained recognition baseline is invalid");
-                }
-                var recognized = fact.structuralIdentity().baselineUnits().get(local);
-                var selected = baseline.get(unitIndex);
-                ExecutionUnitPlan actualUnit = units.stream().filter(unit ->
-                        unit.memberNodeOrdinals().containsAll(selected.memberNodePositions()))
-                        .findFirst().orElse(null);
-                if (actualUnit == null) throw new IllegalArgumentException(
-                        "retained recognition baseline IR or resource topology disagrees");
-                boolean sameUnit = actualUnit.memberNodeOrdinals().equals(
-                        selected.memberNodePositions());
-                boolean leadingMembers = actualUnit.memberNodeOrdinals().size()
-                        >= selected.memberNodePositions().size()
-                        && actualUnit.memberNodeOrdinals().subList(0,
-                                selected.memberNodePositions().size()).equals(
-                                        selected.memberNodePositions());
-                for (int boundary = 0; boundary < Math.min(recognized.boundaries().size(),
-                        selected.boundaries().size()); boundary++) {
-                    CpuKernelIr.Value.Kind kind = recognized.boundaries().get(boundary).role();
-                    int relative = selected.boundaries().get(boundary)
-                            .relativeBoundaryPosition();
-                    if (kind == CpuKernelIr.Value.Kind.OUTPUT) {
-                        recognizedProducers.add(relative);
-                    }
-                    if (kind == CpuKernelIr.Value.Kind.INPUT && leadingMembers
-                            || kind == CpuKernelIr.Value.Kind.OUTPUT && sameUnit) {
-                        var actualIrValues = actualUnit.portablePlan().kernelIr().values().stream()
-                                .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL)
-                                .toList();
-                        if (boundary >= actualUnit.boundaryValues().size()
-                                || boundary >= actualIrValues.size()
-                                || actualIrValues.get(boundary).kind() != kind) throw
-                                new IllegalArgumentException(
-                                        "retained recognition baseline IR or resource topology disagrees");
-                        ValueId value = actualUnit.boundaryValues().get(boundary);
-                        ValueId priorValue = valueByClaimedPosition.putIfAbsent(relative, value);
-                        Integer priorPosition = claimedPositionByValue.putIfAbsent(value, relative);
-                        if (priorValue != null && !priorValue.equals(value)
-                                || priorPosition != null && priorPosition != relative) {
-                            throw new IllegalArgumentException(
-                                    "retained recognition baseline IR or resource topology disagrees");
-                        }
-                    }
-                }
-            }
-        }
+        if (binding.units.size() != baseline.size()) throw new IllegalArgumentException(
+                "retained recognition baseline IR or resource topology disagrees");
         var claimed = new BitSet();
         int previousAnchor = -1;
         for (CpuSpecializedSubgraph fact : facts) {
@@ -2118,7 +2337,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                         .findFirst().orElse(null);
                 if (!retainedBaselineMatches(
                         fact.structuralIdentity().baselineUnits().get(local), selectedUnit,
-                        baseline, recognizedProducers, actualUnit, units)) {
+                        binding, unitIndex, actualUnit)) {
                     throw new IllegalArgumentException(
                             "retained recognition baseline IR or resource topology disagrees");
                 }
@@ -2145,36 +2364,33 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
     }
 
     /**
-     * Checks a recognition snapshot against its selected compatibility unit. Repeated reads of
-     * a producerless boundary remain external; a cross-unit boundary must have a producer in
-     * recognized baseline output topology or the retained execution units as well as multiple
-     * baseline occurrences. For a surviving leading input boundary, actual producer topology
-     * overrides the claimed output-position mapping. A virtualized baseline output has no
-     * retained {@code ValueId}, so its claimed position can still alias a producerless input.
+     * Checks a recognition snapshot against its selected compatibility unit and independently
+     * bound graph values. A producerless repeated input remains an external read; only a value
+     * produced in this partition and crossing baseline units can be a cross-unit boundary.
      *
      * @param recognition non-null recognition snapshot for one baseline unit
      * @param selected non-null selected compatibility-baseline unit
-     * @param completeBaseline non-null complete selected baseline used to resolve shared roles
-     * @param recognizedProducers non-null relative positions claimed by recognized baseline
-     *     outputs, without consulting selected role labels; virtualized outputs are not
-     *     independently bound to retained values
+     * @param binding non-null graph-authenticated unfused boundary positions and producer facts
+     * @param baselineUnitIndex position of this unit in the complete compatibility baseline
      * @param actualUnit retained execution unit containing the baseline members, or null
-     * @param actualUnits non-null complete retained execution-unit list
      * @return whether structural, execution, boundary, and workspace facts agree
      */
     private static boolean retainedBaselineMatches(
             CpuSpecializedSubgraph.BaselineUnitFact recognition,
             CpuFusionDecision.UnitIdentity selected,
-            List<CpuFusionDecision.UnitIdentity> completeBaseline,
-            java.util.Set<Integer> recognizedProducers,
-            ExecutionUnitPlan actualUnit, List<ExecutionUnitPlan> actualUnits) {
+            RetainedBaselineBinding binding, int baselineUnitIndex,
+            ExecutionUnitPlan actualUnit) {
+        BaselineUnitBinding boundUnit = binding.units.get(baselineUnitIndex);
         CpuSpecializedSubgraph.BaselineExecutionFact execution = recognition.execution();
         if (actualUnit == null || !CpuFusionDecision.StructuralKey.fromHex(recognition.structuralKey())
                     .equals(selected.portableIrStructuralKey())
+                || !boundUnit.memberNodePositions().equals(selected.memberNodePositions())
+                || !boundUnit.dependencies().equals(selected.dependencyUnitPositions())
                 || !execution.specialization().equals(selected.specialization())
                 || decisionStrategy(execution) != selected.strategy()
                 || !recognition.dependencies().equals(selected.dependencyUnitPositions())
                 || recognition.boundaries().size() != selected.boundaries().size()
+                || boundUnit.boundaries().size() != selected.boundaries().size()
                 || (execution.runtimeTopology()
                         == CpuSpecializedSubgraph.RuntimeTopology.POINTWISE)
                     != (selected.topology() != CpuFusionDecision.UnitTopology.INDIVISIBLE)) {
@@ -2184,6 +2400,10 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             CpuSpecializedSubgraph.BoundaryResourceFact old =
                     recognition.boundaries().get(index);
             CpuFusionDecision.BoundaryFact current = selected.boundaries().get(index);
+            BaselineBoundaryBinding bound = boundUnit.boundaries().get(index);
+            int relative = binding.boundaryValues.indexOf(bound.valueId());
+            if (relative < 0 || current.relativeBoundaryPosition() != relative
+                    || old.role() != bound.kind()) return false;
             long referencedBytes;
             try {
                 referencedBytes = Math.multiplyExact(old.referencedElementSpan(),
@@ -2191,41 +2411,21 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             } catch (ArithmeticException invalid) {
                 return false;
             }
-            long occurrences = completeBaseline.stream().flatMap(unit ->
+            long occurrences = binding.units.stream().flatMap(unit ->
                     unit.boundaries().stream()).filter(boundary ->
-                            boundary.relativeBoundaryPosition()
-                                    == current.relativeBoundaryPosition()).count();
-            boolean producedInside = recognizedProducers.contains(
-                    current.relativeBoundaryPosition());
-            boolean leadingMembers = actualUnit.memberNodeOrdinals().size()
-                    >= selected.memberNodePositions().size()
-                    && actualUnit.memberNodeOrdinals().subList(0,
-                            selected.memberNodePositions().size()).equals(
-                                    selected.memberNodePositions());
-            if (old.role() == CpuKernelIr.Value.Kind.INPUT
-                    && (leadingMembers || !producedInside)) {
-                if (index >= actualUnit.boundaryValues().size()) return false;
-                ValueId value = actualUnit.boundaryValues().get(index);
-                producedInside = actualUnits.stream().anyMatch(unit -> {
-                    int position = unit.boundaryValues().indexOf(value);
-                    return position >= 0 && unit.portablePlan().kernelIr().values().stream()
-                            .filter(candidate -> candidate.kind()
-                                    != CpuKernelIr.Value.Kind.VIRTUAL)
-                            .toList().get(position).kind() == CpuKernelIr.Value.Kind.OUTPUT;
-                });
-            }
-            boolean crossUnit = producedInside && occurrences > 1;
-            boolean roleMatches = crossUnit
-                    ? current.role() == CpuFusionDecision.BoundaryRole.CROSS_UNIT
-                    : old.role() == CpuKernelIr.Value.Kind.INPUT
-                        ? current.role() == CpuFusionDecision.BoundaryRole.EXTERNAL_READ
-                        : current.role() == CpuFusionDecision.BoundaryRole.PARTITION_WRITE
-                            || current.role() == CpuFusionDecision.BoundaryRole.PUBLICATION;
+                            boundary.valueId().equals(bound.valueId())).count();
+            boolean crossUnit = bound.producedInPartition() && occurrences > 1;
+            CpuFusionDecision.BoundaryRole expectedRole = crossUnit
+                    ? CpuFusionDecision.BoundaryRole.CROSS_UNIT
+                    : bound.kind() == CpuKernelIr.Value.Kind.INPUT
+                        ? CpuFusionDecision.BoundaryRole.EXTERNAL_READ
+                        : bound.graphOutput() ? CpuFusionDecision.BoundaryRole.PUBLICATION
+                            : CpuFusionDecision.BoundaryRole.PARTITION_WRITE;
             if (current.unitBoundaryPosition() != index
                     || current.regime() != old.accessPlan().regime()
                     || current.referencedBytes() != referencedBytes
                     || current.byteAlignment() != old.dataType().byteWidth()
-                    || !roleMatches) {
+                    || current.role() != expectedRole) {
                 return false;
             }
         }

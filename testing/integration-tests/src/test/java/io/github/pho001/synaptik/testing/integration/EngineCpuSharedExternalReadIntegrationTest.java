@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.testing.integration;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -31,6 +32,7 @@ final class EngineCpuSharedExternalReadIntegrationTest {
             float[] first = product(new float[] {1, -2, 3, 0.5f},
                     new float[] {2, -1, -3, 1});
             float[] chained = product(first, new float[] {2, -1, -3, 1});
+            assertTrue(chained[1] < 0f, "the reference must exercise RELU's zeroing branch");
             for (boolean relu : List.of(false, true)) {
                 Tensor output = left.matmul(weight).matmul(weight);
                 if (relu) output = output.relu();

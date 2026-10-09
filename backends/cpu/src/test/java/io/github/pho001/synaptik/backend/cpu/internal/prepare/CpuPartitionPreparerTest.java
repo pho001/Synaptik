@@ -139,6 +139,15 @@ public class CpuPartitionPreparerTest {
                 int intermediate = plan.boundaryValues().indexOf(
                         new ValueId(shared ? 2 : 3));
                 var selection = (CpuFusionDecision.Selection) plan.fusionDecisions().getLast();
+                if (shared && relu) {
+                    assertNotEquals(selection.compatibilityBaseline(), selection.selected());
+                    assertTrue(selection.selected().units().stream().anyMatch(unit ->
+                            unit.memberNodePositions().equals(List.of(1, 2))));
+                    var binding = plan.retainedBaselineBinding().orElseThrow();
+                    int output = binding.boundaryCount(1) - 1;
+                    assertEquals(new ValueId(3), binding.boundaryValue(1, output));
+                    assertTrue(binding.producedInPartition(1, output));
+                }
                 assertEquals(2, selection.compatibilityBaseline().units().stream()
                         .flatMap(unit -> unit.boundaries().stream())
                         .filter(boundary -> boundary.relativeBoundaryPosition() == intermediate
@@ -176,7 +185,7 @@ public class CpuPartitionPreparerTest {
     }
 
     @Test
-    void virtualizedBaselineOutputMayRemainUnboundToRetainedValuePosition() {
+    void virtualizedBaselineOutputCannotAliasExternalWeightPosition() {
         var plan = new CpuPartitionPreparer().analyze(matmulChainContext(true, true)).plan();
         var selection = (CpuFusionDecision.Selection) plan.fusionDecisions().getLast();
         assertNotEquals(selection.selected(), selection.compatibilityBaseline());
@@ -184,8 +193,31 @@ public class CpuPartitionPreparerTest {
         int virtualizedOutput = selection.compatibilityBaseline().units().get(1)
                 .boundaries().getLast().relativeBoundaryPosition();
         assertNotEquals(weight, virtualizedOutput);
-        assertDoesNotThrow(() -> copyRetainedRecognitionPlan(plan,
-                withForgedCompatibilityPositions(plan, virtualizedOutput, weight)));
+        assertEquals("retained recognition baseline IR or resource topology disagrees",
+                assertThrows(IllegalArgumentException.class,
+                        () -> copyRetainedRecognitionPlan(plan,
+                                withForgedCompatibilityPositions(plan, virtualizedOutput,
+                                        weight))).getMessage());
+    }
+
+    @Test
+    void foreignGraphBindingCannotAuthenticateForgedVirtualOutputPosition() {
+        var plan = new CpuPartitionPreparer().analyze(matmulChainContext(true, true)).plan();
+        var foreign = new CpuPartitionPreparer().analyze(
+                matmulChainContextWithSwappedProducedValues()).plan();
+        int weight = plan.boundaryValues().indexOf(new ValueId(1));
+        int virtualizedOutput = ((CpuFusionDecision.Selection) plan.fusionDecisions().getLast())
+                .compatibilityBaseline().units().get(1).boundaries().getLast()
+                .relativeBoundaryPosition();
+        assertNotEquals(plan.boundaryValues(), foreign.boundaryValues());
+        assertEquals(new ValueId(2), foreign.retainedBaselineBinding().orElseThrow()
+                .boundaryValue(1, foreign.retainedBaselineBinding().orElseThrow()
+                        .boundaryCount(1) - 1));
+        assertEquals("retained recognition binding belongs to another plan",
+                assertThrows(IllegalArgumentException.class, () ->
+                        copyRetainedRecognitionPlan(plan,
+                                withForgedCompatibilityPositions(plan, virtualizedOutput, weight),
+                                foreign.retainedBaselineBinding())).getMessage());
     }
 
     private static List<CpuFusionDecision> withForgedCompatibilityPositions(
@@ -293,6 +325,12 @@ public class CpuPartitionPreparerTest {
 
     private static CpuPartitionPreparationPlan copyRetainedRecognitionPlan(
             CpuPartitionPreparationPlan plan, List<CpuFusionDecision> decisions) {
+        return copyRetainedRecognitionPlan(plan, decisions, plan.retainedBaselineBinding());
+    }
+
+    private static CpuPartitionPreparationPlan copyRetainedRecognitionPlan(
+            CpuPartitionPreparationPlan plan, List<CpuFusionDecision> decisions,
+            Optional<CpuPartitionPreparationPlan.RetainedBaselineBinding> binding) {
         return new CpuPartitionPreparationPlan(plan.units(), plan.route(),
                 plan.executionStrategy(), plan.bufferDeclarations(), plan.boundaryValues(),
                 plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
@@ -308,7 +346,10 @@ public class CpuPartitionPreparerTest {
                 plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
                 plan.conv2dGeometry(), plan.specializedSubgraphs(), decisions,
                 plan.publicationBoundaryPositions(), plan.materializations(),
-                plan.representationUnits(), plan.representationDecisions());
+                plan.representationUnits(), plan.representationDecisions(),
+                plan.partialReductionRecipe(), plan.openBlasPlan(),
+                plan.openBlasTuningBatch(), plan.selectedOpenBlasTuningCandidate(),
+                binding);
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> matmulChainContext(
@@ -330,6 +371,24 @@ public class CpuPartitionPreparerTest {
                 List.of(new ValueId(result)), List.of(new ValueId(result + 1))));
         return arbitraryContext(nodes, java.util.Collections.nCopies(result + (relu ? 2 : 1),
                 matrix), new CpuPartitionAnalysisInputs(false, List.of(),
+                new PortableExecutionConfig(ComputePreference.SCALAR, 1, 1, 1)));
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs>
+            matmulChainContextWithSwappedProducedValues() {
+        var matrix = descriptor(DataType.FLOAT32, Shape.of(2, 2));
+        var nodes = List.of(
+                new CompiledNode(new NodeId(0),
+                        new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
+                        List.of(new ValueId(0), new ValueId(1)), List.of(new ValueId(3))),
+                new CompiledNode(new NodeId(1),
+                        new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
+                        List.of(new ValueId(3), new ValueId(1)), List.of(new ValueId(2))),
+                new CompiledNode(new NodeId(2),
+                        new Operation(UnaryElementwiseKind.RELU, NoOperationAttrs.INSTANCE),
+                        List.of(new ValueId(2)), List.of(new ValueId(4))));
+        return arbitraryContext(nodes, java.util.Collections.nCopies(5, matrix),
+                new CpuPartitionAnalysisInputs(false, List.of(),
                         new PortableExecutionConfig(ComputePreference.SCALAR, 1, 1, 1)));
     }
 

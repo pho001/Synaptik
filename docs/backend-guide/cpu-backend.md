@@ -1000,6 +1000,18 @@ baseline before shared resource assignment. Validation also compares retained
 0008C baseline facts—member order, structural key, specialization, dependencies, access geometry,
 workspace, and topology—against the compatibility identity. These checks reject mismatched roles
 and geometry rather than trusting the claimed decision or recognition fact.
+For retained recognition, CPU also carries a cold-only binding from each unfused baseline
+boundary to the partition directed acyclic graph (DAG) value and its producer. CPU preparation
+constructs this immutable binding from checked DAG ports and the previously analyzed unfused
+units. It is tied to the exact selected execution-unit objects so another graph's genuine binding
+cannot be transplanted into a reconstructed plan. The unfused baseline was analyzed before
+selection virtualized any output. Plan validation checks every
+compatibility-baseline relative position against that independent value order, including the
+intermediate MATMUL result when a following `RELU` is fused. A forged position cannot therefore
+make a produced virtual output appear to be the repeatedly read external weight. The binding
+does not enter the graph-identity-free candidate, tuning or generated-artifact identity, nor
+Runtime execution. An unauthenticated retained candidate fails preparation rather than silently
+selecting a split fallback.
 
 The retained fixed-topology evidence is intentionally narrow. Across two retained runs, all 45
 samples per comparison were kept; generated/direct medians were `0.886422494` and `0.885426214`,

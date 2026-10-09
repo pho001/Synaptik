@@ -146,12 +146,15 @@ class CpuFusionDecisionTest {
                 selection.canonicalSplitScore(), selection.canonicalSplitScore(),
                 Optional.of(0L), CpuFusionDecision.SelectionReason.PROFITABLE_FUSION));
         assertAll(
-                () -> assertThrows(IllegalArgumentException.class,
-                        () -> copyDecisionPlan(plan, missing)),
-                () -> assertThrows(IllegalArgumentException.class,
-                        () -> copyDecisionPlan(plan, duplicate)),
-                () -> assertThrows(IllegalArgumentException.class,
-                        () -> copyDecisionPlan(plan, mismatched)));
+                () -> assertEquals("recognition has no retained baseline selection",
+                        assertThrows(IllegalArgumentException.class,
+                                () -> copyDecisionPlan(plan, missing)).getMessage()),
+                () -> assertEquals("CPU ranked legal candidates are inconsistent",
+                        assertThrows(IllegalArgumentException.class,
+                                () -> copyDecisionPlan(plan, duplicate)).getMessage()),
+                () -> assertEquals("CPU selected decision does not match retained plan",
+                        assertThrows(IllegalArgumentException.class,
+                                () -> copyDecisionPlan(plan, mismatched)).getMessage()));
     }
 
     @Test void planRecomputesPublicationRoleFromRetainedLogicalRequirementProjection() {
@@ -318,7 +321,10 @@ class CpuFusionDecisionTest {
                 plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
                 plan.conv2dGeometry(), recognition, decisions,
                 plan.publicationBoundaryPositions(), plan.materializations(),
-                plan.representationUnits(), plan.representationDecisions());
+                plan.representationUnits(), plan.representationDecisions(),
+                plan.partialReductionRecipe(), plan.openBlasPlan(),
+                plan.openBlasTuningBatch(), plan.selectedOpenBlasTuningCandidate(),
+                plan.retainedBaselineBinding());
     }
 
     private static CpuFusionDecision.CandidateIdentity atResourceCeilings(

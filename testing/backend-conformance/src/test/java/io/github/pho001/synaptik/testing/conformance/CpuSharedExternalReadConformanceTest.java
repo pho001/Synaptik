@@ -2,6 +2,8 @@ package io.github.pho001.synaptik.testing.conformance;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFusionDecision;
@@ -45,6 +47,15 @@ final class CpuSharedExternalReadConformanceTest {
                     CpuFusionDecision.BoundaryRole.CROSS_UNIT));
             assertEquals(2, plan.specializedSubgraphs().size());
             assertFalse(plan.bufferDeclarations().isEmpty());
+            if (relu) {
+                assertNotEquals(selection.compatibilityBaseline(), selection.selected());
+                assertTrue(selection.selected().units().stream().anyMatch(unit ->
+                        unit.memberNodePositions().equals(List.of(1, 2))));
+                var binding = plan.retainedBaselineBinding().orElseThrow();
+                int output = binding.boundaryCount(1) - 1;
+                assertEquals(new ValueId(3), binding.boundaryValue(1, output));
+                assertTrue(binding.producedInPartition(1, output));
+            }
         }
     }
 

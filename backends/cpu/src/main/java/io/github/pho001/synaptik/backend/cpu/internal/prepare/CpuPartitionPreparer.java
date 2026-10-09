@@ -132,7 +132,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      *     materialization, while a multi-unit plan disables it and retains only family-intrinsic
      *     unit workspaces. In the bounded candidate domain, the returned plan also carries ordered
      *     CPU-private recognition facts only after their exact baseline-unit IR and resource
-     *     snapshot has been validated;
+     *     snapshot has been validated. The unfused baseline's graph-value provenance is retained
+     *     only for cold plan validation, including selected virtual epilogue outputs;
      *     those facts do not alter declarations, artifact identity, finalization, or execution.
      *     The plan also retains the authoritative logical-memory graph-publication boundary
      *     positions solely so its selected boundary roles can be independently recomputed.
@@ -167,7 +168,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         List<CpuPartitionDagDecomposer.Unit> units = decomposer.decompose(context, lowering);
         var analysis = analyzeTopology(context, units, null);
-        return withMetadata(context, analysis, List.of(), List.of());
+        return withMetadata(context, analysis, List.of(), List.of(), null);
     }
 
     /**
@@ -273,7 +274,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> represented = withRepresentation(
                 analyses.get(representation.candidateIndex()), representation);
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable = withMetadata(
-                context, represented, recognition, selected.decisions());
+                context, represented, recognition, selected.decisions(), baselineAnalysis.plan());
         return new SelectionAnalysis(portable, representation);
     }
 
@@ -356,7 +357,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 plan.publicationBoundaryPositions(), plan.materializations(),
                 plan.representationUnits(), plan.representationDecisions(),
                 plan.partialReductionRecipe(), nativePlan, Optional.of(result.batch()),
-                Optional.of(result.selected().identity()));
+                Optional.of(result.selected().identity()), plan.retainedBaselineBinding());
         var requirements = new ArrayList<PreparationResourceRequirement>(analysis.requirements());
         nativePlan.ifPresent(value -> requirements.addAll(value.workspaceRequirements()));
         return new BackendPartitionAnalysis<>(analysis.partition(), selected, requirements);
@@ -430,7 +431,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 plan.conv2dGeometry(), plan.specializedSubgraphs(), plan.fusionDecisions(),
                 plan.publicationBoundaryPositions(), representation.materializations(),
                 representation.materializations().isEmpty() ? List.of() : representedUnits,
-                representation.decisions(), plan.partialReductionRecipe());
+                representation.decisions(), plan.partialReductionRecipe(),
+                plan.openBlasPlan(), plan.openBlasTuningBatch(),
+                plan.selectedOpenBlasTuningCandidate(), plan.retainedBaselineBinding());
         return new BackendPartitionAnalysis<>(analysis.partition(), representedPlan, requirements);
     }
 
@@ -484,7 +487,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             PrepareContext<CpuPartitionAnalysisInputs> context,
             BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,
             List<CpuSpecializedSubgraph> facts,
-            List<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFusionDecision> decisions) {
+            List<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFusionDecision> decisions,
+            CpuPartitionPreparationPlan baseline) {
         var plan = analysis.plan();
         var publications = new java.util.HashSet<ValueId>();
         context.memoryRequirements().stream().filter(
@@ -510,7 +514,12 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
                 plan.conv2dGeometry(), facts, decisions, publicationBoundaryPositions,
                 plan.materializations(), plan.representationUnits(),
-                plan.representationDecisions(), plan.partialReductionRecipe());
+                plan.representationDecisions(), plan.partialReductionRecipe(),
+                plan.openBlasPlan(), plan.openBlasTuningBatch(),
+                plan.selectedOpenBlasTuningCandidate(),
+                baseline == null ? Optional.empty() : Optional.of(
+                        CpuPartitionPreparationPlan.RetainedBaselineBinding.capture(
+                                context.partitionDag(), baseline, plan.units(), publications)));
         return new BackendPartitionAnalysis<>(analysis.partition(), enriched,
                 analysis.requirements());
     }
