@@ -89,6 +89,9 @@ import jdk.incubator.vector.ByteVector;
  * strictly cheaper bare rank-two FLOAT32/FLOAT64 MATMUL may select the narrow OpenBLAS route.
  * That post-lowering decision uses only immutable storage, thread-configuration, and cost facts;
  * it retains the complete portable realization and performs no provider query or allocation.
+ * Portable MATMUL realization and generated compute strategy follow the same cold preference;
+ * a scalar preference retains direct or threshold-eligible tiled scalar work even when the
+ * descriptor would also qualify for a vector candidate.
  * The profile-free analysis retains the qualified CPU routes and binds only non-profile
  * lowering, generated-artifact, OpenBLAS, and tuning identity facts. Route choice remains cold;
  * it does not alter the generated hot-loop algorithm.
@@ -792,6 +795,17 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         var artifactStrategy = vectorEligible
                 ? CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR
                 : CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR;
+        if (matmul) {
+            var ir = lowered.matmulIr().orElseThrow();
+            boolean vectorForm = ir.realization()
+                    == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.DIRECT_N_VECTOR
+                    || ir.realization()
+                    == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.TILED_N_VECTOR_2X2;
+            if (vectorForm != vectorEligible
+                    || ir.preferredSpeciesBitSize() != (vectorEligible ? speciesBits : 0)) {
+                throw new IllegalArgumentException("MATMUL realization and generated strategy disagree");
+            }
+        }
         if (partialRecipe.isPresent()) {
             strategy = CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_SCALAR;
             artifactStrategy = CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR;

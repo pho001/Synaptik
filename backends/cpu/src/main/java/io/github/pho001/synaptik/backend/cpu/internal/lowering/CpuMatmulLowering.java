@@ -10,6 +10,8 @@ import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,12 +33,13 @@ public final class CpuMatmulLowering {
 
     /**
      * Lowers one canonical MATMUL and its already-proved optional bias/terminal suffix into an
-     * executable scalar or bounded tiled/vector form.
+     * executable scalar or bounded tiled/vector form selected for the cold compute preference.
      *
      * @param context non-null one- through three-occurrence CPU preparation projection
      * @return immutable lowering with exact boundary bindings and MATMUL geometry
      * @throws NullPointerException if {@code context} is {@code null}
-     * @throws IllegalArgumentException if the unit is not one exact bounded MATMUL chain
+     * @throws IllegalArgumentException if the unit is not one exact bounded MATMUL chain or
+     *     lacks CPU-specific cold execution inputs
      */
     public CpuPartitionLowering.LoweredPartition lower(
             PrepareContext<? extends BackendAnalysisInputs> context) {
@@ -48,10 +51,14 @@ public final class CpuMatmulLowering {
     /**
      * Lowers exactly one 0008C-associated executable alternative without rediscovering suffix
      * semantics from the graph.
-     * @param context exact projected member occurrences in stable order
+     *
+     * @param context non-null exact projected member occurrences in stable order, with
+     *     {@link CpuPartitionAnalysisInputs} carrying the cold CPU compute preference
      * @param fact non-null recognized MATMUL fact whose literal epilogue is authoritative
      * @return immutable fused MATMUL lowering
-     * @throws IllegalArgumentException if membership, chain boundaries, or descriptors disagree
+     * @throws NullPointerException if {@code context} or {@code fact} is {@code null}
+     * @throws IllegalArgumentException if CPU-specific preparation inputs are absent, or
+     *     membership, chain boundaries, or descriptors disagree
      */
     public CpuPartitionLowering.LoweredPartition lower(
             PrepareContext<? extends BackendAnalysisInputs> context,
@@ -72,6 +79,9 @@ public final class CpuMatmulLowering {
     private CpuPartitionLowering.LoweredPartition lowerRecognized(
             PrepareContext<? extends BackendAnalysisInputs> context,CpuMatmulIr.Epilogue epilogue) {
         Objects.requireNonNull(context, "context");
+        if (!(context.backendInputs() instanceof CpuPartitionAnalysisInputs cpuInputs)) {
+            throw new IllegalArgumentException("MATMUL requires CPU preparation inputs");
+        }
         if (context.nodes().isEmpty()||context.nodes().size()>3
                 || context.nodes().getFirst().operation().kind()
                 != io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL) {
@@ -123,7 +133,7 @@ public final class CpuMatmulLowering {
                 new CpuMatmulCandidateSelector.Facts(geometry.leftType(), geometry.rightType(),
                         geometry.resultType(), geometry.batchCount(), geometry.m(), geometry.k(),
                         geometry.n(), geometry.rightNStride(), geometry.resultNStride(), lanes,
-                        epilogue.hasTerminal()));
+                        epilogue.hasTerminal()), cpuInputs.portableExecution().computePreference());
         boolean vector = selection.selected() == CpuMatmulIr.Realization.DIRECT_N_VECTOR
                 || selection.selected() == CpuMatmulIr.Realization.TILED_N_VECTOR_2X2;
         var ir = new CpuMatmulIr(geometry.leftType(), geometry.rightType(), geometry.resultType(),
@@ -415,12 +425,15 @@ final class CpuMatmulCandidateSelector {
      * Constructs the eligible bounded set and selects its deterministic production member.
      *
      * @param facts checked non-null occurrence facts
+     * @param preference non-null cold compute preference; scalar keeps eligible vector forms
+     *     available as candidates but selects the matching scalar direct or tiled form
      * @return immutable candidates in scalar, vector, scalar-tiled, vector-tiled order and selection
-     * @throws NullPointerException if {@code facts} is {@code null}
+     * @throws NullPointerException if {@code facts} or {@code preference} is {@code null}
      * @throws ArithmeticException if the multiply-add count overflows
      */
-    Selection select(Facts facts) {
+    Selection select(Facts facts, ComputePreference preference) {
         Objects.requireNonNull(facts, "facts");
+        Objects.requireNonNull(preference, "preference");
         long operations = Math.multiplyExact(Math.multiplyExact(
                 Math.multiplyExact(facts.batchCount(), facts.m()), facts.k()), facts.n());
         boolean vectorEligible = facts.k() > 0 && facts.rightNStride() == 1
@@ -437,15 +450,16 @@ final class CpuMatmulCandidateSelector {
         if (vectorEligible && facts.m() >= 2 && facts.n() >= 2L * facts.preferredLanes()
                 && operations >= 65_536)
             candidates.add(CpuMatmulIr.Realization.TILED_N_VECTOR_2X2);
+        boolean selectVector = vectorEligible && preference == ComputePreference.VECTOR_IF_ELIGIBLE;
         CpuMatmulIr.Realization selected;
         if (operations == 0 || facts.k() == 0 || facts.m() == 1 || facts.n() == 1
                 || operations < 4_096) selected = CpuMatmulIr.Realization.DIRECT_SCALAR;
-        else if (operations >= 65_536 && candidates.contains(
+        else if (selectVector && operations >= 65_536 && candidates.contains(
                 CpuMatmulIr.Realization.TILED_N_VECTOR_2X2))
             selected = CpuMatmulIr.Realization.TILED_N_VECTOR_2X2;
-        else if (operations >= 16_384 && !vectorEligible)
+        else if (operations >= 16_384 && !selectVector)
             selected = CpuMatmulIr.Realization.TILED_SCALAR_2X2;
-        else if (vectorEligible) selected = CpuMatmulIr.Realization.DIRECT_N_VECTOR;
+        else if (selectVector) selected = CpuMatmulIr.Realization.DIRECT_N_VECTOR;
         else selected = CpuMatmulIr.Realization.DIRECT_SCALAR;
         return new Selection(candidates, selected, operations);
     }

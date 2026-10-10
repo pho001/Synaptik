@@ -2923,6 +2923,16 @@ eligible at 65,536. These constants are conservative cold selection policy, not 
 sizes or universal optimality claims. Concrete extents, batch count, range count, and worker count
 remain invocation geometry, so compatible Shapes reuse the same generated class form.
 
+The standard CPU preparation input requests `SCALAR`. For a bare same-type matrix product such as
+`INT32 [2,63] × [63,128]`, cold selection therefore uses `DIRECT_SCALAR` and one work unit per
+output cell, even though its layout also qualifies `DIRECT_N_VECTOR` as a candidate. At the
+16,384-work threshold, `SCALAR` selects `TILED_SCALAR_2X2` when its geometry is eligible. An
+explicit `VECTOR_IF_ELIGIBLE` preference selects the corresponding direct-N or 2×2 vector form
+when eligible; otherwise it retains the scalar form. The selected realization fixes the generated
+compute strategy, exact preferred species bits (zero for scalar), and flattened range domain
+before finalization. Parallel orchestration partitions that same domain without changing its
+generated compute form.
+
 Each generated `start`/`end` range indexes only the selected flattened output work-unit domain.
 Ranges own disjoint cells, rows, or tiles and may run through the existing caller-owned
 `CpuWorkerGroup`; K is never a parallel axis. There is no K blocking, K splitting, partial result,

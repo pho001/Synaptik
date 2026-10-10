@@ -2,9 +2,9 @@
 
 ## Status
 
-Ready — verified on clean `main` at `81a2503d` on 2026-10-09. CPU 0008F, 0010M, 0018, and
-0019 are Complete; no conflicting CPU preparation writer is active. This is the sole authorized
-CPU implementation frontier. CPU 0007A1D is Superseded and supplies no performance acceptance
+Complete — implemented and independently reviewed on 2026-10-10 from clean `main` at
+`f4e35b45`. CPU 0008F, 0010M, 0018, and 0019 were Complete at launch; no conflicting CPU
+preparation writer was active. CPU 0007A1D is Superseded and supplies no performance acceptance
 for this correctness task.
 
 ## Change class
@@ -68,16 +68,16 @@ If a required contract is missing or ambiguous, stop and request clarification.
 - Conflicts with: concurrent edits to CPU MATMUL candidate/lowering, execution-strategy or
   specialization selection, their tests, or the affected CPU guide
 - Parallel group: None
-- Common base revision: `81a2503d` on clean `main`; serial work
+- Common base revision: `f4e35b45` on clean `main`; serial work
 - Integration order: reproduce → align cold selection → focused tests → independent Class C
   review → integrate planning status
 - Integration validation: focused CPU, backend-conformance, and Engine tests below, then the
   affected CPU module suite and Javadoc once on stabilized code
 - Shared-document integration owner: Main planner for CPU master plan and roadmap; implementation
   and review contexts own only this brief and affected CPU guidance
-- Frontier verification (2026-10-09): declared predecessors are Complete; CPU 0007A1D is
+- Frontier verification (2026-10-10): declared predecessors are Complete; CPU 0007A1D is
   Superseded; no other CPU implementation task is Ready or conflicting writer active; the root
-  and scoped CPU/Prepare contracts are stable at `81a2503d`.
+  and scoped CPU/Prepare contracts are stable at `f4e35b45`.
 
 ## Files and symbols
 
@@ -138,4 +138,33 @@ test, and documentation diff and reuse successful Java evidence unless executabl
 
 ## Result
 
-Pending implementation.
+Implementation pass: cold CPU MATMUL selection now consumes the typed compute preference.
+Default `SCALAR` chooses the direct or threshold-eligible 2×2 scalar realization; explicit
+`VECTOR_IF_ELIGIBLE` preserves eligible direct-N and 2×2 vector forms. Preparation checks that
+typed realization, generated compute strategy, and preferred species bits agree before
+finalization. No emitter, schema, shared-module, or public API change was needed.
+
+Pre-fix red evidence on `f4e35b45` production source, after adding only the focused test:
+`./gradlew :backends:cpu:test --tests '*CpuMatmulLoweringTest.defaultScalarPreferenceKeepsEligibleBareMatmulScalar'`
+failed (1 test, 1 failure) at preparation-plan assertion in
+`CpuMatmulLoweringTest.java:113`: `expected: <DIRECT_SCALAR> but was: <DIRECT_N_VECTOR>`.
+That is the observed failure stage; public INT32 execution was not measured before the fix, so
+this evidence does not claim a pre-fix Engine exception or wrong numerical result.
+
+Focused CPU, backend-conformance, and public exact-INT32 Engine tests exercise four homogeneous
+Vector API types, direct/tiled choices, scalar and parallel orchestration, small and ineligible
+controls. The INT32 public path cannot select the FLOAT32/FLOAT64-only OpenBLAS peer, so the
+Engine regression covers portable CPU finalization and execution.
+
+Validation: the focused CPU command passed 22 tests (0 skipped); the focused conformance command
+passed 3 (0 skipped); and the Engine command passed 1 (0 skipped). The final
+`./gradlew :backends:cpu:test :backends:cpu:javadoc` passed: CPU test XML records 1,049 tests in
+201 suites, 28 skipped, 0 failures, 0 errors. Javadoc succeeded with 94 warnings; it was
+regenerated after a Javadoc-only selector tag correction with the same warning count.
+`git diff --check` passed. The glossary's existing `MATMUL`, backend-route, and CPU-portable-route
+entries were reviewed; no term changed. Independent Class C review found one Javadoc omission,
+which was corrected; final review returned `APPROVE` with zero P0/P1/P2 findings. Post-correction
+`./gradlew :backends:cpu:javadoc` passed with the same 94 warnings and `git diff --check` passed.
+No executable Java changed after the successful test run. No unresolved issue or required follow-up.
+
+Status: Complete

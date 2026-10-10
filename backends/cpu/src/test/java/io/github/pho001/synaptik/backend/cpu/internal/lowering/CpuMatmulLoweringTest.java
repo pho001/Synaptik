@@ -86,11 +86,11 @@ public final class CpuMatmulLoweringTest {
     }
 
     @Test void preparationThreadsExactRowAndTileWorkDomains() {
-        var directVector=new CpuPartitionPreparer().analyze(context(DataType.FLOAT32,
+        var directVector=new CpuPartitionPreparer().analyze(vectorContext(DataType.FLOAT32,
                 Shape.of(2,63),Shape.of(63,128),Shape.of(2,128))).plan().units().getFirst();
         var scalarTile=new CpuPartitionPreparer().analyze(context(DataType.BFLOAT16,
                 Shape.of(32,63),Shape.of(63,48),Shape.of(32,48))).plan().units().getFirst();
-        var vectorTile=new CpuPartitionPreparer().analyze(context(DataType.FLOAT32,
+        var vectorTile=new CpuPartitionPreparer().analyze(vectorContext(DataType.FLOAT32,
                 Shape.of(32,127),Shape.of(127,256),Shape.of(32,256))).plan().units().getFirst();
         int lanes=jdk.incubator.vector.FloatVector.SPECIES_PREFERRED.length();
         assertAll(()->assertEquals(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr
@@ -105,6 +105,72 @@ public final class CpuMatmulLoweringTest {
                         .Realization.TILED_N_VECTOR_2X2,vectorTile.portablePlan().specialization()
                         .matmulIr().orElseThrow().realization()),
                 ()->assertEquals(16L*((256L+2L*lanes-1)/(2L*lanes)),vectorTile.elementCount()));
+    }
+
+    @Test void defaultScalarPreferenceKeepsEligibleBareMatmulScalar() {
+        var unit = new CpuPartitionPreparer().analyze(context(DataType.FLOAT32,
+                Shape.of(2,63), Shape.of(63,128), Shape.of(2,128))).plan().units().getFirst();
+        assertEquals(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.DIRECT_SCALAR,
+                unit.portablePlan().specialization().matmulIr().orElseThrow().realization());
+    }
+
+    @Test void fourTypesKeepDirectAndTiledStrategySpeciesAndWorkAligned() {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.INT32,
+                DataType.INT64)) {
+            int bits = switch (type) {
+                case FLOAT32 -> jdk.incubator.vector.FloatVector.SPECIES_PREFERRED.vectorBitSize();
+                case FLOAT64 -> jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED.vectorBitSize();
+                case INT32 -> jdk.incubator.vector.IntVector.SPECIES_PREFERRED.vectorBitSize();
+                case INT64 -> jdk.incubator.vector.LongVector.SPECIES_PREFERRED.vectorBitSize();
+                default -> throw new AssertionError(type);
+            };
+            int lanes = bits / type.bitWidth();
+            assertRoute(type, 2, 63, Math.max(128, lanes), false,
+                    io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.DIRECT_SCALAR,
+                    2L * Math.max(128, lanes), 0);
+            assertRoute(type, 2, 63, Math.max(128, lanes), true,
+                    io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.DIRECT_N_VECTOR,
+                    2, bits);
+            assertRoute(type, 32, 127, Math.max(256, 2 * lanes), false,
+                    io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.TILED_SCALAR_2X2,
+                    16L * ((Math.max(256, 2 * lanes) + 1) / 2), 0);
+            assertRoute(type, 32, 127, Math.max(256, 2 * lanes), true,
+                    io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.TILED_N_VECTOR_2X2,
+                    16L * ((Math.max(256, 2 * lanes) + 2L * lanes - 1) / (2L * lanes)), bits);
+        }
+    }
+
+    private static void assertRoute(DataType type, int m, int k, int n, boolean vector,
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization form,
+            long work, int bits) {
+        var base = context(type, Shape.of(m, k), Shape.of(k, n), Shape.of(m, n));
+        var selected = vector ? withVectorPreference(base) : base;
+        var unit = new CpuPartitionPreparer().analyze(selected).plan().units().getFirst();
+        var specialization = unit.portablePlan().specialization();
+        assertAll(() -> assertEquals(form, specialization.matmulIr().orElseThrow().realization()),
+                () -> assertEquals(bits, specialization.matmulIr().orElseThrow().preferredSpeciesBitSize()),
+                () -> assertEquals(bits, specialization.vectorSpeciesBitSize()),
+                () -> assertEquals(vector ? io.github.pho001.synaptik.backend.cpu.internal.prepare
+                        .CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR
+                        : io.github.pho001.synaptik.backend.cpu.internal.prepare
+                        .CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR,
+                        unit.executionStrategy().compute()),
+                () -> assertEquals(work, unit.elementCount()));
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> vectorContext(DataType type,
+            Shape left, Shape right, Shape result) {
+        return withVectorPreference(context(type, left, right, result));
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> withVectorPreference(
+            PrepareContext<CpuPartitionAnalysisInputs> base) {
+        var inputs = new CpuPartitionAnalysisInputs(false, List.of(),
+                new CpuPartitionAnalysisInputs.PortableExecutionConfig(
+                        CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE,
+                        1, 1, 1));
+        return new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(), inputs);
     }
 
     @Test void recognizedLinearSuffixRetainsCanonicalSplitAndOneFactDerivedFusedAlternative() {
