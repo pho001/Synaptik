@@ -41,11 +41,15 @@ import java.util.OptionalLong;
  *
  * <p>The initial update domain is non-empty, connected floating parameters with finite initial
  * values, fully static dense-contiguous offset-zero non-view descriptors, and exact-capacity
- * writable, shareable native host storage. {@code BFLOAT16} and {@code FLOAT16} parameters retain
- * private {@code FLOAT32} master values and publish one rounded logical value per successful
- * update. Unsupported parameter capture fails before private seed allocation or compilation.
+ * writable, shareable native host storage. Each parameter's declared-width and optimizer-width
+ * snapshot payload must independently fit a Java byte array. {@code BFLOAT16} and
+ * {@code FLOAT16} parameters retain private {@code FLOAT32} master values and publish one rounded
+ * logical value per successful update. Unsupported parameter capture fails before private seed
+ * allocation or compilation.
  * Tensor identities remain stable. The caller grants this session exclusive use of the Module's
  * parameter wrappers, captured parameter storage associations, and parameter bytes until close.
+ * Parameter-pair non-overlap is established at open: Model's sealed host-storage implementation
+ * retains each segment, and run/state/restore binding checks reject any changed association.
  * Parameter replacement, storage replacement, overlapping external input storage, or concurrent
  * caller mutation violates that contract and is rejected when observable before mutation.</p>
  *
@@ -105,6 +109,8 @@ public final class TrainingSession implements AutoCloseable {
     private final InferenceSession inferenceSession;
     private final Tensor[] fixedCompiledInputs;
     private final int[] externalIndexByCompiledInput;
+    private final String[] compiledInputRoles;
+    private final int[] nonParameterCompiledIndices;
     private final Hooks hooks;
 
     private Lifecycle lifecycle = Lifecycle.OPEN;
@@ -127,6 +133,8 @@ public final class TrainingSession implements AutoCloseable {
             InferenceSession inferenceSession,
             Tensor[] fixedCompiledInputs,
             int[] externalIndexByCompiledInput,
+            String[] compiledInputRoles,
+            int[] nonParameterCompiledIndices,
             Hooks hooks) {
         this.engine = engine;
         this.module = module;
@@ -140,6 +148,8 @@ public final class TrainingSession implements AutoCloseable {
         this.inferenceSession = inferenceSession;
         this.fixedCompiledInputs = fixedCompiledInputs;
         this.externalIndexByCompiledInput = externalIndexByCompiledInput;
+        this.compiledInputRoles = compiledInputRoles;
+        this.nonParameterCompiledIndices = nonParameterCompiledIndices;
         this.hooks = hooks;
     }
 
@@ -149,10 +159,13 @@ public final class TrainingSession implements AutoCloseable {
      * <p>Arguments are null-checked in declaration order. Parameter discovery uses the Module's
      * deterministic recursive order and requires at least one parameter. Every parameter is a
      * differentiation target; Compiler disconnected-policy validation rejects an unused target.
-     * Exact Tensor and non-empty storage overlap checks complete before compilation. The objective
-     * must be a scalar {@code FLOAT32} or {@code FLOAT64} Tensor requesting gradients. The supplied
-     * optimizer is borrowed as immutable configuration; this session initializes independent
-     * zero momentum and gradient-accumulation slots.</p>
+     * Each parameter's logical and optimizer-width snapshot byte sizes must be at most
+     * {@link Integer#MAX_VALUE}; this is checked during capture before that parameter's update
+     * buffers or the private seed are allocated. Earlier parameters may already have been
+     * captured. Exact Tensor and non-empty storage overlap checks complete
+     * before compilation. The objective must be a scalar {@code FLOAT32} or {@code FLOAT64}
+     * Tensor requesting gradients. The supplied optimizer is borrowed as immutable configuration;
+     * this session initializes independent zero momentum and gradient-accumulation slots.</p>
      *
      * <p>Construction performs exactly one ordinary Engine gradient compile and exactly one
      * ordinary session preparation. A preparation failure publishes no TrainingSession and closes
@@ -168,8 +181,9 @@ public final class TrainingSession implements AutoCloseable {
      * @return a fresh non-null open training owner with one compiled and prepared graph
      * @throws NullPointerException if an argument, discovered path/wrapper/value/storage, or
      *     inward required value is {@code null}
-     * @throws IllegalArgumentException if objective, optimizer narrowing, parameter schema,
-     *     parameter identity/storage uniqueness, Compiler semantics, or preparation is unsupported
+     * @throws IllegalArgumentException if objective, optimizer narrowing, parameter schema or
+     *     either snapshot byte size, parameter identity/storage uniqueness, Compiler semantics,
+     *     or preparation is unsupported
      * @throws IllegalStateException if the Module has no parameters, parameter storage is absent,
      *     dead, or inaccessible, Engine closure has begun, or inward lifecycle state is invalid
      * @throws ArithmeticException if checked shape, byte, or counter-independent size arithmetic
@@ -260,6 +274,8 @@ public final class TrainingSession implements AutoCloseable {
                     session,
                     bindings.fixedInputs,
                     bindings.externalIndices,
+                    bindings.inputRoles,
+                    bindings.nonParameterIndices,
                     lifecycleHooks);
         } catch (RuntimeException | Error failure) {
             try {
@@ -315,8 +331,10 @@ public final class TrainingSession implements AutoCloseable {
      * order. Every required Tensor identity must occur exactly once with its exact compiled
      * descriptor and present, live, accessible storage of sufficient capacity. Foreign or
      * duplicate identities, missing inputs, and any non-empty storage overlap with another
-     * compiled input are rejected before Engine execution. Captured parameter wrapper, Tensor,
-     * storage, schema, liveness, accessibility, and non-overlap are checked before the run and
+     * compiled input are rejected before Engine execution. Parameter-pair non-overlap is
+     * established at open for fixed storage occurrences; this run rechecks their wrapper,
+     * Tensor, storage identity, schema, liveness, and accessibility. Overlap with external inputs
+     * or the cotangent seed is checked on every run. The complete parameter view is validated
      * again immediately before update commit.</p>
      *
      * <p>The returned objective describes values before an optional parameter update. A reset or
@@ -750,7 +768,6 @@ public final class TrainingSession implements AutoCloseable {
 
         var compiled = new ArrayList<Tensor>(fixedCompiledInputs.length);
         HostTensorStorage[] storages = new HostTensorStorage[fixedCompiledInputs.length];
-        String[] roles = new String[fixedCompiledInputs.length];
         for (int compiledIndex = 0; compiledIndex < fixedCompiledInputs.length; compiledIndex++) {
             Tensor tensor = fixedCompiledInputs[compiledIndex];
             if (tensor == null) {
@@ -765,25 +782,43 @@ public final class TrainingSession implements AutoCloseable {
                     compiledGraph.inputs().get(compiledIndex), storage, tensor == cotangentSeed);
             compiled.add(tensor);
             storages[compiledIndex] = storage;
-            roles[compiledIndex] = tensor == cotangentSeed
-                    ? "cotangent seed"
-                    : parameterPath(tensor.id()).orElse("input " + tensor.id());
         }
         for (int left = 0; left < storages.length; left++) {
             if (storages[left].byteSize() == 0) {
                 continue;
             }
-            for (int right = left + 1; right < storages.length; right++) {
-                if (storages[right].byteSize() != 0
-                        && storages[left].segment()
-                                .asOverlappingSlice(storages[right].segment()).isPresent()) {
-                    throw new IllegalArgumentException(
-                            "training input storages overlap: "
-                                    + roles[left] + " and " + roles[right]);
+            if (fixedCompiledInputs[left] != null
+                    && fixedCompiledInputs[left] != cotangentSeed) {
+                for (int right : nonParameterCompiledIndices) {
+                    if (right > left) {
+                        validateInputNonOverlap(storages, left, right);
+                    }
+                }
+            } else {
+                for (int right = left + 1; right < storages.length; right++) {
+                    validateInputNonOverlap(storages, left, right);
                 }
             }
         }
         return List.copyOf(compiled);
+    }
+
+    /**
+     * Rejects one nonempty compiled-input pair involving an external input or cotangent seed.
+     *
+     * @param storages non-null validated storage array in compiled-input order
+     * @param left index of the nonempty left storage in that array
+     * @param right index greater than {@code left} of the candidate right storage
+     * @throws IllegalArgumentException if both storages are nonempty and overlap
+     */
+    private void validateInputNonOverlap(HostTensorStorage[] storages, int left, int right) {
+        if (storages[right].byteSize() != 0
+                && storages[left].segment()
+                        .asOverlappingSlice(storages[right].segment()).isPresent()) {
+            throw new IllegalArgumentException(
+                    "training input storages overlap: "
+                            + compiledInputRoles[left] + " and " + compiledInputRoles[right]);
+        }
     }
 
     private int findExternalInput(TensorId id) {
@@ -795,15 +830,17 @@ public final class TrainingSession implements AutoCloseable {
         return -1;
     }
 
-    private Optional<String> parameterPath(TensorId id) {
-        for (TrainingParameter parameter : parameters) {
-            if (parameter.tensor().id().equals(id)) {
-                return Optional.of("parameter " + parameter.path());
-            }
-        }
-        return Optional.empty();
-    }
-
+    /**
+     * Validates the current complete parameter view against the open-time fixed bindings.
+     *
+     * <p>Each accepted storage retains its exact segment, so fixed parameter pairs cannot acquire
+     * overlap without a changed binding. This check still rejects changed bindings, dead or
+     * inaccessible storage, and non-finite state before committed session-state mutation. Staging
+     * arrays may already have been modified when this check runs at precommit.</p>
+     *
+     * @throws IllegalStateException if the module structure, binding, storage, or finite state
+     *     differs from the admitted session view
+     */
     private void validateModuleAndParameters() {
         Map<String, Parameter> current = module.parametersRecursively();
         if (current.size() != parameters.size()) {
@@ -820,16 +857,6 @@ public final class TrainingSession implements AutoCloseable {
             }
             expected.validateBinding();
             expected.validateFiniteState();
-        }
-        for (int left = 0; left < parameters.size(); left++) {
-            for (int right = left + 1; right < parameters.size(); right++) {
-                if (parameters.get(left).overlaps(parameters.get(right).storage())) {
-                    throw new IllegalStateException(
-                            "parameter storages overlap while training session is open: "
-                                    + parameters.get(left).path() + " and "
-                                    + parameters.get(right).path());
-                }
-            }
         }
     }
 
@@ -948,6 +975,9 @@ public final class TrainingSession implements AutoCloseable {
         List<CompiledGraph.Input> compiledInputs = graph.inputs();
         Tensor[] fixed = new Tensor[compiledInputs.size()];
         int[] externalIndices = new int[compiledInputs.size()];
+        String[] inputRoles = new String[compiledInputs.size()];
+        int[] nonParameterIndices = new int[compiledInputs.size()];
+        int nonParameterCount = 0;
         Arrays.fill(externalIndices, -1);
         boolean[] parameterSeen = new boolean[parameters.size()];
         boolean seedSeen = false;
@@ -960,6 +990,8 @@ public final class TrainingSession implements AutoCloseable {
                 }
                 seedSeen = true;
                 fixed[compiledIndex] = seed;
+                inputRoles[compiledIndex] = "cotangent seed";
+                nonParameterIndices[nonParameterCount++] = compiledIndex;
                 continue;
             }
             int parameterIndex = findParameter(parameters, input.tensorId());
@@ -971,10 +1003,13 @@ public final class TrainingSession implements AutoCloseable {
                 }
                 parameterSeen[parameterIndex] = true;
                 fixed[compiledIndex] = parameters.get(parameterIndex).tensor();
+                inputRoles[compiledIndex] = "parameter " + parameters.get(parameterIndex).path();
                 continue;
             }
             externalIndices[compiledIndex] = external.size();
             external.add(input);
+            inputRoles[compiledIndex] = "input " + input.tensorId();
+            nonParameterIndices[nonParameterCount++] = compiledIndex;
         }
         if (!seedSeen) {
             throw new IllegalStateException("compiled training graph has no cotangent seed input");
@@ -987,7 +1022,8 @@ public final class TrainingSession implements AutoCloseable {
             }
         }
         return new BindingPlan(
-                List.copyOf(external), fixed, externalIndices);
+                List.copyOf(external), fixed, externalIndices, inputRoles,
+                Arrays.copyOf(nonParameterIndices, nonParameterCount));
     }
 
     private static int findParameter(
@@ -1065,11 +1101,15 @@ public final class TrainingSession implements AutoCloseable {
     private record BindingPlan(
             List<CompiledGraph.Input> externalInputs,
             Tensor[] fixedInputs,
-            int[] externalIndices) {
+            int[] externalIndices,
+            String[] inputRoles,
+            int[] nonParameterIndices) {
         private BindingPlan {
             Objects.requireNonNull(externalInputs, "externalInputs");
             Objects.requireNonNull(fixedInputs, "fixedInputs");
             Objects.requireNonNull(externalIndices, "externalIndices");
+            Objects.requireNonNull(inputRoles, "inputRoles");
+            Objects.requireNonNull(nonParameterIndices, "nonParameterIndices");
         }
     }
 }

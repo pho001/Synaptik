@@ -17,6 +17,12 @@ Parameters may use `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16`; the scalar ob
 them an `Arena.ofShared()` lifetime. JVM-heap storage created by convenience Tensor factories is not
 an accepted parameter carrier in this lifecycle.
 
+Each parameter must also fit the in-memory state format: its logical payload and its
+optimizer-width payload must each be no larger than `Integer.MAX_VALUE` bytes. The optimizer
+width is eight bytes per FLOAT64 element and four bytes per FLOAT32, BFLOAT16, or FLOAT16 element.
+An oversized parameter is rejected when the session opens, before its own update buffers, the
+private seed, or the compiled graph are created. Earlier parameters may already have been captured.
+
 ```java
 final class ScalarModel extends Module {
     private final Parameter weight;
@@ -155,6 +161,7 @@ Tensor storage associations, or parameter bytes while the session is open.
 |---|---|---|
 | Open rejects parameter storage | It is heap, read-only, thread-confined, wrong-sized, a view, or not native/aligned. | Use exact-capacity writable shareable native `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` storage with a dense offset-zero non-view layout. |
 | Open rejects an empty/non-finite parameter | Its element count is zero or an initial value is NaN/infinite. | Supply a non-empty parameter with finite values before opening; rejection precedes compile. |
+| Open rejects a snapshot byte size | The logical or optimizer-width payload exceeds `Integer.MAX_VALUE` bytes for one parameter. | Use a smaller parameter; this in-memory session cannot snapshot a larger payload. |
 | Run rejects non-finite optimizer arithmetic | A gradient, accumulation, momentum term, or candidate is NaN/infinite or overflowed. | Correct the objective/input scale; the failed run committed no parameter, optimizer state, or counter. |
 | Open rejects a target as disconnected | A discovered Module parameter does not contribute to the scalar objective. | Build the objective from the Module's complete intended trainable parameter set or use a Module containing only this session's parameters. |
 | Run reports a missing or foreign input | The list does not contain every identity from `training.inputs()` exactly once. | Bind those exact Tensors; order does not matter. |

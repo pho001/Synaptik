@@ -46,9 +46,13 @@ operation threads. Initial parameter values must be finite. Empty or non-finite 
 during capture before private seed allocation, compile, or prepare. The session updates accepted
 storage in place, preserving the Tensor identity captured by the compiled graph. BFLOAT16 and
 FLOAT16 parameters retain private FLOAT32 masters and publish one narrowed logical value only
-after a successful update. JVM-heap, read-only, thread-confined, strided/view, integral, BOOL, and
-device-only parameter storage are outside this domain. The caller grants the session exclusive use
-of the captured Module bindings and parameter bytes until close.
+after a successful update. Each logical snapshot payload and each FLOAT32/FLOAT64-width master,
+momentum, or accumulation payload must fit in a Java byte array (at most `Integer.MAX_VALUE`
+bytes). Capture rejects an oversized payload before inspecting that parameter's storage,
+allocating its update buffers or the private seed, or compiling; earlier parameters may already
+have been captured. JVM-heap, read-only, thread-confined, strided/view,
+integral, BOOL, and device-only parameter storage are outside this domain. The caller grants the
+session exclusive use of the captured Module bindings and parameter bytes until close.
 
 ## SGD and gradient modes
 

@@ -32,6 +32,58 @@ import org.junit.jupiter.api.Test;
 
 final class TrainingSessionFailureContractTest {
     @Test
+    void boundsSnapshotPayloadsAtCaptureWithoutAllocatingParameterStorage() {
+        for (DataType type : List.of(
+                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            int optimizerWidth = type == DataType.FLOAT64 ? Double.BYTES : Float.BYTES;
+            long lastRepresentableCount = Integer.MAX_VALUE / optimizerWidth;
+            Parameter atBoundary = new NamedParameters(
+                    "atBoundary", syntheticUnbackedParameter(type, lastRepresentableCount))
+                    .first();
+            assertTrue(assertThrows(IllegalStateException.class,
+                    () -> TrainingParameter.capture("atBoundary", atBoundary))
+                    .getMessage().contains("no host storage"));
+
+            long firstUnrepresentableCount = lastRepresentableCount + 1;
+            Parameter beyondBoundary = new NamedParameters(
+                    "beyondBoundary", syntheticUnbackedParameter(type, firstUnrepresentableCount))
+                    .first();
+            String expectedPayload = type == DataType.FLOAT64 || type == DataType.FLOAT32
+                    ? "logical snapshot byte size"
+                    : "optimizer snapshot byte size";
+            IllegalArgumentException rejected = assertThrows(IllegalArgumentException.class,
+                    () -> TrainingParameter.capture("beyondBoundary", beyondBoundary));
+            assertTrue(rejected.getMessage().contains(expectedPayload));
+            assertTrue(rejected.getMessage().contains("beyondBoundary"));
+        }
+
+        long firstUnrepresentableLowLogicalCount = Integer.MAX_VALUE / Short.BYTES + 1L;
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            Parameter oversizedLogical = new NamedParameters(
+                    "oversizedLogical",
+                    syntheticUnbackedParameter(type, firstUnrepresentableLowLogicalCount))
+                    .first();
+            assertTrue(assertThrows(IllegalArgumentException.class,
+                    () -> TrainingParameter.capture("oversizedLogical", oversizedLogical))
+                    .getMessage().contains("logical snapshot byte size"));
+        }
+    }
+
+    @Test
+    void publicOpenRejectsUnrepresentableSnapshotBeforeCompilation() {
+        Tensor oversized = syntheticUnbackedParameter(
+                DataType.FLOAT64, Integer.MAX_VALUE / Double.BYTES + 1L);
+        NamedParameters module = new NamedParameters("oversized", oversized);
+        try (Engine engine = Engine.standard()) {
+            IllegalArgumentException rejected = assertThrows(IllegalArgumentException.class,
+                    () -> TrainingSession.open(engine, module, scalar32(1.0f, true), new Sgd(0.1d)));
+            assertTrue(rejected.getMessage().contains("logical snapshot byte size"));
+            assertSame(oversized, module.first().value());
+            assertFalse(engine.isClosed());
+        }
+    }
+
+    @Test
     void rejectsZeroElementParameterBeforeCompilationWithoutExternalMutation() {
         try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
             Shape shape = Shape.of(0);
@@ -645,6 +697,13 @@ final class TrainingSessionFailureContractTest {
     private static Tensor squaredDifference(Tensor parameter, Tensor target) {
         Tensor difference = parameter.sub(target);
         return difference.mul(difference);
+    }
+
+    private static Tensor syntheticUnbackedParameter(DataType type, long elements) {
+        Shape shape = Shape.of(elements);
+        TensorDescriptor descriptor = new TensorDescriptor(
+                type, shape, Optional.of(LayoutDescriptor.contiguous(shape)), true);
+        return TensorFactory.create(descriptor);
     }
 
     private static Tensor scalar32(float value, boolean requiresGrad) {

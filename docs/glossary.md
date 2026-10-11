@@ -6825,8 +6825,12 @@ set, one immutable optimizer configuration, one compiled graph, and one prepared
 session. Opening snapshots exact parameter paths/wrappers/Tensors/storages, then compiles and
 prepares once. Each run reuses that session, authenticates target-indexed gradients, stages all
 SGD/accumulation work, and commits only after complete precommit validation. Its initial update
-domain is dense offset-zero non-view `FLOAT32`/`FLOAT64` parameters in exact-capacity writable
-shareable native host storage.
+domain is non-empty, finite `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` parameters with fully
+static dense offset-zero non-view layouts and exact-capacity writable, shareable native host
+storage. Each parameter's snapshot payload at its declared (logical) width and each optimizer
+payload at FLOAT32 width (or FLOAT64 width for FLOAT64 parameters) must independently fit in a
+Java byte array (at most `Integer.MAX_VALUE` bytes). An oversized payload is rejected during
+capture before that parameter's storage is inspected or its update buffers are allocated.
 
 The session borrows Engine, Module, and caller storage; it owns the inference session, private
 cotangent seed memory, counters, momentum slots, and gradient accumulation. It admits one

@@ -23,6 +23,7 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -286,15 +287,84 @@ final class TrainingSessionTest {
         try (Engine engine = Engine.standard();
                 TrainingSession session = TrainingSession.open(
                         engine, module, objective, new Sgd(0.1d))) {
+            TrainingState initial = session.state();
             MemorySegmentStorage replacement = new MemorySegmentStorage(
                     DataType.FLOAT32, 1, MemorySegment.ofArray(new float[] {2.0f}));
             module.first().value().replaceHostStorage(replacement);
             assertThrows(IllegalStateException.class,
                     () -> session.run(List.of(target), GradientMode.RESET_AND_STEP));
+            assertThrows(IllegalStateException.class, session::state);
+            assertThrows(IllegalStateException.class, () -> session.restore(initial));
             assertEquals(2.0f, original.segment().get(ValueLayout.JAVA_FLOAT, 0), 0.0f);
             assertEquals(0, session.executions());
             assertEquals(0, session.optimizerSteps());
             module.first().value().replaceHostStorage(original);
+            assertStateEquals(initial, session.state());
+        }
+    }
+
+    @Test
+    void rejectsOverlappingParameterSlicesAtOpenBeforeCompilation() {
+        try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+            MemorySegment memory = arena.allocate(3L * Float.BYTES, Float.BYTES);
+            memory.setAtIndex(ValueLayout.JAVA_FLOAT, 0, 2.0f);
+            memory.setAtIndex(ValueLayout.JAVA_FLOAT, 1, 3.0f);
+            memory.setAtIndex(ValueLayout.JAVA_FLOAT, 2, 4.0f);
+            Shape shape = Shape.of(2);
+            TensorDescriptor descriptor = new TensorDescriptor(
+                    DataType.FLOAT32,
+                    shape,
+                    Optional.of(LayoutDescriptor.contiguous(shape)),
+                    true);
+            Tensor first = TensorFactory.create(
+                    descriptor,
+                    Optional.empty(),
+                    Optional.of(new MemorySegmentStorage(
+                            DataType.FLOAT32, 2, memory.asSlice(0, 2L * Float.BYTES))));
+            Tensor second = TensorFactory.create(
+                    descriptor,
+                    Optional.empty(),
+                    Optional.of(new MemorySegmentStorage(
+                            DataType.FLOAT32, 2,
+                            memory.asSlice(Float.BYTES, 2L * Float.BYTES))));
+            ScalarParameters module = new ScalarParameters(first, second);
+
+            IllegalArgumentException rejected = assertThrows(IllegalArgumentException.class,
+                    () -> TrainingSession.open(
+                            engine, module, first.sum().add(second.sum()), new Sgd(0.1d)));
+            assertEquals("parameter storages overlap at paths first and second",
+                    rejected.getMessage());
+            assertEquals(2.0f, memory.getAtIndex(ValueLayout.JAVA_FLOAT, 0), 0.0f);
+            assertEquals(3.0f, memory.getAtIndex(ValueLayout.JAVA_FLOAT, 1), 0.0f);
+            assertEquals(4.0f, memory.getAtIndex(ValueLayout.JAVA_FLOAT, 2), 0.0f);
+            assertFalse(engine.isClosed());
+        }
+    }
+
+    @Test
+    void rejectsParameterStorageClosedAfterOpenBeforeMutation() {
+        Arena parameterArena = Arena.ofShared();
+        try {
+            Tensor parameter = scalar(parameterArena, 2.0f, true);
+            ScalarParameters module = new ScalarParameters(parameter);
+            Tensor target = scalar(0.0f, false);
+            Tensor difference = parameter.sub(target);
+            try (Engine engine = Engine.standard();
+                    TrainingSession session = TrainingSession.open(
+                            engine, module, difference.mul(difference), new Sgd(0.1d))) {
+                TrainingState initial = session.state();
+                parameterArena.close();
+                assertThrows(IllegalStateException.class,
+                        () -> session.run(List.of(target), GradientMode.RESET_AND_STEP));
+                assertThrows(IllegalStateException.class, session::state);
+                assertThrows(IllegalStateException.class, () -> session.restore(initial));
+                assertEquals(0, session.executions());
+                assertEquals(0, session.optimizerSteps());
+            }
+        } finally {
+            if (parameterArena.scope().isAlive()) {
+                parameterArena.close();
+            }
         }
     }
 
@@ -345,6 +415,16 @@ final class TrainingSessionTest {
             assertThrows(IllegalArgumentException.class,
                     () -> session.run(
                             List.of(firstInput, foreign), GradientMode.RESET_AND_STEP));
+            var originalSecondStorage = secondInput.hostStorage().orElseThrow();
+            secondInput.replaceHostStorage(firstInput.hostStorage().orElseThrow());
+            try {
+                IllegalArgumentException overlap = assertThrows(IllegalArgumentException.class,
+                        () -> session.run(
+                                List.of(firstInput, secondInput), GradientMode.RESET_AND_STEP));
+                assertTrue(overlap.getMessage().contains("training input storages overlap"));
+            } finally {
+                secondInput.replaceHostStorage(originalSecondStorage);
+            }
             assertStateEquals(initial, session.state());
             assertEquals(2.0f, value(module.first()), 0.0f);
         }
@@ -365,11 +445,60 @@ final class TrainingSessionTest {
                         overlappingModule,
                         parameter.mul(overlappingInput),
                         new Sgd(0.1d))) {
-            assertThrows(IllegalArgumentException.class,
+            TrainingState initial = session.state();
+            IllegalArgumentException overlap = assertThrows(IllegalArgumentException.class,
                     () -> session.run(
                             List.of(overlappingInput), GradientMode.RESET_AND_STEP));
+            assertTrue(overlap.getMessage().contains("training input storages overlap"));
+            assertStateEquals(initial, session.state());
             assertEquals(2.0f, value(overlappingModule.first()), 0.0f);
             assertEquals(0, session.executions());
+        }
+    }
+
+    @Test
+    void reportsFirstOverlappingPairInCompiledInputOrderWithoutMutation() {
+        ScalarParameters module = new ScalarParameters(2.0f);
+        Tensor parameter = module.first().value();
+        Tensor firstInput = scalar(3.0f, false);
+        Tensor secondInput = scalar(4.0f, false);
+        Tensor objective = parameter.mul(firstInput).add(secondInput);
+        try (Engine engine = Engine.standard();
+                TrainingSession session = TrainingSession.open(
+                        engine, module, objective, new Sgd(0.1d))) {
+            var overlappingRoles = new ArrayList<String>();
+            for (var input : session.compiledGraph().inputs()) {
+                if (input.tensorId().equals(parameter.id())) {
+                    overlappingRoles.add("parameter first");
+                } else if (input.tensorId().equals(firstInput.id())) {
+                    overlappingRoles.add("input " + firstInput.id());
+                } else if (input.tensorId().equals(secondInput.id())) {
+                    overlappingRoles.add("input " + secondInput.id());
+                }
+            }
+            assertEquals(3, overlappingRoles.size());
+            String firstDiagnostic = "training input storages overlap: "
+                    + overlappingRoles.get(0) + " and " + overlappingRoles.get(1);
+            TrainingState initial = session.state();
+            var firstStorage = firstInput.hostStorage().orElseThrow();
+            var secondStorage = secondInput.hostStorage().orElseThrow();
+            var parameterStorage = parameter.hostStorage().orElseThrow();
+            firstInput.replaceHostStorage(parameterStorage);
+            secondInput.replaceHostStorage(parameterStorage);
+            try {
+                IllegalArgumentException rejected = assertThrows(
+                        IllegalArgumentException.class,
+                        () -> session.run(
+                                List.of(secondInput, firstInput), GradientMode.RESET_AND_STEP));
+                assertEquals(firstDiagnostic, rejected.getMessage());
+                assertStateEquals(initial, session.state());
+                assertEquals(2.0f, value(module.first()), 0.0f);
+                assertEquals(0, session.executions());
+                assertEquals(0, session.optimizerSteps());
+            } finally {
+                firstInput.replaceHostStorage(firstStorage);
+                secondInput.replaceHostStorage(secondStorage);
+            }
         }
     }
 

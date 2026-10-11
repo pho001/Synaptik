@@ -16,7 +16,13 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Objects;
 
-/** Session-private stable parameter binding and reusable primitive update buffers. */
+/**
+ * Session-private stable parameter binding with reusable primitive update buffers.
+ *
+ * <p>Capture bounds both the declared-width and optimizer-width snapshot payloads to a Java
+ * byte-array length before storage inspection or buffer allocation. This keeps later in-memory
+ * snapshot and restore lengths representable without unchecked narrowing or wrapping.</p>
+ */
 final class TrainingParameter {
     private final String path;
     private final Parameter parameter;
@@ -140,6 +146,7 @@ final class TrainingParameter {
                     "training parameter element count exceeds Java array limit at path "
                             + stablePath + ": " + count);
         }
+        validateSnapshotByteSizes(stablePath, type, count);
         if (layout.referencedElementSpan() != count) {
             throw new IllegalArgumentException(
                     "training parameter layout span must equal element count at path "
@@ -192,6 +199,36 @@ final class TrainingParameter {
         return Math.multiplyExact(
                 (long) elementCount,
                 dataType == DataType.FLOAT64 ? Double.BYTES : Float.BYTES);
+    }
+
+    /**
+     * Checks both payload widths required by an in-memory training-state snapshot.
+     *
+     * <p>The caller checks positive, int-representable element count first. The logical width is
+     * checked before the optimizer width, so a low-precision parameter can report which payload
+     * first exceeds the byte-array limit. Neither check allocates or inspects parameter storage.</p>
+     *
+     * @param path non-null diagnostic path of the parameter being captured
+     * @param dataType non-null supported floating parameter type
+     * @param elementCount positive element count already bounded by {@link Integer#MAX_VALUE}
+     * @throws IllegalArgumentException if either checked byte size exceeds the Java array limit
+     */
+    private static void validateSnapshotByteSizes(
+            String path, DataType dataType, long elementCount) {
+        long logicalBytes = Math.multiplyExact(elementCount, dataType.byteWidth());
+        if (logicalBytes > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    "training parameter logical snapshot byte size exceeds Java array limit at path "
+                            + path + ": " + logicalBytes);
+        }
+        long optimizerBytes = Math.multiplyExact(
+                elementCount,
+                dataType == DataType.FLOAT64 ? Double.BYTES : Float.BYTES);
+        if (optimizerBytes > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    "training parameter optimizer snapshot byte size exceeds Java array limit at path "
+                            + path + ": " + optimizerBytes);
+        }
     }
 
     void validateBinding() {
@@ -519,8 +556,8 @@ final class TrainingParameter {
     TrainingState.ParameterState snapshot() {
         validateBinding();
         validateFiniteState();
-        byte[] parameterBytes = new byte[(int) byteSize()];
-        byte[] masterBytes = new byte[(int) masterByteSize()];
+        byte[] parameterBytes = new byte[Math.toIntExact(byteSize())];
+        byte[] masterBytes = new byte[Math.toIntExact(masterByteSize())];
         byte[] momentumBytes = new byte[masterBytes.length];
         byte[] accumulatedBytes = new byte[masterBytes.length];
         ByteBuffer parameterBuffer = ByteBuffer.wrap(parameterBytes).order(ByteOrder.BIG_ENDIAN);
@@ -572,8 +609,8 @@ final class TrainingParameter {
             throw new IllegalArgumentException(
                     "training state parameter schema mismatch at path " + path);
         }
-        int expectedLogicalBytes = (int) byteSize();
-        int expectedMasterBytes = (int) masterByteSize();
+        int expectedLogicalBytes = Math.toIntExact(byteSize());
+        int expectedMasterBytes = Math.toIntExact(masterByteSize());
         if (state.parameterBytesInternal().length != expectedLogicalBytes
                 || state.masterParameterBytesInternal().length != expectedMasterBytes
                 || state.momentumBytesInternal().length != expectedMasterBytes
