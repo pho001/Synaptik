@@ -18,6 +18,7 @@ The public surface is:
 | `Sgd` | Learning rate plus optional momentum, dampening, coupled weight decay, and Nesterov. |
 | `GradientMode` | `RESET_AND_STEP`, `ACCUMULATE`, or `ACCUMULATE_AND_STEP`. |
 | `TrainingSession` | Closeable owner of one prepared Engine session, parameter bindings, counters, accumulation, and optimizer slots. |
+| `TrainingParameterStorage` | Explicit copy of an initialized Module parameter tree into caller-owned shareable native host memory before session open. |
 | `TrainingStep` | Detached objective and successful execution/update numbering for one run. |
 | `TrainingState` | Detached immutable parameter/optimizer/accumulation snapshot for strict in-memory restore. |
 
@@ -53,6 +54,47 @@ allocating its update buffers or the private seed, or compiling; earlier paramet
 have been captured. JVM-heap, read-only, thread-confined, strided/view,
 integral, BOOL, and device-only parameter storage are outside this domain. The caller grants the
 session exclusive use of the captured Module bindings and parameter bytes until close.
+
+## Explicit native parameter copy
+
+`TrainingParameterStorage.copyToSharedNative(module, arena)` is an opt-in transition for an
+initialized Module whose current parameter storage may be heap or native. The destination
+`Arena` must be live and shareable (`Arena.ofShared()` is the normal choice). The method discovers
+all recursive parameter paths, validates the complete non-empty set, copies exact represented
+bytes into fresh aligned writable native segments, then changes each existing Tensor's borrowed
+host-storage association in path order. It returns no owner and never replaces a Parameter or
+Tensor, so expressions already built from those Tensors retain their identities. Read-only or
+unaligned source storage is accepted; the destination is aligned. Non-finite values, incomplete
+initialization, duplicate Tensor identities, overlapping source regions, invalid geometry,
+unsupported types or widths, and
+missing/dead/inaccessible storage are rejected before any association changes. An ordinary
+installation failure restores earlier exact associations; allocations consumed from the supplied
+Arena cannot be individually reclaimed.
+
+For example, a caller can construct an initialized `Linear` and its objective, then make the
+storage transition before opening a CPU session:
+
+```java
+Linear layer = new Linear(1, 1, true, DataType.FLOAT32, new Random(42));
+Tensor output = layer.forward(input); // input is a live FLOAT32 [1, 1] Tensor
+Tensor difference = output.sub(target); // target is a live FLOAT32 [1, 1] Tensor
+Tensor objective = difference.mul(difference).sum();
+try (Arena parameterArena = Arena.ofShared(); Engine engine = Engine.standard()) {
+    TrainingParameterStorage.copyToSharedNative(layer, parameterArena);
+    try (TrainingSession session = TrainingSession.open(
+            engine, layer, objective, new Sgd(0.1))) {
+        session.run(List.of(input, target), GradientMode.RESET_AND_STEP);
+    }
+}
+```
+
+Here `input` and `target` must themselves retain valid storage through the run; the [user guide's
+complete example](../user-guide/training.md#copy-an-initialized-linear) constructs both. The
+copy does not compile or prepare, and `TrainingSession.open` remains native-only: omitting the
+explicit call still rejects heap-backed parameters. The caller keeps both source storage and
+the destination Arena under its own lifetime policy, grants the copy exclusive Module/storage
+use, never calls it while a session is open, and closes the destination Arena only after the
+session. This is not a device transfer or a reduction in optimizer-state memory.
 
 ## SGD and gradient modes
 

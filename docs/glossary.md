@@ -6818,6 +6818,15 @@ which it occurs.
 
 The compile-time computation used for a training-capable mode. It contains the forward computation and backward gradient computation, and a later architecture version may also represent optimizer updates as graph operations. It remains compile-time graph state; backends only prepare and execute their assigned regions. See [Training graph](architecture/training-graph.md).
 
+### Native parameter copy / `TrainingParameterStorage`
+
+An explicit pre-session Training operation that copies every initialized Module parameter's
+represented bytes from current heap or native host storage into fresh caller-owned shareable
+native storage. It changes each existing Tensor's borrowed host-storage association, not its
+identity or graph provenance, and leaves source storage ownership with the caller. The caller
+keeps the destination Arena alive through session close. It is not a backend transfer or an
+implicit behavior of `TrainingSession.open`. See [Training API](api/training-api.md#explicit-native-parameter-copy).
+
 ### Training session / `TrainingSession`
 
 The implemented public Training owner for one scalar objective, one stable recursive NN parameter

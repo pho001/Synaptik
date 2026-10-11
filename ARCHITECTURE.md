@@ -421,7 +421,7 @@ This compact routing summary does not replace the linked details:
 | Explicit composition and public lifecycle | Engine |
 | Typed diagnostics | Trace |
 | Stateful modules, parameters, buffers, and train/eval behavior | NN |
-| Optimizer algorithms and training orchestration | Training |
+| Optimizer algorithms, explicit pre-session native parameter copies, and training orchestration | Training |
 | Fixed benchmark evidence | `tools/benchmarks` |
 | Model-autotuning measurement, cache coordination, and selection | `tools/tuning` |
 

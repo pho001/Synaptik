@@ -213,7 +213,7 @@ final class TrainingParameter {
      * @param elementCount positive element count already bounded by {@link Integer#MAX_VALUE}
      * @throws IllegalArgumentException if either checked byte size exceeds the Java array limit
      */
-    private static void validateSnapshotByteSizes(
+    static void validateSnapshotByteSizes(
             String path, DataType dataType, long elementCount) {
         long logicalBytes = Math.multiplyExact(elementCount, dataType.byteWidth());
         if (logicalBytes > Integer.MAX_VALUE) {
@@ -731,19 +731,28 @@ final class TrainingParameter {
                 : Float16Bits.fromFloat(value);
     }
 
-    private static void validateFiniteStorage(
+    /**
+     * Rejects a non-finite represented value without changing the source bytes.
+     *
+     * @param path non-null diagnostic parameter path
+     * @param segment non-null, live, accessible exact parameter region; alignment is not required
+     * @param dataType non-null supported floating parameter type
+     * @param elementCount positive element count bounded by the Java array limit
+     * @throws IllegalArgumentException if a represented parameter value is NaN or infinite
+     */
+    static void validateFiniteStorage(
             String path, MemorySegment segment, DataType dataType, int elementCount) {
         for (int index = 0; index < elementCount; index++) {
             boolean finite;
             if (dataType == DataType.FLOAT64) {
                 finite = Double.isFinite(segment.get(
-                        ValueLayout.JAVA_DOUBLE, (long) index * Double.BYTES));
+                        ValueLayout.JAVA_DOUBLE_UNALIGNED, (long) index * Double.BYTES));
             } else if (dataType == DataType.FLOAT32) {
                 finite = Float.isFinite(segment.get(
-                        ValueLayout.JAVA_FLOAT, (long) index * Float.BYTES));
+                        ValueLayout.JAVA_FLOAT_UNALIGNED, (long) index * Float.BYTES));
             } else {
                 short bits = segment.get(
-                        ValueLayout.JAVA_SHORT, (long) index * Short.BYTES);
+                        ValueLayout.JAVA_SHORT_UNALIGNED, (long) index * Short.BYTES);
                 float value = dataType == DataType.BFLOAT16
                         ? BFloat16Bits.toFloat(bits)
                         : Float16Bits.toFloat(bits);

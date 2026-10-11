@@ -56,6 +56,7 @@ parameters declared by `extensions/nn`.
 | [0001](tasks/0001-public-training-session-and-sgd-lifecycle.md) | Public Training Session and SGD Lifecycle | Complete | Stable NN parameters; published first gradients; Engine reusable sessions | Public reusable session and SGD lifecycle approved after Class C remediation. |
 | [0001A](tasks/0001a-bound-parameter-snapshot-byte-sizes.md) | Bound parameter snapshot byte sizes | Complete | 0001 | Capture now rejects unsnapshotable logical or optimizer-width sizes before that parameter's buffers or graph compilation. |
 | [0001B](tasks/0001b-remove-repeated-parameter-overlap-scan.md) | Remove repeated parameter overlap scan | Complete | 0001A | Fixed parameter pairs are checked at open; runs retain binding and dynamic-overlap validation. |
+| [0001C](tasks/0001c-explicit-native-parameter-copy.md) | Explicit native parameter copy before training | Complete | 0001A–0001B | Caller-owned shared Arena and exact Tensor identities bridge initialized NN parameters to the existing Training storage domain. |
 | 0002 | Parameter groups and broader optimizers | Draft | 0001 | Decide stable group identity and add only separately authorized optimizer algorithms. |
 | 0003 | Exact-resume progress state | Draft | 0001–0002; Data lifecycle | Define epoch/scheduler/graph RNG/data sampler cursor and mixed-precision scaler state only where an exact-resume claim is supportable. |
 | 0004 | Training checkpoint integration boundary | Draft | 0002–0003; Checkpoint model artifact and optional Training adapter | Expose one coordinated prevalidated state candidate; keep bytes, files, checksums, and atomic publication outside Training. |
@@ -77,14 +78,13 @@ returned `APPROVE` with findings `0`. The task provides the first public Trainin
 accumulation, detached in-memory state, strict restore, qualified CPU parameter-carrier coverage,
 and the existing Metal objective path recorded by ADR 0018. This does not claim BFLOAT16 or
 FLOAT16 Metal training execution; low-precision parameters keep private FLOAT32 masters, momentum,
-and accumulated gradients, with exact logical and optimizer-width snapshot payloads. Task 0001A is Complete after focused validation and independent Class B review. Task 0001B is Complete after focused validation and independent Class C review; broader capabilities remain Draft, and no Training task is Ready.
+and accumulated gradients, with exact logical and optimizer-width snapshot payloads. Tasks 0001A–0001C are Complete after focused validation and independent review. Task 0001C also passed a configured full-repository test/Javadoc run; no broader Training task is Ready.
 
 ## Open questions
 
-- Decide who allocates and owns native parameter storage for automatically initialized NN layers.
-  Current initializers produce heap-backed Tensors, while the supported Training session requires
-  caller-owned shareable native storage; changing that boundary needs an explicit ownership and
-  lifetime decision.
+- Task 0001C established an explicit pre-session copy into caller-owned shared native storage for
+  initialized NN parameters. Direct native initialization remains a possible later convenience,
+  not an implicit `TrainingSession.open` behavior.
 - Decide whether optimizer staging/rollback memory should remain always provisioned or become
   mode-dependent, without weakening the current ordinary-failure atomicity contract. Large
   snapshots remain bounded by one Java byte array per payload; chunking needs a separate state

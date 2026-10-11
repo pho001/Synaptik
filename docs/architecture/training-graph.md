@@ -136,6 +136,31 @@ until BPTT is designed. See
 mathematical update and `TrainingSession` orchestration. This lets a module remain usable for
 inference without importing an optimizer.
 
+An initialized layer can begin with heap-backed parameters, but a session can update only
+shareable native parameter storage. The caller may explicitly call
+`TrainingParameterStorage.copyToSharedNative(module, arena)` before opening a session. Training
+traverses NN's recursive parameter paths, validates the complete source set, copies exact
+represented bytes into fresh aligned native segments, and rebinds only Model's borrowed
+host-storage associations. The same Parameter and Tensor objects remain in previously constructed
+expressions, so the normal Engine compile and prepare path can use them without a second graph
+construction route. The caller owns the destination Arena through session close; Training owns
+neither arena nor a backend transfer. The [owning Training contract](contracts/extensions-training.md#optimizertraining-lifecycle)
+defines the validation and lifetime boundary, and [ADR 0028](../design/decisions/0028-explicit-native-parameter-copy.md)
+records why the transition is explicit.
+
+```text
+NN initialization (possibly heap) -> Training explicit native copy -> Engine session open -> runs -> session close -> caller Arena close
+```
+
+Read this left to right: storage association changes only before open, while the parameter
+identity used by the expression and compiled graph does not. For example, a `Linear` constructed
+with heap-initialized weight and bias can build its loss expression, be copied, and then open a
+CPU `TrainingSession` on that same expression. By contrast, opening without the copy still fails
+at native-only parameter capture; attempting the copy while a session is open would invalidate
+the session's fixed storage snapshot. Focused unit tests cover byte preservation and failure
+before rebinding, and the CPU integration test covers the end-to-end path. This transition does
+not authorize Training to select a backend or change Model or NN ownership.
+
 The public initial lifecycle compiles and prepares the forward/backward graph once through Engine,
 then applies the optimizer only after every objective and gradient publication is detached and
 validated:

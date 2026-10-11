@@ -53,6 +53,7 @@ Allowed:
 - `ParameterGroup`
 - `TrainingSession`
 - `TrainingStep`
+- `TrainingParameterStorage` for an explicit pre-session copy into caller-owned shareable native host memory
 - immutable in-memory optimizer/session state snapshots
 - an explicit dependency on the public Engine facade for the session lifecycle
 - backend-neutral access to caller-owned Model host storage within the supported optimizer domain
@@ -126,6 +127,17 @@ Rules:
 
 - `extensions/nn` owns module-declared trainable parameters, persistent buffers, and train/eval
   forward behavior.
+- Before opening a session, a caller may explicitly ask Training to copy a fully initialized
+  Module tree's current parameters into a caller-owned shareable Arena. Training validates the
+  complete recursive parameter set and source storage before replacing any Tensor association,
+  copies exact represented bytes into fresh, aligned, exact-capacity writable native segments,
+  and installs the associations in path order without replacing Parameter or Tensor identities.
+  Source storage may be heap or native and read-only; duplicate Tensor identities and overlapping
+  source parameter regions are rejected. Ordinary installation failure restores earlier exact
+  associations. The caller owns both source and destination lifetimes, must keep the destination
+  Arena alive through any session, and must give the copy exclusive Module/storage use. Copying
+  while a session is open is forbidden. This does not change the native-only capture domain of
+  `TrainingSession.open` or introduce a backend transfer.
 - A `TrainingSession` borrows exactly one caller-owned Engine and one caller-owned Module tree. It
   owns exactly one Engine `InferenceSession`, one optimizer-state set, and its counters.
 - Session construction snapshots recursive parameter paths in Module traversal order. Every

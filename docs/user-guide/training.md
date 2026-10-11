@@ -9,6 +9,67 @@ the ordinary Engine path rather than a training-specific executor. Supported Met
 preparation follows the same lifecycle, but the low-parameter CPU qualification described here is
 not a claim of BFLOAT16/FLOAT16 Metal training support.
 
+## Copy an initialized Linear
+
+An eager `Linear` initializes its weight and bias in Java heap storage. To train it without
+replacing those Tensor objects, construct the loss first, then explicitly copy its parameters
+into a caller-owned shared native arena before opening a session. `Arena.ofShared()` keeps those
+parameter segments accessible to the session's operation threads. The copy may allocate the
+entire parameter payload even if a later step fails; plan the Arena lifetime before calling it.
+
+This complete example starts with a `FLOAT32` one-input, one-output `Linear` and a target of zero.
+The input and target have native storage too, because the CPU Engine needs live host inputs.
+
+```java
+static Tensor nativeMatrix(Arena arena, float value) {
+    Shape shape = Shape.of(1, 1);
+    TensorDescriptor descriptor = new TensorDescriptor(
+            DataType.FLOAT32, shape,
+            Optional.of(LayoutDescriptor.contiguous(shape)), false);
+    MemorySegmentStorage storage = new MemorySegmentStorage(
+            DataType.FLOAT32, 1, arena.allocate(Float.BYTES, Float.BYTES));
+    storage.segment().set(ValueLayout.JAVA_FLOAT, 0, value);
+    return TensorFactory.create(descriptor, Optional.empty(), Optional.of(storage));
+}
+
+Linear layer = new Linear(1, 1, true, DataType.FLOAT32, new Random(42));
+Tensor originalWeight = layer.weight().value();
+try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+    Tensor input = nativeMatrix(arena, 1.0f);
+    Tensor target = nativeMatrix(arena, 0.0f);
+    Tensor output = layer.forward(input);
+    Tensor error = output.sub(target);
+    Tensor objective = error.mul(error).sum();
+
+    // This call is explicit; open does not copy heap-backed parameters.
+    TrainingParameterStorage.copyToSharedNative(layer, arena);
+    assert layer.weight().value() == originalWeight;
+    try (TrainingSession session = TrainingSession.open(
+            engine, layer, objective, new Sgd(0.1))) {
+        float firstLoss = session.run(
+                List.of(input, target), GradientMode.RESET_AND_STEP)
+                .objective().bytes().getFloat();
+        float secondLoss = session.run(
+                List.of(input, target), GradientMode.RESET_AND_STEP)
+                .objective().bytes().getFloat();
+        assert secondLoss < firstLoss;
+    }
+} // Engine and parameter Arena close after the TrainingSession.
+```
+
+The second loss is lower than the first for this seeded example. The identity assertion shows
+that the original weight Tensor remains the graph input after copying; it does not claim that
+the old heap storage was closed or transferred. The caller retains ownership of both source and
+destination storage. Keep the shared Arena alive through session close, and never copy while a
+session is open or another caller uses the Module/storage. Without the copy, `TrainingSession.open`
+rejects the heap-backed parameters before compilation. A confined or closed destination Arena,
+uninitialized deferred layer, non-finite source value, aliased parameter regions, unsupported
+layout, or invalid source storage also fails before any parameter association changes. Already
+consumed destination Arena capacity is not individually recovered after allocation failure.
+
+For details of raw-byte preservation and failure behavior, see the [Training API](../api/training-api.md#explicit-native-parameter-copy)
+and [architecture explanation](../architecture/training-graph.md#optimizer-as-a-backend-agnostic-step).
+
 ## Build a runnable scalar problem
 
 The first optimizer domain requires exact-capacity writable **shareable native** parameter storage.

@@ -19,10 +19,12 @@ import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.layers.Linear;
 import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Parameter;
 import io.github.pho001.synaptik.training.GradientMode;
 import io.github.pho001.synaptik.training.Sgd;
+import io.github.pho001.synaptik.training.TrainingParameterStorage;
 import io.github.pho001.synaptik.training.TrainingSession;
 import io.github.pho001.synaptik.training.TrainingState;
 import io.github.pho001.synaptik.training.TrainingStep;
@@ -33,11 +35,59 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 /** Exercises the public training lifecycle through the real CPU Engine composition. */
 final class TrainingSessionCpuIntegrationTest {
+    @Test
+    void initializedHeapLinearCopiesWithoutChangingGraphThenTrainsOnCpu() {
+        Linear linear = new Linear(1, 1, true, DataType.FLOAT32, new Random(42));
+        Tensor weight = linear.weight().value();
+        Tensor bias = linear.bias().orElseThrow().value();
+        var weightSource = weight.hostStorage().orElseThrow();
+        var biasSource = bias.hostStorage().orElseThrow();
+        assertTrue(weightSource.segment().heapBase().isPresent());
+        assertTrue(biasSource.segment().heapBase().isPresent());
+        byte[] weightBits = weightSource.segment().toArray(ValueLayout.JAVA_BYTE);
+        byte[] biasBits = biasSource.segment().toArray(ValueLayout.JAVA_BYTE);
+
+        try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+            Tensor input = floatMatrix(arena, 1.0f);
+            Tensor target = floatMatrix(arena, 0.0f);
+            Tensor output = linear.forward(input);
+            Tensor error = output.sub(target);
+            Tensor objective = error.mul(error).sum();
+            assertThrows(IllegalArgumentException.class,
+                    () -> TrainingSession.open(engine, linear, objective, new Sgd(0.1)));
+
+            TrainingParameterStorage.copyToSharedNative(linear, arena);
+            assertSame(weight, linear.weight().value());
+            assertSame(bias, linear.bias().orElseThrow().value());
+            assertArrayEquals(weightBits,
+                    weight.hostStorage().orElseThrow().segment().toArray(ValueLayout.JAVA_BYTE));
+            assertArrayEquals(biasBits,
+                    bias.hostStorage().orElseThrow().segment().toArray(ValueLayout.JAVA_BYTE));
+            assertTrue(weightSource.isAlive());
+            assertTrue(biasSource.isAlive());
+
+            try (TrainingSession session = TrainingSession.open(
+                    engine, linear, objective, new Sgd(0.1))) {
+                var compiled = session.compiledGraph();
+                float firstLoss = session.run(
+                        List.of(input, target), GradientMode.RESET_AND_STEP)
+                        .objective().bytes().getFloat();
+                float secondLoss = session.run(
+                        List.of(input, target), GradientMode.RESET_AND_STEP)
+                        .objective().bytes().getFloat();
+                assertTrue(secondLoss < firstLoss);
+                assertSame(compiled, session.compiledGraph());
+                assertEquals(2, session.optimizerSteps());
+            }
+        }
+    }
+
     @Test
     void repeatedPreparedStepsConvergeAndDetachedResultsOutliveAllOwners() {
         TrainingStep retained;
@@ -310,6 +360,16 @@ final class TrainingSessionCpuIntegrationTest {
                 shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)),
                 requiresGrad);
+        MemorySegmentStorage storage = new MemorySegmentStorage(
+                DataType.FLOAT32, 1, arena.allocate(Float.BYTES, Float.BYTES));
+        storage.segment().set(ValueLayout.JAVA_FLOAT, 0, value);
+        return TensorFactory.create(descriptor, Optional.empty(), Optional.of(storage));
+    }
+
+    private static Tensor floatMatrix(Arena arena, float value) {
+        Shape shape = Shape.of(1, 1);
+        TensorDescriptor descriptor = new TensorDescriptor(
+                DataType.FLOAT32, shape, Optional.of(LayoutDescriptor.contiguous(shape)), false);
         MemorySegmentStorage storage = new MemorySegmentStorage(
                 DataType.FLOAT32, 1, arena.allocate(Float.BYTES, Float.BYTES));
         storage.segment().set(ValueLayout.JAVA_FLOAT, 0, value);
