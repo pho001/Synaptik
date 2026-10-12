@@ -3,6 +3,9 @@ package io.github.pho001.synaptik.training;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -22,7 +25,9 @@ import io.github.pho001.synaptik.nn.module.Parameter;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +37,176 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 final class TrainingSessionTest {
+    @Test
+    void candidatesAreDemandDrivenAndActiveSlotsAndRollbackRemainForEveryType()
+            throws ReflectiveOperationException {
+        for (DataType type : List.of(
+                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            Tensor parameter = switch (type) {
+                case FLOAT64 -> scalar64(2.0d, true);
+                case FLOAT32 -> scalar(2.0f, true);
+                case BFLOAT16, FLOAT16 -> lowVector(type, new short[] {0x4000}, true);
+                default -> throw new AssertionError(type);
+            };
+            Tensor objective = type == DataType.BFLOAT16 || type == DataType.FLOAT16
+                    ? parameter.cast(DataType.FLOAT32).sum()
+                    : parameter.mul(parameter);
+            ScalarParameters module = new ScalarParameters(parameter);
+            try (Engine engine = Engine.standard();
+                    TrainingSession session = TrainingSession.open(
+                            engine, module, objective, new Sgd(0.1d))) {
+                TrainingParameter binding = binding(session);
+                String width = type == DataType.FLOAT64 ? "64" : "32";
+                String accumulationCandidate = "accumulatedCandidate" + width;
+                String momentumCandidate = "momentumCandidate" + width;
+                assertNotNull(buffer(binding, "gradient" + width));
+                assertNotNull(buffer(binding, "accumulated" + width));
+                assertNotNull(buffer(binding, "momentum" + width));
+                assertNull(buffer(binding, accumulationCandidate));
+                assertNull(buffer(binding, momentumCandidate));
+                if (type == DataType.FLOAT16 || type == DataType.BFLOAT16) {
+                    for (String name : List.of("master32", "masterCandidate32",
+                            "masterRollback32", "parameterCandidate16", "parameterRollback16")) {
+                        assertNotNull(buffer(binding, name));
+                    }
+                } else {
+                    assertNotNull(buffer(binding, "parameterCandidate" + width));
+                    assertNotNull(buffer(binding, "parameterRollback" + width));
+                }
+
+                TrainingState initial = session.state();
+                session.run(List.of(), GradientMode.RESET_AND_STEP);
+                assertNull(buffer(binding, accumulationCandidate));
+                assertNull(buffer(binding, momentumCandidate));
+                session.run(List.of(), GradientMode.ACCUMULATE);
+                assertNotNull(buffer(binding, accumulationCandidate));
+                session.zeroGrad();
+                assertNull(buffer(binding, accumulationCandidate));
+                session.run(List.of(), GradientMode.ACCUMULATE);
+                session.run(List.of(), GradientMode.ACCUMULATE_AND_STEP);
+                assertNull(buffer(binding, accumulationCandidate));
+                assertNull(buffer(binding, momentumCandidate));
+                session.restore(initial);
+                assertNull(buffer(binding, accumulationCandidate));
+                assertNull(buffer(binding, momentumCandidate));
+                assertStateEquals(initial, session.state());
+                session.zeroGrad();
+                assertNull(buffer(binding, accumulationCandidate));
+            }
+        }
+    }
+
+    @Test
+    void zeroMomentumRestoreKeepsSignedZeroAndUncountedAccumulationUntilSuccessfulClear()
+            throws ReflectiveOperationException {
+        for (DataType type : List.of(
+                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            Tensor parameter = switch (type) {
+                case FLOAT64 -> scalar64(2.0d, true);
+                case FLOAT32 -> scalar(2.0f, true);
+                case BFLOAT16, FLOAT16 -> lowVector(type, new short[] {0x4000}, true);
+                default -> throw new AssertionError(type);
+            };
+            Tensor objective = type == DataType.BFLOAT16 || type == DataType.FLOAT16
+                    ? parameter.cast(DataType.FLOAT32).sum()
+                    : parameter.mul(parameter);
+            Sgd optimizer = new Sgd(0.1d, -0.0d, 0.0d, false);
+            try (Engine engine = Engine.standard();
+                    TrainingSession session = TrainingSession.open(
+                            engine, new ScalarParameters(parameter), objective, optimizer)) {
+                TrainingState initial = session.state();
+                TrainingState.ParameterState before = initial.parameters().getFirst();
+                boolean doubleWidth = type == DataType.FLOAT64;
+                ByteBuffer momentum = ByteBuffer.allocate(doubleWidth ? 8 : 4)
+                        .order(ByteOrder.BIG_ENDIAN);
+                ByteBuffer accumulated = ByteBuffer.allocate(doubleWidth ? 8 : 4)
+                        .order(ByteOrder.BIG_ENDIAN);
+                if (doubleWidth) {
+                    momentum.putLong(Long.MIN_VALUE);
+                    accumulated.putDouble(1.0d);
+                } else {
+                    momentum.putInt(Integer.MIN_VALUE);
+                    accumulated.putFloat(1.0f);
+                }
+                byte[] negativeZero = momentum.array();
+                byte[] pending = accumulated.array();
+                TrainingState.ParameterState restoredParameter = new TrainingState.ParameterState(
+                        before.path(), type, before.shape(),
+                        bytes(before.parameterBytes()), bytes(before.masterParameterBytes()),
+                        negativeZero, pending);
+                TrainingState restored = new TrainingState(
+                        optimizer, 0, 0, 0, List.of(restoredParameter));
+                session.restore(restored);
+                assertEquals(0, session.accumulatedGradientRuns());
+                assertStateEquals(restored, session.state());
+                TrainingParameter binding = binding(session);
+                assertNull(buffer(binding, doubleWidth
+                        ? "momentumCandidate64" : "momentumCandidate32"));
+                assertNull(buffer(binding, doubleWidth
+                        ? "accumulatedCandidate64" : "accumulatedCandidate32"));
+                session.run(List.of(), GradientMode.RESET_AND_STEP);
+                TrainingState cleared = session.state();
+                assertArrayEquals(new byte[negativeZero.length],
+                        bytes(cleared.parameters().getFirst().momentumBytes()));
+                assertArrayEquals(new byte[pending.length],
+                        bytes(cleared.parameters().getFirst().accumulatedGradientBytes()));
+                assertNull(buffer(binding, doubleWidth
+                        ? "accumulatedCandidate64" : "accumulatedCandidate32"));
+            }
+        }
+    }
+
+    @Test
+    void positiveMomentumThatNarrowsToFloatZeroStillStagesAndSwaps()
+            throws ReflectiveOperationException {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            Tensor parameter = type == DataType.FLOAT32
+                    ? scalar(2.0f, true)
+                    : lowVector(type, new short[] {0x4000}, true);
+            Tensor objective = type == DataType.FLOAT32
+                    ? parameter.mul(parameter)
+                    : parameter.cast(DataType.FLOAT32).sum();
+            try (Engine engine = Engine.standard();
+                    TrainingSession session = TrainingSession.open(
+                            engine, new ScalarParameters(parameter), objective,
+                            new Sgd(0.1d, Double.MIN_VALUE, 0.0d, false))) {
+                TrainingParameter binding = binding(session);
+                Object active = buffer(binding, "momentum32");
+                assertNull(buffer(binding, "momentumCandidate32"));
+                session.run(List.of(), GradientMode.RESET_AND_STEP);
+                assertNotSame(active, buffer(binding, "momentum32"));
+                assertSame(active, buffer(binding, "momentumCandidate32"));
+                assertArrayEquals(new byte[Float.BYTES],
+                        bytes(session.state().parameters().getFirst().momentumBytes()));
+            }
+        }
+    }
+
+    @Test
+    void failedZeroMomentumRestoreReleasesStagingWithoutChangingState()
+            throws ReflectiveOperationException {
+        ScalarParameters module = new ScalarParameters(2.0f);
+        Tensor parameter = module.first().value();
+        TrainingSession.Hooks hooks = new TrainingSession.Hooks() {
+            @Override
+            void beforeParameterWrite(int parameterIndex) {
+                throw new IllegalStateException("injected restore write failure");
+            }
+        };
+        try (Engine engine = Engine.standard();
+                TrainingSession session = TrainingSession.openForTesting(
+                        engine, module, parameter.mul(parameter),
+                        new Sgd(0.1d, -0.0d, 0.0d, false), hooks)) {
+            TrainingState initial = session.state();
+            assertThrows(IllegalStateException.class, () -> session.restore(initial));
+            assertStateEquals(initial, session.state());
+            TrainingParameter binding = binding(session);
+            assertNull(buffer(binding, "accumulatedCandidate32"));
+            assertNull(buffer(binding, "momentumCandidate32"));
+            assertNotNull(buffer(binding, "parameterRollback32"));
+        }
+    }
+
     @Test
     void appliesPersistentMomentumWithExactStepNumbers() {
         ScalarParameters module = new ScalarParameters(2.0f);
@@ -759,6 +934,20 @@ final class TrainingSessionTest {
         byte[] result = new byte[buffer.remaining()];
         buffer.get(result);
         return result;
+    }
+
+    private static TrainingParameter binding(TrainingSession session)
+            throws ReflectiveOperationException {
+        Field field = TrainingSession.class.getDeclaredField("parameters");
+        field.setAccessible(true);
+        return (TrainingParameter) ((List<?>) field.get(session)).getFirst();
+    }
+
+    private static Object buffer(TrainingParameter binding, String name)
+            throws ReflectiveOperationException {
+        Field field = TrainingParameter.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(binding);
     }
 
     private static void assertStateEquals(TrainingState expected, TrainingState actual) {

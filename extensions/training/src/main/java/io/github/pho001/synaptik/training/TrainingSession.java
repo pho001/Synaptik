@@ -57,9 +57,14 @@ import java.util.OptionalLong;
  * candidate calculation, and a second complete parameter-view validation precede mutation.
  * Current parameters, decoded gradients, accumulation, momentum, optimizer intermediates, and
  * candidates must remain finite; NaN, infinity, and represented overflow fail before commit,
- * while signed zero is finite. Candidate, rollback, momentum, and accumulation primitive arrays
- * are allocated once at open and reused; the optimizer element loop allocates no object per
- * element. Validated native writes are non-throwing after validation. Ordinary failure before or
+ * while signed zero is finite. Active momentum and accumulation slots, parameter candidates, and
+ * rollback arrays are allocated at open. Inactive accumulation staging is allocated on accumulation
+ * or restore and released after successful clearing or restore; momentum staging is allocated
+ * for nonzero configured momentum or restore and is not retained for exactly zero configured
+ * momentum.
+ * Staging allocation precedes parameter writes, and the optimizer element loop allocates no
+ * object per element. Validated native writes and subsequent slot commits are non-allocating and
+ * non-throwing after validation. Ordinary failure before or
  * during the documented precommit work leaves parameter bytes, optimizer slots, counters, and
  * pending gradients unchanged. Fatal JVM failure or caller violation of exclusive storage access
  * is outside this atomicity guarantee.</p>
@@ -165,7 +170,8 @@ public final class TrainingSession implements AutoCloseable {
      * captured. Exact Tensor and non-empty storage overlap checks complete
      * before compilation. The objective must be a scalar {@code FLOAT32} or {@code FLOAT64}
      * Tensor requesting gradients. The supplied optimizer is borrowed as immutable configuration;
-     * this session initializes independent zero momentum and gradient-accumulation slots.</p>
+     * this session initializes independent zero momentum and gradient-accumulation slots, but
+     * allocates their inactive staging arrays only when an operation needs them.</p>
      *
      * <p>Construction performs exactly one ordinary Engine gradient compile and exactly one
      * ordinary session preparation. A preparation failure publishes no TrainingSession and closes
@@ -404,8 +410,9 @@ public final class TrainingSession implements AutoCloseable {
             }
             validateModuleAndParameters();
             commitParameterCandidates();
+            boolean configuredMomentum = optimizer.momentum() != 0.0d;
             for (TrainingParameter parameter : parameters) {
-                parameter.commitMomentum();
+                parameter.commitMomentum(configuredMomentum);
                 parameter.clearAccumulation();
             }
             publishCounters(nextExecution, nextOptimizerStep, 0L);
@@ -483,8 +490,8 @@ public final class TrainingSession implements AutoCloseable {
      * lengths, finite payload values, momentum-disabled slot values, and current Module/storage
      * view all validate before any parameter write. Success atomically installs logical and master
      * parameter values in path order, then publishes momentum, pending gradients, and counters.
-     * Failure before commit leaves all current state unchanged. The supplied immutable state is not
-     * retained.</p>
+     * Failure before commit leaves all current state unchanged and discards newly staged inactive
+     * accumulation or zero-momentum buffers. The supplied immutable state is not retained.</p>
      *
      * @param state non-null detached state from a schema-compatible session
      * @throws NullPointerException if {@code state} is {@code null} after successful admission
@@ -516,18 +523,26 @@ public final class TrainingSession implements AutoCloseable {
             for (int index = 0; index < parameters.size(); index++) {
                 parameters.get(index).validateState(candidate.parameters().get(index), optimizer);
             }
-            for (int index = 0; index < parameters.size(); index++) {
-                parameters.get(index).stageRestore(candidate.parameters().get(index));
+            boolean configuredMomentum = optimizer.momentum() != 0.0d;
+            try {
+                for (int index = 0; index < parameters.size(); index++) {
+                    parameters.get(index).stageRestore(candidate.parameters().get(index));
+                }
+                validateModuleAndParameters();
+                commitParameterCandidates();
+                for (TrainingParameter parameter : parameters) {
+                    parameter.commitRestore(configuredMomentum);
+                }
+                publishCounters(
+                        candidate.executions(),
+                        candidate.optimizerSteps(),
+                        candidate.accumulatedGradientRuns());
+            } catch (RuntimeException | Error failure) {
+                for (TrainingParameter parameter : parameters) {
+                    parameter.discardFailedRestoreStaging(configuredMomentum);
+                }
+                throw failure;
             }
-            validateModuleAndParameters();
-            commitParameterCandidates();
-            for (TrainingParameter parameter : parameters) {
-                parameter.commitRestore();
-            }
-            publishCounters(
-                    candidate.executions(),
-                    candidate.optimizerSteps(),
-                    candidate.accumulatedGradientRuns());
         } finally {
             finishOperation();
         }

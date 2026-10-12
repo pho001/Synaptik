@@ -17,11 +17,17 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Session-private stable parameter binding with reusable primitive update buffers.
+ * Session-private stable parameter binding with active optimizer slots and staged primitive
+ * update buffers.
  *
  * <p>Capture bounds both the declared-width and optimizer-width snapshot payloads to a Java
  * byte-array length before storage inspection or buffer allocation. This keeps later in-memory
- * snapshot and restore lengths representable without unchecked narrowing or wrapping.</p>
+ * snapshot and restore lengths representable without unchecked narrowing or wrapping. The active
+ * accumulation and momentum slots, parameter candidates, and rollback arrays exist from capture;
+ * inactive accumulation and momentum candidates are allocated only before an operation that
+ * stages them. Successful accumulation clearing releases its inactive candidate. A restored
+ * negative-zero momentum slot under zero configured momentum is retained exactly until the next
+ * successful update, when it is normalized without a pass on ordinary zero-momentum steps.</p>
  */
 final class TrainingParameter {
     private final String path;
@@ -45,6 +51,8 @@ final class TrainingParameter {
     private float[] parameterRollback32;
     private float[] momentum32;
     private float[] momentumCandidate32;
+    private boolean momentumNeedsZeroNormalization;
+    private boolean stagedMomentumHasNegativeZero;
 
     private double[] gradient64;
     private double[] accumulated64;
@@ -71,17 +79,13 @@ final class TrainingParameter {
         if (dataType == DataType.FLOAT64) {
             gradient64 = new double[elementCount];
             accumulated64 = new double[elementCount];
-            accumulatedCandidate64 = new double[elementCount];
             parameterCandidate64 = new double[elementCount];
             parameterRollback64 = new double[elementCount];
             momentum64 = new double[elementCount];
-            momentumCandidate64 = new double[elementCount];
         } else {
             gradient32 = new float[elementCount];
             accumulated32 = new float[elementCount];
-            accumulatedCandidate32 = new float[elementCount];
             momentum32 = new float[elementCount];
-            momentumCandidate32 = new float[elementCount];
             if (dataType == DataType.FLOAT32) {
                 parameterCandidate32 = new float[elementCount];
                 parameterRollback32 = new float[elementCount];
@@ -289,7 +293,9 @@ final class TrainingParameter {
         }
     }
 
+    /** Stages a finite pending sum without mutating the active accumulation slot. */
     void stageAccumulation() {
+        ensureAccumulationCandidate();
         if (dataType != DataType.FLOAT64) {
             for (int index = 0; index < elementCount; index++) {
                 float candidate = accumulated32[index] + gradient32[index];
@@ -305,16 +311,32 @@ final class TrainingParameter {
         }
     }
 
+    /**
+     * Stages a parameter update and any configured momentum candidate before commit.
+     *
+     * <p>A positive configured momentum that narrows to binary32 zero still stages a zero
+     * candidate, preserving the existing swap behavior. Exactly zero configured momentum instead
+     * leaves its active slot untouched until a successful commit.</p>
+     *
+     * @param optimizer non-null validated immutable SGD configuration
+     * @param completedSteps non-negative number of prior successful parameter updates
+     * @param useAccumulatedCandidate whether a preceding accumulation stage supplies gradients
+     */
     void stageUpdate(Sgd optimizer, long completedSteps, boolean useAccumulatedCandidate) {
+        boolean configuredMomentum = optimizer.momentum() != 0.0d;
+        if (configuredMomentum) {
+            ensureMomentumCandidate();
+        }
         if (dataType != DataType.FLOAT64) {
-            stageUpdate32(optimizer, completedSteps, useAccumulatedCandidate);
+            stageUpdate32(optimizer, completedSteps, useAccumulatedCandidate, configuredMomentum);
         } else {
             stageUpdate64(optimizer, completedSteps, useAccumulatedCandidate);
         }
     }
 
     private void stageUpdate32(
-            Sgd optimizer, long completedSteps, boolean useAccumulatedCandidate) {
+            Sgd optimizer, long completedSteps, boolean useAccumulatedCandidate,
+            boolean configuredMomentum) {
         float learningRate = (float) optimizer.learningRate();
         float momentum = (float) optimizer.momentum();
         float dampening = (float) optimizer.dampening();
@@ -363,7 +385,7 @@ final class TrainingParameter {
                 } else {
                     selectedUpdate = updatedMomentum;
                 }
-            } else {
+            } else if (configuredMomentum) {
                 momentumCandidate32[index] = 0.0f;
             }
             float scaledUpdate = learningRate * selectedUpdate;
@@ -417,8 +439,6 @@ final class TrainingParameter {
                 } else {
                     selectedUpdate = updatedMomentum;
                 }
-            } else {
-                momentumCandidate64[index] = 0.0d;
             }
             double scaledUpdate = learningRate * selectedUpdate;
             requireFinite(scaledUpdate, "scaled update", path, index);
@@ -491,18 +511,26 @@ final class TrainingParameter {
         }
     }
 
-    void commitMomentum() {
-        if (dataType != DataType.FLOAT64) {
-            float[] previous = momentum32;
-            momentum32 = momentumCandidate32;
-            momentumCandidate32 = previous;
-        } else {
-            double[] previous = momentum64;
-            momentum64 = momentumCandidate64;
-            momentumCandidate64 = previous;
+    /**
+     * Publishes staged momentum after parameter writes, without allocation.
+     *
+     * @param configuredMomentum whether the original binary64 momentum is nonzero, even if it
+     *     narrows to binary32 zero
+     */
+    void commitMomentum(boolean configuredMomentum) {
+        if (configuredMomentum) {
+            swapMomentum();
+        } else if (momentumNeedsZeroNormalization) {
+            if (dataType != DataType.FLOAT64) {
+                Arrays.fill(momentum32, 0.0f);
+            } else {
+                Arrays.fill(momentum64, 0.0d);
+            }
+            momentumNeedsZeroNormalization = false;
         }
     }
 
+    /** Publishes the fully staged sum, retaining the former active slot for reuse. */
     void commitAccumulation() {
         if (dataType != DataType.FLOAT64) {
             float[] previous = accumulated32;
@@ -515,13 +543,14 @@ final class TrainingParameter {
         }
     }
 
+    /** Clears only the active sum and releases inactive staging after a successful clear. */
     void clearAccumulation() {
         if (dataType != DataType.FLOAT64) {
             Arrays.fill(accumulated32, 0.0f);
-            Arrays.fill(accumulatedCandidate32, 0.0f);
+            accumulatedCandidate32 = null;
         } else {
             Arrays.fill(accumulated64, 0.0d);
-            Arrays.fill(accumulatedCandidate64, 0.0d);
+            accumulatedCandidate64 = null;
         }
     }
 
@@ -634,7 +663,15 @@ final class TrainingParameter {
         validateFinitePayload(state);
     }
 
+    /**
+     * Stages all restored slots and parameter bytes before any installation.
+     *
+     * @param state non-null, fully validated detached state with this parameter's schema
+     */
     void stageRestore(TrainingState.ParameterState state) {
+        ensureAccumulationCandidate();
+        ensureMomentumCandidate();
+        stagedMomentumHasNegativeZero = false;
         ByteBuffer parameterBuffer = ByteBuffer.wrap(state.parameterBytesInternal())
                 .order(ByteOrder.BIG_ENDIAN);
         ByteBuffer masterBuffer = ByteBuffer.wrap(state.masterParameterBytesInternal())
@@ -649,7 +686,10 @@ final class TrainingParameter {
                         ValueLayout.JAVA_DOUBLE, (long) index * Double.BYTES);
                 parameterCandidate64[index] = parameterBuffer.getDouble();
                 masterBuffer.getDouble();
-                momentumCandidate64[index] = momentumBuffer.getDouble();
+                double restoredMomentum = momentumBuffer.getDouble();
+                momentumCandidate64[index] = restoredMomentum;
+                stagedMomentumHasNegativeZero |= Double.doubleToRawLongBits(restoredMomentum)
+                        == Long.MIN_VALUE;
                 accumulatedCandidate64[index] = accumulatedBuffer.getDouble();
             }
         } else if (dataType == DataType.FLOAT32) {
@@ -658,7 +698,10 @@ final class TrainingParameter {
                         ValueLayout.JAVA_FLOAT, (long) index * Float.BYTES);
                 parameterCandidate32[index] = parameterBuffer.getFloat();
                 masterBuffer.getFloat();
-                momentumCandidate32[index] = momentumBuffer.getFloat();
+                float restoredMomentum = momentumBuffer.getFloat();
+                momentumCandidate32[index] = restoredMomentum;
+                stagedMomentumHasNegativeZero |= Float.floatToRawIntBits(restoredMomentum)
+                        == Integer.MIN_VALUE;
                 accumulatedCandidate32[index] = accumulatedBuffer.getFloat();
             }
         } else {
@@ -668,15 +711,93 @@ final class TrainingParameter {
                 masterRollback32[index] = master32[index];
                 parameterCandidate16[index] = parameterBuffer.getShort();
                 masterCandidate32[index] = masterBuffer.getFloat();
-                momentumCandidate32[index] = momentumBuffer.getFloat();
+                float restoredMomentum = momentumBuffer.getFloat();
+                momentumCandidate32[index] = restoredMomentum;
+                stagedMomentumHasNegativeZero |= Float.floatToRawIntBits(restoredMomentum)
+                        == Integer.MIN_VALUE;
                 accumulatedCandidate32[index] = accumulatedBuffer.getFloat();
             }
         }
     }
 
-    void commitRestore() {
-        commitMomentum();
+    /**
+     * Publishes pre-staged optimizer slots after parameter writes, without allocation.
+     *
+     * <p>Restore needs both staging arrays before commit, but releases the former active
+     * accumulation array when the restored sum becomes active. The former active momentum array
+     * is retained for nonzero configured momentum and released for zero configured momentum.
+     * Later staging reallocates released arrays as needed.</p>
+     *
+     * @param configuredMomentum whether the original binary64 momentum is nonzero
+     */
+    void commitRestore(boolean configuredMomentum) {
+        swapMomentum();
+        momentumNeedsZeroNormalization = !configuredMomentum && stagedMomentumHasNegativeZero;
+        if (!configuredMomentum) {
+            if (dataType != DataType.FLOAT64) {
+                momentumCandidate32 = null;
+            } else {
+                momentumCandidate64 = null;
+            }
+        }
         commitAccumulation();
+        if (dataType != DataType.FLOAT64) {
+            accumulatedCandidate32 = null;
+        } else {
+            accumulatedCandidate64 = null;
+        }
+    }
+
+    /**
+     * Releases restore staging after a failed installation without changing active slots.
+     *
+     * @param configuredMomentum whether the original binary64 momentum is nonzero
+     */
+    void discardFailedRestoreStaging(boolean configuredMomentum) {
+        if (dataType != DataType.FLOAT64) {
+            accumulatedCandidate32 = null;
+            if (!configuredMomentum) {
+                momentumCandidate32 = null;
+            }
+        } else {
+            accumulatedCandidate64 = null;
+            if (!configuredMomentum) {
+                momentumCandidate64 = null;
+            }
+        }
+        stagedMomentumHasNegativeZero = false;
+    }
+
+    private void ensureAccumulationCandidate() {
+        if (dataType != DataType.FLOAT64) {
+            if (accumulatedCandidate32 == null) {
+                accumulatedCandidate32 = new float[elementCount];
+            }
+        } else if (accumulatedCandidate64 == null) {
+            accumulatedCandidate64 = new double[elementCount];
+        }
+    }
+
+    private void ensureMomentumCandidate() {
+        if (dataType != DataType.FLOAT64) {
+            if (momentumCandidate32 == null) {
+                momentumCandidate32 = new float[elementCount];
+            }
+        } else if (momentumCandidate64 == null) {
+            momentumCandidate64 = new double[elementCount];
+        }
+    }
+
+    private void swapMomentum() {
+        if (dataType != DataType.FLOAT64) {
+            float[] previous = momentum32;
+            momentum32 = momentumCandidate32;
+            momentumCandidate32 = previous;
+        } else {
+            double[] previous = momentum64;
+            momentum64 = momentumCandidate64;
+            momentumCandidate64 = previous;
+        }
     }
 
     private void validateFinitePayload(TrainingState.ParameterState state) {

@@ -49,6 +49,18 @@ parameters declared by `extensions/nn`.
 - backends/metal
 - backends/cuda
 
+## Dependency DAG and authorized frontier
+
+`0001D -> 0001E` is complete; the other Draft tasks remain unselected. No Training task is Ready.
+Task 0001E conflicted with concurrent Training optimizer staging, snapshot,
+restore, or lifecycle changes; no parallel group is authorized. Its common base is `58dd0e30`
+on `main`, and the main coordination context owns shared planning and API documentation
+integration. Implementation precedes independent targeted review; the integration check is
+`./gradlew :extensions:training:test :extensions:training:javadoc` plus `git diff --check`.
+The governing contract set is `ARCHITECTURE.md` scope index, module ownership and dependency rules,
+and `docs/architecture/contracts/extensions-training.md` headings `extensions/training` and
+`Optimizer/training lifecycle`.
+
 ## Task list
 
 | ID | Task | Status | Depends on | Summary |
@@ -58,6 +70,7 @@ parameters declared by `extensions/nn`.
 | [0001B](tasks/0001b-remove-repeated-parameter-overlap-scan.md) | Remove repeated parameter overlap scan | Complete | 0001A | Fixed parameter pairs are checked at open; runs retain binding and dynamic-overlap validation. |
 | [0001C](tasks/0001c-explicit-native-parameter-copy.md) | Explicit native parameter copy before training | Complete | 0001A–0001B | Caller-owned shared Arena and exact Tensor identities bridge initialized NN parameters to the existing Training storage domain. |
 | [0001D](tasks/0001d-adopt-fresh-training-snapshot-payloads.md) | Adopt fresh Training snapshot payloads | Complete | 0001C | Removed four redundant full-size clones per `state()` parameter while preserving immutable detached snapshots. |
+| [0001E](tasks/0001e-demand-driven-optimizer-candidates.md) | Demand-driven optimizer candidate buffers | Complete | 0001D | Inactive staging is demand-driven; active slots and rollback remain provisioned. |
 | 0002 | Parameter groups and broader optimizers | Draft | 0001 | Decide stable group identity and add only separately authorized optimizer algorithms. |
 | 0003 | Exact-resume progress state | Draft | 0001–0002; Data lifecycle | Define epoch/scheduler/graph RNG/data sampler cursor and mixed-precision scaler state only where an exact-resume claim is supportable. |
 | 0004 | Training checkpoint integration boundary | Draft | 0002–0003; Checkpoint model artifact and optional Training adapter | Expose one coordinated prevalidated state candidate; keep bytes, files, checksums, and atomic publication outside Training. |
@@ -79,16 +92,16 @@ returned `APPROVE` with findings `0`. The task provides the first public Trainin
 accumulation, detached in-memory state, strict restore, qualified CPU parameter-carrier coverage,
 and the existing Metal objective path recorded by ADR 0018. This does not claim BFLOAT16 or
 FLOAT16 Metal training execution; low-precision parameters keep private FLOAT32 masters, momentum,
-and accumulated gradients, with exact logical and optimizer-width snapshot payloads. Tasks 0001A–0001D are Complete after focused validation and independent review. Task 0001C also passed a configured full-repository test/Javadoc run. No further Training task is Ready; broader optimizer and persistent-buffer work remains Draft.
+and accumulated gradients, with exact logical and optimizer-width snapshot payloads. Tasks 0001A–0001E are Complete after focused validation and independent review. Task 0001C also passed a configured full-repository test/Javadoc run. Task 0001E removed idle inactive staging arrays at common base `58dd0e30`; broader optimizers remain Draft and no Training task is Ready.
 
 ## Open questions
 
 - Task 0001C established an explicit pre-session copy into caller-owned shared native storage for
   initialized NN parameters. Direct native initialization remains a possible later convenience,
   not an implicit `TrainingSession.open` behavior.
-- Decide whether optimizer staging/rollback memory should remain always provisioned or become
-  mode-dependent, without weakening the current ordinary-failure atomicity contract. Large
-  snapshots remain bounded by one Java byte array per payload; chunking needs a separate state
+- Task 0001E makes only inactive staging candidates demand-driven. Rollback storage remains
+  provisioned; any optional rollback policy needs a separate contract decision. Large snapshots
+  remain bounded by one Java byte array per payload; chunking needs a separate state
   representation decision.
 - Dynamic compiled-input overlap is still checked pairwise on each run. Replacing that check
   requires a separate proof for native, heap, and sliced segment identities and diagnostics.

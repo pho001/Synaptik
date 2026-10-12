@@ -123,8 +123,19 @@ parameters, decoded gradients, accumulation, momentum, every optimizer intermedi
 parameter candidates must be finite; NaN, infinity, and represented overflow fail before commit,
 while both signed zeros are finite. A supported ordinary failure changes no parameter bytes,
 momentum, accumulation, or counters. A non-finite detached objective alone is permitted when its
-required gradients and all optimizer arithmetic are finite. The optimizer loop uses primitive
-arrays allocated when the session opens and creates no object per element.
+required gradients and all optimizer arithmetic are finite. Each captured parameter keeps active
+momentum and pending-gradient arrays, parameter candidate and rollback arrays, and (for low
+precision) master and master-rollback arrays. An inactive pending-gradient candidate is allocated
+only for accumulation or restore and is released after a successful update, `zeroGrad()`, or
+restore commits. An inactive momentum candidate is allocated for a nonzero configured momentum
+update or restore, and is not retained for exactly zero configured momentum. Even when positive
+configured momentum narrows to zero in FLOAT32 arithmetic, its update still stages and swaps a
+zero momentum candidate. A restored negative-zero momentum value round-trips exactly; a later
+successful zero-momentum update changes that slot to positive zero. The active pending-gradient
+bytes remain intact until an explicit clear, even if a restored state records zero pending runs.
+All staging allocation precedes parameter writes; commits allocate nothing, and the optimizer
+loop creates no object per element. This reduces idle candidate memory, not active state or
+rollback storage.
 
 `state()` returns canonical big-endian logical-parameter, master-parameter, momentum, and pending-
 gradient bytes associated with stable paths and exact schemas. Logical payloads use the declared
