@@ -168,6 +168,31 @@ and exactly zero dampening. The selected update is subtracted as `learningRate *
 FLOAT32, BFLOAT16, and FLOAT16 parameter sessions validate coefficients after narrowing to their
 private FLOAT32 arithmetic domain as well as before it; FLOAT64 uses the configured binary64 values.
 
+To give `weight` and `bias` different rates in the `Linear` example above, replace its session
+opening and run block with this variation after `copyToSharedNative` succeeds. A parameter group
+is an immutable ordered list of distinct recursive paths from `layer.parametersRecursively()` plus one SGD
+configuration. The group's `weight` uses `0.05`; unlisted `bias` uses the default `0.1`:
+
+```java
+List<ParameterGroup> groups = List.of(
+        new ParameterGroup(List.of("weight"), new Sgd(0.05)));
+try (TrainingSession session = TrainingSession.open(
+        engine, layer, objective, new Sgd(0.1), groups)) {
+    TrainingState before = session.state();
+    session.run(List.of(input, target), GradientMode.RESET_AND_STEP);
+    assert session.optimizerSteps() == 1;
+    assert session.parameterGroups().equals(groups);
+    session.restore(before);
+    assert session.optimizerSteps() == 0;
+}
+```
+
+The run uses one prepared graph and one global update step. Restore returns both parameters and
+the counter to their earlier state. Group list order and path order are part of restore
+compatibility even when reordered paths would have the same numerical updates. Unknown or
+overlapping paths fail during open before compilation; a group does not freeze a parameter or
+remove it from differentiation.
+
 ## Accumulate and clear gradients
 
 - `RESET_AND_STEP` ignores older pending gradients, applies this run, and clears accumulation.
@@ -193,8 +218,10 @@ use the declared parameter width: two bytes per BFLOAT16/FLOAT16 element, four f
 eight for FLOAT64. Master, momentum, and accumulation payloads use four bytes per element for
 BFLOAT16, FLOAT16, and FLOAT32 parameters and eight for FLOAT64. `training.restore(snapshot)`
 validates the complete optimizer configuration, including dampening, counters, paths, data types,
-Shapes, finite payload values, and exact payload lengths before installing any state. The snapshot
-remains readable after session and Engine close. It is an in-memory recovery handoff, not a file
+Shapes, finite payload values, and exact payload lengths before installing any state. For grouped
+sessions it also checks the exact default SGD and ordered groups, including each path and SGD
+configuration. The snapshot remains readable after session and Engine close. It is an in-memory
+recovery handoff, not a file
 or checkpoint format.
 
 ## Lifetimes and concurrency
@@ -223,6 +250,7 @@ Tensor storage associations, or parameter bytes while the session is open.
 | Open rejects parameter storage | It is heap, read-only, thread-confined, wrong-sized, a view, or not native/aligned. | Use exact-capacity writable shareable native `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` storage with a dense offset-zero non-view layout. |
 | Open rejects an empty/non-finite parameter | Its element count is zero or an initial value is NaN/infinite. | Supply a non-empty parameter with finite values before opening; rejection precedes compile. |
 | Open rejects a snapshot byte size | The logical or optimizer-width payload exceeds `Integer.MAX_VALUE` bytes for one parameter. | Use a smaller parameter; this in-memory session cannot snapshot a larger payload. |
+| Open rejects a parameter group | A path is blank, unknown, or repeated, or assigned SGD coefficients cannot narrow for that parameter type. | Use the exact keys from `module.parametersRecursively()`, keep memberships disjoint, and choose dtype-compatible SGD values. |
 | Run rejects non-finite optimizer arithmetic | A gradient, accumulation, momentum term, or candidate is NaN/infinite or overflowed. | Correct the objective/input scale; the failed run committed no parameter, optimizer state, or counter. |
 | Open rejects a target as disconnected | A discovered Module parameter does not contribute to the scalar objective. | Build the objective from the Module's complete intended trainable parameter set or use a Module containing only this session's parameters. |
 | Run reports a missing or foreign input | The list does not contain every identity from `training.inputs()` exactly once. | Bind those exact Tensors; order does not matter. |

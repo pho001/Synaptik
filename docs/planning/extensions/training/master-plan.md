@@ -19,7 +19,7 @@ parameters declared by `extensions/nn`.
 - stable path-based optimizer state and gradient accumulation
 - immutable optimizer/session snapshot and validate-before-install restore contracts needed by
   downstream exact-resume persistence
-- future parameter groups and broader optimizers
+- path-based SGD parameter groups and future broader optimizers
 
 ## Out of scope
 
@@ -52,20 +52,17 @@ parameters declared by `extensions/nn`.
 ## Dependency DAG and authorized frontier
 
 `0001E -> 0002A -> 0002B -> 0003 -> 0004 -> 0005`; 0003 also awaits the Data lifecycle and
-0004 awaits the Checkpoint model artifact/adapter boundary. Only
-[0002A](tasks/0002a-sgd-parameter-groups.md) is Ready. It serializes with Training public
-optimizer API, state/restore, parameter mapping,
-and lifecycle changes; parallel group: None. The stable base is pushed `cbd14f3b` on `main`.
-The main coordination context owns shared planning/API/user documentation integration. Worker
-Training and CPU integration tests precede independent Class B review; the integration owner runs
-`./gradlew test javadoc` and `git diff --check` once after integration. Governing headings are
+0004 awaits the Checkpoint model artifact/adapter boundary.
+[0002A](tasks/0002a-sgd-parameter-groups.md) is Complete after focused validation, independent
+Class B review, and the integration-owner `./gradlew test javadoc` checkpoint. No Training task
+is Ready; 0002B remains Draft. Future optimizer API, state/restore, parameter mapping, and
+lifecycle changes must serialize with this integrated contract. Governing headings are
 `ARCHITECTURE.md` scope index, module ownership and dependency rules, plus
 `docs/architecture/contracts/extensions-training.md` sections `extensions/nn`,
 `extensions/training`, and `Optimizer/training lifecycle`.
 
-The planned new public production type at this frontier is `ParameterGroup` in
-`io.github.pho001.synaptik.training`. It assigns stable Module paths to immutable optimizer
-configuration; NN keeps parameter declaration and traversal ownership.
+The public `ParameterGroup` type in `io.github.pho001.synaptik.training` assigns stable Module
+paths to immutable SGD configuration; NN keeps parameter declaration and traversal ownership.
 
 ## Task list
 
@@ -77,7 +74,7 @@ configuration; NN keeps parameter declaration and traversal ownership.
 | [0001C](tasks/0001c-explicit-native-parameter-copy.md) | Explicit native parameter copy before training | Complete | 0001A–0001B | Caller-owned shared Arena and exact Tensor identities bridge initialized NN parameters to the existing Training storage domain. |
 | [0001D](tasks/0001d-adopt-fresh-training-snapshot-payloads.md) | Adopt fresh Training snapshot payloads | Complete | 0001C | Removed four redundant full-size clones per `state()` parameter while preserving immutable detached snapshots. |
 | [0001E](tasks/0001e-demand-driven-optimizer-candidates.md) | Demand-driven optimizer candidate buffers | Complete | 0001D | Inactive staging is demand-driven; active slots and rollback remain provisioned. |
-| [0002A](tasks/0002a-sgd-parameter-groups.md) | SGD parameter groups | Ready | 0001E | Apply disjoint path-based SGD overrides with exact state/restore identity and backward-compatible default behavior. |
+| [0002A](tasks/0002a-sgd-parameter-groups.md) | SGD parameter groups | Complete | 0001E | Disjoint path-based SGD overrides have exact state/restore identity and preserve ungrouped behavior. |
 | 0002B | Broader optimizer algorithms | Draft | 0002A | Select Adam/AdamW scope and state representation after groups are stable. |
 | 0003 | Exact-resume progress state | Draft | 0002B; Data lifecycle | Define epoch/scheduler/graph RNG/data sampler cursor and mixed-precision scaler state only where an exact-resume claim is supportable. |
 | 0004 | Training checkpoint integration boundary | Draft | 0003; Checkpoint model artifact and optional Training adapter | Expose one coordinated prevalidated state candidate; keep bytes, files, checksums, and atomic publication outside Training. |
@@ -99,7 +96,7 @@ returned `APPROVE` with findings `0`. The task provides the first public Trainin
 accumulation, detached in-memory state, strict restore, qualified CPU parameter-carrier coverage,
 and the existing Metal objective path recorded by ADR 0018. This does not claim BFLOAT16 or
 FLOAT16 Metal training execution; low-precision parameters keep private FLOAT32 masters, momentum,
-and accumulated gradients, with exact logical and optimizer-width snapshot payloads. Tasks 0001A–0001E are Complete after focused validation and independent review. Task 0001C also passed a configured full-repository test/Javadoc run. Task 0001E removed idle inactive staging arrays and was pushed as `cbd14f3b`. Task 0002A is the sole Ready Training frontier; broader optimizers remain Draft.
+and accumulated gradients, with exact logical and optimizer-width snapshot payloads. Tasks 0001A–0001E are Complete after focused validation and independent review. Task 0001C also passed a configured full-repository test/Javadoc run. Task 0001E removed idle inactive staging arrays and was pushed as `cbd14f3b`. Task 0002A added path-based SGD groups after independent approval and a successful repository test/Javadoc checkpoint. No Training task is Ready; broader optimizers remain Draft.
 
 ## Open questions
 

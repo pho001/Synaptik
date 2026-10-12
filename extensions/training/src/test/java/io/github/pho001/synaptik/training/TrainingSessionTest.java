@@ -315,6 +315,176 @@ final class TrainingSessionTest {
     }
 
     @Test
+    void groupedSgdUsesAssignedRatesAndOneGlobalLifecycleWithExactRestoreIdentity() {
+        class FourParameters extends Module {
+            final Parameter a = parameter("a", scalar(2.0f, true));
+            final Parameter b = parameter("b", scalar(3.0f, true));
+            final Parameter c = parameter("c", scalar(4.0f, true));
+            final Parameter d = parameter("d", scalar(4.0f, true));
+        }
+        FourParameters module = new FourParameters();
+        Tensor objective = module.a.value().add(module.b.value())
+                .add(module.c.value()).add(module.d.value());
+        List<String> firstPaths = new ArrayList<>(List.of("a", "b"));
+        ParameterGroup first = new ParameterGroup(
+                firstPaths, new Sgd(0.2d, 0.5d, 0.0d, false));
+        ParameterGroup second = new ParameterGroup(List.of("c"), new Sgd(0.3d));
+        List<ParameterGroup> callerGroups = new ArrayList<>(List.of(first, second));
+        try (Engine engine = Engine.standard();
+                TrainingSession session = TrainingSession.open(
+                        engine, module, objective, new Sgd(0.1d), callerGroups)) {
+            firstPaths.set(0, "d");
+            callerGroups.clear();
+            assertEquals(List.of("a", "b"), first.paths());
+            assertEquals(List.of(first, second), session.parameterGroups());
+            assertThrows(UnsupportedOperationException.class,
+                    () -> session.parameterGroups().clear());
+            TrainingState initial = session.state();
+            assertEquals(List.of(first, second), initial.parameterGroups());
+            assertEquals(new Sgd(0.1d), initial.optimizer());
+
+            session.run(List.of(), GradientMode.ACCUMULATE);
+            assertEquals(1, session.executions());
+            assertEquals(0, session.optimizerSteps());
+            assertEquals(1, session.accumulatedGradientRuns());
+            session.zeroGrad();
+            assertEquals(0, session.accumulatedGradientRuns());
+            session.run(List.of(), GradientMode.ACCUMULATE);
+            session.run(List.of(), GradientMode.ACCUMULATE_AND_STEP);
+            assertEquals(3, session.executions());
+            assertEquals(1, session.optimizerSteps());
+            assertEquals(1.6f, value(module.a), 1e-6f);
+            assertEquals(2.6f, value(module.b), 1e-6f);
+            assertEquals(3.4f, value(module.c), 1e-6f);
+            assertEquals(3.8f, value(module.d), 1e-6f);
+            TrainingState stepped = session.state();
+            assertEquals(2.0f, stepped.parameters().get(0).momentumBytes().getFloat(), 0.0f);
+            assertEquals(0.0f, stepped.parameters().get(2).momentumBytes().getFloat(), 0.0f);
+
+            for (List<ParameterGroup> different : List.of(
+                    List.of(second, first),
+                    List.of(new ParameterGroup(List.of("b", "a"), first.optimizer()), second),
+                    List.of(new ParameterGroup(List.of("a"), first.optimizer()), second),
+                    List.of(new ParameterGroup(first.paths(), new Sgd(0.25d)), second))) {
+                TrainingState incompatible = new TrainingState(
+                        stepped.optimizer(), different, stepped.executions(),
+                        stepped.optimizerSteps(), stepped.accumulatedGradientRuns(),
+                        stepped.parameters());
+                assertThrows(IllegalArgumentException.class, () -> session.restore(incompatible));
+                assertStateEquals(stepped, session.state());
+            }
+            session.run(List.of(), GradientMode.RESET_AND_STEP);
+            assertEquals(1.2f, value(module.a), 1e-6f);
+            assertEquals(2.2f, value(module.b), 1e-6f);
+            assertEquals(3.1f, value(module.c), 1e-6f);
+            assertEquals(3.7f, value(module.d), 1e-6f);
+            session.restore(stepped);
+            assertStateEquals(stepped, session.state());
+            assertEquals(3, session.executions());
+            assertEquals(1, session.optimizerSteps());
+        }
+    }
+
+    @Test
+    void groupsRejectInvalidMembershipBeforeCompileAndNarrowOnlyAssignedDtypes() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new ParameterGroup(List.of(), new Sgd(0.1d)));
+        assertThrows(IllegalArgumentException.class,
+                () -> new ParameterGroup(List.of("a", "a"), new Sgd(0.1d)));
+        assertThrows(IllegalArgumentException.class,
+                () -> new ParameterGroup(List.of(" "), new Sgd(0.1d)));
+        assertThrows(NullPointerException.class,
+                () -> new ParameterGroup(new ArrayList<>(java.util.Arrays.asList("a", null)),
+                        new Sgd(0.1d)));
+        ScalarParameters module = new ScalarParameters(2.0f);
+        Tensor objective = module.first().value().mul(module.first().value());
+        try (Engine engine = Engine.standard()) {
+            assertThrows(NullPointerException.class,
+                    () -> TrainingSession.open(engine, module, objective, new Sgd(0.1d), null));
+            assertThrows(NullPointerException.class,
+                    () -> TrainingSession.open(engine, module, objective, new Sgd(0.1d),
+                            new ArrayList<>(java.util.Arrays.asList((ParameterGroup) null))));
+            assertThrows(IllegalArgumentException.class,
+                    () -> TrainingSession.open(engine, module, objective, new Sgd(0.1d),
+                            List.of(new ParameterGroup(List.of("missing"), new Sgd(0.2d)))));
+            assertThrows(IllegalArgumentException.class,
+                    () -> TrainingSession.open(engine, module, objective, new Sgd(0.1d),
+                            List.of(new ParameterGroup(List.of("first"), new Sgd(0.2d)),
+                                    new ParameterGroup(List.of("first"), new Sgd(0.3d)))));
+            try (TrainingSession grouped = TrainingSession.open(engine, module, objective,
+                    new Sgd(Double.MIN_VALUE),
+                    List.of(new ParameterGroup(List.of("first"), new Sgd(0.1d))))) {
+                grouped.run(List.of(), GradientMode.RESET_AND_STEP);
+                assertEquals(1.6f, value(module.first()), 1e-6f);
+            }
+            try (TrainingSession ungrouped = TrainingSession.open(
+                    engine, module, objective, new Sgd(0.1d), List.of())) {
+                assertEquals(List.of(), ungrouped.parameterGroups());
+                assertEquals(List.of(), ungrouped.state().parameterGroups());
+            }
+        }
+    }
+
+    @Test
+    void groupedMomentumAndRestoreRulesHoldForEveryParameterPrecision() {
+        for (DataType type : List.of(
+                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            Tensor first = switch (type) {
+                case FLOAT64 -> scalar64(2.0d, true);
+                case FLOAT32 -> scalar(2.0f, true);
+                case BFLOAT16, FLOAT16 -> lowVector(type, new short[] {0x4000}, true);
+                default -> throw new AssertionError(type);
+            };
+            Tensor second = switch (type) {
+                case FLOAT64 -> scalar64(2.0d, true);
+                case FLOAT32 -> scalar(2.0f, true);
+                case BFLOAT16, FLOAT16 -> lowVector(type, new short[] {0x4000}, true);
+                default -> throw new AssertionError(type);
+            };
+            ScalarParameters module = new ScalarParameters(first, second);
+            Tensor objective = type == DataType.BFLOAT16 || type == DataType.FLOAT16
+                    ? first.cast(DataType.FLOAT32).sum().add(second.cast(DataType.FLOAT32).sum())
+                    : first.add(second);
+            try (Engine engine = Engine.standard();
+                    TrainingSession session = TrainingSession.open(engine, module, objective,
+                            new Sgd(0.1d), List.of(new ParameterGroup(
+                                    List.of("first"), new Sgd(0.25d, 0.5d, 0.0d, false))))) {
+                session.run(List.of(), GradientMode.RESET_AND_STEP);
+                TrainingState snapshot = session.state();
+                ByteBuffer firstMaster = snapshot.parameters().get(0).masterParameterBytes();
+                ByteBuffer secondMaster = snapshot.parameters().get(1).masterParameterBytes();
+                if (type == DataType.FLOAT64) {
+                    assertEquals(1.75d, firstMaster.getDouble(), 1e-12d);
+                    assertEquals(1.9d, secondMaster.getDouble(), 1e-12d);
+                    assertEquals(1.0d, snapshot.parameters().get(0).momentumBytes().getDouble());
+                } else {
+                    assertEquals(1.75f, firstMaster.getFloat(), 0.0f);
+                    assertEquals(1.9f, secondMaster.getFloat(), 1e-6f);
+                    assertEquals(1.0f, snapshot.parameters().get(0).momentumBytes().getFloat());
+                }
+                assertArrayEquals(new byte[type == DataType.FLOAT64 ? 8 : 4],
+                        bytes(snapshot.parameters().get(1).momentumBytes()));
+                TrainingState.ParameterState before = snapshot.parameters().get(1);
+                ByteBuffer nonzeroSlot = ByteBuffer.allocate(type == DataType.FLOAT64 ? 8 : 4)
+                        .order(ByteOrder.BIG_ENDIAN);
+                if (type == DataType.FLOAT64) nonzeroSlot.putDouble(1.0d);
+                else nonzeroSlot.putFloat(1.0f);
+                TrainingState.ParameterState invalid = new TrainingState.ParameterState(
+                        before.path(), before.dataType(), before.shape(),
+                        bytes(before.parameterBytes()), bytes(before.masterParameterBytes()),
+                        nonzeroSlot.array(), bytes(before.accumulatedGradientBytes()));
+                TrainingState incompatible = new TrainingState(
+                        snapshot.optimizer(), snapshot.parameterGroups(), snapshot.executions(),
+                        snapshot.optimizerSteps(), snapshot.accumulatedGradientRuns(),
+                        List.of(snapshot.parameters().get(0), invalid));
+                assertThrows(IllegalArgumentException.class, () -> session.restore(incompatible));
+                assertStateEquals(snapshot, session.state());
+                session.restore(snapshot);
+            }
+        }
+    }
+
+    @Test
     void usesCoupledWeightDecayAndNesterovInDocumentedOrder() {
         ScalarParameters module = new ScalarParameters(2.0f);
         Tensor target = scalar(0.0f, false);
@@ -952,6 +1122,7 @@ final class TrainingSessionTest {
 
     private static void assertStateEquals(TrainingState expected, TrainingState actual) {
         assertEquals(expected.optimizer(), actual.optimizer());
+        assertEquals(expected.parameterGroups(), actual.parameterGroups());
         assertEquals(expected.executions(), actual.executions());
         assertEquals(expected.optimizerSteps(), actual.optimizerSteps());
         assertEquals(expected.accumulatedGradientRuns(), actual.accumulatedGradientRuns());

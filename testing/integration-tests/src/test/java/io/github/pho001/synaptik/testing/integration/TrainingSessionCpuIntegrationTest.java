@@ -23,6 +23,7 @@ import io.github.pho001.synaptik.nn.layers.Linear;
 import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Parameter;
 import io.github.pho001.synaptik.training.GradientMode;
+import io.github.pho001.synaptik.training.ParameterGroup;
 import io.github.pho001.synaptik.training.Sgd;
 import io.github.pho001.synaptik.training.TrainingParameterStorage;
 import io.github.pho001.synaptik.training.TrainingSession;
@@ -41,6 +42,42 @@ import org.junit.jupiter.api.Test;
 
 /** Exercises the public training lifecycle through the real CPU Engine composition. */
 final class TrainingSessionCpuIntegrationTest {
+    @Test
+    void groupedPublicCpuSessionTrainsAndRestoresThroughOnePreparedGraph() {
+        class Pair extends Module {
+            final Parameter first;
+            final Parameter second;
+
+            Pair(Arena arena) {
+                first = parameter("first", scalar(arena, 2.0f, true));
+                second = parameter("second", scalar(arena, 3.0f, true));
+            }
+        }
+        try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+            Pair module = new Pair(arena);
+            Tensor objective = module.first.value().add(module.second.value());
+            try (TrainingSession session = TrainingSession.open(
+                    engine, module, objective, new Sgd(0.1d),
+                    List.of(new ParameterGroup(List.of("first"), new Sgd(0.25d))))) {
+                var graph = session.compiledGraph();
+                TrainingState initial = session.state();
+                session.run(List.of(), GradientMode.RESET_AND_STEP);
+                assertSame(graph, session.compiledGraph());
+                assertEquals(1.75f, module.first.value().hostStorage().orElseThrow()
+                        .segment().get(ValueLayout.JAVA_FLOAT, 0));
+                assertEquals(2.9f, module.second.value().hostStorage().orElseThrow()
+                        .segment().get(ValueLayout.JAVA_FLOAT, 0), 1e-6f);
+                TrainingState stepped = session.state();
+                assertEquals(session.parameterGroups(), stepped.parameterGroups());
+                session.restore(initial);
+                assertEquals(2.0f, module.first.value().hostStorage().orElseThrow()
+                        .segment().get(ValueLayout.JAVA_FLOAT, 0));
+                session.restore(stepped);
+                assertStateEquals(stepped, session.state());
+            }
+        }
+    }
+
     @Test
     void initializedHeapLinearCopiesWithoutChangingGraphThenTrainsOnCpu() {
         Linear linear = new Linear(1, 1, true, DataType.FLOAT32, new Random(42));
@@ -298,6 +335,7 @@ final class TrainingSessionCpuIntegrationTest {
 
     private static void assertStateEquals(TrainingState expected, TrainingState actual) {
         assertEquals(expected.optimizer(), actual.optimizer());
+        assertEquals(expected.parameterGroups(), actual.parameterGroups());
         assertEquals(expected.executions(), actual.executions());
         assertEquals(expected.optimizerSteps(), actual.optimizerSteps());
         assertEquals(expected.accumulatedGradientRuns(), actual.accumulatedGradientRuns());

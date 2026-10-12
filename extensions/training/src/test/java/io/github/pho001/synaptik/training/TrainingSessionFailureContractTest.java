@@ -283,7 +283,7 @@ final class TrainingSessionFailureContractTest {
     }
 
     @Test
-    void laterParameterWriteFailureRollsBackEarlierWriteAndAllState() {
+    void laterParameterWriteFailureRollsBackAllGroupsAndState() {
         NamedParameters module = new NamedParameters(
                 scalar32(2.0f, true), scalar32(-1.0f, true));
         Tensor firstInput = scalar32(3.0f, false);
@@ -300,7 +300,10 @@ final class TrainingSessionFailureContractTest {
 
         try (Engine engine = Engine.standard();
                 TrainingSession session = TrainingSession.openForTesting(
-                        engine, module, objective, new Sgd(0.1d, 0.5d, 0.0d, false), hooks)) {
+                        engine, module, objective, new Sgd(0.1d),
+                        List.of(new ParameterGroup(List.of("first"),
+                                        new Sgd(0.2d, 0.5d, 0.0d, false)),
+                                new ParameterGroup(List.of("second"), new Sgd(0.3d))), hooks)) {
             TrainingState initial = session.state();
             assertSame(observed, assertThrows(InjectedFailure.class,
                     () -> session.run(
@@ -776,6 +779,7 @@ final class TrainingSessionFailureContractTest {
 
     private static void assertStateEquals(TrainingState expected, TrainingState actual) {
         assertEquals(expected.optimizer(), actual.optimizer());
+        assertEquals(expected.parameterGroups(), actual.parameterGroups());
         assertEquals(expected.executions(), actual.executions());
         assertEquals(expected.optimizerSteps(), actual.optimizerSteps());
         assertEquals(expected.accumulatedGradientRuns(), actual.accumulatedGradientRuns());

@@ -11,8 +11,9 @@ import java.util.Objects;
 /**
  * Immutable detached in-memory snapshot of one training session's complete resumable state.
  *
- * <p>The snapshot contains exact SGD configuration, including dampening, successful execution and
- * optimizer-step counters, pending accumulation count, and one stable-path entry for every
+ * <p>The snapshot contains exact default SGD and ordered parameter-group configurations,
+ * including dampening. It also contains successful execution and optimizer-step counters,
+ * pending accumulation count, and one stable-path entry for every
  * parameter. Each entry owns canonical big-endian logical-parameter, master-parameter, momentum,
  * and accumulated-gradient bytes. Logical payloads use the parameter's declared type; master,
  * momentum, and accumulation payloads use {@code FLOAT64} for {@code FLOAT64} parameters and
@@ -28,18 +29,54 @@ import java.util.Objects;
  */
 public final class TrainingState {
     private final Sgd optimizer;
+    private final List<ParameterGroup> parameterGroups;
     private final long executions;
     private final long optimizerSteps;
     private final long accumulatedGradientRuns;
     private final List<ParameterState> parameters;
 
+    /**
+     * Creates an ungrouped detached state for the legacy session configuration.
+     *
+     * @param optimizer non-null immutable default SGD configuration
+     * @param executions non-negative successful execution count
+     * @param optimizerSteps successful update count in {@code [0, executions]}
+     * @param accumulatedGradientRuns pending run count in {@code [0, executions]}
+     * @param parameters non-null, nonempty ordered list of non-null detached parameter states
+     * @throws NullPointerException if {@code optimizer}, {@code parameters}, or an entry is null
+     * @throws IllegalArgumentException if a counter is invalid or {@code parameters} is empty
+     */
     TrainingState(
             Sgd optimizer,
             long executions,
             long optimizerSteps,
             long accumulatedGradientRuns,
             List<ParameterState> parameters) {
+        this(optimizer, List.of(), executions, optimizerSteps, accumulatedGradientRuns, parameters);
+    }
+
+    /**
+     * Creates detached state with the exact ordered group configuration for restore matching.
+     *
+     * @param optimizer non-null immutable default SGD configuration
+     * @param parameterGroups non-null ordered list of non-null immutable groups, copied on capture
+     * @param executions non-negative successful execution count
+     * @param optimizerSteps successful update count in {@code [0, executions]}
+     * @param accumulatedGradientRuns pending run count in {@code [0, executions]}
+     * @param parameters non-null, nonempty ordered list of non-null detached parameter states
+     * @throws NullPointerException if {@code optimizer}, {@code parameterGroups},
+     *     {@code parameters}, or an entry is null
+     * @throws IllegalArgumentException if a counter is invalid or {@code parameters} is empty
+     */
+    TrainingState(
+            Sgd optimizer,
+            List<ParameterGroup> parameterGroups,
+            long executions,
+            long optimizerSteps,
+            long accumulatedGradientRuns,
+            List<ParameterState> parameters) {
         this.optimizer = Objects.requireNonNull(optimizer, "optimizer");
+        this.parameterGroups = List.copyOf(Objects.requireNonNull(parameterGroups, "parameterGroups"));
         if (executions < 0) {
             throw new IllegalArgumentException("executions must be non-negative");
         }
@@ -67,12 +104,24 @@ public final class TrainingState {
     }
 
     /**
-     * Returns the exact immutable SGD configuration captured with this state.
+     * Returns the exact immutable default SGD configuration captured with this state.
      *
      * @return the non-null configuration retained by exact reference
      */
     public Sgd optimizer() {
         return optimizer;
+    }
+
+    /**
+     * Returns the detached ordered group configuration captured with this state.
+     *
+     * <p>Both group order and the path order within each group participate in restore
+     * compatibility. An ungrouped snapshot has an empty list.</p>
+     *
+     * @return non-null immutable list of immutable groups, possibly empty
+     */
+    public List<ParameterGroup> parameterGroups() {
+        return parameterGroups;
     }
 
     /**

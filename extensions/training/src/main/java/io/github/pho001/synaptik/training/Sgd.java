@@ -16,8 +16,9 @@ package io.github.pho001.synaptik.training;
  * sessions use binary64 arithmetic.</p>
  *
  * <p>The value owns no parameters or mutable state and may be shared by sessions. Each session
- * initializes independent zero momentum slots and retains this exact configuration, including
- * dampening, in its immutable state snapshots.</p>
+ * initializes independent zero momentum slots for every parameter assigned this SGD, whether by
+ * default or through a {@link ParameterGroup}, and retains the exact default and ordered group
+ * configurations, including dampening, in its immutable state snapshots.</p>
  */
 public final class Sgd implements Optimizer {
     private final double learningRate;

@@ -16,6 +16,7 @@ The public surface is:
 |---|---|
 | `Optimizer` | Sealed marker for immutable built-in optimizer configuration. |
 | `Sgd` | Learning rate plus optional momentum, dampening, coupled weight decay, and Nesterov. |
+| `ParameterGroup` | Immutable ordered recursive parameter paths with one SGD configuration. |
 | `GradientMode` | `RESET_AND_STEP`, `ACCUMULATE`, or `ACCUMULATE_AND_STEP`. |
 | `TrainingSession` | Closeable owner of one prepared Engine session, parameter bindings, counters, accumulation, and optimizer slots. |
 | `TrainingParameterStorage` | Explicit copy of an initialized Module parameter tree into caller-owned shareable native host memory before session open. |
@@ -30,6 +31,35 @@ have at least one recursively discoverable parameter, and every discovered param
 identity-unique connected gradient target. Construction snapshots each recursive path, wrapper,
 Tensor, and host-storage identity before calling `Engine.compile(...)` exactly once and
 `Engine.session(...)` exactly once.
+
+`TrainingSession.open(engine, module, objective, defaultOptimizer, groups)` additionally assigns
+an SGD configuration to each path named by a `ParameterGroup`. Paths are exactly the keys of
+`module.parametersRecursively()` (for example, `weight` and `bias` on a direct `Linear`, or a
+dot-separated child path). Unlisted parameters use `defaultOptimizer`; an empty groups list is
+equivalent to the four-argument overload. Every parameter remains a gradient target. The
+session defensively captures group order and each group's path order, and resolves one SGD per
+parameter in Module traversal order before compile. A null or duplicate group/path, empty or
+blank path, unknown path, or assigned dtype-incompatible coefficient fails before private seed
+allocation, compile, or prepare. Group order and path order are exact state/restore identity,
+not separate optimizer-step namespaces.
+
+For example, after the `Linear` parameters in the native-copy example below are ready, this
+two-rate variation uses learning rate `0.05` for `weight` and the default `0.1` for `bias`:
+
+```java
+List<ParameterGroup> groups = List.of(
+        new ParameterGroup(List.of("weight"), new Sgd(0.05)));
+try (TrainingSession session = TrainingSession.open(
+        engine, layer, objective, new Sgd(0.1), groups)) {
+    session.run(List.of(input, target), GradientMode.RESET_AND_STEP);
+    TrainingState snapshot = session.state();
+    assert snapshot.parameterGroups().equals(groups);
+}
+```
+
+Here `layer`, `objective`, `engine`, `input`, and `target` are the live values constructed in the
+complete example under [explicit native parameter copy](#explicit-native-parameter-copy). The
+single run advances one global optimizer step, not one step per group.
 
 `session.inputs()` contains only the compiled inputs not supplied internally as captured
 parameters or the private cotangent seed. Every `run(inputs, mode)` must provide each listed Tensor
@@ -141,8 +171,9 @@ rollback storage.
 gradient bytes associated with stable paths and exact schemas. Logical payloads use the declared
 type width: two bytes per BFLOAT16/FLOAT16 element, four for FLOAT32, and eight for FLOAT64.
 Master, momentum, and pending-gradient payloads use four bytes per element for BFLOAT16, FLOAT16,
-and FLOAT32 parameters and eight for FLOAT64. `restore(state)` validates the complete optimizer
-(including dampening), counters, paths, schemas, finite payloads, and exact lengths before
+and FLOAT32 parameters and eight for FLOAT64. `restore(state)` validates the complete default
+optimizer and ordered groups (including dampening), counters, paths, schemas, finite payloads,
+and exact lengths before
 installing anything. This is an in-memory handoff, not a durable checkpoint format.
 
 Every `run` or state operation performs lifecycle admission before argument validation. Engine

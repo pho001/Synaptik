@@ -20,6 +20,7 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.ValueLayout;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -60,8 +61,9 @@ import java.util.OptionalLong;
  * while signed zero is finite. Active momentum and accumulation slots, parameter candidates, and
  * rollback arrays are allocated at open. Inactive accumulation staging is allocated on accumulation
  * or restore and released after successful clearing or restore; momentum staging is allocated
- * for nonzero configured momentum or restore and is not retained for exactly zero configured
- * momentum.
+ * for nonzero assigned momentum or restore and is not retained for exactly zero assigned
+ * momentum. Explicit {@link ParameterGroup} paths choose one SGD per parameter at open; unlisted
+ * paths use the default SGD. All parameters still share one run and atomic commit.
  * Staging allocation precedes parameter writes, and the optimizer element loop allocates no
  * object per element. Validated native writes and subsequent slot commits are non-allocating and
  * non-throwing after validation. Ordinary failure before or
@@ -106,6 +108,8 @@ public final class TrainingSession implements AutoCloseable {
     private final Module module;
     private final Tensor objective;
     private final Sgd optimizer;
+    private final List<ParameterGroup> parameterGroups;
+    private final List<Sgd> parameterOptimizers;
     private final Tensor cotangentSeed;
     private final Arena seedArena;
     private final List<TrainingParameter> parameters;
@@ -130,6 +134,8 @@ public final class TrainingSession implements AutoCloseable {
             Module module,
             Tensor objective,
             Sgd optimizer,
+            List<ParameterGroup> parameterGroups,
+            List<Sgd> parameterOptimizers,
             Tensor cotangentSeed,
             Arena seedArena,
             List<TrainingParameter> parameters,
@@ -145,6 +151,8 @@ public final class TrainingSession implements AutoCloseable {
         this.module = module;
         this.objective = objective;
         this.optimizer = optimizer;
+        this.parameterGroups = parameterGroups;
+        this.parameterOptimizers = parameterOptimizers;
         this.cotangentSeed = cotangentSeed;
         this.parameters = parameters;
         this.seedArena = seedArena;
@@ -159,7 +167,7 @@ public final class TrainingSession implements AutoCloseable {
     }
 
     /**
-     * Compiles and prepares one scalar-objective training session.
+     * Compiles and prepares one scalar-objective training session using one default SGD.
      *
      * <p>Arguments are null-checked in declaration order. Parameter discovery uses the Module's
      * deterministic recursive order and requires at least one parameter. Every parameter is a
@@ -183,7 +191,7 @@ public final class TrainingSession implements AutoCloseable {
      * @param module non-null caller-owned Module whose complete recursive parameter set is targeted
      * @param objective non-null scalar FLOAT32/FLOAT64 gradient-eligible expression built from the
      *     Module's exact current parameter Tensors
-     * @param optimizer non-null immutable built-in optimizer configuration; currently {@link Sgd}
+     * @param optimizer non-null immutable default optimizer configuration; currently {@link Sgd}
      * @return a fresh non-null open training owner with one compiled and prepared graph
      * @throws NullPointerException if an argument, discovered path/wrapper/value/storage, or
      *     inward required value is {@code null}
@@ -202,7 +210,43 @@ public final class TrainingSession implements AutoCloseable {
             Module module,
             Tensor objective,
             Optimizer optimizer) {
-        return openInternal(engine, module, objective, optimizer, Hooks.NONE);
+        return openInternal(engine, module, objective, optimizer, List.of(), Hooks.NONE);
+    }
+
+    /**
+     * Opens one training session with SGD configurations assigned to selected parameters.
+     *
+     * <p>The ordered groups and each group's ordered paths are copied and form part of exact
+     * {@link TrainingState} restore compatibility. Paths must match keys in the captured
+     * {@link Module#parametersRecursively()} snapshot; every path may occur in at most one group.
+     * Unlisted parameters use {@code defaultOptimizer}. All discovered parameters remain gradient
+     * targets, and all groups share one graph, execution counter, optimizer-step counter,
+     * accumulation lifecycle, and atomic commit. An empty list behaves as the four-argument
+     * overload. Group membership and assigned coefficient narrowing validate before seed
+     * allocation, compilation, or preparation.</p>
+     *
+     * @param engine non-null open Engine borrowed for the complete session lifetime
+     * @param module non-null caller-owned Module with a nonempty recursive parameter set
+     * @param objective non-null scalar FLOAT32/FLOAT64 gradient-eligible expression using the
+     *     Module's current parameter Tensors
+     * @param defaultOptimizer non-null immutable default configuration; currently {@link Sgd}
+     * @param groups non-null ordered list of non-null immutable groups, copied at open
+     * @return a fresh non-null session with one compiled and prepared graph
+     * @throws NullPointerException if an argument, group, or required discovered value is null
+     * @throws IllegalArgumentException if a group path is absent or claimed more than once, a
+     *     coefficient cannot narrow for its assigned parameter, or capture/compile rejects input
+     * @throws IllegalStateException if the Module is empty, storage is unusable, or Engine is closed
+     * @throws ArithmeticException if checked size arithmetic overflows
+     * @throws RuntimeException if compilation or preparation reports another unchecked failure
+     * @throws Error if allocation, compilation, or preparation reports a fatal failure
+     */
+    public static TrainingSession open(
+            Engine engine,
+            Module module,
+            Tensor objective,
+            Optimizer defaultOptimizer,
+            List<ParameterGroup> groups) {
+        return openInternal(engine, module, objective, defaultOptimizer, groups, Hooks.NONE);
     }
 
     static TrainingSession openForTesting(
@@ -211,7 +255,17 @@ public final class TrainingSession implements AutoCloseable {
             Tensor objective,
             Optimizer optimizer,
             Hooks hooks) {
-        return openInternal(engine, module, objective, optimizer, hooks);
+        return openInternal(engine, module, objective, optimizer, List.of(), hooks);
+    }
+
+    static TrainingSession openForTesting(
+            Engine engine,
+            Module module,
+            Tensor objective,
+            Optimizer optimizer,
+            List<ParameterGroup> groups,
+            Hooks hooks) {
+        return openInternal(engine, module, objective, optimizer, groups, hooks);
     }
 
     private static TrainingSession openInternal(
@@ -219,6 +273,7 @@ public final class TrainingSession implements AutoCloseable {
             Module module,
             Tensor objective,
             Optimizer optimizer,
+            List<ParameterGroup> groups,
             Hooks hooks) {
         Hooks lifecycleHooks = Objects.requireNonNull(hooks, "hooks");
         Engine borrowedEngine = Objects.requireNonNull(engine, "engine");
@@ -228,13 +283,27 @@ public final class TrainingSession implements AutoCloseable {
         Sgd sgd = switch (suppliedOptimizer) {
             case Sgd configuration -> configuration;
         };
+        List<ParameterGroup> stableGroups = List.copyOf(Objects.requireNonNull(groups, "groups"));
 
         validateObjective(scalarObjective);
         Map<String, Parameter> discovered = borrowedModule.parametersRecursively();
         if (discovered.isEmpty()) {
             throw new IllegalStateException("training module has no parameters");
         }
+        Map<String, Sgd> groupedOptimizers = new HashMap<>();
+        for (ParameterGroup group : stableGroups) {
+            for (String path : group.paths()) {
+                if (!discovered.containsKey(path)) {
+                    throw new IllegalArgumentException("unknown parameter group path: " + path);
+                }
+                if (groupedOptimizers.putIfAbsent(path, (Sgd) group.optimizer()) != null) {
+                    throw new IllegalArgumentException("parameter path belongs to multiple groups: "
+                            + path);
+                }
+            }
+        }
         var parameterSnapshot = new ArrayList<TrainingParameter>(discovered.size());
+        var assignedOptimizers = new ArrayList<Sgd>(discovered.size());
         IdentityHashMap<Tensor, String> tensors = new IdentityHashMap<>();
         for (Map.Entry<String, Parameter> entry : discovered.entrySet()) {
             TrainingParameter captured = TrainingParameter.capture(entry.getKey(), entry.getValue());
@@ -251,9 +320,11 @@ public final class TrainingSession implements AutoCloseable {
                                     + previous.path() + " and " + captured.path());
                 }
             }
+            Sgd assigned = groupedOptimizers.getOrDefault(captured.path(), sgd);
+            validateOptimizerNarrowing(assigned, captured.dataType());
             parameterSnapshot.add(captured);
+            assignedOptimizers.add(assigned);
         }
-        validateOptimizerNarrowing(sgd, parameterSnapshot);
         List<TrainingParameter> stableParameters = List.copyOf(parameterSnapshot);
 
         Arena seedArena = Arena.ofShared();
@@ -272,6 +343,8 @@ public final class TrainingSession implements AutoCloseable {
                     borrowedModule,
                     scalarObjective,
                     sgd,
+                    stableGroups,
+                    List.copyOf(assignedOptimizers),
                     seedInput,
                     seedArena,
                     stableParameters,
@@ -322,12 +395,21 @@ public final class TrainingSession implements AutoCloseable {
     }
 
     /**
-     * Returns the exact immutable optimizer configuration borrowed at construction.
+     * Returns the exact immutable default optimizer configuration borrowed at construction.
      *
      * @return the non-null configuration retained by exact reference
      */
     public Optimizer optimizer() {
         return optimizer;
+    }
+
+    /**
+     * Returns the exact immutable ordered groups captured when this session opened.
+     *
+     * @return non-null immutable list, possibly empty for an ungrouped session
+     */
+    public List<ParameterGroup> parameterGroups() {
+        return parameterGroups;
     }
 
     /**
@@ -402,17 +484,18 @@ public final class TrainingSession implements AutoCloseable {
             }
 
             boolean useAccumulated = mode == GradientMode.ACCUMULATE_AND_STEP;
-            for (TrainingParameter parameter : parameters) {
-                parameter.stageUpdate(optimizer, optimizerSteps, useAccumulated);
+            for (int index = 0; index < parameters.size(); index++) {
+                parameters.get(index).stageUpdate(
+                        parameterOptimizers.get(index), optimizerSteps, useAccumulated);
             }
             for (TrainingParameter parameter : parameters) {
                 parameter.prepareParameterCandidate();
             }
             validateModuleAndParameters();
             commitParameterCandidates();
-            boolean configuredMomentum = optimizer.momentum() != 0.0d;
-            for (TrainingParameter parameter : parameters) {
-                parameter.commitMomentum(configuredMomentum);
+            for (int index = 0; index < parameters.size(); index++) {
+                TrainingParameter parameter = parameters.get(index);
+                parameter.commitMomentum(parameterOptimizers.get(index).momentum() != 0.0d);
                 parameter.clearAccumulation();
             }
             publishCounters(nextExecution, nextOptimizerStep, 0L);
@@ -473,6 +556,7 @@ public final class TrainingSession implements AutoCloseable {
             }
             return new TrainingState(
                     optimizer,
+                    parameterGroups,
                     executions,
                     optimizerSteps,
                     accumulatedGradientRuns,
@@ -485,7 +569,8 @@ public final class TrainingSession implements AutoCloseable {
     /**
      * Restores one complete compatible in-memory state after validate-before-install preflight.
      *
-     * <p>Lifecycle admission precedes inspection of {@code state}. The exact SGD configuration,
+     * <p>Lifecycle admission precedes inspection of {@code state}. The exact default SGD and
+     * ordered parameter-group configurations,
      * counters, parameter count, ordered paths, data types, Shapes, logical and master payload
      * lengths, finite payload values, momentum-disabled slot values, and current Module/storage
      * view all validate before any parameter write. Success atomically installs logical and master
@@ -510,6 +595,9 @@ public final class TrainingSession implements AutoCloseable {
             if (!optimizer.equals(candidate.optimizer())) {
                 throw new IllegalArgumentException("training state optimizer configuration differs");
             }
+            if (!parameterGroups.equals(candidate.parameterGroups())) {
+                throw new IllegalArgumentException("training state parameter groups differ");
+            }
             if (candidate.optimizerSteps() > candidate.executions()
                     || candidate.accumulatedGradientRuns() > candidate.executions()) {
                 throw new IllegalArgumentException("training state counters are inconsistent");
@@ -521,25 +609,27 @@ public final class TrainingSession implements AutoCloseable {
             }
             validateModuleAndParameters();
             for (int index = 0; index < parameters.size(); index++) {
-                parameters.get(index).validateState(candidate.parameters().get(index), optimizer);
+                parameters.get(index).validateState(
+                        candidate.parameters().get(index), parameterOptimizers.get(index));
             }
-            boolean configuredMomentum = optimizer.momentum() != 0.0d;
             try {
                 for (int index = 0; index < parameters.size(); index++) {
                     parameters.get(index).stageRestore(candidate.parameters().get(index));
                 }
                 validateModuleAndParameters();
                 commitParameterCandidates();
-                for (TrainingParameter parameter : parameters) {
-                    parameter.commitRestore(configuredMomentum);
+                for (int index = 0; index < parameters.size(); index++) {
+                    parameters.get(index).commitRestore(
+                            parameterOptimizers.get(index).momentum() != 0.0d);
                 }
                 publishCounters(
                         candidate.executions(),
                         candidate.optimizerSteps(),
                         candidate.accumulatedGradientRuns());
             } catch (RuntimeException | Error failure) {
-                for (TrainingParameter parameter : parameters) {
-                    parameter.discardFailedRestoreStaging(configuredMomentum);
+                for (int index = 0; index < parameters.size(); index++) {
+                    parameters.get(index).discardFailedRestoreStaging(
+                            parameterOptimizers.get(index).momentum() != 0.0d);
                 }
                 throw failure;
             }
@@ -945,11 +1035,8 @@ public final class TrainingSession implements AutoCloseable {
         }
     }
 
-    private static void validateOptimizerNarrowing(
-            Sgd optimizer, List<TrainingParameter> parameters) {
-        boolean hasFloat32Domain = parameters.stream()
-                .anyMatch(parameter -> parameter.dataType() != DataType.FLOAT64);
-        if (!hasFloat32Domain) {
+    private static void validateOptimizerNarrowing(Sgd optimizer, DataType parameterType) {
+        if (parameterType == DataType.FLOAT64) {
             return;
         }
         float learningRate = (float) optimizer.learningRate();

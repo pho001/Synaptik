@@ -318,7 +318,7 @@ final class TrainingParameter {
      * candidate, preserving the existing swap behavior. Exactly zero configured momentum instead
      * leaves its active slot untouched until a successful commit.</p>
      *
-     * @param optimizer non-null validated immutable SGD configuration
+     * @param optimizer non-null immutable SGD assigned to this path and validated for its dtype
      * @param completedSteps non-negative number of prior successful parameter updates
      * @param useAccumulatedCandidate whether a preceding accumulation stage supplies gradients
      */
@@ -639,6 +639,14 @@ final class TrainingParameter {
                 accumulatedBytes);
     }
 
+    /**
+     * Validates this path's detached payload and its assigned SGD momentum rule before restore.
+     *
+     * @param state non-null detached payload expected to match this path and schema
+     * @param optimizer non-null immutable SGD assigned to this parameter at session open
+     * @throws IllegalArgumentException if schema, width, finiteness, or disabled-momentum slot
+     *     values are incompatible
+     */
     void validateState(TrainingState.ParameterState state, Sgd optimizer) {
         Objects.requireNonNull(state, "state");
         if (!path.equals(state.path())

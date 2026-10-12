@@ -6827,11 +6827,20 @@ identity or graph provenance, and leaves source storage ownership with the calle
 keeps the destination Arena alive through session close. It is not a backend transfer or an
 implicit behavior of `TrainingSession.open`. See [Training API](api/training-api.md#explicit-native-parameter-copy).
 
+### Parameter group / `ParameterGroup`
+
+An immutable ordered list of distinct stable recursive Module parameter paths with one SGD configuration.
+Paths are the keys of `Module.parametersRecursively()`. One Training session may assign disjoint
+groups while unlisted parameters use its default SGD. Both group order and path order participate
+in exact Training-state restore compatibility; groups do not create separate counters or freeze
+gradient targets. See [Training API](api/training-api.md#session-construction-and-input-mapping).
+
 ### Training session / `TrainingSession`
 
 The implemented public Training owner for one scalar objective, one stable recursive NN parameter
-set, one immutable optimizer configuration, one compiled graph, and one prepared Engine inference
-session. Opening snapshots exact parameter paths/wrappers/Tensors/storages, then compiles and
+set, one immutable default optimizer configuration and optional ordered parameter groups, one
+compiled graph, and one prepared Engine inference session. Opening snapshots exact parameter
+paths/wrappers/Tensors/storages, then compiles and
 prepares once. Each run reuses that session, authenticates target-indexed gradients, stages all
 SGD/accumulation work, and commits only after complete precommit validation. Its initial update
 domain is non-empty, finite `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` parameters with fully

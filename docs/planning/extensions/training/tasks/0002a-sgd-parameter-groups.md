@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Change class
 
@@ -140,4 +140,22 @@ architecture or decision record is expected unless implementation uncovers a con
 
 ## Result
 
-Empty until execution.
+- Implemented in isolated worktree commit `92494077` and integrated from planning base
+  `9ba848a9`: immutable `ParameterGroup`, per-parameter SGD selection, exact ordered group
+  snapshot/restore identity, preserved ungrouped API, focused tests, and public CPU integration.
+- Changed six Training production files (including new `ParameterGroup`), two Training test
+  files, one CPU integration test, and the Training API guide, user guide, and glossary.
+- Worker validation passed with
+  `SYNAPTIK_METAL_TEST_LIBRARY=<source-matched local dylib> ./gradlew
+  :extensions:training:test :extensions:training:javadoc :testing:integration-tests:test`:
+  57 Training tests and 8 CPU integration tests, zero failures/skips in those suites.
+  `git diff --check` passed.
+- Independent Class B public API/state-contract and documentation/Javadoc review returned
+  `APPROVE`, zero findings. The two-rate examples and ordered restore identity were reviewed.
+- Integration-owner checkpoint passed with the same Metal library and `./gradlew test javadoc`
+  (`BUILD SUCCESSFUL`; 100 actionable tasks: 2 executed, 6 from cache, 92 up-to-date).
+  Integrated `git diff --check` passed. No architecture or ADR update was needed.
+- Limitations: only SGD groups are supported; Adam/AdamW remain for a later task. No unresolved
+  issue or required follow-up within 0002A.
+
+Status: Complete
