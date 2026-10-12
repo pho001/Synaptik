@@ -113,8 +113,17 @@ public final class TrainingState {
 
     /**
      * Immutable detached state for one stable recursive parameter path.
+     *
+     * <p>Canonical payload bytes are private, exact-width values exposed only through fresh
+     * read-only views. This state owns its bytes independently of parameter storage and remains
+     * readable after the originating session closes.</p>
      */
     public static final class ParameterState {
+        private enum PayloadOwnership {
+            COPY,
+            ADOPT
+        }
+
         private final String path;
         private final DataType dataType;
         private final Shape shape;
@@ -123,6 +132,22 @@ public final class TrainingState {
         private final byte[] momentumBytes;
         private final byte[] accumulatedGradientBytes;
 
+        /**
+         * Defensively captures caller-supplied canonical payloads for one parameter.
+         *
+         * <p>Each array is checked against the declared logical or optimizer width and copied, so
+         * later writes through a caller-retained reference cannot change this state.</p>
+         *
+         * @param path non-null, non-blank stable recursive parameter path
+         * @param dataType non-null supported floating parameter type
+         * @param shape non-null fully static parameter Shape
+         * @param parameterBytes non-null logical-width canonical bytes, copied on construction
+         * @param masterParameterBytes non-null optimizer-width canonical bytes, copied on construction
+         * @param momentumBytes non-null optimizer-width canonical bytes, copied on construction
+         * @param accumulatedGradientBytes non-null optimizer-width canonical bytes, copied on construction
+         * @throws NullPointerException if any argument is null
+         * @throws IllegalArgumentException if the path, type, Shape, or a payload width is invalid
+         */
         ParameterState(
                 String path,
                 DataType dataType,
@@ -131,6 +156,49 @@ public final class TrainingState {
                 byte[] masterParameterBytes,
                 byte[] momentumBytes,
                 byte[] accumulatedGradientBytes) {
+            this(path, dataType, shape, parameterBytes, masterParameterBytes, momentumBytes,
+                    accumulatedGradientBytes, PayloadOwnership.COPY);
+        }
+
+        /**
+         * Takes exclusive ownership of fresh canonical arrays filled by a session snapshot.
+         *
+         * <p>Only a producer that retains no array reference may use this package-private path.
+         * Payload widths and non-null inputs receive the same validation as the defensive
+         * constructor; public views still cannot expose the mutable arrays.</p>
+         *
+         * @param path non-null, non-blank stable recursive parameter path
+         * @param dataType non-null supported floating parameter type
+         * @param shape non-null fully static parameter Shape
+         * @param parameterBytes non-null exclusively owned logical-width canonical bytes
+         * @param masterParameterBytes non-null exclusively owned optimizer-width canonical bytes
+         * @param momentumBytes non-null exclusively owned optimizer-width canonical bytes
+         * @param accumulatedGradientBytes non-null exclusively owned optimizer-width canonical bytes
+         * @return a detached immutable state retaining the four supplied arrays without copying
+         * @throws NullPointerException if any argument is null
+         * @throws IllegalArgumentException if the path, type, Shape, or a payload width is invalid
+         */
+        static ParameterState adoptFreshSnapshotArrays(
+                String path,
+                DataType dataType,
+                Shape shape,
+                byte[] parameterBytes,
+                byte[] masterParameterBytes,
+                byte[] momentumBytes,
+                byte[] accumulatedGradientBytes) {
+            return new ParameterState(path, dataType, shape, parameterBytes, masterParameterBytes,
+                    momentumBytes, accumulatedGradientBytes, PayloadOwnership.ADOPT);
+        }
+
+        private ParameterState(
+                String path,
+                DataType dataType,
+                Shape shape,
+                byte[] parameterBytes,
+                byte[] masterParameterBytes,
+                byte[] momentumBytes,
+                byte[] accumulatedGradientBytes,
+                PayloadOwnership ownership) {
             this.path = Objects.requireNonNull(path, "path");
             if (path.isBlank()) {
                 throw new IllegalArgumentException("path must not be blank");
@@ -153,16 +221,17 @@ public final class TrainingState {
                 throw new IllegalArgumentException(
                         "training state payload exceeds JVM byte[] limit");
             }
-            this.parameterBytes =
-                    copyExact(parameterBytes, "parameterBytes", (int) logicalBytes);
-            this.masterParameterBytes = copyExact(
-                    masterParameterBytes, "masterParameterBytes", (int) optimizerBytes);
-            this.momentumBytes =
-                    copyExact(momentumBytes, "momentumBytes", (int) optimizerBytes);
-            this.accumulatedGradientBytes = copyExact(
+            this.parameterBytes = exactPayload(
+                    parameterBytes, "parameterBytes", (int) logicalBytes, ownership);
+            this.masterParameterBytes = exactPayload(
+                    masterParameterBytes, "masterParameterBytes", (int) optimizerBytes, ownership);
+            this.momentumBytes = exactPayload(
+                    momentumBytes, "momentumBytes", (int) optimizerBytes, ownership);
+            this.accumulatedGradientBytes = exactPayload(
                     accumulatedGradientBytes,
                     "accumulatedGradientBytes",
-                    (int) optimizerBytes);
+                    (int) optimizerBytes,
+                    ownership);
         }
 
         /**
@@ -248,14 +317,15 @@ public final class TrainingState {
             return accumulatedGradientBytes;
         }
 
-        private static byte[] copyExact(byte[] source, String name, int expected) {
+        private static byte[] exactPayload(
+                byte[] source, String name, int expected, PayloadOwnership ownership) {
             Objects.requireNonNull(source, name);
             if (source.length != expected) {
                 throw new IllegalArgumentException(
                         name + " length mismatch: expected=" + expected
                                 + ", actual=" + source.length);
             }
-            return source.clone();
+            return ownership == PayloadOwnership.COPY ? source.clone() : source;
         }
 
         private static ByteBuffer view(byte[] bytes) {

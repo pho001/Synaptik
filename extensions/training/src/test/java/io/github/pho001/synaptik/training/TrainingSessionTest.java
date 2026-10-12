@@ -649,6 +649,44 @@ final class TrainingSessionTest {
         }
     }
 
+    @Test
+    void sessionSnapshotsOfAllTypesRemainDetachedAndReadableAfterClose() {
+        for (DataType type : List.of(
+                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            Tensor parameter = switch (type) {
+                case FLOAT64 -> scalar64(2.0d, true);
+                case FLOAT32 -> scalar(2.0f, true);
+                case BFLOAT16, FLOAT16 -> lowVector(type, new short[] {0x3c00, 0x0001}, true);
+                default -> throw new AssertionError(type);
+            };
+            Tensor objective = type == DataType.BFLOAT16 || type == DataType.FLOAT16
+                    ? parameter.cast(DataType.FLOAT32).sum()
+                    : parameter.mul(parameter);
+            ScalarParameters module = new ScalarParameters(parameter);
+            TrainingState snapshot;
+            try (Engine engine = Engine.standard();
+                    TrainingSession session = TrainingSession.open(
+                            engine, module, objective, new Sgd(0.1d))) {
+                snapshot = session.state();
+            }
+
+            TrainingState.ParameterState state = snapshot.parameters().getFirst();
+            byte[] logical = bytes(state.parameterBytes());
+            byte[] master = bytes(state.masterParameterBytes());
+            byte[] momentum = bytes(state.momentumBytes());
+            byte[] accumulated = bytes(state.accumulatedGradientBytes());
+            parameter.hostStorage().orElseThrow().segment().fill((byte) 0);
+            assertArrayEquals(logical, bytes(state.parameterBytes()));
+            assertArrayEquals(master, bytes(state.masterParameterBytes()));
+            assertArrayEquals(momentum, bytes(state.momentumBytes()));
+            assertArrayEquals(accumulated, bytes(state.accumulatedGradientBytes()));
+            assertFalse(state.parameterBytes().hasArray());
+            assertFalse(state.masterParameterBytes().hasArray());
+            assertFalse(state.momentumBytes().hasArray());
+            assertFalse(state.accumulatedGradientBytes().hasArray());
+        }
+    }
+
     private static Tensor scalar(float value, boolean requiresGrad) {
         return scalar(Arena.global(), value, requiresGrad);
     }

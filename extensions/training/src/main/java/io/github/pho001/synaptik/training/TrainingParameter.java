@@ -553,6 +553,15 @@ final class TrainingParameter {
         }
     }
 
+    /**
+     * Captures a detached canonical state from this validated session-owned parameter binding.
+     *
+     * <p>The four fresh arrays are filled here and handed off exclusively to the resulting state;
+     * neither this binding nor the session retains a mutable reference to them.</p>
+     *
+     * @return a non-null immutable state with exact logical and optimizer-width payloads
+     * @throws IllegalStateException if the binding changed or current state is non-finite
+     */
     TrainingState.ParameterState snapshot() {
         validateBinding();
         validateFiniteState();
@@ -591,7 +600,7 @@ final class TrainingParameter {
                 accumulatedBuffer.putFloat(accumulated32[index]);
             }
         }
-        return new TrainingState.ParameterState(
+        return TrainingState.ParameterState.adoptFreshSnapshotArrays(
                 path,
                 dataType,
                 shape,
