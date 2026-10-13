@@ -59,7 +59,9 @@ artifact. It does not depend on the implemented Training Checkpoint adapter (Che
 Class B review, and the integration-owner `./gradlew test javadoc` checkpoint.
 [0002B](tasks/0002b-adam-and-adamw-optimizers.md) is Complete after independent Class B approval
 and the integration-owner repository test/Javadoc checkpoint. Audit repair 0002C is Complete;
-0003–0005 remain Draft behind the explicitly owned 0003A decision. Governing
+0003–0005 remain Draft behind the explicitly owned 0003A decision. Task 0003A is the sole Ready
+Training frontier at base `694a98860640ff0741abc3bc3593e466cf83de6d`; it makes a
+state-complete resume ownership decision before any new API or persistence work. Governing
 headings are `ARCHITECTURE.md` scope index, module ownership and dependency rules, plus
 `docs/architecture/contracts/extensions-training.md` sections `extensions/nn`,
 `extensions/training`, and `Optimizer/training lifecycle`.
@@ -81,7 +83,7 @@ extends only Training-owned state. NN keeps parameter declaration and traversal 
 | [0002A](tasks/0002a-sgd-parameter-groups.md) | SGD parameter groups | Complete | 0001E | Disjoint path-based SGD overrides have exact state/restore identity and preserve ungrouped behavior. |
 | [0002B](tasks/0002b-adam-and-adamw-optimizers.md) | Adam and AdamW optimizer state | Complete | 0002A | Mixed SGD/Adam/AdamW groups have exact two-moment state/restore; independent review and repository checkpoint passed. |
 | [0002C](tasks/0002c-adaptive-update-operation-order.md) | Adaptive-update operation order | Complete | 0002B; project review | Preserve documented multiply-before-divide order and finite-update admission for Adam/AdamW. |
-| [0003A](tasks/0003a-exact-resume-state-ownership-decision.md) | Resume-state ownership and claim decision | Draft | 0002C; audit reconciliation | Name exact participating state owners and choose supported resume versus restart claims before adding state. Recommended starting point: caller-owned progress/sampler state. Requires explicit contract review. |
+| [0003A](tasks/0003a-exact-resume-state-ownership-decision.md) | Resume-state ownership and claim decision | Ready | 0002C; audit reconciliation | Sole serial frontier: decide state-complete resume ownership and supported claim before adding state; independent Class C review required. |
 | 0003 | Exact-resume progress state | Draft | 0002C; accepted 0003A decision | Implement only the selected progress/scheduler/RNG/sampler/scaler participants; current Data batching tasks do not satisfy this prerequisite. |
 | 0004 | Training checkpoint integration boundary | Draft | 0003; Checkpoint 0001 and 0004 | Expose one coordinated prevalidated state candidate before the downstream adapter; keep bytes, files, checksums, and atomic publication outside Training. |
 | 0005 | Broader training capability checkpoint | Draft | 0002A–0004 | Validate broader optimizers, state-path stability, exact-resume claims, documentation, architecture boundaries, and a representative peak-memory measurement of parameter, slot, candidate, rollback, and snapshot storage before claiming large-model support. |
@@ -108,9 +110,9 @@ a configured full-repository test/Javadoc run. Task 0001E removed idle inactive 
 and was pushed as `cbd14f3b`. Task 0002A added path-based SGD groups after independent approval
 and a successful repository test/Javadoc checkpoint, then was pushed as `19b7785c`. Task 0002B
 added mixed SGD/Adam/AdamW groups and exact two-moment state at `10d507a3`, with independent
-documentation review fix `23d1e39d` and a successful repository checkpoint. No Training task is
-Ready for new capability; numerical repair 0002C is Complete. Exact-resume/checkpoint work
-remains Draft, with 0003A owning its previously unassigned lifecycle decision.
+documentation review fix `23d1e39d` and a successful repository checkpoint. Numerical repair
+0002C is Complete. Decision task 0003A is Ready; exact-resume implementation and Checkpoint work
+remain Draft behind its cross-owner lifecycle decision.
 
 ## Open questions
 

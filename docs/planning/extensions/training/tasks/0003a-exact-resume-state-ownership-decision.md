@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft
+Ready
 
 ## Change class
 
@@ -12,7 +12,9 @@ explicit graph random state, caller-selected inputs, and future durable Checkpoi
 ## Goal
 
 Decide precisely what a saved training run must contain to continue from the next step, who
-owns each part, and when the framework may call that continuation exact. This decision prepares
+owns each part, and when the framework may call that continuation exact. The selected scope is
+state-complete continuation of the currently supported `TrainingSession` workflow, not a promise
+of bitwise-identical future results across devices or execution routes. This decision prepares
 Training 0003 and the optional Training Checkpoint adapter without inventing a data lifecycle.
 
 ## Current evidence and proposed decision
@@ -66,15 +68,22 @@ decision before changing code. Do not infer authority from this planning brief.
 
 ## Dependencies and integration
 
-- Depends on: Training 0002C Complete; review reconciliation; selection of exact-resume scope.
+- Depends on: Training 0002C Complete; project-review reconciliation Complete; owner-selected
+  state-complete resume scope (2026-10-13).
 - Conflicts with: Training state/session API, NN state installation, Checkpoint adapter contract,
   and shared root/scoped architecture text.
 - Parallel group: None; serialize contract ownership before dependent implementation.
-- Common base revision: select when this Draft becomes Ready.
+- Common base revision: `694a98860640ff0741abc3bc3593e466cf83de6d`; serial task, no parallel group.
 - Integration order: participant/claim decision → owning contracts and ADR → 0003 packet.
-- Integration validation: targeted architecture/documentation review and links; executable
-  tests only if the decision changes behavior or code.
-- Shared-document integration owner: future coordinator.
+- Integration validation: independent Class C contract/documentation review, targeted link and
+  status checks, and `git diff --check`; executable tests only if behavior or code changes.
+- Shared-document integration owner: main coordinator.
+
+Frontier verification (2026-10-13): Training 0002C and the repository-review reconciliation are
+Complete in the active plans; no Training task is currently Ready or in progress; Checkpoint
+0001–0006 remain Draft and do not conflict with this serial decision. The owner accepted the
+state-complete resume scope after the stable-softmax checkpoint. This is the sole authorized
+Training frontier at the recorded common base.
 
 ## Files and symbols
 
@@ -88,12 +97,22 @@ decision before changing code. Do not infer authority from this planning brief.
 ## Acceptance criteria
 
 - One ownership table covers every participant needed for the chosen replay claim, including
-  program-specific external state and unsupported participants.
+  program-specific external state, NN buffers/mode, and unsupported participants; distinguish
+  state completeness from bitwise numerical replay.
 - One concrete save/restore example identifies the next batch and random state after recovery,
   and a failure example shows when the exact-resume claim is refused.
 - Training 0003 and Checkpoint 0005–0006 have acyclic, testable acceptance gates with no implied
   Data module or NN-to-Training dependency.
 - Independent Class C review approves the decision and affected explanatory documentation.
+
+## Validation
+
+Worker: targeted source/contract/test audit and documentation link checks; `git diff --check`.
+No executable code or behavior is planned, so no Java test rerun is required unless the decision
+pass changes code or identifies a concrete regression risk.
+
+Integration: independent Class C review, then verify status/dependency consistency in this brief,
+the Training master plan, Checkpoint master plan, and roadmap.
 
 ## Documentation and review impact
 
