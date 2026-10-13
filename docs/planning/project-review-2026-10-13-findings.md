@@ -5,7 +5,8 @@
 This is an engineering review report and implementation record, not a numerical certificate or
 an architecture contract. The [review brief](project-review-2026-10-13.md) defines ownership and
 acceptance. Findings refer to production baseline `728680eaabc44a485da9f32050914ca4f09b295c`;
-source line numbers below are baseline locations and move after repairs.
+source line numbers below are baseline locations and move after repairs unless a later inspected
+revision is explicitly identified.
 
 Six independent review areas covered all 22 Gradle leaf projects, native Metal/CUDA sources,
 build wiring and all 23 area master plans. Review combined source tracing, existing focused-test
@@ -24,8 +25,9 @@ Actual-device execution is recorded separately from source review and skipped te
 
 ## Result at a glance
 
-Confirmed production findings: **6 P1 and 10 P2**, no confirmed P0. Separately: two test defects
-and several documentation inconsistencies. P1 means a supported path can return a wrong result, fail
+Confirmed implementation findings: **6 P1 and 10 P2**, no confirmed P0. Separately: **G1, a P2
+numerical-contract discrepancy requiring an owner decision**, two test defects and several
+documentation inconsistencies. P1 means a supported path can return a wrong result, fail
 for ordinary valid input, or access native metadata out of bounds. P2 covers narrower numerical,
 resource, API-consumer or bounded-memory failures. These priorities are repair urgency, not a
 formal security classification.
@@ -48,6 +50,7 @@ formal security classification.
 | E1 | P2 | Adam divides before multiplying and rejects a finite documented update. | Training 0002C |
 | E2 | P2 | NN public Model types are missing from an NN-only consumer's compile path. | NN 0025B |
 | F1 | P2 | Model-plan cache checks its bound after aggregate allocation. | Tuning 0005 |
+| G1 | P2, contract | Stable finite softmax changes the output class implied by literal EXP overflow. | Model 0033 Draft; owner decision required |
 | B2 | P2, test | Several “mixed-backend” tests now run entirely on Metal. | Engine 0019 |
 | B3 | P3, test | Copy/close test assumes executor submission guarantees admission. | Engine 0019 |
 | B4 | P3, docs | Public tuning Javadoc incorrectly describes CPU-only support. | Engine 0019 |
@@ -283,6 +286,34 @@ large logical totals without enormous allocation, fixture compatibility and unch
 
 ## Test and documentation findings
 
+### G1 — Stable softmax and literal intermediate overflow disagree
+
+An independent source cross-check at integrated revision `c2461e1e` found a separate conflict
+beyond CPU 0021's validation repair. The following G1 source locations refer to that revision.
+For admitted contiguous FLOAT32 `[1000,1000]`, axis 0, `CpuSoftmaxEmitter` max-shifts the values
+to `[0,0]`, yielding `[0.5,0.5]`. `SoftmaxKind` and the foundational contract's Composite inheritance
+row instead specify literal unshifted EXP, sum and division: the EXP results overflow to infinity,
+and infinity divided by infinity produces NaN. This is a result-class discrepancy, not a demand
+for cross-backend bit equality.
+
+Relevant sources: `CpuCapabilityProvider.java:529`, `CpuSoftmaxInputValidator.java:101`,
+`CpuSoftmaxEmitter.java:146`, `SoftmaxKind.java:19`, and
+`docs/architecture/contracts/foundational-modules.md:193,265,266,274`. The alternative-algorithm
+clause requires special-value preservation; the source review found no express exception for
+avoiding literal intermediate overflow. Existing Stage-A/normalization/conformance tests use a
+stable oracle and cannot grant that permission. No fresh numerical diagnostic was run in this
+cross-check; the trigger and both evaluations are source-derived.
+
+**Unresolved, not silently repaired:** the recommended direction is to retain useful stable
+softmax and clarify its explicit finite-overflow semantics, while explicitly preserving/specifying
+existing NaN/infinity/empty rules and supported/rejected domains. This changes a numerical
+contract and needs an owner decision plus
+independent Class C review. [Model 0033](modules/model/tasks/0033-stable-softmax-overflow-semantics.md)
+records the Draft decision task. No broader composite/fusion permission follows by analogy.
+An asynchronous question requested this direction; until answered and implemented, G1 remains open.
+
+### Test and explanation repairs
+
 - **B2:** `testing/integration-tests/.../EngineExplicitCompositionMetalIntegrationTest.java:1970,2036`
   uses EXP/SIGMOID as old CPU-only separators. Both are now supported on Metal; several rank-1,
   rank-16, multi-hop and mixed-publication tests assert only `metal` ownership. They no longer
@@ -398,8 +429,9 @@ Changes preserve historical task records while making the current map actionable
   limits and missing adjoints remain visible. Completed strict-era probe failures are not
   implicit prerequisites for today's qualified routes.
 
-Recommended order: finish bounded repairs and the combined checkpoint; select Training 0003A's
-resume-state decision next; if durable saving is the product priority, authorize Checkpoint's
+Recommended order: finish bounded repairs and the combined checkpoint; resolve Model 0033's
+stable-softmax contract decision before claiming numerical closure; then select Training 0003A's
+resume-state decision. If durable saving is the product priority, authorize Checkpoint's
 architecture/model-only work. Data/Text/Vision form a separately selected architecture stream.
 These successor proposals remain Draft until their actual decisions and scope are approved.
 
@@ -412,8 +444,8 @@ These successor proposals remain Draft until their actual decisions and scope ar
 | Training 0002C | `97e66ee3` / `1f9ea4bd` | 11 focused / 68 module tests; Javadoc | APPROVE | Integrated; final checkpoint pending |
 | NN 0025B | `6eefd08d` / `7905036f` | NN-only and Training-only consumer compilation; 306 NN tests; architecture test; Javadoc | APPROVE | Integrated; final checkpoint pending |
 | Tuning 0005 | `ea9059dc` / `d324ee13` | 20 focused / 73 module tests; exact encoding/bounds; Javadoc | APPROVE | Integrated; final checkpoint pending |
-| CPU 0021 | `ca21c80c` / pending | CPU suite: 1054 reported tests, 28 skips, no failures; 2 conformance + 6 integration passed; Javadoc | Pending | Review needed |
-| CPU 0022 | Pending | Pending | Pending | Draft, serial CPU successor |
+| CPU 0021 | `ca21c80c` / `c0559e2b` | 1,026 CPU passed / 28 skipped; 2 conformance + 6 integration passed; Javadoc | APPROVE after softmax glossary correction | Integrated; final checkpoint pending |
+| CPU 0022 | Pending | Pending | Pending | In progress, serial CPU successor |
 | Metal 0078 | `50f570d8` + docs `12babf46` / `6e8d6b26`, `1db53756` | 4 new device regressions, 340 Metal passed / 10 optional observer skips, 37 conformance passed; native/package/source-AIR/Javadoc | APPROVE after version-document correction | Integrated; final checkpoint pending |
 | Engine 0019 | `a73822ca` / `241ce92b` | 122 Engine tests, 3 final cleanup tests; 33 actual-device integration tests without skips; Javadoc | APPROVE including glossary/user-guide corrections | Integrated; final checkpoint pending |
 | Metal 0079 | Pending | Pending | Pending | In progress, serial Metal successor for D5 |
@@ -425,6 +457,10 @@ resource doubles; cache allocation safety is structural plus deterministic size 
 intentional out-of-memory experiment; NN isolated source consumption is not a published-artifact
 release test. Training's new order stress tests cover FLOAT32/FLOAT64, with existing low routing
 and narrowing tests reused.
+CPU's composed invalid-mask regression rejects in the NOT producer, so it does not independently
+prove failure atomicity of both attention outputs. Materialized BOOL validation lacks a combined
+sentinel regression, although source ordering confirms materialization executes before consumer
+validation. These are bounded coverage limitations, not demonstrated remaining defects.
 
 Independent planning reconciliation review: APPROVE after correcting the glossary cutover status,
 ONNX's undefined first task and the explicit architecture gate for backend discovery. All 287

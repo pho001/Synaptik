@@ -251,7 +251,7 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0019 | [CPU partition size independent of fusion-unit size](tasks/0019-unbounded-cpu-partition-bounded-fusion-units.md) | Complete | CPU 0008B/0008D/0008E/0008F/0017; Engine 0018 (Complete); independent of 0018 | Long maximal CPU partitions now execute as bounded local units; 1,039 CPU tests and focused Engine execution passed. |
 | 0020 | [Bare MATMUL realization and strategy alignment](tasks/0020-bare-matmul-realization-strategy-alignment.md) | Complete | CPU 0008F, 0010M, 0018, 0019 (all Complete) | Default scalar and explicit vector MATMUL realization now agree with prepared strategy and species; public INT32 execution, CPU tests, and independent Class C review passed. |
 | 0021 | [Composed validation and loss binding repair](tasks/0021-composed-value-validation-and-loss-bindings.md) | Review needed | 0019–0020; project review | Fix F16 softmax reading, value checks after producers, and occurrence-level loss bindings. |
-| 0022 | [Activation extremes and low working precision](tasks/0022-activation-extremes-and-low-working-precision.md) | Draft | 0021; current Model semantics | Fix ERF/GELU large-finite saturation and low activation F32 working sites; serialize generated identity work. |
+| 0022 | [Activation extremes and low working precision](tasks/0022-activation-extremes-and-low-working-precision.md) | In progress | Reviewed/integrated 0021; current Model semantics | Fix ERF/GELU large-finite saturation and low activation F32 working sites; serialize generated identity work. |
 
 ## Milestones and current frontier
 
@@ -268,7 +268,8 @@ The table owns order and status; linked tasks own detailed evidence.
   output validation hole while retaining legal MATMUL+RELU fusion. Focused and full CPU validation
   and independent Class C re-review passed. [0020](tasks/0020-bare-matmul-realization-strategy-alignment.md)
   is Complete from clean `f4e35b45`, with portable public execution and independent review
-  passing. Audit repair 0021 is Review needed; 0022 is its serial successor. CPU 0007A1D's historical failed performance
+  passing. Audit repair 0021 is approved and integrated, awaiting the combined checkpoint;
+  0022 is the active serial successor. CPU 0007A1D's historical failed performance
   gate is closed as Superseded, not accepted as passing.
 - Documentation-only 0010K and 0010L and profile realization
   [0017](tasks/0017-explicit-accelerator-numerical-profile-realization.md) are Complete. CPU 0017

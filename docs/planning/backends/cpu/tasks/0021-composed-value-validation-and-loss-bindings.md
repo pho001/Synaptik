@@ -64,3 +64,13 @@ SoftmaxKind/LossKind and mask contracts; affected lowering/IR/binding and focuse
 
 Launch verified 2026-10-13: diagnostic counterexamples and source agree; current contracts suffice;
 no CPU writer is active. User-authorized repair, complete predecessors, clean context/worktree.
+
+## Integration record
+
+Implementation `ca21c80c` integrated as `c0559e2b` after independent Class C APPROVE and the
+coordinator's softmax glossary correction. CPU: 1,026 passed / 28 optional skips, no failures;
+two focused conformance and six public integration tests passed. Javadoc passed with 94
+pre-existing warnings; diff checks passed. Metadata/value-scan timing and materialization order
+were independently inspected. No unresolved code finding; the report records the bounded mask
+and materialized-BOOL sentinel coverage limitations. The group's combined checkpoint remains
+after serial 0022; no duplicate worker repository run is required.

@@ -250,6 +250,7 @@ records its serial integration and validation. Git history records publication s
 | 0031 | [STRICT unary numerical baseline](tasks/0031-strict-unary-numerical-baseline.md) | Complete | 0018T1; 0019A; 0027–0029; completed CPU 0005H/0005I evidence | Owns exact-reference primitive bounds, special/domain rules, and recursive native/one-wider results for all nineteen kinds and every accepted BFLOAT16/FLOAT32/FLOAT64 type; remediation `97cb9d11` passed independent Class C rereview with zero findings and changed no executable behavior or capability. |
 | 0032A | [Stored-subnormal provider regressions](tasks/0032a-stored-subnormal-provider-regressions.md) | Complete | 0030/0031, CPU 0017, Metal 0063 Complete; verified native package at execution | CPU/Metal backend-local stored-subnormal regressions passed; no stronger Model contract or behavior change. |
 | 0032 | [Profile-free numerical-semantics reset](tasks/0032-profile-free-numerical-semantics-reset.md) | Complete | 0032A Complete; user-approved arithmetic-site DAZ/FTZ rule | Profile-free cutover, source-matched native rebuild, integrated validation, independent review, and documentation completed in main; historical ACCELERATOR true/false provider answers retained. |
+| 0033 | [Stable softmax overflow-semantics decision](tasks/0033-stable-softmax-overflow-semantics.md) | Draft | Explicit contract-owner decision; 0032; review G1 | Resolve stable finite output versus literal EXP-overflow class before claiming numerical-contract closure. No implementation authorization yet. |
 
 ## Milestones and current frontier
 
@@ -298,6 +299,11 @@ records its serial integration and validation. Git history records publication s
   0026 planning row as Superseded, not as a newly implemented capability.
 
 ## Live gates, decisions, and risks
+
+- **Stable softmax decision:** [0033](tasks/0033-stable-softmax-overflow-semantics.md) is a new
+  Draft from review G1. Stable CPU output for finite EXP-overflow cases conflicts with literal
+  named-site wording. Preserve current authority until the owner explicitly chooses the
+  contract; this is not settled by test tolerance or the unrelated CPU audit repairs.
 
 - **Numerical semantics:** Complete 0027–0031 and ADRs 0019/0021/0023 describe historical
   profile-era baselines, not the current rule. Complete 0032 and Accepted ADR 0026 record the

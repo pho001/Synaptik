@@ -32,7 +32,7 @@ and unmeasured risks. Repair existing behavior before starting new capability.
 | NN/build | [0025B](extensions/nn/tasks/0025b-public-model-dependency-export.md) | Review needed | Export existing public Model edge; isolated consumer validation. |
 | Tuning | [0005](tools/tuning/tasks/0005-model-plan-cache-encoding-bound.md) | Review needed | Preflight aggregate cache size before encoding allocation. |
 | CPU | [0021](backends/cpu/tasks/0021-composed-value-validation-and-loss-bindings.md) | Review needed | F16 softmax, produced-value validation and composed loss bindings. |
-| CPU successor | [0022](backends/cpu/tasks/0022-activation-extremes-and-low-working-precision.md) | Draft | After 0021: activation extremes and low F32 working sites; no simultaneous CPU writer. |
+| CPU successor | [0022](backends/cpu/tasks/0022-activation-extremes-and-low-working-precision.md) | In progress | After reviewed/integrated 0021: activation extremes and low F32 working sites; no simultaneous CPU writer. |
 | Metal | [0078](backends/metal/tasks/0078-native-boundary-and-low-value-audit-repairs.md) | Review needed | Native metadata/context and low exact-value repairs; source-matched device validation. |
 | Metal successor | [0079](backends/metal/tasks/0079-scalar-provider-preflight-alignment.md) | In progress | After reviewed/integrated 0078: align advertised scalar RELU/MUL with preflight and prove actual-device execution. |
 | Engine/tests | [0019](modules/engine/tasks/0019-lifecycle-and-mixed-owner-test-repair.md) | Review needed | Deterministic copy/close, genuine CPU↔Metal tests and tuning Javadoc. Final device run uses integrated Metal. |
@@ -75,6 +75,9 @@ No row below grants implementation permission beyond the active repair briefs ab
 
 1. Close each independent review and integrate scoped repairs. Run one source-matched combined
    test/Javadoc checkpoint, explicitly recording native execution vs skips.
+   Resolve the separate [Model 0033 softmax decision](modules/model/tasks/0033-stable-softmax-overflow-semantics.md)
+   before claiming numerical-contract closure: current stable computation and literal EXP-overflow
+   wording disagree. It is Draft, not an implicit authorization to change numerics.
 2. Keep follow-up focused on a real user capability. Recommended next planning decision:
    Training 0003A selects exact-resume participants and caller-owned progress/sampler handoff.
    Do not invent a DataLoader or silently broaden Data to satisfy an unnamed prerequisite.
