@@ -677,7 +677,7 @@ and [ADR 0027](../design/decisions/0027-post-cutover-capability-evolution.md).
 
 Metal retains eligible FLOAT32 MPSGraph routes and the fixed custom program for low-containing
 partitions; CPU retains generated and OpenBLAS routes.
-The current Metal image is schema 20 with a 124-byte header and tuning identity 34; CPU generator
+The current Metal image is schema 20 with a 124-byte header and tuning identity 35; CPU generator
 schema is 69; native ABI 7 retains thirteen exports. CPU/Metal transfer accepts canonical or
 resolved positive-stride non-overlapping all-carrier storage layouts without widening operation
 capability. Runtime requires no profile, tolerance, certificate, or policy lookup.

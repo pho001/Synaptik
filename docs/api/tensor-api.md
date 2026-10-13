@@ -138,7 +138,7 @@ Metal uses ABI 7 with thirteen exports and one bounded schema-20 route-bearing p
 Operation wires `1..115`, attribute wires `0..41`, and type wires `1..7` cover current structural
 vocabulary. The custom-program image authenticates compact materialized slots, deterministic
 pointwise units, and qualified MATMUL/Conv2d anchor epilogues. Metal-local workload,
-exact-policy, candidate, compatibility, route-policy, and session codec identities are version 34;
+exact-policy, candidate, compatibility, route-policy, and session codec identities are version 35;
 every other identity fails closed rather than falling back. Model remains the sole semantic owner
 of numerical meaning.
 

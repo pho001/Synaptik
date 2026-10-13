@@ -71,9 +71,9 @@ FLOAT32 step inside a low-containing `CUSTOM_PROGRAM` partition without changing
 Metal ABI 7 exposes thirteen native functions. Its bounded route-bearing program image is schema
 20 with a 124-byte header, data-type wires `1..7`, operation wires `1..115`, attribute wires `0..41`, route wires
 `1..3`, and backend-local candidate, compatibility, route-policy, workload, codec, and default-
-decision identities at version 34 (30 is the historical profile-free cutover value; 31 is the
+decision identities at version 35 (30 is the historical profile-free cutover value; 31 is the
 superseded FLOAT32 `EXP` value; 32 is the superseded low-`EXP` value; 33 is the superseded
-FLOAT32 `SIGMOID` value). Structural
+FLOAT32 `SIGMOID` value; 34 is the superseded low-`SIGMOID` value). Structural
 coverage is `103 / 12`; production capability is `88 / 27` over operation kinds. Canonical typed
 host ingress/publication and CPU/Metal transfer support all seven carriers. Cross-owner values
 may use exact rank-0..16 static canonical or positive-stride
