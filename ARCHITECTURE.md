@@ -429,6 +429,7 @@ This compact routing summary does not replace the linked details:
 | Typed diagnostics | Trace |
 | Stateful modules, parameters, buffers, and train/eval behavior | NN |
 | Optimizer algorithms, explicit pre-session native parameter copies, and training orchestration | Training |
+| Exact training continuation claim and cross-owner restore coordination | Each state owner retains its state; the caller coordinates the handoff under the [Training lifecycle contract](docs/architecture/contracts/extensions-training.md#optimizertraining-lifecycle) |
 | Fixed benchmark evidence | `tools/benchmarks` |
 | Model-autotuning measurement, cache coordination, and selection | `tools/tuning` |
 

@@ -186,6 +186,79 @@ strict restore, and fail-before-commit rejection of non-finite optimizer state o
 Training owns none of `Parameter`, `Buffer`, layer behavior, train/eval mode, backend ownership,
 or a fused update route.
 
+## Continuing at the next training input
+
+The [Training lifecycle contract](contracts/extensions-training.md#optimizertraining-lifecycle)
+defines which owner must supply each part of a recovery point. Read the table from left to
+right: capture is when the value is observed, while preflight names who can reject a bad restore
+before changing its own state. A **detached** snapshot owns its values independently of live
+Tensors and storage.
+
+| Participant and owner | Capture point and detachedness | Restore or preflight authority | Unsupported boundary |
+|---|---|---|---|
+| Trainable parameter values and optimizer slots, Training | `TrainingSession.state()` after an admitted run; `TrainingState` owns canonical logical/master bytes, first/second slots, pending gradients, optimizer configuration, paths, and counters. | `TrainingSession.restore()` checks its complete fixed parameter view and payload before its own commit. | It cannot install a different parameter Tensor or storage binding. |
+| Persistent buffers and bindings, NN | `Module.stateDictionary()` observes paths and exact Tensor references; it is shallow. A recovery owner needs a proven step-aligned detached value for every relevant buffer. `TrainingState` already detaches supported parameter values. | NN's `loadStateDictionary()` checks path, kind, type, Shape, and parameter eligibility before replacing bindings. | A shallow dictionary is not a detached value checkpoint; loading during an open Training session violates its fixed bindings. Training-mode `BatchNorm.forward` binds symbolic next-buffer expressions at graph construction; no current test or API proves a detached value corresponding to a completed session step, so this workflow is ineligible for exact continuation today. |
+| Per-module forward mode, NN | Caller reads `mode()` on every relevant module when saving; no mode is in `StateDictionary`. | Caller restores the intended tree state before constructing the objective; recursive `train()`/`eval()` set a uniform tree or reconstruct mixed modes with parent-first child overrides under exclusive access. | A single root mode cannot reconstruct mixed local modes; local mode also does not prove which context a forward used. |
+| Effective forward contexts, NN and caller | Caller records the immutable `ForwardContext` choice actually supplied to each mode-sensitive forward when constructing the fixed objective, with enough construction-site association to reproduce it. This is a separate caller-owned value, not a `StateDictionary` field. | Caller validates and rebuilds the same context choices and objective before `TrainingSession.open`. | `Dropout.forward` and `BatchNorm.forward` accept an explicit context that may differ from `Module.mode()`; if the effective choices cannot be reconstructed, refuse exact continuation. |
+| Fixed objective and graph random state, Model/Engine and caller | Caller records graph construction and the key/counter supplied to `GraphRngState.initial`; the expression is storage-free and the session compiles it once. | Rebuild the same intended objective before `TrainingSession.open`; compile/prepare and Training capture check their respective domains. | No current per-run RNG input/output or automatic dropout stream advancement. |
+| Next input and program progress, caller | At a quiescent successful-run boundary, record next batch identity/order, sampler cursor, epoch, and any external random generator state in the caller's own detached representation. | Caller validates and restores its own source before giving the next input to `run`. | Training counters do not identify a batch or restore a sampler; durable exact encoding requires a supported versioned schema, bounded codec, and owner validator/restorer. |
+| Scheduler, scaler, or other program state, caller if present | Capture each concrete external participant at the same boundary. | Its owner validates and restores it. | No built-in scheduler/scaler contract or generic state registry exists; arbitrary caller objects cannot be encoded as exact state by Checkpoint. |
+
+For the fixed-session route, no new Training public value is needed: the existing
+`TrainingState` and a caller-owned, explicit progress/random handoff are sufficient for
+the supported state-complete claim only when every affecting participant is demonstrably
+capturable and restorable on the same admitted computation route. The current claim excludes
+training-mode BatchNorm and any unreconstructible objective context. It is not a cross-device
+bitwise replay promise. The [decision record](../design/decisions/0030-exact-training-resume-state-ownership.md)
+explains the tradeoff and the future joint transition.
+
+**Concrete save and restore scenario.** Suppose batch identifiers are `[A, B, C, D]`, the
+caller has successfully run `A` and `B`, and the next batch is `C` at cursor `2` in epoch `0`.
+The fixed objective was built with `GraphRngState.initial(17, 4)` and uses that same explicit
+graph state at each session run. This example uses a tree with no persistent buffers or
+training-mode BatchNorm. At this quiescent boundary the caller records cursor `2`, epoch `0`,
+its external augmentation generator's next state `81`, graph construction inputs `(17, 4)`,
+the effective `ForwardContext(TRAINING)` supplied to dropout when constructing the objective,
+and every relevant module's local mode; it also obtains `TrainingState`. The explicit context
+must be recorded even if dropout's local mode was `EVALUATION`. For recovery it builds a
+compatible NN tree and parameter storage, restores local modes, supplies the recorded forward
+context while reconstructing the same objective from the final NN bindings, then opens a new
+session, restores `TrainingState`, restores caller progress and external generator state, and
+supplies `C` as the next input. The key/counter is rebuilt as a graph expression;
+`81` belongs to the separate caller-owned generator; its in-memory handoff is not a Checkpoint
+codec. The current APIs do not make that multi-owner sequence atomic, so a recovery coordinator
+must finish validation and installation
+before publishing the recovered run as exact. The example does not claim a new dropout draw for
+each batch: the fixed graph reuses `(17, 4)`.
+
+**Refusal scenario.** If the augmentation generator is seeded again but its state after `B` is
+unknown, or the saved batch cursor cannot identify `C`, restoring `TrainingState` still restores
+optimizer state but cannot identify the next computation. Label this a partial restore or
+restart. The same refusal applies if the forward context actually used for dropout cannot be
+reconstructed, or if training-mode BatchNorm's symbolic running buffers have no proved
+step-aligned detached publication. A future durable artifact also refuses an arbitrary caller
+RNG/sampler/scheduler/scaler object without a supported versioned codec and owner validator.
+Likewise, a program expecting dropout to consume graph state `(17, 4)` at `A` and
+automatically use its returned next state at `B` cannot call the current fixed session an exact
+advancing-stream continuation: `TrainingSession.run` exposes no per-run graph-RNG handoff.
+
+Training 0004 is the gate for a future joint restore. Under exclusive caller coordination, it
+must quiesce and close the old session, prepare detached NN values/modes and Training/caller state,
+prevalidate every schema and value, including NN/Training parameter-byte agreement by stable
+path, effective forward-context reconstruction, and fixed-objective compatibility before any
+installation,
+then install NN bindings and modes on an isolated unpublished replacement tree. Only after those
+bindings are final may it construct the objective, open a session against that tree, and restore
+Training state. It publishes the candidate and caller state together after success, or discards
+the candidate on ordinary failure. An in-place alternative needs complete rollback. Today's
+`loadStateDictionary` and `TrainingSession.restore` each validate only their own state; in
+particular Training cannot prevalidate restore without opening a session. Training 0004 must
+provide and test the missing joint preflight/commit mechanism before claiming atomic recovery.
+A future Checkpoint adapter may only encode and recover participants with supported versioned,
+bounded schemas/codecs and owner validators/restorers; it cannot create a missing sampler,
+random-state handoff, or scheduler. The BatchNorm training path needs separate step-aligned
+buffer publication evidence before inclusion.
+
 ## Future compiled optimizer graph
 
 A future architecture version may generate optimizer update operations as part of a larger graph:

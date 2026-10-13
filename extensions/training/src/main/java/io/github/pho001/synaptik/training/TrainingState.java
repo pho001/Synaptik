@@ -10,7 +10,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Immutable detached in-memory snapshot of one training session's complete resumable state.
+ * Immutable detached in-memory snapshot of one training session's parameter and optimizer state.
  *
  * <p>The snapshot contains the exact default optimizer and ordered parameter-group configurations,
  * including dampening. It also contains successful execution and optimizer-step counters,

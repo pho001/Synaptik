@@ -67,7 +67,7 @@ No row below authorizes a new implementation task; select and prepare a Ready su
 | [NN](extensions/nn/master-plan.md) | State/layers/static recurrence/lazy initialization/convolution delivered. Runtime scan/backend/Data program 0021B–0024 Draft. |
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
-| [Training](extensions/training/master-plan.md) | Sessions, SGD/Adam/AdamW groups and in-memory state delivered. Exact-resume ownership decision 0003A is the sole Ready Training frontier before 0003. |
+| [Training](extensions/training/master-plan.md) | Sessions, SGD/Adam/AdamW groups and in-memory state delivered. Decision 0003A is Complete after independent Class C approval; 0003 is Superseded. Joint preflight/commit 0004 remains Draft. |
 | [Checkpoint](extensions/checkpoint/master-plan.md) | No module/codec. Architecture and model artifact precede optional Training adapter; existing Engine host access is available. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
@@ -78,25 +78,27 @@ No row below authorizes a new implementation task; select and prepare a Ready su
 1. [Model 0033 stable-softmax task](modules/model/tasks/0033-stable-softmax-overflow-semantics.md)
    is Complete: Model authority, CPU conformance, bounded v2 generated/direct evidence and
    independent Class C approval close G1. No further numerical-contract task is implied here.
-2. Keep follow-up focused on a real user capability. Ready
-   [Training 0003A](extensions/training/tasks/0003a-exact-resume-state-ownership-decision.md)
-   selects state-complete resume participants and caller-owned progress/sampler handoff; it is
-   the authorized serial Training decision at base `694a98860640ff0741abc3bc3593e466cf83de6d`.
-   Do not invent a DataLoader or silently broaden Data to satisfy an unnamed prerequisite.
+2. [Training 0003A](extensions/training/tasks/0003a-exact-resume-state-ownership-decision.md)
+   is Complete after independent Class C approval at base
+   `34fb1c8d6a48f9a9352c25597a86045180477fbc`. It selects a bounded state-complete
+   claim, caller-owned next-input/external-state handoff, and no Training 0003 API.
+   Before a durable exact-resume claim, prepare Training 0004's joint preflight/commit gate; do
+   not invent a DataLoader or imply the current fixed session advances graph RNG between runs.
 3. If durable save/load is the next product priority, prepare Checkpoint 0001's module decision
    and model-only 0002–0004. Existing Engine materialization is not a missing prerequisite.
 4. In a separately selected stream, Data 0001 authorizes Data/Text/Vision architecture before
    batching or text/image APIs. Runtime recurrent adoption still needs a concrete backend route.
 
-Step 2 is a Ready decision task, not authorization for Training 0003 implementation. Steps 3–4
-are proposals, not Ready implementation tasks.
+Step 2 records a completed decision, not authorization for Training 0004
+implementation. Steps 3–4 are proposals, not Ready implementation tasks.
 An independent performance/shape follow-up, [CPU 0023](backends/cpu/tasks/0023-vector-erf-direct-java-shape.md),
 is also Draft: the bounded vector ERF diagnostic did not demonstrate parity with direct Java.
 It is not a prerequisite for unrelated Training/Checkpoint decisions or a new broad campaign.
 
 The Training/Checkpoint order is:
-`Training 0003A → 0003` and `Checkpoint 0001 → 0004`, then
-`Training 0004 → Checkpoint 0005 → Checkpoint 0006`. No adapter-to-prerequisite cycle remains.
+`Training 0003A` and `Checkpoint 0001 → 0004`, then
+`Training 0004 → Checkpoint 0005 → Checkpoint 0006`. Training 0003 is Superseded; no
+adapter-to-prerequisite cycle remains.
 
 ## Explicit non-goals and unresolved decisions
 

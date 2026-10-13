@@ -228,6 +228,16 @@ and FLOAT32 parameters and eight for FLOAT64. `restore(state)` validates the com
 optimizer and ordered groups (including dampening), counters, paths, schemas, finite payloads,
 and exact slot presence/lengths, including a non-negative finite adaptive second moment, before
 installing anything. This is an in-memory handoff, not a durable checkpoint format.
+It restores the fixed session's documented state, not an entire program: NN buffer values and
+per-module modes, the effective `ForwardContext` values used to build the objective, the next
+input/cursor, and any external random, scheduler, or scaler state are separate caller-coordinated
+participants. A saved local module mode does not establish the context passed to a forward.
+Training-mode BatchNorm has no proven step-aligned detached running-buffer capture for exact
+continuation today. The session compiles its objective once and does not
+advance a graph RNG stream between runs. A whole-program exact-continuation claim requires all
+affecting participants on the same admitted route and the future coordinated restore gate; the
+current per-owner APIs do not provide one atomic transaction. See the
+[Training continuation boundary](../architecture/training-graph.md#continuing-at-the-next-training-input).
 `TrainingState.optimizer()` now returns the exact default `Optimizer`, including Adam/AdamW.
 Its source and binary signature changed from `Sgd`; callers requiring SGD-specific members must
 check and cast. There is no replacement `defaultOptimizer()` accessor. Group configurations

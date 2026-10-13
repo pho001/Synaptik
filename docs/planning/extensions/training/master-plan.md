@@ -51,17 +51,17 @@ parameters declared by `extensions/nn`.
 
 ## Dependency DAG and authorized frontier
 
-`0001E -> 0002A -> 0002B -> 0002C` is the completed correctness-repair chain.
-Future work is `0003A (scope decision) -> 0003 (progress state) -> 0004 (restore handoff) -> 0005`.
+`0001E -> 0002A -> 0002B -> 0002C -> 0003A` is the completed correctness and decision chain.
+Future work is `0003A -> 0004 (joint restore handoff) -> 0005`.
 Task 0004 also depends on Checkpoint 0001's accepted architecture and Checkpoint 0004's model
 artifact. It does not depend on the implemented Training Checkpoint adapter (Checkpoint 0006).
 [0002A](tasks/0002a-sgd-parameter-groups.md) is Complete after focused validation, independent
 Class B review, and the integration-owner `./gradlew test javadoc` checkpoint.
 [0002B](tasks/0002b-adam-and-adamw-optimizers.md) is Complete after independent Class B approval
 and the integration-owner repository test/Javadoc checkpoint. Audit repair 0002C is Complete;
-0003–0005 remain Draft behind the explicitly owned 0003A decision. Task 0003A is the sole Ready
-Training frontier at base `694a98860640ff0741abc3bc3593e466cf83de6d`; it makes a
-state-complete resume ownership decision before any new API or persistence work. Governing
+0004–0005 remain Draft behind the accepted 0003A decision. Task 0003A is Complete after independent
+Class C approval at base `34fb1c8d6a48f9a9352c25597a86045180477fbc`; it selects a bounded
+state-complete claim without a new Training 0003 API. Governing
 headings are `ARCHITECTURE.md` scope index, module ownership and dependency rules, plus
 `docs/architecture/contracts/extensions-training.md` sections `extensions/nn`,
 `extensions/training`, and `Optimizer/training lifecycle`.
@@ -83,9 +83,9 @@ extends only Training-owned state. NN keeps parameter declaration and traversal 
 | [0002A](tasks/0002a-sgd-parameter-groups.md) | SGD parameter groups | Complete | 0001E | Disjoint path-based SGD overrides have exact state/restore identity and preserve ungrouped behavior. |
 | [0002B](tasks/0002b-adam-and-adamw-optimizers.md) | Adam and AdamW optimizer state | Complete | 0002A | Mixed SGD/Adam/AdamW groups have exact two-moment state/restore; independent review and repository checkpoint passed. |
 | [0002C](tasks/0002c-adaptive-update-operation-order.md) | Adaptive-update operation order | Complete | 0002B; project review | Preserve documented multiply-before-divide order and finite-update admission for Adam/AdamW. |
-| [0003A](tasks/0003a-exact-resume-state-ownership-decision.md) | Resume-state ownership and claim decision | Ready | 0002C; audit reconciliation | Sole serial frontier: decide state-complete resume ownership and supported claim before adding state; independent Class C review required. |
-| 0003 | Exact-resume progress state | Draft | 0002C; accepted 0003A decision | Implement only the selected progress/scheduler/RNG/sampler/scaler participants; current Data batching tasks do not satisfy this prerequisite. |
-| 0004 | Training checkpoint integration boundary | Draft | 0003; Checkpoint 0001 and 0004 | Expose one coordinated prevalidated state candidate before the downstream adapter; keep bytes, files, checksums, and atomic publication outside Training. |
+| [0003A](tasks/0003a-exact-resume-state-ownership-decision.md) | Resume-state ownership and claim decision | Complete | 0002C; audit reconciliation | ADR 0030 accepts bounded exact continuation and the future joint restore gate; independent Class C re-review approved. |
+| 0003 | Exact-resume progress state | Superseded | 0003A decision | No new Training progress API: caller owns next input, sampler/epoch, external RNG, scheduler, and scaler handoff. |
+| 0004 | Training checkpoint integration boundary | Draft | 0003A; Checkpoint 0001 and 0004 | Define/test joint preflight and isolated unpublished candidate or complete rollback; NN install/mode and objective construction precede `TrainingSession.open`/restore. |
 | 0005 | Broader training capability checkpoint | Draft | 0002A–0004 | Validate broader optimizers, state-path stability, exact-resume claims, documentation, architecture boundaries, and a representative peak-memory measurement of parameter, slot, candidate, rollback, and snapshot storage before claiming large-model support. |
 
 
@@ -111,8 +111,10 @@ and was pushed as `cbd14f3b`. Task 0002A added path-based SGD groups after indep
 and a successful repository test/Javadoc checkpoint, then was pushed as `19b7785c`. Task 0002B
 added mixed SGD/Adam/AdamW groups and exact two-moment state at `10d507a3`, with independent
 documentation review fix `23d1e39d` and a successful repository checkpoint. Numerical repair
-0002C is Complete. Decision task 0003A is Ready; exact-resume implementation and Checkpoint work
-remain Draft behind its cross-owner lifecycle decision.
+0002C is Complete. Decision task 0003A's independent Class C review initially blocked on
+forward-context capture, training-mode BatchNorm buffer publication, and caller-state codec scope;
+targeted remediation and final re-review returned APPROVE with no findings. Joint
+restore and Checkpoint work remain Draft behind Training 0004's preflight/commit gate.
 
 ## Open questions
 
@@ -125,14 +127,18 @@ remain Draft behind its cross-owner lifecycle decision.
   representation decision.
 - Dynamic compiled-input overlap is still checked pairwise on each run. Replacing that check
   requires a separate proof for native, heap, and sliced segment identities and diagnostics.
-- Define exact-resume scope for data samplers and external data sources; an unavailable sampler
-  cursor must downgrade the claim rather than be silently omitted. Task 0003A owns this decision;
-  Data 0001–0004 explicitly exclude sampling and epochs.
+- An unavailable next-input cursor or external random state downgrades the claim to partial
+  restore/restart. Data 0001–0004 do not add sampling or epoch ownership.
+- Saved local Module modes do not establish the effective forward contexts supplied at objective
+  construction. Training-mode BatchNorm remains outside today's exact-continuation claim until
+  step-aligned detached running-buffer publication is proved. Durable caller-owned state needs
+  supported versioned schemas/codecs and owner validation; no generic object encoding is promised.
 - Measure and document aggregate parameter/slot/candidate/snapshot capacity before claiming
   large-model support. Per-array limits and demand-driven staging do not constitute a total
   memory budget; do not disable rollback implicitly as a memory optimization.
-- Define a cross-owner validate/install protocol for model state plus optimizer/session state
-  without making NN depend on Training or persistence.
+- Training 0004 must prove joint preflight/commit or complete rollback. An isolated unpublished NN
+  tree may install bindings and mode before constructing the objective and opening its replacement
+  session; the current per-owner APIs are not one atomic transaction.
 
 ## Decisions made
 
@@ -140,6 +146,9 @@ remain Draft behind its cross-owner lifecycle decision.
   one borrowed public Engine and one owned reusable inference session rather than a second
   execution pipeline.
 - `Parameter` ownership and train/eval behavior belong to `extensions/nn`.
+- [ADR 0030](../../../design/decisions/0030-exact-training-resume-state-ownership.md) keeps
+  caller next-input/progress and external state outside `TrainingState`; the fixed session does
+  not advance graph RNG between runs, and no new Training 0003 public API is selected.
 - Training owns optimizer/session snapshot semantics; Checkpoint owns durable encoding and file
   publication. A separate optional Training Checkpoint adapter preserves model-only checkpoint
   use without forcing a Training dependency.

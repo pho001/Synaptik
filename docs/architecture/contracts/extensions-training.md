@@ -127,6 +127,64 @@ Rules:
 
 - `extensions/nn` owns module-declared trainable parameters, persistent buffers, and train/eval
   forward behavior.
+- A `TrainingState` snapshot restores only its detached optimizer/session state: exact optimizer
+  configuration and ordered parameter schema, logical and master parameter bytes, optimizer slots,
+  pending gradient sums, and execution, optimizer-step, and accumulation counters. It does not
+  contain persistent NN buffers, Module modes, caller inputs or progress, graph random state, or
+  external scheduler/scaler state. `Module.stateDictionary()` retains exact Tensor references and
+  is not a detached value snapshot; `TrainingState` supplies detached parameter bytes within its
+  domain, while a recovery owner must separately detach NN buffer values and any parameter values
+  outside that domain. Each Module has a local mode field; recursive `train()`
+  and `eval()` set the whole owned tree, while `StateDictionary` omits modes.
+  A supplied immutable `ForwardContext` controls a mode-sensitive forward even when it differs
+  from that module's local mode. An exact continuation therefore requires the effective
+  objective-construction contexts, not merely saved Module modes, to be known and reproducible.
+  Training-mode `BatchNorm.forward` installs symbolic next-buffer expressions during graph
+  construction. Neither a shallow dictionary nor a successful session run establishes a
+  step-aligned detached value for those expressions; that workflow is currently ineligible for
+  exact continuation until a supported capture/publication boundary proves the values belong to
+  the completed step.
+- An exact continuation claim for the currently supported session means the same admitted
+  computation route resumes at the next caller-selected input with all state that can affect that
+  run restored. The caller owns an explicit handoff for the next input position (including sampler
+  cursor and epoch when applicable), external random-generator state, and any program-owned
+  scheduler or scaler state. Those participants are not inferred from Training counters. If a
+  participant cannot be captured, validated, and restored, the result is a partial restore or
+  restart, not exact continuation. No built-in scheduler or scaler state exists today. A durable
+  exact artifact may include caller-owned participants only where each has a supported versioned,
+  bounded schema and codec plus owner validation and restore; arbitrary caller objects have no
+  generic exact-resume encoding.
+- Graph random state is an explicit Model expression chosen when the objective is built.
+  `GraphRngState.initial(key, counter)` creates a storage-free fixed expression, not a mutable
+  stream. The current `TrainingSession` compiles that objective once and has no per-run graph-RNG
+  input/output handoff; repeated runs do not automatically advance dropout state. A caller may
+  record the key/counter and rebuild an equivalent graph before opening a new session, but must
+  not claim a changing per-step dropout stream within the current fixed session. Exact
+  continuation does not promise bitwise-identical results across devices, backends, versions, or
+  execution routes.
+- No new public Training value or API is required to capture the existing detached
+  `TrainingState`; caller-owned progress and random state remain explicit, separately typed
+  handoff data under the caller's schema. A changing graph-random stream requires a separately
+  designed per-run handoff before that claim can be widened.
+- NN state installation and Training restore currently validate only their own boundaries and
+  do not form a cross-owner atomic transaction. `Module.loadStateDictionary(...)` replaces Tensor
+  bindings and is forbidden while a Training session over that tree is open: the session captured
+  fixed wrapper, Tensor, storage, and objective identities at open. A future cross-owner atomic
+  restore requires a coordinator protocol: quiesce and close the old session; capture or construct
+  detached candidate NN values and per-module modes plus Training and caller-owned state; jointly
+  prevalidate their complete schemas, values, effective forward contexts, fixed-objective
+  construction inputs, and route compatibility before any live installation, including equality
+  between candidate NN parameter values and Training logical bytes at every stable path. On an
+  isolated, unpublished replacement tree,
+  install NN bindings and modes first, then construct the objective from those final Tensors,
+  open the replacement session, restore Training state, and stage caller progress/random state.
+  Publish the complete replacement only after all steps succeed under external exclusion; discard
+  the candidate on ordinary failure. An alternative in-place design must prove complete rollback
+  for every owner before claiming joint atomicity. Current NN and Training APIs cannot jointly
+  prevalidate a Training restore before opening a session, so the future capability must define
+  and test the missing preflight/commit mechanism; this ordering is a future design gate, not a
+  current transaction. A later Checkpoint adapter may persist only supported, validated participant
+  schemas and must not invent an NN-to-Training dependency.
 - Before opening a session, a caller may explicitly ask Training to copy a fully initialized
   Module tree's current parameters into a caller-owned shareable Arena. Training validates the
   complete recursive parameter set and source storage before replacing any Tensor association,

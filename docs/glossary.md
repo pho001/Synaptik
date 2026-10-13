@@ -6490,6 +6490,21 @@ operation, waits for admitted work during close, and produces detached `Training
 `TrainingState` values. It is not a compiler, Runtime runner, backend adapter, device optimizer,
 or durable checkpoint.
 
+### Exact training continuation
+
+A conditional whole-program recovery claim: after a successful-run boundary, the next caller-
+selected input and every state affecting its computation are restored on the same admitted route.
+`TrainingState` alone restores detached session state; NN buffers, relevant local modes, and
+the actual forward contexts used to construct the objective, caller input position and external
+random state, and any scheduler/scaler remain separate. Training-mode BatchNorm currently lacks
+a proved step-aligned running-buffer capture boundary for this claim. The
+fixed compiled `TrainingSession` has no per-run graph-RNG handoff, and no current cross-owner
+atomic restore API exists. A durable exact artifact also requires supported versioned schemas,
+bounded codecs, and owner validation for every caller-owned participant; it cannot encode
+arbitrary state. This term promises neither a changing dropout stream nor bitwise identity across
+devices or execution routes. See the
+[Training continuation boundary](architecture/training-graph.md#continuing-at-the-next-training-input).
+
 ### Adaptive optimizer / `Adam`, `AdamW`
 
 An optimizer that tracks first and second moments of each parameter's gradient and corrects
