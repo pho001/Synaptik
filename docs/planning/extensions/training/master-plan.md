@@ -55,11 +55,9 @@ parameters declared by `extensions/nn`.
 0004 awaits the Checkpoint model artifact/adapter boundary.
 [0002A](tasks/0002a-sgd-parameter-groups.md) is Complete after focused validation, independent
 Class B review, and the integration-owner `./gradlew test javadoc` checkpoint.
-[0002B](tasks/0002b-adam-and-adamw-optimizers.md) is the sole Ready Training frontier. It
-serializes optimizer API, state/restore, parameter mapping, and lifecycle changes; parallel
-group: None. Its common base is pushed `19b7785c` on `main`. Worker Training and CPU integration
-tests precede independent Class B review; the main coordination context owns shared documentation
-integration and one repository `./gradlew test javadoc`/`git diff --check` checkpoint. Governing
+[0002B](tasks/0002b-adam-and-adamw-optimizers.md) is Complete after independent Class B approval
+and the integration-owner repository test/Javadoc checkpoint. No Training task is currently Ready:
+0003 also awaits the Data lifecycle. Governing
 headings are `ARCHITECTURE.md` scope index, module ownership and dependency rules, plus
 `docs/architecture/contracts/extensions-training.md` sections `extensions/nn`,
 `extensions/training`, and `Optimizer/training lifecycle`.
@@ -79,7 +77,7 @@ extends only Training-owned state. NN keeps parameter declaration and traversal 
 | [0001D](tasks/0001d-adopt-fresh-training-snapshot-payloads.md) | Adopt fresh Training snapshot payloads | Complete | 0001C | Removed four redundant full-size clones per `state()` parameter while preserving immutable detached snapshots. |
 | [0001E](tasks/0001e-demand-driven-optimizer-candidates.md) | Demand-driven optimizer candidate buffers | Complete | 0001D | Inactive staging is demand-driven; active slots and rollback remain provisioned. |
 | [0002A](tasks/0002a-sgd-parameter-groups.md) | SGD parameter groups | Complete | 0001E | Disjoint path-based SGD overrides have exact state/restore identity and preserve ungrouped behavior. |
-| [0002B](tasks/0002b-adam-and-adamw-optimizers.md) | Adam and AdamW optimizer state | Ready | 0002A | Add mixed SGD/Adam/AdamW groups with exact two-moment state/restore compatibility. |
+| [0002B](tasks/0002b-adam-and-adamw-optimizers.md) | Adam and AdamW optimizer state | Complete | 0002A | Mixed SGD/Adam/AdamW groups have exact two-moment state/restore; independent review and repository checkpoint passed. |
 | 0003 | Exact-resume progress state | Draft | 0002B; Data lifecycle | Define epoch/scheduler/graph RNG/data sampler cursor and mixed-precision scaler state only where an exact-resume claim is supportable. |
 | 0004 | Training checkpoint integration boundary | Draft | 0003; Checkpoint model artifact and optional Training adapter | Expose one coordinated prevalidated state candidate; keep bytes, files, checksums, and atomic publication outside Training. |
 | 0005 | Broader training capability checkpoint | Draft | 0002A–0004 | Validate broader optimizers, state-path stability, exact-resume claims, documentation, and architecture boundaries. |
@@ -105,7 +103,9 @@ and accumulated gradients, with exact logical and optimizer-width snapshot paylo
 a configured full-repository test/Javadoc run. Task 0001E removed idle inactive staging arrays
 and was pushed as `cbd14f3b`. Task 0002A added path-based SGD groups after independent approval
 and a successful repository test/Javadoc checkpoint, then was pushed as `19b7785c`. Task 0002B
-is the sole Ready Training frontier; later exact-resume and checkpoint work remains Draft.
+added mixed SGD/Adam/AdamW groups and exact two-moment state at `10d507a3`, with independent
+documentation review fix `23d1e39d` and a successful repository checkpoint. No Training task is
+Ready; later exact-resume and checkpoint work remains Draft.
 
 ## Open questions
 

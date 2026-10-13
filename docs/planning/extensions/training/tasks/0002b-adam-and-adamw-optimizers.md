@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Change class
 
@@ -165,4 +165,22 @@ allowed; stop if implementation discovers an architectural conflict.
 
 ## Result
 
-Empty until execution.
+- Implemented at `10d507a3`, with independent documentation/Javadoc review fix `23d1e39d`.
+  `Adam`, `AdamW`, and dtype-narrowed coefficients support mixed path groups, one global
+  bias-corrected step, finite staged updates, exact optional second-moment snapshots, and
+  validate-before-install restore. `TrainingState.optimizer()` now returns `Optimizer`.
+- Changed Training optimizer/session/state sources and tests, CPU integration coverage, the
+  owning scoped contract, architecture explanation and module-boundary overview, API and user
+  guides, glossary, and affected Javadocs. SGD update behavior and first-slot payload remain.
+- Worker: focused `AdamOptimizerTest` and mixed CPU integration passed; source-matched Metal
+  library built and signature-checked; configured
+  `./gradlew :extensions:training:test :extensions:training:javadoc :testing:integration-tests:test`
+  passed (64 Training tests and 9 Training CPU/Metal integration tests, zero skips in those suites).
+- Independent Class B review: `APPROVE`, no blocking findings. Reviewer validated Javadoc and
+  380 local Markdown links/anchors; no executable code changed in review.
+- Integration owner: configured `./gradlew test javadoc` passed (`100` actionable tasks: 4 executed,
+  4 from cache, 92 up-to-date); `git diff --check f07ab9b5..HEAD` passed. One unrelated
+  autotuning integration fixture skipped because the host lacked eligible alternatives.
+- No unresolved implementation issue. Later exact-resume and checkpoint work stays Draft.
+
+Status: Complete
