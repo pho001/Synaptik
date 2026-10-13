@@ -50,7 +50,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 16 | [`extensions/nn`](extensions/nn/master-plan.md) | In progress under recorded interleaves; 0001–0020C, 0021A, and 0025–0025A Complete; 0021B–0024 Draft | 0021B needs a detailed brief and truthful concrete-backend recurrent coverage; no NN task is Ready. |
 | 17 | [`extensions/text`](extensions/text/master-plan.md) | Draft; architecture decision required | Wait for Data 0001, then define the first tokenizer task. |
 | 18 | [`extensions/vision`](extensions/vision/master-plan.md) | Draft; architecture decision required | Join the coordinated Data 0001 decision before decoder or image APIs. |
-| 19 | [`extensions/training`](extensions/training/master-plan.md) | Complete through 0002A; 0002B Draft | [Training 0002A](extensions/training/tasks/0002a-sgd-parameter-groups.md) completed path-based SGD groups. No Training task is Ready. |
+| 19 | [`extensions/training`](extensions/training/master-plan.md) | Complete through 0002A; 0002B Ready | [Training 0002B](extensions/training/tasks/0002b-adam-and-adamw-optimizers.md) is the sole authorized frontier for Adam/AdamW and mixed optimizer state. |
 | 20 | [`extensions/checkpoint`](extensions/checkpoint/master-plan.md) | Draft; architecture decision required | Authorize the model-only and optional Training adapter boundaries before 0001. |
 | 21 | [`tools/benchmarks`](tools/benchmarks/master-plan.md) | Complete through local task 0001; 0002–0003 Draft; Metal 0043 Complete | Metal-owned Task 0043 completed its fixed report-only two-route benchmark at remediation `77e6091b` after same-reviewer approval; no separate benchmark task is Ready. |
 | 22 | [`tools/tuning`](tools/tuning/master-plan.md) | Complete through 0004 | No Tuning task is Ready. |
@@ -445,7 +445,12 @@ Training
 [0001](extensions/training/tasks/0001-public-training-session-and-sgd-lifecycle.md) is Complete
 from exact base `2e110c7688ead480faa4215ff67f9814fa81f4ad`. Mandatory external Class C review
 first returned `BLOCK` with six P1 and one P2 findings; after remediation and validation, external
-re-review returned `APPROVE` with findings `0`. Training 0001A–0001E are Complete after their independent reviews; 0001C passed the configured full-repository test/Javadoc run. Task 0001D removed redundant snapshot clones, and 0001E made inactive optimizer candidates demand-driven without weakening rollback. Training 0002A is Complete after grouped-SGD integration, independent Class B approval, and the repository checkpoint; no Training task is Ready.
+re-review returned `APPROVE` with findings `0`. Training 0001A–0001E are Complete after their
+independent reviews; 0001C passed the configured full-repository test/Javadoc run. Task 0001D
+removed redundant snapshot clones, and 0001E made inactive optimizer candidates demand-driven
+without weakening rollback. Training 0002A is Complete and pushed after grouped-SGD integration,
+independent Class B approval, and the repository checkpoint. Training 0002B is Ready as the sole
+frontier for Adam/AdamW and exact mixed-group state.
 Metal
 [0008](backends/metal/tasks/0008-mpsgraph-float32-affine-transforms.md) is `Complete` after
 implementation `7e39f705`, remediation `9713e528` and `aa42ed711`, and independent Class C
