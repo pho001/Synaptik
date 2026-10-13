@@ -21,12 +21,11 @@ Training-owned optimizer/session snapshot
   -> exact-resume artifact
 ```
 
-This is future planning only until Checkpoint 0001 integrates. Neither `extensions/checkpoint`
-nor the optional Training Checkpoint adapter currently exists in `ARCHITECTURE.md`, Gradle
-settings, or production code. The authorized serial frontier is
-[Checkpoint 0001](tasks/0001-checkpoint-module-boundary.md), from base `44a77c95`; no concurrent
-writer owns its extension/dependency contracts. Checkpoint 0002–0006 remain Draft, and the
-implementation owner integrates shared documents before the single recorded repository gate.
+The artifact flows above remain future plans. [Checkpoint 0001](tasks/0001-checkpoint-module-boundary.md)
+completed the model-only boundary and empty Gradle project from base `81d50901`, after focused
+validation, independent Class C review, and the repository test/Javadoc gate.
+The optional Training Checkpoint adapter is neither included nor implemented. No successor is
+Ready: Checkpoint 0002–0006 remain Draft until their own decisions and briefs are prepared.
 
 ## Architecture references
 
@@ -78,8 +77,8 @@ implementation owner integrates shared documents before the single recorded repo
 
 ## Module and dependency decision
 
-The preferred architecture uses two optional downstream artifacts rather than one dependency-heavy
-module:
+The adopted empty model-only boundary and planned optional downstream adapter use two artifacts
+rather than one dependency-heavy module once persistence is implemented:
 
 ```text
 modules/model -> extensions/nn
@@ -92,11 +91,11 @@ extensions/training + extensions/checkpoint
   -> optional extensions/training-checkpoint
 ```
 
-`extensions/checkpoint` owns the common durable envelope and `ModelCheckpoint`. It depends on NN
+`extensions/checkpoint` will own the common durable envelope and `ModelCheckpoint`. It depends on NN
 for stable state paths and on Engine for a public host-materialization boundary. It does not depend
 on Training or Text, so inference/model-only users do not acquire those extensions.
 
-The optional `extensions/training-checkpoint` owns `TrainingCheckpoint` persistence and depends on
+The optional `extensions/training-checkpoint` will own `TrainingCheckpoint` persistence and depend on
 Training plus Checkpoint. Training owns the meaning and validation of optimizer/session state;
 the caller owns next-input progress, external random-number-generator (RNG) state, sampler cursor,
 and any scheduler/scaler state under its own explicit schema. Model owns graph RNG semantics, while
@@ -109,8 +108,10 @@ application supplies that artifact's canonical fingerprint as the model checkpoi
 fingerprint. Strict load compares the exact fingerprint, so two equal-size vocabularies with
 different ID mappings fail compatibility without a Checkpoint-to-Text dependency.
 
-These are proposed dependencies, not current architecture permission. The first task must update
-the architecture contract and tests before either Gradle project is introduced.
+The model-only NN/Engine-to-Checkpoint edges are now in the root contract, Gradle build, and
+architecture test, after independent review. The optional adapter edge is reserved in the
+contract but its project remains a later, separately gated implementation. A later public
+Checkpoint API that names Model types may justify a direct Model edge; no such edge exists now.
 
 ## Proposed package structure
 
@@ -235,7 +236,7 @@ lambda or added as a generic reflective registry.
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| [0001](tasks/0001-checkpoint-module-boundary.md) | Model Checkpoint module boundary | Ready | None; architecture decision is the deliverable | Update the root and owning scoped contract, explanations, ADR, settings/build, and architecture tests for model-only Checkpoint downstream of NN+Engine. Authorize but do not create the optional Training adapter. No persistence API. |
+| [0001](tasks/0001-checkpoint-module-boundary.md) | Model Checkpoint module boundary | Complete | None; architecture decision is the deliverable | Empty project, contract, ADR, explanations, and dependency test reviewed; focused and repository gates passed. No persistence API or optional adapter. |
 | 0002 | Bounded durable artifact envelope | Draft | 0001; selected codec/filesystem policy | Define deterministic versioned manifest/payload/checksum types, resource bounds, temporary-target publication, durable flush, reopen validation, rename semantics, and corruption rejection without model/training concepts. |
 | 0003 | Model schema and Engine materialization handoff | Draft | 0002; existing Engine host materialization; NN state/lazy-binding contracts | Define stable model state/config/input-artifact fingerprints and convert a complete NN state snapshot to bounded host payloads only through Engine publication/materialization. Existing Engine capability is available, but this adapter is not. |
 | 0004 | Model checkpoint save, inspect, and strict load | Draft | 0003 | Persist materialized parameters/buffers and validate the entire artifact plus recreated topology before one strict NN installation; never serialize arbitrary `Model.define` lambdas. |
@@ -243,8 +244,9 @@ lambda or added as a generic reflective registry.
 | 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005; supported caller-state schemas/codecs | Encode and restore only the model, Training state, effective objective contexts, and caller-owned participants with versioned bounded codecs and owner validation; reject an exact artifact for any unsupported affecting state. Model-only Checkpoint stays independent of Training. |
 | 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004; 0006 when exact training resume is selected; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, exact training resume, documentation, and dependency enforcement. |
 
-Checkpoint 0001 is the only authorized frontier. It makes the explicit architecture decision;
-neither 0002 nor an optional adapter is Ready. Model 0032's numerical cutover and Training 0002B's
+Checkpoint 0001 has made the explicit architecture decision. There is no new authorized frontier:
+0002 needs its codec/filesystem policy and a Ready brief; the optional adapter remains Draft.
+Model 0032's numerical cutover and Training 0002B's
 in-memory Adam/AdamW snapshot capability are Complete; neither creates durable checkpoint APIs.
 
 The cross-area order is acyclic: accepted Training 0003A and Checkpoint 0001–0004 precede
@@ -304,11 +306,11 @@ This is a future protocol, not a runnable current API or an atomicity guarantee 
 
 ## Current status
 
-Draft planning only. Runtime publication still leases representations privately, while Engine
-already provides the architecture-approved host-materialization boundary. Missing work is the
-checkpoint module decision, bounded codec, complete model-state handoff, and coordinated durable
-restore—not access to bytes through Engine. Training snapshots are in-memory values, not a
-durable, cross-owner exact-resume format.
+Model-only module-boundary implementation is Complete after focused and repository validation.
+Runtime publication still leases representations privately, while Engine already provides the
+architecture-approved host-materialization boundary. Missing work is the bounded
+codec, complete model-state handoff, and coordinated durable restore—not access to bytes through
+Engine. Training snapshots are in-memory values, not a durable, cross-owner exact-resume format.
 
 ## Open questions
 

@@ -68,7 +68,7 @@ No row below authorizes a new implementation task; select and prepare a Ready su
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions, SGD/Adam/AdamW groups and in-memory state delivered. Decision 0003A is Complete after independent Class C approval; 0003 is Superseded. Joint preflight/commit 0004 remains Draft. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | [0001](extensions/checkpoint/tasks/0001-checkpoint-module-boundary.md) Ready as the sole serial frontier: authorize a model-only extension boundary; no module/codec yet. Existing Engine host access is available. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | [0001](extensions/checkpoint/tasks/0001-checkpoint-module-boundary.md) Complete after independent Class C review and repository test/Javadoc gate. Empty model-only project; no codec, persistence API, optional adapter, or successor Ready. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
@@ -85,14 +85,14 @@ No row below authorizes a new implementation task; select and prepare a Ready su
    Before a durable exact-resume claim, prepare Training 0004's joint preflight/commit gate; do
    not invent a DataLoader or imply the current fixed session advances graph RNG between runs.
 3. Durable save/load is the selected next stream. [Checkpoint 0001](extensions/checkpoint/tasks/0001-checkpoint-module-boundary.md)
-   is Ready for a model-only module-boundary decision. Only after its integration should the
-   model-only 0002–0004 artifact tasks be prepared. Existing Engine materialization is not a
-   missing prerequisite.
+   has completed the model-only module boundary. Prepare 0002's bounded codec/filesystem policy
+   and Ready brief before any artifact implementation; 0003–0004 remain downstream. Existing
+   Engine materialization is not a missing prerequisite.
 4. In a separately selected stream, Data 0001 authorizes Data/Text/Vision architecture before
    batching or text/image APIs. Runtime recurrent adoption still needs a concrete backend route.
 
 Step 2 records a completed decision, not authorization for Training 0004
-implementation. Step 3 authorizes only Checkpoint 0001; Step 4 is a proposal, not a Ready
+implementation. Step 3 records completed Checkpoint 0001, not authorization for 0002; Step 4 is a proposal, not a Ready
 implementation task.
 An independent performance/shape follow-up, [CPU 0023](backends/cpu/tasks/0023-vector-erf-direct-java-shape.md),
 is also Draft: the bounded vector ERF diagnostic did not demonstrate parity with direct Java.
@@ -108,7 +108,8 @@ adapter-to-prerequisite cycle remains.
 - Do not restart historical profile/certificate/proof gates as prerequisites for current work.
 - Do not equate operation-kind coverage with all dtypes/layouts/gradients/strategies or speed.
 - No broad performance campaign, new native provider, automatic backend discovery, persistence
-  module, rollback-mode change, or new numerical policy is authorized by this review.
+  API, rollback-mode change, or new numerical policy is authorized by this review. Checkpoint
+  0001 adds only an empty boundary project.
 - GPU CI provisioning, large-model aggregate memory policy, new vendor routes, recurrent execution
   and missing adjoints retain their explicit decisions and owning plans.
 

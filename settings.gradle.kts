@@ -16,6 +16,7 @@ include(
     ":backends:cuda",
     ":extensions:nn",
     ":extensions:training",
+    ":extensions:checkpoint",
     ":extensions:onnx",
     ":tools:tuning",
     ":tools:benchmarks",

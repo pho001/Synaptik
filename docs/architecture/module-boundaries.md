@@ -292,6 +292,23 @@ Training does not own fixed recurrent execution, valid-length handling, or backp
 time. Compiler owns the later BPTT decision and gradient construction; Training remains the
 consumer of published gradients and owner of optimizer orchestration.
 
+### `extensions/checkpoint`
+
+Checkpoint is the model-only durable-recovery boundary. Today it is an empty Gradle project,
+downstream of NN and the public Engine facade; it has no save/load API or artifact format. NN
+still owns the meaning of module parameters and buffers, while Engine owns detached host
+materialization. A later Checkpoint implementation may persist model state only through those
+public boundaries, without reading backend storage or importing Training or Text. For example,
+a future model-only save can use an NN state view and Engine materialization without making a
+training optimizer part of the saved model. That scenario is conceptual, not a runnable API.
+
+Exact training continuation is a different problem: it also requires Training-owned state and
+caller-owned progress or random state. An optional downstream Training Checkpoint adapter is
+reserved for that coordination after a separate gate; it is not included or implemented today.
+Putting that adapter's state into the model-only project would make inference users depend on
+Training and blur which owner validates restored values. See the [checkpoint boundary
+decision](../design/decisions/0031-model-checkpoint-extension-boundary.md).
+
 ### `extensions/onnx`
 
 Owns ONNX import, export, and mapping to and from the model. It remains outside the runtime hot path and does not own backend lowering, kernel selection, execution, or residency.
@@ -325,6 +342,7 @@ engine     = explicit composition and public lifecycle
 trace      = typed diagnostic leaf
 nn         = module composition, parameters, buffers, and forward mode
 training   = optimizer algorithms and training orchestration
+checkpoint = model-only durable-recovery boundary (currently no persistence API)
 ```
 
 The dependency implications of these responsibilities are detailed in [Dependency Rules](dependency-rules.md).

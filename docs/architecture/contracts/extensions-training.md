@@ -8,8 +8,9 @@
 
 ## Scope
 
-This contract owns NN, Training, and ONNX responsibilities plus the optimizer/training lifecycle.
-It does not own Model semantics, Compiler autograd, or concrete backend optimizer routes.
+This contract owns NN, Training, model-only Checkpoint, the optional future Training Checkpoint
+adapter, and ONNX responsibilities plus the optimizer/training lifecycle. It does not own Model
+semantics, Compiler autograd, concrete backend optimizer routes, or Engine materialization.
 
 ## `extensions/nn`
 
@@ -81,6 +82,28 @@ mode.
 Training owns backend-neutral optimizer mathematics over supported caller-owned host parameter
 storage, not backend-specific optimizer execution. A later fused optimizer route belongs to
 backend prepare and kernels and requires a separate architecture decision.
+
+## `extensions/checkpoint`
+
+`extensions/checkpoint` is the model-only durable-recovery owner downstream of NN and the public
+Engine facade. Its current Gradle project is empty: it has no persistence, codec, or public Java
+API. Its direct project dependencies are exactly `extensions/nn` and `modules/engine`. This
+boundary reserves future model-state persistence without making Training or Text mandatory for a
+model-only consumer. NN retains module-state meaning and installation; Engine retains public host
+materialization. Checkpoint must not inspect backend representations or reach through Engine into
+Compiler, Runtime, Prepare, tuning, or concrete backends.
+
+Checkpoint must not depend on Training or Text. Model, NN, Training, Engine, and other inward
+modules must not depend on Checkpoint. If a later public Checkpoint signature directly names Model
+types, that task may add a justified direct `modules/model` edge with a coordinated root,
+contract, and architecture-test update; the present empty project has no such edge.
+
+A separate optional `extensions/training-checkpoint` adapter is reserved for durable exact
+training continuation. It may depend on Training and Checkpoint, but is neither included in
+Gradle settings nor implemented until its later adapter gate. Training keeps optimizer/session
+state meaning, and the caller and other state owners keep their own validation and restore
+authority under the optimizer/training lifecycle below. Neither Training nor Checkpoint gains a
+reverse dependency or a generic persistence or state-installation API from this reservation.
 
 ## `extensions/onnx`
 

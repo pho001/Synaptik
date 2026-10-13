@@ -2,7 +2,9 @@
 
 ## Status
 
-Ready. Frontier verified against `44a77c95`: no Checkpoint module or competing Ready
+Complete. Implementation, focused validation, independent Class C documentation/architecture
+review, and the post-review repository gate completed from base `81d50901`.
+The Ready frontier was verified against `44a77c95`: no Checkpoint module or competing Ready
 Checkpoint task exists; Training 0003A is Complete; this architecture decision has no
 implementation predecessor. The user selected continuation along the Checkpoint path. The
 proposed two-artifact split is adopted for this boundary task only; persistence behavior remains
@@ -38,7 +40,7 @@ separate optional Training Checkpoint adapter for a later, explicitly gated task
 
 ## Contracts
 
-- [`ARCHITECTURE.md` — Authority, incorporation, and precedence](../../../../ARCHITECTURE.md#authority-incorporation-and-precedence), [Scope-indexed normative contracts](../../../../ARCHITECTURE.md#scope-indexed-normative-contracts), [Module-ownership routing](../../../../ARCHITECTURE.md#module-ownership-routing), [Dependency rules](../../../../ARCHITECTURE.md#dependency-rules), [Testing requirements](../../../../ARCHITECTURE.md#testing-requirements): explicitly update the root to authorize the new edge.
+- [`ARCHITECTURE.md` — Authority, incorporation, and precedence](../../../../../ARCHITECTURE.md#authority-incorporation-and-precedence), [Scope-indexed normative contracts](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts), [Module-ownership routing](../../../../../ARCHITECTURE.md#module-ownership-routing), [Dependency rules](../../../../../ARCHITECTURE.md#dependency-rules), [Testing requirements](../../../../../ARCHITECTURE.md#testing-requirements): explicitly update the root to authorize the new edge.
 - [`extensions-training.md` — Scope](../../../../architecture/contracts/extensions-training.md#scope), [`extensions/nn`](../../../../architecture/contracts/extensions-training.md#extensionsnn), [`extensions/training`](../../../../architecture/contracts/extensions-training.md#extensionstraining), [Optimizer/training lifecycle](../../../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle): extend the owning scoped contract; no reverse NN/Training edge.
 - [`runtime-prepare-engine.md` — `modules/engine`](../../../../architecture/contracts/runtime-prepare-engine.md#modulesengine): consume only its public facade; do not change Engine ownership or this scoped contract.
 
@@ -95,4 +97,25 @@ adds a project and modifies architecture/dependency boundaries.
 
 ## Result
 
-Pending implementation and independent review.
+Implemented the empty model-only Checkpoint Gradle project with exactly NN and public Engine
+direct dependencies; updated the architecture root and owning extensions contract, focused
+explanations and glossary, ADR 0031, and an architecture dependency-direction test. No persistence
+API or Training Checkpoint project was added. The current exact two-edge build does not preclude
+a later justified direct Model edge when a public API names Model types.
+
+Focused validation: `./gradlew :testing:architecture-tests:test :extensions:checkpoint:check`
+passed after the final test edit (`BUILD SUCCESSFUL in 1s`; 37 actionable tasks: 2 executed,
+35 up-to-date; `:extensions:checkpoint:test` reported `NO-SOURCE`). The project remains
+source-empty by acceptance inspection rather than a durable architecture-test assertion.
+Documentation validation: 136 local Markdown links in nine changed boundary documents resolved;
+`git diff --check` passed and new files had no trailing whitespace. The glossary's existing
+checkpoint term was updated for the empty project. No production Java type was added; the new
+architecture-test class and methods have contract-compliant Javadoc.
+Independent Class C architecture/documentation review found no blocking issue and made no edit;
+it reused the focused test result. Initial unconfigured `./gradlew test javadoc` was stopped after
+Metal tests reported the missing required `SYNAPTIK_METAL_TEST_LIBRARY`. After rebuilding the
+source-matched native library with `./native/metal-macos-arm64/build.sh`, the repository gate
+`SYNAPTIK_METAL_TEST_LIBRARY=/Users/phujka/IdeaProjects/Synaptik/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib ./gradlew test javadoc --max-workers=2 --console=plain`
+passed (`BUILD SUCCESSFUL in 5m 11s`; 101 actionable tasks, 3 executed, 98 up-to-date). The
+five-fork CPU evidence test completed; the new Checkpoint project reported `NO-SOURCE` for Java
+and Javadoc. No unresolved issue or follow-up is required within 0001. `Status: Complete`.

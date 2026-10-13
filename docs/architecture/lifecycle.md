@@ -212,6 +212,15 @@ waits for admitted Training work, closes the inference session and private seed 
 never closes the borrowed Engine, Module, or parameter storage. Detached `TrainingStep` and
 `TrainingState` values outlive all of those owners.
 
+Checkpoint does not add a step to this current execution lifecycle. Its newly included
+`extensions/checkpoint` project is empty; no checkpoint capture, file publication, or restore API
+exists yet. A future model-only flow must obtain detached host values through the public Engine
+materialization boundary before persistence. Exact training continuation would additionally
+require Training-owned state and the caller's next-input and external-state handoff, coordinated
+by a separately gated optional adapter rather than by NN or the model-only project. This is a
+planned ownership flow, not a current runnable save/resume sequence. See the [checkpoint
+boundary decision](../design/decisions/0031-model-checkpoint-extension-boundary.md).
+
 The first update domain is scalar `FLOAT32`/`FLOAT64` objectives and connected, fully static,
 dense-contiguous, offset-zero non-view parameters in exact-capacity writable shareable native
 host storage. Unsupported Engine preparation/execution—including a Metal or mixed plan outside

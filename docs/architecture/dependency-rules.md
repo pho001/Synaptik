@@ -73,6 +73,8 @@ Neural-network composition and training have a separate extension direction:
 ```text
 modules/model -> extensions/nn
 modules/model + extensions/nn + public modules/engine facade -> extensions/training
+extensions/nn + public modules/engine facade -> extensions/checkpoint
+extensions/training + extensions/checkpoint -> optional future extensions/training-checkpoint
 ```
 
 `extensions/nn` owns modules, parameters, buffers, and train/eval forward behavior. Training
@@ -81,6 +83,13 @@ and the public Engine lifecycle for one compiled/prepared forward/backward sessi
 three appear in Training's public signatures, the NN, Model, and Engine Gradle edges are `api`
 dependencies; a consumer declaring only Training still compiles against that complete public
 surface. This is not permission to import lower execution internals.
+
+Checkpoint currently declares exactly the NN and public Engine project edges. It is an empty
+project, not a persistence API: the Engine edge reserves public host materialization, while NN
+supplies module-state ownership. A later public Checkpoint signature that names Model types may
+justify a direct Model dependency with a coordinated contract and test update; today's absence
+of that edge is not a permanent prohibition. The optional Training Checkpoint adapter is not in
+Gradle settings and must wait for its separate gate.
 
 ## Concrete forbidden dependencies
 
@@ -97,6 +106,9 @@ surface. This is not permission to import lower execution internals.
 - `extensions/training` may depend on Model, `extensions/nn`, and the public Engine facade. It must
   not reverse the NN dependency or depend directly on Runtime, Prepare, tuning, Engine internals,
   or concrete backend modules.
+- `extensions/checkpoint` currently depends directly only on NN and the public Engine facade; it
+  must not depend on Training, Text, lower execution layers, tuning, or concrete backends. Inward
+  modules, NN, and Training must not depend on Checkpoint.
 - `extensions/onnx` must not depend on runtime hot-path execution internals.
 
 ## Why the boundaries matter
@@ -138,6 +150,15 @@ optimizer is selected. If `extensions/nn` imported training to represent a param
 train/eval behavior, a layer would be coupled to optimizer orchestration and reusable inference
 composition would acquire a reverse dependency. Keeping `Parameter` and `Buffer` in `nn` lets a
 training extension traverse declared parameters without knowing concrete layer types.
+
+### Model-only recovery is downstream of NN and Engine
+
+NN state paths and values can be meaningful without an optimizer; Engine provides the public
+host-materialization boundary for any executed values. A model-only Checkpoint owner can consume
+both without teaching NN file I/O or leaking backend representation access into persistence. A
+future training-resume artifact adds Training-owned state through a separate adapter. If
+Checkpoint instead imported Training now, even a model-only inference application would inherit
+Training's dependency and restore rules.
 
 ## Dependency scenario
 
@@ -181,6 +202,8 @@ Tests under `testing/architecture-tests/` should fail when forbidden module or p
 - absence of compile-time graph types in the runtime hot path; and
 - absence of concrete implementation references in partition scoring.
 - the Model/NN and public-Engine-to-Training direction.
+- Checkpoint's present exact NN/Engine edges, absent reverse edges, and exclusion of the optional
+  Training Checkpoint adapter until its separate gate.
 
 Architecture tests enforce the contract; they do not redefine it. When a dependency rule changes, update [`ARCHITECTURE.md`](../../ARCHITECTURE.md), the relevant explanatory document, an ADR when significant, and the architecture tests in the same change.
 
