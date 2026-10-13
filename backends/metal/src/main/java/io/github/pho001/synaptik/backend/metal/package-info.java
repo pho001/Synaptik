@@ -235,7 +235,7 @@
  * FLOAT32 exponent and one final low narrowing. An explicit low-to-FLOAT32 cast may put the
  * FLOAT32 step alongside a low custom step inside one custom partition. Backend-local workload,
  * exact-policy, candidate, compatibility, route-policy, and codec identities are version
- * thirty-four. Only schema twenty and identity thirty-four are accepted; every other schema or
+ * thirty-five. Only schema twenty and identity thirty-five are accepted; every other schema or
  * identity value fails closed.
  */
 package io.github.pho001.synaptik.backend.metal;

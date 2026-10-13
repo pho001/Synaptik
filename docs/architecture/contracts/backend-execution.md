@@ -432,11 +432,12 @@ not a Runtime certificate, tolerance policy, retry, or fallback layer.
 
 Current generated CPU artifact envelopes use schema 69. Current Metal images use schema 20 with a
 124-byte header, and coordinated workload, exact-policy, candidate, compatibility, route, and
-codec identities use version 34. Native ABI 7 still exposes thirteen symbols. CPU schema 68 and
+codec identities use version 35. Native ABI 7 still exposes thirteen symbols. CPU schema 68 and
 Metal schema 19/identity 29 are historical pre-cutover baselines; Metal identity 30 is the
 historical cutover value and identity 31 is the superseded FLOAT32 `EXP` value; neither is a valid
 current input. Identity 32 is the superseded low-`EXP` value and identity 33 is the superseded
-FLOAT32 `SIGMOID` value; both are rejected.
+FLOAT32 `SIGMOID` value; both are rejected. Identity 34 is the superseded low-`SIGMOID` value;
+identity 35 binds the native-boundary and exact low-value repairs and rejects prior inputs.
 Native source, manifest, and package authentication remain safety gates; historical schema-19
 source certificates do not certify schema-20 programs.
 

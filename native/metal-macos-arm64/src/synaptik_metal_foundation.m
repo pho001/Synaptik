@@ -394,7 +394,7 @@ static NSString *synaptik_authenticated_fixed_source(void) {
                 "8217948f0c28d3df56c5f2edb5408306b588bf2c5e0b1f90a23463e295ac6b99")
             || !synaptik_source_digest_matches(
                 SynaptikTask0066DtypeLayoutKernelSource,
-                "630b6401079438a773aca080e0ee039d33006ef861264bb3f14549e69a50960c")
+                "879fddc8f5456f5691d783ce4014f22dc0f644ae76d48161dc3c3bb9b48b9a42")
             || !synaptik_source_digest_matches(
                 SynaptikTask0071AnchorEpilogueKernelSource,
                 "e165612540f551ce547c145dde4fa48e46ff06e652b4729272b8bfabc75f0663"))
@@ -409,19 +409,19 @@ static NSString *synaptik_authenticated_fixed_source(void) {
     fixed = [[[fixed stringByAppendingString:SynaptikTask0065RngDropoutKernelSource]
             stringByAppendingString:SynaptikTask0066DtypeLayoutKernelSource]
             stringByAppendingString:SynaptikTask0071AnchorEpilogueKernelSource];
-    return [fixed lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 84603U
+    return [fixed lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 84593U
             && synaptik_source_digest_matches(
                     fixed,
-                    "eb9a4bc2e9156bd971c59a3f8c1416df61627fe1c8e5655ccff28ecdf28b39f5")
+                    "4d8a660cf44ca388d2c3a1c53e49d085c5ba36775134dfff17cf898265c67c59")
             ? fixed : nil;
 }
 
 static NSString *synaptik_authenticated_low_precision_source(void) {
     return [SynaptikLowPrecisionKernelSource
-                            lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 36289U
+                            lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 36405U
                     && synaptik_source_digest_matches(
                             SynaptikLowPrecisionKernelSource,
-                            "80e0298fa7098a83f0f1a771e5aaf5be1f25028c7d2893cc753ca43bc2ad1d72")
+                            "3fdb8199ca8cfb44baf88976e9b8307c10a7fd9fd5021ddf2d258f2870a76254")
             ? SynaptikLowPrecisionKernelSource : nil;
 }
 
@@ -1366,11 +1366,15 @@ static BOOL synaptik_attribute_is_valid(
 @interface SynaptikMetalContextBox : NSObject
 @property(nonatomic, strong) id<MTLDevice> device;
 @property(nonatomic, strong) id<MTLCommandQueue> commandQueue;
+/* Retained separately by buffers: exact identity without extending context/queue lifetime. */
+@property(nonatomic, strong) NSObject *identity;
 @end
 @implementation SynaptikMetalContextBox @end
 
 @interface SynaptikMetalBufferBox : NSObject
 @property(nonatomic, strong) id<MTLBuffer> buffer;
+/* Never a borrowed context address: a live buffer prevents identity reuse after context release. */
+@property(nonatomic, strong) NSObject *contextIdentity;
 @property(nonatomic) uint64_t logicalByteSize;
 @end
 @implementation SynaptikMetalBufferBox @end
@@ -1627,6 +1631,8 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_context_create(void **out_context) {
         if (queue == nil) return SYNAPTIK_METAL_STATUS_NO_COMMAND_QUEUE;
         SynaptikMetalContextBox *box = [SynaptikMetalContextBox new];
         if (box == nil) return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
+        box.identity = [NSObject new];
+        if (box.identity == nil) return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
         box.device = device; box.commandQueue = queue;
         *out_context = (__bridge_retained void *)box;
         return SYNAPTIK_METAL_STATUS_OK;
@@ -1657,6 +1663,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_buffer_create(
         SynaptikMetalBufferBox *box = [SynaptikMetalBufferBox new];
         if (box == nil) return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
         box.buffer = buffer; box.logicalByteSize = logical_byte_size;
+        box.contextIdentity = ctx.identity;
         *out_buffer = (__bridge_retained void *)box;
         return SYNAPTIK_METAL_STATUS_OK;
     } @catch (__unused NSException *exception) { return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR; }
@@ -3986,17 +3993,6 @@ static SynaptikMetalProgramStep *make_custom_step(
             if (!custom_physical_layout(
                         auxiliary, node.second_input, value_strides, layout_offsets,
                         value_states, meta.auxiliaryStrides, &meta.auxiliaryOffset))
-                return nil;
-        }
-        if (node.operation == SYNAPTIK_METAL_BOOL_WHERE) {
-            MPSShape *when_false = shapes[node.auxiliary];
-            meta.inputExtents[0] = when_false.count;
-            for (NSUInteger axis = 0U; axis < when_false.count; axis++)
-                meta.inputExtents[1U + axis] =
-                        when_false[axis].unsignedLongLongValue;
-            if (!custom_physical_layout(
-                        when_false, node.auxiliary, value_strides, layout_offsets,
-                        value_states, meta.outputStrides, &meta.outputOffset))
                 return nil;
         }
         NSMutableArray<NSNumber *> *input_values =
@@ -8111,12 +8107,12 @@ static NSData *synaptik_pointwise_manifest(
             fusion->step_count, fusion->member_count, fusion->binding_count,
             fusion->materialized_count, fusion->instruction_count];
     [text appendFormat:@"stop %u %u\n", rejected_node, cap_reason];
-    [text appendFormat:@"source %u 84603 %u\n",
+    [text appendFormat:@"source %u 84593 %u\n",
             fusion->expected_generated_bytes, fusion->expected_total_bytes];
     [text appendString:@"caps 32 256 16384 262144 1048576\n"];
     [text appendString:@"execution-caps 64 512\n"];
     [text appendString:@"source-size-table 1\n"];
-    [text appendString:@"fixed-corpus-bytes 84603\n"];
+    [text appendString:@"fixed-corpus-bytes 84593\n"];
     [text appendString:@"opcodes floor=1 ceil=2 sign=3 relu=4\n"];
     [text appendString:@"anchor-opcodes scalar-mul=1 add=2 relu=3 clamp=4\n"];
     [text appendString:@"pointmeta-abi size=32 align=8 elementCount=u64@0 gridWidth=u64@8 gridHeight=u64@16 scalar=u32@24 reserved=u32@28\n"];
@@ -9515,7 +9511,8 @@ static int32_t run_custom_program_box(
         if (input_buffers[value] == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
         SynaptikMetalBufferBox *buffer =
                 (__bridge SynaptikMetalBufferBox *)input_buffers[value];
-        if (buffer.buffer.device != box.context.device
+        if (buffer.contextIdentity != box.context.identity
+                || buffer.buffer.device != box.context.device
                 || buffer.logicalByteSize < box.valueBytes[value].unsignedLongLongValue)
             return SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;
         for (uint32_t previous = 0U; previous < value; previous++) {
@@ -9840,7 +9837,8 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_run(
             if (input_buffers[input] == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             SynaptikMetalBufferBox *buffer =
                     (__bridge SynaptikMetalBufferBox *)input_buffers[input];
-            if (buffer.buffer.device != box.context.device
+            if (buffer.contextIdentity != box.context.identity
+                    || buffer.buffer.device != box.context.device
                     || buffer.logicalByteSize < box.feedBytes[input].unsignedLongLongValue)
                 return SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;
             [input_boxes addObject:buffer];
@@ -9855,7 +9853,8 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_run(
                     return SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;
             SynaptikMetalBufferBox *buffer =
                     (__bridge SynaptikMetalBufferBox *)output_buffers[output];
-            if (buffer.buffer.device != box.context.device
+            if (buffer.contextIdentity != box.context.identity
+                    || buffer.buffer.device != box.context.device
                     || buffer.logicalByteSize < box.targetBytes[output].unsignedLongLongValue)
                 return SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;
             [output_boxes addObject:buffer];
@@ -9997,7 +9996,9 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_neg_kernel_pipeline_run(
                     (__bridge SynaptikMetalNegKernelPipelineBox *)pipeline;
             SynaptikMetalBufferBox *input = (__bridge SynaptikMetalBufferBox *)input_buffer;
             SynaptikMetalBufferBox *output = (__bridge SynaptikMetalBufferBox *)output_buffer;
-            if (input.buffer.device != box.context.device
+            if (input.contextIdentity != box.context.identity
+                    || output.contextIdentity != box.context.identity
+                    || input.buffer.device != box.context.device
                     || output.buffer.device != box.context.device
                     || input.logicalByteSize < box.requiredBytes
                     || output.logicalByteSize < box.requiredBytes)

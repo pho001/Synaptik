@@ -218,8 +218,9 @@ The following invariants must remain true:
   workload/exact-policy/candidate/compatibility/route/codec identity to 30. Schema 19, CPU schema
   68, and Metal identity 29 are incompatible pre-cutover baselines. Metal identity 30 is the
   historical cutover value; identity 31 is the superseded FLOAT32 `EXP` value, identity 32 is the
-  superseded low-`EXP` value, identity 33 is the superseded FLOAT32 `SIGMOID` value, and the
-  current coordinated Metal identity is 34. Changed
+  superseded low-`EXP` value, identity 33 is the superseded FLOAT32 `SIGMOID` value, and
+  identity 34 is the superseded low-`SIGMOID` value. The current coordinated Metal identity is
+  35. Changed
   serialized/generated identities advance append-only
   and reject stale inputs. The Metal profile
   wire is absent in both Java and native schema-20 decoding; source and package authentication

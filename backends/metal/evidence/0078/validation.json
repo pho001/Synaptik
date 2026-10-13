@@ -1,0 +1,109 @@
+{
+  "task": "Metal0078",
+  "purpose": "Test-only implementation evidence and independent-review handoff; not a runtime policy or capability grant.",
+  "date": "2026-10-13",
+  "branch": "review/metal-0078",
+  "implementationStatus": "complete",
+  "overallTaskStatus": "awaiting independent Class C review and coordinator integration checkpoint",
+  "changes": [
+    "Rank-16 false WHERE branches use existing role metadata in exact and low kernels; obsolete rank-plus-dimensions packing removed.",
+    "Low ScatterAdd only widens/narrows addressed cells; unaddressed words are copied raw.",
+    "Low scans seed nonempty prefixes from the first contributor, preserving signed zero and exclusive identities.",
+    "Buffers retain an independent creating-context identity token; all three native run paths reject foreign contexts before mutation without extending context/queue lifetime.",
+    "Coordinated Metal semantic identity advanced from 34 to 35; ABI 7, schema 20, CPU schema and provider capability unchanged."
+  ],
+  "environment": {
+    "gpu": "Apple M3 Max (40 cores)",
+    "macos": "26.7.1 (25G241)",
+    "jdk": "OpenJDK 26.0.1+8-34",
+    "xcode": "27.0 (27A266a)",
+    "metal": "32023.921",
+    "sdk": "macOS 27.0"
+  },
+  "sha256": {
+    "native/metal-macos-arm64/src/synaptik_metal_foundation.m": "1fe4db41981ec01c1fea6f53bcd270e1b91e7771ea57e9edbaabea07b5474c1c",
+    "native/metal-macos-arm64/src/synaptik_low_precision_kernels.h": "ac482098d8a4786dc5808b39c5b06824724e657820ff658d1d9e44b485e20ed8",
+    "native/metal-macos-arm64/src/synaptik_task0066_dtype_layout_kernels.h": "fe3fc5ffeed5c4bd4baac3709f154d51ac35481a21e05d56c916e3276376282b",
+    "native/metal-macos-arm64/src/SynaptikPointwiseFusionKernelSource.h": "c4384ef2f733608f6d7df9df7184b8d7faaaa9c55f88aed812f9a5e053d970c4",
+    "native/metal-macos-arm64/build.sh": "cf1ad3e081f4d7f13311e2a721f0cf77e05f22e5f2ea5c6710c034406060f0f8",
+    "native/metal-macos-arm64/build/package-v1/macos-arm64/libsynaptik_metal_foundation.dylib": "0e08147b92b5de0ff71ed05f5fa2081a14e85740ad5a6a023ce32747f4a15ba2",
+    "native/metal-macos-arm64/build/package-v1/macos-arm64/manifest.json": "dfdf5aff327149ee90ddc99546ce96895244f4a89a5823f86336b46e6fc056fe",
+    "native/metal-macos-arm64/build/package-v1/macos-arm64/SHA256SUMS": "693c00ff78a139e1f71fe1ce353160372f2396c33423882fd09d56324c10c011"
+  },
+  "runtimeSource": {
+    "fixedBytes": 84593,
+    "fixedSha256": "4d8a660cf44ca388d2c3a1c53e49d085c5ba36775134dfff17cf898265c67c59",
+    "lowBytes": 36405,
+    "lowSha256": "3fdb8199ca8cfb44baf88976e9b8307c10a7fd9fd5021ddf2d258f2870a76254"
+  },
+  "validation": [
+    {
+      "command": "./native/metal-macos-arm64/build.sh",
+      "result": "pass; arm64 native compilation with -Wall -Wextra -Werror"
+    },
+    {
+      "command": "codesign --force --sign - --timestamp=none --identifier io.github.pho001.synaptik.metal.foundation native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib && ./native/metal-macos-arm64/package-local.sh native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib",
+      "result": "pass; signed and verified local package, exact thirteen ABI exports"
+    },
+    {
+      "command": "SYNAPTIK_METAL_TEST_LIBRARY=$PWD/native/metal-macos-arm64/build/package-v1/macos-arm64/libsynaptik_metal_foundation.dylib ./gradlew :backends:metal:test --tests '*MetalNativeBoundaryRepairTest' --console=plain",
+      "result": "4 tests passed, 0 skipped, on actual GPU"
+    },
+    {
+      "command": "SYNAPTIK_METAL_TEST_LIBRARY=$PWD/native/metal-macos-arm64/build/package-v1/macos-arm64/libsynaptik_metal_foundation.dylib ./gradlew :backends:metal:test :backends:metal:javadoc :backends:metal:verifyMetalNativePackage :backends:metal:metalNativeLocalZip :testing:backend-conformance:test -PsynaptikMetalNativePackage=$PWD/native/metal-macos-arm64/build/package-v1/macos-arm64 --console=plain",
+      "result": "pass",
+      "metal": {
+        "tests": 350,
+        "passed": 340,
+        "skipped": 10,
+        "failures": 0
+      },
+      "conformance": {
+        "tests": 37,
+        "passed": 37,
+        "skipped": 0,
+        "failures": 0
+      },
+      "skipReason": "Only optional MetalPointwiseDispatchObserverNativeTest cases: SYNAPTIK_METAL_TEST_OBSERVER not configured.",
+      "javadoc": "pass with 46 warnings in unchanged MetalInvocationPlan and MetalPreparationStructure"
+    },
+    {
+      "command": "./backends/metal/evidence/0069/run-compiled-msl-audit.sh && python3 backends/metal/evidence/0069/verify-source-certificate.py",
+      "result": "pass; active exact-source/AIR evidence rebound; historical Lean proofs and schema-19 certificates unchanged"
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass"
+    }
+  ],
+  "issuesResolved": [
+    "Sandbox device-test launch initially failed opening the Gradle wrapper cache lock. Authorized escalated native environment succeeded; no NO_DEVICE skip was treated as a pass.",
+    "Initial focused test run found two invalid test fixtures (custom FLOAT32 NEG program without a custom node; condition-expanding WHERE shape). Fixtures corrected to existing admitted custom FLOOR and branch-broadcast geometry; production capability unchanged."
+  ],
+  "documentationImpact": "Updated only Metal identity facts in root/owning contract, affected tuning Javadoc/package documentation, native README and backend explanation. MetalPointwiseFusionPlan Javadoc reviewed and remains accurate. No new glossary terms, architectural decision, module edge, ADR, runtime policy, or shared planning change.",
+  "followUp": "Independent Class C algorithm/lifetime/source-binding/documentation review and coordinator-owned full integration checkpoint. Reuse successful module/conformance evidence unless executable behavior changes.",
+  "files": [
+    "ARCHITECTURE.md",
+    "backends/metal/evidence/0069/compiled-msl-audit.json",
+    "backends/metal/evidence/0069/source-compiler-site-certificate.json",
+    "backends/metal/evidence/0078/validation.json",
+    "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalLocalWorkloadTuning.java",
+    "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegRouteCandidateGenerator.java",
+    "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegTuningBatch.java",
+    "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegTuningCodec.java",
+    "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalPointwiseFusionPlan.java",
+    "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/package-info.java",
+    "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphRawAbiNativeTest.java",
+    "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNativeBoundaryRepairTest.java",
+    "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNegRouteCandidateGeneratorTest.java",
+    "docs/architecture/contracts/backend-execution.md",
+    "docs/backend-guide/metal-backend.md",
+    "native/metal-macos-arm64/README.md",
+    "native/metal-macos-arm64/src/SynaptikPointwiseFusionKernelSource.h",
+    "native/metal-macos-arm64/src/synaptik_low_precision_kernels.h",
+    "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
+    "native/metal-macos-arm64/src/synaptik_task0066_dtype_layout_kernels.h",
+    "testing/backend-conformance/src/test/java/io/github/pho001/synaptik/testing/conformance/LowPrecisionIdentityContractTest.java",
+    "testing/backend-conformance/src/test/java/io/github/pho001/synaptik/testing/conformance/MetalNativeRepairCapabilityConformanceTest.java"
+  ]
+}

@@ -4,11 +4,13 @@
 
 The Metal backend executes one whole maximal Metal-owned partition. Its active protocol is
 native ABI 7, program schema 20 with a 124-byte header, data-type wires `1..7`, operation wires
-`1..115`, attribute wires `0..41`, route wires `1..3`, and coordinated backend-local identity 34.
+`1..115`, attribute wires `0..41`, route wires `1..3`, and coordinated backend-local identity 35.
 Schema 19 and identity 29 are historical pre-cutover allocations; identity 30 is the historical
 profile-free cutover value, identity 31 is the superseded FLOAT32 `EXP` value, and identity 32 is
-the superseded low-`EXP` value. Identity 33 is the superseded FLOAT32 `SIGMOID` value. None is a
-current decoder or tuning input.
+the superseded low-`EXP` value. Identity 33 is the superseded FLOAT32 `SIGMOID` value and identity
+34 is the superseded low-`SIGMOID` value. None is a current decoder or tuning input. Identity 35
+binds repairs within existing capability: rank-16 false-branch WHERE geometry, raw unaddressed
+low ScatterAdd words, first-contributor low scan seeds, and exact native creating-context checks.
 
 The profile-free exact domain contains represented-bit unary operations, affine
 movement and canonicalization, indexing, replacement scatter, non-overlapping folds, classification,
@@ -264,7 +266,10 @@ do not promise device overlap, submission or completion order, fairness, queue m
 throughput to concurrent callers. Their mutable run state remains isolated.
 
 Every Metal buffer, workspace, executable, splat, and route resource is authenticated against its
-exact context, and native code rejects a foreign `MTLDevice`. Separate Engines may open separate
+exact context. Native code rejects both a foreign creating context and a foreign `MTLDevice`
+before target mutation. Buffers retain a separate context identity token, not the native context
+or queue, so a released context address cannot be reused to authenticate surviving buffers and
+the existing native release lifetime is preserved. Separate Engines may open separate
 contexts, but those contexts may select the same default device and do not form a coordinated
 multi-device system. There is no async/cancel/timeout API, enumeration, explicit selection, cross-
 device transfer, migration, replication, coherence, sharding, scheduling, failover, or hot-plug
@@ -275,7 +280,7 @@ distinct non-physical identities. The first is an abstract availability slot, th
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
 claim. No mapping among them is implied. ABI 7 and the thirteen native exports are fixed. The
 route-bearing image is schema 20 with a 124-byte header, and every workload/exact-policy/candidate/compatibility/
-route/codec identity is version 34; prior identities 30 through 33 and every other stale identity fail closed.
+route/codec identity is version 35; prior identities 30 through 34 and every other stale identity fail closed.
 Tuning remains session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
@@ -455,7 +460,7 @@ consuming a caller position. Existing shared `GraphPreparation` tests independen
 chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, typed node records, and the
-canonical execution plan are known, analysis creates a version-thirty-four candidate batch and
+canonical execution plan are known, analysis creates a version-thirty-five candidate batch and
 workload fingerprint. Every partition containing BFLOAT16/FLOAT16 values or a selected
 Task-0066/Task-0069 occurrence forces the fixed `CUSTOM_PROGRAM` production candidate; the batch
 rejects a selected-node MPSGraph route before native allocation. Other FLOAT32 partitions retain
@@ -464,14 +469,14 @@ rank-two FLOAT32 MATMUL where no selected custom-only node requires the whole-pr
 Package-private structural forcing remains available only for a route already present in the fresh
 authenticated batch.
 
-The version-thirty-four canonical workload fingerprint covers the schema-twenty route-bearing program
+The version-thirty-five canonical workload fingerprint covers the schema-twenty route-bearing program
 image and authenticated execution extension, ordered
 input and output references, all typed attributes, logical and physical value states,
 authenticated local provenance, complete tensor descriptors and storage layouts, compact
 materialized and target sets, exact scalar/splat bits, logical-boundary roles,
 policy/candidate/route schemas, and ABI version. It encodes structural positions rather than graph
 object identity. Target compatibility also contains a fresh private nonce from the exact
-`MetalDeviceContext`; only identity 34 is accepted, while prior identities 30 through 33 and every other stale
+`MetalDeviceContext`; only identity 35 is accepted, while prior identities 30 through 34 and every other stale
 decision fail closed.
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. Every supplied handoff is accepted only when the exact
@@ -497,15 +502,15 @@ exposes this test seam.
 
 ### Session decision codec and limitations
 
-The package-private version-thirty-four Metal codec produces bounded canonical compatibility,
+The package-private version-thirty-five Metal codec produces bounded canonical compatibility,
 candidate, and checksummed decision bytes. Decode rejects wrong magic, schema, session scope,
 malformed or truncated content, trailing or corrupt bytes, changed workload or
 context, and unknown or pruned candidates. The bytes contain no native handle or executable. Only
-identity 34 is accepted; prior identities 30 through 33 and every other stale decision fail closed even when its
+identity 35 is accepted; prior identities 30 through 34 and every other stale decision fail closed even when its
 trailing checksum is otherwise valid.
 
 The public `MetalLocalWorkloadTuning` retained by `MetalBackendIntegration` wraps this codec and
-candidate generator without changing their version-thirty-four bytes. It returns a handoff only
+candidate generator without changing their version-thirty-five bytes. It returns a handoff only
 for an exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
 `MetalCompletePlanTuning` authenticates the exact Phase-1 association and exposes one complete-plan
 candidate fixed to that selected route. Both collaborations use opaque exact-owner/batch values,
@@ -520,7 +525,7 @@ device/library fingerprint.
 
 Schema-twenty workload bytes and workload compatibility include the fixed route,
 canonical execution extension, and manifest digest. Candidate and decision bytes retain route
-wires `1..3`, route-policy version thirty-four, and the target session.
+wires `1..3`, route-policy version thirty-five, and the target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
 session)` rather than a workload digest alone. The repository has no persistent Metal executable
@@ -1054,7 +1059,8 @@ integer-size planner/image writer, native parser and sole source emitter, compac
 strongest available reflection, and test-only dispatch observation site. At that checkpoint,
 native validated frozen SHA-256 values for all ten fixed components and their ordered 84,541-byte
 total, then validated the assembled total independently before compiler entry. The current
-source-bound corpus is 84,603 bytes; the historical count is not its authentication target.
+source-bound corpus is 84,593 bytes after the Task-0078 WHERE metadata repair; the historical count
+is not its authentication target.
 One structured sink implements both a
 no-allocation count traversal and the exact byte traversal: production validates all five caps
 before allocating the counted byte size and emits once for compile. A standalone native fixture includes that exact
@@ -1190,7 +1196,7 @@ persistent Metal splat binding is accepted only as a Metal read source; it canno
 destination. Runtime executes only the resulting direct prepared references.
 
 For one exact singleton NEG Metal plan, public `prepareTuned(...)` measures the complete two-route
-local batch, authenticates the selected version-thirty-four decision, then correctness-checks and
+local batch, authenticates the selected version-thirty-five decision, then correctness-checks and
 times one complete-plan candidate fixed to that route. The returned production recipe is freshly
 prepared after representative cleanup. Metal policy, producer, and decision-codec identities are
 adapter-owned and distinct from CPU identities; existing CPU bytes and behavior remain unchanged.

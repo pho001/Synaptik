@@ -95,7 +95,7 @@ add, and final-store sites plus NaN, signed-zero, infinity, subnormal DAZ/FTZ, a
 
 The remaining 27 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 34. Java
+rather than masquerading as malformed input. Candidate and route identity are version 35. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
 shared custom-program wire 3. Schema 20 embeds wire 2 or 3 in each graph image; every other
 schema or route value fails closed. The exhaustive Java
@@ -120,7 +120,16 @@ admits BFLOAT16 and FLOAT16 `SIGMOID` through typed custom kernels with an exact
 sign guard, one FLOAT32 exponent, and one final low narrowing. An explicit low-to-FLOAT32 cast
 may precede the internal FLOAT32 MPSGraph step in the same custom partition. Schema 20, route
 wires 2/3, native ABI 7, and the existing operation and attribute wires retain their allocations;
-the coordinated compatibility identity advances to 34 and rejects prior 30/31/32/33 inputs.
+Task 0077 used coordinated compatibility identity 34. Task 0078 advances it to 35 and rejects
+prior inputs without changing capability, ABI 7, or schema 20.
+
+Task 0078 repairs rank-16 WHERE false-branch metadata in both exact and low kernels using the
+existing full role rank/dimensions/strides/offset. Low ScatterAdd copies an unaddressed base word
+without widening or narrowing, preserving signed/payload NaNs, signed zeros, and subnormals.
+Only addressed cells enter FLOAT32 arithmetic and final low narrowing. Low scans seed each
+nonempty prefix from its first contributor; the empty exclusive prefix alone uses `+0` for sum
+or `+1` for product. For example, inclusive sum of `[-0, -0]` returns `[-0, -0]`, while exclusive
+sum returns `[+0, -0]`. The same rules apply in reverse traversal.
 
 
 Raw storage is always an unsigned 16-bit word. Exact kernels copy or select that word, predicates
@@ -137,16 +146,16 @@ same-sign zero (DAZ), and a FLOAT32 subnormal site result may remain exact or be
 (FTZ). Integer final narrowing itself does not flush representable low subnormals. Arithmetic NaNs
 retain NaN class and domain behavior, but final low arithmetic publication canonicalizes payload
 and sign; exact selection/order/extrema paths retain the selected raw NaN. Primitive/FMA signed
-zero is retained through final narrowing and may take either sign when the exact arithmetic result
-is zero. Exact paths preserve zero bits; MIN chooses negative zero, MAX chooses positive zero,
+zero follows the operation family's rule through final narrowing; an exact zero result does not
+grant blanket sign freedom. Exact paths preserve zero bits; MIN chooses negative zero, MAX chooses positive zero,
 SIGN preserves a zero's sign, RELU maps negative zero to positive zero, and average pooling
 preserves negative zero only when every contributor is negative zero and none is padding.
 
-For admitted nodes, the version-33 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-35 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, complete encoded logical storage-layout
 geometry, independently safe physical materialization, and the canonical schema-20 execution
-extension. The schema-20 identity-33 program has no compatibility reader or migration alias;
+extension. The schema-20 identity-35 program has no compatibility reader or migration alias;
 every other schema or identity fails closed.
 
 ```text
@@ -428,7 +437,7 @@ execution do not widen production capability.
 | 7 | `SYNAPTIK_METAL_STATUS_INTERNAL_ERROR` | An Objective-C exception crossed an internal implementation boundary. |
 | 8 | `SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE` | Rank, dimensions, checked typed byte geometry, custom element count, or dispatch-grid representation is unsupported. |
 | 9 | `SYNAPTIK_METAL_STATUS_GRAPH_COMPILATION_FAILED` | Graph construction or compilation produced no usable executable. |
-| 10 | `SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE` | A buffer has the wrong device or extent, an input aliases an output, or distinct output slots alias one resource. |
+| 10 | `SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE` | A buffer has the wrong creating context, device, or extent, an input aliases an output, or distinct output slots alias one resource. |
 | 11 | `SYNAPTIK_METAL_STATUS_EXECUTION_FAILED` | Synchronous execution, unusable threadgroup geometry, completion reporting, or returned-result validation failed. |
 | 12 | `SYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED` | Fixed custom-kernel compilation, function lookup, target validation, or pipeline creation failed. |
 | 13 | `SYNAPTIK_METAL_STATUS_UNSUPPORTED_OPERATION` | The image is structurally valid but names a registered operation outside current execution capability. |
@@ -522,7 +531,7 @@ capability narrowing, tuning, fallback, or a performance claim.
 Any schema-20 program containing an exact custom node or a MATMUL outside the retained
 all-FLOAT32 rank-two MPSGraph slice uses one retained custom-program handle. Creation authenticates
 the frozen SHA-256 values of all ten reviewed fixed-kernel components and their ordered
-84,603-byte total. The sole production pointwise emitter first traverses a structured
+84,593-byte total. The sole production pointwise emitter first traverses a structured
 no-allocation count sink, validates unit, instruction, per-function, generated, and total caps,
 allocates the exact byte count, traverses the same emitter once for compiler input, independently
 authenticates the assembled source, and only then compiles with `MTLMathModeSafe` and
@@ -595,6 +604,13 @@ the candidate. Reintroducing it requires a separately approved production cutove
 runtime boolean gate.
 
 ## Ownership and concurrency
+
+Native contexts and their buffer wrappers share a retained, private identity object. Every custom
+program, MPSGraph, and singleton-NEG invocation checks exact identity before encoding or target
+mutation, even when two contexts use the same `MTLDevice`. A buffer retains only this identity,
+not the context or command queue; therefore a surviving buffer cannot match a reused context
+address, and native context release lifetime is unchanged. Executables keep their existing strong
+context reference. Upload/download and matching releases remain valid for surviving buffer handles.
 
 A successful create transfers one retained handle to Java, and its matching release consumes that
 handle once. Malformed create results fail closed: success with a null output is rejected, while a

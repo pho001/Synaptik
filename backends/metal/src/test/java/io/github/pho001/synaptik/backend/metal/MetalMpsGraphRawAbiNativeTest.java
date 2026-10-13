@@ -123,8 +123,8 @@ class MetalMpsGraphRawAbiNativeTest {
         malformed.add(digestForgery);
         malformed.add(rewriteManifest(
                 valid,
-                "fixed-corpus-bytes 84603\n",
-                "fixed-corpus-bytes 84604\n"));
+                "fixed-corpus-bytes 84593\n",
+                "fixed-corpus-bytes 84594\n"));
 
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(0, abi.create(valid, valid.length));
