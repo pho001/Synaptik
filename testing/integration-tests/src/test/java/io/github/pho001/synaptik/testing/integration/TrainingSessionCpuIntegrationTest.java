@@ -23,6 +23,8 @@ import io.github.pho001.synaptik.nn.layers.Linear;
 import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Parameter;
 import io.github.pho001.synaptik.training.GradientMode;
+import io.github.pho001.synaptik.training.Adam;
+import io.github.pho001.synaptik.training.AdamW;
 import io.github.pho001.synaptik.training.ParameterGroup;
 import io.github.pho001.synaptik.training.Sgd;
 import io.github.pho001.synaptik.training.TrainingParameterStorage;
@@ -42,6 +44,52 @@ import org.junit.jupiter.api.Test;
 
 /** Exercises the public training lifecycle through the real CPU Engine composition. */
 final class TrainingSessionCpuIntegrationTest {
+    @Test
+    void mixedAdaptiveAndSgdGroupsRestoreAndContinueOnCpu() {
+        class Three extends Module {
+            final Parameter first;
+            final Parameter second;
+            final Parameter third;
+
+            Three(Arena arena) {
+                first = parameter("first", scalar(arena, 2.0f, true));
+                second = parameter("second", scalar(arena, 3.0f, true));
+                third = parameter("third", scalar(arena, 4.0f, true));
+            }
+        }
+        try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(CpuBackendIntegration.open());
+            try (Engine engine = builder.build()) {
+                Three module = new Three(arena);
+                Tensor objective = module.first.value().add(module.second.value())
+                        .add(module.third.value());
+                var groups = List.of(
+                        new ParameterGroup(List.of("second"), new Sgd(0.2d)),
+                        new ParameterGroup(List.of("third"),
+                                new AdamW(0.1d, 0.5d, 0.25d, 0.01d, 0.1d)));
+                try (TrainingSession session = TrainingSession.open(engine, module, objective,
+                        new Adam(0.1d, 0.5d, 0.25d, 0.01d, 0.1d), groups)) {
+                    var prepared = session.compiledGraph();
+                    session.run(List.of(), GradientMode.RESET_AND_STEP);
+                    TrainingState afterFirst = session.state();
+                    assertEquals(1, afterFirst.optimizerSteps());
+                    assertEquals(2.8f, module.second.value().hostStorage().orElseThrow()
+                            .segment().get(ValueLayout.JAVA_FLOAT, 0), 1e-6f);
+                    assertTrue(afterFirst.parameters().get(0).secondMomentBytes().isPresent());
+                    assertTrue(afterFirst.parameters().get(1).secondMomentBytes().isEmpty());
+                    assertTrue(afterFirst.parameters().get(2).secondMomentBytes().isPresent());
+                    session.run(List.of(), GradientMode.RESET_AND_STEP);
+                    TrainingState afterSecond = session.state();
+                    session.restore(afterFirst);
+                    assertStateEquals(afterFirst, session.state());
+                    session.run(List.of(), GradientMode.RESET_AND_STEP);
+                    assertSame(prepared, session.compiledGraph());
+                    assertStateEquals(afterSecond, session.state());
+                }
+            }
+        }
+    }
+
     @Test
     void groupedPublicCpuSessionTrainsAndRestoresThroughOnePreparedGraph() {
         class Pair extends Module {
@@ -351,6 +399,11 @@ final class TrainingSessionCpuIntegrationTest {
                     bytes(left.masterParameterBytes()),
                     bytes(right.masterParameterBytes()));
             assertArrayEquals(bytes(left.momentumBytes()), bytes(right.momentumBytes()));
+            assertEquals(left.secondMomentBytes().isPresent(), right.secondMomentBytes().isPresent());
+            if (left.secondMomentBytes().isPresent()) {
+                assertArrayEquals(bytes(left.secondMomentBytes().orElseThrow()),
+                        bytes(right.secondMomentBytes().orElseThrow()));
+            }
             assertArrayEquals(
                     bytes(left.accumulatedGradientBytes()),
                     bytes(right.accumulatedGradientBytes()));

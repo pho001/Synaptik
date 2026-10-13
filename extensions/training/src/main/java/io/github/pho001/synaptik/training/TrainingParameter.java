@@ -23,9 +23,10 @@ import java.util.Objects;
  * <p>Capture bounds both the declared-width and optimizer-width snapshot payloads to a Java
  * byte-array length before storage inspection or buffer allocation. This keeps later in-memory
  * snapshot and restore lengths representable without unchecked narrowing or wrapping. The active
- * accumulation and momentum slots, parameter candidates, and rollback arrays exist from capture;
- * inactive accumulation and momentum candidates are allocated only before an operation that
- * stages them. Successful accumulation clearing releases its inactive candidate. A restored
+ * accumulation and first optimizer slots, parameter candidates, and rollback arrays exist from
+ * capture. An active second moment is allocated only for Adam/AdamW assignment at open; inactive
+ * accumulation, first-slot, and second-slot candidates are allocated only before an operation
+ * that stages them. Successful accumulation clearing releases its inactive candidate. A restored
  * negative-zero momentum slot under zero configured momentum is retained exactly until the next
  * successful update, when it is normalized without a pass on ordinary zero-momentum steps.</p>
  */
@@ -38,6 +39,8 @@ final class TrainingParameter {
     private final DataType dataType;
     private final Shape shape;
     private final int elementCount;
+    private Optimizer optimizer;
+    private AdaptiveCoefficients adaptive;
     private float[] master32;
     private float[] masterCandidate32;
     private float[] masterRollback32;
@@ -51,6 +54,8 @@ final class TrainingParameter {
     private float[] parameterRollback32;
     private float[] momentum32;
     private float[] momentumCandidate32;
+    private float[] secondMoment32;
+    private float[] secondMomentCandidate32;
     private boolean momentumNeedsZeroNormalization;
     private boolean stagedMomentumHasNegativeZero;
 
@@ -61,6 +66,8 @@ final class TrainingParameter {
     private double[] parameterRollback64;
     private double[] momentum64;
     private double[] momentumCandidate64;
+    private double[] secondMoment64;
+    private double[] secondMomentCandidate64;
 
     private TrainingParameter(
             String path,
@@ -97,6 +104,26 @@ final class TrainingParameter {
                 parameterRollback16 = new short[elementCount];
                 initializeMaster();
             }
+        }
+    }
+
+    /**
+     * Resolves this path's immutable algorithm and dtype-narrowed coefficients at open.
+     *
+     * @param assigned non-null default or ordered-group optimizer for this path
+     * @throws IllegalArgumentException if a coefficient cannot narrow to this parameter's domain
+     */
+    void configureOptimizer(Optimizer assigned) {
+        this.optimizer = Objects.requireNonNull(assigned, "assigned");
+        if (assigned instanceof Sgd sgd) {
+            TrainingSession.validateSgdNarrowing(sgd, dataType);
+            return;
+        }
+        adaptive = AdaptiveCoefficients.forParameter(assigned, dataType);
+        if (dataType == DataType.FLOAT64) {
+            secondMoment64 = new double[elementCount];
+        } else {
+            secondMoment32 = new float[elementCount];
         }
     }
 
@@ -312,17 +339,29 @@ final class TrainingParameter {
     }
 
     /**
-     * Stages a parameter update and any configured momentum candidate before commit.
+     * Stages a parameter update and its configured optimizer-slot candidates before commit.
      *
-     * <p>A positive configured momentum that narrows to binary32 zero still stages a zero
+     * <p>Adaptive updates use pre-narrowed coefficients and compute validated bias corrections
+     * outside the element loop. A positive configured SGD momentum that narrows to binary32 zero
+     * still stages a zero
      * candidate, preserving the existing swap behavior. Exactly zero configured momentum instead
      * leaves its active slot untouched until a successful commit.</p>
      *
-     * @param optimizer non-null immutable SGD assigned to this path and validated for its dtype
      * @param completedSteps non-negative number of prior successful parameter updates
      * @param useAccumulatedCandidate whether a preceding accumulation stage supplies gradients
      */
-    void stageUpdate(Sgd optimizer, long completedSteps, boolean useAccumulatedCandidate) {
+    void stageUpdate(long completedSteps, boolean useAccumulatedCandidate) {
+        if (adaptive != null) {
+            ensureMomentumCandidate();
+            ensureSecondMomentCandidate();
+            if (dataType == DataType.FLOAT64) {
+                stageAdaptive64(completedSteps + 1, useAccumulatedCandidate);
+            } else {
+                stageAdaptive32(completedSteps + 1, useAccumulatedCandidate);
+            }
+            return;
+        }
+        Sgd optimizer = (Sgd) this.optimizer;
         boolean configuredMomentum = optimizer.momentum() != 0.0d;
         if (configuredMomentum) {
             ensureMomentumCandidate();
@@ -331,6 +370,195 @@ final class TrainingParameter {
             stageUpdate32(optimizer, completedSteps, useAccumulatedCandidate, configuredMomentum);
         } else {
             stageUpdate64(optimizer, completedSteps, useAccumulatedCandidate);
+        }
+    }
+
+    private void stageAdaptive32(long step, boolean useAccumulatedCandidate) {
+        float lr = (float) adaptive.learningRate();
+        float b1 = (float) adaptive.beta1();
+        float b2 = (float) adaptive.beta2();
+        float eps = (float) adaptive.epsilon();
+        float decay = (float) adaptive.weightDecay();
+        float correction1 = 1.0f - (float) Math.pow(b1, step);
+        float correction2 = 1.0f - (float) Math.pow(b2, step);
+        requirePositiveFinite(correction1, "first bias correction");
+        requirePositiveFinite(correction2, "second bias correction");
+        float decayFactor = 1.0f;
+        if (adaptive.decoupled()) {
+            float decayScale = lr * decay;
+            requireFinite(decayScale, "decay scale", path, -1);
+            decayFactor -= decayScale;
+            requireFinite(decayFactor, "decay factor", path, -1);
+        }
+        float[] selected = useAccumulatedCandidate ? accumulatedCandidate32 : gradient32;
+        if (adaptive.decoupled()) {
+            for (int index = 0; index < elementCount; index++) {
+                float parameterValue = readParameter32ForUpdate(index);
+                float base = parameterValue * decayFactor;
+                requireFinite(base, "decayed parameter", path, index);
+                stageAdaptiveElement32(index, selected[index], base, b1, b2, correction1,
+                        correction2, eps, lr);
+            }
+        } else {
+            for (int index = 0; index < elementCount; index++) {
+                float parameterValue = readParameter32ForUpdate(index);
+                float decayTerm = decay * parameterValue;
+                requireFinite(decayTerm, "coupled decay term", path, index);
+                float gradient = selected[index] + decayTerm;
+                requireFinite(gradient, "adjusted gradient", path, index);
+                stageAdaptiveElement32(index, gradient, parameterValue, b1, b2, correction1,
+                        correction2, eps, lr);
+            }
+        }
+    }
+
+    private float readParameter32ForUpdate(int index) {
+        float parameterValue;
+        if (dataType == DataType.FLOAT32) {
+            parameterValue = segment.get(ValueLayout.JAVA_FLOAT, (long) index * Float.BYTES);
+            parameterRollback32[index] = parameterValue;
+        } else {
+            short bits = segment.get(ValueLayout.JAVA_SHORT, (long) index * Short.BYTES);
+            requireFinite(decodeLow(bits), "current logical parameter", path, index);
+            parameterRollback16[index] = bits;
+            parameterValue = master32[index];
+            masterRollback32[index] = parameterValue;
+        }
+        requireFinite(parameterValue, "current parameter", path, index);
+        return parameterValue;
+    }
+
+    private void stageAdaptiveElement32(int index, float gradient, float base, float b1,
+            float b2, float correction1, float correction2, float eps, float lr) {
+        float firstTerm = b1 * momentum32[index];
+        requireFinite(firstTerm, "first moment history", path, index);
+        float firstGradient = (1.0f - b1) * gradient;
+        requireFinite(firstGradient, "first moment gradient", path, index);
+        float first = firstTerm + firstGradient;
+        requireFinite(first, "first moment candidate", path, index);
+        float squared = gradient * gradient;
+        requireFinite(squared, "squared gradient", path, index);
+        float secondTerm = b2 * secondMoment32[index];
+        requireFinite(secondTerm, "second moment history", path, index);
+        float secondGradient = (1.0f - b2) * squared;
+        requireFinite(secondGradient, "second moment gradient", path, index);
+        float second = secondTerm + secondGradient;
+        requireFinite(second, "second moment candidate", path, index);
+        float correctedFirst = first / correction1;
+        float correctedSecond = second / correction2;
+        requireFinite(correctedFirst, "corrected first moment", path, index);
+        requireFinite(correctedSecond, "corrected second moment", path, index);
+        float root = (float) Math.sqrt(correctedSecond);
+        requireFinite(root, "second moment root", path, index);
+        float denominator = root + eps;
+        requirePositiveFinite(denominator, "adaptive denominator");
+        float quotient = correctedFirst / denominator;
+        requireFinite(quotient, "adaptive quotient", path, index);
+        float update = lr * quotient;
+        requireFinite(update, "adaptive update", path, index);
+        float candidate = base - update;
+        requireFinite(candidate, "parameter candidate", path, index);
+        momentumCandidate32[index] = first;
+        secondMomentCandidate32[index] = second;
+        if (dataType == DataType.FLOAT32) {
+            parameterCandidate32[index] = candidate;
+        } else {
+            masterCandidate32[index] = candidate;
+        }
+    }
+
+    private void stageAdaptive64(long step, boolean useAccumulatedCandidate) {
+        double lr = adaptive.learningRate();
+        double b1 = adaptive.beta1();
+        double b2 = adaptive.beta2();
+        double eps = adaptive.epsilon();
+        double decay = adaptive.weightDecay();
+        double correction1 = 1.0d - Math.pow(b1, step);
+        double correction2 = 1.0d - Math.pow(b2, step);
+        requirePositiveFinite(correction1, "first bias correction");
+        requirePositiveFinite(correction2, "second bias correction");
+        double decayFactor = 1.0d;
+        if (adaptive.decoupled()) {
+            double decayScale = lr * decay;
+            requireFinite(decayScale, "decay scale", path, -1);
+            decayFactor -= decayScale;
+            requireFinite(decayFactor, "decay factor", path, -1);
+        }
+        double[] selected = useAccumulatedCandidate ? accumulatedCandidate64 : gradient64;
+        if (adaptive.decoupled()) {
+            for (int index = 0; index < elementCount; index++) {
+                double parameterValue = readParameter64ForUpdate(index);
+                double base = parameterValue * decayFactor;
+                requireFinite(base, "decayed parameter", path, index);
+                stageAdaptiveElement64(index, selected[index], base, b1, b2, correction1,
+                        correction2, eps, lr);
+            }
+        } else {
+            for (int index = 0; index < elementCount; index++) {
+                double parameterValue = readParameter64ForUpdate(index);
+                double decayTerm = decay * parameterValue;
+                requireFinite(decayTerm, "coupled decay term", path, index);
+                double gradient = selected[index] + decayTerm;
+                requireFinite(gradient, "adjusted gradient", path, index);
+                stageAdaptiveElement64(index, gradient, parameterValue, b1, b2, correction1,
+                        correction2, eps, lr);
+            }
+        }
+    }
+
+    private double readParameter64ForUpdate(int index) {
+        double parameterValue = segment.get(ValueLayout.JAVA_DOUBLE, (long) index * Double.BYTES);
+        requireFinite(parameterValue, "current parameter", path, index);
+        parameterRollback64[index] = parameterValue;
+        return parameterValue;
+    }
+
+    private void stageAdaptiveElement64(int index, double gradient, double base, double b1,
+            double b2, double correction1, double correction2, double eps, double lr) {
+        double firstTerm = b1 * momentum64[index];
+        requireFinite(firstTerm, "first moment history", path, index);
+        double firstGradient = (1.0d - b1) * gradient;
+        requireFinite(firstGradient, "first moment gradient", path, index);
+        double first = firstTerm + firstGradient;
+        requireFinite(first, "first moment candidate", path, index);
+        double squared = gradient * gradient;
+        requireFinite(squared, "squared gradient", path, index);
+        double secondTerm = b2 * secondMoment64[index];
+        requireFinite(secondTerm, "second moment history", path, index);
+        double secondGradient = (1.0d - b2) * squared;
+        requireFinite(secondGradient, "second moment gradient", path, index);
+        double second = secondTerm + secondGradient;
+        requireFinite(second, "second moment candidate", path, index);
+        double correctedFirst = first / correction1;
+        double correctedSecond = second / correction2;
+        requireFinite(correctedFirst, "corrected first moment", path, index);
+        requireFinite(correctedSecond, "corrected second moment", path, index);
+        double root = Math.sqrt(correctedSecond);
+        requireFinite(root, "second moment root", path, index);
+        double denominator = root + eps;
+        requirePositiveFinite(denominator, "adaptive denominator");
+        double quotient = correctedFirst / denominator;
+        requireFinite(quotient, "adaptive quotient", path, index);
+        double update = lr * quotient;
+        requireFinite(update, "adaptive update", path, index);
+        double candidate = base - update;
+        requireFinite(candidate, "parameter candidate", path, index);
+        momentumCandidate64[index] = first;
+        secondMomentCandidate64[index] = second;
+        parameterCandidate64[index] = candidate;
+    }
+
+    private void requirePositiveFinite(float value, String role) {
+        requireFinite(value, role, path, -1);
+        if (value <= 0.0f) {
+            throw new ArithmeticException(role + " is not positive at path " + path);
+        }
+    }
+
+    private void requirePositiveFinite(double value, String role) {
+        requireFinite(value, role, path, -1);
+        if (value <= 0.0d) {
+            throw new ArithmeticException(role + " is not positive at path " + path);
         }
     }
 
@@ -512,12 +740,17 @@ final class TrainingParameter {
     }
 
     /**
-     * Publishes staged momentum after parameter writes, without allocation.
-     *
-     * @param configuredMomentum whether the original binary64 momentum is nonzero, even if it
-     *     narrows to binary32 zero
+     * Publishes staged first and optional second optimizer slots after parameter writes, without
+     * allocation. Exactly zero configured SGD momentum retains its established normalization
+     * behavior for restored signed zero.
      */
-    void commitMomentum(boolean configuredMomentum) {
+    void commitOptimizerSlots() {
+        if (adaptive != null) {
+            swapMomentum();
+            swapSecondMoment();
+            return;
+        }
+        boolean configuredMomentum = ((Sgd) optimizer).momentum() != 0.0d;
         if (configuredMomentum) {
             swapMomentum();
         } else if (momentumNeedsZeroNormalization) {
@@ -561,6 +794,12 @@ final class TrainingParameter {
                         segment.get(ValueLayout.JAVA_DOUBLE, (long) index * Double.BYTES),
                         "current parameter", index);
                 requireFiniteState(momentum64[index], "momentum slot", index);
+                if (adaptive != null) {
+                    requireFiniteState(secondMoment64[index], "second moment slot", index);
+                    if (secondMoment64[index] < 0.0d) {
+                        throw new IllegalStateException("negative second moment at path " + path);
+                    }
+                }
                 requireFiniteState(accumulated64[index], "accumulated gradient", index);
             }
         } else {
@@ -577,6 +816,12 @@ final class TrainingParameter {
                     requireFiniteState(master32[index], "master parameter", index);
                 }
                 requireFiniteState(momentum32[index], "momentum slot", index);
+                if (adaptive != null) {
+                    requireFiniteState(secondMoment32[index], "second moment slot", index);
+                    if (secondMoment32[index] < 0.0f) {
+                        throw new IllegalStateException("negative second moment at path " + path);
+                    }
+                }
                 requireFiniteState(accumulated32[index], "accumulated gradient", index);
             }
         }
@@ -585,7 +830,7 @@ final class TrainingParameter {
     /**
      * Captures a detached canonical state from this validated session-owned parameter binding.
      *
-     * <p>The four fresh arrays are filled here and handed off exclusively to the resulting state;
+     * <p>The fresh arrays are filled here and handed off exclusively to the resulting state;
      * neither this binding nor the session retains a mutable reference to them.</p>
      *
      * @return a non-null immutable state with exact logical and optimizer-width payloads
@@ -597,10 +842,13 @@ final class TrainingParameter {
         byte[] parameterBytes = new byte[Math.toIntExact(byteSize())];
         byte[] masterBytes = new byte[Math.toIntExact(masterByteSize())];
         byte[] momentumBytes = new byte[masterBytes.length];
+        byte[] secondBytes = adaptive == null ? null : new byte[masterBytes.length];
         byte[] accumulatedBytes = new byte[masterBytes.length];
         ByteBuffer parameterBuffer = ByteBuffer.wrap(parameterBytes).order(ByteOrder.BIG_ENDIAN);
         ByteBuffer masterBuffer = ByteBuffer.wrap(masterBytes).order(ByteOrder.BIG_ENDIAN);
         ByteBuffer momentumBuffer = ByteBuffer.wrap(momentumBytes).order(ByteOrder.BIG_ENDIAN);
+        ByteBuffer secondBuffer = secondBytes == null ? null
+                : ByteBuffer.wrap(secondBytes).order(ByteOrder.BIG_ENDIAN);
         ByteBuffer accumulatedBuffer = ByteBuffer.wrap(accumulatedBytes).order(ByteOrder.BIG_ENDIAN);
         if (dataType == DataType.FLOAT64) {
             for (int index = 0; index < elementCount; index++) {
@@ -609,6 +857,7 @@ final class TrainingParameter {
                 parameterBuffer.putDouble(value);
                 masterBuffer.putDouble(value);
                 momentumBuffer.putDouble(momentum64[index]);
+                if (secondBuffer != null) secondBuffer.putDouble(secondMoment64[index]);
                 accumulatedBuffer.putDouble(accumulated64[index]);
             }
         } else if (dataType == DataType.FLOAT32) {
@@ -618,6 +867,7 @@ final class TrainingParameter {
                 parameterBuffer.putFloat(value);
                 masterBuffer.putFloat(value);
                 momentumBuffer.putFloat(momentum32[index]);
+                if (secondBuffer != null) secondBuffer.putFloat(secondMoment32[index]);
                 accumulatedBuffer.putFloat(accumulated32[index]);
             }
         } else {
@@ -626,28 +876,26 @@ final class TrainingParameter {
                         ValueLayout.JAVA_SHORT, (long) index * Short.BYTES));
                 masterBuffer.putFloat(master32[index]);
                 momentumBuffer.putFloat(momentum32[index]);
+                if (secondBuffer != null) secondBuffer.putFloat(secondMoment32[index]);
                 accumulatedBuffer.putFloat(accumulated32[index]);
             }
         }
-        return TrainingState.ParameterState.adoptFreshSnapshotArrays(
-                path,
-                dataType,
-                shape,
-                parameterBytes,
-                masterBytes,
-                momentumBytes,
-                accumulatedBytes);
+        return secondBytes == null
+                ? TrainingState.ParameterState.adoptFreshSnapshotArrays(path, dataType, shape,
+                        parameterBytes, masterBytes, momentumBytes, accumulatedBytes)
+                : TrainingState.ParameterState.adoptFreshSnapshotArrays(path, dataType, shape,
+                        parameterBytes, masterBytes, momentumBytes, secondBytes, accumulatedBytes);
     }
 
     /**
-     * Validates this path's detached payload and its assigned SGD momentum rule before restore.
+     * Validates this path's detached payload and assigned slot schema before restore.
      *
      * @param state non-null detached payload expected to match this path and schema
-     * @param optimizer non-null immutable SGD assigned to this parameter at session open
-     * @throws IllegalArgumentException if schema, width, finiteness, or disabled-momentum slot
+     * @throws IllegalArgumentException if schema, width, finiteness, second-moment sign, or
+     *     disabled-momentum slot
      *     values are incompatible
      */
-    void validateState(TrainingState.ParameterState state, Sgd optimizer) {
+    void validateState(TrainingState.ParameterState state) {
         Objects.requireNonNull(state, "state");
         if (!path.equals(state.path())
                 || dataType != state.dataType()
@@ -660,11 +908,15 @@ final class TrainingParameter {
         if (state.parameterBytesInternal().length != expectedLogicalBytes
                 || state.masterParameterBytesInternal().length != expectedMasterBytes
                 || state.momentumBytesInternal().length != expectedMasterBytes
+                || (adaptive == null ? state.secondMomentBytesInternal() != null
+                        : state.secondMomentBytesInternal() == null
+                                || state.secondMomentBytesInternal().length != expectedMasterBytes)
                 || state.accumulatedGradientBytesInternal().length != expectedMasterBytes) {
             throw new IllegalArgumentException(
                     "training state payload size mismatch at path " + path);
         }
-        if (optimizer.momentum() == 0.0d && containsNonZeroMomentum(state)) {
+        if (adaptive == null && ((Sgd) optimizer).momentum() == 0.0d
+                && containsNonZeroMomentum(state)) {
             throw new IllegalArgumentException(
                     "momentum-disabled training state has a non-zero slot at path " + path);
         }
@@ -679,6 +931,7 @@ final class TrainingParameter {
     void stageRestore(TrainingState.ParameterState state) {
         ensureAccumulationCandidate();
         ensureMomentumCandidate();
+        if (adaptive != null) ensureSecondMomentCandidate();
         stagedMomentumHasNegativeZero = false;
         ByteBuffer parameterBuffer = ByteBuffer.wrap(state.parameterBytesInternal())
                 .order(ByteOrder.BIG_ENDIAN);
@@ -686,6 +939,8 @@ final class TrainingParameter {
                 .order(ByteOrder.BIG_ENDIAN);
         ByteBuffer momentumBuffer = ByteBuffer.wrap(state.momentumBytesInternal())
                 .order(ByteOrder.BIG_ENDIAN);
+        ByteBuffer secondBuffer = adaptive == null ? null
+                : ByteBuffer.wrap(state.secondMomentBytesInternal()).order(ByteOrder.BIG_ENDIAN);
         ByteBuffer accumulatedBuffer = ByteBuffer.wrap(state.accumulatedGradientBytesInternal())
                 .order(ByteOrder.BIG_ENDIAN);
         if (dataType == DataType.FLOAT64) {
@@ -696,6 +951,7 @@ final class TrainingParameter {
                 masterBuffer.getDouble();
                 double restoredMomentum = momentumBuffer.getDouble();
                 momentumCandidate64[index] = restoredMomentum;
+                if (secondBuffer != null) secondMomentCandidate64[index] = secondBuffer.getDouble();
                 stagedMomentumHasNegativeZero |= Double.doubleToRawLongBits(restoredMomentum)
                         == Long.MIN_VALUE;
                 accumulatedCandidate64[index] = accumulatedBuffer.getDouble();
@@ -708,6 +964,7 @@ final class TrainingParameter {
                 masterBuffer.getFloat();
                 float restoredMomentum = momentumBuffer.getFloat();
                 momentumCandidate32[index] = restoredMomentum;
+                if (secondBuffer != null) secondMomentCandidate32[index] = secondBuffer.getFloat();
                 stagedMomentumHasNegativeZero |= Float.floatToRawIntBits(restoredMomentum)
                         == Integer.MIN_VALUE;
                 accumulatedCandidate32[index] = accumulatedBuffer.getFloat();
@@ -721,6 +978,7 @@ final class TrainingParameter {
                 masterCandidate32[index] = masterBuffer.getFloat();
                 float restoredMomentum = momentumBuffer.getFloat();
                 momentumCandidate32[index] = restoredMomentum;
+                if (secondBuffer != null) secondMomentCandidate32[index] = secondBuffer.getFloat();
                 stagedMomentumHasNegativeZero |= Float.floatToRawIntBits(restoredMomentum)
                         == Integer.MIN_VALUE;
                 accumulatedCandidate32[index] = accumulatedBuffer.getFloat();
@@ -733,13 +991,16 @@ final class TrainingParameter {
      *
      * <p>Restore needs both staging arrays before commit, but releases the former active
      * accumulation array when the restored sum becomes active. The former active momentum array
-     * is retained for nonzero configured momentum and released for zero configured momentum.
+     * is retained for adaptive or nonzero configured SGD momentum and released for zero SGD
+     * momentum. The adaptive second-moment staging array is retained for reuse.
      * Later staging reallocates released arrays as needed.</p>
      *
-     * @param configuredMomentum whether the original binary64 momentum is nonzero
      */
-    void commitRestore(boolean configuredMomentum) {
+    void commitRestore() {
+        boolean configuredMomentum = adaptive != null
+                || ((Sgd) optimizer).momentum() != 0.0d;
         swapMomentum();
+        if (adaptive != null) swapSecondMoment();
         momentumNeedsZeroNormalization = !configuredMomentum && stagedMomentumHasNegativeZero;
         if (!configuredMomentum) {
             if (dataType != DataType.FLOAT64) {
@@ -759,9 +1020,10 @@ final class TrainingParameter {
     /**
      * Releases restore staging after a failed installation without changing active slots.
      *
-     * @param configuredMomentum whether the original binary64 momentum is nonzero
      */
-    void discardFailedRestoreStaging(boolean configuredMomentum) {
+    void discardFailedRestoreStaging() {
+        boolean configuredMomentum = adaptive != null
+                || ((Sgd) optimizer).momentum() != 0.0d;
         if (dataType != DataType.FLOAT64) {
             accumulatedCandidate32 = null;
             if (!configuredMomentum) {
@@ -796,6 +1058,26 @@ final class TrainingParameter {
         }
     }
 
+    private void ensureSecondMomentCandidate() {
+        if (dataType == DataType.FLOAT64) {
+            if (secondMomentCandidate64 == null) secondMomentCandidate64 = new double[elementCount];
+        } else if (secondMomentCandidate32 == null) {
+            secondMomentCandidate32 = new float[elementCount];
+        }
+    }
+
+    private void swapSecondMoment() {
+        if (dataType == DataType.FLOAT64) {
+            double[] previous = secondMoment64;
+            secondMoment64 = secondMomentCandidate64;
+            secondMomentCandidate64 = previous;
+        } else {
+            float[] previous = secondMoment32;
+            secondMoment32 = secondMomentCandidate32;
+            secondMomentCandidate32 = previous;
+        }
+    }
+
     private void swapMomentum() {
         if (dataType != DataType.FLOAT64) {
             float[] previous = momentum32;
@@ -815,6 +1097,8 @@ final class TrainingParameter {
                 .order(ByteOrder.BIG_ENDIAN);
         ByteBuffer momentumBytes = ByteBuffer.wrap(state.momentumBytesInternal())
                 .order(ByteOrder.BIG_ENDIAN);
+        ByteBuffer secondBytes = adaptive == null ? null
+                : ByteBuffer.wrap(state.secondMomentBytesInternal()).order(ByteOrder.BIG_ENDIAN);
         ByteBuffer accumulatedBytes = ByteBuffer.wrap(state.accumulatedGradientBytesInternal())
                 .order(ByteOrder.BIG_ENDIAN);
         for (int index = 0; index < elementCount; index++) {
@@ -822,19 +1106,38 @@ final class TrainingParameter {
                 requireFinitePayload(parameterBytes.getDouble(), "parameter", index);
                 requireFinitePayload(masterBytes.getDouble(), "master parameter", index);
                 requireFinitePayload(momentumBytes.getDouble(), "momentum", index);
+                if (secondBytes != null) requireSecondMoment(secondBytes.getDouble(), index);
                 requireFinitePayload(accumulatedBytes.getDouble(), "accumulated gradient", index);
             } else if (dataType == DataType.FLOAT32) {
                 requireFinitePayload(parameterBytes.getFloat(), "parameter", index);
                 requireFinitePayload(masterBytes.getFloat(), "master parameter", index);
                 requireFinitePayload(momentumBytes.getFloat(), "momentum", index);
+                if (secondBytes != null) requireSecondMoment(secondBytes.getFloat(), index);
                 requireFinitePayload(accumulatedBytes.getFloat(), "accumulated gradient", index);
             } else {
                 requireFinitePayload(
                         decodeLow(parameterBytes.getShort()), "logical parameter", index);
                 requireFinitePayload(masterBytes.getFloat(), "master parameter", index);
                 requireFinitePayload(momentumBytes.getFloat(), "momentum", index);
+                if (secondBytes != null) requireSecondMoment(secondBytes.getFloat(), index);
                 requireFinitePayload(accumulatedBytes.getFloat(), "accumulated gradient", index);
             }
+        }
+    }
+
+    private void requireSecondMoment(double value, int index) {
+        requireFinitePayload(value, "second moment", index);
+        if (value < 0.0d) {
+            throw new IllegalArgumentException("negative second moment at path " + path
+                    + " index " + index);
+        }
+    }
+
+    private void requireSecondMoment(float value, int index) {
+        requireFinitePayload(value, "second moment", index);
+        if (value < 0.0f) {
+            throw new IllegalArgumentException("negative second moment at path " + path
+                    + " index " + index);
         }
     }
 

@@ -158,7 +158,10 @@ Rules:
   Parameters bind internally by captured Tensor identity; each other bindable input is supplied
   exactly once per run. A missing, duplicate, foreign, descriptor-incompatible, absent, dead,
   inaccessible, overlapping, or parameter-aliasing storage fails before optimizer mutation.
-- `Sgd` is the initial built-in optimizer. It owns immutable learning-rate, momentum, dampening,
+- `Sgd`, `Adam`, and `AdamW` are immutable built-in optimizer configurations. The exact default
+  and ordered parameter groups resolve one algorithm per path at open. All parameters update on
+  every successful global step through one atomic commit, with no backend or per-element
+  algorithm lookup. `Sgd` owns immutable learning-rate, momentum, dampening,
   weight-decay, and Nesterov configuration; its session owns one zero-initialized momentum slot
   per parameter. Coefficients are finite; momentum is in `[0, 1)`, dampening in `[0, 1]`, and
   weight decay is non-negative. Nesterov requires positive momentum and exactly zero dampening.
@@ -171,6 +174,19 @@ Rules:
   Nesterov momentum that narrows to zero, and use FLOAT32 master, momentum, accumulation, and
   candidate arithmetic. A successful low update narrows the validated master candidate once to
   the declared logical type. FLOAT64 uses the configured binary64 values.
+- `Adam` and `AdamW` require finite positive learning rate and epsilon, finite beta1 and beta2
+  in `[0, 1)`, and finite non-negative weight decay. FLOAT32, BFLOAT16, and FLOAT16 assignments
+  narrow coefficients once to binary32 at open and reject a rate or epsilon that becomes zero,
+  a beta that becomes one, or any out-of-range or non-finite coefficient. Both have zero-initialized
+  first and second moments in session state. At one-based global step `t`, they calculate
+  `m = beta1 * oldM + (1 - beta1) * g` and `v = beta2 * oldV + (1 - beta2) * g * g`,
+  divide them by `1 - beta1^t` and `1 - beta2^t`, and subtract
+  `learningRate * correctedM / (sqrt(correctedV) + epsilon)`. Adam first adds
+  `weightDecay * masterParameter` to `g` (coupled decay). AdamW leaves `g` unchanged and first
+  multiplies the master parameter by `1 - learningRate * weightDecay` (decoupled decay).
+  Accumulate-and-step uses the pending gradient sum, not its mean. Bias corrections are validated
+  outside element loops; all moments and arithmetic intermediates must be finite and second
+  moments non-negative.
 - A reset-and-step run uses only that run's gradients and clears older accumulation on success.
   An accumulate run atomically adds the run's gradients without updating parameters or optimizer
   step count. An accumulate-and-step run applies the pending sum plus that run's gradients and
@@ -180,11 +196,11 @@ Rules:
   accumulate-only run. Failed runs advance neither.
 - Run/materialization, gradient decoding, candidate calculation, and complete precommit
   validation precede all mutation. Current parameters, decoded gradients, accumulated gradients,
-  momentum slots, every arithmetic intermediate, and parameter candidates must remain finite in
+  optimizer slots, every arithmetic intermediate, and parameter candidates must remain finite in
   the parameter precision. NaN, either infinity, or represented overflow is an ordinary rejected
   failure; either signed zero is finite and supported. A non-finite detached objective alone is
   not optimizer state and does not invalidate a run whose required gradients and optimizer
-  arithmetic are finite. Restore rejects a non-finite parameter, momentum, or accumulation
+  arithmetic are finite. Restore rejects a non-finite parameter, optimizer slot, or accumulation
   payload. Supported native parameter stores make ordered path-order primitive writes
   non-throwing after validation. Any ordinary validation, execution, materialization, non-finite,
   overflow, or optimizer failure leaves parameter bytes, optimizer slots, counters, and pending
@@ -199,10 +215,14 @@ Rules:
   session close begins may finish normally before cleanup.
 - `TrainingStep` and immutable in-memory session-state snapshots own detached canonical bytes and
   remain readable after session or Engine close. Logical parameter payloads use their declared
-  width; master, momentum, and accumulated-gradient payloads use FLOAT32 width for BFLOAT16,
+  width; master, first-slot, optional second-moment, and accumulated-gradient payloads use
+  FLOAT32 width for BFLOAT16,
   FLOAT16, and FLOAT32 parameters and FLOAT64 width for FLOAT64 parameters. A restore validates the
-  complete optimizer configuration, path/order/schema, counters, payload finiteness, and exact
-  widths before installing any state.
+  complete optimizer kind/configuration, path/order/schema, counters, payload finiteness, exact
+  slot presence and widths, and non-negative Adam/AdamW second moments before installing any state.
+  SGD has no second-moment payload. The existing momentum payload remains the first-slot payload
+  for every algorithm, with a neutral first-moment alias. The default optimizer accessor returns
+  `Optimizer`, including Adam and AdamW defaults, rather than only `Sgd`.
 - CPU, Metal, and supported mixed Engine preparations use this same lifecycle. Training never
   branches on backend identity. This lifecycle does not independently prove or widen low-precision
   Metal graph capability. Unsupported compile, prepare, execution, publication, or materialization

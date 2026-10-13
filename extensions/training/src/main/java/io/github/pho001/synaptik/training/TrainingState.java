@@ -7,16 +7,19 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Immutable detached in-memory snapshot of one training session's complete resumable state.
  *
- * <p>The snapshot contains exact default SGD and ordered parameter-group configurations,
+ * <p>The snapshot contains the exact default optimizer and ordered parameter-group configurations,
  * including dampening. It also contains successful execution and optimizer-step counters,
  * pending accumulation count, and one stable-path entry for every
- * parameter. Each entry owns canonical big-endian logical-parameter, master-parameter, momentum,
- * and accumulated-gradient bytes. Logical payloads use the parameter's declared type; master,
- * momentum, and accumulation payloads use {@code FLOAT64} for {@code FLOAT64} parameters and
+ * parameter. Each entry owns canonical big-endian logical-parameter, master-parameter, first-slot,
+ * optional second-moment, and accumulated-gradient bytes. The first slot is SGD momentum or
+ * Adam/AdamW's first moment; only Adam/AdamW entries have a second moment. Logical payloads use
+ * the parameter's declared type; optimizer slots, master, and accumulation use {@code FLOAT64}
+ * for {@code FLOAT64} parameters and
  * {@code FLOAT32} otherwise. Successful session snapshots contain only finite represented payload
  * values; restore revalidates this invariant before installation. The snapshot retains no Module,
  * Parameter, Tensor, storage, Engine, prepared execution, backend resource, or closeable owner and
@@ -28,7 +31,7 @@ import java.util.Objects;
  * complete optimizer configuration and ordered parameter path/schema match.</p>
  */
 public final class TrainingState {
-    private final Sgd optimizer;
+    private final Optimizer optimizer;
     private final List<ParameterGroup> parameterGroups;
     private final long executions;
     private final long optimizerSteps;
@@ -38,7 +41,7 @@ public final class TrainingState {
     /**
      * Creates an ungrouped detached state for the legacy session configuration.
      *
-     * @param optimizer non-null immutable default SGD configuration
+     * @param optimizer non-null immutable default optimizer configuration
      * @param executions non-negative successful execution count
      * @param optimizerSteps successful update count in {@code [0, executions]}
      * @param accumulatedGradientRuns pending run count in {@code [0, executions]}
@@ -47,7 +50,7 @@ public final class TrainingState {
      * @throws IllegalArgumentException if a counter is invalid or {@code parameters} is empty
      */
     TrainingState(
-            Sgd optimizer,
+            Optimizer optimizer,
             long executions,
             long optimizerSteps,
             long accumulatedGradientRuns,
@@ -58,7 +61,7 @@ public final class TrainingState {
     /**
      * Creates detached state with the exact ordered group configuration for restore matching.
      *
-     * @param optimizer non-null immutable default SGD configuration
+     * @param optimizer non-null immutable default optimizer configuration
      * @param parameterGroups non-null ordered list of non-null immutable groups, copied on capture
      * @param executions non-negative successful execution count
      * @param optimizerSteps successful update count in {@code [0, executions]}
@@ -69,7 +72,7 @@ public final class TrainingState {
      * @throws IllegalArgumentException if a counter is invalid or {@code parameters} is empty
      */
     TrainingState(
-            Sgd optimizer,
+            Optimizer optimizer,
             List<ParameterGroup> parameterGroups,
             long executions,
             long optimizerSteps,
@@ -104,11 +107,15 @@ public final class TrainingState {
     }
 
     /**
-     * Returns the exact immutable default SGD configuration captured with this state.
+     * Returns the exact immutable default optimizer configuration captured with this state.
+     *
+     * <p>The return type is {@link Optimizer}, including Adam and AdamW. This intentionally
+     * replaces the earlier {@code Sgd} method signature; SGD-specific callers may cast after
+     * checking the algorithm kind. There is no second default-optimizer accessor.</p>
      *
      * @return the non-null configuration retained by exact reference
      */
-    public Sgd optimizer() {
+    public Optimizer optimizer() {
         return optimizer;
     }
 
@@ -179,6 +186,7 @@ public final class TrainingState {
         private final byte[] parameterBytes;
         private final byte[] masterParameterBytes;
         private final byte[] momentumBytes;
+        private final byte[] secondMomentBytes;
         private final byte[] accumulatedGradientBytes;
 
         /**
@@ -192,7 +200,7 @@ public final class TrainingState {
          * @param shape non-null fully static parameter Shape
          * @param parameterBytes non-null logical-width canonical bytes, copied on construction
          * @param masterParameterBytes non-null optimizer-width canonical bytes, copied on construction
-         * @param momentumBytes non-null optimizer-width canonical bytes, copied on construction
+         * @param momentumBytes non-null first-slot optimizer-width canonical bytes, copied
          * @param accumulatedGradientBytes non-null optimizer-width canonical bytes, copied on construction
          * @throws NullPointerException if any argument is null
          * @throws IllegalArgumentException if the path, type, Shape, or a payload width is invalid
@@ -206,6 +214,28 @@ public final class TrainingState {
                 byte[] momentumBytes,
                 byte[] accumulatedGradientBytes) {
             this(path, dataType, shape, parameterBytes, masterParameterBytes, momentumBytes,
+                    null, accumulatedGradientBytes, PayloadOwnership.COPY);
+        }
+
+        /**
+         * Defensively captures a state with an Adam/AdamW second-moment payload.
+         *
+         * @param path non-null stable recursive path
+         * @param dataType non-null supported floating type
+         * @param shape non-null fully static shape
+         * @param parameterBytes non-null logical-width canonical bytes, copied
+         * @param masterParameterBytes non-null optimizer-width canonical bytes, copied
+         * @param firstMomentBytes non-null optimizer-width canonical bytes, copied
+         * @param secondMomentBytes non-null optimizer-width canonical bytes, copied
+         * @param accumulatedGradientBytes non-null optimizer-width canonical bytes, copied
+         * @throws NullPointerException if a required argument is null
+         * @throws IllegalArgumentException if schema or payload widths are invalid
+         */
+        ParameterState(String path, DataType dataType, Shape shape, byte[] parameterBytes,
+                byte[] masterParameterBytes, byte[] firstMomentBytes, byte[] secondMomentBytes,
+                byte[] accumulatedGradientBytes) {
+            this(path, dataType, shape, parameterBytes, masterParameterBytes, firstMomentBytes,
+                    Objects.requireNonNull(secondMomentBytes, "secondMomentBytes"),
                     accumulatedGradientBytes, PayloadOwnership.COPY);
         }
 
@@ -223,7 +253,7 @@ public final class TrainingState {
          * @param masterParameterBytes non-null exclusively owned optimizer-width canonical bytes
          * @param momentumBytes non-null exclusively owned optimizer-width canonical bytes
          * @param accumulatedGradientBytes non-null exclusively owned optimizer-width canonical bytes
-         * @return a detached immutable state retaining the four supplied arrays without copying
+         * @return a detached immutable state retaining the supplied arrays without copying
          * @throws NullPointerException if any argument is null
          * @throws IllegalArgumentException if the path, type, Shape, or a payload width is invalid
          */
@@ -236,7 +266,31 @@ public final class TrainingState {
                 byte[] momentumBytes,
                 byte[] accumulatedGradientBytes) {
             return new ParameterState(path, dataType, shape, parameterBytes, masterParameterBytes,
-                    momentumBytes, accumulatedGradientBytes, PayloadOwnership.ADOPT);
+                    momentumBytes, null, accumulatedGradientBytes, PayloadOwnership.ADOPT);
+        }
+
+        /**
+         * Takes exclusive ownership of fresh canonical payload arrays for an adaptive snapshot.
+         *
+         * @param path non-null stable recursive path
+         * @param dataType non-null supported floating type
+         * @param shape non-null fully static shape
+         * @param parameterBytes non-null logical-width bytes owned exclusively by the caller
+         * @param masterParameterBytes non-null optimizer-width master bytes owned exclusively
+         * @param firstMomentBytes non-null optimizer-width first-moment bytes owned exclusively
+         * @param secondMomentBytes non-null optimizer-width second-moment bytes owned exclusively
+         * @param accumulatedGradientBytes non-null optimizer-width pending-sum bytes owned exclusively
+         * @return detached immutable state adopting the supplied arrays
+         * @throws NullPointerException if a required argument is null
+         * @throws IllegalArgumentException if schema or payload widths are invalid
+         */
+        static ParameterState adoptFreshSnapshotArrays(String path, DataType dataType, Shape shape,
+                byte[] parameterBytes, byte[] masterParameterBytes, byte[] firstMomentBytes,
+                byte[] secondMomentBytes, byte[] accumulatedGradientBytes) {
+            Objects.requireNonNull(secondMomentBytes, "secondMomentBytes");
+            return new ParameterState(path, dataType, shape, parameterBytes, masterParameterBytes,
+                    firstMomentBytes, secondMomentBytes, accumulatedGradientBytes,
+                    PayloadOwnership.ADOPT);
         }
 
         private ParameterState(
@@ -246,6 +300,7 @@ public final class TrainingState {
                 byte[] parameterBytes,
                 byte[] masterParameterBytes,
                 byte[] momentumBytes,
+                byte[] secondMomentBytes,
                 byte[] accumulatedGradientBytes,
                 PayloadOwnership ownership) {
             this.path = Objects.requireNonNull(path, "path");
@@ -276,6 +331,8 @@ public final class TrainingState {
                     masterParameterBytes, "masterParameterBytes", (int) optimizerBytes, ownership);
             this.momentumBytes = exactPayload(
                     momentumBytes, "momentumBytes", (int) optimizerBytes, ownership);
+            this.secondMomentBytes = secondMomentBytes == null ? null : exactPayload(
+                    secondMomentBytes, "secondMomentBytes", (int) optimizerBytes, ownership);
             this.accumulatedGradientBytes = exactPayload(
                     accumulatedGradientBytes,
                     "accumulatedGradientBytes",
@@ -337,12 +394,32 @@ public final class TrainingState {
         }
 
         /**
-         * Returns an independent read-only big-endian view of the SGD momentum slot.
+         * Returns an independent read-only big-endian view of the first optimizer slot.
+         *
+         * <p>This compatibility accessor is SGD momentum or Adam/AdamW's first moment.</p>
          *
          * @return a fresh view with position zero and exact payload limit
          */
         public ByteBuffer momentumBytes() {
             return view(momentumBytes);
+        }
+
+        /**
+         * Returns an independent read-only view of the first optimizer slot.
+         *
+         * @return a fresh big-endian view of SGD momentum or Adam/AdamW's first moment
+         */
+        public ByteBuffer firstMomentBytes() {
+            return view(momentumBytes);
+        }
+
+        /**
+         * Returns an independent read-only view of an adaptive second-moment slot, when present.
+         *
+         * @return a fresh big-endian view for Adam/AdamW, or empty for SGD
+         */
+        public Optional<ByteBuffer> secondMomentBytes() {
+            return secondMomentBytes == null ? Optional.empty() : Optional.of(view(secondMomentBytes));
         }
 
         /**
@@ -360,6 +437,10 @@ public final class TrainingState {
 
         byte[] momentumBytesInternal() {
             return momentumBytes;
+        }
+
+        byte[] secondMomentBytesInternal() {
+            return secondMomentBytes;
         }
 
         byte[] accumulatedGradientBytesInternal() {

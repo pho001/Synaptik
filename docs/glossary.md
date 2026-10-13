@@ -6829,9 +6829,10 @@ implicit behavior of `TrainingSession.open`. See [Training API](api/training-api
 
 ### Parameter group / `ParameterGroup`
 
-An immutable ordered list of distinct stable recursive Module parameter paths with one SGD configuration.
+An immutable ordered list of distinct stable recursive Module parameter paths with one SGD, Adam,
+or AdamW configuration.
 Paths are the keys of `Module.parametersRecursively()`. One Training session may assign disjoint
-groups while unlisted parameters use its default SGD. Both group order and path order participate
+groups while unlisted parameters use its default optimizer. Both group order and path order participate
 in exact Training-state restore compatibility; groups do not create separate counters or freeze
 gradient targets. See [Training API](api/training-api.md#session-construction-and-input-mapping).
 
@@ -6842,7 +6843,7 @@ set, one immutable default optimizer configuration and optional ordered paramete
 compiled graph, and one prepared Engine inference session. Opening snapshots exact parameter
 paths/wrappers/Tensors/storages, then compiles and
 prepares once. Each run reuses that session, authenticates target-indexed gradients, stages all
-SGD/accumulation work, and commits only after complete precommit validation. Its initial update
+assigned optimizer/accumulation work, and commits only after complete precommit validation. Its update
 domain is non-empty, finite `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` parameters with fully
 static dense offset-zero non-view layouts and exact-capacity writable, shareable native host
 storage. Each parameter's snapshot payload at its declared (logical) width and each optimizer
@@ -6851,10 +6852,25 @@ Java byte array (at most `Integer.MAX_VALUE` bytes). An oversized payload is rej
 capture before that parameter's storage is inspected or its update buffers are allocated.
 
 The session borrows Engine, Module, and caller storage; it owns the inference session, private
-cotangent seed memory, counters, momentum slots, and gradient accumulation. It admits one
+cotangent seed memory, counters, first optimizer slots, Adam/AdamW second-moment slots, and gradient accumulation. It admits one
 operation, waits for admitted work during close, and produces detached `TrainingStep` and
 `TrainingState` values. It is not a compiler, Runtime runner, backend adapter, device optimizer,
 or durable checkpoint.
+
+### Adaptive optimizer / `Adam`, `AdamW`
+
+An optimizer that tracks first and second moments of each parameter's gradient and corrects
+their startup bias using the one-based global optimizer step. Adam couples weight decay by adding
+it to the gradient before both moments; AdamW decouples decay by scaling the master parameter
+before the adaptive subtraction. Both use Training-owned state after Engine execution, not a
+backend optimizer kernel. See [Training API](api/training-api.md#optimizers-and-gradient-modes).
+
+### First optimizer slot / `firstMomentBytes()`
+
+The per-parameter FLOAT32 or FLOAT64 slot exposed in a detached `TrainingState`. It is SGD
+momentum or Adam/AdamW's first moment. `momentumBytes()` remains an exact compatible alias;
+`secondMomentBytes()` exists only for Adam/AdamW and has the same element width. See
+[Training API](api/training-api.md#atomicity-state-concurrency-and-close).
 
 ### Typed trace DTO
 

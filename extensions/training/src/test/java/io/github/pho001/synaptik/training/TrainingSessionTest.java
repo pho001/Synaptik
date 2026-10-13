@@ -62,6 +62,8 @@ final class TrainingSessionTest {
                 assertNotNull(buffer(binding, "gradient" + width));
                 assertNotNull(buffer(binding, "accumulated" + width));
                 assertNotNull(buffer(binding, "momentum" + width));
+                assertNull(buffer(binding, "secondMoment" + width));
+                assertNull(buffer(binding, "secondMomentCandidate" + width));
                 assertNull(buffer(binding, accumulationCandidate));
                 assertNull(buffer(binding, momentumCandidate));
                 if (type == DataType.FLOAT16 || type == DataType.BFLOAT16) {
@@ -75,6 +77,7 @@ final class TrainingSessionTest {
                 }
 
                 TrainingState initial = session.state();
+                assertTrue(initial.parameters().getFirst().secondMomentBytes().isEmpty());
                 session.run(List.of(), GradientMode.RESET_AND_STEP);
                 assertNull(buffer(binding, accumulationCandidate));
                 assertNull(buffer(binding, momentumCandidate));

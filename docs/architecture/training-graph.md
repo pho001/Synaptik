@@ -132,9 +132,9 @@ until BPTT is designed. See
 
 `extensions/nn` owns the model-module side of a training step: modules declare their trainable
 `Parameter` values, persistent `Buffer` values, and train/eval forward behavior.
-`extensions/training` is downstream of that declaration and owns the implemented `Sgd`
-mathematical update and `TrainingSession` orchestration. This lets a module remain usable for
-inference without importing an optimizer.
+`extensions/training` is downstream of that declaration and owns the implemented `Sgd`, `Adam`,
+and `AdamW` mathematical updates and `TrainingSession` orchestration. This lets a module remain
+usable for inference without importing an optimizer.
 
 An initialized layer can begin with heap-backed parameters, but a session can update only
 shareable native parameter storage. The caller may explicitly call
@@ -168,15 +168,20 @@ validated:
 ```text
 one reusable prepared forward/backward execution
   -> target-indexed detached gradients
-  -> stage SGD/accumulation candidates
+  -> stage assigned optimizer slots/accumulation candidates
   -> validate all stable parameter bindings again
   -> commit parameter bytes and optimizer/session state
 ```
 
 Compiler target order and publication `targetIndex` are the mapping authorities; Training does not
-infer a parameter association from Shape, storage, or publication order alone. `Sgd` supports
-momentum, dampening, coupled weight decay, and compatible Nesterov behavior, while the session
-supports reset-and-step, accumulate-only, accumulate-and-step, zeroing, immutable state snapshots,
+infer a parameter association from Shape, storage, or publication order alone. At open, ordered
+groups resolve one immutable algorithm per parameter; for example an Adam default, SGD weight
+group, and AdamW bias group still use one graph and one global step. `Sgd` supports momentum,
+dampening, coupled weight decay, and compatible Nesterov behavior. `Adam` and `AdamW` use
+bias-corrected first and second moments; the former couples decay into gradients, while the latter
+decays the master parameter separately. Their moments and low-precision master candidates are
+staged before any parameter write. The session supports reset-and-step, accumulate-only,
+accumulate-and-step, zeroing, immutable state snapshots,
 strict restore, and fail-before-commit rejection of non-finite optimizer state or arithmetic.
 Training owns none of `Parameter`, `Buffer`, layer behavior, train/eval mode, backend ownership,
 or a fused update route.

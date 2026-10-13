@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable SGD configuration for an ordered list of recursive Module parameter paths.
+ * Immutable optimizer assignment for an ordered list of recursive Module parameter paths.
  *
  * <p>Paths use the keys returned by {@code Module.parametersRecursively()}. Their order is part
  * of this group's identity and therefore of training-state restore compatibility, even when a
@@ -16,14 +16,14 @@ import java.util.Objects;
  */
 public final class ParameterGroup {
     private final List<String> paths;
-    private final Sgd optimizer;
+    private final Optimizer optimizer;
 
     /**
      * Defines one explicit parameter group without changing the Module's gradient targets.
      *
      * @param paths non-null, nonempty ordered list of distinct, non-null, non-blank recursive
      *     parameter paths; copied before retention
-     * @param optimizer non-null immutable optimizer configuration; currently only {@link Sgd}
+     * @param optimizer non-null immutable built-in optimizer configuration
      * @throws NullPointerException if either argument or a path is null
      * @throws IllegalArgumentException if paths is empty or contains a blank or duplicate path
      */
@@ -42,9 +42,7 @@ public final class ParameterGroup {
             copy.add(path);
         }
         this.paths = List.copyOf(copy);
-        this.optimizer = switch (Objects.requireNonNull(optimizer, "optimizer")) {
-            case Sgd sgd -> sgd;
-        };
+        this.optimizer = Objects.requireNonNull(optimizer, "optimizer");
     }
 
     /**
@@ -57,7 +55,7 @@ public final class ParameterGroup {
     }
 
     /**
-     * Returns the immutable SGD configuration assigned to this group's paths.
+     * Returns the immutable optimizer configuration assigned to this group's paths.
      *
      * @return non-null optimizer retained by exact reference
      */
@@ -66,7 +64,7 @@ public final class ParameterGroup {
     }
 
     /**
-     * Compares the ordered path list and SGD configuration that identify this group.
+     * Compares the ordered path list and optimizer configuration that identify this group.
      *
      * @param other the candidate group, or {@code null}
      * @return {@code true} exactly when {@code other} has the same paths in the same order and

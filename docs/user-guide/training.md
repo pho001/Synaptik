@@ -3,8 +3,9 @@
 ## Outcome
 
 This guide runs the implemented public backend-neutral training lifecycle: one scalar objective,
-one reusable compiled/prepared session, repeated SGD updates, optional gradient accumulation, and
-detached state. The worked example uses CPU through `Engine.standard()`; the session itself uses
+one reusable compiled/prepared session, repeated SGD, Adam, or AdamW updates, optional gradient
+accumulation, and detached state. The worked example uses CPU through `Engine.standard()`; the
+session itself uses
 the ordinary Engine path rather than a training-specific executor. Supported Metal or mixed
 preparation follows the same lifecycle, but the low-parameter CPU qualification described here is
 not a claim of BFLOAT16/FLOAT16 Metal training support.
@@ -151,7 +152,7 @@ float finalLoss = last.objective().bytes().getFloat();
 reuses that `InferenceSession`. Inputs may be supplied in any list order, but every identity listed
 by `training.inputs()` must occur exactly once with a compatible live storage association.
 
-## Configure SGD
+## Configure an optimizer
 
 `new Sgd(learningRate)` selects plain SGD. The constructor with every coefficient is:
 
@@ -170,8 +171,9 @@ private FLOAT32 arithmetic domain as well as before it; FLOAT64 uses the configu
 
 To give `weight` and `bias` different rates in the `Linear` example above, replace its session
 opening and run block with this variation after `copyToSharedNative` succeeds. A parameter group
-is an immutable ordered list of distinct recursive paths from `layer.parametersRecursively()` plus one SGD
-configuration. The group's `weight` uses `0.05`; unlisted `bias` uses the default `0.1`:
+is an immutable ordered list of distinct recursive paths from `layer.parametersRecursively()`
+plus one optimizer configuration. In this example the group's `weight` uses SGD rate `0.05`;
+unlisted `bias` uses the default SGD rate `0.1`:
 
 ```java
 List<ParameterGroup> groups = List.of(
@@ -193,6 +195,29 @@ compatibility even when reordered paths would have the same numerical updates. U
 overlapping paths fail during open before compilation; a group does not freeze a parameter or
 remove it from differentiation.
 
+For a mixed algorithm choice, use this alternative after the same native copy. Here `weight`
+uses decoupled-decay AdamW, while unlisted `bias` uses coupled-decay Adam. Both update on the
+same successful global step:
+
+```java
+List<ParameterGroup> groups = List.of(
+        new ParameterGroup(List.of("weight"),
+                new AdamW(0.001, 0.9, 0.999, 1e-8, 0.01)));
+try (TrainingSession session = TrainingSession.open(engine, layer, objective,
+        new Adam(0.001, 0.9, 0.999, 1e-8, 0.0), groups)) {
+    session.run(List.of(input, target), GradientMode.RESET_AND_STEP);
+    assert session.optimizerSteps() == 1;
+}
+```
+
+Both constructors accept `(learningRate, beta1, beta2, epsilon, weightDecay)`. Rates and epsilon
+must be finite and positive, betas finite in `[0, 1)`, and decay finite and non-negative. Adam
+adds decay to the gradient before updating its two moments; AdamW instead scales the master
+parameter by `1 - learningRate * weightDecay` before the adaptive update. Each moment is
+bias-corrected using the one-based global optimizer step. For FLOAT32, BFLOAT16, and FLOAT16
+parameters, coefficients narrow once to FLOAT32 at open, and invalid narrowed values are
+rejected before compilation.
+
 ## Accumulate and clear gradients
 
 - `RESET_AND_STEP` ignores older pending gradients, applies this run, and clears accumulation.
@@ -213,14 +238,20 @@ successful updates and are absent from an accumulate-only `TrainingStep`.
 ## Snapshot and restore
 
 `TrainingState snapshot = training.state()` owns canonical logical-parameter, master-parameter,
-momentum, and pending-gradient bytes keyed by stable recursive parameter paths. Logical payloads
+first-slot, optional second-moment, and pending-gradient bytes keyed by stable recursive parameter
+paths. Logical payloads
 use the declared parameter width: two bytes per BFLOAT16/FLOAT16 element, four for FLOAT32, and
-eight for FLOAT64. Master, momentum, and accumulation payloads use four bytes per element for
+eight for FLOAT64. Master, optimizer-slot, and accumulation payloads use four bytes per element for
 BFLOAT16, FLOAT16, and FLOAT32 parameters and eight for FLOAT64. `training.restore(snapshot)`
 validates the complete optimizer configuration, including dampening, counters, paths, data types,
 Shapes, finite payload values, and exact payload lengths before installing any state. For grouped
-sessions it also checks the exact default SGD and ordered groups, including each path and SGD
-configuration. The snapshot remains readable after session and Engine close. It is an in-memory
+sessions it also checks the exact default optimizer and ordered groups, including each path and
+algorithm configuration. `momentumBytes()` remains the first-slot accessor: SGD momentum or
+Adam/AdamW first moment. `firstMomentBytes()` aliases it; `secondMomentBytes()` is present only
+for Adam/AdamW. The returned views are fresh and read-only. `TrainingState.optimizer()` now
+returns `Optimizer`, not `Sgd` (a source and binary signature change); check/cast when using
+SGD-specific members. No `defaultOptimizer()` accessor was added. The snapshot remains readable
+after session and Engine close. It is an in-memory
 recovery handoff, not a file
 or checkpoint format.
 
@@ -250,7 +281,7 @@ Tensor storage associations, or parameter bytes while the session is open.
 | Open rejects parameter storage | It is heap, read-only, thread-confined, wrong-sized, a view, or not native/aligned. | Use exact-capacity writable shareable native `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` storage with a dense offset-zero non-view layout. |
 | Open rejects an empty/non-finite parameter | Its element count is zero or an initial value is NaN/infinite. | Supply a non-empty parameter with finite values before opening; rejection precedes compile. |
 | Open rejects a snapshot byte size | The logical or optimizer-width payload exceeds `Integer.MAX_VALUE` bytes for one parameter. | Use a smaller parameter; this in-memory session cannot snapshot a larger payload. |
-| Open rejects a parameter group | A path is blank, unknown, or repeated, or assigned SGD coefficients cannot narrow for that parameter type. | Use the exact keys from `module.parametersRecursively()`, keep memberships disjoint, and choose dtype-compatible SGD values. |
+| Open rejects a parameter group | A path is blank, unknown, or repeated, or assigned optimizer coefficients cannot narrow for that parameter type. | Use the exact keys from `module.parametersRecursively()`, keep memberships disjoint, and choose dtype-compatible values. |
 | Run rejects non-finite optimizer arithmetic | A gradient, accumulation, momentum term, or candidate is NaN/infinite or overflowed. | Correct the objective/input scale; the failed run committed no parameter, optimizer state, or counter. |
 | Open rejects a target as disconnected | A discovered Module parameter does not contribute to the scalar objective. | Build the objective from the Module's complete intended trainable parameter set or use a Module containing only this session's parameters. |
 | Run reports a missing or foreign input | The list does not contain every identity from `training.inputs()` exactly once. | Bind those exact Tensors; order does not matter. |

@@ -16,7 +16,8 @@ The public surface is:
 |---|---|
 | `Optimizer` | Sealed marker for immutable built-in optimizer configuration. |
 | `Sgd` | Learning rate plus optional momentum, dampening, coupled weight decay, and Nesterov. |
-| `ParameterGroup` | Immutable ordered recursive parameter paths with one SGD configuration. |
+| `Adam` / `AdamW` | Bias-corrected first and second moments with coupled / decoupled weight decay. |
+| `ParameterGroup` | Immutable ordered recursive parameter paths with one built-in optimizer configuration. |
 | `GradientMode` | `RESET_AND_STEP`, `ACCUMULATE`, or `ACCUMULATE_AND_STEP`. |
 | `TrainingSession` | Closeable owner of one prepared Engine session, parameter bindings, counters, accumulation, and optimizer slots. |
 | `TrainingParameterStorage` | Explicit copy of an initialized Module parameter tree into caller-owned shareable native host memory before session open. |
@@ -33,11 +34,11 @@ Tensor, and host-storage identity before calling `Engine.compile(...)` exactly o
 `Engine.session(...)` exactly once.
 
 `TrainingSession.open(engine, module, objective, defaultOptimizer, groups)` additionally assigns
-an SGD configuration to each path named by a `ParameterGroup`. Paths are exactly the keys of
+an optimizer configuration to each path named by a `ParameterGroup`. Paths are exactly the keys of
 `module.parametersRecursively()` (for example, `weight` and `bias` on a direct `Linear`, or a
 dot-separated child path). Unlisted parameters use `defaultOptimizer`; an empty groups list is
 equivalent to the four-argument overload. Every parameter remains a gradient target. The
-session defensively captures group order and each group's path order, and resolves one SGD per
+session defensively captures group order and each group's path order, and resolves one algorithm per
 parameter in Module traversal order before compile. A null or duplicate group/path, empty or
 blank path, unknown path, or assigned dtype-incompatible coefficient fails before private seed
 allocation, compile, or prepare. Group order and path order are exact state/restore identity,
@@ -60,6 +61,24 @@ try (TrainingSession session = TrainingSession.open(
 Here `layer`, `objective`, `engine`, `input`, and `target` are the live values constructed in the
 complete example under [explicit native parameter copy](#explicit-native-parameter-copy). The
 single run advances one global optimizer step, not one step per group.
+
+For a three-parameter Module with recursive paths `first`, `second`, and `third`, this assignment
+fragment shows all three algorithms in one session. The unlisted `first` uses Adam; the ordered
+groups assign SGD to `second` and AdamW to `third`. All three still update at the same global step:
+
+```java
+List<ParameterGroup> mixed = List.of(
+        new ParameterGroup(List.of("second"), new Sgd(0.2)),
+        new ParameterGroup(List.of("third"),
+                new AdamW(0.1, 0.5, 0.25, 0.01, 0.1)));
+TrainingSession session = TrainingSession.open(engine, module, objective,
+        new Adam(0.1, 0.5, 0.25, 0.01, 0.1), mixed);
+```
+
+Here `module` must own those three live native parameters and `objective` must be a scalar
+expression connected to all three; the caller closes `session` after use. The
+[CPU integration test](../../testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/TrainingSessionCpuIntegrationTest.java)
+constructs and runs that complete scenario.
 
 `session.inputs()` contains only the compiled inputs not supplied internally as captured
 parameters or the private cotangent seed. Every `run(inputs, mode)` must provide each listed Tensor
@@ -126,7 +145,7 @@ the destination Arena under its own lifetime policy, grants the copy exclusive M
 use, never calls it while a session is open, and closes the destination Arena only after the
 session. This is not a device transfer or a reduction in optimizer-state memory.
 
-## SGD and gradient modes
+## Optimizers and gradient modes
 
 For parameter `p`, published gradient `g`, coupled weight decay `wd`, momentum `m`, dampening `damp`,
 and learning rate `lr`, SGD first computes `d = g + wd * p`. Without momentum, the update is
@@ -137,6 +156,35 @@ positive momentum and exactly zero dampening. FLOAT32, BFLOAT16, and FLOAT16 par
 coefficients after one binary32 narrowing and use finite binary32 master, momentum, accumulation,
 and candidate arithmetic. A successful low-precision update narrows the validated master candidate
 once to the declared logical type. FLOAT64 parameters use binary64.
+
+`Adam(lr, beta1, beta2, epsilon, weightDecay)` and
+`AdamW(lr, beta1, beta2, epsilon, weightDecay)` require finite positive `lr` and `epsilon`,
+betas in `[0, 1)`, and finite non-negative decay. On one-based global step `t`, both form
+`m = beta1 * oldM + (1 - beta1) * g` and
+`v = beta2 * oldV + (1 - beta2) * g * g`. They subtract
+`lr * (m / (1 - beta1^t)) / (sqrt(v / (1 - beta2^t)) + epsilon)`.
+Adam adds `weightDecay * masterParameter` to `g` first (coupled decay). AdamW keeps `g`
+unchanged and multiplies the master parameter by `1 - lr * weightDecay` before subtraction
+(decoupled decay). All parameters share the same `t`, including mixed SGD/Adam/AdamW groups.
+Binary32 assignments narrow all five coefficients once at open, rejecting zero rate/epsilon,
+betas rounded to one, and non-finite or out-of-range results. Bias corrections are calculated
+outside each element loop. Every intermediate, both moments, and final logical narrowing must
+remain finite. `ACCUMULATE_AND_STEP` supplies the pending sum, not an average.
+
+For a `Linear` whose `weight` and `bias` are already in native storage, this replaces the opening
+block in the example above. AdamW updates `weight`; the unlisted `bias` uses Adam. Both advance
+one global step together:
+
+```java
+List<ParameterGroup> groups = List.of(
+        new ParameterGroup(List.of("weight"),
+                new AdamW(0.001, 0.9, 0.999, 1e-8, 0.01)));
+try (TrainingSession session = TrainingSession.open(engine, layer, objective,
+        new Adam(0.001, 0.9, 0.999, 1e-8, 0.0), groups)) {
+    session.run(List.of(input, target), GradientMode.RESET_AND_STEP);
+    assert session.optimizerSteps() == 1;
+}
+```
 
 `RESET_AND_STEP` updates from only the current gradients and clears older pending accumulation.
 `ACCUMULATE` adds the current gradients to the pending sum without changing parameters, momentum,
@@ -167,14 +215,23 @@ All staging allocation precedes parameter writes; commits allocate nothing, and 
 loop creates no object per element. This reduces idle candidate memory, not active state or
 rollback storage.
 
-`state()` returns canonical big-endian logical-parameter, master-parameter, momentum, and pending-
-gradient bytes associated with stable paths and exact schemas. Logical payloads use the declared
+`state()` returns canonical big-endian logical-parameter, master-parameter, first-slot, optional
+second-moment, and pending-gradient bytes associated with stable paths and exact schemas. The
+existing `momentumBytes()` is the first-slot payload: SGD momentum or Adam/AdamW first moment.
+`firstMomentBytes()` is its neutral alias; `secondMomentBytes()` returns a fresh read-only view
+for Adam/AdamW and `Optional.empty()` for SGD. All views are detached and fresh. Logical payloads
+use the declared
 type width: two bytes per BFLOAT16/FLOAT16 element, four for FLOAT32, and eight for FLOAT64.
-Master, momentum, and pending-gradient payloads use four bytes per element for BFLOAT16, FLOAT16,
+Master, first-slot, optional second-moment, and pending-gradient payloads use four bytes per
+element for BFLOAT16, FLOAT16,
 and FLOAT32 parameters and eight for FLOAT64. `restore(state)` validates the complete default
 optimizer and ordered groups (including dampening), counters, paths, schemas, finite payloads,
-and exact lengths before
+and exact slot presence/lengths, including a non-negative finite adaptive second moment, before
 installing anything. This is an in-memory handoff, not a durable checkpoint format.
+`TrainingState.optimizer()` now returns the exact default `Optimizer`, including Adam/AdamW.
+Its source and binary signature changed from `Sgd`; callers requiring SGD-specific members must
+check and cast. There is no replacement `defaultOptimizer()` accessor. Group configurations
+retain exact kind, coefficients, and ordered paths.
 
 Every `run` or state operation performs lifecycle admission before argument validation. Engine
 closure wins first, then session closing/closure, then busy admission; only an admitted operation
@@ -808,7 +865,7 @@ TrainingSession.open
   -> repeated run/materialize/stage/commit
 ```
 
-Parameter groups, Adam/AdamW, schedulers, mixed precision, durable checkpoint persistence, and
+Schedulers, mixed precision beyond the stated parameter domain, durable checkpoint persistence, and
 compiled/fused optimizer updates remain planned. A later compiled optimizer graph requires a
 separate architecture decision. Choosing a fused Metal kernel for any future optimizer update
 belongs to Metal prepare; a `MetalOptimizerBridge` inside Training would reverse the required
