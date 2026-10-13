@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.config.compile.CompileMode;
+import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
@@ -414,6 +415,166 @@ final class AutogradPreflightTest {
                     CompileTimeConstantGraph.Ingress.empty());
             assertTrue(!plan.selectedOccurrences().isEmpty());
         }
+    }
+
+    @Test
+    void requiredSavedStatisticPathsRejectEvenWithConnectedSiblings() throws Exception {
+        Tensor input = tensor(Shape.of(2, 3, 4), true);
+        Tensor scale = tensor(Shape.of(3), true);
+        BatchNormTrainingResult batch = batchTraining(input, scale);
+        for (int slot : List.of(3, 4)) {
+            Tensor saved = batch.output().provenance().orElseThrow().producer().output(slot);
+            for (Tensor objective : List.of(saved.sum(), saved.sum().add(input.sum()))) {
+                for (var policy : FunctionalGradientRequest.DisconnectedPolicy.values()) {
+                    var stage = stage(objective, input, policy);
+                    long before = nextTensorId();
+                    var failure = assertThrows(IllegalArgumentException.class,
+                            () -> AutogradPreflight.preflight(
+                                    CompileMode.FORWARD_AND_BACKWARD, List.of(objective), stage,
+                                    CompileTimeConstantGraph.Ingress.empty()));
+                    assertTrue(failure.getMessage().contains("output[" + slot + "] input[0]"),
+                            failure.getMessage());
+                    assertTrue(failure.getMessage().contains("saved auxiliary"));
+                    assertEquals(before, nextTensorId());
+                }
+            }
+        }
+    }
+
+    @Test
+    void batchTrainingScaleThenInputRejectsBeforeSecondStageAllocation() throws Exception {
+        Tensor input = tensor(Shape.of(2, 3, 4), true);
+        Tensor scale = tensor(Shape.of(3), true);
+        Tensor objective = batchTraining(input, scale).output().sum();
+        Tensor seed = tensor(Shape.of(3), false);
+        for (var policy : FunctionalGradientRequest.DisconnectedPolicy.values()) {
+            var first = new FunctionalGradientRequest.Stage(
+                    List.of(new FunctionalGradientRequest.ForwardTensorReference(objective)),
+                    List.of(Optional.empty()), List.of(scale), true, policy);
+            var second = new FunctionalGradientRequest.Stage(
+                    List.of(new FunctionalGradientRequest.FirstStageGradientReference(0)),
+                    List.of(Optional.of(seed)), List.of(input), false, policy);
+            var request = new FunctionalGradientRequest(List.of(first, second));
+            var initial = AutogradPreflight.preflight(CompileMode.FORWARD_AND_BACKWARD,
+                    List.of(objective), request, CompileTimeConstantGraph.Ingress.empty());
+            var expansion = FirstOrderAutograd.expand(
+                    initial.stageOne(), CompileTimeConstantGraph.Ingress.empty());
+            long before = nextTensorId();
+            var failure = assertThrows(IllegalArgumentException.class,
+                    () -> AutogradPreflight.preflightSecondStage(
+                            request, initial, expansion.targetGradients()));
+            assertTrue(failure.getMessage().startsWith("functionalGradientRequest.stages[1]."));
+            assertTrue(failure.getMessage().contains("saved auxiliary"));
+            assertEquals(before, nextTensorId());
+            assertThrows(IllegalArgumentException.class,
+                    () -> GraphCompiler.compile(CompileMode.FORWARD_AND_BACKWARD,
+                            List.of(objective), Optional.of(request),
+                            CompileTimeConstantGraph.Ingress.empty(),
+                            GraphOptimizationConfig.standard()));
+        }
+    }
+
+    @Test
+    void savedStatisticsBehindMaskAndIndexBoundariesDoNotBlockConnectedDataRoutes() {
+        Tensor input = tensor(Shape.of(2, 3, 4), true);
+        Tensor scale = tensor(Shape.of(3), true);
+        BatchNormTrainingResult batch = batchTraining(input, scale);
+        Tensor saved = batch.output().provenance().orElseThrow().producer().output(3);
+        Tensor data = input.sum();
+        Tensor mask = saved.sum().greaterThan(data);
+        for (Tensor objective : List.of(
+                Tensor.where(mask, data, data.neg()),
+                Tensor.where(mask, batch.output().sum(), data),
+                input.sum(1, mask.expand(input.descriptor().shape())).sum(),
+                input.gather(saved.argsort(0, false), 1).sum())) {
+            for (var policy : FunctionalGradientRequest.DisconnectedPolicy.values()) {
+                var plan = AutogradPreflight.preflight(CompileMode.FORWARD_AND_BACKWARD,
+                        List.of(objective), stage(objective, input, policy),
+                        CompileTimeConstantGraph.Ingress.empty());
+                assertTrue(plan.connectedTarget(0));
+                assertTrue(plan.selectedOccurrences().stream().noneMatch(occurrence ->
+                        occurrence.producer().operation().kind() == BatchNormKind.BATCH_NORM_TRAINING
+                                && occurrence.outputIndex() >= 3));
+            }
+        }
+    }
+
+    @Test
+    void explicitlySelectedSavedRootCannotHideBesideAnotherSelectedOutput() throws Exception {
+        Tensor input = tensor(Shape.of(2, 3, 4), true);
+        Tensor scale = tensor(Shape.of(3), true);
+        Tensor saved = batchTraining(input, scale).output()
+                .provenance().orElseThrow().producer().output(4).sum();
+        Tensor ordinary = input.sum();
+        for (var policy : FunctionalGradientRequest.DisconnectedPolicy.values()) {
+            for (List<Tensor> outputs : List.of(List.of(ordinary, saved), List.of(saved, ordinary))) {
+                var request = new FunctionalGradientRequest.Stage(
+                        outputs.stream().map(output -> (FunctionalGradientRequest.OutputReference)
+                                new FunctionalGradientRequest.ForwardTensorReference(output)).toList(),
+                        List.of(Optional.empty(), Optional.empty()), List.of(input), false, policy);
+                long before = nextTensorId();
+                var failure = assertThrows(IllegalArgumentException.class,
+                        () -> AutogradPreflight.preflight(CompileMode.FORWARD_AND_BACKWARD,
+                                outputs, request, CompileTimeConstantGraph.Ingress.empty()));
+                assertTrue(failure.getMessage().contains("saved auxiliary"));
+                assertEquals(before, nextTensorId());
+            }
+        }
+    }
+
+    @Test
+    void solelyNonDifferentiableTargetRoutesKeepTheirExistingRejection() {
+        Tensor input = tensor(Shape.of(3), true);
+        Tensor branch = tensor(Shape.of(3), true);
+        Tensor output = Tensor.where(input.greaterThan(branch), branch, branch.neg()).sum();
+        for (var policy : FunctionalGradientRequest.DisconnectedPolicy.values()) {
+            var failure = assertThrows(IllegalArgumentException.class,
+                    () -> AutogradPreflight.preflight(CompileMode.FORWARD_AND_BACKWARD,
+                            List.of(output), stage(output, input, policy),
+                            CompileTimeConstantGraph.Ingress.empty()));
+            assertTrue(failure.getMessage().contains("GREATER_THAN"));
+        }
+    }
+
+    @Test
+    void unselectedSavedOutputsAndUnrelatedTargetsRetainDisconnectedPolicies() {
+        Tensor input = tensor(Shape.of(2, 3, 4), true);
+        Tensor scale = tensor(Shape.of(3), true);
+        Tensor saved = batchTraining(input, scale).output()
+                .provenance().orElseThrow().producer().output(3).sum();
+        Tensor ordinary = input.sum();
+        Tensor unrelated = tensor(Shape.scalar(), true);
+        for (var policy : FunctionalGradientRequest.DisconnectedPolicy.values()) {
+            var plan = AutogradPreflight.preflight(CompileMode.FORWARD_AND_BACKWARD,
+                    List.of(saved, ordinary), stage(ordinary, input, policy),
+                    CompileTimeConstantGraph.Ingress.empty());
+            assertTrue(plan.connectedTarget(0));
+            if (policy == FunctionalGradientRequest.DisconnectedPolicy.ZERO) {
+                var disconnected = AutogradPreflight.preflight(CompileMode.FORWARD_AND_BACKWARD,
+                        List.of(saved, unrelated), stage(saved, unrelated, policy),
+                        CompileTimeConstantGraph.Ingress.empty());
+                assertTrue(!disconnected.connectedTarget(0));
+            } else {
+                var failure = assertThrows(IllegalArgumentException.class,
+                        () -> AutogradPreflight.preflight(CompileMode.FORWARD_AND_BACKWARD,
+                                List.of(saved, unrelated), stage(saved, unrelated, policy),
+                                CompileTimeConstantGraph.Ingress.empty()));
+                assertTrue(failure.getMessage().contains("disconnected"));
+            }
+        }
+    }
+
+    private static FunctionalGradientRequest.Stage stage(Tensor output, Tensor target,
+            FunctionalGradientRequest.DisconnectedPolicy policy) {
+        return new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.ForwardTensorReference(output)),
+                List.of(Optional.empty()), List.of(target), false, policy);
+    }
+
+    private static BatchNormTrainingResult batchTraining(Tensor input, Tensor scale) {
+        return input.batchNormTraining(1, scale, tensor(Shape.of(3), true),
+                tensor(Shape.of(3), true), tensor(Shape.of(3), true),
+                ScalarValue.float32(0.1f), ScalarValue.float32(1.0e-5f));
     }
 
     @Test

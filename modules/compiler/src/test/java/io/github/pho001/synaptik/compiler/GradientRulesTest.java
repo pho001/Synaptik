@@ -493,6 +493,16 @@ final class GradientRulesTest {
     }
 
     @Test
+    void batchedMatrixVectorGradientsRestoreTheColumnBeforeBatchReduction() {
+        for (Shape shape : List.of(Shape.of(2, 3, 4), Shape.of(2, 2, 2), Shape.of(2, 3, 4, 5))) {
+            for (int role = 0; role < 2; role++) {
+                assertMatmulGradient(shape,
+                        Shape.of(((StaticDimension) shape.dimension(shape.rank() - 1)).size()), role);
+            }
+        }
+    }
+
+    @Test
     void rankTwoMatmulUsesTheExplicitSeedAndOnlyLocalTransposeMatmulFormulas() {
         Tensor left = tensor(Shape.of(2, 3));
         Tensor right = tensor(Shape.of(3, 4));

@@ -556,6 +556,12 @@ derivative policy. Unknown kinds, unclassified kind/attributes pairings, malform
 cardinalities, illegal slots, and unsupported prerequisites fail closed before derivative Tensor
 identity allocation.
 
+Preflight follows required cotangent paths from the selected stage outputs, stopping at `ND`
+roles such as comparisons, masks, and indices. A required `FC` path to a requested target rejects
+the stage even when a differentiable sibling path also reaches that target. Neither disconnected
+policy permits omitting such a contribution. An unselected output or a saved value used only
+behind an intentional non-differentiable boundary does not create a required derivative path.
+
 The same family-owner decision is retained in the successful preflight plan and drives
 `FirstOrderAutograd` dispatch, so role selection and formula routing do not maintain independent
 kind branches. Named `ElementwiseGradientRules`, `ReductionGradientRules`,
@@ -718,12 +724,24 @@ next-running-variance slot two contributes to input/running variance. Its formul
 exact same-occurrence saved mean and inverse-standard-deviation wrappers from slots three and
 four. Those saved slots are formula inputs, not independent cotangent roots, publications,
 physical buffers, or a runtime tape.
+For example, differentiating `sum(batchNormTraining(...).output())` with respect to scale is
+supported, but differentiating that scale gradient with respect to the original input is rejected:
+it would require derivatives of the saved statistics. The ordinary input path in the same formula
+does not make that second derivative complete. This restriction does not change first-order
+BatchNorm or prohibit using a saved statistic solely to construct a comparison mask.
 
 MATMUL handles vector/vector, vector/matrix, matrix/vector, and matrix/matrix formulas with public
 rank edits, last-two-axis permutation, multiplication or MATMUL, followed by `sumToShape` for
 each selected operand where batch broadcasting may have occurred and then one ordinary cast when
 the promoted contribution type differs from that operand. Integral MATMUL remains
 non-differentiable.
+For matrix/vector input `A[batch..., rows, columns] @ b[columns]`, the vector cotangent restores
+the seed's final singleton column: `T(A) @ expandDims(g, -1)`, then squeezes that column and sums
+the batch axes. Here `T` swaps the final two axes and `g` has Shape `[batch..., rows]`; these are
+formula sketches, with explicit contiguous materialization at rank edits in the implementation.
+For `A[2,2,2]` containing `1..8` and unit `g[2,2]`, the two batch contributions are `[4,6]` and
+`[12,14]`, yielding vector gradient `[16,20]`. Treating `g` as a matrix would conflate its batch
+axis with a matrix axis, even though the coincident dimensions happen to fit.
 
 SLICE writes `g` into an input-shaped typed zero. `SliceAttrs` placement uses the exact stored
 starts, axes, and steps; `CropToShapeAttrs` placement uses the exact prefix Shape. For
@@ -826,9 +844,9 @@ is intentionally explicit:
 
 | Classification | Current deferred or rejected families |
 |---|---|
-| Structured fail-closed boundaries | One-output attention lacks canonical same-occurrence weights and is rejected; index-target categorical cross-entropy rejects a dynamic or zero class depth |
+| Structured fail-closed boundaries | One-output attention lacks canonical same-occurrence weights and is rejected; index-target categorical cross-entropy rejects a dynamic or zero class depth; batch-training saved auxiliary cotangent paths are rejected, including beside connected sibling paths |
 | Current source-backed closure | The supported production first-order inventory contains exactly 38 families, 111 constants, and 133 signature fingerprints. Current Compiler forward verification covers the complete Model inventory of 40 families, 115 constants, and 137 signatures. Its exact four-signature deferred partition comprises RNN, GRU, LSTM, and Conv3d; both backward-capable modes reject those signatures before seed validation and derivative Tensor allocation. Both Pool3d signatures, both `UNFOLD3D` attribute variants, and `FOLD3D` are supported through ordinary public Tensor expressions. Every currently supported legal output/input role has a `D`, `ND`, or `FC` disposition, and generated formula edges remain inside the same classified Tensor algebra. |
-| Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, batch-training saved auxiliary roots, one-hot and other index roles, ordering indices, dropout masks, padding constants, select coordinates, and graph RNG state |
+| Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, one-hot and other index roles, ordering indices, dropout masks, padding constants, select coordinates, and graph RNG state |
 
 Unknown/custom kinds, wrong attribute classes or cardinalities, missing canonical outputs, and
 descriptor contradictions also fail deterministically. Later formulas must continue using the

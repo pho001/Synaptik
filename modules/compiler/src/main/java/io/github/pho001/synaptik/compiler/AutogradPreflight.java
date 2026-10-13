@@ -172,6 +172,11 @@ import java.util.Set;
  * prerequisites pass. Unknown signatures and unsupported roles fail closed. The recorded family
  * owner is carried in each {@link SelectedOccurrence}, so preflight selection and formula dispatch
  * cannot choose different families.
+ * Required cotangent paths are traced from selected stage outputs through differentiable and
+ * fail-closed roles, stopping at intentionally non-differentiable roles. A fail-closed role on a
+ * required target path rejects the stage even when another sibling path connects that target,
+ * regardless of disconnected policy. A saved statistic used only to compute a mask or index does
+ * not require its own derivative; ordinary first-order use of saved values is unchanged.
  *
  * <p>This owner selects rules and rejects unsupported operation, input/output signature, attribute,
  * role, data-type, Shape, and policy combinations. A known rejection occurs before the seed, a
@@ -426,13 +431,14 @@ final class AutogradPreflight {
         }
 
         Inventory ancestry = inventory(outputs);
+        Set<Tensor> requiredCotangents = requiredCotangents(ancestry, outputs);
         IdentityHashMap<Tensor, BitSet> containsTargets = new IdentityHashMap<>();
         for (int targetIndex = 0; targetIndex < targets.size(); targetIndex++) {
             containsTargets
                     .computeIfAbsent(targets.get(targetIndex), ignored -> new BitSet())
                     .set(targetIndex);
         }
-        String[] blockedRoutes = new String[targets.size()];
+        String[] nonDifferentiableRoutes = new String[targets.size()];
         List<SelectedOccurrence> selected = new ArrayList<>();
         for (int producerIndex = 0;
                 producerIndex < ancestry.producerPostorder().size();
@@ -460,12 +466,18 @@ final class AutogradPreflight {
                         selectedInputs[input] = true;
                         anySelectedInput = true;
                         outputTargets.or(inputTargets);
+                    } else if (decision.disposition()
+                            == FirstOrderGradientCoverage.Disposition.FC) {
+                        if (requiredCotangents.contains(producer.output(selectedOutput))) {
+                            throw new IllegalArgumentException(prefix + "." + occurrence(
+                                    producerIndex, producer, selectedOutput, input) + decision.reason());
+                        }
                     } else {
                         for (int targetIndex = inputTargets.nextSetBit(0);
                                 targetIndex >= 0;
                                 targetIndex = inputTargets.nextSetBit(targetIndex + 1)) {
-                            if (blockedRoutes[targetIndex] == null) {
-                                blockedRoutes[targetIndex] = occurrence(
+                            if (nonDifferentiableRoutes[targetIndex] == null) {
+                                nonDifferentiableRoutes[targetIndex] = occurrence(
                                                 producerIndex,
                                                 producer,
                                                 selectedOutput,
@@ -475,7 +487,7 @@ final class AutogradPreflight {
                         }
                     }
                 }
-                if (anySelectedInput) {
+                if (anySelectedInput && requiredCotangents.contains(producer.output(selectedOutput))) {
                     try {
                         validateOccurrence(
                                 producerIndex, producer, selectedOutput, selectedInputs);
@@ -508,8 +520,8 @@ final class AutogradPreflight {
                 continue;
             }
             if (ancestry.routeTensors().containsKey(targets.get(index))
-                    && blockedRoutes[index] != null) {
-                throw new IllegalArgumentException(prefix + "." + blockedRoutes[index]);
+                    && nonDifferentiableRoutes[index] != null) {
+                throw new IllegalArgumentException(prefix + "." + nonDifferentiableRoutes[index]);
             }
             if (policy == FunctionalGradientRequest.DisconnectedPolicy.ERROR) {
                 throw new IllegalArgumentException(
@@ -527,6 +539,37 @@ final class AutogradPreflight {
                 connectedTargets,
                 policy,
                 original.producers());
+    }
+
+    /**
+     * Marks the stage-output ancestry in which a target path would require a cotangent.
+     *
+     * <p>Fail-closed roles remain traversable here: lack of a formula is a required rejection,
+     * not permission to discard that path. Intentionally non-differentiable roles cut traversal,
+     * including comparison, mask, and index roles. The forward target pass then intersects this
+     * demand with exact target reachability before validating or rejecting an occurrence.</p>
+     *
+     * @param ancestry non-null selected-output inventory in producer postorder
+     * @param outputs non-null exact selected stage roots
+     * @return a new identity set of Tensors whose cotangents may be needed; never {@code null}
+     */
+    private static Set<Tensor> requiredCotangents(Inventory ancestry, List<Tensor> outputs) {
+        Set<Tensor> required = Collections.newSetFromMap(new IdentityHashMap<>());
+        required.addAll(outputs);
+        for (TensorProducer producer : ancestry.producerPostorder().reversed()) {
+            for (int output : ancestry.selectedOutputs(producer)) {
+                if (!required.contains(producer.output(output))) {
+                    continue;
+                }
+                for (int input = 0; input < producer.inputs().size(); input++) {
+                    if (FirstOrderGradientCoverage.classify(producer, output, input).disposition()
+                            != FirstOrderGradientCoverage.Disposition.ND) {
+                        required.add(producer.inputs().get(input));
+                    }
+                }
+            }
+        }
+        return required;
     }
 
     private static void validateSecondStageClosure(

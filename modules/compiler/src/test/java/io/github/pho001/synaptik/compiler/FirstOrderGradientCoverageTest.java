@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.config.compile.CompileMode;
@@ -310,10 +311,11 @@ final class FirstOrderGradientCoverageTest {
     }
 
     @Test
-    void closesGeneratedFormulaEdgesAndRunsOnlyIdentityConnectedNestedPasses() {
+    void closesGeneratedFormulaEdgesAndChecksNestedPathDispositions() {
         Set<String> emitted = new HashSet<>();
         int connected = 0;
         int notApplicable = 0;
+        int failClosed = 0;
         for (ClosureCase closureCase : closureCases()) {
             AutogradPreflight.StagePlan firstPlan = AutogradPreflight.preflight(
                     CompileMode.FORWARD_AND_BACKWARD,
@@ -336,12 +338,27 @@ final class FirstOrderGradientCoverageTest {
                                 + " first gradient has no D-edge identity path");
                 continue;
             }
-            connected++;
             Tensor nestedObjective = firstGradient.sum();
             assertTrue(
                     nestedObjective.descriptor().dataType().isFloating()
                             && nestedObjective.descriptor().requiresGrad(),
                     closureCase.label());
+            if (closureCase.label().equals("batch-normalization-training")) {
+                // A D-edge sibling cannot replace the missing saved-statistic contributions.
+                var failure = assertThrows(IllegalArgumentException.class,
+                        () -> AutogradPreflight.preflight(
+                                CompileMode.FORWARD_AND_BACKWARD,
+                                List.of(nestedObjective),
+                                FunctionalGradientTestSupport.stage(
+                                        nestedObjective, List.of(closureCase.target())),
+                                first.ingress()));
+                assertTrue(failure.getMessage().contains("BATCH_NORM_TRAINING"));
+                assertTrue(failure.getMessage().contains("output[3] input[0]"));
+                assertTrue(failure.getMessage().contains("saved auxiliary"));
+                failClosed++;
+                continue;
+            }
+            connected++;
             AutogradPreflight.StagePlan secondPlan = AutogradPreflight.preflight(
                     CompileMode.FORWARD_AND_BACKWARD,
                     List.of(nestedObjective),
@@ -357,8 +374,9 @@ final class FirstOrderGradientCoverageTest {
                     secondPlan.originalProducers()));
         }
         assertFalse(emitted.isEmpty());
-        assertEquals(10, connected);
+        assertEquals(9, connected);
         assertEquals(12, notApplicable);
+        assertEquals(1, failClosed);
     }
 
     private static List<ClosureCase> closureCases() {

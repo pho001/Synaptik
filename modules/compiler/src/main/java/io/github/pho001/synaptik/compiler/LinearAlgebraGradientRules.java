@@ -19,10 +19,14 @@ import io.github.pho001.synaptik.model.tensor.TensorProducer;
  * contiguous materialization, the four cases are: vector/vector {@code [g * r, g * l]};
  * vector/matrix
  * {@code [C(squeeze(C(expandDims(g)) @ T(r))), C(expandDims(l)) @ C(expandDims(g))]};
- * matrix/vector {@code [C(expandDims(g)) @ C(expandDims(r)), T(l) @ g]}; and matrix/matrix
+ * matrix/vector
+ * {@code [C(expandDims(g)) @ C(expandDims(r)), C(squeeze(T(l) @ C(expandDims(g))))]};
+ * and matrix/matrix
  * {@code [g @ T(r), T(l) @ g]}. Each selected result is reduced with
  * {@code sumToShape(operand.shape())} when batch broadcasting occurred and is then cast once when
  * its promoted type differs from the selected operand. An unselected role remains {@code null}.
+ * The matrix/vector right formula inserts and removes the final singleton column axis, so a
+ * batched cotangent retains its batch prefix instead of being interpreted as a matrix operand.
  *
  * <p>This owner constructs expression metadata only. It reads no values or storage, captures no
  * graph, selects no numerical implementation, and performs no lowering or execution.</p>
@@ -83,8 +87,11 @@ final class LinearAlgebraGradientRules {
                         .sumToShape(left.descriptor().shape());
             }
             if (selectedInputs[1]) {
+                int columnAxis = gradient.descriptor().shape().rank();
                 rightGradient = swapLastTwo(left)
-                        .matmul(gradient)
+                        .matmul(gradient.expandDims(columnAxis).contiguous())
+                        .squeeze(columnAxis)
+                        .contiguous()
                         .sumToShape(right.descriptor().shape());
             }
         } else {
