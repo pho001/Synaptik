@@ -21,8 +21,12 @@ Training-owned optimizer/session snapshot
   -> exact-resume artifact
 ```
 
-This is future planning only. Neither `extensions/checkpoint` nor the optional Training Checkpoint
-adapter exists in `ARCHITECTURE.md`, Gradle settings, or production code.
+This is future planning only until Checkpoint 0001 integrates. Neither `extensions/checkpoint`
+nor the optional Training Checkpoint adapter currently exists in `ARCHITECTURE.md`, Gradle
+settings, or production code. The authorized serial frontier is
+[Checkpoint 0001](tasks/0001-checkpoint-module-boundary.md), from base `44a77c95`; no concurrent
+writer owns its extension/dependency contracts. Checkpoint 0002–0006 remain Draft, and the
+implementation owner integrates shared documents before the single recorded repository gate.
 
 ## Architecture references
 
@@ -231,7 +235,7 @@ lambda or added as a generic reflective registry.
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | Checkpoint and optional Training Checkpoint architecture boundary | Draft | Explicit architecture decision | Update `ARCHITECTURE.md`, lifecycle/module/dependency explanations, a significant ADR, settings/build ownership, and architecture tests for model-only Checkpoint downstream of NN+Engine and optional Training Checkpoint downstream of Training+Checkpoint; add no persistence API in the architecture task. |
+| [0001](tasks/0001-checkpoint-module-boundary.md) | Model Checkpoint module boundary | Ready | None; architecture decision is the deliverable | Update the root and owning scoped contract, explanations, ADR, settings/build, and architecture tests for model-only Checkpoint downstream of NN+Engine. Authorize but do not create the optional Training adapter. No persistence API. |
 | 0002 | Bounded durable artifact envelope | Draft | 0001; selected codec/filesystem policy | Define deterministic versioned manifest/payload/checksum types, resource bounds, temporary-target publication, durable flush, reopen validation, rename semantics, and corruption rejection without model/training concepts. |
 | 0003 | Model schema and Engine materialization handoff | Draft | 0002; existing Engine host materialization; NN state/lazy-binding contracts | Define stable model state/config/input-artifact fingerprints and convert a complete NN state snapshot to bounded host payloads only through Engine publication/materialization. Existing Engine capability is available, but this adapter is not. |
 | 0004 | Model checkpoint save, inspect, and strict load | Draft | 0003 | Persist materialized parameters/buffers and validate the entire artifact plus recreated topology before one strict NN installation; never serialize arbitrary `Model.define` lambdas. |
@@ -239,8 +243,8 @@ lambda or added as a generic reflective registry.
 | 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005; supported caller-state schemas/codecs | Encode and restore only the model, Training state, effective objective contexts, and caller-owned participants with versioned bounded codecs and owner validation; reject an exact artifact for any unsupported affecting state. Model-only Checkpoint stays independent of Training. |
 | 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004; 0006 when exact training resume is selected; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, exact training resume, documentation, and dependency enforcement. |
 
-No detailed Checkpoint task exists and no Checkpoint task is Ready. Checkpoint 0001 remains gated
-by its explicit architecture decision. Model 0032's numerical cutover and Training 0002B's
+Checkpoint 0001 is the only authorized frontier. It makes the explicit architecture decision;
+neither 0002 nor an optional adapter is Ready. Model 0032's numerical cutover and Training 0002B's
 in-memory Adam/AdamW snapshot capability are Complete; neither creates durable checkpoint APIs.
 
 The cross-area order is acyclic: accepted Training 0003A and Checkpoint 0001–0004 precede
