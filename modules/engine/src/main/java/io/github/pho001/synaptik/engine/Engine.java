@@ -377,18 +377,28 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
-     * Performs one bounded two-phase CPU autotuning transaction and returns a fresh production
-     * preparation, or the explicitly permitted safe heuristic fallback.
+     * Performs one bounded two-phase autotuning transaction for an eligible single-partition
+     * CPU or Metal plan and returns a fresh production preparation, or an explicitly permitted
+     * same-owner safe heuristic fallback.
      *
-     * <p>Phase 1 selects and authenticates the CPU local-workload decision. Phase 2 holds that
-     * decision fixed while it checks every complete-plan candidate for exact canonical-byte
-     * correctness before any warmup or timed execution. After authenticating the complete-plan
+     * <p>CPU plans use the CPU local-workload and complete-plan candidates. Metal tuning is
+     * bounded to an eligible singleton {@code NEG} (negation) partition with the complete
+     * custom-kernel/MPSGraph local candidate batch; an MPSGraph-only plan is not tunable.
+     * Metal workload and complete-plan decisions have {@code SESSION} reuse scope: they are
+     * valid only for the current tuning session and are never read from or written to persistent
+     * tuning caches. Empty, missing-owner, heterogeneous, and multiple-partition plans are
+     * rejected before representative trial execution.</p>
+     *
+     * <p>Phase 1 selects and authenticates the selected backend's local-workload decision.
+     * Phase 2 holds that decision fixed while it checks every complete-plan candidate for exact
+     * canonical-byte correctness before any warmup or timed execution. After authenticating the complete-plan
      * winner and cleaning representative resources, Engine freshly prepares only that winner;
-     * no trial preparation becomes production state. When the request explicitly allows safe
-     * fallback, a recoverable tuning failure instead produces one fresh ordinary heuristic
-     * preparation and reports the fallback outcome without tuning evidence. Every trial result
-     * closes before its temporary preparation; the returned preparation contains the sole
-     * closeable production owner.</p>
+     * no trial preparation becomes production state. When the request selects
+     * {@code ALLOW_SAFE_HEURISTIC}, a recoverable tuning failure instead produces one fresh
+     * ordinary heuristic preparation through the same already-selected backend and reports the fallback outcome
+     * without tuning evidence. Fallback never changes backend ownership or permits a
+     * heterogeneous trial. Every trial result closes before its temporary preparation;
+     * the returned preparation contains the sole closeable production owner.</p>
      *
      * @param compiledGraph non-null compile handle created by this exact Engine
      * @param request non-null configuration, identity, and live representative inputs
@@ -397,7 +407,7 @@ public final class Engine implements AutoCloseable {
      *     plus immutable outcome metadata
      * @throws NullPointerException if an argument or required request value is null
      * @throws IllegalArgumentException if ownership, representative binding, or tuning evidence
-     *     is invalid
+     *     is invalid, or the compiled plan is outside the supported single-partition owner domain
      * @throws IllegalStateException if closure has begun or required tuning cannot complete
      * @throws RuntimeException if tuning, preparation, execution, or cleanup fails
      * @throws Error if inward work or cleanup reports a fatal failure

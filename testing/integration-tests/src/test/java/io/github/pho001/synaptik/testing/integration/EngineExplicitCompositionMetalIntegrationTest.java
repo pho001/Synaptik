@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.github.pho001.synaptik.engine.EngineMixedOwnerTestAccess.compileWithoutDevice;
 
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
@@ -1953,7 +1954,25 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void canonicalCrossOwnerTransfersRunAtRankZeroOneAndSixteen() {
+    void mixedOwnerFixtureStructureNeedsNoNativeDevice() {
+        for (Shape shape : transferShapes()) {
+            Tensor input = symbolic(descriptor(shape));
+            for (MixedFixture fixture : mixedFixtures(input, -1.25f, 2.5f)) {
+                assertMixedStructure(compileWithoutDevice(fixture.outputs()), fixture);
+            }
+        }
+        Tensor vector = symbolic(descriptor(Shape.of(2)));
+        assertMixedStructure(compileWithoutDevice(List.of(vector.sum().exp())),
+                new MixedFixture(List.of(), List.of("metal", "cpu"),
+                        List.of("METAL_TO_CPU"), new float[][] {}));
+        Tensor scalar = symbolic(descriptor(Shape.scalar()));
+        assertMixedStructure(compileWithoutDevice(List.of(scalar.exp().reshape(1))),
+                new MixedFixture(List.of(), List.of("cpu", "metal"),
+                        List.of("CPU_TO_METAL"), new float[][] {}));
+    }
+
+    @Test
+    void canonicalCrossOwnerTransfersRunAtRankOneAndSixteen() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared();
                 Engine.Builder builder = Engine.builder()) {
@@ -1961,41 +1980,55 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     new MetalBackendConfiguration(library)));
             builder.takeOwnership(CpuBackendIntegration.open());
             try (Engine engine = builder.build()) {
-                List<Shape> rankBounds = List.of(
-                        Shape.of(2),
-                        Shape.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2));
-                for (Shape shape : rankBounds) {
+                for (Shape shape : transferShapes()) {
                     Tensor input = nativeTensor(
                             descriptor(shape), arena, -1.25f, 2.5f);
-                    var compiled = engine.compile(List.of(
-                            input.neg().sigmoid(),
-                            input.sigmoid().neg()));
-                    assertEquals(
-                            List.of("metal"),
-                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                    try (var session = engine.session(compiled);
-                            var result = session.run(List.of(input))) {
-                        assertSigmoidApproxCanonical(
-                                result.materialize(
-                                        result.publications().get(0), 2L * Float.BYTES).bytes(),
-                                strictSigmoid(1.25f), strictSigmoid(-2.5f));
-                        assertSigmoidApproxCanonical(
-                                result.materialize(
-                                        result.publications().get(1), 2L * Float.BYTES).bytes(),
-                                -strictSigmoid(-1.25f), -strictSigmoid(2.5f));
+                    for (MixedFixture fixture : mixedFixtures(input, -1.25f, 2.5f)) {
+                        var compiled = engine.compile(fixture.outputs());
+                        assertMixedStructure(EngineMixedOwnerTestAccess.compileArtifacts(compiled),
+                                fixture);
+                        try (var session = engine.session(compiled)) {
+                            assertPreparedTransfers(session, fixture.transfers(), shape);
+                            for (int run = 0; run < 2; run++) {
+                                try (var result = session.run(List.of(input))) {
+                                    assertMixedPublications(result, fixture.expected());
+                                }
+                            }
+                        }
                     }
                 }
+            }
+        }
+    }
+
+    @Test
+    void canonicalScalarTransfersRunInBothDirections() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library)));
+            builder.takeOwnership(CpuBackendIntegration.open());
+            try (Engine engine = builder.build()) {
                 Tensor reductionInput =
                         nativeTensor(descriptor(Shape.of(2)), arena, 1.25f, 2.75f);
                 var scalarTransfer = engine.compile(List.of(reductionInput.sum().exp()));
                 assertEquals(List.of("metal", "cpu"),
                         EngineMixedOwnerTestAccess.partitionOwners(scalarTransfer));
-                try (var session = engine.session(scalarTransfer);
-                        var result = session.run(List.of(reductionInput))) {
-                    assertCanonical(
-                            result.materialize(
-                                    result.publications().getFirst(), Float.BYTES).bytes(),
-                            strictExp(4.0f));
+                try (var session = engine.session(scalarTransfer)) {
+                    assertPreparedTransfers(session, List.of("METAL_TO_CPU"), Shape.scalar());
+                    try (var result = session.run(List.of(reductionInput))) {
+                        assertMixedPublications(result, new float[][] {{strictExp(4.0f)}});
+                    }
+                }
+                Tensor scalar = nativeTensor(descriptor(Shape.scalar()), arena, 1.25f);
+                var scalarUpload = engine.compile(List.of(scalar.exp().reshape(1)));
+                assertEquals(List.of("cpu", "metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(scalarUpload));
+                try (var session = engine.session(scalarUpload)) {
+                    assertPreparedTransfers(session, List.of("CPU_TO_METAL"), Shape.scalar());
+                    try (var result = session.run(List.of(scalar))) {
+                        assertMixedPublications(result, new float[][] {{strictExp(1.25f)}});
+                    }
                 }
             }
         }
@@ -2020,7 +2053,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         descriptor, arena, 1.25f, -2.5f);
 
                 var metalCompiled = engine.compile(List.of(input.neg()));
+                assertEquals(List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(metalCompiled));
                 try (var session = engine.session(metalCompiled)) {
+                    assertEquals(List.of(), EngineMixedOwnerTestAccess.preparedTransfers(session));
                     for (int run = 0; run < 2; run++) {
                         try (var result = session.run(List.of(input))) {
                             ByteBuffer canonical = result.materialize(
@@ -2033,34 +2069,14 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     }
                 }
 
-                assertMixedResult(
-                        engine,
-                        engine.compile(List.of(input.sigmoid().neg())),
-                        List.of("metal"),
-                        List.of(input),
-                        -strictSigmoid(1.25f),
-                        -strictSigmoid(-2.5f));
-                assertMixedResult(
-                        engine,
-                        engine.compile(List.of(input.neg().sigmoid())),
-                        List.of("metal"),
-                        List.of(input),
-                        strictSigmoid(-1.25f),
-                        strictSigmoid(2.5f));
-                assertMixedResult(
-                        engine,
-                        engine.compile(List.of(input.neg().sigmoid().neg())),
-                        List.of("metal"),
-                        List.of(input),
-                        -strictSigmoid(-1.25f),
-                        -strictSigmoid(2.5f));
-
                 Tensor cpuInput = TensorFactory.create(
                         descriptor,
                         Optional.empty(),
                         Optional.of(new MemorySegmentStorage(
                                 DataType.FLOAT32, 2, arena.allocate(8, Float.BYTES))));
-                var cpuCompiled = engine.compile(List.of(cpuInput.exp()));
+                var cpuCompiled = engine.compile(List.of(cpuInput.tanh()));
+                assertEquals(List.of("cpu"),
+                        EngineMixedOwnerTestAccess.partitionOwners(cpuCompiled));
                 ModelAutotuningRequest cpuRequest = tuningRequest(
                         directory,
                         cpuInput,
@@ -2073,14 +2089,9 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         var result = engine.run(tuned, List.of(cpuInput))) {
                     assertEquals(1, result.resultCount());
                 }
-                Tensor capturedBase = input.sigmoid();
-                Tensor metalPublication = capturedBase.neg();
-                Tensor cpuPublication = metalPublication.sigmoid();
+                MixedFixture mixedPublications = mixedFixtures(input, 1.25f, -2.5f).getLast();
                 assertCapturedAdaptersSurviveRegistryPoison(
-                        engine,
-                        engine.compile(List.of(metalPublication, cpuPublication)),
-                        List.of("metal"),
-                        List.of(input));
+                        engine, input, mixedPublications);
             }
         }
     }
@@ -2919,70 +2930,144 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         return bits;
     }
 
-    private static void assertMixedResult(
-            Engine engine,
-            io.github.pho001.synaptik.engine.CompiledGraph compiled,
-            List<String> expectedOwners,
-            List<Tensor> inputs,
-            float first,
-            float second) {
-        assertEquals(
-                expectedOwners,
-                EngineMixedOwnerTestAccess.partitionOwners(compiled));
+    /**
+     * Defines genuine ownership boundaries using CPU-only TANH and Metal-preferred exact NEG.
+     * The same expressions drive device-free structural checks and native execution checks.
+     *
+     * @param input canonical FLOAT32 two-element input, rank one or sixteen
+     * @param first first represented input value, used only for the test oracle
+     * @param second second represented input value, used only for the test oracle
+     * @return ordered upload, download, multi-hop, shared-input and mixed-publication fixtures
+     */
+    private static List<MixedFixture> mixedFixtures(Tensor input, float first, float second) {
+        float a = strictTanh(first);
+        float b = strictTanh(second);
+        Tensor metalPublication = input.tanh().neg();
+        return List.of(
+                new MixedFixture(List.of(input.tanh().neg()), List.of("cpu", "metal"),
+                        List.of("CPU_TO_METAL"), new float[][] {{-a, -b}}),
+                new MixedFixture(List.of(input.neg().tanh()), List.of("metal", "cpu"),
+                        List.of("METAL_TO_CPU"),
+                        new float[][] {{strictTanh(-first), strictTanh(-second)}}),
+                new MixedFixture(List.of(input.neg().tanh().neg()),
+                        List.of("metal", "cpu", "metal"),
+                        List.of("METAL_TO_CPU", "CPU_TO_METAL"),
+                        new float[][] {{-strictTanh(-first), -strictTanh(-second)}}),
+                new MixedFixture(List.of(input.neg(), input.tanh().neg()),
+                        List.of("metal", "cpu", "metal"),
+                        List.of("METAL_TO_CPU", "CPU_TO_METAL"),
+                        new float[][] {{-first, -second}, {-a, -b}}),
+                new MixedFixture(List.of(metalPublication, metalPublication.tanh()),
+                        List.of("cpu", "metal", "cpu"),
+                        List.of("CPU_TO_METAL", "METAL_TO_CPU"),
+                        new float[][] {{-a, -b}, {strictTanh(-a), strictTanh(-b)}}));
+    }
+
+    /**
+     * Checks ownership and logical cross-owner obligations independently of device availability.
+     * These are logical edges; actual prepared transfer recipes are checked separately.
+     *
+     * @param artifacts actual compile result, from Engine or the device-free compiler boundary
+     * @param fixture explicit expected partition order and cross-owner directions
+     */
+    private static void assertMixedStructure(CompileArtifacts artifacts, MixedFixture fixture) {
+        assertEquals(fixture.owners(), EngineMixedOwnerTestAccess.partitionOwners(artifacts));
+        assertEquals(fixture.transfers(), EngineMixedOwnerTestAccess.logicalTransferDirections(artifacts));
+    }
+
+    /**
+     * Checks exact actual transfer count, direction, geometry and first-consumer placement.
+     *
+     * @param session open session containing the real prepared transfer recipes
+     * @param directions complete expected transfer direction sequence, in schedule order
+     * @param shape canonical FLOAT32 shape preserved by every transfer without conversion
+     */
+    private static void assertPreparedTransfers(
+            InferenceSession session, List<String> directions, Shape shape) {
+        var transfers = EngineMixedOwnerTestAccess.preparedTransfers(session);
+        assertEquals(directions, transfers.stream()
+                .map(EngineMixedOwnerTestAccess.TransferFact::direction).toList());
+        Set<Integer> buffers = new HashSet<>();
+        for (int index = 0; index < transfers.size(); index++) {
+            var transfer = transfers.get(index);
+            assertEquals(descriptor(shape), transfer.descriptor());
+            assertEquals(shape.knownElementCount().orElseThrow() * Float.BYTES,
+                    transfer.byteSize());
+            assertEquals(0, transfer.sourceRepresentationIndex());
+            assertEquals(1, transfer.destinationRepresentationIndex());
+            assertEquals(index + 1, transfer.beforePartition());
+            assertTrue(buffers.add(transfer.bufferIndex()), "duplicate transfer of the same value");
+        }
+    }
+
+    /**
+     * Checks each publication against the CPU TANH oracle and exact Metal negation/transfer.
+     *
+     * @param result open result whose ordered publications are materialized independently
+     * @param expected complete canonical FLOAT32 values for each publication
+     */
+    private static void assertMixedPublications(
+            io.github.pho001.synaptik.engine.RunResult result, float[][] expected) {
+        assertEquals(expected.length, result.resultCount());
+        for (int index = 0; index < expected.length; index++) {
+            assertCanonical(result.materialize(result.publications().get(index),
+                    (long) expected[index].length * Float.BYTES).bytes(), expected[index]);
+        }
+    }
+
+    /**
+     * Proves that a truly mixed prepared session retains direct input and publication adapters.
+     *
+     * @param engine open composed Engine whose later registry lookups will be poisoned
+     * @param input borrowed caller input retained across repeated runs
+     * @param fixture mixed-publication expression with explicit ownership/transfer expectations
+     */
+    private static void assertCapturedAdaptersSurviveRegistryPoison(
+            Engine engine, Tensor input, MixedFixture fixture) {
+        var compiled = engine.compile(fixture.outputs());
+        assertMixedStructure(EngineMixedOwnerTestAccess.compileArtifacts(compiled), fixture);
         try (var session = engine.session(compiled)) {
+            assertPreparedTransfers(session, fixture.transfers(), input.descriptor().shape());
+            EngineMixedOwnerTestAccess.poisonBackendLookup(engine);
             for (int run = 0; run < 2; run++) {
-                try (var result = session.run(inputs)) {
-                    ByteBuffer canonical = result.materialize(
-                            result.publications().getFirst(), 8L).bytes();
-                    assertSigmoidApproxCanonical(canonical, first, second);
+                try (var result = session.run(List.of(input))) {
+                    assertMixedPublications(result, fixture.expected());
                 }
             }
         }
     }
 
-    private static void assertCapturedAdaptersSurviveRegistryPoison(
-            Engine engine,
-            io.github.pho001.synaptik.engine.CompiledGraph compiled,
-            List<String> expectedOwners,
-            List<Tensor> inputs) {
-        assertEquals(
-                expectedOwners,
-                EngineMixedOwnerTestAccess.partitionOwners(compiled));
-        try (var session = engine.session(compiled)) {
-            EngineMixedOwnerTestAccess.poisonBackendLookup(engine);
-            for (int run = 0; run < 2; run++) {
-                try (var result = session.run(inputs)) {
-                    assertEquals(2, result.resultCount());
-                    assertSigmoidApproxCanonical(
-                            result.materialize(result.publications().get(0), 8L).bytes(),
-                            -strictSigmoid(1.25f),
-                            -strictSigmoid(-2.5f));
-                    assertSigmoidApproxCanonical(
-                            result.materialize(result.publications().get(1), 8L).bytes(),
-                            strictSigmoid(-strictSigmoid(1.25f)),
-                            strictSigmoid(-strictSigmoid(-2.5f)));
-                }
-            }
-        }
+    /**
+     * @return canonical shapes at both positive-rank transfer bounds, each with two elements
+     */
+    private static List<Shape> transferShapes() {
+        return List.of(Shape.of(2),
+                Shape.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2));
     }
+
+    /**
+     * Test expression and its independent expected boundary facts and values.
+     *
+     * @param outputs ordered expressions, shared by structural and device checks
+     * @param owners expected partition-owner sequence
+     * @param transfers expected complete transfer direction sequence
+     * @param expected expected canonical FLOAT32 publication values
+     */
+    private record MixedFixture(List<Tensor> outputs, List<String> owners,
+            List<String> transfers, float[][] expected) {}
 
     private static float strictExp(float value) {
         return (float) StrictMath.exp(value);
     }
 
     /**
-     * Computes a test-only branch-correct sigmoid reference for Metal-owned partition assertions.
+     * Computes the CPU-only TANH reference for the two-element mixed-owner fixtures.
      *
      * @param value FLOAT32 value widened before the binary64 formula
-     * @return one final FLOAT32 narrowing of the stable sigmoid formula
+     * @return one final FLOAT32 narrowing of the hyperbolic tangent
      */
-    private static float strictSigmoid(float value) {
-        double widened = value;
-        if (widened >= 0.0d) {
-            return (float) (1.0d / (1.0d + StrictMath.exp(-widened)));
-        }
-        double exponential = StrictMath.exp(widened);
-        return (float) (exponential / (1.0d + exponential));
+    private static float strictTanh(float value) {
+        return (float) StrictMath.tanh(value);
     }
 
     @Test
@@ -3379,24 +3464,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             assertEquals(Float.floatToRawIntBits(value), canonical.getInt());
         }
     }
-
-    /**
-     * Checks Metal SIGMOID publications against the branch-correct reference without imposing
-     * CPU bit identity on the separately qualified MPSGraph route. This is a test-only finite
-     * gate; exact special values are exercised by the dedicated SIGMOID device tests.
-     *
-     * @param canonical result bytes positioned at the first expected FLOAT32 value; consumed
-     * @param expected finite nonzero branch-correct values in publication order; not mutated
-     */
-    private static void assertSigmoidApproxCanonical(ByteBuffer canonical, float... expected) {
-        for (float reference : expected) {
-            float actual = Float.intBitsToFloat(canonical.getInt());
-            assertTrue(Float.isFinite(actual) && Math.abs(actual - reference)
-                            <= 2e-6 * Math.abs(reference),
-                    "Metal SIGMOID actual=" + actual + " reference=" + reference);
-        }
-    }
-
 
     private static TensorDescriptor descriptor(Shape shape) {
         return descriptor(shape, false);

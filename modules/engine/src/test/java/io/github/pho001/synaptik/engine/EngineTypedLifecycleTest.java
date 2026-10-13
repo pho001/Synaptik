@@ -45,6 +45,7 @@ import io.github.pho001.synaptik.runtime.run.RunResourceOwnership;
 import io.github.pho001.synaptik.runtime.run.RunState;
 import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
 import java.lang.foreign.Arena;
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +55,7 @@ import java.nio.ReadOnlyBufferException;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -612,7 +614,7 @@ final class EngineTypedLifecycleTest {
     }
 
     @Test
-    void sameResultCopySerializesAndResultAndEngineCloseWait() throws Exception {
+    void sameResultCopiesSerializeAfterBothPassEngineAdmission() throws Exception {
         RecordingComposition composition = new RecordingComposition();
         composition.copyBytes = new byte[8];
         composition.copyEntered = new CountDownLatch(1);
@@ -623,21 +625,158 @@ final class EngineTypedLifecycleTest {
                 List.of(input));
         RunResult.Publication publication = result.publications().getFirst();
 
-        try (var executor = Executors.newFixedThreadPool(3)) {
-            var copy = executor.submit(() -> result.materialize(publication, 8));
+        var executor = Executors.newFixedThreadPool(2, Thread.ofPlatform().daemon(true).factory());
+        try {
+            AtomicReference<Thread> firstThread = new AtomicReference<>();
+            AtomicReference<Thread> secondThread = new AtomicReference<>();
+            CountDownLatch secondStarted = new CountDownLatch(1);
+            var copy = executor.submit(() -> {
+                firstThread.set(Thread.currentThread());
+                return result.materialize(publication, 8);
+            });
             assertTrue(composition.copyEntered.await(10, TimeUnit.SECONDS));
-            var secondCopy = executor.submit(() -> result.materialize(publication, 8));
-            var close = executor.submit(() -> { engine.close(); return null; });
-            while (!engine.isClosed()) Thread.onSpinWait();
+            var secondCopy = executor.submit(() -> {
+                secondThread.set(Thread.currentThread());
+                secondStarted.countDown();
+                return result.materialize(publication, 8);
+            });
+            assertTrue(secondStarted.await(10, TimeUnit.SECONDS));
+            awaitResultMonitorContention(secondThread.get(), firstThread.get());
             assertEquals(1, composition.copyCount.get());
+            assertFalse(secondCopy.isDone());
             composition.copyRelease.countDown();
             HostTensorValue value = copy.get(10, TimeUnit.SECONDS);
-            close.get(10, TimeUnit.SECONDS);
             HostTensorValue secondValue = secondCopy.get(10, TimeUnit.SECONDS);
             assertEquals(8, value.byteSize());
             assertEquals(8, secondValue.byteSize());
+            assertNotSame(value, secondValue);
             assertEquals(2, composition.copyCount.get());
+        } finally {
+            releaseCopiesAndClose(composition.copyRelease, engine, executor);
         }
+    }
+
+    @Test
+    void engineCloseWaitsForAdmittedCopyAndRejectsCopyWhenCloseWins() throws Exception {
+        RecordingComposition composition = new RecordingComposition();
+        composition.copyBytes = new byte[8];
+        composition.copyEntered = new CountDownLatch(1);
+        composition.copyRelease = new CountDownLatch(1);
+        Engine engine = engine(composition);
+        Tensor input = leaf(false, true);
+        RunResult result = engine.run(engine.prepare(engine.compile(List.of(input.contiguous()))),
+                List.of(input));
+        RunResult.Publication publication = result.publications().getFirst();
+
+        var executor = Executors.newFixedThreadPool(2, Thread.ofPlatform().daemon(true).factory());
+        try {
+            var copy = executor.submit(() -> result.materialize(publication, 8));
+            assertTrue(composition.copyEntered.await(10, TimeUnit.SECONDS));
+            var close = executor.submit(engine::close);
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (!engine.isClosed()) {
+                assertTrue(System.nanoTime() < deadline, "Engine close did not start");
+                Thread.onSpinWait();
+            }
+            assertFalse(close.isDone());
+            assertEquals("advanced engine is closed", assertThrows(IllegalStateException.class,
+                    () -> result.materialize(publication, 8)).getMessage());
+            assertEquals(1, composition.copyCount.get());
+            composition.copyRelease.countDown();
+            assertEquals(8, copy.get(10, TimeUnit.SECONDS).byteSize());
+            close.get(10, TimeUnit.SECONDS);
+            assertTrue(result.isClosed());
+            assertEquals(1, composition.copyCount.get());
+        } finally {
+            releaseCopiesAndClose(composition.copyRelease, engine, executor);
+        }
+    }
+
+    @Test
+    void resultCloseWaitsForAdmittedCopy() throws Exception {
+        RecordingComposition composition = new RecordingComposition();
+        composition.copyBytes = new byte[8];
+        composition.copyEntered = new CountDownLatch(1);
+        composition.copyRelease = new CountDownLatch(1);
+        Engine engine = engine(composition);
+        Tensor input = leaf(false, true);
+        RunResult result = engine.run(engine.prepare(engine.compile(List.of(input.contiguous()))),
+                List.of(input));
+        RunResult.Publication publication = result.publications().getFirst();
+
+        var executor = Executors.newFixedThreadPool(2, Thread.ofPlatform().daemon(true).factory());
+        try {
+            AtomicReference<Thread> copyThread = new AtomicReference<>();
+            AtomicReference<Thread> closeThread = new AtomicReference<>();
+            CountDownLatch closeStarted = new CountDownLatch(1);
+            var copy = executor.submit(() -> {
+                copyThread.set(Thread.currentThread());
+                return result.materialize(publication, 8);
+            });
+            assertTrue(composition.copyEntered.await(10, TimeUnit.SECONDS));
+            var close = executor.submit(() -> {
+                closeThread.set(Thread.currentThread());
+                closeStarted.countDown();
+                result.close();
+            });
+            assertTrue(closeStarted.await(10, TimeUnit.SECONDS));
+            awaitResultMonitorContention(closeThread.get(), copyThread.get());
+            assertFalse(close.isDone());
+            composition.copyRelease.countDown();
+            assertEquals(8, copy.get(10, TimeUnit.SECONDS).byteSize());
+            close.get(10, TimeUnit.SECONDS);
+            assertTrue(result.isClosed());
+            assertFalse(engine.isClosed());
+            assertEquals("run result is closed", assertThrows(IllegalStateException.class,
+                    () -> result.materialize(publication, 8)).getMessage());
+            assertEquals(1, composition.copyCount.get());
+        } finally {
+            releaseCopiesAndClose(composition.copyRelease, engine, executor);
+        }
+    }
+
+    /**
+     * Releases fixture copies and bounds both Engine and worker cleanup, including assertion failure.
+     * Daemon workers cannot keep the test JVM alive if a lifecycle regression prevents shutdown.
+     *
+     * @param release backend-copy gate to release before awaiting cleanup
+     * @param engine fixture owner to close on a worker, never with an unbounded test-thread wait
+     * @param executor live fixture executor whose workers are stopped after the close attempt
+     * @throws Exception if Engine cleanup fails, times out, or a cleanup wait is interrupted
+     * @throws AssertionError if workers do not terminate within ten seconds after shutdown
+     */
+    private static void releaseCopiesAndClose(
+            CountDownLatch release, Engine engine, ExecutorService executor) throws Exception {
+        release.countDown();
+        try {
+            executor.submit(engine::close).get(10, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Proves contention on the result monitor held through the first physical copy, rather than
+     * treating task submission as Engine admission or close entry.
+     *
+     * @param contender live copy or close thread expected to block on the result owner
+     * @param copying live thread paused inside the backend copy with the result monitor held
+     * @throws AssertionError if the exact contention is not observed within ten seconds
+     */
+    private static void awaitResultMonitorContention(Thread contender, Thread copying) {
+        var threads = ManagementFactory.getThreadMXBean();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            var info = threads.getThreadInfo(contender.threadId());
+            if (info != null && info.getThreadState() == Thread.State.BLOCKED
+                    && info.getLockOwnerId() == copying.threadId()
+                    && info.getLockInfo().getClassName().equals(AdvancedRunResult.class.getName())) {
+                return;
+            }
+            Thread.onSpinWait();
+        }
+        throw new AssertionError("thread did not contend on the copying result's monitor");
     }
 
     @Test
