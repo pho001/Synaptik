@@ -134,6 +134,85 @@ final class AdamOptimizerTest {
     }
 
     @Test
+    void float32AdaptiveUpdateScalesBeforeDividing() {
+        float gradient = 1e19f;
+        float rateAndEpsilon = 1e-30f;
+        float firstMoment = 0.5f * gradient;
+        float secondStepMoment = 0.5f * firstMoment;
+        float correctedFirst = secondStepMoment / 0.75f;
+        assertTrue(Float.isInfinite(correctedFirst / rateAndEpsilon));
+        float update = (rateAndEpsilon * correctedFirst) / rateAndEpsilon;
+        assertTrue(Float.isFinite(update));
+
+        for (boolean decoupled : List.of(false, true)) {
+            Tensor parameter = scalar(DataType.FLOAT32, 1.0d);
+            Tensor input = scalar(DataType.FLOAT32, gradient);
+            try (Engine engine = Engine.standard();
+                    TrainingSession session = TrainingSession.open(engine, new One(parameter),
+                            parameter.mul(input), config(decoupled, 1e-30d, 0.5d, 0.0d,
+                                    1e-30d, 0.0d))) {
+                TrainingStep first = session.run(List.of(input), GradientMode.RESET_AND_STEP);
+                assertAdaptiveStep(session, first, 1, 1.0f, firstMoment, gradient * gradient);
+
+                setScalar(input, 0.0d);
+                TrainingStep second = session.run(List.of(input), GradientMode.RESET_AND_STEP);
+                assertAdaptiveStep(session, second, 2, 1.0f - update, secondStepMoment, 0.0f);
+            }
+        }
+    }
+
+    @Test
+    void float64AdaptiveUpdateScalesBeforeDividing() {
+        double gradient = 1e150d;
+        double rateAndEpsilon = 1e-200d;
+        double firstMoment = 0.5d * gradient;
+        double secondStepMoment = 0.5d * firstMoment;
+        double correctedFirst = secondStepMoment / 0.75d;
+        assertTrue(Double.isInfinite(correctedFirst / rateAndEpsilon));
+        double update = (rateAndEpsilon * correctedFirst) / rateAndEpsilon;
+        assertTrue(Double.isFinite(update));
+
+        for (boolean decoupled : List.of(false, true)) {
+            Tensor parameter = scalar(DataType.FLOAT64, 1.0d);
+            Tensor input = scalar(DataType.FLOAT64, gradient);
+            try (Engine engine = Engine.standard();
+                    TrainingSession session = TrainingSession.open(engine, new One(parameter),
+                            parameter.mul(input), config(decoupled, rateAndEpsilon, 0.5d,
+                                    0.0d, rateAndEpsilon, 0.0d))) {
+                TrainingStep first = session.run(List.of(input), GradientMode.RESET_AND_STEP);
+                assertAdaptiveStep(session, first, 1, 1.0d, firstMoment, gradient * gradient);
+
+                setScalar(input, 0.0d);
+                TrainingStep second = session.run(List.of(input), GradientMode.RESET_AND_STEP);
+                assertAdaptiveStep(session, second, 2, 1.0d - update, secondStepMoment, 0.0d);
+            }
+        }
+    }
+
+    @Test
+    void scaledAdaptiveNumeratorOverflowPreservesWholeTransaction() {
+        for (DataType dtype : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            double rate = dtype == DataType.FLOAT32 ? Float.MAX_VALUE / 4.0f
+                    : Double.MAX_VALUE / 4.0d;
+            for (boolean decoupled : List.of(false, true)) {
+                assertAdaptiveFailureAtomic(dtype, decoupled, rate, 16.0d, 31.0d,
+                        "scaled adaptive numerator");
+            }
+        }
+    }
+
+    @Test
+    void adaptiveUpdateOverflowPreservesWholeTransaction() {
+        for (DataType dtype : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            double epsilon = dtype == DataType.FLOAT32 ? 1e-40d : 1e-310d;
+            for (boolean decoupled : List.of(false, true)) {
+                assertAdaptiveFailureAtomic(dtype, decoupled, 1.0d, epsilon, -1.0d,
+                        "adaptive update");
+            }
+        }
+    }
+
+    @Test
     void mixedAssignmentRestoreIdentityAndLaterFailureAreAtomic() {
         class Three extends Module {
             final Parameter a = parameter("a", scalar(DataType.FLOAT32, 2.0d));
@@ -345,6 +424,95 @@ final class AdamOptimizerTest {
             double eps, double decay) {
         return decoupled ? new AdamW(lr, b1, b2, eps, decay)
                 : new Adam(lr, b1, b2, eps, decay);
+    }
+
+    private static void assertAdaptiveStep(TrainingSession session, TrainingStep result, long step,
+            double parameter, double first, double second) {
+        TrainingState snapshot = session.state();
+        assertEquals(step, result.executionNumber());
+        assertEquals(step, result.optimizerStep().orElseThrow());
+        assertEquals(0, result.accumulatedGradientRuns());
+        assertEquals(step, session.executions());
+        assertEquals(step, session.optimizerSteps());
+        assertEquals(0, session.accumulatedGradientRuns());
+        assertEquals(step, snapshot.executions());
+        assertEquals(step, snapshot.optimizerSteps());
+        assertEquals(0, snapshot.accumulatedGradientRuns());
+        var state = snapshot.parameters().getFirst();
+        DataType dtype = state.dataType();
+        assertEquals(parameter, scalarValue(dtype, state.parameterBytes()));
+        assertEquals(parameter, scalarValue(dtype, state.masterParameterBytes()));
+        assertEquals(first, scalarValue(dtype, state.firstMomentBytes()));
+        assertEquals(first, scalarValue(dtype, state.momentumBytes()));
+        assertEquals(second, scalarValue(dtype, state.secondMomentBytes().orElseThrow()));
+        assertEquals(0.0d, scalarValue(dtype, state.accumulatedGradientBytes()));
+    }
+
+    private static void assertAdaptiveFailureAtomic(DataType dtype, boolean decoupled,
+            double rate, double epsilon, double failingGradient, String failureRole) {
+        class Two extends Module {
+            final Parameter first = parameter("first", scalar(dtype, 1.0d));
+            final Parameter second = parameter("second", scalar(dtype, 1.0d));
+        }
+        Two module = new Two();
+        Tensor firstInput = scalar(dtype, 1.0d);
+        Tensor secondInput = scalar(dtype, 1.0d);
+        Tensor objective = module.first.value().mul(firstInput)
+                .add(module.second.value().mul(secondInput));
+        try (Engine engine = Engine.standard();
+                TrainingSession session = TrainingSession.open(engine, module, objective,
+                        config(decoupled, rate, 0.5d, 0.0d, epsilon, 0.0d))) {
+            session.run(List.of(firstInput, secondInput), GradientMode.RESET_AND_STEP);
+            session.run(List.of(firstInput, secondInput), GradientMode.ACCUMULATE);
+            TrainingState before = session.state();
+            assertEquals(2, before.executions());
+            assertEquals(1, before.optimizerSteps());
+            assertEquals(1, before.accumulatedGradientRuns());
+            for (var state : before.parameters()) {
+                assertEquals(0.5d, scalarValue(dtype, state.firstMomentBytes()));
+                assertEquals(1.0d, scalarValue(dtype, state.secondMomentBytes().orElseThrow()));
+                assertEquals(1.0d, scalarValue(dtype, state.accumulatedGradientBytes()));
+            }
+
+            // The first path stages successfully; only the later path overflows.
+            setScalar(firstInput, 0.0d);
+            setScalar(secondInput, failingGradient);
+            ArithmeticException failure = assertThrows(ArithmeticException.class,
+                    () -> session.run(List.of(firstInput, secondInput),
+                            GradientMode.ACCUMULATE_AND_STEP));
+            assertTrue(failure.getMessage().contains(failureRole + " at path second"),
+                    failure.getMessage());
+            assertStateBytes(before, session.state());
+
+            // A valid retry uses the retained sum and advances each counter only once.
+            setScalar(secondInput, 0.0d);
+            TrainingStep retried = session.run(List.of(firstInput, secondInput),
+                    GradientMode.ACCUMULATE_AND_STEP);
+            assertEquals(3, retried.executionNumber());
+            assertEquals(2, retried.optimizerStep().orElseThrow());
+            TrainingState after = session.state();
+            assertEquals(3, after.executions());
+            assertEquals(2, after.optimizerSteps());
+            assertEquals(0, after.accumulatedGradientRuns());
+            for (var state : after.parameters()) {
+                assertEquals(0.75d, scalarValue(dtype, state.firstMomentBytes()));
+                assertEquals(1.0d, scalarValue(dtype, state.secondMomentBytes().orElseThrow()));
+                assertEquals(0.0d, scalarValue(dtype, state.accumulatedGradientBytes()));
+            }
+        }
+    }
+
+    private static double scalarValue(DataType dtype, ByteBuffer bytes) {
+        return dtype == DataType.FLOAT64 ? bytes.getDouble() : bytes.getFloat();
+    }
+
+    private static void setScalar(Tensor input, double value) {
+        var segment = input.hostStorage().orElseThrow().segment();
+        if (input.descriptor().dataType() == DataType.FLOAT64) {
+            segment.set(ValueLayout.JAVA_DOUBLE, 0, value);
+        } else {
+            segment.set(ValueLayout.JAVA_FLOAT, 0, (float) value);
+        }
     }
 
     private static void assertOracle(Oracle oracle, TrainingState actual, double tolerance) {

@@ -342,13 +342,20 @@ final class TrainingParameter {
      * Stages a parameter update and its configured optimizer-slot candidates before commit.
      *
      * <p>Adaptive updates use pre-narrowed coefficients and compute validated bias corrections
-     * outside the element loop. A positive configured SGD momentum that narrows to binary32 zero
+     * outside the element loop. Their subtraction is evaluated as
+     * {@code (learningRate * correctedFirstMoment) / (sqrt(correctedSecondMoment) + epsilon)}:
+     * the scaled numerator must be finite before division, and the update must be finite before
+     * subtraction. This multiply-before-divide order applies in FLOAT64 and in the FLOAT32 path
+     * shared by FLOAT32, BFLOAT16, and FLOAT16 parameters; reassociation can change rounding and
+     * which updates overflow. A positive configured SGD momentum that narrows to binary32 zero
      * still stages a zero
      * candidate, preserving the existing swap behavior. Exactly zero configured momentum instead
      * leaves its active slot untouched until a successful commit.</p>
      *
      * @param completedSteps non-negative number of prior successful parameter updates
      * @param useAccumulatedCandidate whether a preceding accumulation stage supplies gradients
+     * @throws ArithmeticException if an intermediate or candidate is non-finite, or an adaptive
+     *     bias correction or denominator is not positive; active state remains unchanged
      */
     void stageUpdate(long completedSteps, boolean useAccumulatedCandidate) {
         if (adaptive != null) {
@@ -452,9 +459,9 @@ final class TrainingParameter {
         requireFinite(root, "second moment root", path, index);
         float denominator = root + eps;
         requirePositiveFinite(denominator, "adaptive denominator");
-        float quotient = correctedFirst / denominator;
-        requireFinite(quotient, "adaptive quotient", path, index);
-        float update = lr * quotient;
+        float numerator = lr * correctedFirst;
+        requireFinite(numerator, "scaled adaptive numerator", path, index);
+        float update = numerator / denominator;
         requireFinite(update, "adaptive update", path, index);
         float candidate = base - update;
         requireFinite(candidate, "parameter candidate", path, index);
@@ -537,9 +544,9 @@ final class TrainingParameter {
         requireFinite(root, "second moment root", path, index);
         double denominator = root + eps;
         requirePositiveFinite(denominator, "adaptive denominator");
-        double quotient = correctedFirst / denominator;
-        requireFinite(quotient, "adaptive quotient", path, index);
-        double update = lr * quotient;
+        double numerator = lr * correctedFirst;
+        requireFinite(numerator, "scaled adaptive numerator", path, index);
+        double update = numerator / denominator;
         requireFinite(update, "adaptive update", path, index);
         double candidate = base - update;
         requireFinite(candidate, "parameter candidate", path, index);

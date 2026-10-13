@@ -218,6 +218,18 @@ bias-corrected using the one-based global optimizer step. For FLOAT32, BFLOAT16,
 parameters, coefficients narrow once to FLOAT32 at open, and invalid narrowed values are
 rejected before compilation.
 
+The adaptive subtraction is `(learningRate * correctedM) / (sqrt(correctedV) + epsilon)`,
+where `correctedM` and `correctedV` are the bias-corrected first and second moments. Multiplication
+by the learning rate happens before division, in the parameter's working precision. The scaled
+numerator and the final update must each be finite; a non-finite intermediate rejects the whole
+run without committing parameters, moments, counters, or pending gradients.
+
+For example, start a FLOAT32 scalar at `1`, use learning rate and epsilon `1e-30`, beta1 `0.5`,
+beta2 `0`, no decay, and gradients `1e19` then `0`. The first update leaves the represented
+parameter at `1`; the second subtracts approximately `3.333333e18` and commits step `2` for
+either Adam or AdamW. Dividing the corrected first moment by epsilon before scaling would
+overflow, even though the documented multiply-before-divide update is finite.
+
 ## Accumulate and clear gradients
 
 - `RESET_AND_STEP` ignores older pending gradients, applies this run, and clears accumulation.
