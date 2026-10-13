@@ -2,17 +2,21 @@
 
 ## Status
 
-Draft
+Ready
 
 ## Goal and class
 
-Class C generated-code/numerical repair for project-review C1/C5. Implement after CPU 0021 is
-integrated, with its final base and launch verification recorded before promotion to Ready.
+Class C generated-code/numerical repair for project-review C1/C5. CPU 0021 is independently
+approved and integrated; this is the sole authorized CPU implementation successor.
 
 ## Scope
 
 `CpuScalarEmitter`, `CpuVectorMath`, affected activation reference and generated compatibility
 identity, plus focused generation/conformance/public-execution tests and Javadoc/explanation.
+Worker owns CPU sources/tests and the focused CPU backend guide. Coordinator owns all shared
+root/scoped-contract/API/explanation/glossary version facts, integrated serially with Metal 0079.
+Advance generated CPU schema 69 → 70 in code/tests; list every shared current fact needing renewal
+without editing those shared documents. No second writer may edit the CPU backend guide.
 
 - Large finite ERF/GELU must not evaluate overflowing rational polynomials into NaN. Reproduced
   F64 +/-1e100 and F32 vector body 1e10 (scalar tail gives 1). Add a justified saturation guard
@@ -46,8 +50,17 @@ Use optimal clean Java for each specialized case as semantic/dataflow/hot-loop o
 - Depends on: CPU 0021 and current Model semantics; source-confirmed C1/C5.
 - Conflicts with: all CPU generated schema, emitter, activation/reference and numeric writers.
 - Parallel group: PROJECT-REVIEW-2026-10-13-REPAIRS, after serial CPU predecessor.
-- Common base revision: pending CPU 0021 integration.
+- Common base revision: main after CPU 0021 integration, recorded in the launch verification below.
 - Integration order: CPU 0021 → 0022 → combined checkpoint.
 - Integration validation: generated/semantic/targeted performance evidence, independent review,
   coordinator's final checkpoint and diff checks.
 - Shared-document integration owner: coordinator.
+
+Launch verified 2026-10-13: CPU 0021 implementation `ca21c80c` is integrated after independent
+Class C APPROVE plus glossary correction; 1,026 CPU tests passed, 28 optional tests skipped,
+two conformance and six public integration tests passed, Javadoc passed. Its only pending gate
+is the repair group's final combined checkpoint, intentionally run after both serial CPU tasks.
+No CPU writer is active. Current Model named-site and special-value contracts already require
+these fixes; no architecture or new capability decision is needed. Use the clean main revision
+containing this Ready brief as the isolated worktree base. Metal 0079 has disjoint code and
+neither worker edits shared version documents.
