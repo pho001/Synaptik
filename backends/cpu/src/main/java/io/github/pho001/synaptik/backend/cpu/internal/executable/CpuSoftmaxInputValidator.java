@@ -2,16 +2,73 @@ package io.github.pho001.synaptik.backend.cpu.internal.executable;
 
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
-import io.github.pho001.synaptik.model.datatype.DataType;
+import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Objects;
+import java.util.function.LongConsumer;
 
-/** Performs the complete CPU-private finite softmax-domain check before execution. */
+/**
+ * Prebinds the CPU-private finite softmax-domain check without reading producer-owned values.
+ * Each invocation scans complete slices on the orchestrator before consumer writes or submission.
+ * Geometry snapshots, carrier selection, and slice-reader selection happen only during binding.
+ */
 public final class CpuSoftmaxInputValidator {
     private CpuSoftmaxInputValidator() { }
 
     /**
-     * Validates every represented input and maximum shift without mutating storage.
+     * Binds an allocation-free value scan; binding itself does not read input values.
+     *
+     * @param input non-null already carrier-validated borrowed input, retained without copying
+     * @param geometry non-null complete static softmax geometry
+     * @return non-null scan of current values, valid only within the borrowed carrier lifetime;
+     *     running it throws {@link IllegalArgumentException} for non-finite inputs or shifts
+     * @throws NullPointerException if an argument is {@code null}
+     * @throws IllegalArgumentException if the carrier or represented dtype is not floating
+     */
+    public static Runnable bind(CpuBufferArgument input, CpuSoftmaxLowering.Geometry geometry) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(geometry, "geometry");
+        MemorySegment storage = switch (input) {
+            case CpuBufferArgument.Doubles value -> MemorySegment.ofArray(value.carrier())
+                    .asSlice(value.byteOffset(), value.byteSize());
+            case CpuBufferArgument.Floats value -> MemorySegment.ofArray(value.carrier())
+                    .asSlice(value.byteOffset(), value.byteSize());
+            case CpuBufferArgument.Shorts value -> MemorySegment.ofArray(value.carrier())
+                    .asSlice(value.byteOffset(), value.byteSize());
+            case CpuBufferArgument.Segment value -> value.segment();
+            default -> throw new IllegalArgumentException("softmax requires a floating carrier");
+        };
+        long[] extents = geometry.input().extents();
+        long[] strides = geometry.input().strides();
+        int axis = geometry.axis();
+        long width = geometry.sliceWidth();
+        long stride = strides[axis];
+        LongConsumer sliceScan = switch (geometry.dataType()) {
+            case FLOAT64 -> base -> validateDouble(storage, base, stride, width);
+            case FLOAT32 -> base -> validateFloat(storage, base, stride, width);
+            case BFLOAT16 -> base -> validateBfloat(storage, base, stride, width);
+            case FLOAT16 -> base -> validateHalf(storage, base, stride, width);
+            default -> throw new IllegalArgumentException("softmax requires a floating dtype");
+        };
+        return () -> {
+            for (long slice = 0; slice < geometry.sliceCount(); slice++) {
+                long remaining = slice;
+                long base = geometry.input().offset();
+                for (int dimension = extents.length - 1; dimension >= 0; dimension--) {
+                    if (dimension == axis) continue;
+                    long coordinate = remaining % extents[dimension];
+                    remaining /= extents[dimension];
+                    base = Math.addExact(base, Math.multiplyExact(coordinate, strides[dimension]));
+                }
+                sliceScan.accept(base);
+            }
+        };
+    }
+
+    /**
+     * Binds and immediately validates every represented input and maximum shift.
+     * Prepared execution uses {@link #bind} instead so producers run before the scan.
+     *
      * @param input non-null already carrier-validated borrowed input
      * @param geometry non-null complete static softmax geometry
      * @throws NullPointerException if an argument is {@code null}
@@ -19,33 +76,14 @@ public final class CpuSoftmaxInputValidator {
      * @throws ArithmeticException if checked address arithmetic overflows
      */
     public static void validate(CpuBufferArgument input, CpuSoftmaxLowering.Geometry geometry) {
-        Objects.requireNonNull(input, "input"); Objects.requireNonNull(geometry, "geometry");
-        if (geometry.elementCount() == 0) return;
-        long[] extents = geometry.input().extents();
-        long[] strides = geometry.input().strides();
-        int axis = geometry.axis();
-        for (long slice = 0; slice < geometry.sliceCount(); slice++) {
-            long remaining = slice;
-            long base = geometry.input().offset();
-            for (int dimension = extents.length - 1; dimension >= 0; dimension--) {
-                if (dimension == axis) continue;
-                long coordinate = remaining % extents[dimension];
-                remaining /= extents[dimension];
-                base = Math.addExact(base, Math.multiplyExact(coordinate, strides[dimension]));
-            }
-            if (geometry.dataType() == DataType.BFLOAT16) validateBfloat(input, base,
-                    strides[axis], geometry.sliceWidth());
-            else validateWide(input, geometry.dataType(), base, strides[axis],
-                    geometry.sliceWidth());
-        }
+        bind(input, geometry).run();
     }
 
-    private static void validateWide(CpuBufferArgument input, DataType type, long base,
-            long stride, long width) {
+    private static void validateDouble(MemorySegment input, long base, long stride, long width) {
         double maximum = Double.NEGATIVE_INFINITY;
         long address = base;
         for (long coordinate = 0; coordinate < width; coordinate++) {
-            double value = readWide(input, type, address);
+            double value = input.get(ValueLayout.JAVA_DOUBLE, Math.multiplyExact(address, Double.BYTES));
             if (!Double.isFinite(value)) throw new IllegalArgumentException(
                     "softmax input and shifts must be finite");
             if (value > maximum) maximum = value;
@@ -53,17 +91,38 @@ public final class CpuSoftmaxInputValidator {
         }
         address = base;
         for (long coordinate = 0; coordinate < width; coordinate++) {
-            if (!Double.isFinite(readWide(input, type, address) - maximum))
-                throw new IllegalArgumentException("softmax input and shifts must be finite");
+            double value = input.get(ValueLayout.JAVA_DOUBLE, Math.multiplyExact(address, Double.BYTES));
+            if (!Double.isFinite(value - maximum)) throw new IllegalArgumentException(
+                    "softmax input and shifts must be finite");
             address = Math.addExact(address, stride);
         }
     }
 
-    private static void validateBfloat(CpuBufferArgument input, long base, long stride, long width) {
+    private static void validateFloat(MemorySegment input, long base, long stride, long width) {
+        double maximum = Double.NEGATIVE_INFINITY;
+        long address = base;
+        for (long coordinate = 0; coordinate < width; coordinate++) {
+            double value = input.get(ValueLayout.JAVA_FLOAT, Math.multiplyExact(address, Float.BYTES));
+            if (!Double.isFinite(value)) throw new IllegalArgumentException(
+                    "softmax input and shifts must be finite");
+            if (value > maximum) maximum = value;
+            address = Math.addExact(address, stride);
+        }
+        address = base;
+        for (long coordinate = 0; coordinate < width; coordinate++) {
+            double value = input.get(ValueLayout.JAVA_FLOAT, Math.multiplyExact(address, Float.BYTES));
+            if (!Double.isFinite(value - maximum)) throw new IllegalArgumentException(
+                    "softmax input and shifts must be finite");
+            address = Math.addExact(address, stride);
+        }
+    }
+
+    private static void validateBfloat(MemorySegment input, long base, long stride, long width) {
         float maximum = Float.NEGATIVE_INFINITY;
         long address = base;
         for (long coordinate = 0; coordinate < width; coordinate++) {
-            float value = Float.intBitsToFloat(readShort(input, address) << 16);
+            float value = Float.intBitsToFloat(input.get(ValueLayout.JAVA_SHORT,
+                    Math.multiplyExact(address, Short.BYTES)) << 16);
             if (!Float.isFinite(value)) throw new IllegalArgumentException(
                     "softmax input and shifts must be finite");
             if (value > maximum) maximum = value;
@@ -71,30 +130,32 @@ public final class CpuSoftmaxInputValidator {
         }
         address = base;
         for (long coordinate = 0; coordinate < width; coordinate++) {
-            float value = Float.intBitsToFloat(readShort(input, address) << 16);
+            float value = Float.intBitsToFloat(input.get(ValueLayout.JAVA_SHORT,
+                    Math.multiplyExact(address, Short.BYTES)) << 16);
             if (!Float.isFinite(value - maximum)) throw new IllegalArgumentException(
                     "softmax input and shifts must be finite");
             address = Math.addExact(address, stride);
         }
     }
 
-    private static double readWide(CpuBufferArgument input, DataType type, long address) {
-        long base = input.byteOffset() / type.byteWidth();
-        if (input instanceof CpuBufferArgument.Doubles value)
-            return value.carrier()[Math.toIntExact(base + address)];
-        if (input instanceof CpuBufferArgument.Floats value)
-            return value.carrier()[Math.toIntExact(base + address)];
-        var segment = ((CpuBufferArgument.Segment) input).segment();
-        long bytes = Math.multiplyExact(address, type.byteWidth());
-        return type == DataType.FLOAT64 ? segment.get(ValueLayout.JAVA_DOUBLE, bytes)
-                : segment.get(ValueLayout.JAVA_FLOAT, bytes);
-    }
-
-    private static int readShort(CpuBufferArgument input, long address) {
-        long base = input.byteOffset() / Short.BYTES;
-        if (input instanceof CpuBufferArgument.Shorts value)
-            return value.carrier()[Math.toIntExact(base + address)] & 0xffff;
-        return ((CpuBufferArgument.Segment) input).segment().get(ValueLayout.JAVA_SHORT,
-                Math.multiplyExact(address, Short.BYTES)) & 0xffff;
+    private static void validateHalf(MemorySegment input, long base, long stride, long width) {
+        float maximum = Float.NEGATIVE_INFINITY;
+        long address = base;
+        for (long coordinate = 0; coordinate < width; coordinate++) {
+            float value = Float.float16ToFloat(input.get(ValueLayout.JAVA_SHORT,
+                    Math.multiplyExact(address, Short.BYTES)));
+            if (!Float.isFinite(value)) throw new IllegalArgumentException(
+                    "softmax input and shifts must be finite");
+            if (value > maximum) maximum = value;
+            address = Math.addExact(address, stride);
+        }
+        address = base;
+        for (long coordinate = 0; coordinate < width; coordinate++) {
+            float value = Float.float16ToFloat(input.get(ValueLayout.JAVA_SHORT,
+                    Math.multiplyExact(address, Short.BYTES)));
+            if (!Float.isFinite(value - maximum)) throw new IllegalArgumentException(
+                    "softmax input and shifts must be finite");
+            address = Math.addExact(address, stride);
+        }
     }
 }

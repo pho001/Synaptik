@@ -3,17 +3,18 @@ package io.github.pho001.synaptik.backend.cpu.internal.executable;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuLossLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Objects;
 
 /**
- * Cold pre-write validator for index categorical loss targets.
+ * Cold-bound pre-write validator for index categorical loss targets.
  *
  * <p>The validator walks the complete non-class target domain in row-major logical order. It
  * compares the optional ignore value before checking a target's class bounds and never touches
- * logits or output storage. Calling it during prepared-executable binding therefore makes an
- * invalid target an all-or-nothing invocation failure, including for a parallel {@code NONE}
- * execution.</p>
+ * logits or output storage. Binding captures typed storage and geometry without scanning values.
+ * The orchestrator runs the scan after target producers and before any loss output write or
+ * worker submission, including for a parallel {@code NONE} execution.</p>
  */
 public final class CpuLossInputValidator {
     private CpuLossInputValidator() { }
@@ -25,11 +26,27 @@ public final class CpuLossInputValidator {
      * @param geometry non-null static loss geometry with an index target rank
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if the geometry is not index categorical, the carrier is
-     *     not the represented integral target type, or a non-ignored target is out of bounds
+     *     not the represented integral target type
+     * @throws IndexOutOfBoundsException if a non-ignored target is out of bounds
      * @throws ArithmeticException if checked coordinate or address arithmetic overflows
      */
     public static void validate(CpuBufferArgument target,
             CpuLossLowering.Geometry geometry) {
+        bind(target, geometry).run();
+    }
+
+    /**
+     * Captures an allocation-free target scan without reading producer-owned values.
+     *
+     * @param target non-null already carrier-validated borrowed INT32 or INT64 storage
+     * @param geometry non-null complete static index categorical geometry
+     * @return non-null action that checks current targets before each consumer invocation;
+     *     invalid non-ignored targets cause {@link IndexOutOfBoundsException}
+     * @throws NullPointerException if an argument is {@code null}
+     * @throws IllegalArgumentException if the geometry or carrier is not index categorical
+     * @throws ArithmeticException if checked sample-count arithmetic overflows
+     */
+    public static Runnable bind(CpuBufferArgument target, CpuLossLowering.Geometry geometry) {
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(geometry, "geometry");
         long[] extents = geometry.extents();
@@ -41,26 +58,49 @@ public final class CpuLossInputValidator {
         long[] strides = geometry.targetStrides();
         long samples = sampleCount(extents, axis);
         long classes = extents[axis];
-        long base = Math.addExact(target.byteOffset() / targetType.byteWidth(),
-                geometry.targetOffset());
-        for (long ordinal = 0; ordinal < samples; ordinal++) {
-            long remaining = ordinal;
-            long address = base;
-            for (int dimension = extents.length - 1; dimension >= 0; dimension--) {
-                if (dimension == axis) continue;
-                long extent = extents[dimension];
-                long coordinate = remaining % extent;
-                remaining /= extent;
-                int targetDimension = dimension < axis ? dimension : dimension - 1;
-                address = Math.addExact(address,
-                        Math.multiplyExact(coordinate, strides[targetDimension]));
+        long base = geometry.targetOffset();
+        MemorySegment storage = switch (target) {
+            case CpuBufferArgument.Ints value -> MemorySegment.ofArray(value.carrier())
+                    .asSlice(value.byteOffset(), value.byteSize());
+            case CpuBufferArgument.Longs value -> MemorySegment.ofArray(value.carrier())
+                    .asSlice(value.byteOffset(), value.byteSize());
+            case CpuBufferArgument.Segment value -> value.segment();
+            default -> throw new IllegalArgumentException("index loss requires integral storage");
+        };
+        if (targetType == DataType.INT32) return () -> {
+            for (long ordinal = 0; ordinal < samples; ordinal++) {
+                long address = address(ordinal, base, extents, strides, axis);
+                check(storage.get(ValueLayout.JAVA_INT, Math.multiplyExact(address, Integer.BYTES)),
+                        ordinal, classes, geometry);
             }
-            long value = read(target, targetType, address);
-            if (geometry.ignorePresent() && value == geometry.ignoreValue()) continue;
-            if (value < 0 || value >= classes) {
-                throw new IndexOutOfBoundsException("index categorical target at logical position "
-                        + ordinal + " is out of bounds: value=" + value + ", classes=" + classes);
+        };
+        return () -> {
+            for (long ordinal = 0; ordinal < samples; ordinal++) {
+                long address = address(ordinal, base, extents, strides, axis);
+                check(storage.get(ValueLayout.JAVA_LONG, Math.multiplyExact(address, Long.BYTES)),
+                        ordinal, classes, geometry);
             }
+        };
+    }
+
+    private static long address(long ordinal, long base, long[] extents, long[] strides, int axis) {
+        long address = base;
+        for (int dimension = extents.length - 1; dimension >= 0; dimension--) {
+            if (dimension == axis) continue;
+            long coordinate = ordinal % extents[dimension];
+            ordinal /= extents[dimension];
+            int targetDimension = dimension < axis ? dimension : dimension - 1;
+            address = Math.addExact(address, Math.multiplyExact(coordinate, strides[targetDimension]));
+        }
+        return address;
+    }
+
+    private static void check(long value, long ordinal, long classes,
+            CpuLossLowering.Geometry geometry) {
+        if (geometry.ignorePresent() && value == geometry.ignoreValue()) return;
+        if (value < 0 || value >= classes) {
+            throw new IndexOutOfBoundsException("index categorical target at logical position "
+                    + ordinal + " is out of bounds: value=" + value + ", classes=" + classes);
         }
     }
 
@@ -84,15 +124,4 @@ public final class CpuLossInputValidator {
         throw new IllegalArgumentException("index categorical target requires an INT32 or INT64 carrier");
     }
 
-    private static long read(CpuBufferArgument target, DataType type, long address) {
-        if (type == DataType.INT32) {
-            if (target instanceof CpuBufferArgument.Ints ints)
-                return ints.carrier()[Math.toIntExact(address)];
-            return ((CpuBufferArgument.Segment) target).segment().get(ValueLayout.JAVA_INT,
-                    Math.multiplyExact(address, Integer.BYTES));
-        }
-        if (target instanceof CpuBufferArgument.Longs longs) return longs.carrier()[Math.toIntExact(address)];
-        return ((CpuBufferArgument.Segment) target).segment().get(ValueLayout.JAVA_LONG,
-                Math.multiplyExact(address, Long.BYTES));
-    }
 }

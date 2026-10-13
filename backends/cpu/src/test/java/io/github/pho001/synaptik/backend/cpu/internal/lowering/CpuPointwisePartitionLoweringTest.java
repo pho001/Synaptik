@@ -159,7 +159,7 @@ class CpuPointwisePartitionLoweringTest {
                         new PreparedMemoryPlan(buffers, List.of()), assignments)).executable();
     }
 
-    @Test void coldBindingRejectsNonCanonicalWhereCondition() {
+    @Test void invocationRejectsNonCanonicalWhereCondition() {
         var analysis = new CpuPartitionPreparer().analyze(where());
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
         var condition = CpuNativeBuffer.allocate(DataType.BOOL, 5, 1);
@@ -171,11 +171,12 @@ class CpuPointwisePartitionLoweringTest {
                 .stream().map(buffer -> List.of(new BufferRepresentationBinding(buffer,
                         RunResourceOwnership.RUN_OWNED))).toList(), List.of());
         try {
-            assertThrows(IllegalArgumentException.class, () -> executable.bind(state));
+            var invocation = executable.bind(state);
+            assertThrows(IllegalArgumentException.class, invocation::execute);
         } finally { state.close(); }
     }
 
-    @Test void coldBindingRejectsNonCanonicalLogicalInput() {
+    @Test void invocationRejectsNonCanonicalLogicalInput() {
         var context = logical();
         var analysis = new CpuPartitionPreparer().analyze(context);
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
@@ -187,7 +188,8 @@ class CpuPointwisePartitionLoweringTest {
                 .map(buffer -> List.of(new BufferRepresentationBinding(buffer,
                         RunResourceOwnership.RUN_OWNED))).toList(), List.of());
         try {
-            assertThrows(IllegalArgumentException.class, () -> executable.bind(state));
+            var invocation = executable.bind(state);
+            assertThrows(IllegalArgumentException.class, invocation::execute);
         } finally { state.close(); }
     }
 

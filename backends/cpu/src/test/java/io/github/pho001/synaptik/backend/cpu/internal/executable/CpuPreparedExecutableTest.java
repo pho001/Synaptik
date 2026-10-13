@@ -135,7 +135,7 @@ class CpuPreparedExecutableTest {
     private static final ValueLayout.OfLong LONG =
             ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
 
-    @Test void parallelIndexLossRejectsDuringBindingBeforeWritesOrWorkerSubmission() {
+    @Test void parallelIndexLossRejectsAtInvocationBeforeWritesOrWorkerSubmission() {
         int samples = 16;
         Shape logitsShape = Shape.of(samples, 2);
         var base = CpuScatterLoweringTest.context(new Operation(
@@ -162,7 +162,7 @@ class CpuPreparedExecutableTest {
             var run = state(executable, List.of(borrow(new float[samples * 2], 0, samples * 2),
                     borrow(targets), borrow(output, 0, samples)));
             try {
-                assertThrows(IndexOutOfBoundsException.class, () -> executable.bind(run));
+                assertThrows(IndexOutOfBoundsException.class, () -> executable.bind(run).execute());
                 float[] expected = new float[samples];
                 Arrays.fill(expected, 71.0f);
                 assertArrayEquals(expected, output);
@@ -568,7 +568,7 @@ class CpuPreparedExecutableTest {
             var invalid = state(executable, List.of(borrow(invalidInput, 0, 32),
                     borrow(untouched, 1, 32)));
             try {
-                assertThrows(IllegalArgumentException.class, () -> executable.bind(invalid));
+                assertThrows(IllegalArgumentException.class, () -> executable.bind(invalid).execute());
                 double[] expected = new double[34]; java.util.Arrays.fill(expected, -31);
                 assertArrayEquals(expected, untouched);
             } finally { invalid.close(); }
@@ -666,7 +666,7 @@ class CpuPreparedExecutableTest {
                             CpuContiguousWorkspace.allocate(declaration.byteSize(),
                                     declaration.byteAlignment())));
             try {
-                assertThrows(IllegalArgumentException.class, () -> executable.bind(invalid));
+                assertThrows(IllegalArgumentException.class, () -> executable.bind(invalid).execute());
                 double[] expected = new double[10]; java.util.Arrays.fill(expected, -31);
                 assertArrayEquals(expected, untouched);
             } finally { invalid.close(); }
@@ -1357,7 +1357,7 @@ class CpuPreparedExecutableTest {
         var boolRun = state(boolExecutable,
                 List.of(borrow(new byte[]{1, 2, 0}), borrow(boolOutput)));
         try {
-            assertThrows(IllegalArgumentException.class, () -> boolExecutable.bind(boolRun));
+            assertThrows(IllegalArgumentException.class, () -> boolExecutable.bind(boolRun).execute());
             assertArrayEquals(new byte[]{9, 9, 9, 9}, boolOutput);
         } finally { boolRun.close(); }
     }
@@ -1390,7 +1390,7 @@ class CpuPreparedExecutableTest {
                     segment(output).setAtIndex(ValueLayout.JAVA_BYTE, i, outputBytes[i]);
                 var run = state(executable, List.of(input, output));
                 try {
-                    assertThrows(IllegalArgumentException.class, () -> executable.bind(run),
+                    assertThrows(IllegalArgumentException.class, () -> executable.bind(run).execute(),
                             "canonical BOOL preflight " + pattern);
                     for (int i = 0; i < outputBytes.length; i++) assertEquals((byte) 0x5a,
                             segment(output).getAtIndex(ValueLayout.JAVA_BYTE, i),
@@ -1507,7 +1507,7 @@ class CpuPreparedExecutableTest {
         var invalid = state(executable, List.of(borrow(new byte[]{0, 2, 0, 1}),
                 borrow(new byte[]{1, 0}), borrow(invalidOutput)));
         try {
-            assertThrows(IllegalArgumentException.class, () -> executable.bind(invalid));
+            assertThrows(IllegalArgumentException.class, () -> executable.bind(invalid).execute());
             assertArrayEquals(new byte[]{7, 7, 7, 7}, invalidOutput);
         } finally { invalid.close(); }
 
@@ -1515,7 +1515,7 @@ class CpuPreparedExecutableTest {
         var invalidUpdate = state(executable, List.of(borrow(new byte[]{0, 1, 0, 1}),
                 borrow(new byte[]{1, 2}), borrow(invalidUpdateOutput)));
         try {
-            assertThrows(IllegalArgumentException.class, () -> executable.bind(invalidUpdate));
+            assertThrows(IllegalArgumentException.class, () -> executable.bind(invalidUpdate).execute());
             assertArrayEquals(new byte[]{7, 7, 7, 7}, invalidUpdateOutput);
         } finally { invalidUpdate.close(); }
 
@@ -1749,7 +1749,7 @@ class CpuPreparedExecutableTest {
         var boolRun = state(boolGather,
                 List.of(borrow(new byte[]{1, 2}), borrow(new int[]{0}), borrow(boolOutput)));
         try {
-            assertThrows(IllegalArgumentException.class, () -> boolGather.bind(boolRun));
+            assertThrows(IllegalArgumentException.class, () -> boolGather.bind(boolRun).execute());
             assertArrayEquals(new byte[]{7}, boolOutput);
         } finally { boolRun.close(); }
     }

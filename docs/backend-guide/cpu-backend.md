@@ -318,6 +318,28 @@ available parallelism are one, no worker group is installed, and no Runtime fall
 search occurs. Existing typed analysis/tuning inputs may request preferred-species Vector API
 candidates, but the standard production composition does not.
 
+### Binding metadata and validating produced values
+
+Cold binding checks each carrier's type, lifetime, accessibility, alignment, writable output
+region, represented span, and physical overlap. It also captures direct typed readers and
+primitive traversal geometry for value-dependent checks, but does not scan values: all partition
+children are bound before an earlier child has produced its intermediate results.
+
+At each consumer invocation, the orchestrating thread runs those prebound checks after producers
+and before the consumer's first write, prologue, or worker submission. They check the finite
+softmax input/shift domain, index categorical loss targets, and canonical BOOL inputs, including
+reduction and attention masks. Attention scans its distinct mask coordinates, not every
+broadcast use. Successful scans allocate no traversal state and perform no per-element carrier
+selection. Repeated invocations check current values again; a prior run's workspace contents
+cannot certify the next run. Index and scatter checks use the same pre-consumer timing.
+
+For example, with a FLOAT32 input `[0, 1000]`, `input.exp().softmax(0)` first produces
+`[1, +Infinity]`. The softmax scan then rejects it, exactly as it rejects that direct input.
+The softmax output remains untouched, although the producer has already written its intermediate.
+This is consumer-level pre-write validation, not rollback of earlier partition work. Runtime
+still executes the fixed schedule and owns the existing failed-run cleanup; it adds no value
+policy or retry.
+
 ### Cold local-workload tuning collaboration
 
 `CpuBackendIntegration.localWorkloadTuning()` returns the same retained
@@ -1211,7 +1233,7 @@ threshold ---------------------------------------------------------------/
 The two intermediate values receive no CPU buffer declaration or Runtime slot. The generated
 entry has four boundary arguments only because this example has three external reads and one
 output; another legal chain derives a different count. The BOOL store is canonical byte `0` or
-`1`, and cold binding validates every BOOL input boundary before hot invocation. This example
+`1`, and each invocation validates every BOOL input boundary before generated work. This example
 demonstrates family lowering, virtuality, and derived boundary cardinality; it does not by itself
 demonstrate cross-type conversion, general DAG fusion, or another operation family.
 
@@ -1337,8 +1359,9 @@ scalar orchestration, and declares exactly the source and final result. Shared P
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
 before current schema-69 artifact access and constructs one immutable executable. Cold binding
 validates the exact data type, carrier, byte size, alignment, accessibility, output writability,
-canonical BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
-carriers, address table, and `start`/`end` bounds; it receives no operation, graph node, Shape,
+and source/result non-overlap. Invocation checks canonical BOOL input bytes before copying.
+Runtime invokes only the prepared direct carriers, address table, and `start`/`end` bounds;
+it receives no operation, graph node, Shape,
 layout, affine IR, or route choice.
 
 Static non-affine movement is the separate bounded family below. Index tensors, functional
@@ -1520,8 +1543,9 @@ Validation and output have independent zero domains. An empty index domain succe
 load. A zero output caused by an unrelated data suffix still validates every supplied index. A
 zero selected data extent rejects every encountered value because its valid interval is empty.
 After successful validation, zero output invokes no generated entry and submits no worker work.
-All cold carrier, span, alignment, accessibility, output-writability, canonical gathered-BOOL,
-injectivity, and output/input non-overlap checks still run.
+All cold carrier, span, alignment, accessibility, output-writability, injectivity, and
+output/input non-overlap checks still run. Canonical gathered-BOOL values are checked at invocation
+before any consumer write.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
@@ -1626,7 +1650,7 @@ which is not a stronger Model guarantee. Floating extrema propagate NaN and appl
 signed-zero rule. Floating multiplication computes the exact abstract unchanged-format product
 and rounds once; it does not promise a NaN payload, source, signaling state, or sign.
 
-Cold binding validates the complete logical index domain in deterministic row-major scalar order
+Each invocation validates the complete logical index domain in deterministic row-major scalar order
 before any output write or worker submission. Negative and out-of-range indices fail; CPU does not
 normalize, wrap, clamp, ignore, or substitute a default. For `SCATTER_ELEMENTS + NONE` and
 `SCATTER_ND + NONE`, a second complete pass rejects the first later update or tuple that repeats
@@ -1807,8 +1831,9 @@ bitwise-identical represented value outputs. Vector sorting, parallel merge, rad
 sorting, approximate selection, and runtime algorithm choice are not implemented.
 
 Cold binding validates carrier kind, byte size, alignment, accessibility, output writability,
-canonical input BOOL bytes, complete buffer spans, and workspace geometry. It rejects every
-input/output overlap and TOP_K output/output overlap before any scratch mutation, output write,
+complete buffer spans, and workspace geometry. Invocation checks canonical input BOOL bytes
+before sorting. Binding rejects every input/output overlap and TOP_K output/output overlap
+before any scratch mutation, output write,
 generated call construction, or worker submission. Heap arrays, native-order `MemorySegment`,
 and compatible mixed carriers are supported; input reads may use dense, offset, positive-strided,
 or zero-strided layouts, and outputs may use injective non-dense layouts. Values outputs copy the
@@ -2158,11 +2183,11 @@ and released with the run, not retained by the immutable prepared executable. In
 extrema, and Boolean rows declare no workspace, and no aggregate row selects materialization.
 Cold binding accepts the matching heap primitive arrays,
 native-order `MemorySegment` carriers, and compatible mixed boundaries for arbitrary supported
-non-negative resolved input layouts and injective output layouts. It validates canonical BOOL
-input and rejects complete physical input/output overlap. Scratch-bearing rows additionally
-validate workspace presence, exact size, alignment, accessibility, and complete physical
-non-overlap with input and output. All checks finish before coordinate-pack mutation, output
-initialization, a generated call, or worker submission. Empty output performs no generated work.
+non-negative resolved input layouts and injective output layouts. It rejects complete physical
+input/output overlap and prebinds a canonical BOOL scan for invocation. Scratch-bearing rows
+additionally validate workspace presence, exact size, alignment, accessibility, and complete
+physical non-overlap with input and output. The value scan follows producers and precedes
+generated output initialization or worker submission. Empty output performs no generated work.
 The same checks apply to SUM-to-Shape, including complete input/output physical-overlap rejection
 for its raw-copy form. A selected empty floating domain with existing output cells still owns its
 exact-state slices; integral reductions and every raw copy use no workspace.
@@ -2379,7 +2404,8 @@ existing exact-state slice per simultaneously used output-cell range. The select
 primitive invocation local, not a declared resource. Data and mask are both read-only and may
 physically overlap; cold binding rejects output overlap with either input and scratch overlap with
 every buffer. It also validates carrier type, accessibility, alignment, complete referenced
-spans, output injectivity, and every mask byte before the first output write or worker submission.
+spans, and output injectivity. The prebound mask scan checks every represented byte at invocation,
+after its producer and before the first output write or worker submission.
 
 Scalar and parallel-scalar execution divide only the flattened output-cell domain into disjoint
 half-open ranges. Each range owns complete selected-axis domains and one private exact-state
@@ -2473,17 +2499,18 @@ extent on any non-selected axis instead makes the shape-preserving output empty,
 performs no value scan, generated call, write, or worker submission.
 
 This route deliberately admits a CPU-private numerical subset. Every represented input and every
-selected-width shift `value - sliceMaximum` must be finite. The restriction exists because Model
-and Compiler define the first-class mathematical meaning but intentionally leave NaN, infinity,
-finite shift overflow, and a zero selected-axis extent unsettled for executable policy. CPU rejects
-those cases rather than inventing portable results or implying that another backend must reject
-them.
+selected-width shift `value - sliceMaximum` must be finite. This is a limitation of the current
+CPU route, not undefined Model semantics: Model defines NaN, infinity, and empty-slice behavior.
+CPU rejects non-finite inputs and shift overflow; its capability domain also requires a positive
+selected-axis extent. These restrictions do not imply that another backend must reject them.
 
 Cold binding first validates the exact heap-array or native-order `MemorySegment` carrier,
 thread access, liveness, alignment, complete referenced span, output writability and injectivity,
-and complete input/output non-overlap. A focused validator then checks the entire admitted value
-domain before any output mutation or worker submission. Heap, segment, and mixed input/output
-pairs are supported for `double[]`, `float[]`, and raw-BFLOAT16 `short[]` carriers. Arbitrary
+and complete input/output non-overlap. It prebinds a focused validator that checks the entire
+admitted value domain at invocation, after producers and before output mutation or worker
+submission. FLOAT16 and BFLOAT16 storage are decoded distinctly and exactly, with FLOAT32
+maximum/shift checks for each low type. Heap, segment, and mixed input/output pairs are supported
+for `double[]`, `float[]`, and raw-BFLOAT16/FLOAT16 `short[]` carriers. Arbitrary
 resolved legal non-negative layouts are supported, including positive offsets, non-contiguous
 injective output strides, and zero input strides.
 
@@ -3228,6 +3255,17 @@ output/input non-overlap before a generated call or worker submission. Repeated 
 target graph roles may share one read boundary, and distinct read boundaries may overlap; the
 output span must remain disjoint from every input span.
 
+Index categorical targets are scanned at invocation after their producers, once on the
+orchestrating thread before any loss output write or worker submission. The exact ignore guard
+precedes bounds checking; an invalid non-ignored target leaves every loss output cell untouched.
+MSE and dense categorical loss add no target-value restriction.
+
+Composed loss units validate their actual occurrence access plans, including non-scalar ranks and
+strided boundaries. The generated-artifact cache still projects loss access plans to rank-zero
+read/write identities because rank, axis, layout, offsets, and strides are cold invocation
+geometry. That cache projection is not an occurrence binding and cannot replace one. This repair
+does not change generated bytes, cache format, schema, or operation capability.
+
 Same-typed FLOAT32 or FLOAT64 MSE with reduction `NONE` can select preferred-species `VECTOR` or
 `PARALLEL_VECTOR` compute when prediction, target, and output are dense row-major contiguous,
 their complete logical domain contains at least one full species, and vector compute is
@@ -3440,8 +3478,8 @@ upper `MIN` stage. This result demonstrates directional zero selection and order
 evaluation; it does not promise which NaN payload is retained. Reversing the accepted zero bounds
 to `[+0.0, -0.0]` produces `-0.0` for every non-NaN input.
 
-Logical `AND` and `OR` use ordinary right-aligned broadcasting; `NOT` preserves Shape. Cold
-binding validates external BOOL bytes as canonical `0` or `1`, and materialized logical results
+Logical `AND` and `OR` use ordinary right-aligned broadcasting; `NOT` preserves Shape. Each
+invocation validates external BOOL bytes as canonical `0` or `1`, and materialized logical results
 stay canonical. The BOOL vector `NOT` masks the bitwise complement back to byte `0` or `1`; it
 never exposes `0xFF`. Generated loops perform no numeric-truthiness conversion or repeated BOOL
 validation. Virtual floating predicate masks instead remain matching `VectorMask` locals until

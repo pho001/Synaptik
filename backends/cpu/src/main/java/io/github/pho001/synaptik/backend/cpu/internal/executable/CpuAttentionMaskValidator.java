@@ -2,14 +2,13 @@ package io.github.pho001.synaptik.backend.cpu.internal.executable;
 
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
-import java.lang.foreign.ValueLayout;
-import java.util.Objects;
 
 /**
- * Cold canonical-byte validator for one distinct logical attention-mask domain.
+ * Cold-bound canonical-byte validator for one distinct logical attention-mask domain.
  *
- * <p>Binding invokes this validator before generated work or output writes so a BOOL mask is
- * checked once per represented logical coordinate, rather than once per broadcast use.
+ * <p>Binding retains the distinct mask domain without reading its values. Execution scans after
+ * producers and before generated work or output writes, once per logical coordinate rather than
+ * once per broadcast use.
  */
 public final class CpuAttentionMaskValidator {
   private CpuAttentionMaskValidator() {}
@@ -24,31 +23,20 @@ public final class CpuAttentionMaskValidator {
    * @throws ArithmeticException if address traversal overflows
    */
   public static void validate(CpuBufferArgument argument, CpuAccessPlan.Binding binding) {
-    Objects.requireNonNull(argument, "argument");
-    Objects.requireNonNull(binding, "binding");
-    long[] extents = binding.extents().stream().mapToLong(Long::longValue).toArray();
-    long[] strides = binding.effectiveStrides().stream().mapToLong(Long::longValue).toArray();
-    long[] coordinates = new long[extents.length];
-    long address = binding.baseElementOffset();
-    for (long logical = 0; logical < binding.elementCount(); logical++) {
-      byte value = read(argument, address);
-      if (value != 0 && value != 1)
-        throw new IllegalArgumentException("attention BOOL mask must use canonical bytes");
-      for (int axis = coordinates.length - 1; axis >= 0; axis--) {
-        coordinates[axis]++;
-        address = Math.addExact(address, strides[axis]);
-        if (coordinates[axis] < extents[axis]) break;
-        coordinates[axis] = 0;
-        address = Math.subtractExact(address, Math.multiplyExact(extents[axis], strides[axis]));
-      }
-    }
+    bind(argument, binding).run();
   }
 
-  private static byte read(CpuBufferArgument argument, long address) {
-    if (argument instanceof CpuBufferArgument.Bytes bytes)
-      return bytes.carrier()[Math.toIntExact(bytes.byteOffset() + address)];
-    if (argument instanceof CpuBufferArgument.Segment segment)
-      return segment.segment().get(ValueLayout.JAVA_BYTE, address);
-    throw new IllegalArgumentException("attention mask requires a byte carrier");
+  /**
+   * Binds a sequential allocation-free mask scan without reading producer-owned values.
+   *
+   * @param argument non-null already carrier-validated borrowed BOOL storage
+   * @param binding non-null complete distinct logical mask domain
+   * @return non-null action that rejects noncanonical bytes before attention writes or submission
+   * @throws NullPointerException if an argument is null
+   * @throws IllegalArgumentException if the carrier is not byte-addressable BOOL storage
+   */
+  public static Runnable bind(CpuBufferArgument argument, CpuAccessPlan.Binding binding) {
+    return CpuBooleanInputValidator.bind(argument, binding,
+        "attention BOOL mask must use canonical bytes");
   }
 }

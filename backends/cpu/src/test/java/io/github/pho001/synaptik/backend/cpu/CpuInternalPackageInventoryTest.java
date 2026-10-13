@@ -195,6 +195,7 @@ class CpuInternalPackageInventoryTest {
                         "internal/executable/CpuLossInputValidator.java",
                         "internal/executable/CpuSoftmaxInputValidator.java",
                         "internal/executable/CpuAttentionMaskValidator.java",
+                        "internal/executable/CpuBooleanInputValidator.java",
                         "internal/executable/CpuWorkerGroup.java",
                         "internal/executable/CpuConcurrencyBudget.java",
                         "internal/executable/package-info.java",

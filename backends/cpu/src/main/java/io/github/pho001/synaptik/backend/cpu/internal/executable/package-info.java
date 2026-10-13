@@ -3,9 +3,12 @@
  *
  * <p>The partition executable strongly owns its verified generated artifact and exact prepared
  * buffer selections. During cold binding it validates CPU representations, exact carrier pattern,
- * geometry, mutability, liveness, size, alignment, canonical BOOL bytes, and input/output
- * accessed-span overlap, then
+ * geometry, mutability, liveness, size, alignment, and input/output accessed-span overlap, then
  * captures direct array or segment references and primitive range/address state in one invocation.
+ * Value-dependent scans are prebound without reading storage. Each consumer invocation checks
+ * current softmax inputs/shifts, index-loss targets, and canonical BOOL inputs or masks after
+ * producers and before its prologue, output writes, or worker submission. Scan geometry, typed
+ * storage readers, and traversal state are captured cold; successful scans allocate nothing.
  * Static movement recipes additionally retain compact immutable output/input layout geometry and
  * family mapping facts. Cold binding packs only the selected invocation range's coordinate and
  * address state; it retains no per-output-element selector or address table.
@@ -14,10 +17,10 @@
  * or worker submission. Invalid input therefore mutates no physical output bytes. Empty index
  * domains validate without a load; zero output still validates any non-empty index domain and,
  * after success, invokes no generated entry and submits no worker work.
- * Scatter recipes retain three semantic input roles over deduplicated input boundaries. Cold
- * binding validates all bounds before any replacement-target duplicate check and before generated
- * work, so failure leaves the output untouched. It then packs reusable coordinate state for
- * disjoint output ranges. Floating-product scatter also binds one exact declared workspace and
+ * Scatter recipes retain three semantic input roles over deduplicated input boundaries. Each
+ * invocation validates all bounds before any replacement-target duplicate check and before
+ * generated work, so failure leaves the output untouched. Binding packs reusable coordinate
+ * state for disjoint output ranges. Floating-product scatter also binds one exact declared workspace and
  * assigns a non-overlapping scratch slice to each selected range; other scatter rows bind no
  * workspace. Inputs remain borrowed and read-only, and output overlap with any input is rejected.
  * Fold recipes likewise reject physical input/output overlap before any generated call or worker
@@ -49,9 +52,9 @@
  * invocation-private coordinate array per range and partitions only the independent slice
  * domain, so one slice and its sequential accumulator never cross worker boundaries.</p>
  *
- * <p>Aggregate binding validates complete input/output overlap, all logical canonical
- * Boolean input bytes, and any exact-state workspace's size, alignment, accessibility, and buffer
- * non-overlap before mutation. It packs invocation-private coordinates, assigns disjoint
+ * <p>Aggregate binding validates complete input/output overlap and any exact-state workspace's
+ * size, alignment, accessibility, and buffer non-overlap before mutation. It prebinds a scan of
+ * logical canonical Boolean inputs, packs invocation-private coordinates, and assigns disjoint
  * workspace slices to floating numerical ranges, and partitions only complete output cells;
  * selected domains are never split or combined. Bound SUM-to-Shape uses the same lifecycle and
  * rejects overlap even when its no-reduction form performs a raw represented-bit copy.</p>
@@ -73,8 +76,8 @@
  * scratch slice when L1 or statistics require one.</p>
  *
  * <p>Softmax binding validates carrier access, spans, alignment, output writability and
- * injectivity, and complete input/output non-overlap before its focused validator scans every
- * represented input and maximum shift. Only after that pre-write check can scalar or
+ * injectivity, and complete input/output non-overlap. Its prebound validator scans every
+ * represented input and maximum shift at invocation, after producers. Only after that check can scalar or
  * parallel-scalar complete-slice calls execute; empty outputs scan, submit, and write nothing.</p>
  *
  * <p>Batch-normalization training binding validates five semantic positions over deduplicated

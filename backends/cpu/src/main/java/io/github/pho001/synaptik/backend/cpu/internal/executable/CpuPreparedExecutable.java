@@ -65,8 +65,8 @@ import java.util.Optional;
  * scans the complete logical index domain in deterministic row-major order before any generated
  * call or worker submission. A zero output still validates a non-empty index domain, while a
  * valid zero-output execution makes no generated call and submits no worker work.
- * For scatter, binding validates every index and then replacement uniqueness before any output
- * call. Successful ranges own disjoint output coordinates and, when floating multiplication is
+ * For scatter, each invocation validates every index and then replacement uniqueness before any
+ * output call. Successful ranges own disjoint output coordinates and, when floating multiplication is
  * selected, disjoint slices of the exact declared scratch workspace.
  * For fold, binding rejects every physical input/output overlap before any generated call or
  * worker submission. Each scalar or parallel-scalar range owns disjoint output coordinates and
@@ -77,13 +77,13 @@ import java.util.Optional;
  * For cumulative scans, binding rejects complete input/output physical overlap before creating
  * calls or submitting workers. Each selected range owns complete independent logical slices;
  * one slice is never divided, and every range receives invocation-private coordinate state.
- * For ordinary aggregate execution, binding validates complete input/output spans, every canonical
- * Boolean input, and any exact-state workspace size, alignment, accessibility, and physical
+ * For ordinary aggregate execution, binding validates complete input/output spans and any
+ * exact-state workspace size, alignment, accessibility, and physical
  * non-overlap before mutation. Floating numerical parallel ranges receive disjoint workspace
  * slices. All ranges own disjoint complete output cells; no range splits, partially reduces, or
  * combines a selected domain.
- * Masked SUM/MEAN binding additionally validates the complete canonical Boolean mask before any
- * output write or worker submission, permits only physical input/input aliasing, and rejects the
+ * Masked SUM/MEAN invocation additionally validates the complete canonical Boolean mask before any
+ * output write or worker submission. Binding permits only physical input/input aliasing and rejects the
  * output against both inputs and the exact-state workspace. Every call receives one already-sliced
  * private exact state region and retains its selected count in primitive invocation-local state.
  * Trailing Layer/RMS normalization binding validates every typed carrier, resolved span,
@@ -98,13 +98,18 @@ import java.util.Optional;
  * output mutation or worker submission. Each range owns complete NCHW output cells and receives
  * immutable packed layout and window geometry; a pooling window is never divided among ranges.
  * Direct loss binding validates every represented carrier, full logical geometry, injective
- * output, and complete output/input span before it scans index targets. The index scan compares
- * ignore before bounds and completes before it constructs a generated call or submits workers;
+ * output, and complete output/input span before binding an index-target scan. At invocation the
+ * scan compares ignore before bounds, before any generated call or worker submission;
  * MSE and dense categorical loss require no target-value scan. Losses declare no workspace.
- * Scaled-dot-product-attention binding validates its optional canonical Boolean mask and all
- * input/output/workspace overlap before mutation. Each range owns complete broadcast-batch/query
+ * Scaled-dot-product-attention binding validates all input/output/workspace overlap and prebinds
+ * its optional canonical Boolean mask scan. Each range owns complete broadcast-batch/query
  * rows and a disjoint aligned score slice; zero-score and zero-work forms retain the scratch-shaped
  * entry without requiring a workspace.
+ * All value-dependent scans (softmax inputs/shifts, loss targets, and canonical BOOL inputs or
+ * masks) are cold-bound without reading storage. Each invocation scans current producer results
+ * once on the orchestrator before its prologue, consumer writes, or worker submission. Traversal
+ * state and typed readers are prebound, so successful scans allocate no hot-path state. Metadata,
+ * carrier, span, accessibility, and overlap checks remain in cold binding.
  */
 public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuGeneratedKernel artifact;
@@ -1629,11 +1634,6 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                         bindings.get(right)))
                     throw new IllegalArgumentException("outputs must not overlap");
         }
-        attentionGeometry.filter(g -> g.mask().isPresent()).ifPresent(g -> {
-            int mask = g.roleBoundaryPositions().get(3);
-            CpuAttentionMaskValidator.validate(arguments.get(mask), bindings.get(mask));
-        });
-        validateCanonicalBooleanInputs(arguments);
         IndexValidation validation = indexingGeometry.map(g ->
                 new IndexValidation(arguments, g)).orElse(null);
         ScatterValidation scatterValidation = scatterGeometry.map(g ->
@@ -1660,15 +1660,21 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             if (!workerGroup.workersCanAccess(((CpuContiguousWorkspace) workspaces[index])
                     .writableSegment())) throw new IllegalArgumentException(
                             "materialization workspace is not accessible to every CPU worker");
-        if (softmaxGeometry.isPresent()) {
-            CpuSoftmaxInputValidator.validate(arguments.getFirst(), softmaxGeometry.orElseThrow());
-        }
+        var valueScans = new ArrayList<Runnable>();
+        bindCanonicalBooleanInputs(arguments, valueScans);
+        attentionGeometry.filter(g -> g.mask().isPresent()).ifPresent(g -> {
+            int mask = g.roleBoundaryPositions().get(3);
+            valueScans.add(CpuAttentionMaskValidator.bind(arguments.get(mask), bindings.get(mask)));
+        });
+        softmaxGeometry.ifPresent(g ->
+                valueScans.add(CpuSoftmaxInputValidator.bind(arguments.getFirst(), g)));
         if (lossGeometry.filter(geometry -> geometry.axis() >= 0
                 && geometry.targetRank() == geometry.extents().length - 1).isPresent()) {
-            // Index loss has two distinct read boundaries: logits then integral targets. This
-            // cold scan intentionally precedes call construction and all worker submission.
-            CpuLossInputValidator.validate(arguments.get(1), lossGeometry.orElseThrow());
+            // Index loss has two distinct read boundaries: logits then integral targets.
+            // Bind now, but scan only after preceding units have produced those targets.
+            valueScans.add(CpuLossInputValidator.bind(arguments.get(1), lossGeometry.orElseThrow()));
         }
+        Runnable[] valueValidations = valueScans.toArray(Runnable[]::new);
         if (aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0
                 && g.outputCount() > 0).isPresent()) {
             MemorySegment aggregateScratch = scratch(workspaces);
@@ -1728,7 +1734,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             long[] geometry = geometry(arguments, start, end, 0);
             KernelCall call = length == 0 ? null : callFor(lossEntryPoint(geometry, start, end),
                     arguments, scratchArgument(workspaces, 0), geometry, start, end);
-            return new Invocation(state, validation, scatterValidation, prologue, call, null);
+            return new Invocation(state, validation, scatterValidation, valueValidations,
+                    prologue, call, null);
         }
         CpuWorkerGroup.RangeCall[] calls = new CpuWorkerGroup.RangeCall[chunkCount];
         long quotient = length / chunkCount;
@@ -1742,7 +1749,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             calls[index] = call::invoke;
             chunkStart = chunkEnd;
         }
-        return new Invocation(state, validation, scatterValidation, prologue, null, calls);
+        return new Invocation(state, validation, scatterValidation, valueValidations,
+                prologue, null, calls);
     }
 
     /** Binds the already-selected direct-array partial route without reselecting a kernel. */
@@ -1773,7 +1781,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                     MemorySegment.ofArray(result.carrier()));
             KernelCall call = () -> CpuPartialReductionExecution.executeInt(partial,
                     values.carrier(), inputBase, result.carrier(), outputBase, workspace, workerGroup);
-            return new Invocation(state, null, null, null, call, null);
+            return new Invocation(state, null, null, new Runnable[0], null, call, null);
         }
         if (partial.ir().dataType() == io.github.pho001.synaptik.model.datatype.DataType.INT64
                 && input instanceof CpuBufferArgument.Longs values
@@ -1786,7 +1794,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                     MemorySegment.ofArray(result.carrier()));
             KernelCall call = () -> CpuPartialReductionExecution.executeLong(partial,
                     values.carrier(), inputBase, result.carrier(), outputBase, workspace, workerGroup);
-            return new Invocation(state, null, null, null, call, null);
+            return new Invocation(state, null, null, new Runnable[0], null, call, null);
         }
         throw new IllegalArgumentException("partial-reduction requires direct matching primitive arrays");
     }
@@ -2337,7 +2345,13 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         return ((CpuBufferArgument.Segment) argument).dataType();
     }
 
-    private void validateCanonicalBooleanInputs(List<CpuBufferArgument> arguments) {
+    /**
+     * Captures BOOL scans against final consumer carriers without observing unfinished values.
+     *
+     * @param arguments non-null resolved generated-boundary arguments
+     * @param scans non-null cold mutable list receiving one scan per BOOL read boundary
+     */
+    private void bindCanonicalBooleanInputs(List<CpuBufferArgument> arguments, List<Runnable> scans) {
         int output = orderingGeometry.filter(g -> g.family()
                 == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr.Family.TOP_K)
                 .isPresent() ? arguments.size() - 2 : randomGeometry.map(g -> g.family()
@@ -2348,38 +2362,17 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             if (artifact.specialization().boundaryDataTypes().get(index)
                     != io.github.pho001.synaptik.model.datatype.DataType.BOOL) continue;
             if (affineCopy) {
-                for (long logical = start; logical < end; logical++) {
-                    int pair = Math.toIntExact(Math.multiplyExact(logical, 2));
-                    long address = affineAddressPairs[pair];
-                    byte value = readByte(arguments.get(index), address);
-                    if (value != 0 && value != 1) throw new IllegalArgumentException(
-                            "BOOL condition must use canonical bytes");
-                }
+                scans.add(CpuBooleanInputValidator.bindAffine(arguments.get(index),
+                        affineAddressPairs, start, end));
                 continue;
             }
             CpuAccessPlan.Binding binding = movementGeometry.isPresent() || indexingGeometry.isPresent()
                     || scatterGeometry.isPresent() || aggregateGeometry.isPresent()
                     || maskedReductionGeometry.isPresent() || attentionGeometry.isPresent()
                     ? bindings.get(index) : ranged(bindings.get(index));
-            long[] extents = binding.extents().stream().mapToLong(Long::longValue).toArray();
-            long[] strides = binding.effectiveStrides().stream().mapToLong(Long::longValue).toArray();
-            long[] coordinates = binding.startCoordinates().stream().mapToLong(Long::longValue).toArray();
-            long address = binding.startAddress();
-            for (long logical = binding.start(); logical < binding.end(); logical++) {
-                byte value = readByte(arguments.get(index), address);
-                if (value != 0 && value != 1) {
-                    throw new IllegalArgumentException("BOOL condition must use canonical bytes");
-                }
-                address = advanceAddress(address, extents, strides, coordinates);
-            }
+            scans.add(CpuBooleanInputValidator.bind(arguments.get(index), binding,
+                    "BOOL condition must use canonical bytes"));
         }
-    }
-
-    private static byte readByte(CpuBufferArgument argument, long address) {
-        if (argument instanceof CpuBufferArgument.Bytes bytes) {
-            return bytes.carrier()[Math.toIntExact(bytes.byteOffset() + address)];
-        }
-        return ((CpuBufferArgument.Segment) argument).segment().get(ValueLayout.JAVA_BYTE, address);
     }
 
     private static long elementCount(long[] extents) {
@@ -2610,20 +2603,24 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final class Invocation extends BoundInvocation {
         private final IndexValidation validation;
         private final ScatterValidation scatterValidation;
+        private final Runnable[] valueValidations;
         private final KernelCall prologue;
         private final KernelCall call;
         private final CpuWorkerGroup.RangeCall[] calls;
         Invocation(RunState state, IndexValidation validation,
-                ScatterValidation scatterValidation, KernelCall prologue, KernelCall call,
+                ScatterValidation scatterValidation, Runnable[] valueValidations,
+                KernelCall prologue, KernelCall call,
                 CpuWorkerGroup.RangeCall[] calls) {
             super(state); this.validation = validation;
             this.scatterValidation=scatterValidation; this.prologue=prologue;
+            this.valueValidations = valueValidations;
             this.call = call; this.calls = calls;
         }
         @Override protected void executeBound() {
             CpuConcurrencyBudget.Lease lease = call != null && concurrencyBudget != null
                     ? concurrencyBudget.acquire(1) : null;
             try {
+                for (Runnable valueValidation : valueValidations) valueValidation.run();
                 if (validation != null) validation.validate();
                 if (scatterValidation != null) scatterValidation.validate();
                 if (prologue != null) prologue.invoke();

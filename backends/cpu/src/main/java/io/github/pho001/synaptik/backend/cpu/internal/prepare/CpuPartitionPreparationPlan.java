@@ -1586,7 +1586,22 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         @Override public long[] affineAddressPairs() { return affineAddressPairs.clone(); }
     }
 
+    /**
+     * Checks occurrence access plans, not a generated artifact's geometry-erased cache projection.
+     *
+     * @param unit non-null unit whose direct occurrence bindings are checked
+     * @return whether every binding matches its occurrence's ordered boundary access plan
+     */
     private static boolean unitAccessesAgree(ExecutionUnitPlan unit) {
+        if (unit.portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr loss) {
+            if (loss.boundaryAccesses().size() != unit.accessBindings().size()) return false;
+            for (int index = 0; index < loss.boundaryAccesses().size(); index++) {
+                if (!loss.boundaryAccesses().get(index).equals(
+                        unit.accessBindings().get(index).plan())) return false;
+            }
+            return true;
+        }
         if (unit.portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr
                 || unit.portablePlan().portableKernelIr()
