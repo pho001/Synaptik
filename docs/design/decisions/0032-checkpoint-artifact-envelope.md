@@ -96,3 +96,5 @@ separately; optional training continuation remains separately gated.
 - [Artifact API](../../api/checkpoint-artifact-api.md)
 - [Checkpoint module boundary](../../architecture/module-boundaries.md#extensionscheckpoint)
 - [Checkpoint 0002 brief](../../planning/extensions/checkpoint/tasks/0002-bounded-artifact-envelope.md)
+- [Subsequent internal model-candidate schema decision](0033-model-candidate-schema.md) — adds
+  model meaning outside this unchanged opaque envelope; public model save/load is still pending.

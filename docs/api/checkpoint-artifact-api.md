@@ -8,6 +8,12 @@ version-one file form. The [extensions contract](../architecture/contracts/exten
 owns the boundary, and [ADR 0032](../design/decisions/0032-checkpoint-artifact-envelope.md)
 explains the format and publication choice.
 
+Checkpoint also has an internal model-candidate codec that maps NN state to opaque entries via
+public Engine materialization. That codec is not part of this public artifact API and does not
+provide model save, inspect, load, or restore. Its schema is described by the
+[owning contract](../architecture/contracts/extensions-training.md#extensionscheckpoint) and
+[ADR 0033](../design/decisions/0033-model-candidate-schema.md).
+
 ## Core contracts
 
 `ArtifactEnvelope` has one ASCII kind and zero or more entries. Entry keys are unique and sorted

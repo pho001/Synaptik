@@ -85,8 +85,9 @@ dependencies; a consumer declaring only Training still compiles against that com
 surface. This is not permission to import lower execution internals.
 
 Checkpoint currently declares exactly the NN and public Engine project edges. Its artifact API
-reads and publishes bounded opaque files but has no model-state persistence: the Engine edge
-reserves public host materialization, while NN supplies module-state ownership. A later public
+reads and publishes bounded opaque files; its internal model package now captures detached
+candidate bytes through public Engine compute from NN's state dictionary. No public model-state
+persistence or state installation exists. A later public
 Checkpoint signature that names Model types may justify a direct Model dependency with a
 coordinated contract and test update; today's absence of that edge is not a permanent prohibition.
 The optional Training Checkpoint adapter is not in Gradle settings and must wait for its separate

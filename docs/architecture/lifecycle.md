@@ -213,14 +213,15 @@ never closes the borrowed Engine, Module, or parameter storage. Detached `Traini
 `TrainingState` values outlive all of those owners.
 
 Checkpoint does not add a step to this execution lifecycle. Its opaque artifact API can publish
-and read a bounded file with atomic live visibility, but it cannot capture model state or restore
-it. A future model-only flow must obtain detached host values through the public Engine
-materialization boundary before persistence. Exact training continuation would additionally
+and read a bounded file with atomic live visibility. Its internal model codec can now capture a
+complete quiescent NN state as a detached candidate through public Engine materialization, but
+there is no public model save/load or restore. Exact training continuation would additionally
 require Training-owned state and the caller's next-input and external-state handoff, coordinated
 by a separately gated optional adapter rather than by NN or the model-only project. This is a
 planned ownership flow, not a current runnable model save/resume sequence. See the [checkpoint
 boundary decision](../design/decisions/0031-model-checkpoint-extension-boundary.md) and
-[artifact envelope decision](../design/decisions/0032-checkpoint-artifact-envelope.md).
+[artifact envelope decision](../design/decisions/0032-checkpoint-artifact-envelope.md) and
+[model schema decision](../design/decisions/0033-model-candidate-schema.md).
 
 The first update domain is scalar `FLOAT32`/`FLOAT64` objectives and connected, fully static,
 dense-contiguous, offset-zero non-view parameters in exact-capacity writable shareable native

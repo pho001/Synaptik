@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready. Frontier verified at `e96fa174`: Checkpoint 0002 is Complete with focused validation,
+Complete. Frontier was verified at `e96fa174`: Checkpoint 0002 is Complete with focused validation,
 documentation and independent Class C review; 0001 is Complete. No other Checkpoint writer is
 active. Existing NN state export and Engine ordered bounded compute are present. Checkpoint 0004–
 0007 remain Draft and are not authorized by this brief.
@@ -94,6 +94,7 @@ model metadata; do not yet publish files or install state.
 
 - `extensions/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/model/` — internal schema codec, parsed candidate and capture handoff.
 - `extensions/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/model/` — focused behavior, corruption, bounds and lifetime tests.
+- `extensions/checkpoint/build.gradle.kts` — test-only CPU vector-module JVM flag for real Engine compute; no new project edge or shared build change.
 - `docs/architecture/contracts/extensions-training.md`, focused architecture/API explanation,
   schema ADR and this brief/master/roadmap — current contract and evidence.
 
@@ -116,7 +117,8 @@ model metadata; do not yet publish files or install state.
 
 Worker: `./gradlew :extensions:checkpoint:check :extensions:checkpoint:javadoc`.
 Integration: focused architecture dependency test if changed, then `git diff --check`; no
-repository-wide gate unless dependency/shared-build behavior actually changes.
+repository-wide gate unless dependency/shared-build behavior actually changes. The only build
+configuration change is module-local and test-only; the existing two project edges are unchanged.
 
 ## Documentation and review impact
 
@@ -126,4 +128,23 @@ apply the general, architecture, ADR, API, and planning documentation profiles a
 
 ## Result
 
-Pending implementation and independent review.
+Implementation and documentation completed from `63708bc8`. Internal `ModelArtifactCodec`, `ModelArtifactCapture`, and `ModelArtifactCandidate` now
+preflight and capture one complete NN snapshot using public bounded Engine compute, encode fixed
+v1 IDs and strict UTF-8 paths, preserve both caller digests, and validate detached metadata and
+ordinal payload correspondence. Six new model tests cover all current type IDs and executable
+CPU materialization, kind IDs, empty state, aliases, Unicode, corruption, fingerprint sensitivity,
+bounds, failure, and lifetime. The test-only vector module flag is necessary for real CPU compute
+in this module's test JVM; production dependencies remain exactly NN and Engine.
+
+Validation: `./gradlew :extensions:checkpoint:test --tests '*ModelArtifactTest' --offline`
+passed 7/7; `./gradlew :extensions:checkpoint:check :extensions:checkpoint:javadoc` passed
+22/22 tests and Javadoc. The focused architecture dependency assertion did not change because
+there is no new project edge. `git diff --check` is recorded in the final worktree handoff.
+The owning scoped contract, root routing summary, architecture/API explanations, glossary,
+Javadocs, and ADR 0033 were updated. Public model save/inspect/load and state installation remain
+unimplemented by design. Independent Class C architecture/documentation review identified an
+early entry-proportional allocation before complete preflight. The implementation was corrected
+with a lazy descriptor view and incremental bounds checks, and a virtual-million-state regression
+was added. A second independent targeted review signed off the correction; Markdown links and
+anchors, whitespace, and `git diff --check` passed. This closes 0003, but does not itself
+authorize implementation of Draft 0004.

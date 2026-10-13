@@ -87,7 +87,7 @@ backend prepare and kernels and requires a separate architecture decision.
 
 `extensions/checkpoint` is the model-only recovery owner downstream of NN and the public
 Engine facade. Its artifact package owns a version-one, single-regular-file envelope for opaque
-bytes only. It has no Tensor, NN-state, optimizer, Engine-execution, or training schema. The
+bytes only; that package assigns no model meaning to a payload. The
 canonical big-endian file has a fixed magic/version header, SHA-256 manifest digest, sorted strict
 ASCII names, explicit bounded lengths, and SHA-256 per-payload digests. Readers reject malformed,
 noncanonical, unsupported, over-limit, truncated, or trailing data before returning a detached
@@ -98,6 +98,43 @@ project dependencies remain exactly `extensions/nn` and `modules/engine`.
 NN retains module-state meaning and installation; Engine retains public host materialization.
 Checkpoint must not inspect backend representations or reach through Engine into Compiler,
 Runtime, Prepare, tuning, or concrete backends.
+
+Its internal model package owns a separate version-one metadata codec and a detached candidate,
+not a public model save/load or state installer. Under caller-owned quiescence, capture calls
+`Module.stateDictionary()` exactly once; an unbound or incomplete NN state fails there. Before
+any Engine call or Checkpoint-owned payload-sized allocation, capture validates exact NN paths,
+32-byte caller-supplied SHA-256 configuration and optional input-artifact fingerprints, static
+Shape, checked canonical byte length, entry and payload limits, aggregate bytes including every
+alias, manifest bytes, and final file bytes. It deduplicates exact Tensor identity in first-
+encounter order only for one `Engine.compute(List<Tensor>, limit)` call. Empty state makes no
+Engine call. It checks returned data type, Shape, and byte length before copying detached values
+into the opaque envelope. No live Tensor, backend storage, or Engine handle escapes the candidate.
+The caller defines what its versioned configuration and optional input-artifact digests cover;
+Checkpoint cannot serialize arbitrary Java model code or infer tokenizer/configuration meaning.
+
+The canonical model metadata payload has key `schema` and encodes, in big-endian order: eight
+ASCII bytes `SYNMOD01`, signed 32-bit version `1`, 32 configuration-digest bytes, one input-
+digest presence byte (`0` or `1`), optional 32 input-digest bytes, signed 32-bit entry count,
+then ordered entries. Each entry is a signed 32-bit positive UTF-8 path byte length, exact path
+bytes, one StateKind ID, one DataType ID, signed 32-bit nonnegative Shape rank, that many signed
+64-bit nonnegative extents, and signed 64-bit expected canonical payload length. Paths use NN's
+nonblank dot-segment grammar with valid Unicode; decoding requires strict UTF-8 and retains the
+exact text without normalization. Kind IDs are `1` parameter and `2` buffer. DataType IDs are
+`1` FLOAT64, `2` FLOAT32, `3` BFLOAT16, `4` INT32, `5` INT64, `6` BOOL, and `7` FLOAT16. IDs do
+not derive from enum order or names. No padding or trailing bytes are permitted. SHA-256 of these
+exact metadata bytes is the model schema fingerprint, so it binds both caller digests and every
+ordered path, kind, type, Shape, and length.
+
+The artifact kind is exactly `model.v1`; each state payload key is `state/` followed by its
+zero-based, eight-digit ASCII decimal ordinal (`state/00000000` through `state/99999999`). NN
+paths occur only in metadata, never in artifact keys or filesystem paths. Decoder acceptance
+requires exactly one `schema` and one correctly keyed, correctly sized payload per ordered entry,
+with no extra or missing entry, repeated path, unknown wire ID, negative extent, malformed UTF-8,
+noncanonical length, or trailing metadata. A candidate is fully detached and immutable. The
+configured aggregate limit bounds schema plus every state's canonical output bytes, including
+aliased paths; it does not bound Engine workspace, source detached values, defensive copies, or
+peak heap. The envelope's own v1 framing and checksums remain unchanged. No cross-call cache,
+implicit initialization, model reconstruction, or public persistence facade is part of this stage.
 
 For a trusted existing local directory and quiescent caller-owned target, save writes a newly
 created sibling temporary file, forces that file through its writing channel, closes, reopens, and

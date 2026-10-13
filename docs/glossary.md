@@ -2941,18 +2941,22 @@ path/order and validate-before-install behavior; it does not read, serialize, or
 values.
 
 A **checkpoint** is a future semantic recovery artifact. The included model-only Checkpoint
-project is downstream of NN and public Engine and currently offers only an opaque artifact envelope:
+project is downstream of NN and public Engine and currently offers a public opaque artifact envelope:
 a versioned, bounded single-file container with strict names, lengths, and SHA-256 integrity
 checks. It does not assign meaning to payload bytes. Saving this envelope forces its temporary
 file and uses one atomic move for live visibility; Java NIO does not portably guarantee that the
 rename survives power loss. A failed move can leave the target in a provider-dependent state.
+A package-private **model artifact candidate** now adds canonical version-one metadata and
+detached per-path payload bytes from one complete NN state snapshot through public Engine compute.
+Its schema fingerprint is SHA-256 over exact metadata, including caller-supplied configuration and
+optional input-artifact digests. It has no public model save, inspect, load, or restore method.
 A separately gated optional Training Checkpoint adapter would coordinate Training-owned state and
 caller-owned continuation data without making the model-only project depend on Training. No
-model-checkpoint schema, model-state save/load, migration rule, or universal serialization
+public model-state save/load, migration rule, or universal serialization
 contract exists. Existing in-memory optimizer/session snapshots and graph RNG
 expressions are not checkpoint payloads; compiler, runtime, and backend state are not part of
-model-state persistence. `StateDictionary` is only the in-memory module-state input that a future concrete
-persistence consumer may use; its enum names, record equality, and diagnostic strings are not wire
+model-state persistence. `StateDictionary` is the shallow in-memory module-state input to the
+internal candidate capture; its enum names, record equality, and diagnostic strings are not wire
 contracts. `Module` still has no generic `forward(...)` method or optimizer algorithm; the narrow
 [`UnaryTensorModule`](#unary-tensor-module-and-sequential) subtype adds only the exact unary
 Tensor-forward signature needed by current `Sequential` composition.

@@ -299,11 +299,15 @@ Its current runnable artifact API saves and reads one bounded file of opaque nam
 The file is forced and fully validated before one atomic move; success gives atomic live
 visibility, not portable power-loss persistence of the rename. It does not interpret a payload
 as a Tensor or model state. NN still owns the meaning of module parameters and buffers, while
-Engine owns detached host materialization. A later model-only adapter may use those public
-boundaries to supply payloads without reading backend storage or importing Training or Text.
-For example, capturing NN state through Engine materialization before an artifact save is a
-conceptual future flow, not a runnable model-checkpoint API. See the [artifact API](../api/checkpoint-artifact-api.md)
-and [envelope decision](../design/decisions/0032-checkpoint-artifact-envelope.md).
+Engine owns detached host materialization. An internal model codec now takes one complete NN
+state snapshot, preflights the eventual artifact, and uses public bounded Engine compute to
+produce a detached candidate with versioned metadata. NN paths stay in metadata; fixed ordinal
+artifact keys carry bytes. The candidate has no public save, inspect, load, or installation API.
+For example, a buffer named `重み` can be captured as metadata path `重み` while its bytes reside
+at `state/00000000`; a future public model adapter may publish it, but callers cannot do so
+through a model facade today. See the [artifact API](../api/checkpoint-artifact-api.md),
+[envelope decision](../design/decisions/0032-checkpoint-artifact-envelope.md), and
+[model schema decision](../design/decisions/0033-model-candidate-schema.md).
 
 Exact training continuation is a different problem: it also requires Training-owned state and
 caller-owned progress or random state. An optional downstream Training Checkpoint adapter is
