@@ -51,7 +51,7 @@ import org.junit.jupiter.api.Test;
  */
 final class CpuConvSimdEvidenceTest {
     private static final String EVIDENCE_ROOT_PROPERTY = "synaptik.cpu.convSimd.evidenceRoot";
-    // Stage-A's schema-68 artifact is historical provenance, not the expected schema-69 output.
+    // Stage-A's schema-68 artifact is historical provenance, not the expected schema-70 output.
     private static final String SCHEMA_68_STAGE_A_SCALAR_CLASS_SHA256 =
             "ee435967bfe81b02faf6e996838da18c47d0f2caea9637d6392722f594d5510c";
     private static final String SCHEMA_68_STAGE_A_SCALAR_STRUCTURAL_KEY =
@@ -79,7 +79,7 @@ final class CpuConvSimdEvidenceTest {
             CpuKernelSpecialization vector, byte[] vectorBytes) { }
 
     @Test void stageBSemanticMatrixExecutesExactlyFortyEightRawBitRows() throws Throwable {
-        assertEquals(69, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(70, CpuGeneratorSchema.CURRENT_VERSION);
         List<SemanticRow> rows = semanticRows();
         assertEquals(48, rows.size());
         assertEquals(48, rows.stream().distinct().count());
@@ -133,13 +133,13 @@ final class CpuConvSimdEvidenceTest {
             if (dossier.rank == Rank.CONV2D && dossier.type == DataType.FLOAT32
                     && !dossier.bias && dossier.carriers == CarrierForm.ARRAYS) {
                 assertNotEquals(SCHEMA_68_STAGE_A_SCALAR_CLASS_SHA256, sha256(route.scalarBytes),
-                        "schema-69 artifact does not impersonate Stage-A schema-68 bytes");
+                        "schema-70 artifact does not impersonate Stage-A schema-68 bytes");
                 assertNotEquals(SCHEMA_68_STAGE_A_SCALAR_STRUCTURAL_KEY, route.scalar.structuralKey(),
-                        "schema-69 artifact does not impersonate Stage-A schema-68 identity");
-                assertEquals("4d410328897a83b10d408021859673a9a24b0c5a108e3d071d0a6127b353e7ca",
-                        sha256(route.scalarBytes), "schema-69 Stage-A scalar class bytes");
-                assertEquals("f13c0a93f4785e645f44b5b0194904eff4f5ee07e99f9e9c3ff9665205f8e437",
-                        route.scalar.structuralKey(), "schema-69 scalar identity");
+                        "schema-70 artifact does not impersonate Stage-A schema-68 identity");
+                assertEquals("543702d9171cb5af32b9aae0f3f74d2ed75b784b6504989ac877eeda2de1aa0b",
+                        sha256(route.scalarBytes), "schema-70 Stage-A scalar class bytes");
+                assertEquals("cd2fe27b1038f5049479810c42af430eb78b4346fcd2197b9c0326745f61727d",
+                        route.scalar.structuralKey(), "schema-70 scalar identity");
             }
             retain(dossier, route);
         }

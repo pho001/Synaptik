@@ -144,6 +144,9 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * Schema 69 removes that selector and prefixes every family-specific class projection with the
  * new generator version, invalidating schema-68 envelopes and binary names without changing
  * generated method bodies.
+ * Schema 70 guards ERF polynomial evaluation at saturated magnitudes and uses named FLOAT32
+ * working sites for homogeneous low activation composites. It invalidates schema-69 envelopes
+ * and generated binary names while retaining the family-specific projections and route inventory.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter. Schema 47 adds first-class stable softmax/log-softmax. Schema 48 adds the four
  * trailing Layer/RMS forms, ordered mixed-type boundaries, exact typed epsilon identity,
@@ -251,9 +254,10 @@ public final class CpuGeneratorSchema {
      * Schema 69 removes the numerical selector from compatibility and generated-class identity.
      * The global schema prefixes each retained family projection, making pre-69 class names and
      * envelopes incompatible without changing emitted hot-loop algorithms. Envelopes written for
-     * earlier schemas are incompatible misses.
+     * earlier schemas are incompatible misses. Schema 70 repairs ERF extremes and low composite
+     * FLOAT32 working sites, invalidating schema-69 envelopes and class identities atomically.
      */
-    public static final int CURRENT_VERSION = 69;
+    public static final int CURRENT_VERSION = 70;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

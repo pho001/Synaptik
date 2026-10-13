@@ -14,8 +14,6 @@ class CpuVectorMathTest {
         assertDerived("ERF_U");
         assertDerived("ERFC_P");
         assertDerived("ERFC_Q");
-        assertDerived("ERFC_R");
-        assertDerived("ERFC_S");
     }
 
     @Test void floatErfAndGeluMeetIndependentOracleAtBreakpointsAndRandomValues() {

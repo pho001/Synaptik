@@ -111,9 +111,9 @@ class CpuPointwiseGeneratedKernelTest {
             short sum = BFloat16Bits.fromFloat(BFloat16Bits.toFloat(left[index])
                     + BFloat16Bits.toFloat(right[index]));
             float value = BFloat16Bits.toFloat(sum);
-            short sigmoid = BFloat16Bits.fromFloat((float) (value >= 0.0f
-                    ? 1.0d / (1.0d + StrictMath.exp(-(double) value))
-                    : StrictMath.exp((double) value) / (1.0d + StrictMath.exp((double) value))));
+            float exponential = (float) StrictMath.exp(value >= 0f ? -value : value);
+            short sigmoid = BFloat16Bits.fromFloat(
+                    (value >= 0f ? 1f : exponential) / (1f + exponential));
             expected[index] = Float.isFinite(value) ? sigmoid : otherwise[index];
         }
         var model = ClassFile.of().parse(bytes);

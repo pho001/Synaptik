@@ -30,7 +30,7 @@ class CpuGeneratedCoverageCheckpointTest {
     private static final String POST_TERMINAL_PRE_FROZEN_LAYOUT_INVENTORY_SHA256 =
             "2e9f07e30b47429387c8c1043207ee6e8feae327f09ac24a7a8f8c51821918fb";
     private static final String CURRENT_INVENTORY_SHA256 =
-            "ccbde775b20797ceb2b245bc0676a9aa516535007d0861d02f161991000a11a4";
+            "9ded010c3457ffa0c45e6d07cd538f6ee74019dda9a48ab84f8f3d2ad9c29746";
     private static final String SCHEMA_68_COMPOSITION_BASELINE_SHA256 =
             "dc5dabada292f00c3afecfbd9d40d1a74749d62fb3441a43176f5924cdf5231d";
     private static final String HEADER = "owner-id\tevidence-key\toperation-form\tlowered-ir-family"
@@ -114,13 +114,13 @@ class CpuGeneratedCoverageCheckpointTest {
             assertNotEquals(previous[1], frozen[1], owner + " historical evidence identity changes");
             assertNotEquals(previous[19], frozen[19], owner + " historical generated class identity changes");
             assertNotEquals(previous[20], frozen[20], owner + " historical normalized class identity changes");
-            assertNotEquals(frozen[1], current[1], owner + " schema-69 evidence identity changes");
-            assertNotEquals(frozen[19], current[19], owner + " schema-69 class identity changes");
-            assertNotEquals(frozen[20], current[20], owner + " schema-69 normalized identity changes");
+            assertNotEquals(frozen[1], current[1], owner + " schema-70 evidence identity changes");
+            assertNotEquals(frozen[19], current[19], owner + " schema-70 class identity changes");
+            assertNotEquals(frozen[20], current[20], owner + " schema-70 normalized identity changes");
             for (int column = 0; column < current.length; column++) {
                 if (column != 1 && column != 19 && column != 20) {
                     assertEquals(previous[column], frozen[column], owner + " preserves historical non-identity column " + column);
-                    assertEquals(frozen[column], current[column], owner + " preserves schema-69 non-identity column " + column);
+                    assertEquals(frozen[column], current[column], owner + " preserves schema-70 non-identity column " + column);
                 }
             }
         }

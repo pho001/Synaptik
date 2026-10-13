@@ -973,7 +973,7 @@ public class CpuPartitionPreparerTest {
                 () -> assertTrue(initial.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()),
-                () -> assertEquals(69, io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION));
+                () -> assertEquals(70, io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION));
     }
     @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {
         var base = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,

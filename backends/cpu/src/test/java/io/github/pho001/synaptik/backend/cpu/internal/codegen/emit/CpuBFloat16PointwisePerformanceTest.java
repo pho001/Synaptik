@@ -300,6 +300,14 @@ class CpuBFloat16PointwisePerformanceTest {
                 COUNT + 8L, 4L * COUNT + 8L};
     }
 
+    /**
+     * Direct named-FLOAT32 GELU loop for newly requested runs, not a renewal of historical timings.
+     * @param input borrowed raw BFLOAT16 inputs
+     * @param output destination raw BFLOAT16 array
+     * @param geometry prepared input/output addresses
+     * @param start inclusive logical ordinal
+     * @param end exclusive logical ordinal
+     */
     private static void directGelu(short[] input, short[] output, long[] geometry,
             long start, long end) {
         if (start >= end) return;
@@ -309,10 +317,10 @@ class CpuBFloat16PointwisePerformanceTest {
         int exclusiveEnd = (int) end;
         while (index < exclusiveEnd) {
             float value = Float.intBitsToFloat(input[inputAddress] << 16);
-            double result;
-            if (value == Double.NEGATIVE_INFINITY) result = -0.0d;
+            float result;
+            if (value == Float.NEGATIVE_INFINITY) result = -0.0f;
             else {
-                double argument = value / Math.sqrt(2.0d);
+                double argument = value / (float) Math.sqrt(2.0f);
                 double magnitude;
                 if (Double.isNaN(argument)) magnitude = Double.NaN;
                 else if (argument == 0.0d) magnitude = argument;
@@ -320,7 +328,8 @@ class CpuBFloat16PointwisePerformanceTest {
                 else if (argument == Double.NEGATIVE_INFINITY) magnitude = -1.0d;
                 else {
                     double x = Math.abs(argument);
-                    if (x <= 1.0d) {
+                    if (x >= 6.0d) magnitude = 1.0d;
+                    else if (x <= 1.0d) {
                         double z = x * x;
                         double numerator = 9.60497373987051638749E0;
                         numerator = numerator * z + 9.00260197203842689217E1;
@@ -368,13 +377,13 @@ class CpuBFloat16PointwisePerformanceTest {
                             denominator = denominator * x + 9.60896809063285878198E0;
                             denominator = denominator * x + 3.36907645100081516050E0;
                         }
-                        magnitude = 1.0d - Math.exp(-x * x) * numerator / denominator;
+                        magnitude = 1.0d - Math.exp(-x * x) * (numerator / denominator);
                     }
                     magnitude = Math.copySign(magnitude, argument);
                 }
-                result = 0.5d * value * (1.0d + magnitude);
+                result = 0.5f * value * (1.0f + (float) magnitude);
             }
-            float narrowed = (float) result;
+            float narrowed = result;
             int bits = Float.floatToRawIntBits(narrowed);
             int upper = (bits & 0x7fff_ffff) > 0x7f80_0000 ? 0x7fc0
                     : (bits + 0x7fff + ((bits >>> 16) & 1)) >>> 16;
@@ -463,6 +472,16 @@ class CpuBFloat16PointwisePerformanceTest {
         }
     }
 
+    /**
+     * Preserves raw logical-node boundaries around a named-FLOAT32 sigmoid.
+     * @param left borrowed first BFLOAT16 addend
+     * @param right borrowed second BFLOAT16 addend
+     * @param otherwise borrowed raw WHERE alternative
+     * @param output destination raw BFLOAT16 array
+     * @param geometry prepared carrier addresses
+     * @param start inclusive logical ordinal
+     * @param end exclusive logical ordinal
+     */
     private static void directFused(short[] left, short[] right, short[] otherwise,
             short[] output, long[] geometry, long start, long end) {
         if (start >= end) return;
@@ -479,13 +498,13 @@ class CpuBFloat16PointwisePerformanceTest {
             int sumUpper = (sumBits & 0x7fff_ffff) > 0x7f80_0000 ? 0x7fc0
                     : (sumBits + 0x7fff + ((sumBits >>> 16) & 1)) >>> 16;
             float roundedSum = Float.intBitsToFloat(sumUpper << 16);
-            double sigmoid;
-            if (roundedSum >= 0.0f) sigmoid = 1.0d / (1.0d + StrictMath.exp(-roundedSum));
+            float sigmoid;
+            if (roundedSum >= 0.0f) sigmoid = 1.0f / (1.0f + (float) StrictMath.exp(-roundedSum));
             else {
-                double exponential = StrictMath.exp(roundedSum);
-                sigmoid = exponential / (1.0d + exponential);
+                float exponential = (float) StrictMath.exp(roundedSum);
+                sigmoid = exponential / (1.0f + exponential);
             }
-            float sigmoidValue = (float) sigmoid;
+            float sigmoidValue = sigmoid;
             int sigmoidBits = Float.floatToRawIntBits(sigmoidValue);
             int sigmoidUpper = (sigmoidBits & 0x7fff_ffff) > 0x7f80_0000 ? 0x7fc0
                     : (sigmoidBits + 0x7fff + ((sigmoidBits >>> 16) & 1)) >>> 16;

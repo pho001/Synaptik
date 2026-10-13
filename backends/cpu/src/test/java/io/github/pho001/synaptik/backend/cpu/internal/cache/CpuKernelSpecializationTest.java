@@ -46,9 +46,9 @@ class CpuKernelSpecializationTest {
                 route.specialization(), route.kernelIr());
         assertAll(
                 () -> assertTrue(new String(route.specialization().compatibilityBytes(),
-                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("69|")),
+                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("70|")),
                 () -> assertTrue(new String(route.specialization().classIdentityBytes(),
-                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("69|52|")),
+                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("70|52|")),
                 () -> assertNotEquals(
                         "0f60718d8a663e211143e17eb31efb7d6264eb065224c0aea88fd8de259e6079",
                         route.specialization().structuralKey()),
@@ -335,7 +335,7 @@ class CpuKernelSpecializationTest {
                                 otherExtents.kernelIr())),
                 () -> assertNotEquals(axisZero.specialization(), otherFamily.specialization()),
                 () -> assertNotEquals(axisZero.specialization(), otherCarrier.specialization()),
-                () -> assertEquals(69, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(70, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertEquals(-1, axisZero.specialization().materializedSourcePosition()));
     }
 

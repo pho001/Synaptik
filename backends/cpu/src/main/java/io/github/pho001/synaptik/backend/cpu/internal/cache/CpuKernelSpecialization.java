@@ -76,7 +76,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
     }
     /**
      * Retains the established scalar/vector constructor shape and the schema-52 family
-     * code-shaping projection. The generator-69 prefix deliberately changes class identity.
+     * code-shaping projection. The generator-70 prefix deliberately changes class identity.
      *
      * @param loweringFingerprint canonical lowering fingerprint
      * @param executionStrategy generated compute strategy

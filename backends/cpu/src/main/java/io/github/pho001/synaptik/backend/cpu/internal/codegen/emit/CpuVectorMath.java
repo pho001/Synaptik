@@ -10,7 +10,11 @@ import jdk.incubator.vector.VectorSpecies;
  *
  * <p>The overloads preserve the selected lane type throughout evaluation. The binary32
  * coefficient tables are the exact round-to-nearest binary32 values derived from the retained
- * binary64 tables; no runtime narrowing or route selection occurs here.</p>
+ * binary64 tables; no runtime narrowing or route selection occurs here. ERF bounds polynomial
+ * inputs by six before evaluation: erfc(6) is less than exp(-36)/(6*sqrt(pi)), below 2^-54
+ * (half the binary64 gap below one), and also below the binary32 half-gap. Saturated lanes
+ * return signed one, without overflowing an eagerly evaluated polynomial in another branch.
+ * NaN lanes remain NaN and signed zero is preserved.</p>
  */
 final class CpuVectorMath {
     private static final VectorSpecies<Double> DOUBLE_SPECIES = DoubleVector.SPECIES_PREFERRED;
@@ -34,14 +38,6 @@ final class CpuVectorMath {
             9.75708501743205489753E2, 1.82390916687909736289E3,
             2.24633760818710981792E3, 1.65666309194161350182E3,
             5.57535340817727675546E2};
-    private static final double[] DOUBLE_ERFC_R = {5.64189583547755073984E-1,
-            1.27536670759978104416E0, 5.01905042251180477414E0,
-            6.16021097993053585195E0, 7.40974269950448939160E0,
-            2.97886665372100240670E0};
-    private static final double[] DOUBLE_ERFC_S = {2.26052863220117276590E0,
-            9.39603524938001434673E0, 1.20489539808096656605E1,
-            1.70814450747565897222E1, 9.60896809063285878198E0,
-            3.36907645100081516050E0};
 
     // Exact IEEE-754 binary32 roundings of the corresponding Cephes binary64 tables above;
     // https://netlib.org/cephes/singldoc.html is provenance review evidence, not an erff substitution.
@@ -55,10 +51,6 @@ final class CpuVectorMath {
     private static final float[] FLOAT_ERFC_Q = {0x1.a74d6p3f, 0x1.5ad43p6f,
             0x1.62f012p8f, 0x1.e7dabp9f, 0x1.c7fa3p10f, 0x1.18cacep11f,
             0x1.9e2a7p10f, 0x1.16c486p9f};
-    private static final float[] FLOAT_ERFC_R = {0x1.20dd76p-1f, 0x1.467e6ep0f,
-            0x1.41382p2f, 0x1.8a40e6p2f, 0x1.da393ap2f, 0x1.7d4b8p1f};
-    private static final float[] FLOAT_ERFC_S = {0x1.2159p1f, 0x1.2cac52p3f,
-            0x1.819108p3f, 0x1.114d9ap4f, 0x1.337caap3f, 0x1.af3de6p1f};
 
     private CpuVectorMath() { }
 
@@ -131,15 +123,13 @@ final class CpuVectorMath {
      * @return the lane-wise error function, preserving signed zero and infinity behavior
      */
     static DoubleVector erf(DoubleVector value) {
-        DoubleVector x = value.abs();
+        DoubleVector x = value.abs().min(6.0d);
         DoubleVector z = x.mul(x);
         DoubleVector small = polevl(z, DOUBLE_ERF_T).div(p1evl(z, DOUBLE_ERF_U)).mul(x);
-        DoubleVector near = polevl(x, DOUBLE_ERFC_P).div(p1evl(x, DOUBLE_ERFC_Q));
-        DoubleVector far = polevl(x, DOUBLE_ERFC_R).div(p1evl(x, DOUBLE_ERFC_S));
-        DoubleVector ratio = far.blend(near, x.lt(8.0d));
+        DoubleVector ratio = polevl(x, DOUBLE_ERFC_P).div(p1evl(x, DOUBLE_ERFC_Q));
         DoubleVector large = positiveOne().sub(z.neg().lanewise(VectorOperators.EXP).mul(ratio));
         DoubleVector result = large.blend(small, x.compare(VectorOperators.LE, 1.0d));
-        result = result.blend(1.0d, x.eq(Double.POSITIVE_INFINITY));
+        result = result.blend(1.0d, x.eq(6.0d));
         return result.blend(result.neg(), value.test(VectorOperators.IS_NEGATIVE));
     }
 
@@ -149,15 +139,13 @@ final class CpuVectorMath {
      * @return the lane-wise error function, preserving signed zero and infinity behavior
      */
     static FloatVector erf(FloatVector value) {
-        FloatVector x = value.abs();
+        FloatVector x = value.abs().min(6.0f);
         FloatVector z = x.mul(x);
         FloatVector small = polevl(z, FLOAT_ERF_T).div(p1evl(z, FLOAT_ERF_U)).mul(x);
-        FloatVector near = polevl(x, FLOAT_ERFC_P).div(p1evl(x, FLOAT_ERFC_Q));
-        FloatVector far = polevl(x, FLOAT_ERFC_R).div(p1evl(x, FLOAT_ERFC_S));
-        FloatVector ratio = far.blend(near, x.lt(8.0f));
+        FloatVector ratio = polevl(x, FLOAT_ERFC_P).div(p1evl(x, FLOAT_ERFC_Q));
         FloatVector large = positiveOneFloat().sub(z.neg().lanewise(VectorOperators.EXP).mul(ratio));
         FloatVector result = large.blend(small, x.compare(VectorOperators.LE, 1.0f));
-        result = result.blend(1.0f, x.eq(Float.POSITIVE_INFINITY));
+        result = result.blend(1.0f, x.eq(6.0f));
         return result.blend(result.neg(), value.test(VectorOperators.IS_NEGATIVE));
     }
 

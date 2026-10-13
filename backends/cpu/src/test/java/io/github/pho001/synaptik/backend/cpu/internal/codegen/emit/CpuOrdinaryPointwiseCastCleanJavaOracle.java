@@ -26,6 +26,9 @@ import javax.tools.ToolProvider;
  * <p>The semantic bodies are emitted directly into each typed entry, with no Synaptik helper or
  * generic carrier bridge in their hot loops. There are no semantic scaffolds: an unknown row
  * fails witness generation rather than silently receiving an empty range loop.</p>
+ *
+ * <p>Low activation composites retain FLOAT32 named sites and cold-folded, FLOAT32-rounded
+ * constants; elementary ERF bodies saturate before unsafe polynomial evaluation.</p>
  */
 final class CpuOrdinaryPointwiseCastCleanJavaOracle {
     private static final String BINARY = "io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.generated.OrdinaryPointwiseCastCleanJava";
@@ -201,6 +204,8 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
         } else {
             boolean directFloat = !source.equals("FLOAT64") && switch (row.operation()) {
                 case "ABS", "NEG", "RECIPROCAL", "SIGN", "RELU" -> true;
+                case "RSQRT", "SIGMOID", "SILU", "GELU_EXACT", "GELU_TANH_APPROXIMATION" ->
+                        source.equals("BFLOAT16") || source.equals("FLOAT16");
                 default -> false;
             };
             if (directFloat) {
@@ -211,6 +216,17 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
                     case "RECIPROCAL" -> java.append("computed=1.0f/value;");
                     case "SIGN" -> java.append("computed=Math.signum(value);");
                     case "RELU" -> java.append("computed=Math.max(+0.0f,value);");
+                    case "RSQRT" -> java.append("computed=1.0f/(float)StrictMath.sqrt(value);");
+                    case "SIGMOID" -> java.append("if(value>=0.0f){computed=1.0f/(1.0f+(float)StrictMath.exp(-value));}else{float e=(float)StrictMath.exp(value);computed=e/(1.0f+e);}");
+                    case "SILU" -> java.append("if(value==Float.NEGATIVE_INFINITY){computed=-0.0f;}else if(value>=0.0f){computed=value/(1.0f+(float)StrictMath.exp(-value));}else{float e=(float)StrictMath.exp(value);computed=value*e/(1.0f+e);}");
+                    case "GELU_EXACT" -> {
+                        java.append("if(value==Float.NEGATIVE_INFINITY){computed=-0.0f;}else{double erf;");
+                        appendErf(java, "value/" + Float.toHexString((float) StrictMath.sqrt(2.0f)) + "f", "erf");
+                        java.append("computed=(0.5f*value)*(1.0f+(float)erf);}");
+                    }
+                    case "GELU_TANH_APPROXIMATION" -> java.append("if(value==Float.NEGATIVE_INFINITY){computed=-0.0f;}else{float cube=value*value*value;computed=(0.5f*value)*(1.0f+(float)StrictMath.tanh(")
+                            .append(Float.toHexString((float) StrictMath.sqrt(2.0f / (float) Math.PI)))
+                            .append("f*(value+0.044715f*cube)));}");
                     default -> throw new AssertionError(row.operation());
                 }
                 if (source.equals("BFLOAT16")) {
@@ -261,14 +277,21 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
         java.append("}}\n");
     }
 
+    /**
+     * Appends an inlined ERF site with saturation at six, where the omitted tail is below
+     * half the binary64 gap below one. No large finite input reaches a polynomial.
+     *
+     * @param java non-null source builder to extend
+     * @param value non-null Java expression for the elementary input
+     * @param result non-null name of the already declared double result variable
+     */
     private static void appendErf(StringBuilder java, String value, String result) {
         java.append("double erfValue=").append(value).append(";")
                 .append("if(Double.isNaN(erfValue)){ ").append(result).append("=Double.NaN;}else if(erfValue==0.0d){")
-                .append(result).append("=erfValue;}else if(erfValue==Double.POSITIVE_INFINITY){").append(result)
-                .append("=1.0d;}else if(erfValue==Double.NEGATIVE_INFINITY){").append(result).append("=-1.0d;}else{")
+                .append(result).append("=erfValue;}else{")
                 .append("double x=Math.abs(erfValue);double magnitude;")
-                .append("if(x<=1.0d){double z=x*x;double p=(((((9.60497373987051638749E0*z+9.00260197203842689217E1)*z+2.23200534594684319226E3)*z+7.00332514112805075473E3)*z+5.55923013010394962768E4));double q=((((((z+3.35617141647503099647E1)*z+5.21357949780152679795E2)*z+4.59432382970980127987E3)*z+2.26290000613890934246E4)*z+4.92673942608635921086E4));magnitude=x*p/q;}")
-                .append("else{double e=Math.exp(-x*x);double p;double q;if(x<8.0d){p=((((((((2.46196981473530512524E-10*x+5.64189564831068821977E-1)*x+7.46321056442269912687E0)*x+4.86371970985681366614E1)*x+1.96520832956077098242E2)*x+5.26445194995477358631E2)*x+9.34528527171957607540E2)*x+1.02755188689515710272E3)*x+5.57535335369399327526E2);q=((((((((x+1.32281951154744992508E1)*x+8.67072140885989742329E1)*x+3.54937778887819891062E2)*x+9.75708501743205489753E2)*x+1.82390916687909736289E3)*x+2.24633760818710981792E3)*x+1.65666309194161350182E3)*x+5.57535340817727675546E2);}else{p=(((((5.64189583547755073984E-1*x+1.27536670759978104416E0)*x+5.01905042251180477414E0)*x+6.16021097993053585195E0)*x+7.40974269950448939160E0)*x+2.97886665372100240670E0);q=((((((x+2.26052863220117276590E0)*x+9.39603524938001434673E0)*x+1.20489539808096656605E1)*x+1.70814450747565897222E1)*x+9.60896809063285878198E0)*x+3.36907645100081516050E0);}magnitude=1.0d-e*p/q;}")
+                .append("if(x>=6.0d){magnitude=1.0d;}else if(x<=1.0d){double z=x*x;double p=(((((9.60497373987051638749E0*z+9.00260197203842689217E1)*z+2.23200534594684319226E3)*z+7.00332514112805075473E3)*z+5.55923013010394962768E4));double q=((((((z+3.35617141647503099647E1)*z+5.21357949780152679795E2)*z+4.59432382970980127987E3)*z+2.26290000613890934246E4)*z+4.92673942608635921086E4));magnitude=x*p/q;}")
+                .append("else{double e=Math.exp(-x*x);double p=((((((((2.46196981473530512524E-10*x+5.64189564831068821977E-1)*x+7.46321056442269912687E0)*x+4.86371970985681366614E1)*x+1.96520832956077098242E2)*x+5.26445194995477358631E2)*x+9.34528527171957607540E2)*x+1.02755188689515710272E3)*x+5.57535335369399327526E2);double q=((((((((x+1.32281951154744992508E1)*x+8.67072140885989742329E1)*x+3.54937778887819891062E2)*x+9.75708501743205489753E2)*x+1.82390916687909736289E3)*x+2.24633760818710981792E3)*x+1.65666309194161350182E3)*x+5.57535340817727675546E2);magnitude=1.0d-e*(p/q);}")
                 .append(result).append("=Math.copySign(magnitude,erfValue);}");
     }
 

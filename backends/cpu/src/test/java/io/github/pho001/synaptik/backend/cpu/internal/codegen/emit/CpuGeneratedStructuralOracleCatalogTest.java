@@ -31,7 +31,7 @@ class CpuGeneratedStructuralOracleCatalogTest {
     private static final String BASE = "/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/";
     private static final Pattern VALUE_IDS = Pattern.compile("ValueId\\[value=\\d+\\]:");
     private static final String INVENTORY_SHA256 =
-            "ccbde775b20797ceb2b245bc0676a9aa516535007d0861d02f161991000a11a4";
+            "9ded010c3457ffa0c45e6d07cd538f6ee74019dda9a48ab84f8f3d2ad9c29746";
 
     /**
      * The actual number is fixed below after the source-derived inventory is checked.  Keeping

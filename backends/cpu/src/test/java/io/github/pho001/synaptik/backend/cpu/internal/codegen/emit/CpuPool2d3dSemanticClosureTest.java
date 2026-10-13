@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
 /** Direct generated-entry semantic closure for every current direct Pool2d and Pool3d row. */
 class CpuPool2d3dSemanticClosureTest {
     private static final String RESOURCE = "/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/generated-coverage-inventory.tsv";
-    private static final String INVENTORY_SHA256 = "ccbde775b20797ceb2b245bc0676a9aa516535007d0861d02f161991000a11a4";
+    private static final String INVENTORY_SHA256 = "9ded010c3457ffa0c45e6d07cd538f6ee74019dda9a48ab84f8f3d2ad9c29746";
     private static final Set<String> FORMS = Set.of("AVERAGE_POOL2D", "MAX_POOL2D", "AVERAGE_POOL3D", "MAX_POOL3D");
 
     @Test void everyExactGeneratedPoolOwnerDefinesAndInvokesItsSpecializedEntry() throws Throwable {

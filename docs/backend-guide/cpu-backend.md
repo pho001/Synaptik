@@ -20,7 +20,7 @@ capability: the provider and complete-partition lowering still reject unsupporte
 types, Shapes, resolved geometry, topology, carriers, and resource requirements.
 
 Historical generator schema 68 introduced the systematic portable FLOAT16 expansion. Current
-schema 69 retains it: every admitted CPU FLOAT32 occurrence has the descriptor-identical
+schema 70 retains it: every admitted CPU FLOAT32 occurrence has the descriptor-identical
 FLOAT16 substitution, with raw `short` storage and the operation's documented
 FLOAT32 computation boundary followed by one direct binary16 narrowing where numerical work is
 performed. The checked capability ledger closes all 114 representative FLOAT16 occurrences in
@@ -129,7 +129,7 @@ over matching rank-four NCHW BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 input and ou
 Model's literal floor/ceiling grid, symmetric padding, stride, and dilation. Scalar or parallel-scalar
 execution owns complete output cells, accepts exact typed heap-array, segment, or mixed carriers,
 and declares zero workspace. Max excludes padding; average includes conceptual positive-zero
-padding in its fixed kernel-position divisor. The direct schema-69 generated body is the only
+padding in its fixed kernel-position divisor. The direct schema-70 generated body is the only
 pooling route and adds no fusion, materialization, vector body, native route, saved indices, or
 backward execution.
 
@@ -139,13 +139,13 @@ and the external rank-three input and output are the only buffer boundaries. Rec
 private single-use intermediates, exact affine singleton-height layouts, and Pool2d height
 geometry `(kernel, stride, padding, dilation) = (1, 1, 0, 1)`. A near match follows ordinary
 partition-DAG decomposition. This optimization retains the Pool2d family projection under the
-current schema-69 envelope and does
+current schema-70 envelope and does
 not create a Pool1d operation, capability query, IR family, route, or generated artifact; CPU
 continues to report the three visible component occurrences independently.
 
 The fifteenth family is exactly one resolved-layout `MAX_POOL3D` or `AVERAGE_POOL3D` occurrence
 over matching rank-five NCDHW BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 input and output. The direct
-schema-69 generated body visits each complete output cell in depth-height-width order and supports
+schema-70 generated body visits each complete output cell in depth-height-width order and supports
 typed heap-array, native-order segment, and mixed carriers. Maximum excludes padding, preserves the
 first eligible NaN or equal winner, ranks positive zero above negative zero, and returns negative
 infinity for an all-padding window. Average uses the fixed
@@ -161,7 +161,7 @@ The sixteenth family is exactly one first-class `SCALED_DOT_PRODUCT_ATTENTION` o
 three ordered query/key/value inputs and an optional right-broadcast canonical BOOL mask, and one
 output or same-occurrence normalized weights at output slot one. It accepts only fully static,
 resolved non-negative layouts and BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 query/key/value types. The
-direct schema-69 generated scalar body owns complete broadcast-batch/query rows, applies top-left
+direct schema-70 generated scalar body owns complete broadcast-batch/query rows, applies top-left
 causal eligibility (`j <= i`) together with the BOOL mask before reading excluded score/value data,
 uses one exact score/weight scratch slice per selected range. The body has no MATMUL/SOFTMAX
 decomposition, external fusion, materialization, vector/native/packed/flash route, or interpreted
@@ -1200,6 +1200,34 @@ raw sum      -> decode -> SIGMOID -> encode raw activation
 BOOL condition, raw activation, raw alternative -> WHERE -> selected raw output
 ```
 
+Within a low activation, each named arithmetic site works in FLOAT32, not in a single double
+expression narrowed at the end. This applies to reciprocal square root (RSQRT), sigmoid, exact
+GELU, tanh GELU, and SiLU. Elementary-function implementations may use double internally, but
+their results round to FLOAT32 before the next site; real constants round before first use.
+For example, the generated BFLOAT16 GELU path decodes input `-6`, divides by the FLOAT32
+square root of two, and rounds ERF to FLOAT32 `-1`. Adding typed one gives `+0`, and multiplying
+by `0.5 * -6` gives `-0`, stored as `0x8000`. Keeping ERF and the addition in double would
+instead publish a small negative nonzero value. FLOAT16 follows the same working-site sequence.
+This does not merge two logical low operations or change their final narrowing boundaries.
+
+Scalar and vector ERF saturate to signed one at input magnitude six. For positive `x >= 6`,
+`erfc(x) < exp(-x*x)/(x*sqrt(pi)) <= exp(-36)/(6*sqrt(pi)) < 2^-54`, below half the
+FLOAT64 spacing immediately below one (and below the FLOAT32 half-spacing). Scalar code guards
+before squaring or evaluating a polynomial; vector code bounds the magnitude before its eager
+polynomial work and blends the unit result. This prevents large finite inputs such as FLOAT64
+`1e100` or FLOAT32 `1e10` from producing polynomial infinity divided by infinity. The retained
+coefficient data is unchanged on the unsaturated domain; the unreachable magnitude-eight tail
+is removed. NaN, infinities, odd sign, and signed zero retain their existing rules.
+
+CPU0022 changes no strategy, carrier, or layout eligibility. In particular, ordinary FLOAT32
+scalar composites retain their existing double evaluation and vector GELU retains its typed
+FLOAT32 sites; the scalar tail need not be bit-identical near cancellation. Focused tests inspect
+the low generated Class-Files for FLOAT32 arithmetic and elementary-result rounding, exercise
+all 65,536 encodings of each low format, and verify heap/native mixed carriers, offsets, strides,
+and scalar/vector remainder paths. `CpuActivationDiagnosticTest` is an optional bounded
+single-process generated/direct diagnostic, enabled by `SYNAPTIK_CPU_0022_DIAGNOSTIC=true`;
+its timings are not a route-selection or numerical-policy gate.
+
 Rounding only at the final store would change this chain and is not permitted. `WHERE` performs
 no encode: it preserves the selected branch's raw bits. Comparisons and classifications instead
 emit canonical BOOL `0` or `1`. If a contraction cannot prove this raw-local round trip, CPU keeps
@@ -1357,7 +1385,7 @@ affine load/store, gather, scatter, masked tail, or speed claim.
 Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
 scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
-before current schema-69 artifact access and constructs one immutable executable. Cold binding
+before current schema-70 artifact access and constructs one immutable executable. Cold binding
 validates the exact data type, carrier, byte size, alignment, accessibility, output writability,
 and source/result non-overlap. Invocation checks canonical BOOL input bytes before copying.
 Runtime invokes only the prepared direct carriers, address table, and `start`/`end` bounds;
@@ -1420,7 +1448,7 @@ callback, or per-element allocation in generated code.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes current schema-69 generated
+falls back to scalar for this family. CPU finalization realizes current schema-70 generated
 artifacts; cold binding validates complete input/output spans and rejects every output/input
 overlap before execution. The scalar reference consumes the same movement IR and compact geometry for
 differential tests, not as a Runtime fallback.
@@ -1549,7 +1577,7 @@ before any consumer write.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-69 generated class artifact, one prepared
+no materialization, no workspace, one current schema-70 generated class artifact, one prepared
 executable, and one bound invocation. The generated class embeds carrier-, type-, family-, and
 access-specialized output loops rather than delegating through a generic carrier bridge. Proved
 dense heap arrays use integer loop/address state; segment, mixed-carrier, and general-layout forms
@@ -1848,13 +1876,13 @@ independent primitive-index insertion implementation for differential evidence; 
 Runtime fallback.
 
 Schema 27 introduced the complete carrier-, represented-type-, family-, direction-, output-,
-and access-specialized ordering body, which current schema 69 retains. It uses a stable bottom-up
+and access-specialized ordering body, which current schema 70 retains. It uses a stable bottom-up
 merge over the two assigned
 INT64 scratch regions, selecting the left logical index on equality. Dense heap-array forms use
 cold-proved integer loop and address state. Arbitrary supported layouts and heap, segment, or
 mixed carrier forms use typed long-address access; values and indices are stored without a
 generic `Object` execution bridge or runtime family dispatch. Schema 27 and every earlier envelope
-are incompatible misses and are regenerated under current schema 69; no migration reader is
+are incompatible misses and are regenerated under current schema 70; no migration reader is
 provided.
 
 The retained fixed five-fork evidence compares dense FLOAT32 schema-27 generated entries with
@@ -1960,7 +1988,7 @@ probability bits, ordered boundary roles and carriers, and zero-scratch shape. C
 slots, carriers, workers, and ranges remain cold when they do not change emitted bytes. There is
 no migration reader for old artifacts. Schema 28 is the first version whose random entries embed
 the direct typed initializer and FLOAT64/FLOAT32 dropout bodies. A schema-27 envelope is an
-incompatible safe miss: cold finalization regenerates and may publish current schema-69 bytes
+incompatible safe miss: cold finalization regenerates and may publish current schema-70 bytes
 after shared slot assignment rather than loading, converting, or aliasing the old bridge class.
 
 Retained observational evidence for the fixed dense heap-array shape `[64,16384]`, probability
@@ -4011,8 +4039,9 @@ FLOAT32/FLOAT64 vector scalar-power realizations self-contained without changing
 or specialization identity fields. Schema 65 finalizes CONCAT/STACK terminal emission and freezes
 affected typed layouts; schema 66 freezes aggregate scalar segment layouts; schema 67 adds the
 historical numerical-profile wire identity; schema 68 activated direct FLOAT16 execution throughout the
-portable generated families; schema 69 removes that profile wire while preserving non-profile
-specialization facts. The current envelope version is 69; older envelopes are incompatible
+portable generated families; schema 69 removed that profile wire while preserving non-profile
+specialization facts. Schema 70 repairs ERF extremes and named FLOAT32 low activation sites.
+The current envelope version is 70; older envelopes, including 69, are incompatible
 safe misses, while scalar Conv retains schema 52, scalar loss remains on schema 58, and unchanged
 prior-family projections retain their established structural bytes.
 
@@ -4062,5 +4091,5 @@ certificate fact.
 
 Partition plans, generated-kernel specialization and artifacts, OpenBLAS workload identity, and
 local and complete-plan tuning compatibility retain their non-profile identity facts. Current
-generator schema 69 rejects schema-68 envelopes and class names as incompatible misses. Runtime,
+generator schema 70 rejects schema-69 envelopes and class names as incompatible misses. Runtime,
 Trace, generated entry signatures, and hot loops remain numerical-policy-free.

@@ -17,9 +17,11 @@ import java.lang.constant.MethodTypeDesc;
  * {@link StrictMath} calls. The ERF, sigmoid, exact and tanh-approximation GELU, and SiLU formulas
  * are emitted directly into the generated class rather than invoked through a Synaptik runtime
  * helper. FLOAT32 widens one represented value to {@code double} where the selected formula or JDK
- * operation requires it and narrows the result once. BFLOAT16 locals retain raw represented
- * bits, expand to FLOAT32 only at a numerical consumer, and inline one ties-to-even narrowing
- * after every BFLOAT16-producing logical instruction. The FLOAT32 reciprocal-square-root path
+ * operation requires it and narrows the result once. BFLOAT16/FLOAT16 locals retain raw represented
+ * bits, expand to FLOAT32 only at a numerical consumer, and narrow once after each low-producing
+ * logical instruction. Low composite activations instead use FLOAT32 at every named arithmetic
+ * site and round each elementary result back to FLOAT32 before its consumer; only the internals
+ * of an elementary function may use double. The FLOAT32 reciprocal-square-root path
  * performs both the square root and reciprocal after that widening, then narrows only their
  * combined result. Cross-type CAST delegates only generation-time instruction construction to
  * {@link CpuCastEmitter}; generated code writes the target representation to its destination
@@ -45,14 +47,6 @@ final class CpuScalarEmitter {
             9.75708501743205489753E2, 1.82390916687909736289E3,
             2.24633760818710981792E3, 1.65666309194161350182E3,
             5.57535340817727675546E2};
-    private static final double[] ERFC_R = {5.64189583547755073984E-1,
-            1.27536670759978104416E0, 5.01905042251180477414E0,
-            6.16021097993053585195E0, 7.40974269950448939160E0,
-            2.97886665372100240670E0};
-    private static final double[] ERFC_S = {2.26052863220117276590E0,
-            9.39603524938001434673E0, 1.20489539808096656605E1,
-            1.70814450747565897222E1, 9.60896809063285878198E0,
-            3.36907645100081516050E0};
     private static final ClassDesc STRICT_MATH = ClassDesc.of(StrictMath.class.getName());
     private static final ClassDesc MATH = ClassDesc.of(Math.class.getName());
     private static final ClassDesc INTEGER = ClassDesc.of(Integer.class.getName());
@@ -227,7 +221,14 @@ final class CpuScalarEmitter {
             else throw new IllegalArgumentException("unsupported unary type");
             return;
         }
-        if (opcode == CpuPointwiseOpcode.RSQRT && floatLike(type)) {
+        if (opcode == CpuPointwiseOpcode.RSQRT
+                && (type == DataType.BFLOAT16 || type == DataType.FLOAT16)) {
+            invokeDoubleUnary(type, STRICT_MATH, "sqrt");
+            int root = code.allocateLocal(TypeKind.FLOAT);
+            code.fstore(root).loadConstant(1.0f).fload(root).fdiv();
+            return;
+        }
+        if (opcode == CpuPointwiseOpcode.RSQRT && type == DataType.FLOAT32) {
             code.f2d();
             code.invokestatic(STRICT_MATH, "sqrt", MethodTypeDesc.of(ConstantDescs.CD_double,
                     ConstantDescs.CD_double));
@@ -275,6 +276,11 @@ final class CpuScalarEmitter {
     }
 
     private void emitActivation(CpuPointwiseOpcode opcode, DataType type) {
+        if ((type == DataType.BFLOAT16 || type == DataType.FLOAT16)
+                && opcode != CpuPointwiseOpcode.ERF) {
+            emitLowActivation(opcode);
+            return;
+        }
         if (floatLike(type)) code.f2d();
         int value = code.allocateLocal(TypeKind.DOUBLE);
         code.dstore(value);
@@ -287,6 +293,61 @@ final class CpuScalarEmitter {
             default -> throw new AssertionError(opcode);
         }
         if (floatLike(type)) code.d2f();
+    }
+
+    /**
+     * Emits a low composite's named FLOAT32 sites, leaving its working result on the stack.
+     * Constants round to FLOAT32 before use; elementary double work ends at an immediate
+     * {@code d2f}. The caller alone performs the final low narrowing.
+     *
+     * @param opcode sigmoid, either GELU, or SiLU; the stack contains the decoded FLOAT32 input
+     */
+    private void emitLowActivation(CpuPointwiseOpcode opcode) {
+        int value = code.allocateLocal(TypeKind.FLOAT);
+        code.fstore(value);
+        var ordinary = code.newLabel(); var done = code.newLabel();
+        if (opcode != CpuPointwiseOpcode.SIGMOID) {
+            code.fload(value).loadConstant(Float.NEGATIVE_INFINITY).fcmpl()
+                    .branch(Opcode.IFNE, ordinary);
+            code.loadConstant(-0.0f).branch(Opcode.GOTO, done).labelBinding(ordinary);
+        }
+        switch (opcode) {
+            case SIGMOID, SILU -> {
+                var negative = code.newLabel();
+                code.fload(value).loadConstant(0.0f).fcmpl().branch(Opcode.IFLT, negative);
+                if (opcode == CpuPointwiseOpcode.SILU) code.fload(value);
+                else code.loadConstant(1.0f);
+                code.loadConstant(1.0f).fload(value).fneg();
+                invokeDoubleUnary(DataType.FLOAT32, STRICT_MATH, "exp");
+                code.fadd().fdiv().branch(Opcode.GOTO, done).labelBinding(negative);
+                int exponential = code.allocateLocal(TypeKind.FLOAT);
+                code.fload(value);
+                invokeDoubleUnary(DataType.FLOAT32, STRICT_MATH, "exp");
+                code.fstore(exponential);
+                if (opcode == CpuPointwiseOpcode.SILU) {
+                    code.fload(value).fload(exponential).fmul();
+                } else code.fload(exponential);
+                code.loadConstant(1.0f).fload(exponential).fadd().fdiv();
+            }
+            case GELU_EXACT -> {
+                code.loadConstant(0.5f).fload(value).fmul().loadConstant(1.0f);
+                code.fload(value).loadConstant((float) StrictMath.sqrt(2.0f)).fdiv().f2d();
+                emitErf();
+                code.d2f().fadd().fmul();
+            }
+            case GELU_TANH_APPROXIMATION -> {
+                int cube = code.allocateLocal(TypeKind.FLOAT);
+                code.fload(value).fload(value).fmul().fload(value).fmul().fstore(cube);
+                code.loadConstant(0.5f).fload(value).fmul().loadConstant(1.0f);
+                // Fold only constant named sites, with a rounding at both division and root.
+                code.loadConstant((float) StrictMath.sqrt(2.0f / (float) Math.PI));
+                code.fload(value).loadConstant(0.044715f).fload(cube).fmul().fadd().fmul();
+                invokeDoubleUnary(DataType.FLOAT32, STRICT_MATH, "tanh");
+                code.fadd().fmul();
+            }
+            default -> throw new AssertionError(opcode);
+        }
+        code.labelBinding(done);
     }
 
     private void emitSigmoid(int value) {
@@ -347,25 +408,27 @@ final class CpuScalarEmitter {
         code.labelBinding(done);
     }
 
+    /**
+     * Emits one double ERF elementary site, preserving NaN and signed zero. For magnitude
+     * at least six, erfc(x) is less than exp(-36)/(6*sqrt(pi)), which is less than 2^-54,
+     * half the binary64 gap immediately below one. Saturating before any square/polynomial
+     * therefore returns the correctly rounded unit limit and prevents finite Inf/Inf.
+     */
     private void emitErf() {
         int value = code.allocateLocal(TypeKind.DOUBLE); code.dstore(value);
         var notNan = code.newLabel(); var notZero = code.newLabel();
-        var notPositiveInfinity = code.newLabel(); var notNegativeInfinity = code.newLabel();
         var large = code.newLabel(); var afterMagnitude = code.newLabel(); var done = code.newLabel();
         code.dload(value).invokestatic(DOUBLE, "isNaN", MethodTypeDesc.of(
                 ConstantDescs.CD_boolean, ConstantDescs.CD_double)).branch(Opcode.IFEQ, notNan);
         code.loadConstant(Double.NaN).branch(Opcode.GOTO, done).labelBinding(notNan);
         code.dload(value).loadConstant(0.0d).dcmpl().branch(Opcode.IFNE, notZero);
         code.dload(value).branch(Opcode.GOTO, done).labelBinding(notZero);
-        code.dload(value).loadConstant(Double.POSITIVE_INFINITY).dcmpl()
-                .branch(Opcode.IFNE, notPositiveInfinity);
-        code.loadConstant(1.0d).branch(Opcode.GOTO, done).labelBinding(notPositiveInfinity);
-        code.dload(value).loadConstant(Double.NEGATIVE_INFINITY).dcmpl()
-                .branch(Opcode.IFNE, notNegativeInfinity);
-        code.loadConstant(-1.0d).branch(Opcode.GOTO, done).labelBinding(notNegativeInfinity);
         int x = code.allocateLocal(TypeKind.DOUBLE);
         code.dload(value).invokestatic(MATH, "abs", MethodTypeDesc.of(
                 ConstantDescs.CD_double, ConstantDescs.CD_double)).dstore(x);
+        var unsaturated = code.newLabel();
+        code.dload(x).loadConstant(6.0d).dcmpg().branch(Opcode.IFLT, unsaturated);
+        code.loadConstant(1.0d).branch(Opcode.GOTO, afterMagnitude).labelBinding(unsaturated);
         code.dload(x).loadConstant(1.0d).dcmpg().branch(Opcode.IFGT, large);
         int z = code.allocateLocal(TypeKind.DOUBLE);
         code.dload(x).dload(x).dmul().dstore(z);
@@ -374,13 +437,9 @@ final class CpuScalarEmitter {
         code.dload(x).dneg().dload(x).dmul();
         code.invokestatic(MATH, "exp", MethodTypeDesc.of(ConstantDescs.CD_double,
                 ConstantDescs.CD_double));
-        code.dload(x).loadConstant(8.0d).dcmpg();
-        var far = code.newLabel(); var ratio = code.newLabel();
-        code.branch(Opcode.IFGE, far); emitPolevl(x, ERFC_P); emitP1evl(x, ERFC_Q); code.ddiv()
-                .branch(Opcode.GOTO, ratio).labelBinding(far);
-        emitPolevl(x, ERFC_R); emitP1evl(x, ERFC_S); code.ddiv();
+        emitPolevl(x, ERFC_P); emitP1evl(x, ERFC_Q); code.ddiv();
         int erfc = code.allocateLocal(TypeKind.DOUBLE);
-        code.labelBinding(ratio).dmul().dstore(erfc);
+        code.dmul().dstore(erfc);
         code.loadConstant(1.0d).dload(erfc).dsub();
         code.labelBinding(afterMagnitude).dload(value);
         code.invokestatic(MATH, "copySign", MethodTypeDesc.of(ConstantDescs.CD_double,

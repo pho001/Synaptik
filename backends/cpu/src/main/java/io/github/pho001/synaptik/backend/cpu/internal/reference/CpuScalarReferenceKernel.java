@@ -83,14 +83,6 @@ public final class CpuScalarReferenceKernel {
             9.75708501743205489753E2, 1.82390916687909736289E3,
             2.24633760818710981792E3, 1.65666309194161350182E3,
             5.57535340817727675546E2};
-    private static final double[] ERFC_R = {5.64189583547755073984E-1,
-            1.27536670759978104416E0, 5.01905042251180477414E0,
-            6.16021097993053585195E0, 7.40974269950448939160E0,
-            2.97886665372100240670E0};
-    private static final double[] ERFC_S = {2.26052863220117276590E0,
-            9.39603524938001434673E0, 1.20489539808096656605E1,
-            1.70814450747565897222E1, 9.60896809063285878198E0,
-            3.36907645100081516050E0};
     private CpuScalarReferenceKernel() { }
 
     /**
@@ -1149,27 +1141,26 @@ public final class CpuScalarReferenceKernel {
 
     /**
      * Evaluates a portable scalar approximation of the Gaussian error function.
-     * The approximation is shared by generated and reference realizations and preserves NaN,
-     * infinities, and signed zero classifications.
+     * The approximation is shared by generated and reference realizations, preserves NaN and
+     * signed zero, and maps each infinity to the same-signed unit value. Magnitudes at least six return signed one
+     * before polynomial evaluation: erfc(6) is bounded by exp(-36)/(6*sqrt(pi)), below the
+     * binary64 half-gap 2^-54 immediately below one. This also avoids finite polynomial overflow.
      *
      * @param value input value, including IEEE 754 special values
-     * @return the finite approximation to the Gaussian error function, or the corresponding
-     *     preserved NaN, infinity, or signed-zero classification
+     * @return the finite approximation, same-signed one for an infinite input, NaN for NaN,
+     *     or the unchanged signed zero for a zero input
      */
     public static double erf(double value) {
         if (Double.isNaN(value)) return Double.NaN;
         if (value == 0.0d) return value;
-        if (value == Double.POSITIVE_INFINITY) return 1.0d;
-        if (value == Double.NEGATIVE_INFINITY) return -1.0d;
         double x = Math.abs(value);
+        if (x >= 6.0d) return Math.copySign(1.0d, value);
         double result;
         if (x <= 1.0d) {
             double z = x * x;
             result = x * polevl(z, ERF_T) / p1evl(z, ERF_U);
         } else {
-            double erfc = Math.exp(-x * x) * (x < 8.0d
-                    ? polevl(x, ERFC_P) / p1evl(x, ERFC_Q)
-                    : polevl(x, ERFC_R) / p1evl(x, ERFC_S));
+            double erfc = Math.exp(-x * x) * (polevl(x, ERFC_P) / p1evl(x, ERFC_Q));
             result = 1.0d - erfc;
         }
         return Math.copySign(result, value);
@@ -1568,7 +1559,25 @@ public final class CpuScalarReferenceKernel {
         };
     }
 
+    /**
+     * Evaluates a unary instruction with low composites rounded at each named FLOAT32 site.
+     * FLOAT32/FLOAT64 retain their existing widened/direct reference paths.
+     *
+     * @param opcode supported unary opcode, never null
+     * @param type declared input type; low values have already been exactly decoded
+     * @param input non-null boxed double or float
+     * @return non-null boxed result, not yet narrowed to low storage
+     */
     private static Object unary(CpuPointwiseOpcode opcode, DataType type, Object input) {
+        if (type == DataType.BFLOAT16 || type == DataType.FLOAT16) {
+            float x = (float) input;
+            switch (opcode) {
+                case RSQRT: return Float.valueOf(1.0f / (float) StrictMath.sqrt(x));
+                case SIGMOID, SILU, GELU_EXACT, GELU_TANH_APPROXIMATION:
+                    return Float.valueOf(lowActivation(opcode, x));
+                default: break;
+            }
+        }
         double value = type == DataType.FLOAT64 ? (double) input : (double) (float) input;
         double result = switch (opcode) {
             case ABS -> Math.abs(value); case RECIPROCAL -> 1.0d / value;
@@ -1584,6 +1593,37 @@ public final class CpuScalarReferenceKernel {
         };
         if (type == DataType.FLOAT64) return Double.valueOf(result);
         return Float.valueOf((float) result);
+    }
+
+    /**
+     * Evaluates named FLOAT32 composite sites without narrowing any intermediate to low storage.
+     * This cold differential reference is not called by generated kernels.
+     *
+     * @param opcode one of sigmoid, SiLU, exact GELU, or tanh GELU
+     * @param x exactly decoded low input, including special values
+     * @return FLOAT32 working result; the caller performs the sole final low narrowing
+     */
+    private static float lowActivation(CpuPointwiseOpcode opcode, float x) {
+        if (opcode != CpuPointwiseOpcode.SIGMOID && x == Float.NEGATIVE_INFINITY) return -0.0f;
+        return switch (opcode) {
+            case SIGMOID -> {
+                float exponential = (float) StrictMath.exp(x >= 0.0f ? -x : x);
+                yield (x >= 0.0f ? 1.0f : exponential) / (1.0f + exponential);
+            }
+            case SILU -> {
+                float exponential = (float) StrictMath.exp(x >= 0.0f ? -x : x);
+                yield (x >= 0.0f ? x : x * exponential) / (1.0f + exponential);
+            }
+            case GELU_EXACT -> 0.5f * x
+                    * (1.0f + (float) erf(x / (float) StrictMath.sqrt(2.0f)));
+            case GELU_TANH_APPROXIMATION -> {
+                float cube = x * x * x;
+                float scale = (float) StrictMath.sqrt(2.0f / (float) Math.PI);
+                yield 0.5f * x * (1.0f + (float) StrictMath.tanh(
+                        scale * (x + 0.044715f * cube)));
+            }
+            default -> throw new AssertionError(opcode);
+        };
     }
 
     private static Object tensorPower(DataType type, Object base, Object exponent) {

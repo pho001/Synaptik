@@ -126,7 +126,7 @@ class CpuAffineGeneratedCoverageFixtureTest {
             assertTrue(stream != null, "generated coverage inventory");
             inventory = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         }
-        assertEquals("ccbde775b20797ceb2b245bc0676a9aa516535007d0861d02f161991000a11a4",
+        assertEquals("9ded010c3457ffa0c45e6d07cd538f6ee74019dda9a48ab84f8f3d2ad9c29746",
                 java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                         .digest(inventory.getBytes(StandardCharsets.UTF_8))), "inventory SHA-256");
         Set<String> owners = new TreeSet<>();
