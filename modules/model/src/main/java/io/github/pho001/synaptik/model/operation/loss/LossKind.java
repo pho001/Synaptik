@@ -58,7 +58,8 @@ public enum LossKind implements OperationKind {
      * {@link IndexCategoricalCrossEntropyWithLogitsAttrs}.
      *
      * <p>A target equal to the optional ignore index contributes positive zero before bounds or
-     * logits evaluation. Every other target selects one class from its stable log-softmax slice;
+     * logits evaluation. Every other target selects one class from this loss's guarded,
+     * max-shifted log-sum-exp slice, rather than invoking first-class LOG_SOFTMAX;
      * mean reduction divides by the number of non-ignored targets. INT32 and INT64 targets are
      * exact indices, while floating computation and result type follow the logits: FLOAT16,
      * BFLOAT16, and FLOAT32 use at least FLOAT32 computation, and FLOAT64 uses FLOAT64.

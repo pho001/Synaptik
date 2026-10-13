@@ -10,7 +10,10 @@ import java.util.Objects;
  *
  * <p>The oracle mirrors the useful primitive work of each generated kind without calling
  * production lowering or numerical helpers: softmax does not evaluate a logarithm, while
- * log-softmax evaluates one logarithm per complete normalization slice.</p>
+ * log-softmax evaluates one logarithm per complete normalization slice. FLOAT64 works in double;
+ * FLOAT32 and both low types work in float, with one final low narrowing. The reference shares
+ * the CPU route's finite-input domain and dtype-specific shift admission, not Model's separate
+ * NaN/infinity slice results.</p>
  */
 public final class CpuSoftmaxReferenceKernel {
     private CpuSoftmaxReferenceKernel() { }
@@ -26,7 +29,8 @@ public final class CpuSoftmaxReferenceKernel {
      * @param axis normalized selected axis with positive extent
      * @return a new dense logical result rounded to {@code type}
      * @throws NullPointerException if a reference argument is {@code null}
-     * @throws IllegalArgumentException if geometry, span, or admitted-domain facts are invalid
+     * @throws IllegalArgumentException if geometry, span, non-finite input, or the FLOAT64 or
+     *     BFLOAT16 finite-shift requirement is invalid
      * @throws ArithmeticException if count or address arithmetic overflows
      */
     public static double[] evaluate(SoftmaxKind kind, DataType type, double[] input,
@@ -49,65 +53,64 @@ public final class CpuSoftmaxReferenceKernel {
         long slices = count / extents[axis];
         for (long slice = 0; slice < slices; slice++) {
             long[] coordinates = sliceCoordinates(slice, extents, axis);
-            if (type == DataType.BFLOAT16) evaluateBfloat(kind, input, inputOffset, inputStrides,
+            if (type == DataType.FLOAT64) evaluateDouble(kind, input, inputOffset, inputStrides,
                     extents, axis, coordinates, output);
-            else evaluateWide(kind, type, input, inputOffset, inputStrides, extents, axis,
+            else evaluateFloat(kind, type, input, inputOffset, inputStrides, extents, axis,
                     coordinates, output);
         }
         return output;
     }
 
-    private static void evaluateWide(SoftmaxKind kind, DataType type, double[] input, long offset,
+    private static void evaluateDouble(SoftmaxKind kind, double[] input, long offset,
             long[] strides, long[] extents, int axis, long[] coordinates, double[] output) {
         double maximum = Double.NEGATIVE_INFINITY;
         for (long c = 0; c < extents[axis]; c++) {
-            coordinates[axis] = c; double value = represented(type, value(input, offset, strides, coordinates));
+            coordinates[axis] = c; double value = value(input, offset, strides, coordinates);
             requireFinite(value); if (value > maximum) maximum = value;
         }
         double sum = 0, compensation = 0;
         for (long c = 0; c < extents[axis]; c++) {
-            coordinates[axis] = c; double shift = represented(type,
-                    value(input, offset, strides, coordinates)) - maximum;
+            coordinates[axis] = c; double shift = value(input, offset, strides, coordinates) - maximum;
             requireFinite(shift); double addend = StrictMath.exp(shift) - compensation;
             double temporary = sum + addend;
             compensation = (temporary - sum) - addend; sum = temporary;
         }
         double logarithm = kind == SoftmaxKind.LOG_SOFTMAX ? StrictMath.log(sum) : 0.0;
         for (long c = 0; c < extents[axis]; c++) {
-            coordinates[axis] = c; double shift = represented(type,
-                    value(input, offset, strides, coordinates)) - maximum;
+            coordinates[axis] = c; double shift = value(input, offset, strides, coordinates) - maximum;
             double result = kind == SoftmaxKind.SOFTMAX ? StrictMath.exp(shift) / sum
                     : shift - logarithm;
-            output[Math.toIntExact(ordinal(coordinates, extents))] = represented(type, result);
+            output[Math.toIntExact(ordinal(coordinates, extents))] = result;
         }
     }
 
-    private static void evaluateBfloat(SoftmaxKind kind, double[] input, long offset,
+    private static void evaluateFloat(SoftmaxKind kind, DataType type, double[] input, long offset,
             long[] strides, long[] extents, int axis, long[] coordinates, double[] output) {
         float maximum = Float.NEGATIVE_INFINITY;
         for (long c = 0; c < extents[axis]; c++) {
-            coordinates[axis] = c; float value = (float) represented(DataType.BFLOAT16,
+            coordinates[axis] = c; float value = (float) represented(type,
                     value(input, offset, strides, coordinates));
             if (!Float.isFinite(value)) fail(); if (value > maximum) maximum = value;
         }
         float sum = 0, compensation = 0;
         for (long c = 0; c < extents[axis]; c++) {
-            coordinates[axis] = c; float value = (float) represented(DataType.BFLOAT16,
+            coordinates[axis] = c; float value = (float) represented(type,
                     value(input, offset, strides, coordinates));
-            float shift = value - maximum; if (!Float.isFinite(shift)) fail();
+            float shift = value - maximum;
+            if (type == DataType.BFLOAT16 && !Float.isFinite(shift)) fail();
             float addend = (float) StrictMath.exp(shift);
             float adjusted = addend - compensation, temporary = sum + adjusted;
             compensation = (temporary - sum) - adjusted; sum = temporary;
         }
         float logarithm = kind == SoftmaxKind.LOG_SOFTMAX ? (float) StrictMath.log(sum) : 0.0f;
         for (long c = 0; c < extents[axis]; c++) {
-            coordinates[axis] = c; float value = (float) represented(DataType.BFLOAT16,
+            coordinates[axis] = c; float value = (float) represented(type,
                     value(input, offset, strides, coordinates));
             float shift = value - maximum;
             float result = kind == SoftmaxKind.SOFTMAX ? (float) StrictMath.exp(shift) / sum
                     : shift - logarithm;
             output[Math.toIntExact(ordinal(coordinates, extents))] =
-                    represented(DataType.BFLOAT16, result);
+                    represented(type, result);
         }
     }
 

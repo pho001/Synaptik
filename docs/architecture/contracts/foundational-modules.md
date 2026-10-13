@@ -263,13 +263,55 @@ once to nearest-even `FLOAT32` before its first use and is not an approximation 
 |---|---|
 | Unary composites | `RSQRT` is `SQRT` then typed `+1 / root`. `SIGMOID` first applies its exact sign guard; the nonnegative branch has negation, `EXP`, typed-one addition, and division, while the negative branch has `EXP`, typed-one addition, and division. Exact GELU has typed `0.5`, `1`, and `2`, `SQRT(2)`, `x / sqrt(2)`, `ERF`, addition, and two multiplications. Tanh GELU has typed `0.5`, `1`, `2`, `pi`, and `0.044715`, `x*x`, `x^2*x`, `2/pi`, `SQRT`, the inner multiply/adds, `TANH`, and the outer add/multiplies. SiLU uses the exact sign guard and the corresponding sigmoid branch plus the final multiplication; equivalently its nonnegative branch is `x/(1+EXP(-x))` and its negative branch is `x*EXP(x)/(1+EXP(x))`. None of `RSQRT`, `SIGMOID`, GELU, tanh GELU, or SiLU is one elementary site. |
 | Aggregate/statistical composites | `MEAN` is an all-terms-once sum then mandatory count division. `VARIANCE` is mean, one subtraction and `x*x` per contributor, aggregate sum, then `N-correction` division; standard deviation adds `SQRT`. L1 norm applies `ABS` then sum. L2 norm applies `x*x`, sum, then `SQRT`. `LOG_SUM_EXP` applies `EXP` once per contributor, aggregate sum, then `LOG`; a stable replacement must preserve guards, special values, and family formula under route qualification. Cumulative and overlap/scatter arithmetic use their declared per-contributor operation and aggregate tree. |
-| Softmax and normalization | Literal softmax applies `EXP` per slice value, aggregate sum, then division per output; literal log-softmax applies the same `EXP`/sum, then `LOG` and output subtraction. Layer norm uses sum/count mean, per-value subtraction and `x*x`, sum/count variance, epsilon addition, `SQRT`, division, and optional scale multiply/bias add. RMS norm uses `x*x`, sum/count, epsilon addition, `SQRT`, division, and optional scale multiply. BatchNorm inference uses subtraction, variance/epsilon addition, `SQRT`, division, scale multiply, and bias add. Training additionally uses sum/count mean, centered `x*x` sums with the exact `N` and `N-1` divisors, epsilon addition, `SQRT`, typed-one division, and the fixed multiply/add running-statistic transitions. |
+| Softmax and normalization | On an all-finite nonempty slice, softmax and log-softmax use the maximum-shifted sites defined below; unshifted `EXP` is not a required intermediate. Layer norm uses sum/count mean, per-value subtraction and `x*x`, sum/count variance, epsilon addition, `SQRT`, division, and optional scale multiply/bias add. RMS norm uses `x*x`, sum/count, epsilon addition, `SQRT`, division, and optional scale multiply. BatchNorm inference uses subtraction, variance/epsilon addition, `SQRT`, division, scale multiply, and bias add. Training additionally uses sum/count mean, centered `x*x` sums with the exact `N` and `N-1` divisors, epsilon addition, `SQRT`, typed-one division, and the fixed multiply/add running-statistic transitions. |
 | Losses | MSE uses one subtraction and `delta*delta` per position, then its exact reduction and optional divisor. Categorical cross-entropy uses exact max selection, score-minus-max subtraction, `EXP`, class sum, `LOG`, max addition, logit subtraction, exact zero-target/ignore guards, target multiplication where declared, loss sum, negation, and optional reduction divisor. |
-| Linear, convolution, pooling, and attention | MATMUL and Conv2d/Conv3d use one multiply per exact mapped pair and an all-terms-once contraction; Conv2d/Conv3d then apply their optional bias addition, while visible linear/Conv1d composition adds only its documented bias or rank edits. Average Pool2d/Pool3d sums every declared kernel position then divides by the exact fixed divisor; max pooling is exact winner selection. Attention scores use query/key multiply-contractions and scale multiplication; an absent scale uses exact positive embedding extent conversion, `SQRT`, and typed-one division. Exact mask/causal guards precede the literal softmax sites above, and output rows use value-weight multiply-contractions. |
+| Linear, convolution, pooling, and attention | MATMUL and Conv2d/Conv3d use one multiply per exact mapped pair and an all-terms-once contraction; Conv2d/Conv3d then apply their optional bias addition, while visible linear/Conv1d composition adds only its documented bias or rank edits. Average Pool2d/Pool3d sums every declared kernel position then divides by the exact fixed divisor; max pooling is exact winner selection. Attention scores use query/key multiply-contractions and scale multiplication; an absent scale uses exact positive embedding extent conversion, `SQRT`, and typed-one division. Exact mask/causal guards precede attention's own literal eligible-score `EXP`/sum/division sites, and output rows use value-weight multiply-contractions. The first-class stable finite-softmax rule does not replace those guarded attention sites. |
 | Random and recurrent | A kept dropout value uses typed-one-minus-probability, typed-one division, then input multiplication; the draw, mask, dropped positive zero, and state transition are exact. RNN uses two multiply-contractions, optional bias addition, addition, and `TANH`. GRU uses the documented packed contractions/bias adds, gate additions and sigmoid branches, reset multiplication, candidate `TANH`, `h-n`, update multiplication, and final addition. LSTM uses its packed contractions/bias adds, gate additions and sigmoid/tanh branches, cell multiplications/addition, final `TANH`, and hidden multiplication. Traversal, valid-length guards, skipped work, outputs, and state publication remain exact. |
 
+For each all-finite nonempty softmax slice, select the greatest represented input value `m` by
+exact stored-value comparison, with no DAZ or arithmetic approximation at that selection. In the
+family's working dtype, subtract `m` from each represented `x_i`, and include each
+`EXP(x_i-m)` contributor exactly once in the sum using the aggregate floor. An implementation
+may recompute a shifted exponential when producing its output, without adding a sum contributor. The
+shift, exponential result, and aggregate accumulation are FLOAT64 for FLOAT64 inputs and FLOAT32
+for FLOAT32, BFLOAT16, and FLOAT16 inputs. The resulting sum is positive and finite when all
+working shifts are finite. SOFTMAX divides each shifted exponential by that sum; LOG_SOFTMAX
+subtracts `LOG(sum)` from each working shift. Each output is then published in its input dtype,
+with a single final ties-to-even narrowing for a low output. LOG_SOFTMAX does not take the
+logarithm of a rounded SOFTMAX output: an underflowed probability can therefore have a finite
+log-probability. Finite represented inputs can still produce a negative-infinity working shift
+when subtraction genuinely overflows the working dtype; its exponential is positive zero and its
+log-softmax result is negative infinity. No backend may instead evaluate unshifted `EXP` and use
+its incidental overflow to turn an otherwise finite-slice probability into NaN.
+
+The shifted-exponential sum may use compensated accumulation, including Kahan's rounded
+sum/residual update, as an explicit softmax-family exception to the ordinary rounded-binary-tree
+evaluation shape. The compensation is rounding-error state, not an additional slice contributor;
+each shifted exponential still enters the aggregate exactly once. Compensation arithmetic uses
+the same working dtype and named arithmetic-site permissions. It may not move an exact guard,
+alter contributor membership, or cross a public or saved-value boundary.
+
+Special-value and empty-slice rules are separate from that all-finite construction. An empty slice
+publishes no positions. Any NaN in a nonempty slice makes every result NaN. With one or more
+positive infinities and no NaN, each positive-infinity position is NaN; every other position is
+positive zero for SOFTMAX and negative infinity for LOG_SOFTMAX. A slice with negative infinity
+and no positive infinity or NaN retains the pre-existing literal formula: working `EXP(x_i)` for
+every position, an all-contributors-once rounded sum, then division for SOFTMAX or `LOG(sum)`
+and input subtraction for LOG_SOFTMAX. Thus finite members are not automatically stabilized in
+a mixed-infinity slice. For example, `[-infinity, 1000]` at FLOAT32 has SOFTMAX `[+0, NaN]` and
+LOG_SOFTMAX `[-infinity, -infinity]` because the finite member's unshifted EXP overflows; this
+preserves the prior result classes. An all-negative-infinity nonempty slice produces NaN at
+every position. NaN payload and sign are unspecified. These are Model results, not a promise that
+every backend admits every represented value: CPU checks finite inputs and its dtype-specific
+shift limits before any consumer write. FLOAT32 admits finite inputs even when a working shift
+overflows; FLOAT64 and BFLOAT16 currently reject a non-finite working shift. FLOAT16 finite
+inputs cannot overflow a FLOAT32 shift.
+
 Guarded attention's no-eligible, all-negative-infinity, and positive-infinity-tie cases retain
-their family-specific results rather than inheriting literal softmax's result by approximation.
+their family-specific results rather than inheriting ordinary softmax's result by approximation.
+Categorical cross-entropy already has its own guarded max-shifted formula; this decision does not
+change its target/ignore guards, accumulator sites, or allowed results. LOG_SUM_EXP and other
+composites retain their own formulas and cannot inherit this shift by analogy.
 
 Visible convenience compositions recurse through the actual public Tensor operations they create.
 Compiler-generated gradients likewise recurse through every captured arithmetic, elementary,

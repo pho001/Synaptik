@@ -18,4 +18,15 @@ class CpuSoftmaxReferenceTest {
                                 DataType.FLOAT64, new double[] {Double.POSITIVE_INFINITY},
                                 new long[] {1}, 0, new long[] {1}, 0)));
     }
+
+    @Test void usesFloat32WorkingShiftAndPreservesExtremeFiniteAdmission() {
+        double[] softmax = CpuSoftmaxReferenceKernel.evaluate(SoftmaxKind.SOFTMAX,
+                DataType.FLOAT32, new double[] {-Float.MAX_VALUE, Float.MAX_VALUE},
+                new long[] {2}, 0, new long[] {1}, 0);
+        double[] log = CpuSoftmaxReferenceKernel.evaluate(SoftmaxKind.LOG_SOFTMAX,
+                DataType.FLOAT32, new double[] {-Float.MAX_VALUE, Float.MAX_VALUE},
+                new long[] {2}, 0, new long[] {1}, 0);
+        assertArrayEquals(new double[] {0, 1}, softmax);
+        assertArrayEquals(new double[] {Double.NEGATIVE_INFINITY, 0}, log);
+    }
 }

@@ -1960,7 +1960,9 @@ One normalized, post-mask coefficient produced from an eligible
 attention, weights have Shape `[..., L, S]` and the promoted query/key/value data type. Excluded
 positions, no-eligible rows, and all-eligible-negative-infinity rows have positive-zero weights;
 eligible NaN produces NaN weights; eligible positive-infinity ties divide unit weight equally;
-otherwise eligible finite weights follow stable softmax and total one ideally.
+otherwise eligible scores use attention's own guarded, literal EXP/sum/division formula. The
+first-class stable finite-softmax rule does not replace that formula; eligible finite weights
+total one in exact real arithmetic when its evaluated exponential sum is positive and finite.
 
 `ScaledDotProductAttentionResult.weights()` exposes these exact same-occurrence coefficients at
 producer slot one. Its eligibility metadata is query OR key, unlike output slot zero's query OR
@@ -5549,12 +5551,17 @@ and `SoftmaxKind.LOG_SOFTMAX`. Both pair with `SoftmaxAttrs`, which carries one 
 non-negative axis. A normalization slice contains positions that vary along that axis while every
 other logical coordinate remains fixed.
 
-For slice values `x_i`, ideal softmax produces positive normalized probabilities
-`exp(x_i) / sum_j(exp(x_j))` whose slice total is one. Ideal log-softmax produces the natural
-logarithm of each corresponding softmax probability. For `[1, 2, 3]`, those meanings are
+For an all-finite slice, Model selects the exact represented maximum `m`, sums one shifted
+`exp(x_i-m)` contributor per position, and publishes `exp(x_i-m)/sum` or
+`(x_i-m)-log(sum)` at the declared working precision. Compensated accumulation may track
+rounding error without adding contributors. This stable construction avoids incidental overflow
+of unshifted EXP. A rounded softmax probability may underflow to zero even when the corresponding
+log-softmax remains finite. For `[1, 2, 3]`, the ideal meanings are
 approximately `[0.09003057, 0.24472847, 0.66524096]` and
 `[-2.40760596, -1.40760596, -0.40760596]`; exponentiating the latter values recovers the former.
-The example states ideal mathematics, not a finite-precision algorithm.
+The example states ideal mathematics; the numerical contract specifies finite-precision sites
+separately. Slices containing infinities retain their pre-existing literal special-value
+construction rather than borrowing the finite-slice shift.
 
 The semantic values do not retain a Tensor or Shape, normalize caller-facing negative axes,
 construct descriptors or provenance, define data-type eligibility or gradients, select compiler
@@ -5571,11 +5578,13 @@ semantic kinds and attributes](api/tensor-api.md#softmax-semantic-kinds-and-attr
 The current CPU portable route admits exactly one explicit first-class occurrence with fully
 static resolved geometry, FLOAT64/FLOAT32/BFLOAT16/FLOAT16 identity, and a positive selected-axis
 extent. It never treats an equivalent-looking decomposed pointwise/reduction graph as stable softmax.
-Every represented input and every `value - sliceMaximum` shift must be finite. This is a narrower
-CPU implementation domain, not missing Model semantics: `SoftmaxKind` defines NaN, infinity and
-empty-slice behavior through its documented formulas. CPU rejects non-finite inputs/shifts and
-zero selected width instead of claiming support for those cases. A zero extent on a non-selected axis yields
-an empty output and no value scan, write, generated call, or worker submission.
+Every represented input must be finite; FLOAT64 and BFLOAT16 additionally require finite working
+shifts, while FLOAT32 admits finite shift overflow and FLOAT16 finite pairs have finite FLOAT32
+shifts. This is a narrower CPU implementation domain, not missing Model semantics: `SoftmaxKind`
+defines NaN, infinity, and empty-slice behavior through its documented formulas. CPU rejects
+non-finite inputs, disallowed shifts, and zero selected width instead of claiming support for
+those cases. A zero extent on a non-selected axis yields an empty output and no value scan,
+write, generated call, or worker submission.
 
 Cold execution accepts typed heap arrays, native-order `MemorySegment` carriers, and mixed pairs
 over arbitrary resolved legal layouts. Cold binding validates carrier access, spans, alignment,
@@ -5584,9 +5593,10 @@ input values after their producers execute and before consumer mutation or worke
 Complete-slice ranges use zero workspace. Both kinds use a stable three-pass
 maximum/compensated-shifted-exponential-sum/final-store algorithm. SOFTMAX computes exponentials
 and division but no logarithm; LOG_SOFTMAX computes one `Math.log(sum)` per slice and stores the
-shift minus that logarithm. Schema 47 introduced the direct typed generated family, which current
-schema 70 retains. These facts are CPU-private algorithm and capability boundaries, not unsupported cross-backend semantic or
-bitwise promises.
+shift minus that logarithm. Schema 47 introduced the direct typed generated family; its current
+version-two structural identity binds FLOAT32 working sites for FLOAT32/FLOAT16 under global
+schema 70. These facts are CPU-private algorithm and capability boundaries, not unsupported
+cross-backend semantic or bitwise promises.
 
 ### Layer normalization
 

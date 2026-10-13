@@ -1454,8 +1454,9 @@ public final class Tensor {
      * broadcasts exactly to score Shape {@code [..., L, S]}; causal eligibility, when selected,
      * combines with it by logical AND. Floating promotion is query/key then value. FLOAT64 uses
      * FLOAT64 score and output accumulation; BFLOAT16, FLOAT16, and FLOAT32 use FLOAT32
-     * accumulation, with one final low-format conversion. Reassociation and conforming stable softmax algorithms are
-     * allowed without a bitwise portability promise.</p>
+     * accumulation, with one final low-format conversion. Reassociation remains subject to the
+     * attention formula's exact guards and literal eligible-score EXP/sum/division sites; the
+     * distinct first-class finite-softmax shift does not replace those sites.</p>
      *
      * <p>Static-zero query embedding is invalid; unresolved positivity and equality obligations
      * remain for compiler validation or binding. Zero query, key-sequence, value-feature, and
@@ -1495,8 +1496,9 @@ public final class Tensor {
      * reconstructed by another expression.</p>
      *
      * <p>The weights preserve the attention operation's all-masked, infinity, NaN, signed-zero,
-     * and stable-softmax meaning. Construction creates metadata only and owns no execution,
-     * storage, compiler capture, gradient rule, backend, or saved-value lifetime.</p>
+     * and guarded eligible-score normalization meaning. Construction creates metadata only and
+     * owns no execution, storage, compiler capture, gradient rule, backend, or saved-value
+     * lifetime.</p>
      *
      * @param key non-null floating key shaped {@code [..., S, E]} and retained as input one
      * @param value non-null floating value shaped {@code [..., S, Ev]} and retained as input two
@@ -1526,8 +1528,9 @@ public final class Tensor {
      * and corresponding output-descriptor references.</p>
      *
      * <p>Normalized weights use the operation's documented masking, causal, finite, NaN, infinity,
-     * signed-zero, empty-axis, and stable-softmax contract. This method constructs model metadata
-     * and does not execute attention or define compiler, gradient, backend, or lifecycle behavior.</p>
+     * signed-zero, empty-axis, and guarded eligible-score normalization contract. This method
+     * constructs model metadata and does not execute attention or define compiler, gradient,
+     * backend, or lifecycle behavior.</p>
      *
      * @param key non-null floating key shaped {@code [..., S, E]}
      * @param value non-null floating value shaped {@code [..., S, Ev]}
@@ -1583,7 +1586,7 @@ public final class Tensor {
      * values participate. Excluded entries, all-masked rows, and all-eligible-negative-infinity
      * rows have positive-zero weights; eligible NaN yields NaN weights, and eligible
      * positive-infinity ties divide unit weight equally. Other eligible weights follow the
-     * operation's stable final-axis softmax meaning.</p>
+     * operation's guarded final-axis EXP/sum/division meaning.</p>
      *
      * <p>The returned exact wrappers share one producer and operation occurrence with the exact
      * supplied attributes reference and ordered inputs {@code [this, key, value, mask]}. Slot zero

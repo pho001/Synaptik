@@ -54,4 +54,15 @@ class CpuSoftmaxInputValidatorTest {
                                 MemorySegment.ofArray(new double[] {0, Double.POSITIVE_INFINITY}),
                                 16, true), geometry)));
     }
+
+    @Test void preservesFloat32FiniteExtremeAdmissionDespiteWorkingShiftOverflow() {
+        var layout = new CpuSoftmaxLowering.Layout(new long[] {2}, 0, new long[] {1});
+        var geometry = new CpuSoftmaxLowering.Geometry(SoftmaxKind.LOG_SOFTMAX,
+                DataType.FLOAT32, 0, layout, layout, 1, 2, 2);
+        assertDoesNotThrow(() -> CpuSoftmaxInputValidator.validate(
+                new CpuBufferArgument.Floats(new float[] {-Float.MAX_VALUE, Float.MAX_VALUE},
+                        0, 8, true), geometry));
+        assertThrows(IllegalArgumentException.class, () -> CpuSoftmaxInputValidator.validate(
+                new CpuBufferArgument.Floats(new float[] {Float.NaN, 0}, 0, 8, true), geometry));
+    }
 }

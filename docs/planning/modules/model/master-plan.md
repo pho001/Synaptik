@@ -98,8 +98,9 @@ The table is the ordered queue and status source. Tasks 0030, 0031, 0032A, and 0
 named-arithmetic-site DAZ/FTZ rule for `FLOAT32`, `BFLOAT16`, and `FLOAT16` (forbidden for
 `FLOAT64`) is implemented in the main worktree. The isolated full build, source-matched main
 native rebuild, independent Class C review, and final documentation reconciliation passed.
-ADR 0026 is Accepted. No Model implementation task is currently `Ready`; selecting another
-frontier requires a separate planning decision. The historical common base was
+ADR 0026 is Accepted. Model 0033 is Complete after the owner's post-review decision to preserve
+stable finite softmax, CPU/conformance implementation, and independent approval. The historical
+common base was
 `9fbd0cc36f2f187d1a658671cb55710ff13a5ed7`; the [0032 brief](tasks/0032-profile-free-numerical-semantics-reset.md)
 records its serial integration and validation. Git history records publication separately.
 
@@ -250,7 +251,7 @@ records its serial integration and validation. Git history records publication s
 | 0031 | [STRICT unary numerical baseline](tasks/0031-strict-unary-numerical-baseline.md) | Complete | 0018T1; 0019A; 0027–0029; completed CPU 0005H/0005I evidence | Owns exact-reference primitive bounds, special/domain rules, and recursive native/one-wider results for all nineteen kinds and every accepted BFLOAT16/FLOAT32/FLOAT64 type; remediation `97cb9d11` passed independent Class C rereview with zero findings and changed no executable behavior or capability. |
 | 0032A | [Stored-subnormal provider regressions](tasks/0032a-stored-subnormal-provider-regressions.md) | Complete | 0030/0031, CPU 0017, Metal 0063 Complete; verified native package at execution | CPU/Metal backend-local stored-subnormal regressions passed; no stronger Model contract or behavior change. |
 | 0032 | [Profile-free numerical-semantics reset](tasks/0032-profile-free-numerical-semantics-reset.md) | Complete | 0032A Complete; user-approved arithmetic-site DAZ/FTZ rule | Profile-free cutover, source-matched native rebuild, integrated validation, independent review, and documentation completed in main; historical ACCELERATOR true/false provider answers retained. |
-| 0033 | [Stable softmax overflow-semantics decision](tasks/0033-stable-softmax-overflow-semantics.md) | Draft | Explicit contract-owner decision; 0032; review G1 | Resolve stable finite output versus literal EXP-overflow class before claiming numerical-contract closure. No implementation authorization yet. |
+| 0033 | [Stable softmax numerical contract](tasks/0033-stable-softmax-overflow-semantics.md) | Complete | Owner decision; 0032; review G1 | Stable finite meaning, CPU execution, conformance, bounded v2 generated/direct evidence, ADR 0029 and independent review complete. |
 
 ## Milestones and current frontier
 
@@ -300,17 +301,17 @@ records its serial integration and validation. Git history records publication s
 
 ## Live gates, decisions, and risks
 
-- **Stable softmax decision:** [0033](tasks/0033-stable-softmax-overflow-semantics.md) is a new
-  Draft from review G1. Stable CPU output for finite EXP-overflow cases conflicts with literal
-  named-site wording. Preserve current authority until the owner explicitly chooses the
-  contract; this is not settled by test tolerance or the unrelated CPU audit repairs.
+- **Stable softmax decision:** [0033](tasks/0033-stable-softmax-overflow-semantics.md) is Complete.
+  The owner selected stable finite output after review G1; the coordinated contract, CPU
+  conformance, bounded v2 performance diagnostic and independent re-review passed. G1 is closed.
 
 - **Numerical semantics:** Complete 0027–0031 and ADRs 0019/0021/0023 describe historical
   profile-era baselines, not the current rule. Complete 0032 and Accepted ADR 0026 record the
   main-worktree profile-free cutover; the root and incorporated Model contract are authoritative.
   Metal 0051 remains historically Blocked under its original premise. The MPSGraph scalar `+0`
   guard's performance effect is unmeasured, a nonblocking follow-up rather than a live cutover
-  gate. No Model task is `Ready` merely because 0032 closed.
+  gate. Model 0033 was launched from Ready after its separate owner decision and dependency check
+  and is now Complete. ADR 0029 records its distinct first-class softmax semantics.
 - **FLOAT16 and mixed precision:** Both low types are current and distinct. A shared two-byte
   carrier does not imply identical arithmetic or a mixed-low backend route; explicit casts form
   the current `FLOAT32` boundary. Task 0026 is Superseded and is not a remaining prerequisite.

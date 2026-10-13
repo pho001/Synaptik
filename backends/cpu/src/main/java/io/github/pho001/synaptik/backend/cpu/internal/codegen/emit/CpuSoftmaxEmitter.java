@@ -14,10 +14,15 @@ import java.lang.constant.MethodTypeDesc;
  *
  * <p>Kind selection occurs while generating the class. Both bodies find the slice maximum and
  * accumulate shifted exponentials; only log-softmax computes the logarithm of that sum, while
- * softmax proceeds directly to exponential-and-division stores.</p>
+ * softmax proceeds directly to exponential-and-division stores. FLOAT64 uses double sites;
+ * FLOAT32, BFLOAT16, and FLOAT16 use float sites with one final low narrowing. A FLOAT32 shift
+ * may overflow to negative infinity for admitted finite input, giving zero probability or
+ * negative-infinity log-probability. CPU validation rejects non-finite inputs and additionally
+ * rejects non-finite shifts for FLOAT64 and BFLOAT16 before this body writes.</p>
  */
 public final class CpuSoftmaxEmitter {
     private static final ClassDesc MATH = ClassDesc.of(Math.class.getName());
+    private static final ClassDesc FLOAT = ClassDesc.of(Float.class.getName());
 
     /** Creates a stateless generation-time emitter. */
     public CpuSoftmaxEmitter() { }
@@ -68,8 +73,8 @@ public final class CpuSoftmaxEmitter {
         int outputRowStride = code.allocateLocal(TypeKind.LONG);
         int represented = code.allocateLocal(type == DataType.FLOAT64 ? TypeKind.DOUBLE
                 : type == DataType.FLOAT32 ? TypeKind.FLOAT : TypeKind.INT);
-        boolean bfloat = type == DataType.BFLOAT16;
-        TypeKind arithmetic = bfloat ? TypeKind.FLOAT : TypeKind.DOUBLE;
+        boolean floatWork = type != DataType.FLOAT64;
+        TypeKind arithmetic = floatWork ? TypeKind.FLOAT : TypeKind.DOUBLE;
         int value = code.allocateLocal(arithmetic);
         int maximum = code.allocateLocal(arithmetic);
         int shifted = code.allocateLocal(arithmetic);
@@ -92,7 +97,7 @@ public final class CpuSoftmaxEmitter {
             guardGeometry(code, geometry, inputStrides + 1, 1, genericGeometry);
             guardGeometry(code, geometry, outputStrides, 2048, genericGeometry);
             guardGeometry(code, geometry, outputStrides + 1, 1, genericGeometry);
-            emitFrozen(code, carriers, specialization, type, softmax, bfloat, frozenGeneral,
+            emitFrozen(code, carriers, specialization, type, softmax, floatWork, frozenGeneral,
                     start, end, intSlice, intEnd, inputAddress, outputAddress, inputArray,
                     outputArray, element, represented, value, maximum, shifted, sum, compensation,
                     temporary, logarithm);
@@ -130,7 +135,7 @@ public final class CpuSoftmaxEmitter {
                         outputStrides + logicalAxis).lmul().ladd().lstore(outputBase);
             }
         }
-        initializeMaximum(code, bfloat, maximum);
+        initializeMaximum(code, floatWork, maximum);
         zeroElement(code, element, intLoop);
         assignAddress(code, inputBase, inputAddress, inputArray);
         var maxLoop = code.newLabel(); var maxDone = code.newLabel();
@@ -138,24 +143,24 @@ public final class CpuSoftmaxEmitter {
         compareElement(code, element, width, intLoop, maxDone);
         load(code, carriers, specialization, type, inputAddress, represented, value, inputArray);
         var retain = code.newLabel();
-        compare(code, bfloat, value, maximum).branch(Opcode.IFLE, retain);
-        copy(code, bfloat, value, maximum); code.labelBinding(retain);
+        compare(code, floatWork, value, maximum).branch(Opcode.IFLE, retain);
+        copy(code, floatWork, value, maximum); code.labelBinding(retain);
         advance(code, inputAxisStride, element, intLoop, inputAddress, inputArray, maxLoop);
         code.labelBinding(maxDone);
 
-        zero(code, bfloat, sum); zero(code, bfloat, compensation);
+        zero(code, floatWork, sum); zero(code, floatWork, compensation);
         zeroElement(code, element, intLoop);
         assignAddress(code, inputBase, inputAddress, inputArray);
         var sumLoop = code.newLabel(); var sumDone = code.newLabel();
         code.labelBinding(sumLoop);
         compareElement(code, element, width, intLoop, sumDone);
         load(code, carriers, specialization, type, inputAddress, represented, value, inputArray);
-        subtract(code, bfloat, value, maximum, shifted);
-        exponential(code, bfloat, shifted);
-        kahan(code, bfloat, shifted, sum, compensation, temporary);
+        subtract(code, floatWork, value, maximum, shifted);
+        exponential(code, floatWork, shifted);
+        kahan(code, floatWork, shifted, sum, compensation, temporary);
         advance(code, inputAxisStride, element, intLoop, inputAddress, inputArray, sumLoop);
         code.labelBinding(sumDone);
-        if (logSoftmax) logarithm(code, bfloat, sum, logarithm);
+        if (logSoftmax) logarithm(code, floatWork, sum, logarithm);
 
         zeroElement(code, element, intLoop);
         assignAddress(code, inputBase, inputAddress, inputArray);
@@ -164,18 +169,12 @@ public final class CpuSoftmaxEmitter {
         code.labelBinding(storeLoop);
         compareElement(code, element, width, intLoop, storeDone);
         load(code, carriers, specialization, type, inputAddress, represented, value, inputArray);
-        subtract(code, bfloat, value, maximum, shifted);
+        subtract(code, floatWork, value, maximum, shifted);
         if (softmax) {
-            exponential(code, bfloat, shifted);
-            divide(code, bfloat, shifted, sum);
-        } else subtract(code, bfloat, shifted, logarithm, shifted);
-        int result = shifted;
-        if (bfloat) {
-            result = code.allocateLocal(TypeKind.DOUBLE);
-            code.fload(shifted).f2d().dstore(result);
-        }
-        CpuNormEmitter.emitStore(code, carriers, specialization, type, outputAddress, result,
-                outputArray);
+            exponential(code, floatWork, shifted);
+            divide(code, floatWork, shifted, sum);
+        } else subtract(code, floatWork, shifted, logarithm, shifted);
+        store(code, carriers, specialization, type, outputAddress, shifted, outputArray, false);
         incrementAddress(code, inputAddress, inputAxisStride, inputArray);
         incrementAddress(code, outputAddress, outputAxisStride, outputArray);
         incrementElement(code, element, intLoop);
@@ -186,7 +185,7 @@ public final class CpuSoftmaxEmitter {
     }
 
     private static void emitFrozen(CodeBuilder code, CpuCarrierEmitter carriers,
-            CpuKernelSpecialization specialization, DataType type, boolean softmax, boolean bfloat,
+            CpuKernelSpecialization specialization, DataType type, boolean softmax, boolean floatWork,
             boolean generalInput, int start, int end, int row, int rowEnd, int inputAddress,
             int outputAddress, boolean inputArray, boolean outputArray, int element, int represented,
             int value, int maximum, int shifted, int sum, int compensation, int temporary,
@@ -197,7 +196,7 @@ public final class CpuSoftmaxEmitter {
         frozenAddress(code, row, generalInput ? 2049 : 2048, generalInput ? 1 : 0,
                 inputAddress, inputArray);
         frozenAddress(code, row, 2048, 0, outputAddress, outputArray);
-        initializeMaximum(code, bfloat, maximum);
+        initializeMaximum(code, floatWork, maximum);
         code.loadConstant(0).istore(element);
         var maxLoop = code.newLabel(); var maxDone = code.newLabel();
         code.labelBinding(maxLoop).iload(element).loadConstant(2048)
@@ -205,12 +204,12 @@ public final class CpuSoftmaxEmitter {
         loadFrozen(code, carriers, specialization, type, inputAddress, represented, value,
                 inputArray);
         var retain = code.newLabel();
-        compare(code, bfloat, value, maximum).branch(Opcode.IFLE, retain);
-        copy(code, bfloat, value, maximum); code.labelBinding(retain);
+        compare(code, floatWork, value, maximum).branch(Opcode.IFLE, retain);
+        copy(code, floatWork, value, maximum); code.labelBinding(retain);
         incrementConstant(code, inputAddress, inputArray);
         code.iinc(element, 1).branch(Opcode.GOTO, maxLoop).labelBinding(maxDone);
 
-        zero(code, bfloat, sum); zero(code, bfloat, compensation);
+        zero(code, floatWork, sum); zero(code, floatWork, compensation);
         frozenAddress(code, row, generalInput ? 2049 : 2048, generalInput ? 1 : 0,
                 inputAddress, inputArray);
         code.loadConstant(0).istore(element);
@@ -219,11 +218,11 @@ public final class CpuSoftmaxEmitter {
                 .branch(Opcode.IF_ICMPGE, sumDone);
         loadFrozen(code, carriers, specialization, type, inputAddress, represented, value,
                 inputArray);
-        subtract(code, bfloat, value, maximum, shifted); exponential(code, bfloat, shifted);
-        kahan(code, bfloat, shifted, sum, compensation, temporary);
+        subtract(code, floatWork, value, maximum, shifted); exponential(code, floatWork, shifted);
+        kahan(code, floatWork, shifted, sum, compensation, temporary);
         incrementConstant(code, inputAddress, inputArray);
         code.iinc(element, 1).branch(Opcode.GOTO, sumLoop).labelBinding(sumDone);
-        if (!softmax) logarithm(code, bfloat, sum, logarithm);
+        if (!softmax) logarithm(code, floatWork, sum, logarithm);
 
         frozenAddress(code, row, generalInput ? 2049 : 2048, generalInput ? 1 : 0,
                 inputAddress, inputArray);
@@ -234,16 +233,10 @@ public final class CpuSoftmaxEmitter {
                 .branch(Opcode.IF_ICMPGE, storeDone);
         loadFrozen(code, carriers, specialization, type, inputAddress, represented, value,
                 inputArray);
-        subtract(code, bfloat, value, maximum, shifted);
-        if (softmax) { exponential(code, bfloat, shifted); divide(code, bfloat, shifted, sum); }
-        else subtract(code, bfloat, shifted, logarithm, shifted);
-        int result = shifted;
-        if (bfloat) {
-            result = code.allocateLocal(TypeKind.DOUBLE);
-            code.fload(shifted).f2d().dstore(result);
-        }
-        CpuNormEmitter.emitStore(code, carriers, specialization, type, outputAddress, result,
-                outputArray, true);
+        subtract(code, floatWork, value, maximum, shifted);
+        if (softmax) { exponential(code, floatWork, shifted); divide(code, floatWork, shifted, sum); }
+        else subtract(code, floatWork, shifted, logarithm, shifted);
+        store(code, carriers, specialization, type, outputAddress, shifted, outputArray, true);
         incrementConstant(code, inputAddress, inputArray);
         incrementConstant(code, outputAddress, outputArray);
         code.iinc(element, 1).branch(Opcode.GOTO, storeLoop).labelBinding(storeDone);
@@ -296,11 +289,11 @@ public final class CpuSoftmaxEmitter {
             int represented, int value, boolean intAddress) {
         carriers.load(type, specialization.carrierPattern().getFirst(), 0, address, intAddress);
         if (type == DataType.FLOAT64) code.dstore(represented).dload(represented).dstore(value);
-        else if (type == DataType.FLOAT32) code.fstore(represented).fload(represented).f2d().dstore(value);
+        else if (type == DataType.FLOAT32) code.fstore(represented).fload(represented).fstore(value);
         else if (type == DataType.FLOAT16) code.istore(represented).iload(represented).i2s()
                 .invokestatic(ClassDesc.of(Float.class.getName()), "float16ToFloat",
                         MethodTypeDesc.of(TypeKind.FLOAT.upperBound(), TypeKind.SHORT.upperBound()))
-                .f2d().dstore(value);
+                .fstore(value);
         else code.istore(represented).iload(represented).loadConstant(16).ishl()
                 .invokestatic(ClassDesc.of(Float.class.getName()), "intBitsToFloat",
                         MethodTypeDesc.of(TypeKind.FLOAT.upperBound(), TypeKind.INT.upperBound()))
@@ -313,12 +306,12 @@ public final class CpuSoftmaxEmitter {
         carriers.loadFrozen(type, specialization.carrierPattern().getFirst(), 0, address,
                 intAddress);
         if (type == DataType.FLOAT64) code.dstore(represented).dload(represented).dstore(value);
-        else if (type == DataType.FLOAT32) code.fstore(represented).fload(represented).f2d()
-                .dstore(value);
+        else if (type == DataType.FLOAT32) code.fstore(represented).fload(represented)
+                .fstore(value);
         else if (type == DataType.FLOAT16) code.istore(represented).iload(represented).i2s()
                 .invokestatic(ClassDesc.of(Float.class.getName()), "float16ToFloat",
                         MethodTypeDesc.of(TypeKind.FLOAT.upperBound(), TypeKind.SHORT.upperBound()))
-                .f2d().dstore(value);
+                .fstore(value);
         else code.istore(represented).iload(represented).loadConstant(16).ishl()
                 .invokestatic(ClassDesc.of(Float.class.getName()), "intBitsToFloat",
                         MethodTypeDesc.of(TypeKind.FLOAT.upperBound(), TypeKind.INT.upperBound()))
@@ -355,6 +348,40 @@ public final class CpuSoftmaxEmitter {
         if (f) code.fload(source).f2d().invokestatic(MATH, "log", CpuNormEmitter.doubleUnary())
                 .d2f().fstore(target);
         else code.dload(source).invokestatic(MATH, "log", CpuNormEmitter.doubleUnary()).dstore(target);
+    }
+
+    private static void store(CodeBuilder code, CpuCarrierEmitter carriers,
+            CpuKernelSpecialization specialization, DataType type, int address, int value,
+            boolean intAddress, boolean frozenLayout) {
+        if (type == DataType.FLOAT64) {
+            CpuNormEmitter.emitStore(code, carriers, specialization, type, address, value,
+                    intAddress, frozenLayout);
+            return;
+        }
+        int represented = value;
+        if (type == DataType.FLOAT16) {
+            represented = code.allocateLocal(TypeKind.INT);
+            code.fload(value).invokestatic(FLOAT, "floatToFloat16",
+                    MethodTypeDesc.of(TypeKind.SHORT.upperBound(), TypeKind.FLOAT.upperBound()))
+                    .istore(represented);
+        } else if (type == DataType.BFLOAT16) {
+            represented = code.allocateLocal(TypeKind.INT);
+            int bits = code.allocateLocal(TypeKind.INT);
+            code.fload(value).invokestatic(FLOAT, "floatToRawIntBits",
+                    MethodTypeDesc.of(TypeKind.INT.upperBound(), TypeKind.FLOAT.upperBound()))
+                    .istore(bits);
+            var finite = code.newLabel(); var rounded = code.newLabel();
+            code.iload(bits).loadConstant(0x7fffffff).iand().loadConstant(0x7f800000)
+                    .branch(Opcode.IF_ICMPLE, finite).loadConstant(0x7fc0)
+                    .istore(represented).branch(Opcode.GOTO, rounded).labelBinding(finite)
+                    .iload(bits).loadConstant(0x7fff).iadd().iload(bits).loadConstant(16).iushr()
+                    .loadConstant(1).iand().iadd().loadConstant(16).iushr()
+                    .istore(represented).labelBinding(rounded);
+        }
+        if (frozenLayout) carriers.storeFrozen(type, specialization.carrierPattern().getLast(),
+                1, address, represented, intAddress);
+        else carriers.store(type, specialization.carrierPattern().getLast(), 1, address,
+                represented, intAddress);
     }
     private static void kahan(CodeBuilder code, boolean f, int value, int sum,
             int compensation, int temporary) {

@@ -37,7 +37,9 @@ import org.junit.jupiter.api.Test;
  *
  * <p>Candidate two uses actual preferred-species loads and an identity vector map, but folds
  * each vector's lanes in increasing logical order.  Thus it is a load/map investigation, not
- * permission to reassociate either stable reduction.  Indexed selected-axis layouts are recorded
+ * permission to reassociate either stable reduction. The historical FLOAT32 vector candidate
+ * retains its former double-working arithmetic and is not compared as a current Model oracle;
+ * the direct FLOAT32 counterpart now uses float working sites. Indexed selected-axis layouts are recorded
  * as scalar-only: this test has no proof that the current Vector API access form admits an
  * allocation-free, carrier-uniform gather for them.</p>
  */
@@ -180,7 +182,7 @@ final class CpuStableReductionSoftmaxStageATest {
         double[] direct = decode(type, directCarrier);
         assertRawEquals(type, direct, generated, "generated/direct " + type + "/" + kind + "/"
                 + carrier + "/axis=" + axis + "/width=" + width);
-        if (axis == fixture.extents.length - 1) {
+        if (axis == fixture.extents.length - 1 && type == DataType.FLOAT64) {
             Object vectorCarrier = emptyLike(type, fixture.output);
             candidateTwoInto(type, kind, fixture.input, vectorCarrier, width, 0, fixture.slices);
             assertRawEquals(type, direct, decode(type, vectorCarrier),
@@ -230,6 +232,32 @@ final class CpuStableReductionSoftmaxStageATest {
         for (long slice = start; slice < end; slice++) {
             int outer = Math.toIntExact(slice / inner), within = Math.toIntExact(slice % inner),
                     base = outer * width * inner + within;
+            if (type == DataType.FLOAT32) {
+                float maximum = Float.NEGATIVE_INFINITY;
+                for (int coordinate = 0; coordinate < width; coordinate++) {
+                    int p = base + coordinate * inner;
+                    float value = (float) scalar(type, input, p);
+                    if (value > maximum) maximum = value;
+                }
+                float sum = 0, compensation = 0;
+                for (int coordinate = 0; coordinate < width; coordinate++) {
+                    int p = base + coordinate * inner;
+                    float shift = (float) scalar(type, input, p) - maximum;
+                    float addend = (float) Math.exp(shift) - compensation;
+                    float temporary = sum + addend;
+                    compensation = (temporary - sum) - addend;
+                    sum = temporary;
+                }
+                float logarithm = kind == SoftmaxKind.LOG_SOFTMAX ? (float) Math.log(sum) : 0;
+                for (int coordinate = 0; coordinate < width; coordinate++) {
+                    int p = base + coordinate * inner;
+                    float shift = (float) scalar(type, input, p) - maximum;
+                    float result = kind == SoftmaxKind.SOFTMAX ? (float) Math.exp(shift) / sum
+                            : shift - logarithm;
+                    store(type, output, p, result);
+                }
+                continue;
+            }
             double maximum = Double.NEGATIVE_INFINITY;
             for (int coordinate = 0; coordinate < width; coordinate++) { int p=base+coordinate*inner;
                 double v = scalar(type, input, p); if (v > maximum) maximum = v; }

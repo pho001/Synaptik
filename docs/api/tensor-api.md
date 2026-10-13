@@ -4402,8 +4402,8 @@ input axis:
 
 | Public form | Operation kind | Ideal slice meaning |
 |---|---|---|
-| `softmax(axis)` | `SoftmaxKind.SOFTMAX` | Positive normalized probabilities whose slice total is one |
-| `logSoftmax(axis)` | `SoftmaxKind.LOG_SOFTMAX` | Natural logarithms of the corresponding softmax probabilities |
+| `softmax(axis)` | `SoftmaxKind.SOFTMAX` | Maximum-shifted probabilities; a rounded small probability may be zero |
+| `logSoftmax(axis)` | `SoftmaxKind.LOG_SOFTMAX` | Maximum-shifted log-probabilities, not logarithms of rounded softmax outputs |
 
 A normalization slice fixes every coordinate except the selected axis. For a rank-two tensor and
 axis `1`, each row is therefore normalized independently. The input must be `FLOAT64`, `FLOAT32`,
@@ -4427,6 +4427,13 @@ For one ideal slice `[1, 2, 3]`, the requested mathematical values are:
 
 These numbers explain the expression's meaning; the current API constructs only metadata for the
 request.
+
+For an all-finite slice `[1000, 1000]`, the requested SOFTMAX values are `[0.5, 0.5]` and
+LOG_SOFTMAX values are approximately `[-0.69314718, -0.69314718]`: the implementation does not
+have to overflow unshifted `exp(1000)`. With `[0, -1000]`, a rounded SOFTMAX output can be
+`[1, 0]` while LOG_SOFTMAX remains `[0, -1000]`. Input NaN/infinity and empty-slice rules are
+separate; the [Model numerical contract](../architecture/contracts/foundational-modules.md#composite-inheritance)
+defines them, and a backend may admit a narrower runtime value domain.
 
 #### Complete expression-construction example
 
@@ -8047,8 +8054,9 @@ Shape fail locally.
 
 Floating promotion occurs in query/key/value order. FLOAT64 scores and output sums accumulate in
 FLOAT64. BFLOAT16, FLOAT16, and FLOAT32 use FLOAT32 accumulation, with one final conversion for a
-low output. Reassociation, fused multiply-add, and any stable softmax that preserves the specified special
-cases are allowed, so this contract gives no bitwise or cross-backend identical-rounding promise.
+low output. Reassociation and fused multiply-add remain subject to attention's exact guards and
+literal eligible-score EXP/sum/division sites. The distinct first-class finite-softmax shift does
+not replace them; this contract gives no bitwise or cross-backend identical-rounding promise.
 
 #### Eligibility and special values
 
@@ -9750,11 +9758,11 @@ Operation probabilities = new Operation(SoftmaxKind.SOFTMAX, attrs);
 Operation logProbabilities = new Operation(SoftmaxKind.LOG_SOFTMAX, attrs);
 ```
 
-For slice values `x_i`, ideal SOFTMAX at position `i` is
-`exp(x_i) / sum_j(exp(x_j))`. The outputs are positive probabilities whose slice total is one.
-Ideal LOG_SOFTMAX is the natural logarithm of the corresponding SOFTMAX probability, equivalently
-`x_i - log(sum_j(exp(x_j)))`. Thus exponentiating an ideal LOG_SOFTMAX output recovers the
-corresponding ideal SOFTMAX output.
+For an all-finite slice, let `m` be the exact represented maximum and let `s` sum every
+`exp(x_j-m)` contributor once. SOFTMAX at position `i` is `exp(x_i-m)/s`; LOG_SOFTMAX is
+`(x_i-m)-log(s)`. They agree with the familiar unshifted formulas in exact mathematics, but
+do not evaluate unshifted EXP for finite slices. A rounded probability can be zero even when
+its log-probability is finite, so LOG_SOFTMAX is not a subsequent `log(SOFTMAX)` operation.
 
 For the slice `[1, 2, 3]`, the ideal meanings are approximately:
 
@@ -9763,7 +9771,11 @@ For the slice `[1, 2, 3]`, the ideal meanings are approximately:
 | `SOFTMAX` | `[0.09003057, 0.24472847, 0.66524096]` | The three probabilities sum to approximately one. |
 | `LOG_SOFTMAX` | `[-2.40760596, -1.40760596, -0.40760596]` | Exponentiating each value yields the corresponding SOFTMAX probability. |
 
-These values explain ideal mathematics, not a finite-precision evaluation algorithm.
+The first example explains ideal mathematics. A second, overflow-sensitive all-finite example,
+`[1000, 1000]`, gives `[0.5, 0.5]` and approximately
+`[-0.69314718, -0.69314718]`. NaN/infinity and empty slices retain their distinct Model rules;
+the [foundational numerical contract](../architecture/contracts/foundational-modules.md#composite-inheritance)
+defines the working precision, narrowing, and special cases.
 `SoftmaxAttrs` accepts every non-negative `int`, including `Integer.MAX_VALUE`, because it stores
 no Shape and cannot prove that an axis exists for an eventual input. A negative axis fails with
 `IllegalArgumentException` and exact message `axis must be non-negative: <axis>`. Generic

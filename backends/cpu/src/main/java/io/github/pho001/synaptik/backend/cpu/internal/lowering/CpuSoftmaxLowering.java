@@ -21,7 +21,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-/** Lowers one static resolved softmax occurrence to complete normalization-slice ranges. */
+/**
+ * Lowers one supported static, resolved softmax occurrence to complete normalization-slice
+ * ranges and a version-two CPU-private kernel identity. The identity binds the selected axis,
+ * representation, three-pass shape, and access plans; run-time values remain for the separate
+ * pre-write validator rather than becoming lowering facts.
+ */
 public final class CpuSoftmaxLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
 
@@ -64,7 +69,7 @@ public final class CpuSoftmaxLowering {
         var inputBinding = binding(in, CpuAccessPlan.AccessKind.READ);
         var outputBinding = binding(out, CpuAccessPlan.AccessKind.WRITE);
         var ir = new CpuSoftmaxIr((SoftmaxKind) node.operation().kind(),
-                input.descriptor().dataType(), axis, 1, 3,
+                input.descriptor().dataType(), axis, 2, 3,
                 inputBinding.plan(), outputBinding.plan());
         var geometry = new Geometry(ir.kind(), ir.dataType(), axis, in, out, slices, width,
                 elements);

@@ -24,7 +24,8 @@ import java.util.List;
  * <p>Mask and causal guards, scale derivation, contributor membership, and output placement remain
  * exact. Scores use query/key multiply-contractions and scale multiplication; an absent scale uses
  * exact embedding extent conversion, SQRT, and typed-one division. Eligible scores use literal EXP,
- * an all-contributors-once sum, and division; output rows use value-weight multiply-contractions.
+ * an all-contributors-once sum, and division; the distinct first-class finite-softmax maximum
+ * shift does not replace these attention sites. Output rows use value-weight multiply-contractions.
  * Guarded no-eligible, all-negative-infinity, and positive-infinity-tie cases retain their distinct
  * exact results. Only named arithmetic primitive inputs/results may use dtype-specific DAZ/FTZ for
  * FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64. Homogeneous low arithmetic works and accumulates

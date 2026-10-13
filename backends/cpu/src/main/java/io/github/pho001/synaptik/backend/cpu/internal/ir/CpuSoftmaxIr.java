@@ -11,7 +11,8 @@ import java.util.Objects;
  * @param kind exact first-class Model meaning
  * @param dataType identical floating input/output representation
  * @param axis normalized selected input axis
- * @param algorithmVersion CPU-private stable-algorithm version
+ * @param algorithmVersion CPU-private stable-algorithm version; version 2 binds FLOAT32 working
+ *     sites for FLOAT32/FLOAT16 and retains admitted FLOAT32 shift overflow
  * @param passCount exact number of full selected-axis passes
  * @param inputAccess structural input read access
  * @param outputAccess structural output write access
@@ -19,7 +20,21 @@ import java.util.Objects;
 public record CpuSoftmaxIr(SoftmaxKind kind, DataType dataType, int axis,
         int algorithmVersion, int passCount, CpuAccessPlan inputAccess,
         CpuAccessPlan outputAccess) implements CpuPortableKernelIr {
-    /** Validates one shape-preserving three-pass structural identity. */
+    /**
+     * Validates a version-two, shape-preserving three-pass softmax identity before it can be
+     * encoded for generated-artifact lookup. Version one is deliberately incompatible.
+     *
+     * @param kind non-null first-class softmax or log-softmax meaning
+     * @param dataType non-null identical floating input/output representation
+     * @param axis non-negative normalized axis within the input iteration rank
+     * @param algorithmVersion exactly {@code 2}
+     * @param passCount exactly three complete selected-axis passes
+     * @param inputAccess non-null read plan for the input
+     * @param outputAccess non-null write plan with the input's iteration rank
+     * @throws NullPointerException if a reference component is {@code null}
+     * @throws IllegalArgumentException if the dtype, axis, version, pass count, or access plans
+     *     disagree with this structural identity
+     */
     public CpuSoftmaxIr {
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(dataType, "dataType");
@@ -31,7 +46,7 @@ public record CpuSoftmaxIr(SoftmaxKind kind, DataType dataType, int axis,
                 || inputAccess.iterationRank() != outputAccess.iterationRank()
                 || inputAccess.accessKind() != CpuAccessPlan.AccessKind.READ
                 || outputAccess.accessKind() != CpuAccessPlan.AccessKind.WRITE
-                || algorithmVersion != 1 || passCount != 3) {
+                || algorithmVersion != 2 || passCount != 3) {
             throw new IllegalArgumentException("softmax structural facts disagree");
         }
     }

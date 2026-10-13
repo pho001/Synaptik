@@ -203,6 +203,10 @@ The following invariants must remain true:
 - Floating scatter MUL combines its base and every addressed update exactly once; a rounded
   multiplication tree is permitted, including intermediate overflow and ensuing NaN. Integral
   modular multiplication and unaddressed raw cells remain exact.
+- First-class SOFTMAX and LOG_SOFTMAX use the Model-defined maximum-shifted finite-slice formula; finite
+  exponentials are not evaluated on unshifted inputs merely to reproduce incidental overflow.
+  Exact stored-value maximum selection, named working-precision sites, and the families' separate
+  NaN, infinity, and empty-slice rules remain mandatory.
 - Canonical checked-in capability ledgers use actual CPU and Metal provider queries. The v1
   `ACCELERATOR` true and false answers, independent low-type queries, negative predicates,
   occurrence identity, and provenance are immutable historical cutover evidence. The profile-free

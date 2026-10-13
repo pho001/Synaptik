@@ -23,8 +23,9 @@ The user authorized [project review 2026-10-13](project-review-2026-10-13.md) ag
 base `728680ea`. Its [finding report](project-review-2026-10-13-findings.md) distinguishes
 reproduced/source-confirmed bugs, coverage regressions, planning drift, intentional limitations,
 and unmeasured risks. All ten scoped repairs below are independently reviewed and Complete;
-the final source-matched `test javadoc` checkpoint passed. G1's softmax contract decision and
-the bounded vector ERF shape follow-up remain explicit Draft work, not hidden closure claims.
+the final source-matched `test javadoc` checkpoint passed. G1's stable finite-softmax contract is
+now Complete after a separate implementation, bounded v2 performance diagnostic and independent
+review; the bounded vector ERF shape follow-up remains Draft.
 
 | Workstream | Completed repair | Current state | Dependency / integration |
 |---|---|---|---|
@@ -74,12 +75,12 @@ No row below authorizes a new implementation task; select and prepare a Ready su
 
 ## Proposed next decisions
 
-1. Resolve the separate [Model 0033 softmax decision](modules/model/tasks/0033-stable-softmax-overflow-semantics.md)
-   before claiming numerical-contract closure: current stable computation and literal EXP-overflow
-   wording disagree. The owner explicitly chose to decide after the final review report. It is
-   Draft, not an implicit authorization to change numerics.
-2. Keep follow-up focused on a real user capability. Recommended next planning decision:
-   Training 0003A selects exact-resume participants and caller-owned progress/sampler handoff.
+1. [Model 0033 stable-softmax task](modules/model/tasks/0033-stable-softmax-overflow-semantics.md)
+   is Complete: Model authority, CPU conformance, bounded v2 generated/direct evidence and
+   independent Class C approval close G1. No further numerical-contract task is implied here.
+2. Keep follow-up focused on a real user capability. Draft
+   [Training 0003A](extensions/training/tasks/0003a-exact-resume-state-ownership-decision.md)
+   selects exact-resume participants and caller-owned progress/sampler handoff.
    Do not invent a DataLoader or silently broaden Data to satisfy an unnamed prerequisite.
 3. If durable save/load is the next product priority, prepare Checkpoint 0001's module decision
    and model-only 0002–0004. Existing Engine materialization is not a missing prerequisite.

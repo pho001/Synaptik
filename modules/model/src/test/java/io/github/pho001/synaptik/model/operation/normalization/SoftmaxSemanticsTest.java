@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
@@ -17,9 +18,14 @@ import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKin
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class SoftmaxSemanticsTest {
@@ -168,6 +174,87 @@ class SoftmaxSemanticsTest {
                         softmax,
                         Arrays.stream(logSoftmax).map(Math::exp).toArray(),
                         EXAMPLE_TOLERANCE));
+    }
+
+    @Test
+    void stableFiniteContractExamplesDistinguishOverflowAndRoundedUnderflow() {
+        double maximum = Math.max(1000, 1000);
+        double shiftedSum = Math.exp(1000 - maximum) + Math.exp(1000 - maximum);
+        assertEquals(0.5, Math.exp(1000 - maximum) / shiftedSum);
+        assertEquals(-Math.log(2), (1000 - maximum) - Math.log(shiftedSum));
+        assertEquals(Double.POSITIVE_INFINITY, Math.exp(1000));
+
+        double small = -1000;
+        double probability = Math.exp(small) / (Math.exp(0) + Math.exp(small));
+        double logProbability = small - Math.log(Math.exp(0) + Math.exp(small));
+        assertEquals(0, probability);
+        assertEquals(-1000, logProbability);
+        assertEquals(Double.NEGATIVE_INFINITY, Math.log(probability));
+    }
+
+    @Test
+    void mixedInfinityPreservesLiteralSpecialValueClassInsteadOfFiniteShift() {
+        double[] input = {Double.NEGATIVE_INFINITY, 1000};
+        double sum = Math.exp(input[0]) + Math.exp(input[1]);
+        assertEquals(0, Math.exp(input[0]) / sum);
+        assertTrue(Double.isNaN(Math.exp(input[1]) / sum));
+        assertEquals(Double.NEGATIVE_INFINITY, input[0] - Math.log(sum));
+        assertEquals(Double.NEGATIVE_INFINITY, input[1] - Math.log(sum));
+    }
+
+    @Test
+    void nanTakesPrecedenceOverPositiveInfinityForTheWholeSlice() {
+        double[] input = {Double.NaN, Double.POSITIVE_INFINITY, 0};
+        double sum = Arrays.stream(input).map(Math::exp).sum();
+        assertTrue(Double.isNaN(sum));
+        for (double value : input) {
+            assertTrue(Double.isNaN(Math.exp(value) / sum));
+            assertTrue(Double.isNaN(value - Math.log(sum)));
+        }
+    }
+
+    @Test
+    void positiveInfinityTiesAreNanOnlyAtWinningPositions() {
+        double[] input = {Double.POSITIVE_INFINITY, -2, Double.POSITIVE_INFINITY};
+        double sum = Arrays.stream(input).map(Math::exp).sum();
+        assertEquals(Double.POSITIVE_INFINITY, sum);
+        for (int position : new int[] {0, 2}) {
+            assertTrue(Double.isNaN(Math.exp(input[position]) / sum));
+            assertTrue(Double.isNaN(input[position] - Math.log(sum)));
+        }
+        assertEquals(0L, Double.doubleToRawLongBits(Math.exp(input[1]) / sum));
+        assertEquals(Double.NEGATIVE_INFINITY, input[1] - Math.log(sum));
+    }
+
+    @Test
+    void allNegativeInfinityProducesOnlyNanResults() {
+        double[] input = {Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY};
+        double sum = Arrays.stream(input).map(Math::exp).sum();
+        assertEquals(0, sum);
+        for (double value : input) {
+            assertTrue(Double.isNaN(Math.exp(value) / sum));
+            assertTrue(Double.isNaN(value - Math.log(sum)));
+        }
+    }
+
+    @Test
+    void emptyNonSelectedAxisRetainsAnEmptyOutputForBothKinds() {
+        Shape emptyRows = Shape.of(0, 3);
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, emptyRows, Optional.empty(), false));
+        Tensor softmax = input.softmax(1);
+        Tensor logSoftmax = input.logSoftmax(1);
+
+        for (Tensor result : List.of(softmax, logSoftmax)) {
+            assertSame(emptyRows, result.descriptor().shape());
+            assertEquals(0, result.descriptor().shape().knownElementCount().orElseThrow());
+            assertTrue(result.hostStorage().isEmpty());
+            assertSame(input, result.provenance().orElseThrow().inputs().getFirst());
+            assertEquals(new SoftmaxAttrs(1), result.provenance().orElseThrow().operation().attrs());
+        }
+        assertSame(SoftmaxKind.SOFTMAX, softmax.provenance().orElseThrow().operation().kind());
+        assertSame(SoftmaxKind.LOG_SOFTMAX,
+                logSoftmax.provenance().orElseThrow().operation().kind());
     }
 
     @Test

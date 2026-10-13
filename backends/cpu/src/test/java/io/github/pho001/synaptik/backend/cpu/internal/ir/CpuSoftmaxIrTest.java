@@ -15,14 +15,16 @@ class CpuSoftmaxIrTest {
         var write = new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE,
                 CpuAccessPlan.Regime.DENSE_LINEAR, 2,
                 List.of(CpuAccessPlan.AxisRole.CONTIGUOUS, CpuAccessPlan.AxisRole.CONTIGUOUS), 2);
-        var softmax = new CpuSoftmaxIr(SoftmaxKind.SOFTMAX, DataType.FLOAT32, 1, 1, 3,
+        var softmax = new CpuSoftmaxIr(SoftmaxKind.SOFTMAX, DataType.FLOAT32, 1, 2, 3,
                 read, write);
-        var log = new CpuSoftmaxIr(SoftmaxKind.LOG_SOFTMAX, DataType.FLOAT32, 1, 1, 3,
+        var log = new CpuSoftmaxIr(SoftmaxKind.LOG_SOFTMAX, DataType.FLOAT32, 1, 2, 3,
                 read, write);
         assertAll(() -> assertNotEquals(softmax.structuralKey(), log.structuralKey()),
                 () -> assertTrue(softmax.encodedKernelIr().familyIdentity()
-                        .startsWith("softmax:SOFTMAX:")),
+                        .contains(":algorithm=2:passes=3")),
                 () -> assertThrows(IllegalArgumentException.class, () -> new CpuSoftmaxIr(
-                        SoftmaxKind.SOFTMAX, DataType.INT32, 1, 1, 3, read, write)));
+                        SoftmaxKind.SOFTMAX, DataType.FLOAT32, 1, 1, 3, read, write)),
+                () -> assertThrows(IllegalArgumentException.class, () -> new CpuSoftmaxIr(
+                        SoftmaxKind.SOFTMAX, DataType.INT32, 1, 2, 3, read, write)));
     }
 }

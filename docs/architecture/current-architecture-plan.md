@@ -27,6 +27,7 @@ Focused architecture documentation:
 - [Dependency rules](dependency-rules.md)
 - [Partition scoring](partition-scoring.md)
 - [Performance evidence and model autotuning](performance-evidence-and-tuning.md)
+- [Stable finite softmax and special-value boundary](softmax-numerical-semantics.md)
 - [Training graph](training-graph.md)
 - [ADR 0009: Compiler-owned pre-capture Tensor-expression autograd](../design/decisions/0009-compiler-owned-pre-capture-tensor-expression-autograd.md)
 - [ADR 0007: Neural-network module and training boundary](../design/decisions/0007-neural-network-module-and-training-boundary.md)
@@ -49,6 +50,7 @@ Focused architecture documentation:
 - [ADR 0024: Environment-bound Metal raw-route certificates (superseded)](../design/decisions/0024-environment-bound-metal-raw-certificates.md)
 - [ADR 0025: Custom-only Metal low precision](../design/decisions/0025-custom-only-metal-low-precision.md)
 - [ADR 0026: Profile-free numerical semantics (Accepted)](../design/decisions/0026-profile-free-numerical-semantics.md)
+- [ADR 0029: Stable finite softmax (Accepted)](../design/decisions/0029-stable-finite-softmax.md)
 
 ## Status
 

@@ -30,7 +30,7 @@ class CpuGeneratedCoverageCheckpointTest {
     private static final String POST_TERMINAL_PRE_FROZEN_LAYOUT_INVENTORY_SHA256 =
             "2e9f07e30b47429387c8c1043207ee6e8feae327f09ac24a7a8f8c51821918fb";
     private static final String CURRENT_INVENTORY_SHA256 =
-            "9ded010c3457ffa0c45e6d07cd538f6ee74019dda9a48ab84f8f3d2ad9c29746";
+            "db72ac527fb92826c6257cdef68c45df263456a0dbb08ad3f4b0867d2574d480";
     private static final String SCHEMA_68_COMPOSITION_BASELINE_SHA256 =
             "dc5dabada292f00c3afecfbd9d40d1a74749d62fb3441a43176f5924cdf5231d";
     private static final String HEADER = "owner-id\tevidence-key\toperation-form\tlowered-ir-family"

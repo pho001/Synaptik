@@ -81,10 +81,10 @@ extends only Training-owned state. NN keeps parameter declaration and traversal 
 | [0002A](tasks/0002a-sgd-parameter-groups.md) | SGD parameter groups | Complete | 0001E | Disjoint path-based SGD overrides have exact state/restore identity and preserve ungrouped behavior. |
 | [0002B](tasks/0002b-adam-and-adamw-optimizers.md) | Adam and AdamW optimizer state | Complete | 0002A | Mixed SGD/Adam/AdamW groups have exact two-moment state/restore; independent review and repository checkpoint passed. |
 | [0002C](tasks/0002c-adaptive-update-operation-order.md) | Adaptive-update operation order | Complete | 0002B; project review | Preserve documented multiply-before-divide order and finite-update admission for Adam/AdamW. |
-| 0003A | Resume-state ownership and claim decision | Draft | 0002B; audit reconciliation | Name exact participating state owners and choose supported resume vs restart claims before adding state. Recommended starting point: caller-owned progress/sampler state, not an invented Data lifecycle. Requires explicit contract review. |
+| [0003A](tasks/0003a-exact-resume-state-ownership-decision.md) | Resume-state ownership and claim decision | Draft | 0002C; audit reconciliation | Name exact participating state owners and choose supported resume versus restart claims before adding state. Recommended starting point: caller-owned progress/sampler state. Requires explicit contract review. |
 | 0003 | Exact-resume progress state | Draft | 0002C; accepted 0003A decision | Implement only the selected progress/scheduler/RNG/sampler/scaler participants; current Data batching tasks do not satisfy this prerequisite. |
 | 0004 | Training checkpoint integration boundary | Draft | 0003; Checkpoint 0001 and 0004 | Expose one coordinated prevalidated state candidate before the downstream adapter; keep bytes, files, checksums, and atomic publication outside Training. |
-| 0005 | Broader training capability checkpoint | Draft | 0002A–0004 | Validate broader optimizers, state-path stability, exact-resume claims, documentation, and architecture boundaries. |
+| 0005 | Broader training capability checkpoint | Draft | 0002A–0004 | Validate broader optimizers, state-path stability, exact-resume claims, documentation, architecture boundaries, and a representative peak-memory measurement of parameter, slot, candidate, rollback, and snapshot storage before claiming large-model support. |
 
 
 ## Milestones

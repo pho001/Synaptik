@@ -2526,11 +2526,13 @@ matching gradient-eligibility metadata. The selected normalized axis must have p
 extent on any non-selected axis instead makes the shape-preserving output empty, so execution
 performs no value scan, generated call, write, or worker submission.
 
-This route deliberately admits a CPU-private numerical subset. Every represented input and every
-selected-width shift `value - sliceMaximum` must be finite. This is a limitation of the current
-CPU route, not undefined Model semantics: Model defines NaN, infinity, and empty-slice behavior.
-CPU rejects non-finite inputs and shift overflow; its capability domain also requires a positive
-selected-axis extent. These restrictions do not imply that another backend must reject them.
+This route deliberately admits a CPU-private numerical subset. Every represented input must be
+finite. FLOAT64 and BFLOAT16 also require each working `value - sliceMaximum` shift to be finite;
+FLOAT32 preserves its admission of all finite inputs even when a FLOAT32 shift overflows to
+negative infinity, while finite FLOAT16 pairs cannot overflow a FLOAT32 shift. Model separately
+defines non-finite and empty-slice results; CPU rejects non-finite inputs before a write. The
+capability domain requires a positive selected-axis extent. These restrictions do not imply
+that another backend must reject the same values.
 
 Cold binding first validates the exact heap-array or native-order `MemorySegment` carrier,
 thread access, liveness, alignment, complete referenced span, output writability and injectivity,
@@ -2555,12 +2557,12 @@ Both kinds use three direct passes:
 
 SOFTMAX writes `exp(value - maximum) / sum` and computes no logarithm. LOG_SOFTMAX computes
 `log(sum)` once per complete slice after pass two and writes
-`(value - maximum) - log(sum)` without reevaluating the exponential in pass three. FLOAT64 and
-FLOAT32 use binary64 maximum, shifts, exponential/logarithm results, and compensated sums.
-BFLOAT16 decodes to binary32, uses binary32 maximum, shifts, and compensated accumulation, narrows
-each `Math.exp` or `Math.log` result at the formula point, and rounds the final result once to
-BFLOAT16. These are CPU-private finite-precision choices, not public promotion or cross-backend
-bitwise semantics.
+`(value - maximum) - log(sum)` without reevaluating the exponential in pass three. FLOAT64 uses
+binary64 working sites. FLOAT32, BFLOAT16, and FLOAT16 use binary32 shifts, exponential/logarithm
+results, and compensated sums; the low types each narrow only the final output. The generated
+float sites mirror the direct clean-Java algorithm. FLOAT32 `[-Float.MAX_VALUE,
+Float.MAX_VALUE]` produces `[0, 1]` for SOFTMAX and `[-infinity, 0]` for LOG_SOFTMAX. These
+working choices implement the Model precision rule without a cross-backend bitwise promise.
 
 For example, one admitted slice `[1, 2, 3]` produces approximately
 `[0.09003057, 0.24472847, 0.66524096]` for SOFTMAX and
@@ -2569,13 +2571,20 @@ one, and exponentiating the second reconstructs it. This numerical walkthrough i
 first-class meanings; it does not extend the CPU-private admitted subset into a portable
 special-value or bitwise contract.
 
-Schema 47 records the first-class kind, selected axis, representation, stable algorithm and pass
+Schema 47 introduced the first-class kind, selected axis, representation, stable algorithm and pass
 shape, access plans, carrier forms, and direct emitted-body identity. Generated classes are final,
 field-free, constructor-free, and expose one typed static entry with packed primitive geometry and
 complete-slice `start`/`end` bounds. Generated SOFTMAX contains no `Math.log` reference;
 LOG_SOFTMAX retains its required logarithm. Complete inspection found no allocation, boxing,
 reflection, method handle, `invokedynamic`, collection, semantic dispatch, or Synaptik numerical
 helper in the retained generated targets.
+
+The current route advances its CPU-private softmax algorithm identity from version 1 to 2. That
+changes the structural fingerprint, generated binary name, and artifact compatibility key for
+both kinds; old softmax artifacts cannot be reused even though the global CPU envelope stays at
+schema 70. Unchanged families retain their current identities. The earlier performance evidence
+below describes the old generated bodies; it is historical, not a new performance claim for
+version 2.
 
 The retained evidence covers eight generated targets and three unchanged-family controls across
 five sequential isolated Java virtual machine forks. All 55 per-fork and all 11 aggregate ratios
@@ -2586,9 +2595,38 @@ algorithm, pass/dataflow shape, addressing, narrowing, and stores. The worst for
 version, and protocol. It is not a universal throughput, tuning, vector/native, or cross-backend
 claim.
 
-This family adds no public API, Model or Compiler semantic change, backward execution, vector or
+A separate opt-in v2 diagnostic compares the current generated class against directly written
+clean Java for SOFTMAX and LOG_SOFTMAX at FLOAT32 and FLOAT16. It uses matching contiguous heap
+carriers and 128 rows of 2048 values. Both timed sides make the same maximum, shifted-exponential
+sum, and output passes; binary32 shift, EXP/LOG result, and Kahan sum/residual sites match, and
+FLOAT16 narrows only each final output. A representative output is consumed through a volatile
+sink after every full invocation on both sides. Raw output equality is checked before and after
+timing. Preparation, generation, geometry packing, allocation, and equality checks are outside
+the timed region.
+
+On Mac OS X/aarch64 with Java 26.0.1, one Java virtual machine ran 50 warmup pairs per case,
+then seven paired samples of four full invocations per side. A fixed-seed random order shuffled
+cases and which side ran first. The times below are medians in nanoseconds per full invocation;
+the ratio is the median of the seven paired generated/direct ratios, so it need not equal the
+ratio of the two displayed time medians.
+
+| Current v2 case | Generated median (ns) | Direct median (ns) | Paired median ratio | Paired ratio range |
+|---|---:|---:|---:|---:|
+| LOG_SOFTMAX / FLOAT16 | 9,186,895 | 9,180,104 | 1.000580x | 0.982913–1.029248x |
+| LOG_SOFTMAX / FLOAT32 | 1,637,906 | 1,612,520 | 1.021311x | 0.981995–1.054201x |
+| SOFTMAX / FLOAT16 | 18,653,864 | 18,541,114 | 1.012033x | 0.994502–1.022780x |
+| SOFTMAX / FLOAT32 | 3,132,718 | 3,114,146 | 0.999465x | 0.988187–1.019029x |
+
+Reproduce this bounded diagnostic with
+`SYNAPTIK_CPU_0033_DIAGNOSTIC=true ./gradlew :backends:cpu:test --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuSoftmaxV2PerformanceDiagnosticTest --max-workers=2 --console=plain --info`.
+The probe prints its per-case table. These four cases show no material regression in this run,
+but one process, one host, one shape, and seven samples cannot establish multi-fork parity, a
+general speed bound, or a route-qualification threshold. The preceding five-fork results remain
+historical evidence for the earlier class identity, not timings for v2.
+
+This CPU route adds no public API, Compiler semantic change, backward execution, vector or
 native route, fusion, dynamic Shape/layout support, overlap allowance, workspace algorithm,
-backend conformance result, or integration guarantee. Layer/RMS normalization and the two
+backend capability expansion, or integration guarantee. Layer/RMS normalization and the two
 first-class batch-normalization forms are separate current families below.
 
 ### Current trailing Layer/RMS-normalization family
