@@ -160,6 +160,12 @@ candidate-schema versions, target and workload or model fingerprints, objective 
 and a compact measurement summary. Incompatible entries are invalidated, and corrupt data is
 rejected safely.
 
+Model-plan publication checks the complete encoded size, including length prefixes and checksum,
+against the existing 16 MiB file limit before allocating the output buffer or creating a temporary
+file. Individually valid entries can still exceed this aggregate limit; that rejection leaves any
+existing destination unchanged. The size check does not change schema-1 bytes or the atomic
+replacement policy.
+
 The workload cache is implemented for Phase 1. The generic Phase-2 model-plan cache format is also
 implemented, but current CPU compatibility is `SESSION`, so the public CPU composition performs
 no model-plan-cache filesystem I/O. The same Engine translation can serve a future producer that

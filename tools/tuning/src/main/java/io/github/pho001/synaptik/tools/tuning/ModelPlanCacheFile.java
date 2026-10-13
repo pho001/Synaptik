@@ -1,7 +1,5 @@
 package io.github.pho001.synaptik.tools.tuning;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -26,11 +24,12 @@ import java.util.UUID;
  *
  * <p>The package-private file format is schema-versioned, big-endian, deterministically ordered,
  * length-bounded, and protected by a whole-file SHA-256 checksum. Loading validates the complete
- * file before returning any entry. Publication writes and forces a unique same-directory
- * temporary file, performs atomic replacement only, attempts to force the directory, and removes
- * the temporary file on every exit. Entries contain compatibility-key material, an opaque
- * encoded decision, an opaque winner identity, and a compact timing summary; raw samples and
- * correctness evidence are never persisted here.
+ * file before returning any entry. Publication checks the aggregate encoded size, including the
+ * checksum, before allocating the complete output or creating a temporary file. It then writes
+ * and forces a unique same-directory temporary file, performs atomic replacement only, attempts
+ * to force the directory, and removes the temporary file on every exit. Entries contain
+ * compatibility-key material, an opaque encoded decision, an opaque winner identity, and a
+ * compact timing summary; raw samples and correctness evidence are never persisted here.
  *
  * <p>This class stores data only. The surrounding complete-plan transaction decides whether
  * persistence is permitted and requires the producer-owned decoder to authenticate a hit.
@@ -42,6 +41,9 @@ final class ModelPlanCacheFile {
     private static final byte[] MAGIC = {0x53, 0x59, 0x4e, 0x50, 0x4c, 0x41, 0x4e, 0x31};
     private static final int SCHEMA = 1;
     private static final int CHECKSUM_BYTES = 32;
+    private static final int HEADER_BYTES = MAGIC.length + 2 * Integer.BYTES;
+    // Eleven key integers, nine opaque lengths, and a three-long/one-integer summary.
+    private static final int ENTRY_FIXED_BYTES = 21 * Integer.BYTES + 3 * Long.BYTES;
 
     /**
      * Fully validated schema and canonical entries produced by the authoritative parser.
@@ -502,58 +504,103 @@ final class ModelPlanCacheFile {
         }
     }
 
-    private static byte[] encode(List<Entry> entries) throws IOException {
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        try (DataOutputStream out = new DataOutputStream(buffer)) {
-            out.write(MAGIC);
-            out.writeInt(SCHEMA);
-            out.writeInt(entries.size());
-            Key previous = null;
-            for (Entry entry : entries) {
-                if (previous != null && ORDER.compare(previous, entry.key) >= 0) {
-                    throw new IOException("duplicate model-plan cache key");
-                }
-                Key key = entry.key;
-                out.writeInt(key.producerSchema);
-                writeBytes(out, key.producer);
-                out.writeInt(key.codecSchema);
-                writeBytes(out, key.codec);
-                out.writeInt(key.modelSchema);
-                writeBytes(out, key.model);
-                out.writeInt(key.profileSchema);
-                writeBytes(out, key.profile);
-                out.writeInt(key.targetSchema);
-                writeBytes(out, key.target);
-                out.writeInt(key.compatibilitySchema);
-                writeBytes(out, key.compatibility);
-                out.writeInt(key.objective);
-                out.writeInt(key.correctnessPolicy);
-                out.writeInt(key.policySchema);
-                writeBytes(out, key.policy);
-                out.writeInt(key.warmupCount);
-                out.writeInt(key.timedSampleCount);
-                writeBytes(out, entry.decision);
-                writeBytes(out, entry.winner);
-                out.writeLong(entry.summary.minimumNanos());
-                out.writeLong(entry.summary.medianNanos());
-                out.writeLong(entry.summary.maximumNanos());
-                out.writeInt(entry.summary.sampleCount());
-                previous = key;
+    /**
+     * Counts the complete schema-1 encoding without copying opaque values or allocating output.
+     * Checked arithmetic includes the header, every fixed field and length prefix, and checksum;
+     * the running total is rejected as soon as it exceeds the inclusive 16 MiB file bound.
+     * This calculation does not validate key order or uniqueness.
+     *
+     * @param entries non-null list of non-null immutable entries; not mutated during this call
+     * @return exact complete file length in bytes, at most {@link #MAX_FILE_BYTES}
+     * @throws NullPointerException if the list or an entry is null
+     * @throws IOException if the entry count or aggregate encoded size exceeds its format bound
+     * @throws ArithmeticException if checked size arithmetic overflows
+     */
+    static int encodedSize(List<Entry> entries) throws IOException {
+        if (entries.size() > MAX_ENTRIES) {
+            throw new IOException("too many model-plan cache entries");
+        }
+        long size = HEADER_BYTES + CHECKSUM_BYTES;
+        for (Entry entry : entries) {
+            Key key = entry.key;
+            size = Math.addExact(size, ENTRY_FIXED_BYTES);
+            size = Math.addExact(size, key.producer.length);
+            size = Math.addExact(size, key.codec.length);
+            size = Math.addExact(size, key.model.length);
+            size = Math.addExact(size, key.profile.length);
+            size = Math.addExact(size, key.target.length);
+            size = Math.addExact(size, key.compatibility.length);
+            size = Math.addExact(size, key.policy.length);
+            size = Math.addExact(size, entry.decision.length);
+            size = Math.addExact(size, entry.winner.length);
+            if (size > MAX_FILE_BYTES) {
+                throw new IOException("model-plan cache exceeds size bound");
             }
         }
-        byte[] payload = buffer.toByteArray();
-        byte[] checksum = digest(payload, 0, payload.length);
-        if ((long) payload.length + checksum.length > MAX_FILE_BYTES) {
-            throw new IOException("model-plan cache exceeds size bound");
-        }
-        byte[] complete = Arrays.copyOf(payload, payload.length + checksum.length);
-        System.arraycopy(checksum, 0, complete, payload.length, checksum.length);
-        return complete;
+        return Math.toIntExact(size);
     }
 
-    private static void writeBytes(DataOutputStream out, byte[] bytes) throws IOException {
-        out.writeInt(bytes.length);
-        out.write(bytes);
+    /**
+     * Encodes canonical schema-1 bytes into one exactly sized buffer after bounded preflight.
+     * The checksum covers the payload in that buffer without making a complete payload copy.
+     *
+     * @param entries non-null stable list of non-null entries in strict canonical key order
+     * @return new caller-owned complete artifact bytes, including the SHA-256 checksum; never null
+     * @throws NullPointerException if the list or an entry is null
+     * @throws IOException if size bounds, key order, or uniqueness are invalid
+     * @throws ArithmeticException if checked size arithmetic overflows
+     */
+    private static byte[] encode(List<Entry> entries) throws IOException {
+        int size = encodedSize(entries);
+        ByteBuffer out = ByteBuffer.allocate(size).order(ByteOrder.BIG_ENDIAN);
+        out.put(MAGIC);
+        out.putInt(SCHEMA);
+        out.putInt(entries.size());
+        Key previous = null;
+        for (Entry entry : entries) {
+            if (previous != null && ORDER.compare(previous, entry.key) >= 0) {
+                throw new IOException("duplicate model-plan cache key");
+            }
+            Key key = entry.key;
+            out.putInt(key.producerSchema);
+            writeBytes(out, key.producer);
+            out.putInt(key.codecSchema);
+            writeBytes(out, key.codec);
+            out.putInt(key.modelSchema);
+            writeBytes(out, key.model);
+            out.putInt(key.profileSchema);
+            writeBytes(out, key.profile);
+            out.putInt(key.targetSchema);
+            writeBytes(out, key.target);
+            out.putInt(key.compatibilitySchema);
+            writeBytes(out, key.compatibility);
+            out.putInt(key.objective);
+            out.putInt(key.correctnessPolicy);
+            out.putInt(key.policySchema);
+            writeBytes(out, key.policy);
+            out.putInt(key.warmupCount);
+            out.putInt(key.timedSampleCount);
+            writeBytes(out, entry.decision);
+            writeBytes(out, entry.winner);
+            out.putLong(entry.summary.minimumNanos());
+            out.putLong(entry.summary.medianNanos());
+            out.putLong(entry.summary.maximumNanos());
+            out.putInt(entry.summary.sampleCount());
+            previous = key;
+        }
+        out.put(digest(out.array(), 0, out.position()));
+        return out.array();
+    }
+
+    /**
+     * Writes one opaque value with its schema-1 byte-length prefix.
+     *
+     * @param out non-null big-endian destination with enough remaining capacity; advanced
+     * @param bytes non-null bounded opaque value; read without mutation or retention
+     */
+    private static void writeBytes(ByteBuffer out, byte[] bytes) {
+        out.putInt(bytes.length);
+        out.put(bytes);
     }
 
     private static byte[] bounded(byte[] bytes, String name) {
