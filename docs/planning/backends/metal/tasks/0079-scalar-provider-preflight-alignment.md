@@ -20,6 +20,10 @@ The same source mismatch affects scalar MUL: the provider allows it, preflight r
 The later native per-operation shape checks accept matching scalars, but the earlier schema-20
 decoder also requires rank-zero RELU/MUL to be cleared by authenticated anchor membership.
 Two existing actual-device raw-ABI tests confirm native UNSUPPORTED_SHAPE, not successful execution.
+After removing those guards, actual-device tests expose one further part of the same mismatch:
+FLOAT32 scalar MUL lowers its exact literal as rank one, making its result incompatible with the
+advertised rank-zero output. The bounded rank-zero MUL literal/result-shape correction is in scope;
+do not change the shared scalar helper's behavior for unrelated operations.
 
 Own `MetalNativeApi` validation, the corresponding native decoder guards, coordinated Metal
 identity constants/tests, active source/package evidence and the smallest focused tests/Javadoc,
@@ -77,6 +81,11 @@ combined repository checkpoint remains deferred until all serial successors are 
 it is not a prerequisite for this disjoint Java preflight repair. No other Metal writer is active.
 The provider already advertises these scalars. Subsequent raw-ABI diagnosis identified the second
 native decoder guard, so the coordinator explicitly authorizes its bounded correction and native
-rebuild within the user's correctness-repair request. This adds no operation, provider domain or
-numerical contract. Resume the same clean isolated implementation context only after it receives
-this revised brief. Shared version documents remain coordinator-owned.
+rebuild within the user's correctness-repair request. Subsequent device validation passed six
+admission tests and eight of ten integration cases, with no skips; the two FLOAT32 MUL failures
+identify a rank-one literal versus rank-zero result, not a numerical-policy conflict. Coordinator
+source review confirms `exact_float32_scalar` creates `shape:@[@1]` and MUL currently performs no
+rank repair. Its bounded standalone rank-zero correction is authorized under the same advertised
+capability contract. This adds no operation, provider domain, fusion or numerical contract.
+Resume the same clean isolated context with this revised brief. Shared version documents remain
+coordinator-owned.
