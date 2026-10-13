@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Review needed
 
 ## Goal and class
 
@@ -45,3 +45,11 @@ Read AGENTS; root scope index, ownership/dependency rules; `extensions-training.
 Launch verified 2026-10-13: public CPU diagnostic confirms finite rejection, source and contract
 agree on the bounded repair, predecessors complete, no competing Training writer. Use clean
 implementation context and isolated worktree. Data/Checkpoint are not prerequisites.
+
+## Integration record
+
+Implementation `97e66ee3` integrated as `1f9ea4bd` after independent review.
+11 focused / 68 module tests and Javadoc; independent code/documentation APPROVE.
+Affected Javadoc and explanatory documentation reviewed in the same change. No unresolved
+review findings. Coordinator's combined repository checkpoint and planning closure remain
+outstanding; this status does not imply an outstanding code-review finding.

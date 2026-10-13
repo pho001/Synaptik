@@ -91,14 +91,15 @@ candidates; a soft device-class preference ranks candidates that remain. Plannin
 `BackendId` owner and does not choose a CPU route, vector width, thread count, kernel, or tuning
 candidate.
 
-## Optional CPU-local tuning is not backend selection
+## Optional single-owner tuning is not backend selection
 
-`Engine.prepareTuned(...)` can select a compatible CPU-local workload candidate before production
-execution, including when Metal is also registered but CPU owns the complete plan. Its current
-mapping is bounded to one occurrence at index 0, partition 0, and weight 1. A Metal-owned plan
-fails before representative input borrowing or trial work. Cache lookup, measurements, ranking,
-and explicit safe fallback stay inside the selected CPU owner; tuning never selects another
-backend.
+`Engine.prepareTuned(...)` can select a compatible local workload candidate before production
+execution for one eligible CPU partition or a singleton FLOAT32 Metal NEG partition with both
+custom-kernel and MPSGraph candidates. The current mapping is one occurrence at index 0,
+partition 0, and weight 1. Metal decisions have session-only reuse and no persistent cache access.
+Heterogeneous or multiple-partition plans fail before representative trial work. Cache lookup,
+measurements, ranking and explicit safe fallback stay inside the selected owner; tuning never
+selects another backend. Registering both backends does not make a single-owner plan heterogeneous.
 
 ## Common errors
 
@@ -111,7 +112,7 @@ backend.
 | CPU scalar and OpenBLAS appear as separate owners | Backend route and backend identity were confused. | Let CPU preparation choose its internal route. |
 | Runtime changes owner after a failure | Ownership was deferred past compilation/preparation. | Runtime must execute the already prepared schedule. |
 | `unconstrained()` is treated as guaranteed fallback | Absence of a hard requirement was mistaken for a valid candidate. | Expect compilation to fail when no supplied backend is eligible. |
-| A tuning result is treated as a generic plan | The bounded CPU-local handoff was generalized. | Keep later multi-occurrence and graph/plan tuning separate. |
+| A tuning result is treated as a generic plan | The bounded single-owner handoff was generalized. | Keep later multi-occurrence and graph/plan tuning separate. |
 
 
 ## Numerical behavior and backend support

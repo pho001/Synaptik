@@ -19,8 +19,8 @@ The [module-boundary](../../../architecture/module-boundaries.md),
 
 ## Scope and non-goals
 
-Config owns compile modes, backend intent, optimization and scoring inputs; the current graph-wide
-numerical-profile identity; later backend-neutral prepare/run/publication values; planning-cost
+Config owns compile modes, backend intent, optimization and scoring inputs; later
+backend-neutral prepare/run/publication values; planning-cost
 inputs only after a cost-bearing consumer and units stabilize; and immutable model-autotuning
 request policy and explicit cache locations.
 
@@ -34,12 +34,12 @@ promise persistence.
 - Hard eligibility, soft preference, planning cost, tuning evidence, and route selection remain
   separate. An absent hard requirement is not a fallback promise.
 - Config requests never select an owner, route, candidate, prepared plan, or executable.
-- Numerical and determinism compatibility filter candidates before performance comparison.
-  Hardware, availability, workload size, objectives, caches, and evidence never grant relaxed
-  mathematics.
-- Completed 0006 owns only the two-value graph numerical-profile identity. Complete Engine 0018
-  owns coordinated propagation, strict default selection, and backend plan/cache identity.
-  Complete CPU 0017 and Metal 0015 separately own their first backend realizations.
+- Model's profile-free operation semantics constrain candidate eligibility before performance
+  comparison. Hardware, availability, workload size, objectives, caches, and evidence never
+  redefine those semantics.
+- Model 0032 removed the numerical-profile identity and propagation introduced by historical
+  Config 0006 and Engine 0018. Representative tuning-profile identity is unrelated and remains
+  part of 0006A/0006B.
 - Config may depend on the JDK and explicitly justified declarative contracts. Its public backend
   identity/requirement surface uses `modules/backend-contract`; it has no concrete-backend or
   Runtime dependency.
@@ -48,8 +48,8 @@ promise persistence.
 
 ```text
 io.github.pho001.synaptik.config/
-  compile/  compile mode, numerical profile, hard backend intent, optimization, and scoring inputs
-  prepare/  planned backend-neutral determinism and other prepare permissions
+  compile/  compile mode, hard backend intent, optimization, and scoring inputs
+  prepare/  reserved for concrete backend-neutral prepare requests; no current API
   run/      planned invocation and publication inputs
   profile/  planned planning-cost inputs after a stable cost-bearing consumer
   tuning/   implemented immutable model-autotuning request policy and cache paths
@@ -67,7 +67,7 @@ The `tuning` package does not depend on `tools/tuning`.
 | 0003 | [Partition scoring configuration](tasks/0003-partition-scoring-configuration.md) | Complete | 0001–0002, planning 0001 | Added an optional `DeviceClass` preference for ranking already eligible owners without choosing one. |
 | 0004 | Planning cost-profile contract | Draft | 0001–0003, planning 0001–0003, stable backend-neutral cost classification | Define only immutable facts required by a concrete cost-bearing Planning consumer. |
 | 0005 | Compile configuration aggregate | Draft | 0001–0004 | Compose justified compile leaves without compiler orchestration or invented defaults. |
-| 0006 | [Explicit graph numerical-profile identity](tasks/0006-explicit-graph-numerical-profile-identity.md) | Complete | Model 0027 | Added the public two-constant identity in `config.compile`, exact shape/identity tests, and package/public documentation with no semantic interpretation, default, propagation, or backend logic. |
+| 0006 | [Explicit graph numerical-profile identity](tasks/0006-explicit-graph-numerical-profile-identity.md) | Complete | Model 0027 | Historical implementation; its identity was removed by Model 0032. Not current API. |
 | 0006A | [Model-autotuning request configuration](tasks/0006a-model-autotuning-request-configuration.md) | Complete | 0001–0003; tools/tuning 0001; explicit staged ordering exception around Draft 0004–0006 | Added Phase-1 objective, budget, profile identity, fallback policy, and workload-cache path. |
 | 0006B | [Complete-plan autotuning request configuration](tasks/0006b-complete-plan-autotuning-request-configuration.md) | Complete | 0006A; tools/tuning 0002–0003; CPU 0010J; Engine 0008A; second staged ordering exception around Draft 0004–0006 | Added independent Phase-2 bounds and model-plan-cache path without changing Phase-1 meanings. |
 | 0007 | Run and publication configuration | Draft | 0005 | Define immutable invocation and publication options without execution state. |
@@ -75,22 +75,15 @@ The `tuning` package does not depend on `tools/tuning`.
 
 ## Milestones and current frontier
 
-The ordered milestones are compile configuration, prepare/run configuration, then profiles and
+The ordered milestones are compile configuration, justified prepare/run configuration, then
 closure. The area is deliberately interleaved: 0001–0003 and the independently staged 0006A–0006B
 are `Complete`; 0004–0005 and 0007–0008 remain `Draft`. The two completed exceptions did not
 advance or reorder those Draft rows.
 
-Model 0027 is Complete at implementation commit `ff86a302` after independent validation passed
-1,114 Model tests and nine architecture tests with zero failures or skips and mandatory Class C
-review returned `APPROVE` with zero findings. Config 0006 is Complete at implementation `314e049`
-plus remediation `37e9e9db`; its fresh test/Javadoc run passed 33 tests with zero failures, errors,
-or skips, generated enum/package pages and baseline-aware Markdown evidence passed inspection, and
-independent Class B review returned final `APPROVE` with zero findings. Engine 0018 is Complete at
-implementation `ce7a7dfa` plus remediation `07a01b9c`; CPU 0017, Metal 0015, and Metal 0019 are
-Complete after independent Class C approval and their checkpoints. Model 0028–0029 and Metal
-0020–0025 are Complete; Metal 0016/0017 remain historical Blocked records. Model 0030 is
-`Review needed` and no repository task is Ready; Config 0004 still waits for a concrete
-cost-bearing Planning consumer, 0005 follows 0004, 0007 follows 0005, and 0008 closes the ledger.
+No Config task is Ready. Config 0004 still waits for a concrete cost-bearing Planning consumer;
+0005 follows 0004, 0007 follows 0005, and 0008 closes the ledger. The profile-free Model 0032
+cutover is Complete and is not a pending prerequisite. Consult the roadmap for other workstreams
+rather than interpreting this area's status as a repository-wide prohibition.
 
 ## Live gates, risks, and open decisions
 
@@ -99,8 +92,8 @@ cost-bearing Planning consumer, 0005 follows 0004, 0007 follows 0005, and 0008 c
 - Config 0006A/0006B own request vocabulary only. Tuning owns measurement, deterministic
   selection, cache behavior and artifacts, and rich evidence; backend producers own candidates
   and codecs; Engine owns lifecycle composition and fallback execution.
-- Safe heuristic fallback is not relaxed numerical permission. `STRICT_IEEE` remains the future
-  Engine default; neither Config identity nor tuning evidence enables `ACCELERATOR` implicitly.
+- Safe heuristic fallback does not relax Model semantics. There is no current numerical-profile
+  switch, strict/accelerator default, or tuning permission to bypass operation contracts.
 - Compile, prepare, run, and publication aggregate shapes and defaults remain with their Draft
   rows. Current consumers may compose completed leaves directly without manufacturing an
   aggregate prerequisite.

@@ -132,8 +132,9 @@ concrete evidence.
   capability by itself is not a CPU qualification credential.
 - The failed optional BFLOAT16 proof does not change Model or portable CPU BFLOAT16 support and
   does not gate existing FLOAT32/FLOAT64 OpenBLAS development or model-autotuning work.
-- Broad or baseline FLOAT16 support must not be assumed; any such future route also waits for
-  Model task 0026.
+- Model FLOAT16 is implemented, but that does not create an OpenBLAS FLOAT16 route. A future
+  native low-type route still needs its own ABI and numerical qualification; stale Model 0026
+  planning is not its prerequisite.
 - One caller-owned public library handle encapsulates the shared FFM arena and package-private
   bound handles. No eager singleton, global cache, exposed native address, registry, manager, or
   service locator is planned.

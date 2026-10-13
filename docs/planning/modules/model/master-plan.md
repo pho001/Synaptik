@@ -93,7 +93,8 @@ loss own no mode, session, or hidden mutable statistics.
 ## Task list
 
 The table is the ordered queue and status source. Tasks 0030, 0031, 0032A, and 0032 are Complete;
-0026 is an unselected Draft. The DAG edge `0032A -> 0032` is closed. The approved
+0026 is Superseded by the delivered low-type semantics consolidated in 0032. The DAG edge
+`0032A -> 0032` is closed. The approved
 named-arithmetic-site DAZ/FTZ rule for `FLOAT32`, `BFLOAT16`, and `FLOAT16` (forbidden for
 `FLOAT64`) is implemented in the main worktree. The isolated full build, source-matched main
 native rebuild, independent Class C review, and final documentation reconciliation passed.
@@ -241,7 +242,7 @@ records its serial integration and validation. Git history records publication s
 | 0025L | [Cross-type CAST conversion semantics](tasks/0025l-cross-type-cast-conversion-semantics.md) | Complete | 0025K; 0001; 0003A; 0015G–0015H; 0018N; 0018U; owner-approved conversion policy | Fixed all 36 current-type CAST conversion meanings. |
 | 0025M | [Tensor guide and API status reconciliation](tasks/0025m-tensor-guide-and-api-status-reconciliation.md) | Complete | Current Tensor/host-storage source and Engine/public API; user-authorized drift remediation | Reconciled the Tensor guide and Tensor API opening with current Model and bounded CPU Engine behavior. |
 | 0025N | [Recurrent Engine status reconciliation](tasks/0025n-recurrent-engine-status-reconciliation.md) | Complete | 0025E–0025F; Compiler 0006A; current Engine lifecycle | Corrected the stale Engine status wording while preserving future recurrent execution and exception translation. |
-| 0026 | IEEE FLOAT16 and mixed-precision semantic contracts | Draft | Historical unselected scope; reconcile before execution | Its original add-FLOAT16 premise is stale because FLOAT16 is current; this Draft grants no implementation authority. |
+| 0026 | IEEE FLOAT16 and mixed-precision semantic contracts | Superseded | Replaced by delivered low-type semantics consolidated in Model 0032 | FLOAT16 is implemented. Future mixed-type capability requires a fresh occurrence-scoped brief, not revival of this obsolete add-type premise. |
 | 0027 | [Explicit numerical-profile semantic authority](tasks/0027-explicit-numerical-profile-semantic-authority.md) | Complete | Completed operation-family semantics through 0025L; Metal 0014 and retained numerical blocker evidence; accepted Variant B | Established root/foundational authority, ADR 0019, bounded Model-owned result sets, affected Javadocs, and gross-error exclusions; implementation `ff86a302`, independent validation, and Class C review passed with zero failures, skips, or findings. |
 | 0028 | [ACCELERATOR reduction exact-zero sign freedom](tasks/0028-accelerator-reduction-exact-zero-sign-freedom.md) | Complete | 0027; corrected Metal 0017 blocker evidence | Established final-result-only exact-zero sign freedom for arithmetic FLOAT32 SUM/MEAN/SUM_TO_SHAPE while preserving strict, terms, identities, copies, and count division; implementation `fc003ab8`, proof and 23-task validation passed, and Class C review approved with zero findings. |
 | 0029 | [ACCELERATOR MATMUL exact-zero sign freedom](tasks/0029-accelerator-matmul-exact-zero-sign-freedom.md) | Complete | 0027; 0028; retained Metal 0018 blocker evidence | Split the contraction row and established only final-publication either-zero-sign freedom for a complete nonempty exact-zero FLOAT32 ACCELERATOR MATMUL result; implementation `30826783`, proof and 23-task validation passed, and Class C review approved with zero findings. |
@@ -293,8 +294,8 @@ records its serial integration and validation. Git history records publication s
   and final documentation reconciliation recorded in the brief. The P1 OpenBLAS ABI smoke and
   P2 documentation findings were corrected. ADR 0026 is Accepted; publication is separate from
   this validation result.
-- `FLOAT16` is already active through the later low-precision cutover; the unselected 0026 Draft
-  row is not the current gate for it and needs separate planning reconciliation before execution.
+- `FLOAT16` is active through the later low-precision cutover; review 2026-10-13 closes the stale
+  0026 planning row as Superseded, not as a newly implemented capability.
 
 ## Live gates, decisions, and risks
 
@@ -306,7 +307,7 @@ records its serial integration and validation. Git history records publication s
   gate. No Model task is `Ready` merely because 0032 closed.
 - **FLOAT16 and mixed precision:** Both low types are current and distinct. A shared two-byte
   carrier does not imply identical arithmetic or a mixed-low backend route; explicit casts form
-  the current `FLOAT32` boundary. Task 0026 remains an unselected stale Draft, not authority.
+  the current `FLOAT32` boundary. Task 0026 is Superseded and is not a remaining prerequisite.
 - **Recurrent execution:** Model 0025E–0025F and Compiler 0006A are Complete. Compiler captures
   each scan as one identity-distinct flat forward node, but recurrent differentiation remains
   fail-closed. No concrete backend currently advertises recurrent-scan execution, so

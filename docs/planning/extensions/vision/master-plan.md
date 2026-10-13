@@ -136,17 +136,16 @@ operation. No hidden cache, shared mutable reader, or global registry is introdu
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | Data/Text/Vision architecture boundary participation | Draft | Data 0001; same coordinated overall architecture change; current CPU frontier preserved | Record and validate Vision downstream of Model+Data in the architecture change owned by Data 0001, including any explicit decoder-adapter project; do not create a separate competing architecture implementation or image API. |
+| 0001 | Data/Text/Vision architecture boundary participation | Draft | Data 0001; same coordinated overall architecture change | Record and validate Vision downstream of Model+Data in the architecture change owned by Data 0001, including any explicit decoder-adapter project; do not create a separate competing architecture implementation or image API. |
 | 0002 | Decoded-image and resource-limit contracts | Draft | 0001; concrete decoder consumer | Define immutable image/metadata values, bounded source ownership, checked dimension/pixel/byte limits, explicit failure taxonomy, and no Tensor or transform behavior. |
 | 0003 | First explicitly selected decoder adapter | Draft | 0002; selected JDK ImageIO or external codec policy | Decode an allow-listed initial format set with explicit implementation selection, preallocation limits where supported, orientation/metadata behavior, cleanup, corruption tests, and no plugin discovery facade. |
 | 0004 | Image transform and Tensor conversion | Draft | 0002–0003; stable Model Tensor import | Add explicit orientation, color, alpha, resize, crop, normalize, data-type, and NCHW/NHWC conversion semantics without hidden defaults or backend execution claims. |
 | 0005 | Image batching | Draft | 0004; Data 0003 equal-shape numeric batching | Validate transformed sample compatibility, derive batch extent, delegate final numeric stacking to Data, and return an image-specific Tensor batch without a dataset/loader facade. |
 | 0006 | Vision capability checkpoint | Draft | 0003–0005 | Validate representative/corrupt/adversarial inputs, resource bounds, metadata semantics, Tensor values/layout, batch geometry, documentation, optional decoder dependency, and architecture enforcement. |
 
-No detailed Vision task exists. No Vision, Checkpoint, NN, or repository task is `Ready`.
-[Model 0030](../../modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md) is
-`Review needed`. Vision 0001 remains gated by the coordinated architecture decision owned by
-[Data 0001](../data/master-plan.md).
+No detailed Vision task exists and no Vision task is Ready. Vision 0001 remains gated by the
+coordinated architecture decision owned by [Data 0001](../data/master-plan.md). Model's numerical
+cutover is Complete and is not a pending Vision prerequisite. Other frontiers belong to the roadmap.
 
 ## Planned image-batch flow
 

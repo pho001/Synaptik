@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Review needed
 
 ## Goal and class
 
@@ -45,3 +45,11 @@ rollback, duplicate-resource tests, and the existing resource-lifecycle explanat
 
 Launch verified 2026-10-13: user-authorized repair, complete dependencies, existing explicit
 ownership contract, disjoint write and semantic scope. Use clean context and isolated worktree.
+
+## Integration record
+
+Implementation `ec2e7ddf` integrated as `d7de5721` after independent review.
+18 focused / 65 module tests and Javadoc; independent Class C APPROVE.
+Affected Javadoc and explanatory documentation reviewed in the same change. No unresolved
+review findings. Coordinator's combined repository checkpoint and planning closure remain
+outstanding; this status does not imply an outstanding code-review finding.

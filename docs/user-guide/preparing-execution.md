@@ -53,17 +53,20 @@ backend discovery, or per-run lookup. Use it when one fixed graph should run rep
 lower-level standalone prepared handle when direct handle ownership is required, including the
 existing bounded autotuning handoff.
 
-## Optional bounded CPU-local autotuning
+## Optional bounded single-owner autotuning
 
-`engine.prepareTuned(graph, request)` is a separate current bounded two-phase CPU-only path. Phase
-1 reuses a compatible cache entry or measures candidates for the current single eligible
-representative workload. Phase 2 holds that authenticated decision fixed, checks a bounded set of
+`engine.prepareTuned(graph, request)` is a separate bounded two-phase path for one eligible CPU
+partition or an eligible singleton FLOAT32 Metal NEG partition. Metal requires both custom-kernel
+and MPSGraph candidates; an MPSGraph-only plan is not tunable. Phase 1 reuses a compatible cache
+entry where the producer permits persistence, or measures the single representative workload.
+Metal decisions are session-only and use neither persistent cache. Phase 2 holds the authenticated decision fixed, checks a bounded set of
 complete-plan candidates against exact canonical publication bytes, and then returns one fresh
 production preparation. The result says explicitly whether it is `TUNED` or an allowed
 `SAFE_HEURISTIC_FALLBACK`.
 
 Representative Tensors and their storage remain caller-owned. A strict request fails if tuning
-cannot complete; an allowed fallback uses a fresh safe ordinary preparation. This is not generic
+cannot complete; an allowed fallback uses a fresh safe ordinary preparation through the same
+already-selected backend. This is not generic
 multiple-occurrence extraction, Compiler graph-alternative search, Planning owner or partition
 search, or mixed-backend tuning. Runtime performs no tuning.
 

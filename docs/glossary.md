@@ -3,430 +3,47 @@
 This glossary is the central dictionary for Synaptik terminology. It explains how terms are used in this repository; it is not an independent architecture contract. If a definition conflicts with [`ARCHITECTURE.md`](../ARCHITECTURE.md), the architecture contract wins.
 
 Some entries describe contracts planned by the architecture but not yet implemented. The
-[implementation roadmap](planning/roadmap.md) is the source for task status; the note below
-distinguishes private integrated source from frozen HEAD.
+[implementation roadmap](planning/roadmap.md) is the source for current task status.
 
-Current profile-free descriptions below refer to the integrated source in the private,
-uncommitted Task 0032 worktree. Its private validation gates passed and the independent Class C
-review identified this documentation correction. Task 0032 is still In progress; final main
-integration and publication have not occurred, and frozen HEAD remains profile-based.
+Model Task 0032 is Complete and its profile-free numerical semantics are integrated in main.
+Current definitions describe that implemented contract, not an uncommitted private cutover.
 Historical profile-bearing records retain their at-the-time wording.
 
 ## Implementation-status convention
 
-The current public planning foundation consists of `OperationCapabilityQuery` and
-`BackendCapabilityProvider`: one immutable operation-occurrence question and one explicitly
-supplied boolean provider collaboration. Planning also has one package-private per-query hard-
-eligibility result and evaluator that combine backend-level support, supplied availability, and
-an optional exact hard requirement into provider-ordered `BackendId` values. A second
-package-private step uses those identities directly as the candidate set and selects one exact
-`BackendId` owner through optional preferred-class match and provider order. The public immutable
-`PlannedPartition` recipe and a package-private maximal consecutive same-owner generator are also
-implemented. The public immutable `LogicalMemoryRequirement` and `LogicalMemoryPlan` recipes and
-a package-private derivation from the closed graph plus ordered complete partitions are current as
-well. Reusable or public capability matrices, public planning orchestration or owner selection,
-numeric or cost scoring, owner-map assembly, compiler consumers, physical memory, provider
-implementations, device-level capability, and device selection remain planned.
+A definition explains meaning and ownership; it is not a promise that every operation, dtype,
+layout or execution strategy is available. The [roadmap](planning/roadmap.md) and owning task
+briefs record implementation status. Source and the architecture's incorporated contracts remain
+authoritative when a historical status description is stale.
 
-The compiler currently provides package-private structural graph capture, binding-free
-captured-graph verification inference, mandatory dense canonicalization, a bounded first-order
-pre-capture autograd transformation, and one optional bounded transformation pipeline over either
-the forward-only or combined graph. Verification independently derives every current production
-operation occurrence's output descriptors, rejects semantic contradictions, and retains only
-undecidable descriptor-visible Shape obligations as typed internal deferred graph constraints.
-Forward and generated gradient expressions use one public Tensor algebra and one numerical,
-inference, validation, and exact-optimization contract. The optional pipeline performs one guarded
-exact arithmetic scan, one bounded logical-splat folding scan, and one sidecar-aware
-`DCE -> phase-local CSE -> DCE` sequence, revalidating only changed candidates. This is not a
-public compiler, concrete binding service, compile artifact, backend decision, or execution path.
+The current implemented lifecycle is:
 
-The runtime currently provides the public immutable
-[`BufferSlot`](#buffer-slot--bufferslot) and
-[`WorkspaceSlot`](#workspace-slot--workspaceslot) identities plus
-[`PreparedMemoryPlan`](#prepared-memory-plan--preparedmemoryplan) final slot geometry. It also
-provides the nominal `BufferRepresentation` and `WorkspaceRepresentation` lifecycle roles,
-`BufferRepresentationBinding`, `RunResourceOwnership`, and one array-backed
-[`RunState`](#run-state--runstate) for per-run reference retention and cleanup. Prepare-owned
-requirement-to-slot assignment and association are now current. Runtime also has a reusable
-[`PreparedRepresentationPlan`](#prepared-representation-plan--preparedrepresentationplan),
-package-private all-or-cleaned cold setup, structural residency, and explicit
-[`buffer validity`](#buffer-validity) per resident copy. Concrete physical representations remain
-backend-owned, and public output-value access remains planned. The immutable
-creation-plus-execution-plus-transfer-plus-publication
-[`PreparedSchedule`](#prepared-schedule--preparedschedule) contract is current.
-Current [`PreparedExecutable`](#prepared-executable--preparedexecutable) recipes perform checked
-cold binding and create current [`BoundInvocation`](#bound-invocation--boundinvocation) objects;
-current [`PreparedBufferTransfer`](#prepared-buffer-transfer--preparedbuffertransfer) recipes
-similarly create [`BoundBufferTransfer`](#bound-buffer-transfer--boundbuffertransfer) actions;
-current [`PreparedPublication`](#prepared-publication--preparedpublication) recipes create
-[`BoundPublication`](#bound-publication--boundpublication) occurrences, and current
-[`RunResult`](#run-result--runresult) leases complete states and permits inward borrowed access to
-one selected nominal representation while the exact lease remains open. The CPU backend supplies
-concrete borrowed and run-owned native buffer representations, supported canonical host-snapshot
-copying, and bounded fully static pointwise and affine-copy families. Its forty-eight-opcode
-pointwise vocabulary includes same-typed binary/scalar extrema, floating
-Tensor/Tensor DIV and POW, Tensor/scalar DIV and POW, first-class floating range CLAMP,
-canonical-BOOL AND/OR/NOT, all nineteen FLOAT32/FLOAT64/BFLOAT16/FLOAT16 unary kinds, and four
-separate floating classifications, while its normalized access plans cover resolved
-right-broadcastable scalar/rank/singleton/multi-axis inputs, zero extents, offsets, positive and
-broadcast-zero strides, injective output layouts, and derived heap/segment carrier patterns.
-Connected pointwise chains contain one through eight occurrences, keep single-use intermediates
-virtual, and produce one final store. The affine family composes one-through-eight resolved-layout
-CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SELECT, or positive-step SLICE
-occurrences into one represented-bit source/result boundary copy. It accepts all seven data types.
-Every FLOAT32 pointwise form also admits homogeneous BFLOAT16 and FLOAT16 through generated scalar
-or caller-parallel scalar execution, with FLOAT32 work and one final low-format rounding boundary.
-Preferred-species vector execution covers selected FLOAT32/FLOAT64
-value rows, INT32/INT64 arithmetic and extrema, canonical BOOL logic, and virtual floating
-predicate masks through logical masks into WHERE. Other operation topologies, types, strategies,
-and routes fail closed. The earlier per-node ADD/worker pipeline is Superseded historical evidence rather than
-the current implementation baseline.
+```text
+Tensor/NN expressions
+    → Compiler graph, bounded autograd and Planning ownership
+    → Prepare analysis, shared assignment and backend finalization
+    → Runtime bound schedule
+    → Engine result and explicit host materialization
+```
 
-Prepare currently provides the public immutable analysis-side contracts in
-`io.github.pho001.synaptik.prepare.analysis`: `BackendAnalysisInputs`,
-`BackendPreparationPlan`, `PrepareContext`, `PreparationResourceRequirement` with its `Buffer`
-and `Workspace` variants, `BackendPartitionAnalysis`, and `BackendPartitionPreparer`. They
-project and validate one fully static planned partition, carry exact typed logical-splat constants
-for projected graph inputs, retain backend inputs and the selected plan opaquely, and declare
-exact shared buffer/workspace needs. Slot assignment, finalization, prepared-executable
-construction, the minimal `PreparedPartition` association, complete graph preparation, explicit
-schedule assembly, and schedule validation are current Prepare contracts. Executable,
-buffer-transfer, and publication scheduling plus shared runner execution are current Runtime
-contracts. Advanced CPU representation-level composition and ordinary fixed CPU or explicit
-CPU/Metal composition are current. Ordinary mixed-owner preparation assigns one logical slot and
-one deterministic physical representation per participating owner, composes backend physical
-contributions, and schedules explicit rank-0..16 static all-seven-carrier CPU/Metal transfers over
-canonical or positive-stride non-overlapping layouts. Public detached output materialization uses
-the adapter captured for each publication.
-The Runtime executable contract itself is current; a Prepare finalizer constructs a backend
-subclass against its assigned slot and representation position.
+Model defines typed expression semantics without executing them. Compiler captures and validates
+graphs and supports a bounded functional-gradient domain; unsupported derivative paths reject.
+Planning selects ownership from actual occurrence capabilities. Prepare coordinates the resource
+transaction, while backends provide concrete representations, prepared computations and transfers.
+Runtime executes the prepared recipe; Engine composes the lifecycle, reusable sessions and bounded
+tuning. Runtime representation leases are not a public backend-memory escape hatch.
 
-The exact arithmetic scan contains seven semantic rules: duplicate-input binary `MIN` and `MAX`;
-scalar `MUL` by exact typed positive one for all six numeric types; scalar `DIV` and `POW` by exact
-typed positive one for all four floating types; and scalar `ADD` and `SUB` by exact typed zero for
-the two integral types. A bypass requires a one-output internal `FORWARD` occurrence, complete
-input/output descriptor equality, false gradient eligibility, and a result that is not a graph
-output. Scalar rules read immutable `ScalarValueAttrs` metadata, not a Tensor constant or storage.
-The following current fold scan consumes only explicitly supplied logical splats and selects BOOL
-logic, signed-integral binary arithmetic/comparison, and same-typed signed-integral scalar
-arithmetic. Broader algebra, floating/BFLOAT16 evaluation, autograd, downstream lifecycle work,
-and backend execution are not current effects of either scan.
+CPU and Metal have implemented, occurrence-specific execution domains; neither supports every
+combination implied by Model construction. CPU↔Metal composition and bounded detached host
+materialization are current. NN constructs graphs and owns declared model state. Training has
+sessions, accumulation and SGD/Adam/AdamW state with in-memory snapshots; durable cross-owner
+checkpoint/resume is separate Draft work.
 
-The currently implemented terms are the model foundations: data type, static, named dynamic, and
-symbolic-expression dimension, shape, broadcasting, layout, element stride, referenced element
-span, view, `TensorDescriptor`, typed
-`TensorId`, `NodeId`, and `ValueId` values, `OperationKind`, `OperationAttrs`, `NoOperationAttrs`,
-`OperationSignature`, the `Operation` descriptor, the `GraphValue` and `CompiledNode` graph-element records,
-`GraphPhase`, `CompiledGraphModel`, `ForwardPublicationBinding`, and the raw host-storage contracts
-`HostTensorStorage` and `MemorySegmentStorage`, plus public `Tensor` state and the descriptor-based
-`TensorFactory` construction boundary with JVM-scoped factory-assigned identity and exact-span
-JVM-managed heap allocation for resolved layouts, plus copied flat typed import for resolved
-dense-contiguous layouts and copied rectangular nested primitive-array import with exact carrier,
-static-shape, and dense-layout inference, plus exact typed rank-0 scalars and independent dense
-zero, one, zero-like, and one-like constants, plus exact typed full-value tensors and dense
-rectangular identity matrices with `eye` as a pure alias, plus eager typed integer ranges.
-Public stateless `TensorRandoms` separately owns explicit-source normal and bounded
-continuous-uniform population for the four floating types, bounded integral population for exact
-`INT32` and `INT64` output, and BOOL Bernoulli population from a finite scalar probability.
-Opaque `GraphRngState` separately owns explicit storage-free graph RNG state construction from two
-raw unsigned 64-bit key/counter words; it does not replace eager `TensorRandoms`.
-Training-only inverted dropout is also implemented as explicit-state model construction. One
-producer consumes the input and private state Tensor, describes public output, auxiliary BOOL
-keep-mask, and next-state slots, and performs no sampling or execution.
-Strict and cyclic prefix preparation is test-fixture mechanics rather than a production Tensor
-capability. Immutable `TensorProvenance` origin metadata is also implemented. That origin model
-now uses identity-bearing immutable `TensorProducer` occurrences and indexed
-`TensorProvenance` results. Concrete operation kind support now includes the parameterless
-`BinaryArithmeticKind` vocabulary for `ADD`, `SUB`,
-`MUL`, `DIV`, `MIN`, `MAX`, and `POW`, plus matching public Tensor expression construction with
-same-category floating promotion and selected signed-integral ADD/SUB/MUL/MIN/MAX domains, local
-broadcasting, descriptor derivation, and ordered provenance. Integral ADD/SUB/MUL are fixed-width
-two's-complement modular requests; integral extrema use signed order. DIV and POW remain
-floating-only.
-The parameterless `UnaryElementwiseKind` vocabulary is also implemented for nineteen unary
-arithmetic, transcendental, and activation meanings, plus matching
-public floating unary Tensor expression construction with exact type/shape retention and one-input
-provenance. The family includes exact GELU, a separately named fixed tanh-approximation GELU, and
-canonical SiLU without a `swish` alias. The separate parameterless `FloatingClassificationKind`
-vocabulary is implemented for
-finite, NaN, and infinity classification, together with floating-only public construction that
-returns fixed non-differentiable BOOL metadata. Public pairwise extrema are named `minimum` and
-`maximum`; aggregate reductions retain
-`min` and `max`. The parameterized `ScalarElementwiseKind` vocabulary is implemented for scalar
-`ADD`, `SUB`, `MUL`, `DIV`, `MIN`, `MAX`, `POW`, and `CLAMP`, together with exact typed
-`ScalarValue`, `ScalarValueAttrs`, and `ClampRangeAttrs`, plus matching public floating and selected
-signed-integral Tensor expression construction with exact receiver/value type equality, exact
-type/shape retention, and one-input provenance. Integral DIV, POW, and range CLAMP remain
-unsupported. One-bound clamp methods are conveniences over scalar MAX and MIN and therefore
-accept exact integral bounds.
-The parameterless `BinaryComparisonKind` vocabulary is implemented for ordered `GREATER_THAN`,
-`GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`, `EQUAL`, and `NOT_EQUAL` meanings, plus matching
-public same-category floating or signed-integral comparison Tensor expression construction with
-local broadcasting, fixed non-differentiable BOOL descriptors, signed integral ordering, and
-ordered provenance. The parameterless
-`BooleanLogicalKind` vocabulary is implemented for elementwise `AND`, `OR`, and `NOT` truth
-meanings, plus matching public BOOL-only logical Tensor expression construction. Binary AND and OR
-use local broadcasting and ordered provenance; unary NOT retains the exact input shape; and every
-logical result has fixed non-differentiable BOOL descriptor facts.
-The parameterless `WhereSelectionKind` vocabulary is implemented with the sole `WHERE` identity
-and ordered condition, true-branch, and false-branch roles, plus matching static public
-`Tensor.where` expression construction. The method requires an exact BOOL condition, promotes two
-floating branches, composes branch-first and condition-second local broadcasts, derives an
-unresolved result with branch-only gradient eligibility, and records exact three-input provenance.
-Value selection, gradient routing and rules, compiler capture, ONNX/backend execution, and
-scalar-index `select` remain separate concerns.
-The parameterized `CastKind` vocabulary is implemented with the sole `CAST` identity, together
-with `CastAttrs` carrying one exact non-null target `DataType`. All seven current data types are
-representable targets, and public `Tensor.cast` creates a fresh explicit storage-free expression
-for all 49 source/target pairs. It retains the exact input Shape, leaves layout
-unresolved, preserves a true gradient request only for floating-to-floating casts, and records
-typed target attributes plus exact one-input provenance. Numerical conversion behavior, gradient
-rules, compiler capture and canonicalization, and backend execution remain separately owned.
-Current package-private first-order compiler autograd reverses a selected floating-to-floating
-cast with one ordinary cast to the source floating type; a same-type cast passes the cotangent
-through. This adds no model conversion promise or gradient-specific rounding, NaN-payload, or
-backend-instruction contract.
-The `AggregateReductionKind` vocabulary is implemented for `SUM`, `MEAN`, `PROD`, `MIN`, `MAX`,
-`ALL`, `ANY`, `ARG_MAX`, `ARG_MIN`, `LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, `L1_NORM`,
-and `L2_NORM`, together with normalized single-axis `AxisReductionAttrs`, ordered
-`MultiAxisReductionAttrs`, correction-bearing `StatisticalReductionAttrs`, explicit full-form
-`NoOperationAttrs.INSTANCE`, shared `ArgExtremaAttrs`, `ArgExtremaTiePolicy`, and masked SUM/MEAN
-`MaskedReductionAttrs`. The masked attributes preserve only one normalized axis. Public floating
-`Tensor.sum`, `mean`, `prod`, reduction `min`, and reduction `max` now construct full,
-single-axis, and ordered multi-axis expressions with locally derived shapes and one-input provenance.
-Except for floating-only mean, the ordinary families also accept exact INT32/INT64. Integral sum
-and product use fixed-width modular meaning with reassociation permitted; integral min/max use
-signed order. Empty identities are zero, one, the bounded type maximum, and the bounded type
-minimum, respectively. Floating and BOOL ordinary empty/special-value policies are also fixed.
-Public floating log-sum-exp, corrected variance/standard deviation, and L1/L2 norm expressions
-preserve exact type/eligibility and record first-class semantics without decomposition.
-The masked `sum(axis, mask)` and `mean(axis, mask)` overloads require ordinary right-aligned
-broadcasting to produce exactly the input Shape, remove the selected axis, and record exact
-`[input, mask]` provenance. False mask positions exclude their values, including NaN and infinity;
-all-false sum is zero and all-false mean is NaN without a payload guarantee.
-Aggregate `MIN`/`MAX` remain typed separately from equally named binary elementwise kinds. Boolean
-`Tensor.all` and `Tensor.any` now provide the corresponding exact-BOOL expressions with false
-gradient eligibility and one-input provenance; aggregate `ALL`/`ANY` remain typed separately from
-elementwise `AND`/`OR`. Axis-only `Tensor.argMin` and `Tensor.argMax` accept floating or integral
-input and produce fixed non-differentiable INT64 expressions with explicit first- or last-index
-policy. Their shared ordering prefers NaN, orders signed zero and infinities deterministically,
-uses signed integral order, and rejects a statically empty selected axis. The current CPU portable
-route executes the fully static resolved-layout one-axis subset with complete output-cell ranges,
-typed array/segment carriers, and zero workspace or materialization. Other backend forms remain
-planned. Current package-private
-compiler autograd supports the floating SUM/MEAN/PROD/MIN/MAX, masked SUM/MEAN, SUM_TO_SHAPE,
-LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, and L2_NORM roles described under
-[pre-capture Tensor-expression autograd](#pre-capture-tensor-expression-autograd); BOOL and
-arg-extrema results remain non-differentiable.
-The `CumulativeScanKind` vocabulary is implemented with `CUM_SUM` and `CUM_PROD` semantic
-identities, together with `CumulativeScanAttrs` carrying one normalized axis and exact exclusive/
-reverse mode flags. Public `Tensor.cumSum` and `Tensor.cumProd` construct all four traversal/
-inclusion modes for floating and integral inputs, retaining exact Shape/type/eligibility metadata
-in an unresolved descriptor and recording one-input provenance. The current CPU portable route
-executes exactly one static resolved-layout occurrence for FLOAT64, FLOAT32, BFLOAT16, INT32, or
-INT64 with scalar or whole-slice parallel-scalar sequential accumulation, distinct non-overlapping
-input/output storage, and no workspace. Other backend and execution forms remain planned. Current
-package-private compiler autograd supports floating CUM_SUM and CUM_PROD; integral scans remain
-non-differentiable.
-The `SoftmaxKind` vocabulary is implemented with distinct `SOFTMAX` probability and
-`LOG_SOFTMAX` log-probability meanings, together with `SoftmaxAttrs` carrying one normalized axis.
-These semantic values preserve logical positions and describe complete normalization slices
-without storing a Tensor or Shape. Public `Tensor.softmax` and `Tensor.logSoftmax` now construct
-fresh floating expressions with Shape-aware axis normalization, exact Shape/type/eligibility
-retention, unresolved layout, and one-input provenance. Tensor construction performs no numerical
-evaluation, gradient construction, compiler work, backend work, or execution. Current
-package-private compiler autograd supports both floating kinds through their exact forward
-outputs. The current CPU portable route executes exactly one first-class fully static,
-resolved-layout SOFTMAX or LOG_SOFTMAX occurrence for FLOAT64, FLOAT32, BFLOAT16, or FLOAT16 over
-its private finite, positive-selected-width subset. It supports heap, native-order segment, and
-mixed carriers, arbitrary legal layouts, complete-slice scalar or parallel-scalar ranges, and zero
-workspace. It never infers this family from a decomposed graph. Other backend and execution forms
-remain planned.
-The `LossKind` vocabulary is implemented with mean-squared error plus dense-target and index-target
-categorical cross entropy directly from logits. The shared loss-only `LossReduction` values are
-`NONE`, `SUM`, and `MEAN`; exact attributes retain each meaning's reduction and, for categorical
-losses, normalized class axis and optional exact typed ignore metadata. Public Tensor loss methods
-construct fresh two-input expressions with ordered provenance and perform no value evaluation,
-Model-owned gradient construction, backend work, runtime execution, or training coordination.
-Current package-private compiler autograd supports both roles of MSE and dense categorical loss,
-plus the logits role of index categorical loss when class depth is positive and static.
-The `BatchNormKind` vocabulary is implemented with distinct stateless `BATCH_NORM_INFERENCE` and
-pure `BATCH_NORM_TRAINING` meanings. Both have fixed ordered inputs
-`[input, scale, bias, runningMean, runningVariance]`. `BatchNormInferenceAttrs` retains one
-normalized layout-neutral channel axis and exact typed positive epsilon;
-`BatchNormTrainingAttrs` also retains exact typed new-batch-weight momentum. Public
-`Tensor.batchNormInference` requires rank-at-least-two floating input and exact rank-one `[C]`
-affine/statistic vectors, preserves the exact input Shape, and records one fresh output at
-provenance index zero. It reads or updates no statistic, creates no saved output or hidden state,
-and performs no compiler, backend, runtime, or execution work. Public `Tensor.batchNormTraining`
-records five shared outputs and exposes normalized output plus explicit next running statistics;
-saved batch mean and inverse standard deviation remain producer-described. Current package-private
-compiler autograd retrieves those exact wrappers and implements the public-output role matrix. The
-Tensor construction path retains no state across calls and performs no compiler, backend,
-runtime, or execution work.
-The `ScaledDotProductAttentionKind` vocabulary is implemented with one first-class attention
-meaning and an exact one-through-two-output occurrence signature, together with
-`ScaledDotProductAttentionAttrs` carrying optional exact scale and causal eligibility. The four
-public `Tensor.scaledDotProductAttention` forms preserve exact one-output construction with no
-hidden weights. The four `scaledDotProductAttentionWithWeights` forms instead return
-`ScaledDotProductAttentionResult(output, weights)` at shared producer slots zero and one. Both
-families accept floating query/key/value inputs and an optional exact BOOL mask, derive exact
-broadcast-batch, weights, and output metadata, and record ordered three- or four-input provenance.
-They expose no dropout state. Compiler capture, deferred-constraint proof, and the current
-two-output gradient formulas have their own owners. CPU 0008H now supplies a narrow forward
-execution subset for fully static resolved non-negative BFLOAT16, FLOAT16, FLOAT32, and FLOAT64
-layouts; it does not make attention universally executable or add dropout, dynamic shapes,
-in-place or overlap execution, decomposed-attention recognition, fusion, vector/native/packed/flash routes,
-or saved-value lifetime.
-The parameterless `ContiguousKind` vocabulary is implemented with the sole `CONTIGUOUS` identity.
-It preserves logical values, Shape, DataType, and row-major element order while requesting
-canonical dense row-major, zero-logical-offset result geometry. It is a semantic request rather
-than the resolved `LayoutKind.DENSE_CONTIGUOUS` classification. Public `Tensor.contiguous()` now
-constructs a fresh storage-free expression: static Shapes receive newly resolved canonical
-geometry and dynamic Shapes remain unresolved. Input-layout inspection, alias or copy choice,
-materialization, compiler behavior, backend behavior, and execution remain owned by later layers.
-The `ShapeTransformKind` vocabulary is implemented with distinct `RESHAPE` and `EXPAND`
-identities, together with `TargetShapeAttrs` carrying one exact normalized target `Shape`.
-`RESHAPE` preserves ordered logical elements under new coordinates, while `EXPAND` logically
-repeats compatible singleton or leading axes. Public `Tensor.reshape(long...)` and
-`Tensor.reshape(Shape)` now construct fresh storage-free expressions with local count validation,
-conditional same-offset view geometry, and one-input provenance. Public `Tensor.expand(long...)`
-and `Tensor.expand(Shape)` now add directional right-aligned compatibility plus conditional
-same-offset, zero-stride view geometry. An aligned pair containing an unresolved dimension is
-retained as a binding-dependent Model expression; the later condition is that the source extent
-is one or equals the target extent, and Model creates no deferred constraint. Current compiler
-inference adopts that widened case with an occurrence-owned proof and matching preflight and
-gradient handling. Concrete binding, materialization, backend behavior, and execution remain
-planned.
-The `AxisTransformKind` vocabulary is implemented with distinct `PERMUTE`, `EXPAND_DIMS`, and
-`SQUEEZE` meanings. `PermutationAttrs` stores an immutable complete normalized output-to-input
-axis mapping, and `AxisTransformAttrs` stores one normalized non-negative insertion or removal
-position. Public `Tensor.permute` and rank-two `Tensor.transpose()` now construct fresh expressions
-with input-rank validation, Shape/layout derivation, and one-input provenance. Public
-`Tensor.expandDims` and `Tensor.squeeze` now construct fresh rank-editing expressions with their
-distinct normalization domains, static singleton proof for removal, conditional same-offset view
-geometry, and one-input provenance. Gradients, compiler behavior, materialization, backend
-behavior, and execution remain planned.
-The `SliceKind` vocabulary is implemented with `SLICE` extraction and `SLICE_UPDATE` functional
-replacement. `SliceAttrs` carries immutable parallel lists of normalized starts, selected lengths,
-distinct axes, and signed non-zero steps for both meanings. `CropToShapeAttrs` carries exact target
-and prefix Shapes for target-relative `SLICE` extraction or `SLICE_UPDATE` placement whose extents
-may remain symbolic. Public `Tensor.slice`, both `sliceAxis` overloads, and `flip` add directional
-raw-bound normalization against selected static dimensions, same-rank Shape derivation,
-positive-only resolved view geometry, and exact one-input provenance. Public `sliceByLength`
-accepts normalized non-negative starts and finite lengths, including when only the selected
-unresolved extent's upper bound must be deferred. Public `sliceUpdate` has signed-array and exact
-target-relative forms, both retaining exact base Shape with ordered `[base, update]` provenance;
-public `cropToShape` retains the exact target/prefix Shape references. Placement and crop leave
-layout unresolved. Model stores no deferred constraint object. Current compiler inference,
-preflight, and first-order autograd have adopted length-defined extraction and target-relative
-placement, including occurrence-owned unresolved fit constraints; materialization, backend
-behavior, ONNX mapping, and execution remain planned in later owning layers.
-The `PadKind` and `TileKind` vocabularies are implemented with the sole `PAD` and `TILE` meanings,
-respectively. `PadAttrs` stores immutable ordered non-negative before/after widths plus one exact
-typed scalar constant; `TileAttrs` stores immutable ordered positive complete-pattern repeat
-counts. Empty lists are scalar identity parameters, and structurally valid extreme widths and
-typed scalar bits are retained without rank, Shape, input compatibility, layout, or result
-interpretation. Public
-`Tensor.pad` and `Tensor.tile` construction now adds rank validation, checked Shape derivation,
-unresolved result layout, exact one-input provenance, and fresh result identity. Gradients,
-materialization, compiler/backend/ONNX behavior, and execution remain planned for later owning
-tasks and layers.
-The `TensorCompositionKind` vocabulary is implemented with distinct ordered `CONCAT` and
-inserted-axis `STACK` meanings. `CompositionAxisAttrs` stores one normalized non-negative axis
-shared by them. Public unstack is ordered repeated scalar select: every result records `SELECT`,
-has an independent one-output producer, and uses provenance output index zero.
-The `SelectKind` vocabulary is implemented with the sole scalar-index `SELECT` meaning, together
-with `SelectAttrs` carrying one normalized non-negative source axis and one normalized
-non-negative scalar coordinate. Selection fixes that coordinate and removes its axis from the
-conceptual result. The semantic values contain no input Shape, so they perform no rank or bounds
-validation. Public `Tensor.select` now normalizes a raw axis and scalar coordinate, validates
-static selected extents, accepts a non-negative index on a dynamic selected extent with its upper
-bound deferred, removes the selected axis, derives conditional logical-view geometry, and records
-fresh one-input provenance. Value access, physical aliasing, gradients, compiler behavior,
-materialization, backend behavior, and execution remain planned or separately owned.
-The `AxisGatherKind` vocabulary is implemented with distinct `GATHER` and `GATHER_ELEMENTS`
-tensor-index meanings, together with `IndexAxisAttrs` carrying one normalized non-negative data
-axis. Every kind has ordered logical inputs `[data, indices]`. Public `gather` and `gatherElements`
-construction validates exact `INT32`/`INT64` index type, normalizes the data axis, applies the
-family-specific structural Shape rule, preserves data metadata with unresolved layout, and records
-fresh ordered two-input provenance. Index-value access and bounds checks, gradients, compiler
-behavior, backend behavior, and execution remain planned or separately owned.
-The `OneHotKind` vocabulary is implemented with the sole `ONE_HOT` index-encoding meaning and
-`OneHotAttrs` carrying one positive static depth. Public `Tensor.oneHot` construction accepts
-INT32/INT64 index metadata, appends one fresh static trailing Dimension after the exact input
-Dimension references, and records a non-differentiable BOOL result with fresh one-input
-provenance. It reads no index values. Negative or out-of-range values are invalid for eventual
-execution rather than wrapping, clamping, selecting a default, or producing an all-false row;
-compiler analysis, bounds enforcement, lowering, and execution remain planned.
-The `GatherNdKind` vocabulary is implemented with the sole tuple-index `GATHER_ND` meaning,
-together with `GatherNdAttrs` carrying one normalized non-negative count of shared leading batch
-Dimensions. Gather-ND has ordered logical inputs `[data, indices]`; the final indices Dimension
-supplies tuple depth rather than duplicating that occurrence-specific fact in attributes. Public
-`Tensor.gatherNd` construction now validates exact index type, both ranks, structural shared batch
-prefix, static positive tuple depth, and result Shape; it records fresh ordered provenance while
-preserving data metadata with unresolved layout. Index-value bounds, gradients, compiler behavior,
-backend behavior, and execution remain planned or separately owned.
-The `AxisScatterKind` vocabulary is implemented with functional `SCATTER_ELEMENTS`, then
-Gather-compatible fixed-add `SCATTER_ADD`. Both use ordered logical inputs
-`[data, indices, updates]` and conceptually produce a new result with the exact data Shape without
-mutating the base data. Scatter Elements uses `ScatterElementsAttrs` and the reusable
-`ScatterReduction` choices `NONE`, `ADD`, `MUL`, `MAX`, and `MIN`; `NONE` duplicate targets are
-invalid, with value-aware detection deferred. Scatter Add instead reuses `IndexAxisAttrs`,
-requires the exact ordinary-Gather result Shape for updates, and intrinsically accumulates every
-update including duplicates. Public Tensor construction validates each contract's exact type,
-axis, and Shape rules, combines data/update gradient eligibility, leaves layout unresolved, and
-records ordered provenance. Index bounds, value writes/reductions, gradients, compiler behavior,
-backend behavior, and execution remain planned or separately owned.
-The `ScatterNdKind` vocabulary is implemented with the sole functional tuple-index `SCATTER_ND`
-meaning, together with `ScatterNdAttrs` carrying a normalized non-negative shared-batch count and
-an explicit `ScatterReduction`. Its ordered logical inputs are `[data, indices, updates]`; tuple
-depth remains the final indices Dimension, updates follow the Gather-ND result-Shape formula, and
-the conceptual result is a new value with the exact data Shape. Public Scatter-ND Tensor
-construction is current: it validates input types, reduction eligibility, ranks, the shared batch
-prefix, tuple depth, and updates Shape before producing an unresolved-layout result with exact
-ordered provenance. Values, bounds, duplicate detection, writes or reductions, gradients,
-compiler behavior, backend behavior, and execution remain planned or separately owned.
-The `WindowTransformKind` vocabulary is implemented with distinct general-axis `UNFOLD_AXIS` and
-`FOLD_AXIS` meanings plus NCHW `UNFOLD2D` and `FOLD2D` meanings. `UnfoldAxisAttrs` stores one
-normalized axis, positive window size, and positive step. `FoldAxisAttrs` stores one normalized
-target axis, explicit non-negative output extent, and positive step; the eventual input's final
-dimension supplies window size. `Window2dAttrs` stores positive kernel, stride, and dilation,
-non-negative symmetric padding, and a floor/ceil rounding choice. `Unfold2dAttrs` adds one exact
-typed out-of-domain scalar while retaining that geometry by reference. `Fold2dAttrs` retains one
-exact output Shape and one exact window-geometry reference. These values define materialized
-windows, scatter-add folding, NCHW im2col, and overlap-summing col2im without Tensor construction.
-Public `unfold`, `foldAxis`, both `unfold2d` forms, and `fold2d` expressions add checked static or
-canonical symbolic Shape arithmetic, unresolved result layout, preserved data type and gradient
-eligibility, and one-input provenance. Gradients,
-materialization, compiler capture, lowering, backend/ONNX behavior, and execution remain planned.
-Other concrete kind families and expression families, their family attributes, random Operations,
-typed access and export, native/runtime/backend allocation,
-gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
-runtime, concrete backends, broader trace payload families beyond the bounded backend preparation
-and invocation outcomes, trace correlation beyond event/model/backend-execution identities, trace
-serialization/emission, and training remain architecture or planning contracts. The implemented
-trace foundation consists of `TraceEventId`, `TracePhase`, `TraceLevel`, the open `TracePayload`
-marker, the generic `TraceEvent` envelope, the trace-local `TraceNodeId`, `TraceValueId`,
-`TraceTensorId`, `TraceBackendId`, `TraceDeviceId`, `TracePreparedUnitId`, and
-`TraceInvocationId` correlation values, and the immutable `BackendPreparationOutcome` and
-`BackendInvocationOutcome` payloads with their closed neutral status/route/cache/native-
-status vocabulary. The implemented backend-contract foundation consists of `BackendId`,
-`BackendDeviceId`, the coarse `DeviceClass` categories `CPU` and `ACCELERATOR`, and
-`BackendAvailabilitySnapshot` for one backend's caller-supplied point-in-time device-to-class
-availability association. It also contains the sealed, method-free `BackendRequirement` family
-with exact-backend, exact-device, and device-class hard targets. Planning currently evaluates one
-query against explicitly supplied providers, snapshots, and intent through a package-private
-result/factory. Discovery and refresh, registration, concrete provider implementations, public
-planning orchestration, and concrete backend integration remain planned. The implemented
-config foundation contains `BackendIntent`, `CompileMode`, `GraphOptimizationConfig`, and
-`PartitionScoringConfig`. They record hard-requirement optionality, graph scope,
-optional-optimization permission, and one optional soft coarse class preference, respectively,
-without planning evaluation or lifecycle behavior. This paragraph describes the historical
-foundation stage; current compile aggregation is profile-free. The planning foundation also contains the public
-`PlannedPartition` recipe plus internal complete-map grouping; this adds no public orchestration,
-logical boundary, memory, prepare, or execution behavior. A definition explains intended meaning;
-it is not by itself evidence that a Java type exists.
+CUDA, ONNX and CLI are currently marker projects. Data, Text, Vision and Checkpoint are planned
+areas without implementation modules. Broader trace payloads/serialization remain unfinished;
+generic backend discovery is not an authorized foundation and requires an explicit architecture
+decision before any convenience layer is planned. Consult the relevant area map before treating
+a glossary term as an implemented API.
 
 ## Terms
 
@@ -938,11 +555,13 @@ compatibility and candidate identities, complete candidate enumeration, a decisi
 complete candidate execution. The tool performs cache-first deduplication, bounded warmup and
 sampling, integer-middle-median selection with encounter-order ties, and atomic workload-cache
 publication while returning richer raw evidence separately. The supported CPU-local adapter now
-supplies opaque candidate/decision and exact prepared-recipe operations. Engine now publicly
-joins these foundations for one CPU-local workload and one representative input set. It maps
-occurrence index 0, partition index 0, and weight 1, authenticates the Phase-1 decision, and passes
-that exact decision unchanged to CPU complete-plan candidate production. It supplies no model
-extraction or multiple-occurrence tuning.
+supplies opaque candidate/decision and exact prepared-recipe operations. Engine publicly joins
+these foundations for one eligible CPU or Metal partition and one representative input set. Metal
+is limited to the singleton FLOAT32 NEG case with both custom-kernel and MPSGraph candidates;
+an MPSGraph-only plan is not tunable. Engine maps occurrence index 0, partition index 0, and weight
+1, authenticates the Phase-1 decision, and passes that exact decision unchanged to the selected
+backend's complete-plan candidate production. It supplies no model extraction or
+multiple-occurrence tuning.
 
 The current Phase-2 boundary is a separate generic complete-plan transaction in `tools/tuning`.
 It accepts one caller-supplied complete stable batch, checks the whole-transaction
@@ -956,7 +575,7 @@ plan record, and separate rich in-memory evidence.
 Tuning is optional for correctness and never runs in the runtime hot path. Running the same
 workflow over a representative model corpus may eventually pre-seed the same workload cache; this
 is not a separate platform-calibration subsystem. Public Engine composition now invokes both
-phases for the bounded CPU-only lifecycle. Every Phase-2 candidate completes exact canonical-byte
+phases for the bounded single-owner lifecycle. Every Phase-2 candidate completes exact canonical-byte
 correctness before timing; each correctness, warmup, and timed action receives a fresh
 preparation. After authentication and representative cleanup, Engine prepares exactly one fresh
 production recipe for the winner. Model extraction, multiple-occurrence aggregation, broader
@@ -972,8 +591,9 @@ evidence. A **model plan cache** is the current separate Phase-2 bounded file fo
 producer/codec, model, profile, target, compatibility, objective, correctness/policy, and sampling
 identities. It contains only opaque selected-decision and winner bytes plus a compact timing
 summary, and a hit is usable only after the current producer decodes it as compatible. A
-session-scoped producer performs no model-plan-cache I/O; the current CPU complete-plan producer
-is session-scoped. A **selected-plan record** is the current immutable in-memory compatibility,
+session-scoped producer performs no model-plan-cache I/O; the current CPU and Metal complete-plan
+producers are session-scoped. Metal's local workload decisions are also session-only, with no
+persistent workload-cache access. A **selected-plan record** is the current immutable in-memory compatibility,
 winner-identity, and timing-summary value. Neither the cache nor the record is hidden global
 state, Java object serialization, a prepared executable, Runtime state, or rich measurement
 evidence.
@@ -1017,7 +637,7 @@ and owns no model fingerprint, representative inputs, occurrences, candidates, c
 translation, correctness execution, measurement, selection, preparation, or Runtime state.
 Current Engine composition translates both budgets and both paths while
 `ModelAutotuningRequest` supplies the caller-defined model identity and live representative
-inputs. The current CPU complete-plan producer declares `SESSION`, so the explicit model-plan path
+inputs. The current CPU and Metal complete-plan producers declare `SESSION`, so the explicit model-plan path
 is passed unchanged but not accessed. This mapping remains valid for a future producer that can
 declare `PERSISTENT`.
 
@@ -1033,11 +653,12 @@ evidence present exactly for `TUNED`. The evidence contains unchanged Phase-1 wo
 and required complete-plan evidence: compatibility and reuse scope, the exact budget, source,
 winner, and either one rich correctness/timing row per measured candidate or no rows for an
 authenticated persistent hit. Rich per-call rows are immutable and retain correctness actions and
-raw samples; compact reusable cache records do not. Current CPU complete-plan evidence is
-session-scoped and measured. `SAFE_HEURISTIC_FALLBACK` identifies one fresh ordinary safe
-preparation and has empty evidence. These are CPU-only current contracts for one local workload
-and one bounded complete CPU plan, not model extraction, broader graph/partition alternatives,
-mixed backends, or multi-occurrence tuning.
+raw samples; compact reusable cache records do not. Current CPU and bounded Metal complete-plan
+evidence is session-scoped and measured. `SAFE_HEURISTIC_FALLBACK` identifies one fresh ordinary
+safe preparation through the already-selected backend and has empty evidence. The supported
+domain is one eligible CPU partition or the singleton FLOAT32 Metal NEG case described above,
+not model extraction, broader graph/partition alternatives, mixed backends, or multi-occurrence
+tuning. Fallback never changes backend ownership.
 
 ### Representative-profile identity
 
@@ -5242,7 +4863,7 @@ remain custom, and generated-pointwise/anchor fusion remains disabled throughout
 These choices add no fallback, retry, timing selection, or partition change.
 
 Finalization compiles one persistent route resource and transfers it to `PreparedExecution`.
-Shared custom-program creation authenticates each frozen component and the ordered 84,603-byte
+Shared custom-program creation authenticates each frozen component and the ordered 84,593-byte
 fixed source. Java supplies typed records and integer byte counts only. Native owns the sole
 structured pointwise emitter and all source hashes: it performs a no-allocation count traversal,
 validates all caps before exact allocation, emits once for compiler input, authenticates the
@@ -5950,15 +5571,17 @@ semantic kinds and attributes](api/tensor-api.md#softmax-semantic-kinds-and-attr
 The current CPU portable route admits exactly one explicit first-class occurrence with fully
 static resolved geometry, FLOAT64/FLOAT32/BFLOAT16/FLOAT16 identity, and a positive selected-axis
 extent. It never treats an equivalent-looking decomposed pointwise/reduction graph as stable softmax.
-Every represented input and every `value - sliceMaximum` shift must be finite; this private subset
-lets CPU fail closed where Model and Compiler intentionally make no portable NaN, infinity,
-finite-shift-overflow, or zero-selected-width promise. A zero extent on a non-selected axis yields
+Every represented input and every `value - sliceMaximum` shift must be finite. This is a narrower
+CPU implementation domain, not missing Model semantics: `SoftmaxKind` defines NaN, infinity and
+empty-slice behavior through its documented formulas. CPU rejects non-finite inputs/shifts and
+zero selected width instead of claiming support for those cases. A zero extent on a non-selected axis yields
 an empty output and no value scan, write, generated call, or worker submission.
 
 Cold execution accepts typed heap arrays, native-order `MemorySegment` carriers, and mixed pairs
-over arbitrary resolved legal layouts. It validates carrier access, spans, alignment, output
-injectivity, complete non-overlap, and the full admitted value domain before mutation or worker
-submission. Complete-slice ranges use zero workspace. Both kinds use a stable three-pass
+over arbitrary resolved legal layouts. Cold binding validates carrier access, spans, alignment,
+output injectivity and complete non-overlap. A prebound invocation scan validates the current
+input values after their producers execute and before consumer mutation or worker submission.
+Complete-slice ranges use zero workspace. Both kinds use a stable three-pass
 maximum/compensated-shifted-exponential-sum/final-store algorithm. SOFTMAX computes exponentials
 and division but no logarithm; LOG_SOFTMAX computes one `Math.log(sum)` per slice and stores the
 shift minus that logarithm. Schema 47 introduced the direct typed generated family, which current

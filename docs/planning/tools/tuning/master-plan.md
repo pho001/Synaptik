@@ -66,6 +66,7 @@ cache-utility, registry, or private-internals subpackage.
 | 0002 | [Bounded complete-plan tuning and model-plan cache](tasks/0002-bounded-complete-plan-tuning-and-model-plan-cache.md) | Complete | 0001; Complete CPU 0010J and Engine 0008A evidence | Added checked complete-plan correctness/timing, SESSION/PERSISTENT reuse, authenticated compact records, and rich evidence. |
 | 0003 | [Read-only cache, plan, and evidence inspection](tasks/0003-read-only-cache-plan-and-evidence-inspection.md) | Complete | 0001–0002, stable artifact schemas | Added bounded redacted inspection with structural/key mismatch reasons and no decoding, execution, or mutation. |
 | 0004 | [Tuning package Javadoc status reconciliation](tasks/0004-package-javadoc-status-reconciliation.md) | Complete | 0001–0003; Engine 0009/0013 | Corrected public two-phase CPU Engine composition and remaining limitations in package Javadoc. |
+| 0005 | [Bound model-plan cache encoding before allocation](tasks/0005-model-plan-cache-encoding-bound.md) | Review needed | 0002–0004; project review | Preflight the existing aggregate artifact bound before encoding; preserve schema and atomic rejection. |
 
 ## Milestones and current frontier
 
@@ -73,7 +74,8 @@ Canonical workload reuse, bounded complete-plan selection, and artifact/evidence
 `Complete` through 0003. Config 0006A–0006B and Engine 0009 provide the declarative request and
 current CPU public composition around the generic tool; CPU 0010J remains the first complete-plan
 producer. Documentation-only 0004 is `Complete`; its independent review confirmed the corrected
-package status without changing authority or capability. No tuning task is `Ready`.
+package status without changing authority or capability. Project-review repair 0005 is Review needed;
+it changes resource safety, not candidate semantics or the artifact format.
 
 ## Artifact, measurement, and lifecycle ownership
 

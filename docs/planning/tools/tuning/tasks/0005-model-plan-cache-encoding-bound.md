@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Review needed
 
 ## Change class and goal
 
@@ -59,3 +59,11 @@ Launch verification (2026-10-13): user authorized confirmed repairs in the repos
 the existing bounded-artifact contract suffices, dependencies are Complete, source confirms the
 late limit check, and no other tuning writer is active. Use an isolated worktree and clean
 implementation context, followed by independent targeted review/documentation.
+
+## Integration record
+
+Implementation `ea9059dc` integrated as `d324ee13` after independent review.
+20 focused / 73 module tests and Javadoc; independent code/documentation APPROVE.
+Affected Javadoc and explanatory documentation reviewed in the same change. No unresolved
+review findings. Coordinator's combined repository checkpoint and planning closure remain
+outstanding; this status does not imply an outstanding code-review finding.

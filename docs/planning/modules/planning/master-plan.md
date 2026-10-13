@@ -131,8 +131,8 @@ semantic and dependency verdict remains unchanged.
 
 Config task 0004 remains Draft pending a concrete cost-bearing consumer. Documentation-only
 Planning 0007 is Complete after independent review of the provider/compile status correction; it
-creates no new Planning or backend capability. A separate focused follow-up must reconcile the
-stale glossary `Compile` entry and `GraphCompilationPort` Javadoc without reopening this task.
+creates no new Planning or backend capability. The glossary `Compile` entry and
+`GraphCompilationPort` follow-up is already closed by Compiler 0006B10; do not schedule it again.
 
 ## Open questions
 

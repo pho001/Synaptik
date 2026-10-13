@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Review needed
 
 ## Goal and class
 
@@ -59,3 +59,15 @@ Read AGENTS; root scope index/Core invariants/Module-ownership routing/Dependenc
 Launch verified 2026-10-13: user-authorized repair, source-confirmed test/documentation defects,
 dependencies complete; no production lifecycle change or new contract required. Use clean
 implementation context and isolated worktree when a worker slot becomes available.
+
+## Integration record
+
+Implementation `a73822ca` integrated as `241ce92b` after independent Class C APPROVE.
+Engine module: 122 tests passed; final cleanup delta: three focused tests passed.
+Device-free structural regression and counterfactual old-SIGMOID fixture check passed.
+Actual-device mixed-owner integration class: 33/33 passed without skips using source-matched
+identity 34. Final Engine Javadoc and diff checks passed; production lifecycle unchanged.
+Coordinator's glossary and preparing-execution/backend-selection guide corrections received
+independent APPROVE. The combined source-matched native checkpoint remains outstanding.
+A new scalar provider/preflight defect discovered while testing is separately tracked as D5/0079;
+using a valid transfer fixture does not claim that defect fixed.

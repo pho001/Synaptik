@@ -17,8 +17,7 @@ Focused explanations and decisions:
 - [ADR 0015: Explicit Engine backend composition](../../../design/decisions/0015-explicit-engine-backend-composition.md)
 - [ADR 0016: CPU/Metal mixed-owner prepared schedule](../../../design/decisions/0016-cpu-metal-mixed-owner-schedule.md)
 - [ADR 0017: Reusable inference session facade](../../../design/decisions/0017-reusable-inference-session-facade.md)
-- [ADR 0019: Explicit numerical profiles](../../../design/decisions/0019-explicit-numerical-profiles.md)
-- [ADR 0021: Total recursive ACCELERATOR numerical floor](../../../design/decisions/0021-total-recursive-accelerator-numerical-floor.md)
+- [ADR 0026: Profile-free numerical semantics](../../../design/decisions/0026-profile-free-numerical-semantics.md)
 
 ## Lifecycle position
 
@@ -116,6 +115,7 @@ not a catch-all service registry.
 | [0016](tasks/0016-cpu-metal-mixed-owner-schedule.md) | CPU/Metal mixed-owner schedule and transfer | Complete | 0015; Prepare 0006; Runtime 0016; Metal 0004 | Added independently reviewed owner-indexed shared representations, Compiler-ordered caller inputs, complete-set Prepare routing, explicit bounded bidirectional F32 CPU/Metal transfer, ordered mixed scheduling, direct per-occurrence handle capture, rollback, and real public lifecycle evidence. |
 | [0017](tasks/0017-reusable-inference-session-api.md) | Reusable inference session API | Complete | 0016 | Added the independently reviewed thin public session that prepares one owner-bound graph once and delegates repeated/concurrent input binding, run, result, materialization, and close behavior to the existing lifecycle without another compiler, scheduler, runner, or result. |
 | [0018](tasks/0018-explicit-numerical-profile-propagation-spine.md) | Explicit numerical-profile propagation spine | Complete | Model 0027; Config 0006; current Planning/Compiler/Prepare/Engine contracts; CPU and Metal fail-closed migration points | Delivered the independently approved atomic cutover across profile-qualified Planning queries, Compiler artifacts, Prepare projection, Engine/AdvancedEngine capture, every caller, and profile-keyed backend plans/caches while keeping Runtime/Trace profile-free and relaxed capability disabled. |
+| [0019](tasks/0019-lifecycle-and-mixed-owner-test-repair.md) | Lifecycle and mixed-owner regression repair | Review needed | 0016–0018; Metal 0077; project review | Make copy/close tests deterministic, restore real heterogeneous transfer fixtures, and correct public tuning Javadoc. |
 
 ## Milestones and current frontier
 
@@ -130,10 +130,8 @@ not a catch-all service registry.
   bounded mixed-owner implementations are Complete through 0016.
 - The reusable inference-session facade from exact base `4fc4fd3d` is Complete as 0017 after the
   required Class C and narrow documentation review sequence.
-- The numerical-profile spine is Complete as 0018 at implementation `ce7a7dfa` plus
-  documentation/Javadoc remediation `07a01b9c`. Required module/Javadoc, conformance,
-  architecture, actual Engine integration, full-build, documentation, diff, and performance gates
-  passed; independent Class C review returned `APPROVE` with zero findings.
+- Historical numerical-profile spine 0018 is Complete; Model 0032 removed its profile API and
+  propagation. Current lifecycle is profile-free. Audit repair 0019 is Review needed.
 
 ## Live risks and gates
 
@@ -153,11 +151,9 @@ not a catch-all service registry.
   composition does not expose or interpret them.
 - Preserve 0011's repaired boundary: Engine/Prepare own Compiler aggregates and the single
   projection, while concrete CPU production remains Compiler-free.
-- Numerical-profile selection is graph-wide and cold. Complete 0018 retains one profile through
-  Planning, compile, Prepare, and backend plan/cache identity while Runtime executes the prepared
-  recipe. CPU 0017 and current Metal realizations are Complete; Engine owns none of their semantic
-  or backend behavior. Model 0030 is `Review needed`, no repository task is Ready, and Metal 0051
-  remains its Draft serial successor after completion and independent approval.
+- Numerical semantics belong to Model; Engine has no numerical-profile selector after Model
+  0032. Backend route/version/type compatibility remains cold and backend-owned. Historical Metal
+  0051 is not the current Engine successor or prerequisite.
 - Metal configuration, native open, and partial-open rollback remain Metal-owned; Engine may take
   an opened integration but must not duplicate or interpret Metal policy.
 
@@ -166,9 +162,9 @@ not a catch-all service registry.
 The user's requested repair order authorizes sequential drift remediation ahead of the normal
 post-Metal frontier reassessment: Engine 0011 repaired the CPU boundary, Compiler 0006B8 repaired
 autograd documentation, and Engine 0012 repaired the first confirmed remaining-drift cluster.
-Their implementations and required reviews are complete through Engine 0013. The next confirmed
-drift repair is the separately owned tuning package Javadoc cluster; it remains undetailed and is
-not `Ready`.
+Their implementations and required reviews are complete through Engine 0013. The separately
+owned tuning package Javadoc repair is also Complete as tools/tuning 0004; do not reopen it as an
+undetailed successor.
 
 Engine 0014 is a separate user-authorized contract-first workstream from exact base `83f2800`.
 The shared-document integration owner, not this branch, owns the later global-roadmap update.
@@ -187,7 +183,8 @@ remediation `07a01b9c13c2ceea0922b9af82da3e6e08375306`.
 
 ## Status normalization
 
-Engine is Complete through 0018. No Engine task is Ready.
+Engine's local capability queue is Complete through 0018, with Model 0032's later profile-free
+cutover applied. Project-review test/documentation repair 0019 is Review needed.
 
 ## History and update policy
 

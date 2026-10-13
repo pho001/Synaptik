@@ -148,10 +148,10 @@ numeric models; a text model supplies the tokenizer artifact fingerprint, which 
 normalization, special IDs, token-ID order, and algorithm data.
 
 The current NN `StateDictionary` supplies exact in-memory Tensor references only. It performs no
-evaluation, copy, backend transfer, or serialization. A checkpoint save therefore waits for the
-future Engine host-materialization API, which must publish selected current values through prepared
-Runtime/backend work into bounded caller-owned host payloads. Checkpoint never casts or reads a
-backend representation.
+evaluation, copy, backend transfer, or serialization. Engine already exposes bounded detached
+host materialization through `RunResult.materialize` and `Engine.compute`; Checkpoint must define
+the complete state-selection and ownership handoff over those APIs rather than invent backend
+access. Checkpoint never casts or reads a backend representation.
 
 ## Training checkpoint contract
 
@@ -213,17 +213,21 @@ lambda or added as a generic reflective registry.
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | Checkpoint and optional Training Checkpoint architecture boundary | Draft | Explicit architecture decision; current CPU frontier preserved | Update `ARCHITECTURE.md`, lifecycle/module/dependency explanations, a significant ADR, settings/build ownership, and architecture tests for model-only Checkpoint downstream of NN+Engine and optional Training Checkpoint downstream of Training+Checkpoint; add no persistence API in the architecture task. |
+| 0001 | Checkpoint and optional Training Checkpoint architecture boundary | Draft | Explicit architecture decision | Update `ARCHITECTURE.md`, lifecycle/module/dependency explanations, a significant ADR, settings/build ownership, and architecture tests for model-only Checkpoint downstream of NN+Engine and optional Training Checkpoint downstream of Training+Checkpoint; add no persistence API in the architecture task. |
 | 0002 | Bounded durable artifact envelope | Draft | 0001; selected codec/filesystem policy | Define deterministic versioned manifest/payload/checksum types, resource bounds, temporary-target publication, durable flush, reopen validation, rename semantics, and corruption rejection without model/training concepts. |
-| 0003 | Model schema and Engine materialization handoff | Draft | 0002; Engine 0002–0003; NN 0019 lazy/checkpoint lifecycle | Define stable model state/config/input-artifact fingerprints and convert a complete NN state snapshot to bounded host payloads only through Engine publication/materialization. |
+| 0003 | Model schema and Engine materialization handoff | Draft | 0002; existing Engine host materialization; NN state/lazy-binding contracts | Define stable model state/config/input-artifact fingerprints and convert a complete NN state snapshot to bounded host payloads only through Engine publication/materialization. Existing Engine capability is available, but this adapter is not. |
 | 0004 | Model checkpoint save, inspect, and strict load | Draft | 0003 | Persist materialized parameters/buffers and validate the entire artifact plus recreated topology before one strict NN installation; never serialize arbitrary `Model.define` lambdas. |
-| 0005 | Training-owned exact-resume snapshot prerequisite | Draft | Training 0002–0004; 0004 | Stabilize optimizer/session snapshot and cross-owner validate/install contracts before the optional adapter encodes them. |
+| 0005 | Training-owned exact-resume snapshot prerequisite | Draft | Training 0003A decision, 0003 and 0004; Checkpoint 0004 | Consume stabilized optimizer/session and cross-owner validate/install contracts before the optional adapter encodes them. Training 0004 depends on the architecture/model-artifact boundary, not this adapter. |
 | 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005 | Persist and restore the model plus optimizer/groups/progress/scheduler/RNG/sampler/scaler state without making model-only Checkpoint depend on Training. |
 | 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004; 0006 when exact training resume is selected; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, exact training resume, documentation, and dependency enforcement. |
 
-No detailed Checkpoint task exists. No Vision, Checkpoint, NN, or repository task is `Ready`.
-[Model 0030](../../modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md) is
-`Review needed`; Checkpoint 0001 remains gated by its explicit architecture decision.
+No detailed Checkpoint task exists and no Checkpoint task is Ready. Checkpoint 0001 remains gated
+by its explicit architecture decision. Model 0032's numerical cutover and Training 0002B's
+in-memory Adam/AdamW snapshot capability are Complete; neither creates durable checkpoint APIs.
+
+The cross-area order is acyclic: Checkpoint 0001–0004 and Training 0003A–0003 precede Training
+0004; then Checkpoint 0005 precedes adapter 0006. The adapter is a consumer of the Training
+handoff, never its implementation prerequisite.
 
 ## Planned end-to-end flows
 
@@ -274,16 +278,18 @@ load tokenizer artifact and verify fingerprint
 
 ## Current status
 
-Draft planning only. Current Runtime publication leases representations privately and exposes no
-public value access, so model bytes cannot yet be obtained through the architecture-approved
-lifecycle. No planning text authorizes direct backend access as a workaround.
+Draft planning only. Runtime publication still leases representations privately, while Engine
+already provides the architecture-approved host-materialization boundary. Missing work is the
+checkpoint module decision, bounded codec, complete model-state handoff, and coordinated durable
+restore—not access to bytes through Engine. Training snapshots are in-memory values, not a
+durable, cross-owner exact-resume format.
 
 ## Open questions
 
 - Select the first bounded manifest and Tensor-payload encoding, byte order, alignment, and
   compression policy.
-- Define Engine materialized-host-payload ownership and whether compatible already-host-backed
-  values may take a proven direct path.
+- Choose how the checkpoint adapter uses Engine's existing detached host values within aggregate
+  resource bounds; do not change their ownership or introduce backend shortcuts implicitly.
 - Define the cross-owner validate/install transaction protocol required for exact training resume.
 - Select overwrite/version-retention policy and crash-durability guarantees for supported
   filesystems.

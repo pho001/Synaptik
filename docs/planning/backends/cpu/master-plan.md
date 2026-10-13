@@ -74,18 +74,19 @@ backends, inferred relaxed numerics, or platform-label-selected vendor routes.
 - Route/storage selection compares complete transition, resource, reuse, and concurrency cost.
   Fusion legality precedes profitability; safe heuristics work without tuning, and Runtime never
   searches or revises a prepared choice.
-- Exact/default numerics and determinism are hard filters. Relaxed candidates require explicit
-  permission; hardware, provider presence, workload size, or measurement cannot grant it.
+- Current profile-free Model semantics are hard eligibility constraints. Hardware, provider
+  presence, workload size, or measurement cannot redefine numerical permission.
 - Providers are ABI/lifetime leaves. CPU owns discovery, qualification, capability, fallback,
   thread/lifetime coordination, and candidates. Prepared resources and isolated per-run storage
   obey Prepare/Runtime ownership, concurrency, rollback, transfer, and cleanup contracts.
 
 ## Dependencies and package ownership
 
-Allowed direct dependencies are `modules/compiler` only for 0010F, `modules/model`,
+Allowed direct production dependencies are `modules/model`,
 `modules/config`, `modules/planning`, `modules/runtime`, `modules/prepare`,
 `modules/backend-contract`, `modules/trace`, and `backends/openblas-provider`. `modules/engine` is
-forbidden. CPU does not depend on tuning tools; its collaborations expose opaque candidates.
+forbidden. Engine 0011 removed the historical production Compiler edge; Compiler is test-only.
+CPU does not depend on tuning tools; its collaborations expose opaque candidates.
 
 ```text
 io.github.pho001.synaptik.backend.cpu/
@@ -249,6 +250,8 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0018 | [Shared external-read recognition validation](tasks/0018-shared-external-read-recognition-validation.md) | Complete | CPU 0008C/0008D/0008F/0017; Engine 0018 (all Complete); user chose authenticated `ValueId` binding | DAG-authenticated virtual-output provenance preserves legal shared-weight MATMUL+RELU fusion and rejects forged positions; focused and full CPU tests passed, with independent Class C approval. |
 | 0019 | [CPU partition size independent of fusion-unit size](tasks/0019-unbounded-cpu-partition-bounded-fusion-units.md) | Complete | CPU 0008B/0008D/0008E/0008F/0017; Engine 0018 (Complete); independent of 0018 | Long maximal CPU partitions now execute as bounded local units; 1,039 CPU tests and focused Engine execution passed. |
 | 0020 | [Bare MATMUL realization and strategy alignment](tasks/0020-bare-matmul-realization-strategy-alignment.md) | Complete | CPU 0008F, 0010M, 0018, 0019 (all Complete) | Default scalar and explicit vector MATMUL realization now agree with prepared strategy and species; public INT32 execution, CPU tests, and independent Class C review passed. |
+| 0021 | [Composed validation and loss binding repair](tasks/0021-composed-value-validation-and-loss-bindings.md) | Review needed | 0019–0020; project review | Fix F16 softmax reading, value checks after producers, and occurrence-level loss bindings. |
+| 0022 | [Activation extremes and low working precision](tasks/0022-activation-extremes-and-low-working-precision.md) | Draft | 0021; current Model semantics | Fix ERF/GELU large-finite saturation and low activation F32 working sites; serialize generated identity work. |
 
 ## Milestones and current frontier
 
@@ -265,25 +268,20 @@ The table owns order and status; linked tasks own detailed evidence.
   output validation hole while retaining legal MATMUL+RELU fusion. Focused and full CPU validation
   and independent Class C re-review passed. [0020](tasks/0020-bare-matmul-realization-strategy-alignment.md)
   is Complete from clean `f4e35b45`, with portable public execution and independent review
-  passing. No CPU implementation task is Ready. CPU 0007A1D's historical failed performance
+  passing. Audit repair 0021 is Review needed; 0022 is its serial successor. CPU 0007A1D's historical failed performance
   gate is closed as Superseded, not accepted as passing.
 - Documentation-only 0010K and 0010L and profile realization
   [0017](tasks/0017-explicit-accelerator-numerical-profile-realization.md) are Complete. CPU 0017
   landed at `372a8b98`; its independent Class C review and the combined numerical-profile backend
   integration checkpoint passed with zero findings or failures.
 
-## Completed numerical-profile integration
+## Current numerical identity
 
-- Dependencies: Model 0027, Config 0006, Engine 0018, and current exact portable/OpenBLAS routes.
-- Completed parallel group: `numerical-profile-backends`.
-- Executable integration: CPU `372a8b98`; Metal `42c4cfbf` plus `fb102a46`.
-- Integration validation: native/export, backend, conformance, Engine, architecture, full-build,
-  Runtime/Trace profile-free, Javadoc, Markdown, status, and diff checks all passed serially.
-- Shared-document integration owner: Main planner.
-
-CPU 0017 and Metal 0015 were semantically independent after the completed spine and integrated
-without changing their disjoint backend ownership. Shared planning, architecture, API, user-guide,
-capability/preparer, and glossary documents now describe the combined current behavior.
+Model 0032 removed the selectors and profile fields introduced by historical CPU 0017. The
+review baseline uses CPU generated schema 69 and explicit dtype/shape/strategy compatibility.
+FLOAT16 is an active Model type with occurrence-specific CPU support, not a future Model 0026
+prerequisite. CPU 0022 owns the next generated-semantic compatibility update. Historical profile
+integration evidence remains in its completed task records.
 
 ## Live gates and decisions
 
@@ -310,13 +308,11 @@ capability/preparer, and glossary documents now describe the combined current be
   until 0008N1; 0008O is Cancelled at `KEEP_SCALAR`; 0008P remains `KEEP_WHOLE_CELL`. None is a
   universal generated-code or performance success.
 - The portable generated route remains the semantic fallback. New SIMD or route migrations need
-  family-specific direct-Java evidence. Generic movement/indexing/pooling SIMD, FLOAT16 before
-  Model 0026, and automatic decomposed loss/softmax recognition are not authorized.
+  family-specific direct-Java evidence. Generic movement/indexing/pooling SIMD and automatic
+  decomposed loss/softmax recognition are not authorized by the current audit repairs.
 - CPU 0016 extends tuning only across implemented vendor peers and adds no CPU measurement or
-  generated-class persistence. Complete Engine 0018 already transports profile identity through
-  CPU plans, specializations, generated-artifact identity, and local/complete tuning
-  compatibility. Complete CPU 0017 admits `ACCELERATOR` with unchanged exact CPU arithmetic, route
-  policy, and Runtime hot paths.
+  generated-class persistence. Current plans, specializations and tuning compatibility are
+  profile-free; retained dtype, source, target and schema identities remain mandatory.
 
 - CPU 0010M retains five machine-local scalar reports and a minimum future-comparison acceptance
   framework under `backends/cpu/evidence/cpu-0010m-defaults/`. The reports validate the hardened

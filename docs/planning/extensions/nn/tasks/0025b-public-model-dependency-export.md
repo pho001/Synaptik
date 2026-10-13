@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Review needed
 
 ## Goal and class
 
@@ -45,3 +45,11 @@ Read AGENTS; root scope index, Core invariants, Dependency rules, Testing requir
 Launch verified 2026-10-13: source/API and negative/positive consumer diagnostics confirm the
 missing exported edge; Model is already the sole allowed NN dependency. User-authorized repair,
 dependencies complete, no other build-fixture writer. Use isolated worktree and clean context.
+
+## Integration record
+
+Implementation `6eefd08d` integrated as `7905036f` after independent review.
+NN-only and Training-only consumers compiled, 306 NN tests, focused architecture test and Javadoc; independent Class C APPROVE.
+Affected Javadoc and explanatory documentation reviewed in the same change. No unresolved
+review findings. Coordinator's combined repository checkpoint and planning closure remain
+outstanding; this status does not imply an outstanding code-review finding.

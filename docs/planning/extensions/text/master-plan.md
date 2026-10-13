@@ -216,10 +216,11 @@ Interpretation:
   Tensors; the example does not pass the host value directly to the recurrent scan;
 - zero initial hidden/cell state is inferred by the planned recurrent convenience;
 - backward is absent from the model definition because compiler/training owns it; and
-- current Synaptik implements none of the shown Text/Data APIs, lazy constructors, runtime-length
-  overload, recurrent scan, runtime input binding, or full execution pipeline. The example is not
-  runnable until those lifecycle contracts exist. Current recurrent containers instead require
-  fully static time-major Tensors, explicit initial states, and a Java `long[]`.
+- Text/Data APIs and the complete batch-to-recurrent convenience in this example do not exist.
+  Current Synaptik does have an Engine execution pipeline and lower-level fixed recurrent-scan
+  semantics; those do not make this proposed end-to-end example runnable. Follow the NN master
+  plan for lazy-layer, runtime-length, and concrete-backend integration status. Current static
+  recurrent containers use explicit initial states and a Java `long[]`.
 
 The tokenizer creation hidden by `...` is one of these two planned, non-runnable paths:
 
@@ -237,16 +238,18 @@ its fingerprint but does not parse tokenizer files or make Checkpoint depend on 
 
 ## Current status
 
-Draft planning only. The user authorized planning this future program, not architecture edits,
-Gradle project creation, or implementation ahead of the active CPU frontier.
+Draft planning only. The user authorized planning this future program, not architecture edits
+or Gradle project creation. Data 0001 is the explicit prerequisite, not an obsolete global CPU
+frontier.
 
 ## Open questions
 
 - Select the first concrete tokenizer algorithm and the exact deterministic token/merge ordering.
 - Select the bounded tokenizer artifact encoding and its maximum bytes, token count, token length,
   and algorithm-state limits.
-- Decide whether the optional predictor belongs in Text, Engine, or another application extension
-  once the compile/prepare/run facade exists.
+- Decide whether an optional predictor has a concrete consumer and belongs in a separate
+  downstream application owner; the existing Engine facade does not authorize an Engine
+  dependency from the tokenizer foundation.
 
 ## Decisions made
 

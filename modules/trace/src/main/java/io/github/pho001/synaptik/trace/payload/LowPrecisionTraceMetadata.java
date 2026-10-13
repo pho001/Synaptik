@@ -8,7 +8,7 @@ import java.util.Objects;
  * Trace-ready immutable facts for one selected low-precision custom route.
  *
  * <p>The ordered logical dtype tuple contains boundary feeds followed by boundary targets.
- * Arithmetic and raw-preserving programs report the same three execution facts; working and
+ * Arithmetic and raw-preserving programs report the same route and dtype facts; working and
  * accumulator types are Model semantics, not trace route facts. This payload owns no
  * route-selection, certificate, backend, or runtime state.</p>
  *

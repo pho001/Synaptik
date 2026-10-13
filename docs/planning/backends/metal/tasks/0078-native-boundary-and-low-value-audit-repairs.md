@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Review needed
 
 ## Goal and class
 
@@ -74,3 +74,14 @@ metadata/three run paths/release and focused tests, native README/build/package 
 Launch verified 2026-10-13: current root/scoped contracts explicitly require all four behaviors;
 source confirms mismatches, predecessors Complete, no Metal writer. User authorizes bounded
 repairs. Use clean context and isolated worktree, not new numerical architecture.
+
+## Integration record
+
+Implementation `50f570d8` plus independent-review documentation correction `12babf46`
+integrated as `6e8d6b26` / `1db53756`. Final Class C review: APPROVE, no unresolved 0078 findings.
+Four new actual-device tests passed; full Metal 340 passed / 10 optional observer skips,
+37 conformance passed. Native build/sign/package/ZIP, active source/AIR binding, Javadoc and
+diff checks passed. Exact commands, environment and source hashes:
+`backends/metal/evidence/0078/validation.json`. Coordinator also corrected the glossary corpus
+fact. Shared version documentation was re-reviewed after correction.
+Only the repair group's final combined checkpoint remains. D5 belongs to serial 0079.

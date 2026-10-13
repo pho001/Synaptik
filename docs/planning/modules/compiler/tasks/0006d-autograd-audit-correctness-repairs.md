@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Review needed
 
 ## Change class and goal
 
@@ -70,3 +70,11 @@ Launch verification (2026-10-13): source review and read-only diagnostic reprodu
 the current contract already requires correct MATMUL formulas and rejection of unsupported
 derivative paths. User authorizes repair; predecessors are Complete; no competing Compiler
 writer exists. Use a clean implementation context and isolated worktree.
+
+## Integration record
+
+Implementation `e6fb9d28` integrated as `5dead33c` after independent review.
+292 Compiler tests, four numerical CPU integration tests and Javadoc; independent Class C APPROVE.
+Affected Javadoc and explanatory documentation reviewed in the same change. No unresolved
+review findings. Coordinator's combined repository checkpoint and planning closure remain
+outstanding; this status does not imply an outstanding code-review finding.

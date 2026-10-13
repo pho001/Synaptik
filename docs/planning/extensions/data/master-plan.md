@@ -180,14 +180,14 @@ separate future capability.
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | Data/Text/Vision extension architecture and dependency boundary | Draft | Explicit architecture decision; current CPU frontier preserved | Update `ARCHITECTURE.md`, module/dependency explanations, a significant ADR, settings/build ownership, and architecture tests to authorize `extensions/data`, `extensions/text`, and `extensions/vision` with one-way dependencies; create no batching, tokenizer, or image API in the architecture task. |
+| 0001 | Data/Text/Vision extension architecture and dependency boundary | Draft | Explicit architecture decision | Update `ARCHITECTURE.md`, module/dependency explanations, a significant ADR, settings/build ownership, and architecture tests to authorize `extensions/data`, `extensions/text`, and `extensions/vision` with one-way dependencies; create no batching, tokenizer, or image API in the architecture task. |
 | 0002 | Valid sequence lengths and right-padded batch value | Draft | 0001; stable Model Tensor construction | Add immutable layout-aware Tensor batch metadata with one validated valid-prefix length per row, staged host/runtime-Tensor boundaries, no stored Boolean mask, no value-based inference, and no batching algorithm beyond the value boundary. |
 | 0003 | Focused numeric sample and right-padding batchers | Draft | 0002 | Add explicit equal-shape numeric sample batching plus integral and floating sequence batchers with configured padding value, truncation, layout, and data type; derive extents and canonical valid lengths from source sequences. |
 | 0004 | Data batching capability checkpoint | Draft | 0003 | Validate sample/sequence batch geometry, valid-length semantics, documentation, architecture boundaries, and Model Tensor construction without adding a general dataset manager, image semantics, or recurrent execution claims. |
 
-No detailed Data task exists. The current global implementation frontier remains CPU, and NN 0018
-is the separately user-authorized future planning frontier. Promote Data 0001 only after the user
-authorizes that architecture/module change for implementation.
+No detailed Data task exists. Promote Data 0001 only after the architecture/module decision is
+accepted and its compact brief is Ready. There is no implicit dependency on an old global CPU
+frontier. NN's static containers already exist; runtime-length integration remains separate.
 
 ## Milestones
 
@@ -200,8 +200,9 @@ authorizes that architecture/module change for implementation.
 ## Current status
 
 Draft planning only. No `extensions/data` Gradle project, package, production type, dependency, or
-architecture permission exists. The user authorized planning this future program, not executing it
-ahead of the active CPU frontier or silently changing architecture.
+architecture permission exists. Planning this future program does not authorize creating its
+modules or silently changing architecture. Training 0003's Data-lifecycle dependency must be
+resolved explicitly: tasks 0001–0004 do not currently provide a dataset/sampler/epoch lifecycle.
 
 ## Open questions
 
