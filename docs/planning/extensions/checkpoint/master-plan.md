@@ -25,10 +25,10 @@ Only the opaque artifact portion of the flow is implemented; semantic model and 
 remain future plans. [Checkpoint 0001](tasks/0001-checkpoint-module-boundary.md)
 completed the model-only boundary and initially empty Gradle project from base `81d50901`, after focused
 validation, independent Class C review, and the repository test/Javadoc gate.
-The optional Training Checkpoint adapter is neither included nor implemented. No successor is
-Ready: [Checkpoint 0002](tasks/0002-bounded-artifact-envelope.md) is Complete after its focused
-gate and independent Class C review. Its v1 codec and filesystem policy are selected in the brief;
-0003–0006 remain Draft.
+The optional Training Checkpoint adapter is neither included nor implemented. The next authorized
+frontier is [Checkpoint 0003](tasks/0003-model-schema-and-materialization-handoff.md), Ready
+after 0002's focused gate and independent Class C review. Its scope is an internal bounded model
+candidate and Engine handoff, not public save/load; 0004–0007 remain Draft.
 
 ## Architecture references
 
@@ -245,7 +245,7 @@ lambda or added as a generic reflective registry.
 |---|---|---|---|---|
 | [0001](tasks/0001-checkpoint-module-boundary.md) | Model Checkpoint module boundary | Complete | None; architecture decision is the deliverable | Empty project, contract, ADR, explanations, and dependency test reviewed; focused and repository gates passed. No persistence API or optional adapter. |
 | [0002](tasks/0002-bounded-artifact-envelope.md) | Bounded artifact envelope | Complete | 0001 Complete; corrected v1 policy in brief | Opaque file API, bounds, SHA-256, file flush and atomic live publication implemented; 15 checkpoint tests, Javadoc, architecture test, and independent Class C review passed. |
-| 0003 | Model schema and Engine materialization handoff | Draft | 0002; existing Engine host materialization; NN state/lazy-binding contracts | Define stable model state/config/input-artifact fingerprints and convert a complete NN state snapshot to bounded host payloads only through Engine publication/materialization. Existing Engine capability is available, but this adapter is not. |
+| [0003](tasks/0003-model-schema-and-materialization-handoff.md) | Model schema and Engine materialization handoff | Ready | 0002 Complete; existing NN export and Engine compute | Define stable model state/config/input-artifact fingerprints and convert a complete NN state snapshot to bounded host payloads only through public Engine materialization. |
 | 0004 | Model checkpoint save, inspect, and strict load | Draft | 0003 | Persist materialized parameters/buffers and validate the entire artifact plus recreated topology before one strict NN installation; never serialize arbitrary `Model.define` lambdas. |
 | 0005 | Training-owned exact-resume snapshot prerequisite | Draft | Training 0004; Checkpoint 0004 | Consume stabilized optimizer/session and caller-state handoff plus cross-owner preflight/commit contracts; identify which concrete caller-owned participant schemas have owner validators/restorers. Training 0004 does not depend on this adapter. |
 | 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005; supported caller-state schemas/codecs | Encode and restore only the model, Training state, effective objective contexts, and caller-owned participants with versioned bounded codecs and owner validation; reject an exact artifact for any unsupported affecting state. Model-only Checkpoint stays independent of Training. |
@@ -317,9 +317,9 @@ This is a future protocol, not a runnable current API or an atomicity guarantee 
 
 ## Current status
 
-Model-only module-boundary implementation is Complete after focused and repository validation;
-the bounded opaque artifact codec and publication API are implemented and await independent Class C
-review. Runtime publication still leases representations privately, while Engine already provides
+Model-only module-boundary implementation and the bounded opaque artifact codec/publication API
+are Complete after focused validation and independent Class C reviews. Runtime publication still
+leases representations privately, while Engine already provides
 the architecture-approved host-materialization boundary. Missing work is the semantic model-state
 handoff and coordinated restore—not access to bytes through Engine. Training snapshots are
 in-memory values, not a durable, cross-owner exact-resume format.

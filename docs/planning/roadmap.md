@@ -68,7 +68,7 @@ No row below authorizes a new implementation task; select and prepare a Ready su
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions, SGD/Adam/AdamW groups and in-memory state delivered. Decision 0003A is Complete after independent Class C approval; 0003 is Superseded. Joint preflight/commit 0004 remains Draft. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | 0001–0002 Complete. Opaque artifact API, file flush and atomic live publication passed focused validation and independent Class C review; semantic model checkpoint work remains Draft. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | 0001–0002 Complete. [0003](extensions/checkpoint/tasks/0003-model-schema-and-materialization-handoff.md) Ready for internal model schema and Engine handoff; public save/load remains Draft. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
@@ -87,13 +87,15 @@ No row below authorizes a new implementation task; select and prepare a Ready su
 3. Durable save/load is the selected next stream. [Checkpoint 0001](extensions/checkpoint/tasks/0001-checkpoint-module-boundary.md)
    has completed the model-only module boundary. [Checkpoint 0002](extensions/checkpoint/tasks/0002-bounded-artifact-envelope.md)
    is Complete with a bounded single-file codec and atomic-live-publication policy;
-   0003–0004 remain downstream and unauthorized. Existing Engine materialization is not a missing prerequisite.
+   [0003](extensions/checkpoint/tasks/0003-model-schema-and-materialization-handoff.md) is the
+   Ready internal model-candidate frontier; 0004 remains downstream and unauthorized. Existing
+   Engine materialization is not a missing prerequisite.
 4. In a separately selected stream, Data 0001 authorizes Data/Text/Vision architecture before
    batching or text/image APIs. Runtime recurrent adoption still needs a concrete backend route.
 
 Step 2 records a completed decision, not authorization for Training 0004
-implementation. Step 3's Checkpoint 0002 authorization is consumed; 0003 requires its own Ready
-brief before implementation. Step 4 is a proposal, not a Ready implementation task.
+implementation. Step 3 authorizes only Checkpoint 0003's bounded internal schema/handoff, not
+public save/load in 0004. Step 4 is a proposal, not a Ready implementation task.
 An independent performance/shape follow-up, [CPU 0023](backends/cpu/tasks/0023-vector-erf-direct-java-shape.md),
 is also Draft: the bounded vector ERF diagnostic did not demonstrate parity with direct Java.
 It is not a prerequisite for unrelated Training/Checkpoint decisions or a new broad campaign.
@@ -108,8 +110,9 @@ adapter-to-prerequisite cycle remains.
 - Do not restart historical profile/certificate/proof gates as prerequisites for current work.
 - Do not equate operation-kind coverage with all dtypes/layouts/gradients/strategies or speed.
 - No broad performance campaign, new native provider, automatic backend discovery, rollback-mode
-  change, or new numerical policy is authorized by the prior review. The subsequent selected
-  Checkpoint stream authorizes only the bounded artifact API in Ready 0002, not model save/load.
+  change, or new numerical policy is authorized by the prior review. The selected Checkpoint
+  stream currently authorizes only internal model candidate capture in Ready 0003, not model
+  save/load.
 - GPU CI provisioning, large-model aggregate memory policy, new vendor routes, recurrent execution
   and missing adjoints retain their explicit decisions and owning plans.
 
