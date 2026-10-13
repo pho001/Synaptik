@@ -25,7 +25,8 @@ The artifact flows above remain future plans. [Checkpoint 0001](tasks/0001-check
 completed the model-only boundary and empty Gradle project from base `81d50901`, after focused
 validation, independent Class C review, and the repository test/Javadoc gate.
 The optional Training Checkpoint adapter is neither included nor implemented. No successor is
-Ready: Checkpoint 0002–0006 remain Draft until their own decisions and briefs are prepared.
+Ready: [Checkpoint 0002](tasks/0002-bounded-artifact-envelope.md) is the sole serial frontier.
+Its v1 codec and filesystem policy are selected in the brief; 0003–0006 remain Draft.
 
 ## Architecture references
 
@@ -237,15 +238,19 @@ lambda or added as a generic reflective registry.
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | [0001](tasks/0001-checkpoint-module-boundary.md) | Model Checkpoint module boundary | Complete | None; architecture decision is the deliverable | Empty project, contract, ADR, explanations, and dependency test reviewed; focused and repository gates passed. No persistence API or optional adapter. |
-| 0002 | Bounded durable artifact envelope | Draft | 0001; selected codec/filesystem policy | Define deterministic versioned manifest/payload/checksum types, resource bounds, temporary-target publication, durable flush, reopen validation, rename semantics, and corruption rejection without model/training concepts. |
+| [0002](tasks/0002-bounded-artifact-envelope.md) | Bounded durable artifact envelope | Ready | 0001 Complete; v1 policy selected in brief | Single-file, deterministic, uncompressed envelope with explicit bounds, SHA-256, validated sibling temp, strict atomic publication, and no model/training concepts. |
 | 0003 | Model schema and Engine materialization handoff | Draft | 0002; existing Engine host materialization; NN state/lazy-binding contracts | Define stable model state/config/input-artifact fingerprints and convert a complete NN state snapshot to bounded host payloads only through Engine publication/materialization. Existing Engine capability is available, but this adapter is not. |
 | 0004 | Model checkpoint save, inspect, and strict load | Draft | 0003 | Persist materialized parameters/buffers and validate the entire artifact plus recreated topology before one strict NN installation; never serialize arbitrary `Model.define` lambdas. |
 | 0005 | Training-owned exact-resume snapshot prerequisite | Draft | Training 0004; Checkpoint 0004 | Consume stabilized optimizer/session and caller-state handoff plus cross-owner preflight/commit contracts; identify which concrete caller-owned participant schemas have owner validators/restorers. Training 0004 does not depend on this adapter. |
 | 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005; supported caller-state schemas/codecs | Encode and restore only the model, Training state, effective objective contexts, and caller-owned participants with versioned bounded codecs and owner validation; reject an exact artifact for any unsupported affecting state. Model-only Checkpoint stays independent of Training. |
 | 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004; 0006 when exact training resume is selected; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, exact training resume, documentation, and dependency enforcement. |
 
-Checkpoint 0001 has made the explicit architecture decision. There is no new authorized frontier:
-0002 needs its codec/filesystem policy and a Ready brief; the optional adapter remains Draft.
+Checkpoint 0001 has made the explicit architecture decision. Checkpoint 0002 is the sole Ready
+frontier; its policy and compact brief are fixed from common serial base `6482eac7`. It conflicts
+with concurrent edits to the artifact format or Checkpoint contract, has no parallel group, and
+precedes 0003. The 0002 implementation owner owns shared documents and runs
+`./gradlew :extensions:checkpoint:check :extensions:checkpoint:javadoc`; no second integration
+suite is planned unless review changes executable behavior. The optional adapter remains Draft.
 Model 0032's numerical cutover and Training 0002B's
 in-memory Adam/AdamW snapshot capability are Complete; neither creates durable checkpoint APIs.
 
@@ -314,14 +319,14 @@ Engine. Training snapshots are in-memory values, not a durable, cross-owner exac
 
 ## Open questions
 
-- Select the first bounded manifest and Tensor-payload encoding, byte order, alignment, and
-  compression policy.
+- The v1 opaque envelope policy is selected in 0002. Tensor-specific encoding and model schema
+  remain for 0003–0004; do not treat opaque bytes as a Tensor wire contract.
 - Choose how the checkpoint adapter uses Engine's existing detached host values within aggregate
   resource bounds; do not change their ownership or introduce backend shortcuts implicitly.
 - Implement and test Training 0004's cross-owner preflight/commit or rollback gate before an
   optional adapter claims exact, atomic recovery.
-- Select overwrite/version-retention policy and crash-durability guarantees for supported
-  filesystems.
+- Version retention beyond one explicitly replaceable target and cross-filesystem or remote
+  durability remain later product decisions. Version 1 has no non-atomic fallback.
 - Decide when a closed built-in declarative model descriptor has a concrete consumer; arbitrary
   lambdas remain code-defined regardless.
 
