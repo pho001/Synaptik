@@ -275,10 +275,11 @@ Model, Compiler, Engine, and concrete-backend path is executable.
 ### `extensions/training`
 
 Owns public backend-neutral optimizer algorithms, reusable training sessions, training steps, and
-detached in-memory optimizer/session state. The implemented first lifecycle provides `Optimizer`,
-`Sgd`, `GradientMode`, `TrainingSession`, `TrainingStep`, and `TrainingState` over parameters
-declared by `extensions/nn`; it does not own `Parameter`, `Buffer`, layer behavior, or train/eval
-mode. Parameter groups, Adam, and AdamW remain future Training work.
+detached in-memory optimizer/session state. The implemented lifecycle provides `Optimizer`,
+`Sgd`, `Adam`, `AdamW`, `ParameterGroup`, `GradientMode`, `TrainingSession`, `TrainingStep`, and
+`TrainingState` over parameters declared by `extensions/nn`. Ordered groups may assign different
+algorithms to parameters within one session and one global optimizer step. Training does not own
+`Parameter`, `Buffer`, layer behavior, or train/eval mode.
 
 The dependency direction is Model and NN into Training, plus Training's intentional dependency on
 the public Engine facade. Training uses one Engine compile and one Engine inference session; it

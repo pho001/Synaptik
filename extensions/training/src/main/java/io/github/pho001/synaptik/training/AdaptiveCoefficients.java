@@ -2,7 +2,21 @@ package io.github.pho001.synaptik.training;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
 
-/** Validated, dtype-narrowed coefficients shared by the two adaptive algorithms. */
+/**
+ * One parameter assignment's validated adaptive coefficients in its optimizer arithmetic domain.
+ *
+ * <p>{@link #forParameter(Optimizer, DataType)} resolves the algorithm once at session open.
+ * FLOAT64 assignments retain binary64 values; FLOAT32, BFLOAT16, and FLOAT16 assignments store
+ * values narrowed to binary32. The decoupled flag distinguishes AdamW's parameter scaling from
+ * Adam's gradient-coupled decay without selecting an algorithm inside the element loop.</p>
+ *
+ * @param learningRate finite, strictly positive update scale in the assigned arithmetic domain
+ * @param beta1 finite first-moment coefficient in {@code [0, 1)}
+ * @param beta2 finite second-moment coefficient in {@code [0, 1)}
+ * @param epsilon finite, strictly positive denominator offset
+ * @param weightDecay finite, non-negative decay coefficient
+ * @param decoupled whether decay scales the master parameter instead of entering the gradient
+ */
 record AdaptiveCoefficients(double learningRate, double beta1, double beta2,
         double epsilon, double weightDecay, boolean decoupled) {
     static void validate(double learningRate, double beta1, double beta2,

@@ -7,7 +7,8 @@ package io.github.pho001.synaptik.training;
  * to the selected gradient before updating its first and second moments. Bias-corrected moments
  * produce the adaptive subtraction. A session owns the moments; this shareable value owns none.
  * FLOAT32, BFLOAT16, and FLOAT16 parameters use coefficients narrowed once to FLOAT32 at open;
- * FLOAT64 parameters use the configured binary64 coefficients.</p>
+ * FLOAT64 parameters use the configured binary64 coefficients. Equality requires the same
+ * algorithm and exact configured binary64 coefficient bits, including the sign of zero.</p>
  */
 public final class Adam implements Optimizer {
     private final double learningRate;

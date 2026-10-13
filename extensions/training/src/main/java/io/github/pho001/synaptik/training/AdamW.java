@@ -7,7 +7,8 @@ package io.github.pho001.synaptik.training;
  * The master parameter first receives the factor {@code 1 - learningRate * weightDecay}, then
  * the bias-corrected adaptive subtraction. A session owns the moments; this shareable value owns
  * none. FLOAT32, BFLOAT16, and FLOAT16 parameters use coefficients narrowed once to FLOAT32 at
- * open; FLOAT64 parameters use the configured binary64 coefficients.</p>
+ * open; FLOAT64 parameters use the configured binary64 coefficients. Equality requires the same
+ * algorithm and exact configured binary64 coefficient bits, including the sign of zero.</p>
  */
 public final class AdamW implements Optimizer {
     private final double learningRate;
