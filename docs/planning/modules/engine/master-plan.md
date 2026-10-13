@@ -115,7 +115,7 @@ not a catch-all service registry.
 | [0016](tasks/0016-cpu-metal-mixed-owner-schedule.md) | CPU/Metal mixed-owner schedule and transfer | Complete | 0015; Prepare 0006; Runtime 0016; Metal 0004 | Added independently reviewed owner-indexed shared representations, Compiler-ordered caller inputs, complete-set Prepare routing, explicit bounded bidirectional F32 CPU/Metal transfer, ordered mixed scheduling, direct per-occurrence handle capture, rollback, and real public lifecycle evidence. |
 | [0017](tasks/0017-reusable-inference-session-api.md) | Reusable inference session API | Complete | 0016 | Added the independently reviewed thin public session that prepares one owner-bound graph once and delegates repeated/concurrent input binding, run, result, materialization, and close behavior to the existing lifecycle without another compiler, scheduler, runner, or result. |
 | [0018](tasks/0018-explicit-numerical-profile-propagation-spine.md) | Explicit numerical-profile propagation spine | Complete | Model 0027; Config 0006; current Planning/Compiler/Prepare/Engine contracts; CPU and Metal fail-closed migration points | Delivered the independently approved atomic cutover across profile-qualified Planning queries, Compiler artifacts, Prepare projection, Engine/AdvancedEngine capture, every caller, and profile-keyed backend plans/caches while keeping Runtime/Trace profile-free and relaxed capability disabled. |
-| [0019](tasks/0019-lifecycle-and-mixed-owner-test-repair.md) | Lifecycle and mixed-owner regression repair | Review needed | 0016–0018; Metal 0077; project review | Make copy/close tests deterministic, restore real heterogeneous transfer fixtures, and correct public tuning Javadoc. |
+| [0019](tasks/0019-lifecycle-and-mixed-owner-test-repair.md) | Lifecycle and mixed-owner regression repair | Complete | 0016–0018; Metal 0077; project review | Make copy/close tests deterministic, restore real heterogeneous transfer fixtures, and correct public tuning Javadoc. |
 
 ## Milestones and current frontier
 
@@ -131,7 +131,7 @@ not a catch-all service registry.
 - The reusable inference-session facade from exact base `4fc4fd3d` is Complete as 0017 after the
   required Class C and narrow documentation review sequence.
 - Historical numerical-profile spine 0018 is Complete; Model 0032 removed its profile API and
-  propagation. Current lifecycle is profile-free. Audit repair 0019 is Review needed.
+  propagation. Current lifecycle is profile-free. Audit repair 0019 is Complete.
 
 ## Live risks and gates
 
@@ -184,7 +184,7 @@ remediation `07a01b9c13c2ceea0922b9af82da3e6e08375306`.
 ## Status normalization
 
 Engine's local capability queue is Complete through 0018, with Model 0032's later profile-free
-cutover applied. Project-review test/documentation repair 0019 is Review needed.
+cutover applied. Project-review test/documentation repair 0019 is Complete.
 
 ## History and update policy
 

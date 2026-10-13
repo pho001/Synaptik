@@ -138,7 +138,7 @@ Metal uses ABI 7 with thirteen exports and one bounded schema-20 route-bearing p
 Operation wires `1..115`, attribute wires `0..41`, and type wires `1..7` cover current structural
 vocabulary. The custom-program image authenticates compact materialized slots, deterministic
 pointwise units, and qualified MATMUL/Conv2d anchor epilogues. Metal-local workload,
-exact-policy, candidate, compatibility, route-policy, and session codec identities are version 35;
+exact-policy, candidate, compatibility, route-policy, and session codec identities are version 36;
 every other identity fails closed rather than falling back. Model remains the sole semantic owner
 of numerical meaning.
 
@@ -8611,7 +8611,8 @@ Backend support is the conjunction of support for the exact `EXPAND_DIMS`, match
 whole topology as an optimization only if it preserves that meaning; neither this Model API nor
 such recognition creates or advertises a Pool1d operation capability. The current CPU backend
 recognizes only this exact private single-use topology with resolved singleton-height affine
-layouts. It keeps both rank edits virtual and reuses the schema-69 Pool2d family projection
+layouts. It keeps both rank edits virtual and reuses the Pool2d family projection under the
+current schema-70 envelope
 bytes that the matching direct Pool2d occurrence uses. Near matches retain ordinary decomposition.
 The example itself still proves Model metadata and provenance only: constructing it does not read
 values, execute pooling, guarantee that CPU recognition will apply, or promise fusion.
@@ -8955,7 +8956,7 @@ distinguishable; its selected mask is fixed for a later derivative stage. Curren
 general `unfold3d`/`fold3d` algebra. The CPU backend now supports direct non-gradient Pool3d
 execution only for fully static Shapes, resolved non-negative layouts, injective output layouts,
 BFLOAT16/FLOAT16/FLOAT32/FLOAT64 carriers, and representable checked geometry. Its scalar or
-caller-parallel generated schema-69 body owns complete output cells and uses zero workspace or
+caller-parallel generated schema-70 body owns complete output cells and uses zero workspace or
 materialization. This is backend-internal prepared execution, not value evaluation by the Model
 call, general Pool3d support for dynamic geometry, execution of `unfold3d`/`fold3d`, or a
 vector/native/fused route.

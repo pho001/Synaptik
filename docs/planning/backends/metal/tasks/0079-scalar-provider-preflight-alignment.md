@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress
+Complete
 
 ## Goal and class
 
@@ -89,3 +89,19 @@ rank repair. Its bounded standalone rank-zero correction is authorized under the
 capability contract. This adds no operation, provider domain, fusion or numerical contract.
 Resume the same clean isolated context with this revised brief. Shared version documents remain
 coordinator-owned.
+
+## Integration record
+
+Implementation `1f9a5833` integrated as `22a2f1be` after independent Class C APPROVE.
+25 focused tests passed without skips; full Metal 346 passed / 10 optional observer skips;
+21 conformance and 10 scalar integration tests passed. Javadoc passed with 46 existing warnings.
+Native source/package hashes were independently checked. Exact commands and source-matched
+identity-36 library: `backends/metal/evidence/0079/validation.json`.
+Worker guide/README/Javadocs and coordinator shared version/glossary corrections were reviewed.
+No unresolved 0079 finding; shared-document finalization and the group checkpoint passed.
+
+Completion checkpoint: [integrated review evidence](../../../project-review-2026-10-13-findings.md#final-integrated-checkpoint).
+Required independent code/Javadoc/documentation review and the combined `test javadoc` passed.
+No unresolved finding within this repair's scope.
+
+Status: Complete

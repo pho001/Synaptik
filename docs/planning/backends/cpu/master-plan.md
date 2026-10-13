@@ -250,8 +250,9 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0018 | [Shared external-read recognition validation](tasks/0018-shared-external-read-recognition-validation.md) | Complete | CPU 0008C/0008D/0008F/0017; Engine 0018 (all Complete); user chose authenticated `ValueId` binding | DAG-authenticated virtual-output provenance preserves legal shared-weight MATMUL+RELU fusion and rejects forged positions; focused and full CPU tests passed, with independent Class C approval. |
 | 0019 | [CPU partition size independent of fusion-unit size](tasks/0019-unbounded-cpu-partition-bounded-fusion-units.md) | Complete | CPU 0008B/0008D/0008E/0008F/0017; Engine 0018 (Complete); independent of 0018 | Long maximal CPU partitions now execute as bounded local units; 1,039 CPU tests and focused Engine execution passed. |
 | 0020 | [Bare MATMUL realization and strategy alignment](tasks/0020-bare-matmul-realization-strategy-alignment.md) | Complete | CPU 0008F, 0010M, 0018, 0019 (all Complete) | Default scalar and explicit vector MATMUL realization now agree with prepared strategy and species; public INT32 execution, CPU tests, and independent Class C review passed. |
-| 0021 | [Composed validation and loss binding repair](tasks/0021-composed-value-validation-and-loss-bindings.md) | Review needed | 0019–0020; project review | Fix F16 softmax reading, value checks after producers, and occurrence-level loss bindings. |
-| 0022 | [Activation extremes and low working precision](tasks/0022-activation-extremes-and-low-working-precision.md) | In progress | Reviewed/integrated 0021; current Model semantics | Fix ERF/GELU large-finite saturation and low activation F32 working sites; serialize generated identity work. |
+| 0021 | [Composed validation and loss binding repair](tasks/0021-composed-value-validation-and-loss-bindings.md) | Complete | 0019–0020; project review | Fix F16 softmax reading, value checks after producers, and occurrence-level loss bindings. |
+| 0022 | [Activation extremes and low working precision](tasks/0022-activation-extremes-and-low-working-precision.md) | Complete | Reviewed/integrated 0021; current Model semantics | Fix ERF/GELU large-finite saturation and low activation F32 working sites; serialize generated identity work. |
+| 0023 | [Vector ERF direct-Java shape](tasks/0023-vector-erf-direct-java-shape.md) | Draft | 0022 Complete; explicit selection | Follow up the bounded vector ERF timing gap and preexisting coefficient-loop shape; no broad benchmark campaign or parity claim. |
 
 ## Milestones and current frontier
 
@@ -268,8 +269,8 @@ The table owns order and status; linked tasks own detailed evidence.
   output validation hole while retaining legal MATMUL+RELU fusion. Focused and full CPU validation
   and independent Class C re-review passed. [0020](tasks/0020-bare-matmul-realization-strategy-alignment.md)
   is Complete from clean `f4e35b45`, with portable public execution and independent review
-  passing. Audit repair 0021 is approved and integrated, awaiting the combined checkpoint;
-  0022 is the active serial successor. CPU 0007A1D's historical failed performance
+  passing. Audit repairs 0021 and 0022 are Complete after independent review and the combined
+  checkpoint; 0023 is a proposed Draft follow-up. CPU 0007A1D's historical failed performance
   gate is closed as Superseded, not accepted as passing.
 - Documentation-only 0010K and 0010L and profile realization
   [0017](tasks/0017-explicit-accelerator-numerical-profile-realization.md) are Complete. CPU 0017
@@ -281,11 +282,14 @@ The table owns order and status; linked tasks own detailed evidence.
 Model 0032 removed the selectors and profile fields introduced by historical CPU 0017. The
 review baseline uses CPU generated schema 69 and explicit dtype/shape/strategy compatibility.
 FLOAT16 is an active Model type with occurrence-specific CPU support, not a future Model 0026
-prerequisite. CPU 0022 owns the next generated-semantic compatibility update. Historical profile
-integration evidence remains in its completed task records.
+prerequisite. Completed CPU 0022 advances the current generated envelope to schema 70 for
+activation-extreme and low-working-site corrections; stale schema 69 is an incompatible miss.
+Historical profile integration evidence remains in its completed task records.
 
 ## Live gates and decisions
 
+- CPU 0023 is a proposed bounded vector ERF shape follow-up, not an authorized successor. The
+  audit diagnostic shows a current timing gap, but does not establish its cause or a regression.
 - CPU 0018 closed the virtualized-output/shared-weight recognition validation hole with
   CPU-private DAG-derived `ValueId` provenance. The separate >8-node CPU graph-size choice was
   fixed by 0019: retain maximal same-owner partitions and bound only local computation units.

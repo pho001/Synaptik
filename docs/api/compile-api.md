@@ -1231,7 +1231,7 @@ ceiling-grid window, even when the terminal window is all-padding; padding exclu
 infinity empty windows, NaN propagation, signed-zero ordering, and first-logical-sample ties are
 semantic metadata. Package-private structural capture and descriptor verification are current.
 The CPU backend executes the fully static resolved-layout non-gradient subset through its direct
-schema-69 generated route. Metal executes the fully static FLOAT64/FLOAT32/BFLOAT16/FLOAT16 subset
+schema-70 generated route. Metal executes the fully static FLOAT64/FLOAT32/BFLOAT16/FLOAT16 subset
 through its fixed custom program, preserving exact gradient metadata for later
 ownership decisions. Current package-private first-order autograd reconstructs the exact first
 eligible logical winner from the original input and the same-occurrence public output, including
@@ -1249,7 +1249,7 @@ BFLOAT16, FLOAT16, and FLOAT32, FLOAT64 accumulation/division for FLOAT64, one f
 documented NaN/infinity/signed-zero/all-padding policies. Dynamic spatial non-negativity remains a
 future compiler-validation or concrete-binding obligation. Package-private structural capture and
 descriptor verification are current. The CPU backend executes the fully static resolved-layout
-non-gradient subset through its direct schema-69 generated route. Metal executes fully static
+non-gradient subset through its direct schema-70 generated route. Metal executes fully static
 qualified FLOAT32 through its fixed custom program. Current package-private first-order autograd
 divides by a logical typed `kernelHeight * kernelWidth` count and routes every window position
 through public expansion and overlap-accumulating fold expressions. Explicit `contiguous()`
@@ -1279,7 +1279,7 @@ same-occurrence output. Its equality preserves dominant NaN, signed-zero orderin
 infinity, first-winner, and all-padding behavior before one-hot routing and `fold3d` accumulation.
 The maximum selector is a fixed non-differentiable mask for a later derivative stage, while the
 incoming branch remains differentiable. The CPU backend advertises and prepares only the fully
-static resolved-layout non-gradient BFLOAT16/FLOAT16/FLOAT32/FLOAT64 subset. Its schema-69 direct
+static resolved-layout non-gradient BFLOAT16/FLOAT16/FLOAT32/FLOAT64 subset. Its schema-70 direct
 generated body uses scalar compute, optionally distributes complete output-cell ranges through
 caller-owned workers, and declares zero workspace or materialization. Metal separately executes
 fully static maximum Pool3d for the same four carriers and qualified

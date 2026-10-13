@@ -31,6 +31,9 @@ incidental unshifted-EXP overflow, retaining precise input NaN/infinity, empty, 
 and publication rules. Preserve the current stable CPU algorithm where conforming; do not
 replace useful finite probabilities with NaNs solely to reproduce accidental intermediate overflow.
 
+Owner response (2026-10-13): decide after the final repository-review report. No direction or
+contract implementation has been approved; retain this task as Draft and G1 as open.
+
 This is a proposal, not a change to authority. The owner must choose exact observable semantics
 and whether softmax/log-softmax share the same stable construction. Do not generalize permission
 to every composite, attention, log-sum-exp, normalization or fusion by analogy.

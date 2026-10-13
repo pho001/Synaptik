@@ -92,7 +92,7 @@ Engine user facade.
 | 0006 | [Persistent prepared-resource finalization transaction](tasks/0006-persistent-prepared-resource-finalization-transaction.md) | Complete | Runtime 0016; ADR 0013 | Returns each executable and its acquisition-ordered persistent resources atomically, rolls identity-unique resources back across every later preparation failure, and transfers successful ownership once to `PreparedExecution`; CPU remains resource-free. |
 | 0007 | [Partition preparer guide status reconciliation](tasks/0007-partition-preparer-guide-status-reconciliation.md) | Complete | 0006; current CPU/Engine/tuning lifecycle | Reconciled the focused guide with current fixed CPU preparation, Engine/tuning composition, per-run representations, and transactional persistent-resource ownership. |
 | 0008 | [Backend partition finalization glossary status reconciliation](tasks/0008-backend-partition-finalization-glossary-status-reconciliation.md) | Complete | 0007; CPU 0010K; Engine 0013; current CPU finalizer/integration evidence | Corrected and independently reviewed the stale CPU composition and topology status in the shared finalization glossary entry. |
-| 0009 | [Complete duplicate-resource rollback](tasks/0009-complete-resource-rollback-on-duplicate.md) | Review needed | 0006/0008; project review | Retain trailing transferred owners before duplicate rejection and close each unique resource once. |
+| 0009 | [Complete duplicate-resource rollback](tasks/0009-complete-resource-rollback-on-duplicate.md) | Complete | 0006/0008; project review | Retain trailing transferred owners before duplicate rejection and close each unique resource once. |
 
 ## Milestones and current frontier
 
@@ -101,7 +101,7 @@ Engine user facade.
 - Opaque tuning transport, producerless published-constant assignment, and the persistent-resource
   transaction are Complete through 0006.
 - Runtime 0016 and Engine 0010 complete the adjacent owner and outward-handle lifecycle.
-  Model 0032's profile-free cutover is Complete. Repair 0009 is the active Prepare frontier;
+  Model 0032's profile-free cutover and independently reviewed repair 0009 are Complete;
   historical Metal 0051 is not a pending Prepare prerequisite.
 
 ## Live risks and gates

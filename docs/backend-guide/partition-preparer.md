@@ -560,7 +560,7 @@ its typed custom step in the same fixed custom partition. The
 preparer may replace only a qualified private MATMUL/Conv2d suffix with one typed anchor
 instruction. It preserves typed
 ingress, target and internal physical byte geometry, window/index obligations, unsigned-32-bit
-geometry and the schema-twenty/version-thirty-five route identity without
+geometry and the schema-twenty/version-thirty-six route identity without
 widening capability. Every other identity fails closed.
 
 Metal's one closed prepared-route identity owns the existing candidate wires `1..3` and the

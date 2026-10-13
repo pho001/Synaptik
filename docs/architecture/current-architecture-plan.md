@@ -127,10 +127,12 @@ a materialized suffix intermediate.
 Current Metal uses ABI 7 with thirteen exports and one bounded schema-20 route-bearing program
 image over type wires `1..7`, operation wires `1..115`, attribute wires `0..41`, and route wires
 `1..3`. Structural coverage is `103 / 12`; production capability is exactly `88 / 27` over
-operation kinds. Backend-local tuning identities are version 35. Schema 19 and identity 29 are
+operation kinds. Backend-local tuning identities are version 36. Schema 19 and identity 29 are
 historical pre-cutover allocations; identity 30 is the historical cutover value and 31 the
 superseded FLOAT32 `EXP` value; 32 is the superseded low-`EXP` value and 33 the superseded
-FLOAT32 `SIGMOID` value; 34 is the superseded low-`SIGMOID` value. All are rejected as stale.
+FLOAT32 `SIGMOID` value; 34 is the superseded low-`SIGMOID` value and 35 is the superseded
+native-boundary and exact low-value repair value. All are rejected as stale. Identity 36 corrects
+standalone scalar admission without expanding the provider domain.
 
 The historical 508-row v1 capability ledger recorded both numerical profiles. The current
 254-row v2 ledger snapshots actual current profile-free provider answers, including separately
@@ -140,15 +142,17 @@ false. Neither ledger asserts route,
 runtime/device, or generated-backward
 ownership. The separate append-only identity-allocation
 ledger records the pre-cutover Model ordinal 6, Metal type wire 7, schema 19, identities 29, CPU
-generator schema 68, and native ABI 7. Current CPU generator schema is 69; current Metal program
-schema is 20 with a 124-byte header; current tuning identity is 35; native ABI remains 7.
+generator schema 68, and native ABI 7. Current CPU generator schema is 70; current Metal program
+schema is 20 with a 124-byte header; current tuning identity is 36; native ABI remains 7.
+CPU schema 70 rejects stale schema-69 artifacts after activation-extreme and low-working-site
+repairs; it does not change Model's numerical contract.
 
 Low-precision trace identifies the selected custom route and reports its ordered logical boundary
 dtype tuple, with no profile. It has no accumulator or working-type field: FLOAT32 working values and
 accumulators remain a separate Model arithmetic guarantee, not a trace fact. The trace carries no
 hypothetical candidate or removed certificate/environment state. Metal has no
 compilation/executable/preparation cache. Its tuning values are session-scoped and bind the dtype,
-ABI, schema/policy, program semantics, route candidate, and random context nonce. CPU schema-69
+ABI, schema/policy, program semantics, route candidate, and random context nonce. CPU schema-70
 artifact identity also distinguishes BFLOAT16 from FLOAT16 despite their shared short carrier.
 
 The Training extension now owns a public reusable

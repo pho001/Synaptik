@@ -51,14 +51,14 @@ parameters declared by `extensions/nn`.
 
 ## Dependency DAG and authorized frontier
 
-`0001E -> 0002A -> 0002B -> 0002C` is the active correctness-repair chain.
+`0001E -> 0002A -> 0002B -> 0002C` is the completed correctness-repair chain.
 Future work is `0003A (scope decision) -> 0003 (progress state) -> 0004 (restore handoff) -> 0005`.
 Task 0004 also depends on Checkpoint 0001's accepted architecture and Checkpoint 0004's model
 artifact. It does not depend on the implemented Training Checkpoint adapter (Checkpoint 0006).
 [0002A](tasks/0002a-sgd-parameter-groups.md) is Complete after focused validation, independent
 Class B review, and the integration-owner `./gradlew test javadoc` checkpoint.
 [0002B](tasks/0002b-adam-and-adamw-optimizers.md) is Complete after independent Class B approval
-and the integration-owner repository test/Javadoc checkpoint. Audit repair 0002C is Review needed;
+and the integration-owner repository test/Javadoc checkpoint. Audit repair 0002C is Complete;
 0003–0005 remain Draft behind the explicitly owned 0003A decision. Governing
 headings are `ARCHITECTURE.md` scope index, module ownership and dependency rules, plus
 `docs/architecture/contracts/extensions-training.md` sections `extensions/nn`,
@@ -80,7 +80,7 @@ extends only Training-owned state. NN keeps parameter declaration and traversal 
 | [0001E](tasks/0001e-demand-driven-optimizer-candidates.md) | Demand-driven optimizer candidate buffers | Complete | 0001D | Inactive staging is demand-driven; active slots and rollback remain provisioned. |
 | [0002A](tasks/0002a-sgd-parameter-groups.md) | SGD parameter groups | Complete | 0001E | Disjoint path-based SGD overrides have exact state/restore identity and preserve ungrouped behavior. |
 | [0002B](tasks/0002b-adam-and-adamw-optimizers.md) | Adam and AdamW optimizer state | Complete | 0002A | Mixed SGD/Adam/AdamW groups have exact two-moment state/restore; independent review and repository checkpoint passed. |
-| [0002C](tasks/0002c-adaptive-update-operation-order.md) | Adaptive-update operation order | Review needed | 0002B; project review | Preserve documented multiply-before-divide order and finite-update admission for Adam/AdamW. |
+| [0002C](tasks/0002c-adaptive-update-operation-order.md) | Adaptive-update operation order | Complete | 0002B; project review | Preserve documented multiply-before-divide order and finite-update admission for Adam/AdamW. |
 | 0003A | Resume-state ownership and claim decision | Draft | 0002B; audit reconciliation | Name exact participating state owners and choose supported resume vs restart claims before adding state. Recommended starting point: caller-owned progress/sampler state, not an invented Data lifecycle. Requires explicit contract review. |
 | 0003 | Exact-resume progress state | Draft | 0002C; accepted 0003A decision | Implement only the selected progress/scheduler/RNG/sampler/scaler participants; current Data batching tasks do not satisfy this prerequisite. |
 | 0004 | Training checkpoint integration boundary | Draft | 0003; Checkpoint 0001 and 0004 | Expose one coordinated prevalidated state candidate before the downstream adapter; keep bytes, files, checksums, and atomic publication outside Training. |
@@ -109,7 +109,7 @@ and was pushed as `cbd14f3b`. Task 0002A added path-based SGD groups after indep
 and a successful repository test/Javadoc checkpoint, then was pushed as `19b7785c`. Task 0002B
 added mixed SGD/Adam/AdamW groups and exact two-moment state at `10d507a3`, with independent
 documentation review fix `23d1e39d` and a successful repository checkpoint. No Training task is
-Ready for new capability; numerical repair 0002C is Review needed. Exact-resume/checkpoint work
+Ready for new capability; numerical repair 0002C is Complete. Exact-resume/checkpoint work
 remains Draft, with 0003A owning its previously unassigned lifecycle decision.
 
 ## Open questions

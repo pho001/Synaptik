@@ -32,6 +32,12 @@ for ordinary valid input, or access native metadata out of bounds. P2 covers nar
 resource, API-consumer or bounded-memory failures. These priorities are repair urgency, not a
 formal security classification.
 
+All sixteen implementation findings and the test/documentation defects were repaired in ten
+independently reviewed packages. Their integrated checkpoint passed. G1 remains open by the
+owner's explicit decision to discuss it after this report; the vector ERF timing/shape follow-up
+also remains Draft. This is review-scope closure, not a claim of universal numerical or performance
+closure.
+
 | ID | Priority | Finding | Repair |
 |---|---|---|---|
 | A1 | P1 | Batched matrix–vector right gradient loses the column axis. | Compiler 0006D |
@@ -46,7 +52,7 @@ formal security classification.
 | D2 | P2 | Low ScatterAdd changes untouched raw words. | Metal 0078 |
 | D3 | P2 | Low inclusive scan seed loses negative-zero prefixes. | Metal 0078 |
 | D4 | P2 | Native invocation does not enforce exact creating-context identity. | Metal 0078 |
-| D5 | P1 | Advertised scalar RELU/MUL are rejected by Java program preflight. | Metal 0079 |
+| D5 | P1 | Advertised scalar RELU/MUL are rejected by Java preflight and the native decoder. | Metal 0079 |
 | E1 | P2 | Adam divides before multiplying and rejects a finite documented update. | Training 0002C |
 | E2 | P2 | NN public Model types are missing from an NN-only consumer's compile path. | NN 0025B |
 | F1 | P2 | Model-plan cache checks its bound after aggregate allocation. | Tuning 0005 |
@@ -235,11 +241,15 @@ unsupported” before invoking native code. The provider and its test explicitly
 but Java preflight requires a scalar RELU to be inside an anchor epilogue. The same source-level
 mismatch affects scalar MUL. The later native operation-shape checks accept matching scalar
 shapes, but earlier native decoder guards also require anchor membership. Existing raw-ABI tests
-confirm UNSUPPORTED_SHAPE; this is not only a Java guard defect.
+confirm UNSUPPORTED_SHAPE; this is not only a Java guard defect. After correcting admission,
+actual-device integration exposes a third part: the FLOAT32 MUL literal has shape `[1]`, so its
+MPSGraph result does not match the advertised rank-zero output and compilation fails. Low MUL,
+RELU/CLAMP and the mixed CPU EXP → Metal RELU case passed that diagnostic run.
 
 Repair scope: align Java/native admission with already-advertised occurrences, retain separate
 anchor-record authentication, rebuild the native package and advance compatibility identity to
-36. Prove direct/composed scalar execution on the actual device. Check advertised
+36; correct only the rank-zero MUL literal/result shape rather than globally changing shared
+scalar helpers. Prove direct/composed scalar execution on the actual device. Check advertised
 low dtypes separately and scalar CLAMP as an adjacent control. Replacing the Engine fixture with
 `exp().reshape(1)` made that transfer test valid but did not close this production finding.
 
@@ -310,7 +320,8 @@ existing NaN/infinity/empty rules and supported/rejected domains. This changes a
 contract and needs an owner decision plus
 independent Class C review. [Model 0033](modules/model/tasks/0033-stable-softmax-overflow-semantics.md)
 records the Draft decision task. No broader composite/fusion permission follows by analogy.
-An asynchronous question requested this direction; until answered and implemented, G1 remains open.
+The owner explicitly deferred this decision until after the final review report (2026-10-13).
+Model 0033 remains Draft; neither direction nor implementation is authorized, and G1 remains open.
 
 ### Test and explanation repairs
 
@@ -355,7 +366,7 @@ were captured after the first five scoped repairs; integration tests live in a s
 | Backend Contract | 9 / 4 | Minimal shared capability seam and dependency direction; no confirmed defect. |
 | CPU | 172 / 217 | Generated/direct families, validator ordering, composed binding and identity; C1–C5. |
 | OpenBLAS provider | 8 / 6 | Discovery, four-symbol boundary, thread/route qualifications; no confirmed defect. No new real-library run. |
-| Metal | 35 / 47 | Native range/context/layout, low kernels, catalog/provider truth and source/package checks; D1–D4. |
+| Metal | 35 / 47 | Native range/context/layout, low kernels, catalog/provider truth and source/package checks; D1–D5. |
 | CUDA | 1 / 0 | Marker and native scaffold, not an executable backend. |
 | NN | 46 / 41 | Public API/dependencies, state/load/init and layer graph construction; E2. |
 | Training | 13 / 5 | Optimizer staging, accumulation, rollback/snapshot and orchestration; E1. |
@@ -398,6 +409,14 @@ occurrence; no claim of universal vector/parallel/layout coverage follows from t
 6. **Platform confidence:** actual Apple-device tests and source/package authentication do not
    prove other GPU/OS behavior. Optional BF16 OpenBLAS remains blocked on ABI/full-accumulation
    semantics; that does not block current FLOAT32/FLOAT64 routes.
+7. **Vector ERF shape/performance:** CPU 0022's bounded diagnostic recorded about 3.28× FLOAT32
+   and 3.51× FLOAT64 generated/direct time. Both are vector implementations of the same numerical
+   algorithm, with 4,097 elements, one tail, one process, 3,000 warm-up pairs and seven measured
+   pairs. Production retains preexisting helper calls and coefficient loops; the direct Java
+   helper uses explicit constant Horner steps. The current gap is measured, but its cause and
+   regression versus baseline are not established. Performance parity is not proven.
+   [CPU 0023](backends/cpu/tasks/0023-vector-erf-direct-java-shape.md) records a bounded Draft
+   shape follow-up without restarting historical five-fork matrices.
 
 ## Plan reconciliation and proposed next work
 
@@ -411,7 +430,7 @@ Changes preserve historical task records while making the current map actionable
 - Compact roadmap: one active repair frontier table, all 23 area links, explicit next decisions
   and non-goals. Compact Metal master: current rules/gates plus the retained historical task table.
   The original 75 historical Metal table lines remain unchanged. Across roadmap and 23 masters,
-  active-index prose shrank from 6,128 to about 4,370 lines; completed task records were not deleted.
+  active-index prose shrank from 6,128 to 4,390 lines; completed task records were not deleted.
 - Config/Trace/CPU/Engine and future extension plans now describe the existing profile-free
   contract rather than resurrecting `STRICT_IEEE`/`ACCELERATOR` API or certificate gates.
 - Model's unbriefed obsolete FLOAT16 0026 is Superseded by delivered consolidated work, not a
@@ -429,7 +448,7 @@ Changes preserve historical task records while making the current map actionable
   limits and missing adjoints remain visible. Completed strict-era probe failures are not
   implicit prerequisites for today's qualified routes.
 
-Recommended order: finish bounded repairs and the combined checkpoint; resolve Model 0033's
+The bounded repairs and combined checkpoint are complete. Recommended next order: resolve Model 0033's
 stable-softmax contract decision before claiming numerical closure; then select Training 0003A's
 resume-state decision. If durable saving is the product priority, authorize Checkpoint's
 architecture/model-only work. Data/Text/Vision form a separately selected architecture stream.
@@ -439,16 +458,16 @@ These successor proposals remain Draft until their actual decisions and scope ar
 
 | Task | Implementation / main integration | Focused and module evidence | Independent review | State |
 |---|---|---|---|---|
-| Compiler 0006D | `e6fb9d28` / `5dead33c` | 292 Compiler tests; 4 numerical CPU integration tests; Javadoc | APPROVE | Integrated; final checkpoint pending |
-| Prepare 0009 | `ec2e7ddf` / `d7de5721` | 18 focused / 65 module tests; Javadoc | APPROVE | Integrated; final checkpoint pending |
-| Training 0002C | `97e66ee3` / `1f9ea4bd` | 11 focused / 68 module tests; Javadoc | APPROVE | Integrated; final checkpoint pending |
-| NN 0025B | `6eefd08d` / `7905036f` | NN-only and Training-only consumer compilation; 306 NN tests; architecture test; Javadoc | APPROVE | Integrated; final checkpoint pending |
-| Tuning 0005 | `ea9059dc` / `d324ee13` | 20 focused / 73 module tests; exact encoding/bounds; Javadoc | APPROVE | Integrated; final checkpoint pending |
-| CPU 0021 | `ca21c80c` / `c0559e2b` | 1,026 CPU passed / 28 skipped; 2 conformance + 6 integration passed; Javadoc | APPROVE after softmax glossary correction | Integrated; final checkpoint pending |
-| CPU 0022 | Pending | Pending | Pending | In progress, serial CPU successor |
-| Metal 0078 | `50f570d8` + docs `12babf46` / `6e8d6b26`, `1db53756` | 4 new device regressions, 340 Metal passed / 10 optional observer skips, 37 conformance passed; native/package/source-AIR/Javadoc | APPROVE after version-document correction | Integrated; final checkpoint pending |
-| Engine 0019 | `a73822ca` / `241ce92b` | 122 Engine tests, 3 final cleanup tests; 33 actual-device integration tests without skips; Javadoc | APPROVE including glossary/user-guide corrections | Integrated; final checkpoint pending |
-| Metal 0079 | Pending | Pending | Pending | In progress, serial Metal successor for D5 |
+| Compiler 0006D | `e6fb9d28` / `5dead33c` | 292 Compiler tests; 4 numerical CPU integration tests; Javadoc | APPROVE | Complete |
+| Prepare 0009 | `ec2e7ddf` / `d7de5721` | 18 focused / 65 module tests; Javadoc | APPROVE | Complete |
+| Training 0002C | `97e66ee3` / `1f9ea4bd` | 11 focused / 68 module tests; Javadoc | APPROVE | Complete |
+| NN 0025B | `6eefd08d` / `7905036f` | NN-only and Training-only consumer compilation; 306 NN tests; architecture test; Javadoc | APPROVE | Complete |
+| Tuning 0005 | `ea9059dc` / `d324ee13` | 20 focused / 73 module tests; exact encoding/bounds; Javadoc | APPROVE | Complete |
+| CPU 0021 | `ca21c80c` / `c0559e2b` | 1,026 CPU passed / 28 skipped; 2 conformance + 6 integration passed; Javadoc | APPROVE after softmax glossary correction | Complete |
+| CPU 0022 | `a1e00857` / `349709d6` | 1,033 CPU passed / 29 opt-in skips; 2 conformance + 2 public integration passed; 18 Class-Files; bounded generated/direct diagnostic; Javadoc | APPROVE, including final oracle/TSV and shared-version changes | Complete |
+| Metal 0078 | `50f570d8` + docs `12babf46` / `6e8d6b26`, `1db53756` | 4 new device regressions, 340 Metal passed / 10 optional observer skips, 37 conformance passed; native/package/source-AIR/Javadoc | APPROVE after version-document correction | Complete |
+| Engine 0019 | `a73822ca` / `241ce92b` | 122 Engine tests, 3 final cleanup tests; 33 actual-device integration tests without skips; Javadoc | APPROVE including glossary/user-guide corrections | Complete |
+| Metal 0079 | `1f9a5833` / `22a2f1be` | 25 focused passed; 346 Metal passed / 10 optional observer skips; 21 conformance + 10 scalar integration passed; native/package/source/Javadoc | APPROVE, including shared-version/glossary corrections | Complete |
 
 Independent reviewers inspected the actual diffs and relevant contracts/tests/Javadocs and reused
 successful executable evidence rather than rerunning it merely to duplicate a result. Known
@@ -457,6 +476,15 @@ resource doubles; cache allocation safety is structural plus deterministic size 
 intentional out-of-memory experiment; NN isolated source consumption is not a published-artifact
 release test. Training's new order stress tests cover FLOAT32/FLOAT64, with existing low routing
 and narrowing tests reused.
+CPU 0022 additionally exhausts both low 16-bit encoding spaces across five composites (655,360
+input/operation cases) against an independent Java oracle. The separate conformance tests execute
+128 carrier/layout/type/operation combinations, 96 with native storage; these are bounded cases,
+not universal operation coverage. Its initial module runs exposed stale schema/seal fixtures and
+one old whole-DOUBLE low-GELU structural oracle. Current fixtures and the oracle formula were
+corrected without weakening comparisons; the final committed module run passed all 1,033 active
+tests. The large generated inventory diff refreshes identity/hash/body keys over 41,336 generated
+rows, retaining 265 rejected rows and unchanged strategy/capability/disposition facts. Historical
+performance measurements are not requalified by that refresh.
 CPU's composed invalid-mask regression rejects in the NOT producer, so it does not independently
 prove failure atomicity of both attention outputs. Materialized BOOL validation lacks a combined
 sentinel regression, although source ordering confirms materialization executes before consumer
@@ -467,9 +495,63 @@ ONNX's undefined first task and the explicit architecture gate for backend disco
 post-introduction glossary heading/explicit anchors were retained. Added D5's narrow repair brief
 and final status roster receive the coordinator's final checks separately.
 
-Final combined checkpoint, native source identity and final plan-link validation: pending.
-No push is part of this review request.
+## Final integrated checkpoint
 
-Status: Incomplete
-Follow-up required: complete remaining scoped repairs/reviews, run and record integrated validation,
-and close the planning reconciliation.
+After ordered integration through CPU `349709d6` and Metal `22a2f1be`, plus the reviewed shared
+CPU70/Metal36 documentation and identity-test adjustment:
+
+```sh
+SYNAPTIK_METAL_TEST_LIBRARY=/private/tmp/synaptik-review-metal-0079/native/metal-macos-arm64/build/package-v1/macos-arm64/libsynaptik_metal_foundation.dylib ./gradlew test javadoc --max-workers=2 --console=plain
+```
+
+Result: **BUILD SUCCESSFUL**, 15 seconds; 101 actionable tasks, 35 executed, 16 from cache,
+50 up-to-date. Resulting XML contains **4,004 test cases: 3,964 passed, 0 failures/errors,
+40 skipped**. This includes reused/up-to-date results, not 4,004 freshly executed cases.
+CPU, Metal and Compiler test tasks reused matching worker build-cache results; Engine, Prepare,
+Training, Tuning, architecture, conformance and integration tests executed in the combined run.
+No second successful full repository run was performed.
+
+Skip inventory: 29 opt-in CPU performance/evidence tests, 10 optional Metal dispatch-observer
+tests, and one Engine CPU-autotuning case whose host fixture offered no eligible local-workload
+alternatives. The activation diagnostic was separately enabled and passed. No repaired scalar
+or mixed-owner Metal regression skipped. Combined integration: 119 passed / 1 skipped; backend
+conformance: 46 passed; architecture: 9 passed, including isolated NN/Training consumer compilation.
+The freshly executed actual-device integration includes 33 mixed-owner and 10 scalar Metal tests.
+
+Source-matched Apple M3 Max native package (ABI 7/schema 20, Java identity 36):
+
+- Library SHA-256: `03cba3ebfa0bbb78c1bff369ff3451c591846fd975c0034fa7f67fdd2209985a`.
+- Integrated foundation-source SHA-256: `0c79c560fb3eaed65fa2fec0b91e2602e54b5fb5146cf0683a446d1290fd9524`.
+- Both were checked against the reviewed [0079 record](../../backends/metal/evidence/0079/validation.json).
+  Build/sign/package/source checks are recorded there; unchanged shader/AIR evidence was reused.
+
+Javadoc succeeded. Existing module warnings, Vector API incubator warnings and the existing
+OpenBLAS foreign-function native-access warning remain; this audit does not claim a warning-free
+build. No universal device, performance, numerical, or dtype/layout coverage follows from this run.
+
+Final documentation checks: 3,990 local links touching 51 changed Markdown files, no broken
+target/anchor; 488 master-row/brief status comparisons, no mismatch; `git diff --check` passed.
+All 75 historical Metal table lines remain unchanged. Planning review approved the reconciliation;
+the final closure roster is independently checked without repeating executable tests.
+
+## Change size and interpretation
+
+Compared with production baseline `728680ea`, the completed repair set touches:
+
+| File group | Files | Added / removed lines, excluding documentation-only rows |
+|---|---:|---:|
+| Production/native, including implementation Javadocs/package documentation | 33 | +830 / -510 |
+| Tests and isolated consumer source | 59 | +4,074 / -270 |
+| Current test-resource identities/seals | 8 | +41,840 / -41,840 |
+| Native evidence records/source binding | 4 | +244 / -11 |
+| Build wiring | 2 | +4 / -1 |
+| Documentation, plans and this report | 51 | Status, identity and explanation changes; indexes reduced as above |
+
+The large line count is dominated by schema-dependent generated test identities, not tens of
+thousands of new implementation lines. The current inventory refresh does not relabel historical
+timings or certify every generated form. The original three user-side local commits were preserved.
+Changes are local commits; no push is part of this review request.
+
+Status: Complete — review and bounded repairs.
+Open follow-up: Model 0033's owner-deferred numerical decision, CPU 0023 Draft shape/performance
+work and the explicitly listed architecture/product/coverage risks remain outside repaired scope.

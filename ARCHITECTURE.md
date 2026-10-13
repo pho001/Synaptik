@@ -219,8 +219,10 @@ The following invariants must remain true:
   68, and Metal identity 29 are incompatible pre-cutover baselines. Metal identity 30 is the
   historical cutover value; identity 31 is the superseded FLOAT32 `EXP` value, identity 32 is the
   superseded low-`EXP` value, identity 33 is the superseded FLOAT32 `SIGMOID` value, and
-  identity 34 is the superseded low-`SIGMOID` value. The current coordinated Metal identity is
-  35. Changed
+  identity 34 is the superseded low-`SIGMOID` value and identity 35 is the superseded native-boundary
+  and exact low-value repair value. The current coordinated Metal identity is 36 for corrected
+  admission of already-advertised scalar RELU/MUL. The current CPU envelope is schema 70 for
+  corrected activation extremes and low FLOAT32 working sites; schema 69 is now stale. Changed
   serialized/generated identities advance append-only
   and reject stale inputs. The Metal profile
   wire is absent in both Java and native schema-20 decoding; source and package authentication

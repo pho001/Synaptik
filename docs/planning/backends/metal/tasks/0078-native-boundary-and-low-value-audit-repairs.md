@@ -2,7 +2,7 @@
 
 ## Status
 
-Review needed
+Complete
 
 ## Goal and class
 
@@ -84,4 +84,10 @@ Four new actual-device tests passed; full Metal 340 passed / 10 optional observe
 diff checks passed. Exact commands, environment and source hashes:
 `backends/metal/evidence/0078/validation.json`. Coordinator also corrected the glossary corpus
 fact. Shared version documentation was re-reviewed after correction.
-Only the repair group's final combined checkpoint remains. D5 belongs to serial 0079.
+The repair group's final combined checkpoint passed. D5 was separately closed by serial 0079.
+
+Completion checkpoint: [integrated review evidence](../../../project-review-2026-10-13-findings.md#final-integrated-checkpoint).
+Required independent code/Javadoc/documentation review and the combined `test javadoc` passed.
+No unresolved finding within this repair's scope.
+
+Status: Complete

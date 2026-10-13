@@ -430,14 +430,18 @@ route, program, plan, serialized, or generated behavior makes old inputs incompa
 stale inputs. Capability evidence and route qualification remain cold backend/Prepare concerns,
 not a Runtime certificate, tolerance policy, retry, or fallback layer.
 
-Current generated CPU artifact envelopes use schema 69. Current Metal images use schema 20 with a
+Current generated CPU artifact envelopes use schema 70. Current Metal images use schema 20 with a
 124-byte header, and coordinated workload, exact-policy, candidate, compatibility, route, and
-codec identities use version 35. Native ABI 7 still exposes thirteen symbols. CPU schema 68 and
+codec identities use version 36. Native ABI 7 still exposes thirteen symbols. CPU schema 68 and
 Metal schema 19/identity 29 are historical pre-cutover baselines; Metal identity 30 is the
 historical cutover value and identity 31 is the superseded FLOAT32 `EXP` value; neither is a valid
 current input. Identity 32 is the superseded low-`EXP` value and identity 33 is the superseded
 FLOAT32 `SIGMOID` value; both are rejected. Identity 34 is the superseded low-`SIGMOID` value;
-identity 35 binds the native-boundary and exact low-value repairs and rejects prior inputs.
+identity 35 is the superseded native-boundary and exact low-value repair value. Current identity 36
+binds corrected Java/native admission of already-advertised scalar RELU/MUL. CPU schema 70 binds
+corrected activation extremes and named low FLOAT32 working sites. Both reject stale inputs,
+including Metal identity 35 and CPU schema 69; neither repair changes Model semantics or expands
+provider admission.
 Native source, manifest, and package authentication remain safety gates; historical schema-19
 source certificates do not certify schema-20 programs.
 
@@ -611,7 +615,7 @@ those counts to 102/13 structural and 87/28 production; the later BFLOAT16/FLOAT
 do not change kind counts. FLOAT32 `SIGMOID` raises current counts to 103/12 structural and 88/27
 production. Counts are over operation kinds, not all dtype occurrences. Workload,
 exact-policy, candidate, compatibility, route-policy, and codec identities were version 29 before
-cutover, version 30 at cutover, version 31 for FLOAT32 `EXP`, version 32 for low `EXP`, and are now
-version 33 for FLOAT32 `SIGMOID`, version 34 for low `SIGMOID`, and now version 35 for the
-native-boundary and exact low-value repairs. Stale
+cutover, version 30 at cutover, version 31 for FLOAT32 `EXP`, version 32 for low `EXP`, version 33
+for FLOAT32 `SIGMOID`, version 34 for low `SIGMOID`, and version 35 for the native-boundary and
+exact low-value repairs. Current version 36 corrects standalone scalar admission; stale
 versions fail closed. The complete-plan wrapper retains its unrelated version-one format.

@@ -43,9 +43,10 @@ route wires 1..3. Current representative-kind audit: capability 88/27, structura
 103/12, MPSGraph catalog 74/36/5, custom catalog 73/42/0. These counts are not universal occurrence,
 dtype, layout, gradient, or performance coverage.
 
-Metal 0077 and Model 0032 are Complete. Repair 0078 is independently approved and integrated with
-identity 35 and a fixed source corpus of 84,593 bytes; its status awaits the combined checkpoint.
-Scalar preflight repair 0079 is now in progress. Neither repair adds a provider operation.
+Metal 0077 and Model 0032 are Complete. Repairs 0078 and 0079 are Complete after independent
+review and the combined source-matched checkpoint. Current identity is 36; the fixed source
+corpus remains 84,593 bytes. Scalar admission/lowering now matches the advertised provider
+domain; neither repair adds a provider operation. ABI 7 and program schema 20 are unchanged.
 
 ## Package map
 
@@ -136,18 +137,17 @@ Only the current frontier and gates after the table authorize new work.
 | 0075 | [BFLOAT16/FLOAT16 EXP custom route](tasks/0075-profile-free-low-precision-exp-custom-route.md) | Complete | 0074A Complete; 0074 Complete and qualified; 0075A Complete | Other Metal low-kernel/native/provider/schema/identity edits; resumed 0053 production | None | 0075A approved → typed custom implementation/device validation → 0069 rebind/docs → full build → final Class C APPROVE | Source-matched native/device 337 Metal + 31 conformance + 92 integration, 0069 proof/package, Javadoc/docs, and full build passed | Both low EXP custom kernels qualified; F32 MPS unchanged; identity 32; no P0/P1/P2. |
 | 0076 | [Profile-free FLOAT32 SIGMOID route](tasks/0076-profile-free-float32-sigmoid-route.md) | Complete | Model 0032 Complete; 0069 and 0074–0075 Complete | Concurrent Metal capability/native/identity/source-evidence or shared-document edits; resumed 0053 production | None | Clean `c19f16ee` → implementation/device gate → 0069 rebind → independent Class C APPROVE → closure | Native/package, 342 Metal + 32 conformance + 94 integration tests, 0069 proof, Javadoc/docs and full build passed | Bounded F32 SIGMOID uses exact sign guard and one MPSGraph EXP; low stays false; identity 33; zero review findings. |
 | 0077 | [BFLOAT16/FLOAT16 SIGMOID custom route](tasks/0077-profile-free-low-precision-sigmoid-custom-route.md) | Complete | 0076 Complete at `bcf9d3b4`; Model 0032 and Metal 0069/0074–0075 Complete | Concurrent low-kernel/native/provider/identity/source-evidence or shared-document edits | None | Typed custom/device qualification → 0069 rebind → independent Class C `APPROVE` → closure | Native/package, 346 Metal + 32 conformance + 94 integration tests, 0069 source/AIR proof, Javadoc/docs and full build passed | BF16/F16 SIGMOID independently qualified with one F32 EXP and final low narrowing; F32 route retained; identity 34; zero review findings. |
-| 0078 | [Native boundary and low-value audit repairs](tasks/0078-native-boundary-and-low-value-audit-repairs.md) | Review needed | 0077; Model 0032; project review | Other Metal/native/identity writers | PROJECT-REVIEW-2026-10-13-REPAIRS | Repair → source/package/device validation → independent review → integration | Focused device/conformance, source binding, module/Javadoc, final project checkpoint | Fix rank16 WHERE metadata, untouched low ScatterAdd words, low scan seed, and exact native context ownership. |
-| 0079 | [Scalar provider/preflight alignment](tasks/0079-scalar-provider-preflight-alignment.md) | In progress | Reviewed/integrated 0078; project review D5 | Metal admission/anchor/native writers | PROJECT-REVIEW-2026-10-13-REPAIRS, serial successor | 0078 → 0079 → combined checkpoint | Focused provider-to-device/public regression, module/Javadoc, review | Make advertised scalar RELU/MUL pass preflight without weakening anchor authentication. |
+| 0078 | [Native boundary and low-value audit repairs](tasks/0078-native-boundary-and-low-value-audit-repairs.md) | Complete | 0077; Model 0032; project review | Other Metal/native/identity writers | PROJECT-REVIEW-2026-10-13-REPAIRS | Repair → source/package/device validation → independent review → integration | Focused device/conformance, source binding, module/Javadoc, final project checkpoint | Fix rank16 WHERE metadata, untouched low ScatterAdd words, low scan seed, and exact native context ownership. |
+| 0079 | [Scalar provider/preflight alignment](tasks/0079-scalar-provider-preflight-alignment.md) | Complete | Reviewed/integrated 0078; project review D5 | Metal admission/anchor/native writers | PROJECT-REVIEW-2026-10-13-REPAIRS, serial successor | 0078 → 0079 → combined checkpoint | Focused provider-to-device/public regression, module/Javadoc, review | Make advertised scalar RELU/MUL pass preflight without weakening anchor authentication. |
 
 ## Dependency DAG and authorized frontier
 
 `Model 0032 + Metal 0069/0073 → 0074A → 0074 → 0075A → 0075 → 0076 → 0077 → 0078 → 0079`
 
-Task 0078's implementation, validation and independent review are approved and integrated;
-only the group checkpoint remains. Task 0079 is now the sole active Metal writer, correcting
-existing admission rather than adding capability. The project coordinator owns shared plans
-and final cross-module validation. Engine 0019 owns mixed-owner fixture repair and uses the
-integrated source-matched library for its final device checkpoint.
+Tasks 0078/0079 and Engine 0019 are Complete. Independent reviews and the final source-matched
+repository checkpoint passed, including genuine CPU/Metal transfer and scalar publication.
+No Metal implementation successor is authorized by this audit closure; select a concrete
+remaining capability or operational gate explicitly.
 
 ## Live gates and deferred work
 

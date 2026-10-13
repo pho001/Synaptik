@@ -119,7 +119,7 @@ algebra builder, planning adapter, backend lowering layer, or execution owner.
 | 0006B10 | [Compile integration status reconciliation](tasks/0006b10-compile-integration-status-reconciliation.md) | Complete | 0006B9; completed Planning 0007 review; current Engine and Compiler integration source/API references | Reconciled and independently reviewed the integration SPI and shared compile status against current fixed CPU-only Engine composition. |
 | 0006B11 | [Static-result logical-layout closure for public CPU execution](tasks/0006b11-static-result-logical-layout-closure-for-public-cpu-execution.md) | Complete | 0006B5–0006B10; current CPU complete-partition lowering; public Engine lifecycle | Completed canonical layouts only for explicitly proven materialized results and splats, preserved affine/view mappings, and restored public CPU compute and reusable prepared execution. |
 | 0006C | Conv3d adjoint expressibility and gradient closure | Draft | 0006B; current public Tensor algebra; any separately selected Model prerequisite | Prove exact grouped NCDHW input/weight/bias adjoints; implement only if current public algebra closes every required case, otherwise select the smallest Model prerequisite. |
-| 0006D | [Autograd audit correctness repairs](tasks/0006d-autograd-audit-correctness-repairs.md) | Review needed | 0006/0006B11; project review | Repair batched matrix/vector gradients and reject required fail-closed sibling paths; no new derivative capability. |
+| 0006D | [Autograd audit correctness repairs](tasks/0006d-autograd-audit-correctness-repairs.md) | Complete | 0006/0006B11; project review | Repair batched matrix/vector gradients and reject required fail-closed sibling paths; no new derivative capability. |
 | 0007 | Exact constant identities under profile-free semantics | Draft | 0006; explicit legality proof under current Model semantics | Reassess exact identities without broadening constant evidence or using test tolerances as rewrite permission. |
 
 ## Milestones and current frontier
@@ -131,7 +131,7 @@ algebra builder, planning adapter, backend lowering layer, or execution owner.
   result logical-layout completion, bounded-autograd documentation reconciliation, compile-artifact
   contract reconciliation, and compile-integration status reconciliation work are Complete through
   0006B11.
-- Project-review repair 0006D is Review needed and takes priority over new derivative/rewrite capability.
+- Project-review repair 0006D is Complete after independent review and the combined checkpoint.
 - 0006C and 0007 remain `Draft`, have no detailed task brief, and are independent side branches;
   0006B11 grants neither implementation authorization.
 
@@ -161,7 +161,7 @@ algebra builder, planning adapter, backend lowering layer, or execution owner.
 ## Status normalization
 
 The task table and linked task `Status`/completion summaries take precedence over historical prose.
-Current completion extends through 0006B11. Task 0006D is the separately authorized audit repair;
+Current completion extends through 0006B11 plus the independently reviewed audit repair 0006D;
 the historical coverage checkpoint is not proof of every value-level higher-order derivative.
 
 ## History and update policy

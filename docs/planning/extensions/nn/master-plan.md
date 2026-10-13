@@ -111,14 +111,14 @@ Draft rows without links have no detailed task brief.
 | 0024 | Typed model/recurrent/data integration checkpoint | Draft | 0020–0022; 0023 only if selected; Checkpoint model-state and Training publication readiness | Validate state, binding/checkpoint compatibility, variable batches, continuation, autograd/training handoff, documentation, and integration boundaries. |
 | [0025](tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) | Channels-first Conv1d, Conv2d, and Conv3d layers | Complete | 0020B; Model 0025G–0025H; Compiler 0006B and 0006B6; CPU 0008–0008A; Engine 0008 | Added rank-specific unary convolution layers/factory recipes with group-aware initialization, atomic inferred-channel binding, strict loading, and forward-only Conv3d boundary. |
 | [0025A](tasks/0025a-dimensional-convolution-user-capability-checkpoint.md) | Dimensional-convolution user-capability checkpoint | Complete | 0025; Engine 0004; CPU 0008A | Validated strict-loaded and factory convolution through public one-shot/reusable Engine workflows, numerical oracles, lifecycle ownership, and Conv3d backward rejection. |
-| [0025B](tasks/0025b-public-model-dependency-export.md) | Export public Model dependency | Review needed | Existing NN facade; project review | Correct Gradle API visibility and validate an isolated NN-only consumer. |
+| [0025B](tasks/0025b-public-model-dependency-export.md) | Export public Model dependency | Complete | Existing NN facade; project review | Correct Gradle API visibility and validate an isolated NN-only consumer. |
 
 ## Milestones and current frontier
 
 - Complete: foundation and state lifecycle (0001–0011), recurrent cells/static sequences and typed
   topology (0012–0020C), the fixed-scan architecture decision (0021A), and dimensional
   convolution plus its user checkpoint (0025–0025A).
-- Draft: 0021B–0024. None has a detailed task brief. Audit repair 0025B is Review needed.
+- Draft: 0021B–0024. None has a detailed task brief. Audit repair 0025B is Complete.
 - 0021B is the next ordered NN Draft candidate only after a planner revalidates its cross-area
   program and truthful concrete-backend coverage. It is not implementation authorization;
   Model 0032 is Complete, and the [roadmap](../../roadmap.md) owns current cross-area frontiers.

@@ -62,9 +62,12 @@ current predicate.
 This mechanism does not redesign `BackendCapabilityProvider`. The separate identity-allocation
 ledger records historical allocations: Model `DataType.FLOAT16` ordinal 6, CPU generator schema
 68, Metal type wire 7, program schema 19, backend identities 29, and native ABI 7. Current CPU
-generator schema is 69; current Metal program schema is 20 with a 124-byte header and tuning
-identity 35 (identity 30 was the profile-free cutover value, 31 the FLOAT32 `EXP` value, 32
-the low-`EXP` value, 33 the FLOAT32 `SIGMOID` value, and 34 the low-`SIGMOID` value); native ABI remains 7. The ledger is not a current-schema certificate.
+generator schema is 70; current Metal program schema is 20 with a 124-byte header and tuning
+identity 36 (identity 30 was the profile-free cutover value, 31 the FLOAT32 `EXP` value, 32
+the low-`EXP` value, 33 the FLOAT32 `SIGMOID` value, 34 the low-`SIGMOID` value, and 35 the
+native-boundary and exact low-value repair value). Identity 36 corrects admission of existing
+scalar occurrences; CPU schema 70 corrects activation generation. Neither expands provider
+admission. Native ABI remains 7. The ledger is not a current-schema certificate.
 
 ## Current shared identity, availability, and requirement vocabulary
 

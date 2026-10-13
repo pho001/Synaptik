@@ -937,16 +937,16 @@ prediction minus target and multiply that difference by itself; scalar tails use
 formula. Array, native-order segment, and ordered mixed-carrier boundaries are admitted with
 cold offsets and arbitrary valid ranges. `VECTOR` and `PARALLEL_VECTOR` introduced one shared
 schema-62 artifact identity because range count and worker orchestration are not class-shaping
-facts; current schema 69 retains that distinction. MSE `SUM` and `MEAN` retain increasing-order,
+facts; current schema 70 retains that distinction. MSE `SUM` and `MEAN` retain increasing-order,
 left-associated scalar accumulation, and every BFLOAT16, FLOAT16, mixed-type, non-contiguous,
 categorical, or shorter-than-one-species loss form retains scalar or parallel-scalar fallback.
-Scalar loss family projection remains on schema 58 under the current schema-69 envelope. This changes no public capability, architecture boundary, materialization policy, or tuning policy.
+Scalar loss family projection remains on schema 58 under the current schema-70 envelope. This changes no public capability, architecture boundary, materialization policy, or tuning policy.
 
 Completed CPU 0006 added one static resolved-layout affine-copy family through the same portable
 route. It composes bounded straight-line view chains during cold analysis, keeps eligible internal
 views virtual, and materializes only the final boundary through scalar or parallel-scalar
 represented-bit copying. Its `SHORT_ARRAY` carrier was introduced for raw BFLOAT16 movement;
-current schema 69 also uses that carrier for FLOAT16 without changing represented-bit copy semantics.
+current schema 70 also uses that carrier for FLOAT16 without changing represented-bit copy semantics.
 
 Completed CPU 0006A adds exactly one fully static resolved-layout PAD, TILE, CONCAT, or STACK
 occurrence through compact movement IR and cold geometry. It preserves one through sixteen
@@ -1145,7 +1145,7 @@ mask before loading data, counts selected positions exactly, and reuses the ordi
 state and one final rounding. Three ordered buffers plus one per-range exact-state workspace are declared;
 scalar or parallel-scalar ranges own complete output cells without mask materialization,
 partial/combine state, or selected-count workspace. Schema 45 introduced this family; current
-schema 69 retains it. Retained schema-42 ledger and performance results are historical evidence only.
+schema 70 retains it. Retained schema-42 ledger and performance results are historical evidence only.
 
 The current FP16 cutover extends masked SUM and MEAN to FLOAT16, for all four floating carriers.
 
@@ -1156,7 +1156,7 @@ cells, while three focused emitters own maximum-shift log-sum-exp, corrected two
 and exact-L1/scaled-L2 norm bodies. L1 and statistics reuse the existing per-range exact-state
 workspace; log-sum-exp and L2 use primitive locals only. Heap arrays, native-order segments, and
 mixed carriers execute through typed generated entries. Schema 46 introduced this family; current
-schema 69 retains it. This coverage adds no public/shared contract, gradient, compiler,
+schema 70 retains it. This coverage adds no public/shared contract, gradient, compiler,
 vector/native/fusion/materialization/dynamic-Shape,
 partial/combine, or cross-backend numerical promise.
 
@@ -1288,7 +1288,7 @@ decision occurs in the generated loop.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form uses schema 69 and includes the canonical lowering
+generated CPU class. The current form uses schema 70 and includes the canonical lowering
 fingerprint with typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound
 bits, and selected scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
@@ -1370,11 +1370,11 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-69 artifacts cover the complete admitted
+artifact is not by itself a prepared route. Current schema-70 artifacts cover the complete admitted
 generated CPU family inventory documented by the CPU backend guide, including pointwise, affine,
 movement, indexing, scatter/fold, ordering, random/state, reductions, normalization, convolution,
 pooling, attention, loss, and bounded fused units across their implemented carrier patterns. The
-current-only schema-69 boundary treats every other schema as a safe incompatible miss with no
+current-only schema-70 boundary treats every other schema as a safe incompatible miss with no
 migration reader. Retained earlier-schema ledgers and performance material are historical evidence,
 not current artifact claims.
 
@@ -1449,7 +1449,7 @@ and CPU 0008E representation candidates do not participate in finalization selec
 dispatch, measurement, tuning, or cache state. A pair that one represented instruction would
 consume together is retained as a typed `CO_CONSUMED_PAIR` rejection; its singles and eligible
 disjoint-consumer pairs remain candidates. Schema 53 introduced the current affine-copy body;
-current schema 69 retains it while ordinary direct generated identity remains stable.
+current schema 70 retains it while ordinary direct generated identity remains stable.
 
 The supported `CpuCompletePlanTuning` collaboration can now enumerate those retained 0008D
 topologies crossed with retained 0008E representations and freshly select one exact variant.
@@ -1806,7 +1806,7 @@ output does not skip a non-empty validation domain; after successful validation 
 generated entry and submits no worker work.
 
 CPU analysis declares unique inputs in semantic first-use order followed by one output. It selects
-one execution unit, no materialization, no workspace, and one current schema-69 artifact whose
+one execution unit, no materialization, no workspace, and one current schema-70 artifact whose
 generated class embeds carrier-, type-, family-, and access-specialized scalar or parallel-scalar
 output writers. Proved dense heap arrays use integer loop/address state; general layouts and
 segment or mixed carriers retain typed long-address traversal. Guarded frozen GATHER and GATHER_ND
@@ -2133,7 +2133,7 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The profile-free Metal instance is also implemented internally. Its version-thirty-four
+The profile-free Metal instance is also implemented internally. Its version-thirty-six
 fingerprint covers bounded route-bearing node schema 20 and
 authenticated execution extension, operation wires `1..115`, attribute wires `0..41`, type wires
 `1..7`, ordered variable-cardinality inputs/outputs, ordered feed/target/value structure,
@@ -2181,7 +2181,7 @@ batch as a plan batch would incorrectly repeat local route search.
 
 The profile-free Metal batch is session-scoped. It contains only the complete
 `CUSTOM_SINGLE_NEG`, `CUSTOM_PROGRAM`, and `MPSGRAPH` configurations valid for the exact partition
-under the one Model contract. Compatibility, candidate, and route-policy identities are version thirty-four; every
+under the one Model contract. Compatibility, candidate, and route-policy identities are version thirty-six; every
 other identity fails closed, and no private field crosses the marker-role boundary.
 
 ### Complete-plan candidate
@@ -2221,11 +2221,11 @@ decision contains no measurement, cache representation, executable, provider, na
 physical resource, or Runtime state.
 
 The profile-free Metal decision follows the same owner-defined pattern with a bounded
-checksummed version-thirty-four session codec. Fresh Metal analysis regenerates current occurrence/
+checksummed version-thirty-six session codec. Fresh Metal analysis regenerates current occurrence/
 topology facts and accepts a selection only when schema, workload, exact context session, and
 candidate identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session,
-version-thirty-three and earlier and unknown-candidate bytes. These bytes are not a
-workload-cache artifact and have no current `tools/tuning` adapter.
+version-thirty-five and earlier and unknown-candidate bytes. These bytes remain session-scoped
+through the existing bounded Engine tuning collaboration, not durable workload-cache artifacts.
 
 The generic Phase-2 tool may persist a decision only when its producer declares persistent reuse,
 supplies a bounded encoding, and decodes that encoding back to an equal compatible decision. That
@@ -5517,7 +5517,7 @@ finite steps including legal length-one `Long.MIN_VALUE`, handles scalar and emp
 supports arbitrary disjoint scalar or parallel-scalar ranges across heap, segment, and mixed
 carriers. Output/input physical overlap is rejected; exact same-value base/update inputs may share
 one deduplicated boundary. Schema 15 introduced the slice-update family/rank/map structure, and
-current schema 69 retains it; concrete placement remains cold. Functional scatter and overlap fold
+current schema 70 retains it; concrete placement remains cold. Functional scatter and overlap fold
 are separate current CPU portable families.
 
 ### Target-relative crop
@@ -5585,7 +5585,7 @@ Complete-slice ranges use zero workspace. Both kinds use a stable three-pass
 maximum/compensated-shifted-exponential-sum/final-store algorithm. SOFTMAX computes exponentials
 and division but no logarithm; LOG_SOFTMAX computes one `Math.log(sum)` per slice and stores the
 shift minus that logarithm. Schema 47 introduced the direct typed generated family, which current
-schema 69 retains. These facts are CPU-private algorithm and capability boundaries, not unsupported cross-backend semantic or
+schema 70 retains. These facts are CPU-private algorithm and capability boundaries, not unsupported cross-backend semantic or
 bitwise promises.
 
 ### Layer normalization
@@ -6640,7 +6640,7 @@ accumulation/rounding rules. Compiler inference and gradients therefore traverse
 rank-edit and Pool2d occurrences. Backend support means support for every visible component with
 its actual descriptors and attributes, never a synthetic Pool1d capability. The current CPU
 backend additionally recognizes only the exact private single-use three-node topology, keeps both
-rank edits virtual, and reuses the schema-69 Pool2d family projection. Recognition is an
+rank edits virtual, and reuses the Pool2d family projection under the current schema-70 envelope. Recognition is an
 optimization over the visible components, not a new operation, capability, or artifact. See
 [NCW Pool1d composition](api/tensor-api.md#ncw-pool1d-composition).
 
@@ -6667,7 +6667,7 @@ uses its fixed logical kernel divisor and overlap fold. Maximum Pool3d reconstru
 eligible first winner from the same-occurrence output, preserving padding exclusion, NaN,
 signed-zero, real-negative-infinity, and all-padding distinctions; that selector is fixed for a
 later derivative stage. The current CPU backend executes the fully static, resolved non-negative-
-layout, non-gradient BFLOAT16/FLOAT16/FLOAT32/FLOAT64 subset with one direct schema-69 generated
+layout, non-gradient BFLOAT16/FLOAT16/FLOAT32/FLOAT64 subset with one direct schema-70 generated
 scalar body and optional caller-owned parallel output-cell ranges. It uses zero workspace and
 materialization. This does not imply dynamic geometry, Pool3d gradients, `UNFOLD3D`/`FOLD3D`
 execution, pooling fusion, vector/native routes, or cross-backend performance. See

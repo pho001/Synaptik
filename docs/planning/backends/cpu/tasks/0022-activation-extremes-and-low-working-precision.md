@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress
+Complete
 
 ## Goal and class
 
@@ -64,3 +64,25 @@ No CPU writer is active. Current Model named-site and special-value contracts al
 these fixes; no architecture or new capability decision is needed. Use the clean main revision
 containing this Ready brief as the isolated worktree base. Metal 0079 has disjoint code and
 neither worker edits shared version documents.
+
+## Integration record
+
+Implementation `a1e00857` integrated as `349709d6` after independent Class C APPROVE.
+Eight production files, forty tests/resources and the CPU guide changed; the shared compatibility
+facts and identity conformance assertion were integrated by the coordinator. CPU module:
+1,033 passed / 29 opt-in skips; two conformance and two public integration tests passed.
+The conformance tests exercise 128 combinations, 96 with native storage. Javadoc passed with
+94 existing warnings. Eighteen retained Class-Files and independent Java oracles cover the
+changed generated bodies; both low encodings were exhausted over five activation composites.
+Current TSV/seal expectations and one obsolete low-GELU structural oracle were corrected;
+assertions and historical performance evidence were not weakened or relabeled.
+
+Bounded generated/direct diagnostics do not prove parity: vector ERF ratios were about 3.28x F32
+and 3.51x F64. CPU 0023 is a separate Draft shape follow-up. No numerical blocker remains in
+this repair; Model 0033's softmax contract decision is separate and still deferred.
+
+Completion checkpoint: [integrated review evidence](../../../project-review-2026-10-13-findings.md#final-integrated-checkpoint).
+Required independent code/Javadoc/documentation review and the combined `test javadoc` passed.
+No unresolved finding within this repair's scope.
+
+Status: Complete

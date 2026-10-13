@@ -36,7 +36,7 @@ final class LowPrecisionIdentityContractTest {
                 },
                 DataType.values());
 
-        assertEquals(69, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(70, CpuGeneratorSchema.CURRENT_VERSION);
 
         assertEquals(
                 20,
