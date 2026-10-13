@@ -1,0 +1,124 @@
+{
+  "task": "0079-scalar-provider-preflight-alignment",
+  "date": "2026-10-13",
+  "status": "implementation-validated; independent review and combined checkpoint coordinator-owned",
+  "baseRevision": "b3c489014b8414c7cc4ad326da85f41105eed750",
+  "authorizedBriefRevision": "e9cf5a224809da26a298470463d1321fc1d01c20",
+  "worktree": "/private/tmp/synaptik-review-metal-0079",
+  "branch": "review/metal-0079",
+  "changedFiles": [
+    "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNativeApi.java",
+    "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegRouteCandidateGenerator.java",
+    "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegTuningBatch.java",
+    "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegTuningCodec.java",
+    "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalLocalWorkloadTuning.java",
+    "backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/package-info.java",
+    "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalScalarAdmissionTest.java",
+    "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphRawAbiNativeTest.java",
+    "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNegRouteCandidateGeneratorTest.java",
+    "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
+    "native/metal-macos-arm64/README.md",
+    "testing/backend-conformance/src/test/java/io/github/pho001/synaptik/testing/conformance/LowPrecisionIdentityContractTest.java",
+    "testing/backend-conformance/src/test/java/io/github/pho001/synaptik/testing/conformance/MetalScalarCapabilityConformanceTest.java",
+    "testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineScalarMetalIntegrationTest.java",
+    "docs/backend-guide/metal-backend.md",
+    "backends/metal/evidence/0069/source-compiler-site-certificate.json",
+    "backends/metal/evidence/0079/validation.json"
+  ],
+  "repair": {
+    "java": "Remove only the standalone rank-zero RELU/scalar-MUL anchor-membership prerequisite; retain same-shape, type, gradient, route and geometry checks.",
+    "nativeDecoder": "Remove the corresponding rank-zero membership bookkeeping; actual fused-record authentication and resource/memory-safety validation remain unchanged.",
+    "float32ScalarMultiply": "In synaptik_metal_create_decoded's SCALAR_MUL branch only, reshape an MPSGraph [1] result to its declared rank-zero output. exact_float32_scalar still supplies the same raw [1] literal; multiplication, scalar bits and the final output-shape check remain unchanged.",
+    "control": "RELU and CLAMP use existing exact custom steps. BFLOAT16 and FLOAT16 scalar MUL use existing typed custom kernels; tested separately.",
+    "unchanged": ["Model semantics", "provider admission", "operation/type/route wires", "fusion eligibility", "shader source", "native kernel algorithms"]
+  },
+  "identity": {
+    "previous": 35,
+    "current": 36,
+    "reason": "Corrected accepted program domain requires rejecting prior session decisions despite unchanged program encoding.",
+    "constants": {
+      "MetalNegRouteCandidateGenerator.WORKLOAD_SIGNATURE_VERSION": 36,
+      "MetalNegRouteCandidateGenerator.EXACT_DEFAULT_POLICY": 36,
+      "MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION": 36,
+      "MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION": 36,
+      "MetalNegTuningBatch.ROUTE_POLICY_VERSION": 36,
+      "MetalNegTuningCodec.CODEC_VERSION": 36
+    },
+    "nativeAbi": 7,
+    "programSchema": 20,
+    "programHeaderBytes": 124,
+    "completePlanWrapperVersion": 1,
+    "note": "Identity 36 is Java session compatibility, not a new native schema or package manifest field. Stale identity-35 decisions with valid checksums reject."
+  },
+  "sourcePackage": {
+    "directory": "/private/tmp/synaptik-review-metal-0079/native/metal-macos-arm64/build/package-v1/macos-arm64",
+    "library": "libsynaptik_metal_foundation.dylib",
+    "librarySha256": "03cba3ebfa0bbb78c1bff369ff3451c591846fd975c0034fa7f67fdd2209985a",
+    "libraryBytes": 589280,
+    "signature": "adhoc; io.github.pho001.synaptik.metal.foundation",
+    "foundationSource": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
+    "foundationSourceSha256": "0c79c560fb3eaed65fa2fec0b91e2602e54b5fb5146cf0683a446d1290fd9524",
+    "commands": [
+      "./native/metal-macos-arm64/build.sh",
+      "/usr/bin/codesign --force --sign - --timestamp=none --identifier io.github.pho001.synaptik.metal.foundation native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib",
+      "./native/metal-macos-arm64/package-local.sh native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib",
+      "./native/metal-macos-arm64/verify-package.sh native/metal-macos-arm64/build/package-v1/macos-arm64"
+    ],
+    "result": "all succeeded; package artifacts are local build outputs, not tracked binaries"
+  },
+  "reproduction": [
+    {
+      "command": "./gradlew --max-workers=2 :backends:metal:test --tests '*MetalScalarAdmissionTest'",
+      "beforeProductionRepair": "6 tests: 3 passed, 3 failed, 0 skipped. Each dtype's advertised scalar test exposed RELU and MUL preflight rejection; CLAMP control passed."
+    },
+    {
+      "afterAdmissionRepairBeforeLoweringRepair": "Actual-device scalar integration: 8 passed, 2 FLOAT32 MUL cases failed with GRAPH_COMPILATION_FAILED (9). MPSGraph rank-one literal broadcasting disagreed with rank-zero declared output; bounded correction authorized by the revised brief."
+    }
+  ],
+  "validation": {
+    "execution": "Actual-device Gradle commands used exec require_escalated. Sandbox Gradle attempts could not acquire the wrapper lock; no sandbox failure or skipped test is counted as a pass.",
+    "environment": "SYNAPTIK_METAL_TEST_LIBRARY=/private/tmp/synaptik-review-metal-0079/native/metal-macos-arm64/build/package-v1/macos-arm64/libsynaptik_metal_foundation.dylib",
+    "focusedCommand": "SYNAPTIK_METAL_TEST_LIBRARY=/private/tmp/synaptik-review-metal-0079/native/metal-macos-arm64/build/package-v1/macos-arm64/libsynaptik_metal_foundation.dylib ./gradlew --max-workers=2 :backends:metal:test --tests '*MetalScalarAdmissionTest' --tests '*MetalMpsGraphRawAbiNativeTest.rankZeroStandaloneStepsCoexistWithAuthenticatedAnchorEpilogues' --tests '*MetalMpsGraphRawAbiNativeTest.javaAndNativeAcceptMatchingGradButRejectDisallowedScalarShapes' :testing:integration-tests:test --tests '*EngineScalarMetalIntegrationTest' :testing:backend-conformance:test --tests '*MetalScalarCapabilityConformanceTest' --tests '*LowPrecisionIdentityContractTest'",
+    "focusedResult": {"tests": 25, "passed": 25, "failed": 0, "skipped": 0, "metal": 8, "integration": 10, "conformance": 7},
+    "affectedModuleCommand": "SYNAPTIK_METAL_TEST_LIBRARY=/private/tmp/synaptik-review-metal-0079/native/metal-macos-arm64/build/package-v1/macos-arm64/libsynaptik_metal_foundation.dylib ./gradlew --max-workers=2 :backends:metal:test :backends:metal:javadoc :testing:backend-conformance:test --tests '*Metal*' --tests '*LowPrecisionIdentityContractTest'",
+    "affectedModuleResult": {
+      "build": "SUCCESSFUL",
+      "metal": {"tests": 356, "passed": 346, "failed": 0, "skipped": 10},
+      "conformance": {"tests": 21, "passed": 21, "failed": 0, "skipped": 0},
+      "rawAbiSubset": {"tests": 32, "passed": 32, "failed": 0, "skipped": 0},
+      "skipReason": "All ten MetalPointwiseDispatchObserverNativeTest cases require the optional unset SYNAPTIK_METAL_TEST_OBSERVER; no scalar regression skipped.",
+      "javadoc": "Succeeded; 46 existing warnings in unchanged MetalInvocationPlan (17) and MetalPreparationStructure (29)."
+    },
+    "coverage": [
+      "FLOAT32, BFLOAT16 and FLOAT16 independently: provider true, Java admission, public preparation and actual-device direct RELU/MUL/CLAMP",
+      "Matching false/true gradient metadata, positive ranks, special values, signed zeros, represented subnormals and low rounding boundaries",
+      "Exact RELU/CLAMP bits and NaN class; MUL only allows existing same-sign input DAZ/result FTZ, including NaN for subnormal-times-infinity after allowed input DAZ",
+      "Composed scalar MUL-RELU-CLAMP and repeated execution with changing inputs; borrowed input preservation",
+      "Metal-first scalar CPU EXP to Metal RELU preserves [cpu, metal] owners and scalar publication",
+      "Valid scalar anchor epilogues and adjacent standalone scalars remain legal; forged records, hostile geometry, wrong dtype/shape/gradient and unsupported adjacent operations still reject"
+    ],
+    "sourceEvidenceCommand": "python3 backends/metal/evidence/0069/verify-source-certificate.py",
+    "sourceEvidenceResult": "Verified after renewing only foundationSource SHA-256. All native shader headers are unchanged from the base; fixed runtime source remains 84593 bytes, SHA-256 4d8a660cf44ca388d2c3a1c53e49d085c5ba36775134dfff17cf898265c67c59. Existing compiled-MSL/AIR and proof evidence reused without rerun.",
+    "diffCheckCommand": "git diff --check",
+    "diffCheckResult": "passed",
+    "notRun": ["whole-project tests", "historical proof campaigns", "performance matrices", "unchanged AIR recompilation"]
+  },
+  "documentation": {
+    "updated": ["docs/backend-guide/metal-backend.md", "native/metal-macos-arm64/README.md", "affected Metal admission/identity Javadocs and package-info.java"],
+    "review": "Existing Model/provider/fusion Javadocs remain accurate; no semantic expansion. Independent Class C code/documentation review is assigned by coordinator to Curie, not claimed by this evidence.",
+    "coordinatorOwnedCurrentFactsToRenew": [
+      "ARCHITECTURE.md",
+      "docs/architecture/contracts/backend-execution.md",
+      "docs/architecture/current-architecture-plan.md",
+      "docs/architecture/lifecycle.md",
+      "docs/architecture/runtime-prepare-backend-boundary.md",
+      "docs/api/public-api.md",
+      "docs/api/tensor-api.md",
+      "docs/backend-guide/capability-provider.md",
+      "docs/backend-guide/partition-preparer.md"
+    ],
+    "handoff": "Replace current Metal identity-35 facts with 36, explain bounded admission/lowering repair, retain ABI 7/schema 20/header 124 and existing provider/structural counts. Integrate shared CPU-70 facts and glossary serially. LowPrecisionIdentityContractTest changes here are Metal-only; CPU remains at this worktree's base schema 69 for coordinator integration with CPU0022."
+  },
+  "remaining": ["Coordinator-owned independent Curie review", "Serial integration of shared version facts and CPU0022", "Coordinator's combined final checkpoint against this source-matched package"],
+  "knownImplementationBlockers": []
+}

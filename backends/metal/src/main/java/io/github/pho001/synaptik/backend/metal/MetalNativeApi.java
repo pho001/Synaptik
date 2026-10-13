@@ -553,6 +553,9 @@ abstract class MetalNativeApi implements AutoCloseable {
      * shape, layout, gradient, and byte-span gates. Low EXP and SIGMOID are custom only. FLOAT32 EXP or
      * SIGMOID in a custom partition remains an internal MPSGraph boundary step, and SIGMOID's
      * stable sign-guarded formula is fixed by the authenticated native source.
+     * Already-admitted RELU, scalar MUL, and CLAMP accept matching rank-zero values independently
+     * of anchor membership. This does not make other positive-rank-only operations scalar-capable
+     * or relax native authentication of actual fused execution records.
      */
     static final class ProgramExecutableAbi {
         private static final int MAX_RANK = 16;
@@ -698,12 +701,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                 throw new IllegalArgumentException(
                         "custom-only operations have no approved direct MPSGraph route");
             }
-            RankZeroAnchorRoles rankZeroAnchorRoles = authenticatedRankZeroAnchorRoles(
-                    route,
-                    graphProgram,
-                    values,
-                    targets,
-                    fusionPlan);
             for (int nodePosition = 0;
                     nodePosition < graphProgram.nodes().size();
                     nodePosition++) {
@@ -869,11 +866,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                                             + " input/output must have matching positive ranks");
                     case SCALAR_MUL ->
                             requireShape(
-                                    sameShape(left, output, valueRanks, valueDimensions)
-                                            && (valueRanks[left] >= 1
-                                                    && valueRanks[output] >= 1
-                                                || rankZeroAnchorRoles
-                                                        .scalarMultiply()[nodePosition]),
+                                    sameShape(left, output, valueRanks, valueDimensions),
                                     "SCALAR_MUL input/output shape is unsupported");
                     case EXP, SIGMOID -> requireShape(
                             (route == MetalPreparedRoute.MPSGRAPH
@@ -903,10 +896,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                                             + " input/output must have matching positive ranks");
                     case RELU ->
                             requireShape(
-                                    sameShape(left, output, valueRanks, valueDimensions)
-                                            && (valueRanks[left] >= 1
-                                                    && valueRanks[output] >= 1
-                                                || rankZeroAnchorRoles.relu()[nodePosition]),
+                                    sameShape(left, output, valueRanks, valueDimensions),
                                     "RELU input/output shape is unsupported");
                     case IS_FINITE, IS_NAN, IS_INF, LOGICAL_NOT ->
                             requireShape( sameShape(left, output, valueRanks, valueDimensions),
@@ -1557,63 +1547,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
             }
         }
-        private static RankZeroAnchorRoles authenticatedRankZeroAnchorRoles(
-                MetalPreparedRoute route,
-                MetalMpsGraphProgram program,
-                List<MetalMpsGraphProgram.ValueDescriptor> values,
-                int[] targets,
-                MetalPointwiseFusionPlan fusionPlan) {
-            boolean[] scalarMultiply = new boolean[program.nodes().size()];
-            boolean[] relu = new boolean[program.nodes().size()];
-            if (route != MetalPreparedRoute.CUSTOM_PROGRAM || fusionPlan == null) {
-                return new RankZeroAnchorRoles(scalarMultiply, relu);
-            }
-            int[] members = fusionPlan.memberNodePositions();
-            List<MetalAnchorEpilogue> recognized =
-                    MetalAnchorEpilogueRecognizer.recognize(
-                            program, values, targets);
-            for (MetalPointwiseFusionPlan.Step step : fusionPlan.steps()) {
-                if (step.kind() != MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE
-                        || step.memberStart() >= members.length) {
-                    continue;
-                }
-                int anchorPosition = members[step.memberStart()];
-                MetalAnchorEpilogue anchor = recognized.stream()
-                        .filter(candidate ->
-                                candidate.anchorNodePosition() == anchorPosition)
-                        .findFirst()
-                        .orElse(null);
-                if (anchor == null
-                        || step.anchorKindWire() != anchor.anchorKind().wire()
-                        || step.memberCount() != anchor.memberCount()
-                        || step.memberStart() + step.memberCount() > members.length) {
-                    continue;
-                }
-                boolean exactMembers = true;
-                for (int relative = 0; relative < step.memberCount(); relative++) {
-                    exactMembers &= members[step.memberStart() + relative]
-                            == anchorPosition + relative;
-                }
-                if (!exactMembers) continue;
-                List<MetalAnchorEpilogue.Operation> operations = anchor.operations();
-                for (int operationIndex = 0;
-                        operationIndex < operations.size();
-                        operationIndex++) {
-                    MetalAnchorEpilogue.Operation operation = operations.get(operationIndex);
-                    if (operation instanceof MetalAnchorEpilogue.ScalarMultiply
-                            && operationIndex == 0) {
-                        scalarMultiply[operation.nodePosition()] = true;
-                    } else if (operation instanceof MetalAnchorEpilogue.Relu
-                            && operationIndex == operations.size() - 1) {
-                        relu[operation.nodePosition()] = true;
-                    }
-                }
-            }
-            return new RankZeroAnchorRoles(scalarMultiply, relu);
-        }
-
-        private record RankZeroAnchorRoles(boolean[] scalarMultiply, boolean[] relu) {}
-
         private static boolean task0064ShapeMatches(
                 MetalMpsGraphProgram.Node node,
                 List<MetalMpsGraphProgram.ValueDescriptor> values) {

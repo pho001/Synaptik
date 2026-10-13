@@ -12,17 +12,16 @@ import java.util.Optional;
  * <p>The stable candidate order begins with the current safe heuristic. The value owns no
  * measurement, cache location, native handle, executable, physical allocation, or Runtime state.
  * Shared Prepare can transport it only through the method-free {@link BackendTuningCandidateBatch}
- * role. Version 35 binds repaired WHERE, low scatter/scan, and exact native-context ownership;
- * version 34 and earlier decisions are
- * stale even if they describe the same partition topology.
+ * role. Version 36 additionally binds standalone rank-zero RELU and scalar MUL admission;
+ * version 35 and earlier decisions are stale even if they describe the same partition topology.
  */
 final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
     /** Current candidate and decision meaning. */
-    static final int CANDIDATE_SCHEMA_VERSION = 35;
+    static final int CANDIDATE_SCHEMA_VERSION = 36;
     /** Current canonical workload/target compatibility meaning. */
-    static final int COMPATIBILITY_SCHEMA_VERSION = 35;
+    static final int COMPATIBILITY_SCHEMA_VERSION = 36;
     /** Current exact Metal operation-composition policy meaning. */
-    static final int ROUTE_POLICY_VERSION = 35;
+    static final int ROUTE_POLICY_VERSION = 36;
 
     /** Stable complete private route configurations. */
     enum Candidate {

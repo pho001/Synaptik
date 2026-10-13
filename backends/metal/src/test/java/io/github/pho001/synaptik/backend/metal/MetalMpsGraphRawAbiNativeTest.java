@@ -466,7 +466,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void rankZeroEpiloguesRequireAuthenticatedAnchorMembership() throws Throwable {
+    void rankZeroStandaloneStepsCoexistWithAuthenticatedAnchorEpilogues() throws Throwable {
         Path library = configuredLibrary();
         var validProgram = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.matmul(0, 1, 2),
@@ -527,15 +527,13 @@ class MetalMpsGraphRawAbiNativeTest {
                 standaloneMulFeeds,
                 standaloneMulTargets,
                 MetalPreparedRoute.CUSTOM_PROGRAM);
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        standaloneMulValues,
-                        standaloneMulProgram,
-                        standaloneMulFeeds,
-                        standaloneMulTargets,
-                        MetalPreparedRoute.CUSTOM_PROGRAM,
-                        standaloneMulFusion));
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                standaloneMulValues,
+                standaloneMulProgram,
+                standaloneMulFeeds,
+                standaloneMulTargets,
+                MetalPreparedRoute.CUSTOM_PROGRAM,
+                standaloneMulFusion);
         byte[] standaloneMul = standaloneMulProgram.encodedProgramImage(
                 standaloneMulValues,
                 standaloneMulFeeds,
@@ -564,15 +562,13 @@ class MetalMpsGraphRawAbiNativeTest {
                 standaloneReluFeeds,
                 standaloneReluTargets,
                 MetalPreparedRoute.CUSTOM_PROGRAM);
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        standaloneReluValues,
-                        standaloneReluProgram,
-                        standaloneReluFeeds,
-                        standaloneReluTargets,
-                        MetalPreparedRoute.CUSTOM_PROGRAM,
-                        standaloneReluFusion));
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                standaloneReluValues,
+                standaloneReluProgram,
+                standaloneReluFeeds,
+                standaloneReluTargets,
+                MetalPreparedRoute.CUSTOM_PROGRAM,
+                standaloneReluFusion);
         byte[] standaloneRelu = standaloneReluProgram.encodedProgramImage(
                 standaloneReluValues,
                 standaloneReluFeeds,
@@ -582,8 +578,8 @@ class MetalMpsGraphRawAbiNativeTest {
 
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(0, abi.create(valid, valid.length));
-            assertEquals(8, abi.create(standaloneMul, standaloneMul.length));
-            assertEquals(8, abi.create(standaloneRelu, standaloneRelu.length));
+            assertEquals(0, abi.create(standaloneMul, standaloneMul.length));
+            assertEquals(0, abi.create(standaloneRelu, standaloneRelu.length));
         }
     }
 
@@ -1150,7 +1146,11 @@ class MetalMpsGraphRawAbiNativeTest {
 
                 List<MetalMpsGraphProgram.ValueDescriptor> rankZero =
                         List.of(scalarDescriptor(DataType.FLOAT32), scalarDescriptor(DataType.FLOAT32));
-                assertThrows(
+                if (kind == MetalMpsGraphProgram.NodeKind.SCALAR_MUL) {
+                    MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                            rankZero, program, new int[] {0}, new int[] {1},
+                            MetalPreparedRoute.MPSGRAPH);
+                } else assertThrows(
                         IllegalArgumentException.class,
                         () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                                 rankZero,
@@ -1163,7 +1163,8 @@ class MetalMpsGraphRawAbiNativeTest {
                         new int[] {0},
                         new int[] {1},
                         MetalPreparedRoute.MPSGRAPH);
-                assertEquals(8, abi.create(scalarImage, scalarImage.length), kind + " rank zero");
+                assertEquals(kind == MetalMpsGraphProgram.NodeKind.SCALAR_MUL ? 0 : 8,
+                        abi.create(scalarImage, scalarImage.length), kind + " rank zero");
                 if (kind != MetalMpsGraphProgram.NodeKind.RECIPROCAL) {
                     assertThrows(
                             IllegalArgumentException.class,

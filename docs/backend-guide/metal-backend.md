@@ -4,13 +4,14 @@
 
 The Metal backend executes one whole maximal Metal-owned partition. Its active protocol is
 native ABI 7, program schema 20 with a 124-byte header, data-type wires `1..7`, operation wires
-`1..115`, attribute wires `0..41`, route wires `1..3`, and coordinated backend-local identity 35.
+`1..115`, attribute wires `0..41`, route wires `1..3`, and coordinated backend-local identity 36.
 Schema 19 and identity 29 are historical pre-cutover allocations; identity 30 is the historical
 profile-free cutover value, identity 31 is the superseded FLOAT32 `EXP` value, and identity 32 is
 the superseded low-`EXP` value. Identity 33 is the superseded FLOAT32 `SIGMOID` value and identity
-34 is the superseded low-`SIGMOID` value. None is a current decoder or tuning input. Identity 35
-binds repairs within existing capability: rank-16 false-branch WHERE geometry, raw unaddressed
-low ScatterAdd words, first-contributor low scan seeds, and exact native creating-context checks.
+34 is the superseded low-`SIGMOID` value. Identity 35 bound rank-16 false-branch WHERE geometry,
+raw unaddressed low ScatterAdd words, first-contributor low scan seeds, and exact native
+creating-context checks. Identity 36 additionally binds corrected standalone scalar RELU/MUL
+admission; prior tuning identities are stale. The program wire schema remains 20.
 
 The profile-free exact domain contains represented-bit unary operations, affine
 movement and canonicalization, indexing, replacement scatter, non-overlapping folds, classification,
@@ -50,6 +51,25 @@ The same gradient metadata relationships as the corresponding FLOAT32 occurrence
 binary arithmetic uses operand OR, scalar and reciprocal preserve the input bit, reductions and
 scans preserve differentiability, comparisons publish no-gradient BOOL, and dropout preserves its
 value role while saving a no-gradient mask and state.
+
+Canonical rank-zero values have one stored element, not an empty buffer. Already-advertised
+FLOAT32, BFLOAT16, and FLOAT16 `RELU`, scalar `MUL`, and `CLAMP` accept matching scalar input and
+output Shapes with matching gradient metadata. Their ordinary preparation does not require an
+anchor epilogue (a fused suffix attached to MATMUL or Conv2d). Authentication of actual fused
+records and the prohibition on fusion in low-containing partitions remain unchanged.
+FLOAT32 scalar MUL retains its exact rank-one literal and existing MPSGraph multiplication,
+then reshapes only a singleton result to the declared rank-zero Shape. RELU and CLAMP use their
+existing exact custom steps; low operations retain typed custom kernels.
+
+For example, a FLOAT32 scalar `x = -2` multiplied by the typed scalar `3` publishes scalar `-6`;
+following it with RELU publishes positive zero. With Metal registered before CPU, scalar
+`x.exp().relu()` keeps owners `[cpu, metal]`: scalar EXP remains CPU-owned, and the transferred
+scalar reaches Metal RELU without becoming a rank-one tensor. For `x = 0`, the result is scalar
+`1`. This repair does not admit scalar EXP, SIGMOID, FLOOR, CEIL, SIGN, or scalar ADD/SUB/DIV.
+The [scalar integration regression](../../testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineScalarMetalIntegrationTest.java)
+covers direct and composed execution, input preservation, special values, and both low types
+independently; [Task-0079 evidence](../../backends/metal/evidence/0079/validation.json) records the
+source-matched package and validation commands.
 
 The current provider also admits no-gradient `EXP` over one canonical FLOAT32, BFLOAT16, or
 FLOAT16 input and a same-type/equal-Shape canonical output: fully static positive rank `1..16`,
@@ -280,7 +300,7 @@ distinct non-physical identities. The first is an abstract availability slot, th
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
 claim. No mapping among them is implied. ABI 7 and the thirteen native exports are fixed. The
 route-bearing image is schema 20 with a 124-byte header, and every workload/exact-policy/candidate/compatibility/
-route/codec identity is version 35; prior identities 30 through 34 and every other stale identity fail closed.
+route/codec identity is version 36; prior identities 30 through 35 and every other stale identity fail closed.
 Tuning remains session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
@@ -460,7 +480,7 @@ consuming a caller position. Existing shared `GraphPreparation` tests independen
 chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, typed node records, and the
-canonical execution plan are known, analysis creates a version-thirty-five candidate batch and
+canonical execution plan are known, analysis creates a version-thirty-six candidate batch and
 workload fingerprint. Every partition containing BFLOAT16/FLOAT16 values or a selected
 Task-0066/Task-0069 occurrence forces the fixed `CUSTOM_PROGRAM` production candidate; the batch
 rejects a selected-node MPSGraph route before native allocation. Other FLOAT32 partitions retain
@@ -469,14 +489,14 @@ rank-two FLOAT32 MATMUL where no selected custom-only node requires the whole-pr
 Package-private structural forcing remains available only for a route already present in the fresh
 authenticated batch.
 
-The version-thirty-five canonical workload fingerprint covers the schema-twenty route-bearing program
+The version-thirty-six canonical workload fingerprint covers the schema-twenty route-bearing program
 image and authenticated execution extension, ordered
 input and output references, all typed attributes, logical and physical value states,
 authenticated local provenance, complete tensor descriptors and storage layouts, compact
 materialized and target sets, exact scalar/splat bits, logical-boundary roles,
 policy/candidate/route schemas, and ABI version. It encodes structural positions rather than graph
 object identity. Target compatibility also contains a fresh private nonce from the exact
-`MetalDeviceContext`; only identity 35 is accepted, while prior identities 30 through 34 and every other stale
+`MetalDeviceContext`; only identity 36 is accepted, while prior identities 30 through 35 and every other stale
 decision fail closed.
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. Every supplied handoff is accepted only when the exact
@@ -502,15 +522,15 @@ exposes this test seam.
 
 ### Session decision codec and limitations
 
-The package-private version-thirty-five Metal codec produces bounded canonical compatibility,
+The package-private version-thirty-six Metal codec produces bounded canonical compatibility,
 candidate, and checksummed decision bytes. Decode rejects wrong magic, schema, session scope,
 malformed or truncated content, trailing or corrupt bytes, changed workload or
 context, and unknown or pruned candidates. The bytes contain no native handle or executable. Only
-identity 35 is accepted; prior identities 30 through 34 and every other stale decision fail closed even when its
+identity 36 is accepted; prior identities 30 through 35 and every other stale decision fail closed even when its
 trailing checksum is otherwise valid.
 
 The public `MetalLocalWorkloadTuning` retained by `MetalBackendIntegration` wraps this codec and
-candidate generator without changing their version-thirty-five bytes. It returns a handoff only
+candidate generator without changing their version-thirty-six bytes. It returns a handoff only
 for an exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
 `MetalCompletePlanTuning` authenticates the exact Phase-1 association and exposes one complete-plan
 candidate fixed to that selected route. Both collaborations use opaque exact-owner/batch values,
@@ -525,7 +545,7 @@ device/library fingerprint.
 
 Schema-twenty workload bytes and workload compatibility include the fixed route,
 canonical execution extension, and manifest digest. Candidate and decision bytes retain route
-wires `1..3`, route-policy version thirty-five, and the target session.
+wires `1..3`, route-policy version thirty-six, and the target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
 session)` rather than a workload digest alone. The repository has no persistent Metal executable
@@ -1196,7 +1216,7 @@ persistent Metal splat binding is accepted only as a Metal read source; it canno
 destination. Runtime executes only the resulting direct prepared references.
 
 For one exact singleton NEG Metal plan, public `prepareTuned(...)` measures the complete two-route
-local batch, authenticates the selected version-thirty-five decision, then correctness-checks and
+local batch, authenticates the selected version-thirty-six decision, then correctness-checks and
 times one complete-plan candidate fixed to that route. The returned production recipe is freshly
 prepared after representative cleanup. Metal policy, producer, and decision-codec identities are
 adapter-owned and distinct from CPU identities; existing CPU bytes and behavior remain unchanged.
@@ -1340,7 +1360,7 @@ enforces the boundary before native entry. ABI version `7` exposes exactly thirt
 and accepts one bounded schema-20 route-bearing image with a 124-byte header; operation wires `1..115`, attribute wires
 `0..41`, route wires `1..3`, and type wires `1..7` cover the current structural registry without
 widening operation-kind capability. Route, candidate, compatibility, workload, exact-policy, and
-codec identities are version `32`; prior identities `30` and `31` and every other stale identity fail closed.
+codec identities are version `36`; prior identities `30` through `35` and every other stale identity fail closed.
 Current capability/structural counts are `88/27` and `103/12`; the frozen cutover counts were
 `86/29` and `101/14`.
 The complete-plan wrapper remains version `1`.

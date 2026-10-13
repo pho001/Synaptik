@@ -235,7 +235,10 @@
  * FLOAT32 exponent and one final low narrowing. An explicit low-to-FLOAT32 cast may put the
  * FLOAT32 step alongside a low custom step inside one custom partition. Backend-local workload,
  * exact-policy, candidate, compatibility, route-policy, and codec identities are version
- * thirty-five. Only schema twenty and identity thirty-five are accepted; every other schema or
- * identity value fails closed.
+ * thirty-six. This identity binds standalone rank-zero RELU and scalar MUL admission, without
+ * widening provider capability or fusion eligibility. FLOAT32 scalar MUL retains its exact
+ * rank-one literal and restores only a rank-zero result after the existing multiplication.
+ * Native program decoding still requires schema twenty; session tuning requires identity
+ * thirty-six and rejects older decision identities.
  */
 package io.github.pho001.synaptik.backend.metal;
