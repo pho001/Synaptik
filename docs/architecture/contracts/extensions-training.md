@@ -85,18 +85,37 @@ backend prepare and kernels and requires a separate architecture decision.
 
 ## `extensions/checkpoint`
 
-`extensions/checkpoint` is the model-only durable-recovery owner downstream of NN and the public
-Engine facade. Its current Gradle project is empty: it has no persistence, codec, or public Java
-API. Its direct project dependencies are exactly `extensions/nn` and `modules/engine`. This
-boundary reserves future model-state persistence without making Training or Text mandatory for a
-model-only consumer. NN retains module-state meaning and installation; Engine retains public host
-materialization. Checkpoint must not inspect backend representations or reach through Engine into
-Compiler, Runtime, Prepare, tuning, or concrete backends.
+`extensions/checkpoint` is the model-only recovery owner downstream of NN and the public
+Engine facade. Its artifact package owns a version-one, single-regular-file envelope for opaque
+bytes only. It has no Tensor, NN-state, optimizer, Engine-execution, or training schema. The
+canonical big-endian file has a fixed magic/version header, SHA-256 manifest digest, sorted strict
+ASCII names, explicit bounded lengths, and SHA-256 per-payload digests. Readers reject malformed,
+noncanonical, unsupported, over-limit, truncated, or trailing data before returning a detached
+immutable image. Callers supply bounds for file and manifest bytes, entry count, name bytes,
+individual payload bytes, and aggregate payload bytes. Readers bound the manifest length before
+allocating its array, then check aggregate length arithmetic before allocating payloads. Its direct
+project dependencies remain exactly `extensions/nn` and `modules/engine`.
+NN retains module-state meaning and installation; Engine retains public host materialization.
+Checkpoint must not inspect backend representations or reach through Engine into Compiler,
+Runtime, Prepare, tuning, or concrete backends.
+
+For a trusted existing local directory and quiescent caller-owned target, save writes a newly
+created sibling temporary file, forces that file through its writing channel, closes, reopens, and
+fully validates it against the source image, then attempts exactly one `ATOMIC_MOVE`. It may
+replace an existing regular target; it rejects a symlink or directory target before work. There
+is no copy/non-atomic fallback or portable exclusive no-replace promise. A successful move gives
+atomic live visibility of the prior complete file (or absence for a new target) or the new complete
+file, not a cross-platform guarantee that the rename survives power loss. A failed move may have
+provider-dependent target state: save reports failure, never deliberately deletes the target,
+and callers must inspect it. Pre-move failures attempt to clean the owned temporary file. An explicit
+unsupported-atomic-move result permits attempted temporary cleanup; other failed move attempts leave the
+temporary path untouched because their outcome is uncertain. No filesystem operation follows a
+successful move. The envelope is not encryption or adversarial authentication.
 
 Checkpoint must not depend on Training or Text. Model, NN, Training, Engine, and other inward
 modules must not depend on Checkpoint. If a later public Checkpoint signature directly names Model
 types, that task may add a justified direct `modules/model` edge with a coordinated root,
-contract, and architecture-test update; the present empty project has no such edge.
+contract, and architecture-test update; the present artifact-only API has no such edge.
 
 A separate optional `extensions/training-checkpoint` adapter is reserved for durable exact
 training continuation. It may depend on Training and Checkpoint, but is neither included in

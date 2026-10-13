@@ -13,7 +13,7 @@ NN StateDictionary of exact Tensor references
   -> explicit Engine host materialization
   -> immutable model-checkpoint candidate
   -> complete validation and checksums
-  -> durable atomic publication
+  -> file-flushed atomic live publication
 
 Training-owned optimizer/session snapshot
   + validated model-checkpoint candidate
@@ -21,12 +21,14 @@ Training-owned optimizer/session snapshot
   -> exact-resume artifact
 ```
 
-The artifact flows above remain future plans. [Checkpoint 0001](tasks/0001-checkpoint-module-boundary.md)
-completed the model-only boundary and empty Gradle project from base `81d50901`, after focused
+Only the opaque artifact portion of the flow is implemented; semantic model and training flows
+remain future plans. [Checkpoint 0001](tasks/0001-checkpoint-module-boundary.md)
+completed the model-only boundary and initially empty Gradle project from base `81d50901`, after focused
 validation, independent Class C review, and the repository test/Javadoc gate.
 The optional Training Checkpoint adapter is neither included nor implemented. No successor is
-Ready: [Checkpoint 0002](tasks/0002-bounded-artifact-envelope.md) is the sole serial frontier.
-Its v1 codec and filesystem policy are selected in the brief; 0003–0006 remain Draft.
+Ready: [Checkpoint 0002](tasks/0002-bounded-artifact-envelope.md) is Complete after its focused
+gate and independent Class C review. Its v1 codec and filesystem policy are selected in the brief;
+0003–0006 remain Draft.
 
 ## Architecture references
 
@@ -47,7 +49,7 @@ Its v1 codec and filesystem policy are selected in the brief; 0003–0006 remain
 ## Scope
 
 - one common bounded artifact envelope with explicit format version, manifest, payload checksums,
-  deterministic names, and durable publication policy;
+  deterministic names, and file-flushed atomic live-publication policy;
 - model checkpoint schema over stable NN state paths/kinds, Tensor data type and structural Shape,
   materialized host payloads, and model schema/config fingerprints;
 - an optional caller-supplied input-artifact fingerprint used by text applications to bind the
@@ -78,8 +80,8 @@ Its v1 codec and filesystem policy are selected in the brief; 0003–0006 remain
 
 ## Module and dependency decision
 
-The adopted empty model-only boundary and planned optional downstream adapter use two artifacts
-rather than one dependency-heavy module once persistence is implemented:
+The adopted model-only boundary and planned optional downstream adapter use two artifacts rather
+than one dependency-heavy module once model-state persistence is implemented:
 
 ```text
 modules/model -> extensions/nn
@@ -92,9 +94,11 @@ extensions/training + extensions/checkpoint
   -> optional extensions/training-checkpoint
 ```
 
-`extensions/checkpoint` will own the common durable envelope and `ModelCheckpoint`. It depends on NN
-for stable state paths and on Engine for a public host-materialization boundary. It does not depend
-on Training or Text, so inference/model-only users do not acquire those extensions.
+`extensions/checkpoint` now owns the bounded opaque envelope; the future `ModelCheckpoint` will
+give its payloads model-state meaning. Checkpoint depends on NN for stable state paths and on Engine
+for a public host-materialization boundary. It does not depend on Training or Text, so
+inference/model-only users do not acquire those extensions. The envelope forces file contents and
+provides atomic live visibility on a successful move, not portable rename crash durability.
 
 The optional `extensions/training-checkpoint` will own `TrainingCheckpoint` persistence and depend on
 Training plus Checkpoint. Training owns the meaning and validation of optimizer/session state;
@@ -209,12 +213,14 @@ Load is staged and fail-closed:
    Today's per-owner APIs do not supply one atomic transaction. No backend storage bypass or
    partial permissive mode is implied.
 
-Save publishes through a sibling temporary target on the same filesystem. It writes bounded
-payloads and checksums, writes the final manifest only after payload completion, applies the
-selected durable flush policy, reopens/validates the complete temporary artifact, and renames it to
-the final target. The implementation task must define existing-target behavior and whether lack of
-atomic rename fails or enters an explicitly named weaker mode. A normal save must never expose a
-half-written final artifact.
+The current opaque artifact save creates a sibling temporary file in a trusted local directory.
+It writes the header and manifest before the contiguous bounded payloads, forces the temporary
+file through its writing channel, closes and reopens it, and fully validates it before one
+`ATOMIC_MOVE` to the final target. A pre-existing regular target may be replaced. A symlink or
+directory target is refused before work; unsupported atomic replacement fails without a weaker
+fallback. A failed move can leave the target in a provider-dependent state. Successful publication
+gives atomic live visibility, not portable power-loss durability of the rename. Later semantic
+model and training saves must retain this envelope policy.
 
 ## Model reconstruction decision
 
@@ -238,15 +244,15 @@ lambda or added as a generic reflective registry.
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | [0001](tasks/0001-checkpoint-module-boundary.md) | Model Checkpoint module boundary | Complete | None; architecture decision is the deliverable | Empty project, contract, ADR, explanations, and dependency test reviewed; focused and repository gates passed. No persistence API or optional adapter. |
-| [0002](tasks/0002-bounded-artifact-envelope.md) | Bounded artifact envelope | Ready | 0001 Complete; corrected v1 policy in brief | Single-file, deterministic, uncompressed envelope with bounds, SHA-256, file flush and atomic live publication; no unsupported cross-platform crash-durability claim or model/training concepts. |
+| [0002](tasks/0002-bounded-artifact-envelope.md) | Bounded artifact envelope | Complete | 0001 Complete; corrected v1 policy in brief | Opaque file API, bounds, SHA-256, file flush and atomic live publication implemented; 15 checkpoint tests, Javadoc, architecture test, and independent Class C review passed. |
 | 0003 | Model schema and Engine materialization handoff | Draft | 0002; existing Engine host materialization; NN state/lazy-binding contracts | Define stable model state/config/input-artifact fingerprints and convert a complete NN state snapshot to bounded host payloads only through Engine publication/materialization. Existing Engine capability is available, but this adapter is not. |
 | 0004 | Model checkpoint save, inspect, and strict load | Draft | 0003 | Persist materialized parameters/buffers and validate the entire artifact plus recreated topology before one strict NN installation; never serialize arbitrary `Model.define` lambdas. |
 | 0005 | Training-owned exact-resume snapshot prerequisite | Draft | Training 0004; Checkpoint 0004 | Consume stabilized optimizer/session and caller-state handoff plus cross-owner preflight/commit contracts; identify which concrete caller-owned participant schemas have owner validators/restorers. Training 0004 does not depend on this adapter. |
 | 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005; supported caller-state schemas/codecs | Encode and restore only the model, Training state, effective objective contexts, and caller-owned participants with versioned bounded codecs and owner validation; reject an exact artifact for any unsupported affecting state. Model-only Checkpoint stays independent of Training. |
 | 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004; 0006 when exact training resume is selected; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, exact training resume, documentation, and dependency enforcement. |
 
-Checkpoint 0001 has made the explicit architecture decision. Checkpoint 0002 is the sole Ready
-frontier; its policy and compact brief are fixed from common serial base `6482eac7`. It conflicts
+Checkpoint 0001 has made the explicit architecture decision. Checkpoint 0002 passed independent
+review; its corrected policy and compact brief were committed at serial base `7261d11d`. It conflicts
 with concurrent edits to the artifact format or Checkpoint contract, has no parallel group, and
 precedes 0003. The 0002 implementation owner owns shared documents and runs
 `./gradlew :extensions:checkpoint:check :extensions:checkpoint:javadoc`; no second integration
@@ -311,11 +317,12 @@ This is a future protocol, not a runnable current API or an atomicity guarantee 
 
 ## Current status
 
-Model-only module-boundary implementation is Complete after focused and repository validation.
-Runtime publication still leases representations privately, while Engine already provides the
-architecture-approved host-materialization boundary. Missing work is the bounded
-codec, complete model-state handoff, and coordinated durable restore—not access to bytes through
-Engine. Training snapshots are in-memory values, not a durable, cross-owner exact-resume format.
+Model-only module-boundary implementation is Complete after focused and repository validation;
+the bounded opaque artifact codec and publication API are implemented and await independent Class C
+review. Runtime publication still leases representations privately, while Engine already provides
+the architecture-approved host-materialization boundary. Missing work is the semantic model-state
+handoff and coordinated restore—not access to bytes through Engine. Training snapshots are
+in-memory values, not a durable, cross-owner exact-resume format.
 
 ## Open questions
 
@@ -348,7 +355,7 @@ Engine. Training snapshots are in-memory values, not a durable, cross-owner exac
 - Compiled, prepared, Runtime, backend, device, and tuning artifacts are rebuilt, not checkpointed.
 - ONNX remains a separate model-interchange boundary; it neither replaces this strict NN state
   schema nor carries the complete Training exact-resume contract.
-- Complete artifact and target validation precedes any installation; durable save uses a validated
+- Complete artifact and target validation precedes any installation; artifact save uses a validated
   temporary target plus manifest/checksums and rename.
 
 

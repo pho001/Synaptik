@@ -294,13 +294,16 @@ consumer of published gradients and owner of optimizer orchestration.
 
 ### `extensions/checkpoint`
 
-Checkpoint is the model-only durable-recovery boundary. Today it is an empty Gradle project,
-downstream of NN and the public Engine facade; it has no save/load API or artifact format. NN
-still owns the meaning of module parameters and buffers, while Engine owns detached host
-materialization. A later Checkpoint implementation may persist model state only through those
-public boundaries, without reading backend storage or importing Training or Text. For example,
-a future model-only save can use an NN state view and Engine materialization without making a
-training optimizer part of the saved model. That scenario is conceptual, not a runnable API.
+Checkpoint is the model-only recovery boundary downstream of NN and the public Engine facade.
+Its current runnable artifact API saves and reads one bounded file of opaque named byte payloads.
+The file is forced and fully validated before one atomic move; success gives atomic live
+visibility, not portable power-loss persistence of the rename. It does not interpret a payload
+as a Tensor or model state. NN still owns the meaning of module parameters and buffers, while
+Engine owns detached host materialization. A later model-only adapter may use those public
+boundaries to supply payloads without reading backend storage or importing Training or Text.
+For example, capturing NN state through Engine materialization before an artifact save is a
+conceptual future flow, not a runnable model-checkpoint API. See the [artifact API](../api/checkpoint-artifact-api.md)
+and [envelope decision](../design/decisions/0032-checkpoint-artifact-envelope.md).
 
 Exact training continuation is a different problem: it also requires Training-owned state and
 caller-owned progress or random state. An optional downstream Training Checkpoint adapter is
@@ -342,7 +345,7 @@ engine     = explicit composition and public lifecycle
 trace      = typed diagnostic leaf
 nn         = module composition, parameters, buffers, and forward mode
 training   = optimizer algorithms and training orchestration
-checkpoint = model-only durable-recovery boundary (currently no persistence API)
+checkpoint = model-only recovery boundary (opaque artifact API only; no model-state persistence)
 ```
 
 The dependency implications of these responsibilities are detailed in [Dependency Rules](dependency-rules.md).

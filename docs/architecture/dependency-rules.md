@@ -84,12 +84,13 @@ three appear in Training's public signatures, the NN, Model, and Engine Gradle e
 dependencies; a consumer declaring only Training still compiles against that complete public
 surface. This is not permission to import lower execution internals.
 
-Checkpoint currently declares exactly the NN and public Engine project edges. It is an empty
-project, not a persistence API: the Engine edge reserves public host materialization, while NN
-supplies module-state ownership. A later public Checkpoint signature that names Model types may
-justify a direct Model dependency with a coordinated contract and test update; today's absence
-of that edge is not a permanent prohibition. The optional Training Checkpoint adapter is not in
-Gradle settings and must wait for its separate gate.
+Checkpoint currently declares exactly the NN and public Engine project edges. Its artifact API
+reads and publishes bounded opaque files but has no model-state persistence: the Engine edge
+reserves public host materialization, while NN supplies module-state ownership. A later public
+Checkpoint signature that names Model types may justify a direct Model dependency with a
+coordinated contract and test update; today's absence of that edge is not a permanent prohibition.
+The optional Training Checkpoint adapter is not in Gradle settings and must wait for its separate
+gate.
 
 ## Concrete forbidden dependencies
 

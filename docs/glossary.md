@@ -39,8 +39,8 @@ materialization are current. NN constructs graphs and owns declared model state.
 sessions, accumulation and SGD/Adam/AdamW state with in-memory snapshots; durable cross-owner
 checkpoint/resume behavior remains future work.
 
-CUDA, ONNX, CLI, and Checkpoint are currently marker projects. The Checkpoint project has only its
-model-only dependency boundary, with no persistence API; Data, Text, and Vision remain planned
+CUDA, ONNX, and CLI are currently marker projects. Checkpoint now has a bounded opaque artifact
+file API but no model-state save/load; Data, Text, and Vision remain planned
 areas without implementation modules. Broader trace payloads/serialization remain unfinished;
 generic backend discovery is not an authorized foundation and requires an explicit architecture
 decision before any convenience layer is planned. Consult the relevant area map before treating
@@ -2940,12 +2940,16 @@ match. Omitting `encoder.runningMean` fails before any target changes. The examp
 path/order and validate-before-install behavior; it does not read, serialize, or execute Tensor
 values.
 
-A **checkpoint** is a future persistent recovery artifact. The included model-only Checkpoint
-project currently establishes a boundary downstream of NN and public Engine, not an artifact API.
+A **checkpoint** is a future semantic recovery artifact. The included model-only Checkpoint
+project is downstream of NN and public Engine and currently offers only an opaque artifact envelope:
+a versioned, bounded single-file container with strict names, lengths, and SHA-256 integrity
+checks. It does not assign meaning to payload bytes. Saving this envelope forces its temporary
+file and uses one atomic move for live visibility; Java NIO does not portably guarantee that the
+rename survives power loss. A failed move can leave the target in a provider-dependent state.
 A separately gated optional Training Checkpoint adapter would coordinate Training-owned state and
 caller-owned continuation data without making the model-only project depend on Training. No
-checkpoint bytes, file/stream API, codec, format version, migration rule, or universal
-serialization contract exists. Existing in-memory optimizer/session snapshots and graph RNG
+model-checkpoint schema, model-state save/load, migration rule, or universal serialization
+contract exists. Existing in-memory optimizer/session snapshots and graph RNG
 expressions are not checkpoint payloads; compiler, runtime, and backend state are not part of
 model-state persistence. `StateDictionary` is only the in-memory module-state input that a future concrete
 persistence consumer may use; its enum names, record equality, and diagnostic strings are not wire

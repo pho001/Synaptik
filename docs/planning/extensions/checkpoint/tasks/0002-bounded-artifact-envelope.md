@@ -2,9 +2,8 @@
 
 ## Status
 
-Ready. Frontier verified at `6482eac7`: Checkpoint 0001 is Complete, the project exists,
-no other Checkpoint task is Ready or writing this contract, and the format/filesystem policy
-below is selected for this task. Checkpoint 0003–0006 remain Draft.
+Complete. Implemented from corrected policy base `7261d11d`, after the Ready frontier
+verified at `6482eac7`. Checkpoint 0001 is Complete; 0003–0006 remain Draft and unauthorized.
 
 ## Change class
 
@@ -21,12 +20,13 @@ Engine materialization.
 
 - One regular file, fixed magic and format version 1; canonical big-endian metadata; strict ASCII
   logical kind/entry keys, sorted entries, explicit lengths, no padding or compression. Payloads
-  are opaque bytes. A fixed header authenticates the manifest with SHA-256; the manifest records
-  each payload length and SHA-256 digest. Reject duplicate/noncanonical names, `.`/`..`, empty
+  are opaque bytes. A fixed header checks the manifest with an unkeyed SHA-256 digest; the manifest
+  records each payload length and SHA-256 digest. Reject duplicate/noncanonical names, `.`/`..`, empty
   segments, unknown versions, malformed fields, truncation, and trailing bytes.
 - Public caller-supplied limits bound file and manifest bytes, entry count, key length, each
-  payload, and checked aggregate arithmetic before allocation. An individual payload cannot
-  exceed the JVM byte-array ceiling. The returned image is detached and immutable; construction
+  payload, and aggregate payload bytes. The reader bounds encoded lengths before allocation and
+  checks aggregate arithmetic before payload allocation. An individual payload cannot exceed the
+  JVM byte-array ceiling. The returned image is detached and immutable; construction
   defensively captures caller bytes and access exposes read-only views.
 - Save into a newly created sibling temporary file in an existing trusted local directory. Write
   and `FileChannel.force(true)` the temporary file; close, reopen, and fully validate the image;
@@ -35,10 +35,11 @@ Engine materialization.
   work. The Java filesystem provider may still refuse atomic replacement, in which case save
   fails without a weaker fallback. External concurrent mutation of the target/directory is out
   of scope; do not promise exclusive no-replace semantics.
-- Guarantee atomic *live visibility* only when the move succeeds: a reader sees an old complete
-  file or the new complete file, never a partially written final file. The file's contents are
-  forced before publication on a local filesystem, but Java NIO does not portably guarantee that
-  the rename's directory entry survives a power loss. Do not claim full crash durability, try to
+- Guarantee atomic *live visibility* only when the move succeeds: a reader may see the prior
+  complete file (or absence if no target existed) or the new complete file, never a partially
+  written final file. The file's contents are forced before publication on a local filesystem,
+  but Java NIO does not portably guarantee that the rename's directory entry survives a power
+  loss. Do not claim full crash durability, try to
   manufacture it with `FileChannel.force` on a directory, or add a platform-specific fallback.
   On move failure, never deliberately delete the target; clean only owned temporary files when
   safe, and tell the caller to inspect the target if the provider's result is uncertain.
@@ -139,4 +140,18 @@ cross-module behavior changes; Checkpoint 0004 owns the end-to-end recovery chec
 
 ## Result
 
-Pending implementation and independent review.
+The opaque v1 artifact API, bounded deterministic wire reader/writer, streamed temporary-file
+validation, file force, and single atomic-move publication are implemented with focused corruption,
+limits, immutability, replacement, and failure tests. Root/scoped contracts, explanations, ADR
+0032, API reference, glossary, and affected Javadocs are current. The implementation-owner gate
+`./gradlew :extensions:checkpoint:check :extensions:checkpoint:javadoc` passed (15 tests,
+no skips or failures). The existing architecture dependency test has only its stale
+empty-project wording updated; `./gradlew :testing:architecture-tests:test --tests
+io.github.pho001.synaptik.testing.architecture.CheckpointDependencyContractTest` passed
+(one test, no skips or failures).
+
+Independent Class C architecture/documentation review completed. It found post-move temporary
+cleanup, which was corrected and verified by the 15-test gate, then signed off in a targeted
+second pass. That pass also confirmed the amended Javadocs and failure claims. Markdown links
+and anchors (478 local targets), Javadoc generation, and `git diff --check` passed. No model or
+training schema and no Gradle edge were added.

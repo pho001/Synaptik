@@ -68,7 +68,7 @@ No row below authorizes a new implementation task; select and prepare a Ready su
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions, SGD/Adam/AdamW groups and in-memory state delivered. Decision 0003A is Complete after independent Class C approval; 0003 is Superseded. Joint preflight/commit 0004 remains Draft. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | 0001 Complete. [0002](extensions/checkpoint/tasks/0002-bounded-artifact-envelope.md) Ready as the sole serial frontier with corrected v1 opaque-format, file-flush and atomic-live-publication policy; no artifact API exists yet. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | 0001–0002 Complete. Opaque artifact API, file flush and atomic live publication passed focused validation and independent Class C review; semantic model checkpoint work remains Draft. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
@@ -86,14 +86,14 @@ No row below authorizes a new implementation task; select and prepare a Ready su
    not invent a DataLoader or imply the current fixed session advances graph RNG between runs.
 3. Durable save/load is the selected next stream. [Checkpoint 0001](extensions/checkpoint/tasks/0001-checkpoint-module-boundary.md)
    has completed the model-only module boundary. [Checkpoint 0002](extensions/checkpoint/tasks/0002-bounded-artifact-envelope.md)
-   is Ready with a bounded single-file codec and strict atomic-publication policy; 0003–0004
-   remain downstream. Existing Engine materialization is not a missing prerequisite.
+   is Complete with a bounded single-file codec and atomic-live-publication policy;
+   0003–0004 remain downstream and unauthorized. Existing Engine materialization is not a missing prerequisite.
 4. In a separately selected stream, Data 0001 authorizes Data/Text/Vision architecture before
    batching or text/image APIs. Runtime recurrent adoption still needs a concrete backend route.
 
 Step 2 records a completed decision, not authorization for Training 0004
-implementation. Step 3 authorizes only Checkpoint 0002; Step 4 is a proposal, not a Ready
-implementation task.
+implementation. Step 3's Checkpoint 0002 authorization is consumed; 0003 requires its own Ready
+brief before implementation. Step 4 is a proposal, not a Ready implementation task.
 An independent performance/shape follow-up, [CPU 0023](backends/cpu/tasks/0023-vector-erf-direct-java-shape.md),
 is also Draft: the bounded vector ERF diagnostic did not demonstrate parity with direct Java.
 It is not a prerequisite for unrelated Training/Checkpoint decisions or a new broad campaign.

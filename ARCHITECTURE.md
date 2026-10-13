@@ -408,7 +408,7 @@ briefs and maintained navigation adopt the exact scoped destinations:
 | OpenBLAS provider | [Backend execution — OpenBLAS provider](docs/architecture/contracts/backend-execution.md#openblas-provider) |
 | NN | [Extensions/training — `extensions/nn`](docs/architecture/contracts/extensions-training.md#extensionsnn) |
 | Training | [Extensions/training — `extensions/training`](docs/architecture/contracts/extensions-training.md#extensionstraining) |
-| Model Checkpoint and optional Training Checkpoint adapter | [Extensions/training — `extensions/checkpoint`](docs/architecture/contracts/extensions-training.md#extensionscheckpoint) |
+| Opaque artifact envelope, Model Checkpoint, and optional Training Checkpoint adapter | [Extensions/training — `extensions/checkpoint`](docs/architecture/contracts/extensions-training.md#extensionscheckpoint) |
 | ONNX | [Extensions/training — `extensions/onnx`](docs/architecture/contracts/extensions-training.md#extensionsonnx) |
 | Optimizer/training lifecycle | [Extensions/training — optimizer/training lifecycle](docs/architecture/contracts/extensions-training.md#optimizertraining-lifecycle) |
 | CLI | [Backend execution — other tool scopes](docs/architecture/contracts/backend-execution.md#other-tool-scopes) |
@@ -431,7 +431,7 @@ This compact routing summary does not replace the linked details:
 | Typed diagnostics | Trace |
 | Stateful modules, parameters, buffers, and train/eval behavior | NN |
 | Optimizer algorithms, explicit pre-session native parameter copies, and training orchestration | Training |
-| Model-only durable checkpoint boundary | Checkpoint (currently an empty project; persistence is not yet implemented) |
+| Model-only checkpoint boundary and bounded opaque artifact envelope | Checkpoint (opaque file read/save implemented; model-state persistence is not yet implemented) |
 | Optional persistence of exact training continuation | Future Training Checkpoint adapter, after its separate gate; each state owner retains validation and restore authority |
 | Exact training continuation claim and cross-owner restore coordination | Each state owner retains its state; the caller coordinates the handoff under the [Training lifecycle contract](docs/architecture/contracts/extensions-training.md#optimizertraining-lifecycle) |
 | Fixed benchmark evidence | `tools/benchmarks` |
@@ -514,8 +514,8 @@ Concrete rules:
   materialization; it must not depend on Training, Text, Compiler, Runtime, Prepare, tuning, or
   concrete backends. No inward module or NN or Training may depend on Checkpoint. A later public
   Checkpoint API that directly names Model types may justify a direct `modules/model` dependency
-  through an explicit architecture and architecture-test update; the current empty project has no
-  such API or edge.
+  through an explicit architecture and architecture-test update; the current artifact API has no
+  such types or edge.
 - The optional `extensions/training-checkpoint` adapter may depend on Training and Checkpoint to
   coordinate durable training continuation, but is not included or implemented before its later
   adapter gate. It must not move model-only persistence into Training or make Checkpoint depend on
@@ -616,7 +616,7 @@ Architecture tests should enforce:
 - `extensions/training` depends on `extensions/nn` and may depend on the public Engine facade, but
   never directly on Runtime, Prepare, tuning, or concrete backends and never in the reverse
   direction
-- the included empty `extensions/checkpoint` project has exactly the NN and public Engine direct
+- the included `extensions/checkpoint` project has exactly the NN and public Engine direct
   project edges, no reverse NN/Training/lower-layer edges, and no included Training Checkpoint
   adapter before its separate gate
 

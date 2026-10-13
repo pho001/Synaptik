@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Protects the current model-only Checkpoint project boundary and the deferred Training
  * Checkpoint adapter gate. A later public Checkpoint API may require a separately approved Model
- * edge; this test records the empty project's present dependency set, not a permanent ban.
+ * edge; this test records the artifact-only project's present dependency set, not a permanent ban.
  */
 final class CheckpointDependencyContractTest {
     /**
@@ -43,7 +43,7 @@ final class CheckpointDependencyContractTest {
         assertEquals(List.of(
                 "implementation(project(\":extensions:nn\"))",
                 "implementation(project(\":modules:engine\"))"), projectEdges,
-                "the current empty project must have exactly the NN and public Engine edges");
+                "the current artifact-only project must have exactly the NN and public Engine edges");
 
         try (Stream<Path> moduleBuilds = Files.walk(root.resolve("modules"))) {
             for (Path build : moduleBuilds.filter(path -> path.getFileName().toString()
