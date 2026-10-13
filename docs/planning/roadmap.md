@@ -68,7 +68,7 @@ No row below authorizes a new implementation task; select and prepare a Ready su
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions, SGD/Adam/AdamW groups and in-memory state delivered. Decision 0003A is Complete after independent Class C approval; 0003 is Superseded. Joint preflight/commit 0004 remains Draft. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | 0001 Complete. [0002](extensions/checkpoint/tasks/0002-bounded-artifact-envelope.md) Ready as the sole serial frontier with selected v1 opaque-format and atomic-publication policy; no artifact API exists yet. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | 0001 Complete. [0002](extensions/checkpoint/tasks/0002-bounded-artifact-envelope.md) Ready as the sole serial frontier with corrected v1 opaque-format, file-flush and atomic-live-publication policy; no artifact API exists yet. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |

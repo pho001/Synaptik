@@ -29,24 +29,27 @@ Engine materialization.
   exceed the JVM byte-array ceiling. The returned image is detached and immutable; construction
   defensively captures caller bytes and access exposes read-only views.
 - Save into a newly created sibling temporary file in an existing trusted local directory. Write
-  and force file contents/metadata; close, reopen, and fully validate the temporary image; then
-  use one `ATOMIC_MOVE` to the requested target. No copy or non-atomic rename fallback. A
+  and `FileChannel.force(true)` the temporary file; close, reopen, and fully validate the image;
+  then use one `ATOMIC_MOVE` to the requested target. No copy or non-atomic rename fallback. A
   pre-existing regular target may be replaced; a symlink or directory target is rejected before
   work. The Java filesystem provider may still refuse atomic replacement, in which case save
   fails without a weaker fallback. External concurrent mutation of the target/directory is out
   of scope; do not promise exclusive no-replace semantics.
-- Require a successful parent-directory force after publication for the strongest local crash
-  durability claim, and fail before publication if the directory cannot be opened/forced. If the
-  post-rename force fails, report failure while explicitly allowing that the new complete file
-  is already visible; never delete the target on that path. A remote filesystem or lying device
-  is not given a power-loss guarantee. Clean only owned temporary files after failure.
+- Guarantee atomic *live visibility* only when the move succeeds: a reader sees an old complete
+  file or the new complete file, never a partially written final file. The file's contents are
+  forced before publication on a local filesystem, but Java NIO does not portably guarantee that
+  the rename's directory entry survives a power loss. Do not claim full crash durability, try to
+  manufacture it with `FileChannel.force` on a directory, or add a platform-specific fallback.
+  On move failure, never deliberately delete the target; clean only owned temporary files when
+  safe, and tell the caller to inspect the target if the provider's result is uncertain.
 - This is an initial storage contract, not encryption, authentication against an adversary who
   can rewrite both data and hashes, model schema, or training resume. The path is caller-owned;
   only a trusted directory and quiescent target are supported.
 
 The replace policy is deliberate: [Java `Files.move`](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/nio/file/Files.html#move(java.nio.file.Path,java.nio.file.Path,java.nio.file.CopyOption...))
 with `ATOMIC_MOVE` ignores other move options and does not portably guarantee no-replace behavior
-when the target exists. The format is kept
+when the target exists. [Java `FileChannel.force`](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/nio/channels/FileChannel.html#force(boolean))
+only guarantees flushing changes made through that channel, not a separate rename. The format is kept
 small and uncompressed so exact bytes, bounds, and corruption refusal are reviewable before
 semantic adapters are added.
 
@@ -106,10 +109,11 @@ semantic adapters are added.
   unsafe names, checksum mismatch, and configured limit violations fail before returning an image.
 - No reader allocation is driven by an unchecked file length; no partially validated image is
   returned. A single payload and aggregate are bounded with checked arithmetic.
-- Publication never exposes a partial final file: validation/force/move failure before rename
-  leaves an existing target unchanged and cleans its own temp; success shows the full new image.
-  Unsupported atomic move never triggers a non-atomic fallback. Post-rename directory-force
-  failure has the documented ambiguous success result and preserves the visible target.
+- Publication never exposes a partial final file: validation/force failure before rename leaves
+  an existing target unchanged and cleans its own temp; success shows the full new image.
+  Unsupported atomic move never triggers a non-atomic fallback. A failed move has the documented
+  provider-dependent target state; no post-rename operation or false crash-durability claim is
+  introduced.
 - No NN/Engine/Training concepts or new Gradle edges appear in the artifact package. Javadocs,
   ADR, contract, examples, and tests describe the exact supported guarantee and limitations.
 

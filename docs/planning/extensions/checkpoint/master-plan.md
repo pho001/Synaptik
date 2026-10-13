@@ -238,7 +238,7 @@ lambda or added as a generic reflective registry.
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | [0001](tasks/0001-checkpoint-module-boundary.md) | Model Checkpoint module boundary | Complete | None; architecture decision is the deliverable | Empty project, contract, ADR, explanations, and dependency test reviewed; focused and repository gates passed. No persistence API or optional adapter. |
-| [0002](tasks/0002-bounded-artifact-envelope.md) | Bounded durable artifact envelope | Ready | 0001 Complete; v1 policy selected in brief | Single-file, deterministic, uncompressed envelope with explicit bounds, SHA-256, validated sibling temp, strict atomic publication, and no model/training concepts. |
+| [0002](tasks/0002-bounded-artifact-envelope.md) | Bounded artifact envelope | Ready | 0001 Complete; corrected v1 policy in brief | Single-file, deterministic, uncompressed envelope with bounds, SHA-256, file flush and atomic live publication; no unsupported cross-platform crash-durability claim or model/training concepts. |
 | 0003 | Model schema and Engine materialization handoff | Draft | 0002; existing Engine host materialization; NN state/lazy-binding contracts | Define stable model state/config/input-artifact fingerprints and convert a complete NN state snapshot to bounded host payloads only through Engine publication/materialization. Existing Engine capability is available, but this adapter is not. |
 | 0004 | Model checkpoint save, inspect, and strict load | Draft | 0003 | Persist materialized parameters/buffers and validate the entire artifact plus recreated topology before one strict NN installation; never serialize arbitrary `Model.define` lambdas. |
 | 0005 | Training-owned exact-resume snapshot prerequisite | Draft | Training 0004; Checkpoint 0004 | Consume stabilized optimizer/session and caller-state handoff plus cross-owner preflight/commit contracts; identify which concrete caller-owned participant schemas have owner validators/restorers. Training 0004 does not depend on this adapter. |
@@ -303,7 +303,7 @@ This is a future protocol, not a runnable current API or an atomicity guarantee 
 ## Milestones
 
 - Accepted checkpoint module/dependency architecture
-- Bounded durable artifact and atomic-publication foundation
+- Bounded artifact and file-flushed atomic-publication foundation
 - Engine-owned host materialization used by model checkpointing
 - Strict model save/inspect/load with configuration and input-artifact fingerprints
 - Optional exact training-resume persistence without model-only Training dependency
@@ -325,8 +325,9 @@ Engine. Training snapshots are in-memory values, not a durable, cross-owner exac
   resource bounds; do not change their ownership or introduce backend shortcuts implicitly.
 - Implement and test Training 0004's cross-owner preflight/commit or rollback gate before an
   optional adapter claims exact, atomic recovery.
-- Version retention beyond one explicitly replaceable target and cross-filesystem or remote
-  durability remain later product decisions. Version 1 has no non-atomic fallback.
+- Version retention beyond one explicitly replaceable target and crash-durable directory-entry
+  publication remain later product decisions. Version 1 provides file flush and atomic live
+  visibility, not a cross-platform power-loss guarantee or a non-atomic fallback.
 - Decide when a closed built-in declarative model descriptor has a concrete consumer; arbitrary
   lambdas remain code-defined regardless.
 
