@@ -10,10 +10,11 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
-/** Verifies NN-to-Training direction and Training's exact public API dependency surface. */
+/** Verifies NN-to-Training direction and both extensions' exact public API dependency surfaces. */
 final class NnTrainingDependencyContractTest {
     /**
-     * Checks the exact Model/NN/Engine-to-Training extension direction.
+     * Checks the exact Model/NN/Engine-to-Training direction and exported public API types.
+     *
      * @throws IOException if a required build file cannot be read
      */
     @Test
@@ -30,8 +31,8 @@ final class NnTrainingDependencyContractTest {
 
         String nnBuildScript = Files.readString(nnBuild);
         String trainingBuildScript = Files.readString(trainingBuild);
-        assertTrue(nnBuildScript.contains("implementation(project(\":modules:model\"))"),
-                "extensions/nn must depend on modules/model");
+        assertTrue(nnBuildScript.contains("api(project(\":modules:model\"))"),
+                "extensions/nn must expose Tensor, DataType, and Shape from modules/model");
         assertTrue(
                 Pattern.compile("project\\(\\\"([^\\\"]+)\\\"\\)")
                         .matcher(nnBuildScript)

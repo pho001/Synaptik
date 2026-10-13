@@ -1,3 +1,3 @@
 dependencies {
-    implementation(project(":modules:model"))
+    api(project(":modules:model"))
 }
