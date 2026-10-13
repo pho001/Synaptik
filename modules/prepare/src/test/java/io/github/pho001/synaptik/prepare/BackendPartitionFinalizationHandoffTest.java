@@ -40,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class BackendPartitionFinalizationHandoffTest {
     @Test
@@ -393,31 +395,62 @@ class BackendPartitionFinalizationHandoffTest {
         assertEquals(List.of("second", "first"), closes);
     }
 
-    @Test
-    void rejectsDuplicateIdentityWithoutUsingEqualsAndClosesItOnce() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void rejectsCrossResultDuplicateAndClosesTrailingOwnersOnce(boolean throwingClose) {
         Fixture fixture = fixture();
         var closes = new ArrayList<String>();
-        var first = new TestResource("first", closes, null);
+        RuntimeException firstCloseFailure = new RuntimeException("first close");
+        Error trailingCloseFailure = new AssertionError("trailing close");
+        var first = new TestResource("first", closes, throwingClose ? firstCloseFailure : null);
         var equalButDistinct = new TestResource("distinct", closes, null);
+        var trailing = new TestResource("trailing", closes, throwingClose ? trailingCloseFailure : null);
         fixture.firstFinalizer.resources = List.of(first, equalButDistinct);
-        fixture.secondFinalizer.resources = List.of(first);
+        fixture.secondFinalizer.resources = List.of(first, trailing);
+        fixture.secondFinalizer.foreignPlan = true;
+
+        var laterValue = new GraphValue(new ValueId(3), descriptor());
+        var laterNode = new CompiledNode(
+                new NodeId(12), new Operation(SampleKind.SAMPLE, NoOperationAttrs.INSTANCE),
+                List.of(), List.of(laterValue.id()));
+        var laterPartition = new PlannedPartition(new BackendId("cpu"), List.of(laterNode.id()));
+        var laterLogical = new LogicalMemoryRequirement(
+                laterValue.id(), laterValue.descriptor(), Optional.of(laterPartition), List.of(), true);
+        var laterContext = context(
+                laterPartition, laterNode, List.of(laterValue), List.of(laterLogical));
+        var laterAnalysis = new BackendPartitionAnalysis<>(
+                laterPartition, new FakePlan("later-route"), List.of());
+        var laterFinalizer = new FakeFinalizer(laterPartition.owner(), "later", fixture.callOrder);
+        var laterEntry = new BackendPartitionFinalizationHandoff.Entry<>(
+                laterContext, laterAnalysis, laterFinalizer);
 
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
                 () -> BackendPartitionFinalizationHandoff.finalizePartitions(
-                        fixture.partitions, fixture.entries));
+                        List.of(fixture.partitions.get(0), fixture.partitions.get(1), laterPartition),
+                        List.of(fixture.entries.get(0), fixture.entries.get(1), laterEntry)));
         assertAll(
                 () -> assertEquals(
                         "entries[1].finalizer resources[0] duplicates an earlier prepared resource identity",
                         failure.getMessage()),
-                () -> assertEquals(List.of("distinct", "first"), closes));
+                () -> assertEquals(List.of("trailing", "distinct", "first"), closes),
+                () -> assertEquals(
+                        throwingClose ? List.of(trailingCloseFailure, firstCloseFailure) : List.of(),
+                        List.of(failure.getSuppressed())),
+                () -> assertEquals(List.of("first", "second"), fixture.callOrder),
+                () -> assertTrue(laterFinalizer.seen.isEmpty()));
     }
 
-    @Test
-    void rejectsDuplicateIdentityWithinOneResultAndClosesItOnce() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void rejectsSameResultDuplicateAndClosesTrailingOwnersOnce(boolean throwingClose) {
         Fixture fixture = fixture();
         var closes = new ArrayList<String>();
-        var repeated = new TestResource("repeated", closes, null);
-        fixture.firstFinalizer.resources = List.of(repeated, repeated);
+        RuntimeException repeatedCloseFailure = new RuntimeException("repeated close");
+        Error trailingCloseFailure = new AssertionError("trailing close");
+        var repeated = new TestResource("repeated", closes, throwingClose ? repeatedCloseFailure : null);
+        var trailing = new TestResource("trailing", closes, throwingClose ? trailingCloseFailure : null);
+        fixture.firstFinalizer.resources = List.of(repeated, repeated, trailing);
+        fixture.firstFinalizer.foreignPlan = true;
 
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
                 () -> BackendPartitionFinalizationHandoff.finalizePartitions(
@@ -426,7 +459,31 @@ class BackendPartitionFinalizationHandoffTest {
                 () -> assertEquals(
                         "entries[0].finalizer resources[1] duplicates an earlier prepared resource identity",
                         failure.getMessage()),
-                () -> assertEquals(List.of("repeated"), closes),
+                () -> assertEquals(List.of("trailing", "repeated"), closes),
+                () -> assertEquals(
+                        throwingClose ? List.of(trailingCloseFailure, repeatedCloseFailure) : List.of(),
+                        List.of(failure.getSuppressed())),
+                () -> assertEquals(List.of("first"), fixture.callOrder),
+                () -> assertTrue(fixture.secondFinalizer.seen.isEmpty()));
+    }
+
+    @Test
+    void preservesFirstDuplicateDiagnosticAndReverseFirstAcquisitionOrder() {
+        Fixture fixture = fixture();
+        var closes = new ArrayList<String>();
+        var first = new TestResource("first", closes, null);
+        var second = new TestResource("second", closes, null);
+        var third = new TestResource("third", closes, null);
+        fixture.firstFinalizer.resources = List.of(first, first, second, second, third, first);
+
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+                () -> BackendPartitionFinalizationHandoff.finalizePartitions(
+                        fixture.partitions, fixture.entries));
+        assertAll(
+                () -> assertEquals(
+                        "entries[0].finalizer resources[1] duplicates an earlier prepared resource identity",
+                        failure.getMessage()),
+                () -> assertEquals(List.of("third", "second", "first"), closes),
                 () -> assertTrue(fixture.secondFinalizer.seen.isEmpty()));
     }
 

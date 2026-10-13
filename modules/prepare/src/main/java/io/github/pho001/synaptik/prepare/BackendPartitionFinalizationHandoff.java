@@ -29,13 +29,16 @@ import java.util.Objects;
  * <p>The operation validates the complete ordered partition set before deriving any assignment,
  * appends any canonical producerless published-constant declarations after ordinary buffers,
  * constructs every typed finalization before invoking a backend, and then invokes finalizers in
- * partition order. Successful results transfer identity-unique persistent resources to this
- * transaction in partition and acquisition order. Any later finalization, association, or
- * successful-handoff result construction failure closes accepted identities once in reverse
- * order while preserving the triggering failure. Producerless declarations receive shared buffer
- * assignments but no partition-finalizer assignment. The operation creates immutable recipe
- * associations only; it performs no physical allocation, initialization, materialization,
- * per-run binding, execution, scheduling, transfer, or publication.</p>
+ * partition order. Every returned result transfers its persistent resources to this transaction
+ * in partition and acquisition order. All unique identities in that result are tracked before
+ * rejecting its first duplicate, including resources listed after the duplicate. Rejection
+ * occurs before executable validation or any later finalizer call. Any duplicate rejection,
+ * later finalization, association, or successful-handoff result construction failure closes all
+ * tracked identities once in reverse order while preserving the triggering failure and
+ * suppressing distinct cleanup failures without self-suppression. Producerless declarations
+ * receive shared buffer assignments but no partition-finalizer assignment. The operation creates
+ * immutable recipe associations only; it performs no physical allocation, initialization,
+ * materialization, per-run binding, execution, scheduling, transfer, or publication.</p>
  */
 final class BackendPartitionFinalizationHandoff {
     private BackendPartitionFinalizationHandoff() {}
@@ -53,7 +56,8 @@ final class BackendPartitionFinalizationHandoff {
      * @throws NullPointerException if a list, partition, entry, finalizer backend identity, or
      *     returned executable is null
      * @throws IllegalArgumentException if coverage, exact source identity, backend ownership,
-     *     assignment geometry, or returned executable plan identity is inconsistent
+     *     assignment geometry, or returned executable plan identity is inconsistent, or a
+     *     prepared-resource identity is repeated within or across returned results
      */
     static Result finalizePartitions(
             List<PlannedPartition> partitions,
@@ -98,14 +102,20 @@ final class BackendPartitionFinalizationHandoff {
      * Remaining ordinary buffers retain first-declaration order, followed by producerless
      * resources.</p>
      *
+     * <p>Returned resources become transaction-owned before result validation. A duplicate
+     * identity rejects its result only after every unique resource in that result has been
+     * tracked, so rollback also closes trailing resources. The first duplicate's indexed
+     * diagnostic remains primary even if cleanup fails; the rejected executable is not
+     * validated or used and no later finalizer is called.</p>
+     *
      * @param partitions non-null ordered expected partitions
      * @param entries non-null ordered partition finalization entries
      * @param leadingBufferValueIds non-null identity-unique buffer IDs to place first when declared
      * @param producerlessResources non-null canonical producerless contributions to append last
-     * @return a non-null immutable complete handoff result
+     * @return a non-null immutable complete handoff result; the caller owns its retained resources
      * @throws NullPointerException if an argument or indexed element is {@code null}
-     * @throws IllegalArgumentException if a leading ID is duplicated or another complete-set
-     *     validation fails
+     * @throws IllegalArgumentException if a leading ID or prepared-resource identity is duplicated,
+     *     or another complete-set validation fails
      */
     static Result finalizePartitions(
             List<PlannedPartition> partitions,
@@ -258,16 +268,23 @@ final class BackendPartitionFinalizationHandoff {
                 BackendPartitionFinalizationResult result = Objects.requireNonNull(
                         invocations.get(index).finalizePartition(),
                         "entries[" + index + "].finalizer returned null");
+                int firstDuplicateResourceIndex = -1;
                 for (int resourceIndex = 0;
                         resourceIndex < result.resources().size();
                         resourceIndex++) {
                     PreparedResource resource = result.resources().get(resourceIndex);
                     if (observedResources.put(resource, Boolean.TRUE) != null) {
-                        throw new IllegalArgumentException(
-                                "entries[" + index + "].finalizer resources[" + resourceIndex
-                                        + "] duplicates an earlier prepared resource identity");
+                        if (firstDuplicateResourceIndex < 0) {
+                            firstDuplicateResourceIndex = resourceIndex;
+                        }
+                    } else {
+                        resources.add(resource);
                     }
-                    resources.add(resource);
+                }
+                if (firstDuplicateResourceIndex >= 0) {
+                    throw new IllegalArgumentException(
+                            "entries[" + index + "].finalizer resources[" + firstDuplicateResourceIndex
+                                    + "] duplicates an earlier prepared resource identity");
                 }
                 PreparedExecutable executable = result.executable();
                 if (executable.memoryPlan() != memoryPlan) {

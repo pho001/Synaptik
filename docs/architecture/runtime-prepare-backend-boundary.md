@@ -567,6 +567,15 @@ order and closes them in reverse if another finalizer, schedule assembly, schedu
 final aggregate construction fails. Ownership transfers only when the complete
 `PreparedExecution` is constructed successfully.
 
+Duplicate rejection does not undo the resource transfer from a returned result. For example,
+if one result lists resource identities `[A, A, B]`, Prepare records both unique owners before
+rejecting the second `A`, then attempts to close `B` followed by `A` exactly once each. The same
+cleanup order applies when an earlier result listed `A` and a later result lists `[A, B]`.
+Prepare does not validate or use the rejected executable and calls no later finalizer. A close
+failure does not stop cleanup: the first duplicate diagnostic stays primary, with distinct close
+failures suppressed in cleanup order and self-suppression skipped. This prevents a trailing owner
+such as `B` from leaking just because its result is invalid.
+
 ## What a concrete backend does
 
 Each concrete backend owns preparation and execution details for the partitions assigned to it. This includes:
