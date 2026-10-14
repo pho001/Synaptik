@@ -32,7 +32,25 @@ The optional Training Checkpoint adapter is neither included nor implemented.
 22-test module check, Javadoc gate, and independent Class C review. Its scope is an internal bounded
 model candidate and Engine handoff, not public save/load. [0004](tasks/0004-public-model-checkpoint-save-inspect-load.md)
 is Complete after CPU 0024, direct restored-heap Engine acceptance, targeted documentation, and
-the combined validation gate. Tasks 0005–0007 remain Draft and unauthorized.
+the combined validation gate. [0004A](tasks/0004a-direct-leaf-model-save.md) is the user-authorized
+Ready frontier for bounded direct leaf-state capture; tasks 0005–0007 remain Draft and unauthorized.
+
+## Dependency DAG and authorized frontier
+
+Completed Checkpoint 0001 → 0002 → 0003 → 0004, with completed CPU 0024 → 0004.
+Checkpoint 0004, CPU 0024, and Training 0004 → Ready Checkpoint 0004A.
+Training 0004 and Checkpoint 0004A → Draft 0005 → Draft 0006; 0007 also awaits the
+selected adapter/text gates. These edges do not authorize the Draft successors.
+
+Authorized frontier: [0004A](tasks/0004a-direct-leaf-model-save.md) only. The bounded repair keeps
+capture in Checkpoint and requests raw-preserving `CONTIGUOUS` outputs for provenance-free state
+leaves through existing public Engine compute; generic zero-node Engine/Prepare support is excluded.
+Common base: `5d09f6c373d3200003bcc6efb08467a1c634da73`. Conflicts: None. Parallel group: None.
+Order: planning packet transfer → clean executor → independent review → coordinator integration.
+Executor worktree: `/private/tmp/synaptik-checkpoint-leaf.oCW897`. The main coordinator owns shared
+planning documents; the executor and reviewer own targeted explanatory/Javadoc updates serially.
+Worker module checks and the coordinator's one configured repository test/Javadoc gate are recorded
+in the Ready brief; no production or normative contract change is part of this planning update.
 
 ## Architecture references
 
@@ -254,9 +272,10 @@ lambda or added as a generic reflective registry.
 | [0002](tasks/0002-bounded-artifact-envelope.md) | Bounded artifact envelope | Complete | 0001 Complete; corrected v1 policy in brief | Opaque file API, bounds, SHA-256, file flush and atomic live publication implemented; 15 checkpoint tests, Javadoc, architecture test, and independent Class C review passed. |
 | [0003](tasks/0003-model-schema-and-materialization-handoff.md) | Model schema and Engine materialization handoff | Complete | 0002 Complete; existing NN export and Engine compute | Internal fixed-ID schema, detached candidate, and bounded public Engine handoff implemented; 22 module tests, Javadoc, and independent Class C review passed. No public save/load. |
 | [0004](tasks/0004-public-model-checkpoint-save-inspect-load.md) | Model checkpoint save, inspect, and strict load | Complete | 0003; [CPU 0024](../../backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md) for direct restored-heap execution | Public save/inspect/load and direct restored-heap Engine regression passed, with independent review, documentation, and combined validation. |
-| 0005 | Training-owned exact-resume snapshot prerequisite | Draft | Training 0004 Complete; Checkpoint 0004 | Consume the tested in-memory private-candidate handoff; identify which concrete caller-owned participant schemas have owner validators/restorers. No durable adapter or new frontier is authorized. |
+| [0004A](tasks/0004a-direct-leaf-model-save.md) | Direct leaf-model save | Ready | Checkpoint 0004; CPU 0024; Training 0004, all Complete | Checkpoint-owned raw-preserving leaf outputs; direct trained save/load and loaded re-save; remove private snapshot workaround. Serial, no conflicts/parallel group; coordinator integrates after independent review and runs the recorded gate. |
+| 0005 | Training-owned exact-resume snapshot prerequisite | Draft | Training 0004 Complete; Checkpoint 0004A | Consume the tested in-memory private-candidate handoff after direct-save repair; identify which concrete caller-owned participant schemas have owner validators/restorers. No durable adapter or new frontier is authorized. |
 | 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005; supported caller-state schemas/codecs | Encode and restore only the model, Training state, effective objective contexts, and caller-owned participants with versioned bounded codecs and owner validation; reject an exact artifact for any unsupported affecting state. Model-only Checkpoint stays independent of Training. |
-| 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004; 0006 when exact training resume is selected; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, exact training resume, documentation, and dependency enforcement. |
+| 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004A; 0006 when exact training resume is selected; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, exact training resume, documentation, and dependency enforcement. |
 
 Checkpoint 0001 has made the explicit architecture decision. Checkpoint 0002 passed independent
 review; its corrected policy and compact brief were committed at serial base `7261d11d`. It conflicts
@@ -268,8 +287,9 @@ Model 0032's numerical cutover and Training 0002B's
 in-memory Adam/AdamW snapshot capability are Complete; neither creates durable checkpoint APIs.
 
 The cross-area order is acyclic: CPU 0022 → CPU 0024 → Checkpoint 0004 closure; accepted
-Training 0003A and completed Checkpoint 0004 then precede Training 0004; Checkpoint 0005
-precedes adapter 0006. CPU 0023 is an independent Draft, conflicts with CPU 0024, and is not a
+Training 0003A and completed Checkpoint 0004 then precede Training 0004; Checkpoint 0004A repairs
+direct save before Checkpoint 0005, which precedes adapter 0006. CPU 0023 is an independent Draft,
+conflicts with completed CPU 0024, and is not a
 prerequisite. Training 0003 is Superseded. The
 adapter consumes the Training handoff, never implements its prerequisite.
 
@@ -340,17 +360,19 @@ and the integration-owner repository gate. Training snapshots remain in-memory v
 durable cross-owner exact-resume format; 0005–0007 remain Draft. The fixture saves a private
 raw-preserving expression view over live Tensor references because direct model save of the
 trained leaf-only tree fails Engine empty-partition preparation. That workaround does not establish
-general direct leaf-only save support.
+general direct leaf-only save support. The user has now authorized the bounded Checkpoint-owned
+repair in Ready [0004A](tasks/0004a-direct-leaf-model-save.md); direct save remains unimplemented
+until that task passes its regressions and independent review.
 
 ## Open questions
 
 - Decide whether a later schema should record source alias identity or support lazy targets.
   Version one uses the fully bound recreated target's alias topology and rejects lazy targets;
   opaque artifact bytes alone cannot establish either missing contract.
-- Decide ownership and a bounded repair for direct `ModelCheckpoint.save` of a trained leaf-only
-  NN tree: Engine currently rejects the empty-partition prepare plan. Validate any repair with a
-  direct leaf-only model-save regression, without treating Training 0004's private expression
-  view as proof of that route. This follow-up has no detailed task or authorized frontier yet.
+- Close the authorized [0004A](tasks/0004a-direct-leaf-model-save.md) direct-save repair with exact
+  heap/native bits, direct trained save/load, loaded re-save, and independent review. Preserve
+  original descriptors, preflight, identity order, and the v1 wire; no generic Engine/Prepare
+  leaf-graph capability is authorized.
 - Before an optional adapter claims durable exact recovery, select supported versioned caller
   participant schemas/codecs and owner validators/restorers; the in-memory Training 0004 proof
   alone does not provide them.

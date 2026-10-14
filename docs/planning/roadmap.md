@@ -46,8 +46,9 @@ integration commits and validation are recorded in the briefs and report. No wri
 ## Area map
 
 The area rows summarize status. Only an explicitly Ready brief at an authorized frontier permits
-new execution. Training 0004 has closed after its integration gate; no Training/Checkpoint
-successor is Ready.
+new execution. Training 0004 has closed after its integration gate; bounded Checkpoint
+[0004A](extensions/checkpoint/tasks/0004a-direct-leaf-model-save.md) is now the sole authorized
+Ready frontier in that stream. The durable Training/Checkpoint successors remain Draft.
 
 | Area | Delivered baseline / remaining gate |
 |---|---|
@@ -70,7 +71,7 @@ successor is Ready.
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions, SGD/Adam/AdamW groups and in-memory state delivered. Decision 0003A and [bounded private-candidate recovery 0004](extensions/training/tasks/0004-joint-restore-preflight-and-candidate-commit.md) are Complete; 0003 is Superseded. No production restore facade or durable Training artifact. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through [0004](extensions/checkpoint/tasks/0004-public-model-checkpoint-save-inspect-load.md): public model save/inspect/load and direct restored-heap Engine execution validated. Direct save of a trained leaf-only tree remains an Engine empty-partition limitation; 0005–0007 Draft. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through [0004](extensions/checkpoint/tasks/0004-public-model-checkpoint-save-inspect-load.md). [0004A](extensions/checkpoint/tasks/0004a-direct-leaf-model-save.md) Ready: user-authorized Checkpoint-owned raw CONTIGUOUS leaf capture, direct trained save/load and loaded re-save, workaround removal; completed 0004/CPU 0024/Training 0004 prerequisites. Serial at base `5d09f6c3`, no conflicts/parallel group; independent review and coordinator gate required. 0005–0007 Draft. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
@@ -97,11 +98,16 @@ successor is Ready.
    is Complete after the target-alias/unbound-target policy decision, independently reviewed
    public implementation, [CPU 0024](backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md)
    repair, direct restored-heap Engine regression, targeted documentation, and combined gate.
+   The user now authorizes [0004A](extensions/checkpoint/tasks/0004a-direct-leaf-model-save.md)
+   to repair direct leaf-model save inside Checkpoint using existing raw `CONTIGUOUS` expressions
+   through Engine. This Ready packet excludes generic zero-node Engine/Prepare support and
+   does not authorize the durable adapter.
 4. In a separately selected stream, Data 0001 authorizes Data/Text/Vision architecture before
    batching or text/image APIs. Runtime recurrent adoption still needs a concrete backend route.
 
 Step 2 records the completed decision and Training 0004 proof, not a durable artifact. Step 3 records
-completed Checkpoint 0003/0004 and CPU 0024, not authorization for Checkpoint Draft successors.
+completed Checkpoint 0003/0004 and CPU 0024 plus the explicit Ready 0004A repair, not authorization
+for Checkpoint Draft successors.
 Step 4 is a proposal, not a Ready implementation task.
 An independent performance/shape follow-up, [CPU 0023](backends/cpu/tasks/0023-vector-erf-direct-java-shape.md),
 is also Draft: the bounded vector ERF diagnostic did not demonstrate parity with direct Java.
@@ -109,9 +115,9 @@ It is not a prerequisite for unrelated Training/Checkpoint decisions or a new br
 
 The Training/Checkpoint order is:
 `Training 0003A` and `Checkpoint 0001 → 0004`, then completed `Training 0004`, followed by
-Draft `Checkpoint 0005 → Checkpoint 0006`. Training 0003 is Superseded; no
-adapter-to-prerequisite cycle remains. The leaf-only model-save limitation is a separate
-Checkpoint/Engine follow-up, not an implicit new frontier.
+Ready `Checkpoint 0004A →` Draft `Checkpoint 0005 → Checkpoint 0006`. CPU 0024 is a completed
+0004A prerequisite. Training 0003 is Superseded; no adapter-to-prerequisite cycle remains.
+0004A is an explicit Checkpoint-only frontier, not authorization for lower-layer design work.
 
 ## Explicit non-goals and unresolved decisions
 
