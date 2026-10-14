@@ -68,7 +68,7 @@ No row below authorizes a new implementation task; select and prepare a Ready su
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions, SGD/Adam/AdamW groups and in-memory state delivered. Decision 0003A is Complete after independent Class C approval; 0003 is Superseded. Joint preflight/commit 0004 remains Draft. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | 0001–0003 Complete. [0004](extensions/checkpoint/tasks/0004-public-model-checkpoint-save-inspect-load.md) Draft: public typed-inspection/dependency and v1 alias/lazy-target decisions precede model save/load. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | 0001–0003 Complete. [0004](extensions/checkpoint/tasks/0004-public-model-checkpoint-save-inspect-load.md) Draft: typed inspection and direct Model edge selected; v1 alias/lazy-target policy remains before model save/load. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
@@ -89,7 +89,8 @@ No row below authorizes a new implementation task; select and prepare a Ready su
    is Complete with a bounded single-file codec and atomic-live-publication policy;
    [0003](extensions/checkpoint/tasks/0003-model-schema-and-materialization-handoff.md) is
    Complete after implementation, validation, and independent review; [0004](extensions/checkpoint/tasks/0004-public-model-checkpoint-save-inspect-load.md)
-   is drafted but remains unauthorized pending its API and alias/lazy-target decisions. Existing
+   is drafted but remains unauthorized pending its alias/lazy-target decision. Typed inspection
+   and its direct Model edge are selected. Existing
    Engine materialization is not a missing prerequisite.
 4. In a separately selected stream, Data 0001 authorizes Data/Text/Vision architecture before
    batching or text/image APIs. Runtime recurrent adoption still needs a concrete backend route.

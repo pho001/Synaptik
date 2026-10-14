@@ -2,9 +2,10 @@
 
 ## Status
 
-Draft. Checkpoint 0003 is Complete at `cc88cab1`, but this task is not Ready: the public
-inspection type/dependency policy and alias/lazy-target restore policy require an explicit
-decision. No 0004 executor is authorized yet.
+Draft. Checkpoint 0003 is Complete at `cc88cab1`. The user selected typed public inspection
+on 2026-10-14, including its explicit Model dependency and coordinated architecture update.
+The alias/lazy-target restore policy still needs a decision before this task becomes Ready.
+No 0004 executor is authorized yet.
 
 ## Change class
 
@@ -17,7 +18,7 @@ Give a caller with a recreated NN module a bounded, fail-closed way to save, ins
 the model's complete parameter and buffer values. Reuse the version-one artifact envelope and
 internal model candidate; do not serialize arbitrary model-defining Java code.
 
-## Proposed policy awaiting decision
+## Selected policy and pending decision
 
 - Prefer one `ModelCheckpoint` facade in `checkpoint.model`: `save(Path, Module, Engine,
   configDigest, optionalInputDigest, ArtifactLimits)`, `inspect(Path, ArtifactLimits)`, and
@@ -25,12 +26,12 @@ internal model candidate; do not serialize arbitrary model-defining Java code.
   input digest means absent; presence must match exactly. Save/load require caller quiescence.
   `inspect` validates the complete file, including all payloads; a later load rereads and
   revalidates it rather than trusting a prior inspection of a mutable path.
-- Prefer an immutable, detached typed inspection value exposing defensive digest copies and
+- Expose an immutable, detached typed inspection value with defensive digest copies and
   ordered path, `StateKind`, `DataType`, `Shape`, and byte-length descriptors. This makes the
-  public NN and Engine edges Gradle `api` dependencies and adds a justified direct public Model
-  edge. Coordinate the root dependency rule, owning extensions contract, architecture test,
-  explanatory docs, and an ADR in the same implementation change. An alternative inspection
-  limited to fingerprints/count/paths avoids a direct Model edge but is less useful.
+  public NN and Engine edges Gradle `api` dependencies and adds a direct public Model `api`
+  edge. This specific dependency/API choice is user-approved; coordinate the root dependency
+  rule, owning extensions contract, architecture test, explanatory docs, and an ADR in the same
+  implementation change before exposing it as current architecture.
 - The v1 file stores one value per path, not source Tensor identity. Prefer to preserve exact
   alias groups declared by a fully bound recreated target: require byte-identical payloads for
   every target alias group, then install one reconstructed Tensor per group. The caller's
@@ -83,7 +84,8 @@ streaming format or a broad memory-budget redesign.
 ## Dependencies and integration
 
 - Depends on: Checkpoint 0003 (Complete); NN strict whole-tree load and Engine bounded compute
-  already exist. Architecture/API and alias/lazy decisions above must be approved before Ready.
+  already exist. The typed inspection/API dependency choice is approved; the alias/lazy decision
+  above remains before Ready.
 - Conflicts with: Checkpoint 0005–0007, Training 0004 integration to the same restore contract,
   and concurrent Checkpoint/NN public API, schema, or owning-contract edits.
 - Parallel group: None.
@@ -100,8 +102,8 @@ streaming format or a broad memory-budget redesign.
 - `extensions/checkpoint/src/test/.../checkpoint/model/` — file, materialization, restore,
   alias, bit-exactness, bounds, failure, and lifecycle tests.
 - `extensions/checkpoint/build.gradle.kts` and
-  `testing/architecture-tests/.../CheckpointDependencyContractTest.java` — published dependency
-  contract after the API decision.
+  `testing/architecture-tests/.../CheckpointDependencyContractTest.java` — publish NN, Engine,
+  and direct Model `api` dependencies and enforce the approved edge set.
 - `ARCHITECTURE.md`, `docs/architecture/contracts/extensions-training.md`, focused public
   documentation and ADR — coordinated architectural/API description.
 
