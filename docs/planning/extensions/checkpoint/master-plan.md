@@ -21,14 +21,17 @@ Training-owned optimizer/session snapshot
   -> exact-resume artifact
 ```
 
-The opaque artifact and internal detached model-candidate portions are implemented; public model
-save/load and training flows remain future plans. [Checkpoint 0001](tasks/0001-checkpoint-module-boundary.md)
+The opaque artifact, internal detached model candidate, and public model save/inspect/load are
+Complete, including direct Engine execution of restored heap Tensors; training flows remain
+future plans. [Checkpoint 0001](tasks/0001-checkpoint-module-boundary.md)
 completed the model-only boundary and initially empty Gradle project from base `81d50901`, after focused
 validation, independent Class C review, and the repository test/Javadoc gate.
 The optional Training Checkpoint adapter is neither included nor implemented.
 [Checkpoint 0003](tasks/0003-model-schema-and-materialization-handoff.md) is Complete after its
 22-test module check, Javadoc gate, and independent Class C review. Its scope is an internal bounded
-model candidate and Engine handoff, not public save/load; 0004–0007 remain Draft and unauthorized.
+model candidate and Engine handoff, not public save/load. [0004](tasks/0004-public-model-checkpoint-save-inspect-load.md)
+is Complete after CPU 0024, direct restored-heap Engine acceptance, targeted documentation, and
+the combined validation gate. Tasks 0005–0007 remain Draft and unauthorized.
 
 ## Architecture references
 
@@ -87,16 +90,17 @@ than one dependency-heavy module once model-state persistence is implemented:
 modules/model -> extensions/nn
 compiler/runtime/prepare/backends -> modules/engine
 
-extensions/nn + modules/engine
+extensions/nn + modules/engine + modules/model
   -> extensions/checkpoint
 
 extensions/training + extensions/checkpoint
   -> optional extensions/training-checkpoint
 ```
 
-`extensions/checkpoint` now owns the bounded opaque envelope and internal model-candidate schema;
-the future public `ModelCheckpoint` will expose model save/load. Checkpoint depends on NN for stable state paths and on Engine
-for a public host-materialization boundary. It does not depend on Training or Text, so
+`extensions/checkpoint` owns the bounded opaque envelope, internal model-candidate schema, and
+public `ModelCheckpoint` save/inspect/load facade. It depends on NN for stable state paths,
+Engine for public host materialization, and Model for typed public inspection descriptors. It
+does not depend on Training or Text, so
 inference/model-only users do not acquire those extensions. The envelope forces file contents and
 provides atomic live visibility on a successful move, not portable rename crash durability.
 
@@ -113,14 +117,13 @@ application supplies that artifact's canonical fingerprint as the model checkpoi
 fingerprint. Strict load compares the exact fingerprint, so two equal-size vocabularies with
 different ID mappings fail compatibility without a Checkpoint-to-Text dependency.
 
-The model-only NN/Engine-to-Checkpoint edges are now in the root contract, Gradle build, and
-architecture test, after independent review. The optional adapter edge is reserved in the
-contract but its project remains a later, separately gated implementation. A later public
-Checkpoint API that names Model types may justify a direct Model edge; no such edge exists now.
+The model-only NN/Engine/Model-to-Checkpoint edges are in the root contract, Gradle build, and
+architecture test after independent review. The optional adapter edge is reserved in the
+contract but its project remains a later, separately gated implementation.
 
-## Proposed package structure
+## Package structure
 
-After architecture acceptance:
+The model-only packages exist; the optional Training Checkpoint package remains planned:
 
 ```text
 io.github.pho001.synaptik.checkpoint/
@@ -137,7 +140,7 @@ the model-only project.
 
 ## Model checkpoint contract
 
-A planned model checkpoint contains at least:
+The model checkpoint format contains:
 
 ```text
 artifact format and schema version
@@ -160,10 +163,9 @@ numeric models; a text model supplies the tokenizer artifact fingerprint, which 
 normalization, special IDs, token-ID order, and algorithm data.
 
 The current NN `StateDictionary` supplies exact in-memory Tensor references only. It performs no
-evaluation, copy, backend transfer, or serialization. Engine already exposes bounded detached
-host materialization through `RunResult.materialize` and `Engine.compute`; Checkpoint must define
-the complete state-selection and ownership handoff over those APIs rather than invent backend
-access. Checkpoint never casts or reads a backend representation.
+evaluation, copy, backend transfer, or serialization. Engine exposes bounded detached host
+materialization through `RunResult.materialize` and `Engine.compute`; Checkpoint uses the public
+Engine boundary for state selection and materialization, never a backend representation.
 
 ## Training checkpoint contract
 
@@ -199,8 +201,9 @@ Load is staged and fail-closed:
 2. Parse the manifest with duplicate/path-traversal rejection and supported version checks.
 3. Verify every declared payload size and checksum before constructing a candidate.
 4. Verify model schema/config and any supplied input-artifact fingerprint.
-5. Validate the complete path/kind/type/Shape set against the recreated topology; a deferred model
-   may bind from checkpoint Shapes only under the later NN lazy-binding contract.
+5. Validate the complete path/kind/type/Shape set against a fully bound recreated topology;
+   version-one load rejects an unbound/lazy target. A later NN lazy-binding contract would be
+   required to admit one.
 6. For training resume, jointly prevalidate model, optimizer/session, effective forward contexts,
    fixed-objective construction, next-input, RNG, sampler, scheduler, and scaler candidates before
    any live installation; refuse unproved step-aligned buffer values and unsupported caller-state
@@ -213,14 +216,14 @@ Load is staged and fail-closed:
    Today's per-owner APIs do not supply one atomic transaction. No backend storage bypass or
    partial permissive mode is implied.
 
-The current opaque artifact save creates a sibling temporary file in a trusted local directory.
+The current artifact save creates a sibling temporary file in a trusted local directory.
 It writes the header and manifest before the contiguous bounded payloads, forces the temporary
 file through its writing channel, closes and reopens it, and fully validates it before one
 `ATOMIC_MOVE` to the final target. A pre-existing regular target may be replaced. A symlink or
 directory target is refused before work; unsupported atomic replacement fails without a weaker
 fallback. A failed move can leave the target in a provider-dependent state. Successful publication
-gives atomic live visibility, not portable power-loss durability of the rename. Later semantic
-model and training saves must retain this envelope policy.
+gives atomic live visibility, not portable power-loss durability of the rename. A later training
+save must retain this envelope policy.
 
 ## Model reconstruction decision
 
@@ -246,7 +249,7 @@ lambda or added as a generic reflective registry.
 | [0001](tasks/0001-checkpoint-module-boundary.md) | Model Checkpoint module boundary | Complete | None; architecture decision is the deliverable | Empty project, contract, ADR, explanations, and dependency test reviewed; focused and repository gates passed. No persistence API or optional adapter. |
 | [0002](tasks/0002-bounded-artifact-envelope.md) | Bounded artifact envelope | Complete | 0001 Complete; corrected v1 policy in brief | Opaque file API, bounds, SHA-256, file flush and atomic live publication implemented; 15 checkpoint tests, Javadoc, architecture test, and independent Class C review passed. |
 | [0003](tasks/0003-model-schema-and-materialization-handoff.md) | Model schema and Engine materialization handoff | Complete | 0002 Complete; existing NN export and Engine compute | Internal fixed-ID schema, detached candidate, and bounded public Engine handoff implemented; 22 module tests, Javadoc, and independent Class C review passed. No public save/load. |
-| [0004](tasks/0004-public-model-checkpoint-save-inspect-load.md) | Model checkpoint save, inspect, and strict load | Draft | 0003 | Typed inspection and public Model edge selected; v1 alias/lazy-target policy remains before model save/load implementation. |
+| [0004](tasks/0004-public-model-checkpoint-save-inspect-load.md) | Model checkpoint save, inspect, and strict load | Complete | 0003; [CPU 0024](../../backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md) for direct restored-heap execution | Public save/inspect/load and direct restored-heap Engine regression passed, with independent review, documentation, and combined validation. |
 | 0005 | Training-owned exact-resume snapshot prerequisite | Draft | Training 0004; Checkpoint 0004 | Consume stabilized optimizer/session and caller-state handoff plus cross-owner preflight/commit contracts; identify which concrete caller-owned participant schemas have owner validators/restorers. Training 0004 does not depend on this adapter. |
 | 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005; supported caller-state schemas/codecs | Encode and restore only the model, Training state, effective objective contexts, and caller-owned participants with versioned bounded codecs and owner validation; reject an exact artifact for any unsupported affecting state. Model-only Checkpoint stays independent of Training. |
 | 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004; 0006 when exact training resume is selected; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, exact training resume, documentation, and dependency enforcement. |
@@ -260,13 +263,16 @@ suite is planned unless review changes executable behavior. The optional adapter
 Model 0032's numerical cutover and Training 0002B's
 in-memory Adam/AdamW snapshot capability are Complete; neither creates durable checkpoint APIs.
 
-The cross-area order is acyclic: accepted Training 0003A and Checkpoint 0001–0004 precede
-Training 0004; then Checkpoint 0005 precedes adapter 0006. Training 0003 is Superseded. The
+The cross-area order is acyclic: CPU 0022 → CPU 0024 → Checkpoint 0004 closure; accepted
+Training 0003A and completed Checkpoint 0004 then precede Training 0004; Checkpoint 0005
+precedes adapter 0006. CPU 0023 is an independent Draft, conflicts with CPU 0024, and is not a
+prerequisite. Training 0003 is Superseded. The
 adapter consumes the Training handoff, never implements its prerequisite.
 
 ## Planned end-to-end flows
 
-The following flows are conceptual and not current runnable Synaptik APIs.
+The text and training flows below are conceptual. The model checkpoint API and direct
+restored-heap Engine execution are implemented and validated.
 
 Build and save a text model:
 
@@ -317,21 +323,19 @@ This is a future protocol, not a runnable current API or an atomicity guarantee 
 
 ## Current status
 
-Model-only module-boundary implementation, the bounded opaque artifact codec/publication API,
-and the internal model-candidate schema and Engine handoff are Complete after focused validation
-and independent Class C reviews. Public model-state persistence and strict restore remain Draft
-in [0004](tasks/0004-public-model-checkpoint-save-inspect-load.md), pending its alias/lazy-target
-decision. Typed public inspection and its direct Model edge are selected for that task. Training
-snapshots remain in-memory values, not a durable,
-cross-owner exact-resume format.
+Model-only boundary, bounded artifact, internal candidate and Engine handoff, and public
+save/inspect/load are Complete after focused validation and independent Class C reviews. The
+target-defined alias and fail-closed unbound-target policy is implemented in
+[0004](tasks/0004-public-model-checkpoint-save-inspect-load.md). Direct restored-heap Engine
+execution and the combined repository gate passed after
+[CPU 0024](../../backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md).
+Training snapshots remain in-memory values, not a durable cross-owner exact-resume format.
 
 ## Open questions
 
-- The v1 opaque envelope policy is selected in 0002. The internal model metadata and Engine
-  handoff are complete in 0003; public persistence and strict restore remain
-  for 0004. Opaque artifact bytes alone are not a Tensor wire contract. Typed public inspection
-  is selected; decide whether v1 restore relies on the recreated target's alias topology and how
-  lazy targets participate before marking 0004 Ready.
+- Decide whether a later schema should record source alias identity or support lazy targets.
+  Version one uses the fully bound recreated target's alias topology and rejects lazy targets;
+  opaque artifact bytes alone cannot establish either missing contract.
 - Implement and test Training 0004's cross-owner preflight/commit or rollback gate before an
   optional adapter claims exact, atomic recovery.
 - Version retention beyond one explicitly replaceable target and crash-durable directory-entry

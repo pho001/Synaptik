@@ -212,16 +212,20 @@ waits for admitted Training work, closes the inference session and private seed 
 never closes the borrowed Engine, Module, or parameter storage. Detached `TrainingStep` and
 `TrainingState` values outlive all of those owners.
 
-Checkpoint does not add a step to this execution lifecycle. Its opaque artifact API can publish
-and read a bounded file with atomic live visibility. Its internal model codec can now capture a
-complete quiescent NN state as a detached candidate through public Engine materialization, but
-there is no public model save/load or restore. Exact training continuation would additionally
+Checkpoint does not add a step to this execution lifecycle. Its model API can save one complete
+quiescent NN state through public Engine materialization, inspect the bounded file, then load it
+into a fully bound recreated target through NN's strict whole-tree installation. The caller owns
+quiescence and versioned configuration/input fingerprints; v1 does not infer source alias identity.
+The opaque artifact API provides atomic live visibility, not power-loss durability. Exact training
+continuation would additionally
 require Training-owned state and the caller's next-input and external-state handoff, coordinated
 by a separately gated optional adapter rather than by NN or the model-only project. This is a
-planned ownership flow, not a current runnable model save/resume sequence. See the [checkpoint
+planned ownership flow, not a current runnable training resume sequence. See the [checkpoint
 boundary decision](../design/decisions/0031-model-checkpoint-extension-boundary.md) and
 [artifact envelope decision](../design/decisions/0032-checkpoint-artifact-envelope.md) and
-[model schema decision](../design/decisions/0033-model-candidate-schema.md).
+[model schema decision](../design/decisions/0033-model-candidate-schema.md). The
+[public model checkpoint decision](../design/decisions/0034-public-model-checkpoint.md)
+records the bound-target and alias policy.
 
 The first update domain is scalar `FLOAT32`/`FLOAT64` objectives and connected, fully static,
 dense-contiguous, offset-zero non-view parameters in exact-capacity writable shareable native

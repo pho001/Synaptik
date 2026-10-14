@@ -842,8 +842,11 @@ The dictionary is an in-memory module-state boundary, not a persistent checkpoin
 bytes, files, codec, format version, migration rules, evaluated Tensor values, optimizer state,
 `TrainingSession` state, graph random-number-generator state, compiler artifact, prepared
 execution, runtime state, or backend state. The current Training workflow can coordinate this
-module-owned state with its separately owned `TrainingState`; a future persistence adapter may
-encode both, but no durable checkpoint codec or atomic file-publication API exists now.
+module-owned state with its separately owned `TrainingState`. By contrast, the current
+[model checkpoint API](model-checkpoint-api.md) saves, inspects, and loads fully bound NN
+parameter and buffer values through a file with atomic live publication; it does not persist
+`TrainingState` or provide exact training continuation. A future Training Checkpoint adapter may
+coordinate persistence of both state owners.
 
 For example, a root module with parameter `weight`, buffer `step`, and child `encoder` containing
 parameter `scale` and buffer `runningMean` exports this order:
@@ -875,11 +878,11 @@ TrainingSession.open
   -> repeated run/materialize/stage/commit
 ```
 
-Schedulers, mixed precision beyond the stated parameter domain, durable checkpoint persistence, and
-compiled/fused optimizer updates remain planned. A later compiled optimizer graph requires a
-separate architecture decision. Choosing a fused Metal kernel for any future optimizer update
-belongs to Metal prepare; a `MetalOptimizerBridge` inside Training would reverse the required
-dependency direction.
+Schedulers, mixed precision beyond the stated parameter domain, persistence for exact training
+continuation, and compiled/fused optimizer updates remain planned. A later compiled optimizer
+graph requires a separate architecture decision. Choosing a fused Metal kernel for any future
+optimizer update belongs to Metal prepare; a `MetalOptimizerBridge` inside Training would
+reverse the required dependency direction.
 
 ## Related contracts
 

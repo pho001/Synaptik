@@ -40,7 +40,7 @@ sessions, accumulation and SGD/Adam/AdamW state with in-memory snapshots; durabl
 checkpoint/resume behavior remains future work.
 
 CUDA, ONNX, and CLI are currently marker projects. Checkpoint now has a bounded opaque artifact
-file API but no model-state save/load; Data, Text, and Vision remain planned
+file API and public model-state save/inspect/load; Data, Text, and Vision remain planned
 areas without implementation modules. Broader trace payloads/serialization remain unfinished;
 generic backend discovery is not an authorized foundation and requires an explicit architecture
 decision before any convenience layer is planned. Consult the relevant area map before treating
@@ -2940,20 +2940,23 @@ match. Omitting `encoder.runningMean` fails before any target changes. The examp
 path/order and validate-before-install behavior; it does not read, serialize, or execute Tensor
 values.
 
-A **checkpoint** is a future semantic recovery artifact. The included model-only Checkpoint
-project is downstream of NN and public Engine and currently offers a public opaque artifact envelope:
+A **checkpoint** is a semantic recovery artifact. The included model-only Checkpoint
+project is downstream of NN, public Engine, and Model and offers a public opaque artifact envelope:
 a versioned, bounded single-file container with strict names, lengths, and SHA-256 integrity
 checks. It does not assign meaning to payload bytes. Saving this envelope forces its temporary
 file and uses one atomic move for live visibility; Java NIO does not portably guarantee that the
 rename survives power loss. A failed move can leave the target in a provider-dependent state.
-A package-private **model artifact candidate** now adds canonical version-one metadata and
+A package-private **model artifact candidate** adds canonical version-one metadata and
 detached per-path payload bytes from one complete NN state snapshot through public Engine compute.
 Its schema fingerprint is SHA-256 over exact metadata, including caller-supplied configuration and
-optional input-artifact digests. It has no public model save, inspect, load, or restore method.
+optional input-artifact digests. The public model facade saves, fully inspects, and strictly loads
+that file into a fully bound target. The target's Tensor identity defines alias groups: their
+stored values must be byte-identical, and each group receives one fresh heap-backed Tensor.
+The v1 wire does not encode source sharing, so configuration fingerprints must cover it.
 A separately gated optional Training Checkpoint adapter would coordinate Training-owned state and
 caller-owned continuation data without making the model-only project depend on Training. No
-public model-state save/load, migration rule, or universal serialization
-contract exists. Existing in-memory optimizer/session snapshots and graph RNG
+model migration rule, training-resume protocol, or universal serialization contract exists.
+Existing in-memory optimizer/session snapshots and graph RNG
 expressions are not checkpoint payloads; compiler, runtime, and backend state are not part of
 model-state persistence. `StateDictionary` is the shallow in-memory module-state input to the
 internal candidate capture; its enum names, record equality, and diagnostic strings are not wire
@@ -4059,19 +4062,19 @@ concrete-backend switch is part of the shared contract.
 
 ### CPU buffer argument
 
-The implemented backend-private, non-owning direct access form created once when a CPU
-`PreparedExecutable` cold-binds a selected physical buffer representation. When the exact
-primitive heap carrier is observable and matches the logical data type, an array form retains the
-carrier, its carrier-relative byte offset, exact byte size, and read-only state. Otherwise
-`CpuBufferArgument.Segment` retains the exact selected `MemorySegment` or slice with byte offset
-zero relative to that retained region.
+The implemented backend-private, non-owning direct access form selected when a CPU
+`PreparedExecutable` cold-binds a physical buffer representation. An explicitly prepared array
+form requires an observable primitive heap carrier matching the logical data type and retains the
+carrier, its carrier-relative byte offset, exact byte size, and read-only state. A prepared segment
+form instead retains the exact selected `MemorySegment` or slice with byte offset zero relative to
+that region, even when a matching heap array is observable.
 
-`Segment` describes exact-segment access, not native provenance. Genuine native segments use it,
-but a heap-backed segment also uses it when the JDK does not expose its primitive carrier. In JDK
-26, `heapBase()` is empty for a read-only heap segment, so cold binding preserves that exact
-read-only segment without copying. Every form preserves the underlying ownership, lifetime,
-current-thread access, byte geometry, and writability restrictions; the argument owns and closes
-no memory. Mixed array and exact-segment arguments are valid in one ordered invocation.
+`Segment` describes exact-segment access, not native provenance. Genuine native and heap-backed
+segments both use it. In JDK 26, `heapBase()` is empty for a read-only heap segment, so cold
+binding preserves that exact read-only segment without copying. Every form preserves the underlying
+ownership, lifetime, current-thread access, byte geometry, and writability restrictions; the
+argument owns and closes no memory. Mixed array and exact-segment arguments are valid in one
+ordered invocation.
 
 ### `NoOperationAttrs`
 

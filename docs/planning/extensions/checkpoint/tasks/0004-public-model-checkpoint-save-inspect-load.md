@@ -2,10 +2,13 @@
 
 ## Status
 
-Draft. Checkpoint 0003 is Complete at `cc88cab1`. The user selected typed public inspection
-on 2026-10-14, including its explicit Model dependency and coordinated architecture update.
-The alias/lazy-target restore policy still needs a decision before this task becomes Ready.
-No 0004 executor is authorized yet.
+Complete after [CPU 0024](../../../backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md)
+and direct restored-heap Engine acceptance. Checkpoint 0003 is Complete at `cc88cab1`. The user
+selected typed public inspection on 2026-10-14, including its explicit Model dependency and
+coordinated architecture update, and selected target-defined alias groups for v1 restore.
+Checkpoint implementation, independent Class C review, direct regression, and combined
+validation are recorded below. The v1 schema is unchanged; no competing Checkpoint writer is
+active.
 
 ## Change class
 
@@ -18,7 +21,7 @@ Give a caller with a recreated NN module a bounded, fail-closed way to save, ins
 the model's complete parameter and buffer values. Reuse the version-one artifact envelope and
 internal model candidate; do not serialize arbitrary model-defining Java code.
 
-## Selected policy and pending decision
+## Selected policy
 
 - Prefer one `ModelCheckpoint` facade in `checkpoint.model`: `save(Path, Module, Engine,
   configDigest, optionalInputDigest, ArtifactLimits)`, `inspect(Path, ArtifactLimits)`, and
@@ -32,13 +35,13 @@ internal model candidate; do not serialize arbitrary model-defining Java code.
   edge. This specific dependency/API choice is user-approved; coordinate the root dependency
   rule, owning extensions contract, architecture test, explanatory docs, and an ADR in the same
   implementation change before exposing it as current architecture.
-- The v1 file stores one value per path, not source Tensor identity. Prefer to preserve exact
+- The v1 file stores one value per path, not source Tensor identity. Preserve exact
   alias groups declared by a fully bound recreated target: require byte-identical payloads for
   every target alias group, then install one reconstructed Tensor per group. The caller's
   versioned configuration fingerprint must cover intended sharing; Checkpoint cannot infer
-  source alias identity from v1 bytes. Whether unbound/lazy targets can be accepted without a
-  provable alias topology remains a decision before this brief becomes Ready. The alternative
-  is a new metadata version that records source alias groups before public load.
+  source alias identity from v1 bytes. Refuse an unbound/lazy target in v1 because its alias
+  topology cannot be established through the complete state snapshot. Lazy restore or source
+  alias verification requires a separately approved metadata/NN contract revision.
 - Restore canonical big-endian payload bits into data-type-compatible JVM host carriers in
   native byte order, with no floating conversion or NaN canonicalization. `BOOL` bytes must be
   `0` or `1`. A loaded Tensor is a fresh dense-contiguous host leaf; parameter candidates have
@@ -83,17 +86,20 @@ streaming format or a broad memory-budget redesign.
 
 ## Dependencies and integration
 
-- Depends on: Checkpoint 0003 (Complete); NN strict whole-tree load and Engine bounded compute
-  already exist. The typed inspection/API dependency choice is approved; the alias/lazy decision
-  above remains before Ready.
+- Depends on: Checkpoint 0003 (Complete) for implementation; CPU 0024 for direct restored-heap
+  Engine acceptance and closure, not for the Checkpoint code or v1 format. NN strict whole-tree
+  load and Engine bounded compute already exist; typed inspection/API dependency and target-defined
+  v1 aliases are approved, with fail-closed unbound targets.
 - Conflicts with: Checkpoint 0005–0007, Training 0004 integration to the same restore contract,
   and concurrent Checkpoint/NN public API, schema, or owning-contract edits.
 - Parallel group: None.
-- Common base revision: N/A (serial successor from `cc88cab1`).
-- Integration order: decide public contract, then implement 0004, then consider 0005.
-- Integration validation: affected Checkpoint and architecture tests plus repository-wide
-  `./gradlew test javadoc` once if the dependency/API boundary changes.
-- Shared-document integration owner: 0004 implementation owner; no concurrent writer.
+- Common base revision: N/A (serial successor from `cc88cab1`; current `main` is the work base).
+- Integration order: Checkpoint implementation/review (recorded below), then CPU 0024 repair and
+  independent review, then direct Checkpoint regression and 0004 closure; only then consider 0005.
+- Integration validation: direct ordinary/restored heap Engine tests, affected CPU and Checkpoint
+  checks, and one combined `./gradlew test javadoc` after CPU integration. Earlier successful
+  Checkpoint validation remains recorded below.
+- Shared-document integration owner: coordinator for the combined closure; no concurrent writer.
 
 ## Files and symbols
 
@@ -142,4 +148,44 @@ quiescence, failure, and durability limits. Check the targeted glossary terms.
 
 ## Result
 
-Empty until implementation.
+The Checkpoint-only public save/inspect/load implementation, typed inspection,
+target-defined alias validation, full BOOL inspection, raw-bit heap reconstruction, coordinated
+Model `api` edge, tests, Javadocs, guide, glossary, contract, architecture test, and ADR are in
+the working tree. The v1 envelope and metadata wire are unchanged. Focused Checkpoint and
+architecture tests, Checkpoint Javadoc, and the repository `./gradlew test javadoc` gate passed.
+The final empty-state/limit focused test addition also passed under the affected-module check.
+
+Before CPU 0024, direct execution of a restored primitive-array heap Tensor through
+`Engine.compute(tensor.contiguous())` failed with
+`bufferSelections[0] is incompatible with prepared executable`. A temporary focused diagnostic
+test reproduced the same failure for an ordinary `TensorFactory.fromFlatArray` `FLOAT64` heap
+leaf, independent of Checkpoint load. Engine's compute flow prepares before borrowing input
+storage, while CPU preparation's empty carrier pattern selects `MEMORY_SEGMENT`; at bind the
+borrowed heap carrier is an array and violates the specialized pattern. The earlier raw-bit test
+copied restored public host bytes into native test storage before an Engine oracle. That
+proved bits and carrier reconstruction but did not meet direct restored-Tensor executability.
+The diagnostic test was removed after recording the failure to keep the Checkpoint test suite
+green; the focused failure output was `ModelCheckpointTest.diagnosticOrdinaryHeapLeafCompute`
+under `./gradlew :extensions:checkpoint:test --tests
+'*ModelCheckpointTest.diagnosticOrdinaryHeapLeafCompute'`.
+
+The user approved separate CPU follow-up work, not expansion of this Checkpoint implementation
+scope. CPU 0024 now binds the prepared segment form to the exact heap segment, with its initial
+P1 mixed-carrier overlap finding fixed and clean independent re-review approved. The revised
+`ModelCheckpointTest.savesInspectsAndLoadsSevenTypesWithExactBitsAndNativeCarriers` now runs
+direct save→inspect→load→`Engine.compute(tensor.contiguous(), 1024)` on each restored heap
+Tensor: all seven data types, rank-zero, and empty shape pass with exact bits and carrier checks.
+`./gradlew :extensions:checkpoint:check` passed; `ModelCheckpointTest` reports 5 tests and zero
+failures. The targeted documentation pass updated `docs/api/model-checkpoint-api.md`,
+`docs/api/training-api.md`, and ADR 0034, checked links and relevant glossary terms, and reused
+successful executable evidence. The prior independent Checkpoint Class C review had no
+high-severity findings; the public Model edge, architecture test, Javadocs, and user guide are
+complete. This planning closure made no further Checkpoint code or API documentation edits.
+
+The final integrated command with `SYNAPTIK_METAL_TEST_LIBRARY` set to the local source-matched
+dylib, `./gradlew test javadoc --max-workers=2 --console=plain`, passed (105 tasks: 1 executed,
+104 up-to-date). An earlier unconfigured run failed only 15 Metal tests requiring that variable;
+it did not identify a Checkpoint defect. No unresolved 0004 acceptance gate remains; future
+Checkpoint 0005–0007 and Training 0004 remain Draft.
+
+Status: Complete

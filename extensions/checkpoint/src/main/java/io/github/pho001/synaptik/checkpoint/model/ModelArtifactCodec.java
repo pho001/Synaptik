@@ -138,7 +138,8 @@ final class ModelArtifactCodec {
     }
 
     /**
-     * Validates an already detached artifact's exact schema and one-to-one ordinal payloads.
+     * Validates an already detached artifact's exact schema, one-to-one ordinal payloads, and
+     * canonical BOOL values. It preserves all other represented payload bits without conversion.
      *
      * @param envelope non-null opaque image to inspect without modifying it
      * @param limits caller-selected bounds applied to schema, payloads, manifest, and file size
@@ -213,6 +214,13 @@ final class ModelArtifactCodec {
                 states.add(new State(path, kind, type, shape, (int) length));
                 ArtifactEnvelope.Entry payload = envelope.entries().get(i + 1);
                 if (!ordinal(i).equals(payload.key()) || payload.size() != length) throw invalid();
+                if (type == DataType.BOOL) {
+                    ByteBuffer logical = payload.payload();
+                    while (logical.hasRemaining()) {
+                        byte value = logical.get();
+                        if (value != 0 && value != 1) throw invalid();
+                    }
+                }
             }
             if (in.hasRemaining()) throw invalid();
             Metadata metadata = encode(states, config, input, limits);

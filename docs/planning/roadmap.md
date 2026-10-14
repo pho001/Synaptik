@@ -45,7 +45,8 @@ integration commits and validation are recorded in the briefs and report. No wri
 
 ## Area map
 
-No row below authorizes a new implementation task; select and prepare a Ready successor explicitly.
+The area rows summarize status. Only an explicitly Ready brief at an authorized frontier permits
+new execution; this closure establishes no new Ready frontier.
 
 | Area | Delivered baseline / remaining gate |
 |---|---|
@@ -58,7 +59,7 @@ No row below authorizes a new implementation task; select and prepare a Ready su
 | [Compiler](modules/compiler/master-plan.md) | Complete through 0006B11 plus repair 0006D. Conv3d adjoints 0006C and exact rewrites 0007 Draft; BPTT unsupported. |
 | [Prepare](modules/prepare/master-plan.md) | Complete through 0009; opaque backend collaboration and complete resource transaction. |
 | [OpenBLAS provider](backends/openblas-provider/master-plan.md) | 0001–0003 Complete. Optional direct BF16 0004 Blocked on ABI and one-final-narrowing evidence; F32/F64 unaffected. |
-| [CPU](backends/cpu/master-plan.md) | Complete through 0022; vector ERF shape follow-up 0023 Draft. 0010M retained scalar/1/1/1 defaults; vendor peers remain use-case/ABI gated. |
+| [CPU](backends/cpu/master-plan.md) | Complete through 0022 plus [0024](backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md), including heap binding and mixed-carrier overlap repair; vector ERF shape follow-up 0023 Draft. 0010M retained scalar/1/1/1 defaults; vendor peers remain use-case/ABI gated. |
 | [Engine](modules/engine/master-plan.md) | Public composition, sessions, compute/backward, host materialization and bounded tuning delivered; profile spine is historical after Model 0032. |
 | [Metal](backends/metal/master-plan.md) | Complete through 0079. Current occurrence support is independently typed; hosted GPU CI 0047 remains blocked. |
 | [CUDA](backends/cuda/master-plan.md) | Marker/native scaffold only; no executable CUDA backend. 0001 Draft. |
@@ -68,7 +69,7 @@ No row below authorizes a new implementation task; select and prepare a Ready su
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions, SGD/Adam/AdamW groups and in-memory state delivered. Decision 0003A is Complete after independent Class C approval; 0003 is Superseded. Joint preflight/commit 0004 remains Draft. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | 0001–0003 Complete. [0004](extensions/checkpoint/tasks/0004-public-model-checkpoint-save-inspect-load.md) Draft: typed inspection and direct Model edge selected; v1 alias/lazy-target policy remains before model save/load. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through [0004](extensions/checkpoint/tasks/0004-public-model-checkpoint-save-inspect-load.md): public save/inspect/load, typed inspection, target-defined v1 aliases, and direct restored-heap Engine execution validated; 0005–0007 Draft. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
@@ -84,20 +85,21 @@ No row below authorizes a new implementation task; select and prepare a Ready su
    claim, caller-owned next-input/external-state handoff, and no Training 0003 API.
    Before a durable exact-resume claim, prepare Training 0004's joint preflight/commit gate; do
    not invent a DataLoader or imply the current fixed session advances graph RNG between runs.
-3. Durable save/load is the selected next stream. [Checkpoint 0001](extensions/checkpoint/tasks/0001-checkpoint-module-boundary.md)
+3. Durable model save/load was the selected stream and is now Complete. [Checkpoint 0001](extensions/checkpoint/tasks/0001-checkpoint-module-boundary.md)
    has completed the model-only module boundary. [Checkpoint 0002](extensions/checkpoint/tasks/0002-bounded-artifact-envelope.md)
    is Complete with a bounded single-file codec and atomic-live-publication policy;
    [0003](extensions/checkpoint/tasks/0003-model-schema-and-materialization-handoff.md) is
    Complete after implementation, validation, and independent review; [0004](extensions/checkpoint/tasks/0004-public-model-checkpoint-save-inspect-load.md)
-   is drafted but remains unauthorized pending its alias/lazy-target decision. Typed inspection
-   and its direct Model edge are selected. Existing
-   Engine materialization is not a missing prerequisite.
+   is Complete after the target-alias/unbound-target policy decision, independently reviewed
+   public implementation, [CPU 0024](backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md)
+   repair, direct restored-heap Engine regression, targeted documentation, and combined gate.
 4. In a separately selected stream, Data 0001 authorizes Data/Text/Vision architecture before
    batching or text/image APIs. Runtime recurrent adoption still needs a concrete backend route.
 
 Step 2 records a completed decision, not authorization for Training 0004
-implementation. Step 3 records Checkpoint 0003's completed bounded internal schema/handoff, not
-authorization for public save/load in Draft 0004. Step 4 is a proposal, not a Ready implementation task.
+implementation. Step 3 records completed Checkpoint 0003/0004 and CPU 0024, not authorization
+for future Training or Checkpoint Draft tasks.
+Step 4 is a proposal, not a Ready implementation task.
 An independent performance/shape follow-up, [CPU 0023](backends/cpu/tasks/0023-vector-erf-direct-java-shape.md),
 is also Draft: the bounded vector ERF diagnostic did not demonstrate parity with direct Java.
 It is not a prerequisite for unrelated Training/Checkpoint decisions or a new broad campaign.
@@ -112,9 +114,9 @@ adapter-to-prerequisite cycle remains.
 - Do not restart historical profile/certificate/proof gates as prerequisites for current work.
 - Do not equate operation-kind coverage with all dtypes/layouts/gradients/strategies or speed.
 - No broad performance campaign, new native provider, automatic backend discovery, rollback-mode
-  change, or new numerical policy is authorized by the prior review. The selected Checkpoint
-  stream currently has only completed internal model candidate capture in 0003, not model
-  save/load.
+  change, or new numerical policy is authorized by the prior review. Checkpoint 0004's model
+  save/inspect/load and direct Engine acceptance are Complete; future persistence work remains
+  separately gated.
 - GPU CI provisioning, large-model aggregate memory policy, new vendor routes, recurrent execution
   and missing adjoints retain their explicit decisions and owning plans.
 

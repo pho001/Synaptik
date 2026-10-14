@@ -1,6 +1,7 @@
 dependencies {
-    implementation(project(":extensions:nn"))
-    implementation(project(":modules:engine"))
+    api(project(":extensions:nn"))
+    api(project(":modules:engine"))
+    api(project(":modules:model"))
 }
 
 tasks.withType<Test>().configureEach {

@@ -94,13 +94,14 @@ noncanonical, unsupported, over-limit, truncated, or trailing data before return
 immutable image. Callers supply bounds for file and manifest bytes, entry count, name bytes,
 individual payload bytes, and aggregate payload bytes. Readers bound the manifest length before
 allocating its array, then check aggregate length arithmetic before allocating payloads. Its direct
-project dependencies remain exactly `extensions/nn` and `modules/engine`.
+public project dependencies are exactly `extensions/nn`, `modules/engine`, and `modules/model`.
 NN retains module-state meaning and installation; Engine retains public host materialization.
 Checkpoint must not inspect backend representations or reach through Engine into Compiler,
 Runtime, Prepare, tuning, or concrete backends.
 
-Its internal model package owns a separate version-one metadata codec and a detached candidate,
-not a public model save/load or state installer. Under caller-owned quiescence, capture calls
+Its model package owns a separate version-one metadata codec, a detached candidate, and a public
+`ModelCheckpoint` save/inspect/load facade; it is not a state installer. Under caller-owned
+quiescence, capture calls
 `Module.stateDictionary()` exactly once; an unbound or incomplete NN state fails there. Before
 any Engine call or Checkpoint-owned payload-sized allocation, capture validates exact NN paths,
 32-byte caller-supplied SHA-256 configuration and optional input-artifact fingerprints, static
@@ -134,7 +135,20 @@ noncanonical length, or trailing metadata. A candidate is fully detached and imm
 configured aggregate limit bounds schema plus every state's canonical output bytes, including
 aliased paths; it does not bound Engine workspace, source detached values, defensive copies, or
 peak heap. The envelope's own v1 framing and checksums remain unchanged. No cross-call cache,
-implicit initialization, model reconstruction, or public persistence facade is part of this stage.
+implicit initialization, or model-defining code reconstruction is provided. Public inspection
+fully validates file framing, schema, payload correspondence, and canonical BOOL bytes before
+returning detached immutable typed descriptors and defensive digest copies. Load rereads and
+revalidates the file, checks exact caller configuration and optional input-digest presence and
+bytes, and rejects an unbound target by requiring a complete NN state snapshot before
+installation. It validates every path, kind, type, Shape, gradient requirement, and target
+Tensor-identity alias group before constructing a complete candidate dictionary. The v1 wire
+stores one value per path and cannot prove source Tensor identity: each fully bound target alias
+group must have identical stored bytes, then receives one fresh dense-contiguous host Tensor per
+group. A group containing a parameter receives a gradient-eligible Tensor; buffer-only groups do
+not. Canonical big-endian bits are restored into data-type-compatible native-order heap carriers
+without numeric conversion or NaN normalization. NN alone performs the one strict whole-tree
+installation attempt after all checkpoint validation and reconstruction. Save and load require
+caller-owned quiescence; a prior inspection is not trusted for later load.
 
 For a trusted existing local directory and quiescent caller-owned target, save writes a newly
 created sibling temporary file, forces that file through its writing channel, closes, reopens, and
@@ -150,9 +164,9 @@ temporary path untouched because their outcome is uncertain. No filesystem opera
 successful move. The envelope is not encryption or adversarial authentication.
 
 Checkpoint must not depend on Training or Text. Model, NN, Training, Engine, and other inward
-modules must not depend on Checkpoint. If a later public Checkpoint signature directly names Model
-types, that task may add a justified direct `modules/model` edge with a coordinated root,
-contract, and architecture-test update; the present artifact-only API has no such edge.
+modules must not depend on Checkpoint. The direct public Model edge is limited to checkpoint
+Tensor descriptors and restoration; it does not authorize backend storage access or a second
+execution pipeline.
 
 A separate optional `extensions/training-checkpoint` adapter is reserved for durable exact
 training continuation. It may depend on Training and Checkpoint, but is neither included in

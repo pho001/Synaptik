@@ -8,9 +8,9 @@ version-one file form. The [extensions contract](../architecture/contracts/exten
 owns the boundary, and [ADR 0032](../design/decisions/0032-checkpoint-artifact-envelope.md)
 explains the format and publication choice.
 
-Checkpoint also has an internal model-candidate codec that maps NN state to opaque entries via
-public Engine materialization. That codec is not part of this public artifact API and does not
-provide model save, inspect, load, or restore. Its schema is described by the
+Checkpoint also has a public [model checkpoint API](model-checkpoint-api.md) that maps NN state to
+opaque entries via public Engine materialization. It is separate from this opaque artifact API:
+the artifact package still assigns no meaning to payloads. Its schema is described by the
 [owning contract](../architecture/contracts/extensions-training.md#extensionscheckpoint) and
 [ADR 0033](../design/decisions/0033-model-candidate-schema.md).
 
@@ -86,10 +86,11 @@ the old file is still present.
 
 `ArtifactFormatException` reports malformed, corrupt, unsupported, or over-limit images. Other
 `IOException`s report access, force, validation I/O, and move failures. This is not encryption,
-adversarial authentication, model-state save/load, a remote-filesystem guarantee, or training
+adversarial authentication, a remote-filesystem guarantee, or training
 resume. There is no cross-process no-replace or concurrent-target-mutation promise.
 
 ## Related API and architecture
 
 - [Checkpoint module boundary](../architecture/module-boundaries.md#extensionscheckpoint)
+- [Public model checkpoint API](model-checkpoint-api.md)
 - [Checkpoint lifecycle explanation](../architecture/lifecycle.md#public-training-lifecycle)

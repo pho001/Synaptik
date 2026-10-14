@@ -294,20 +294,22 @@ consumer of published gradients and owner of optimizer orchestration.
 
 ### `extensions/checkpoint`
 
-Checkpoint is the model-only recovery boundary downstream of NN and the public Engine facade.
-Its current runnable artifact API saves and reads one bounded file of opaque named byte payloads.
+Checkpoint is the model-only recovery boundary downstream of NN, public Engine, and Model.
+Its artifact API saves and reads one bounded file of opaque named byte payloads.
 The file is forced and fully validated before one atomic move; success gives atomic live
 visibility, not portable power-loss persistence of the rename. It does not interpret a payload
-as a Tensor or model state. NN still owns the meaning of module parameters and buffers, while
-Engine owns detached host materialization. An internal model codec now takes one complete NN
-state snapshot, preflights the eventual artifact, and uses public bounded Engine compute to
-produce a detached candidate with versioned metadata. NN paths stay in metadata; fixed ordinal
-artifact keys carry bytes. The candidate has no public save, inspect, load, or installation API.
-For example, a buffer named `重み` can be captured as metadata path `重み` while its bytes reside
-at `state/00000000`; a future public model adapter may publish it, but callers cannot do so
-through a model facade today. See the [artifact API](../api/checkpoint-artifact-api.md),
+as a Tensor or model state. The public model facade adds that interpretation: it captures one
+complete NN snapshot, materializes through bounded public Engine compute, and exposes detached
+typed inspection. Load checks the caller fingerprints and complete file, then reconstructs host
+Tensors and asks NN to install the entire state dictionary. A fully bound target defines v1
+alias groups; unbound/lazy targets fail. NN paths stay in metadata while fixed ordinal artifact
+keys carry bytes. For example, a buffer named `重み` is stored as metadata path `重み` while its
+bytes reside at `state/00000000`. See the [model checkpoint API](../api/model-checkpoint-api.md),
+[artifact API](../api/checkpoint-artifact-api.md),
 [envelope decision](../design/decisions/0032-checkpoint-artifact-envelope.md), and
-[model schema decision](../design/decisions/0033-model-candidate-schema.md).
+[model schema decision](../design/decisions/0033-model-candidate-schema.md). The
+[public model checkpoint decision](../design/decisions/0034-public-model-checkpoint.md)
+explains typed inspection, the direct Model dependency, and target-defined aliases.
 
 Exact training continuation is a different problem: it also requires Training-owned state and
 caller-owned progress or random state. An optional downstream Training Checkpoint adapter is
@@ -349,7 +351,7 @@ engine     = explicit composition and public lifecycle
 trace      = typed diagnostic leaf
 nn         = module composition, parameters, buffers, and forward mode
 training   = optimizer algorithms and training orchestration
-checkpoint = model-only recovery boundary (opaque artifact API only; no model-state persistence)
+checkpoint = model-only recovery boundary (opaque artifact and public model-state APIs)
 ```
 
 The dependency implications of these responsibilities are detailed in [Dependency Rules](dependency-rules.md).

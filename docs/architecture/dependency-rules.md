@@ -73,7 +73,7 @@ Neural-network composition and training have a separate extension direction:
 ```text
 modules/model -> extensions/nn
 modules/model + extensions/nn + public modules/engine facade -> extensions/training
-extensions/nn + public modules/engine facade -> extensions/checkpoint
+extensions/nn + public modules/engine facade + modules/model -> extensions/checkpoint
 extensions/training + extensions/checkpoint -> optional future extensions/training-checkpoint
 ```
 
@@ -84,14 +84,13 @@ three appear in Training's public signatures, the NN, Model, and Engine Gradle e
 dependencies; a consumer declaring only Training still compiles against that complete public
 surface. This is not permission to import lower execution internals.
 
-Checkpoint currently declares exactly the NN and public Engine project edges. Its artifact API
-reads and publishes bounded opaque files; its internal model package now captures detached
-candidate bytes through public Engine compute from NN's state dictionary. No public model-state
-persistence or state installation exists. A later public
-Checkpoint signature that names Model types may justify a direct Model dependency with a
-coordinated contract and test update; today's absence of that edge is not a permanent prohibition.
+Checkpoint declares exactly NN, public Engine, and Model as `api` project edges because its public
+typed inspection and save/load facade expose all three contracts. Its artifact API reads and
+publishes bounded opaque files; its model package captures detached bytes through public Engine
+compute and delegates whole-tree installation to NN. It has no backend or Training dependency.
 The optional Training Checkpoint adapter is not in Gradle settings and must wait for its separate
-gate.
+gate. The [public model checkpoint decision](../design/decisions/0034-public-model-checkpoint.md)
+explains the Model edge and target-defined alias policy.
 
 ## Concrete forbidden dependencies
 
@@ -108,7 +107,7 @@ gate.
 - `extensions/training` may depend on Model, `extensions/nn`, and the public Engine facade. It must
   not reverse the NN dependency or depend directly on Runtime, Prepare, tuning, Engine internals,
   or concrete backend modules.
-- `extensions/checkpoint` currently depends directly only on NN and the public Engine facade; it
+- `extensions/checkpoint` depends directly only on NN, the public Engine facade, and Model; it
   must not depend on Training, Text, lower execution layers, tuning, or concrete backends. Inward
   modules, NN, and Training must not depend on Checkpoint.
 - `extensions/onnx` must not depend on runtime hot-path execution internals.
@@ -153,7 +152,7 @@ train/eval behavior, a layer would be coupled to optimizer orchestration and reu
 composition would acquire a reverse dependency. Keeping `Parameter` and `Buffer` in `nn` lets a
 training extension traverse declared parameters without knowing concrete layer types.
 
-### Model-only recovery is downstream of NN and Engine
+### Model-only recovery is downstream of NN, Engine, and Model
 
 NN state paths and values can be meaningful without an optimizer; Engine provides the public
 host-materialization boundary for any executed values. A model-only Checkpoint owner can consume
@@ -204,7 +203,7 @@ Tests under `testing/architecture-tests/` should fail when forbidden module or p
 - absence of compile-time graph types in the runtime hot path; and
 - absence of concrete implementation references in partition scoring.
 - the Model/NN and public-Engine-to-Training direction.
-- Checkpoint's present exact NN/Engine edges, absent reverse edges, and exclusion of the optional
+- Checkpoint's present exact NN/Engine/Model edges, absent reverse edges, and exclusion of the optional
   Training Checkpoint adapter until its separate gate.
 
 Architecture tests enforce the contract; they do not redefine it. When a dependency rule changes, update [`ARCHITECTURE.md`](../../ARCHITECTURE.md), the relevant explanatory document, an ADR when significant, and the architecture tests in the same change.
