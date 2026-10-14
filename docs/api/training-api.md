@@ -255,6 +255,75 @@ the same Engine route; a capability-classified unsupported route fails before op
 This backend-neutral lifecycle does not itself prove or widen BFLOAT16/FLOAT16 Metal graph
 capability. Training contains no backend-specific branch.
 
+### Example: reconstruct a detached Training value
+
+The public grouped `TrainingState` constructor and both `ParameterState` payload constructors
+allow callers outside Training's package to rebuild a detached value. Use an empty group list
+for ungrouped state. Both lists are copied in their supplied order, immutable configuration and
+schema entries are retained, and all supplied payload arrays are defensively copied without
+conversion. Construction checks required references, nonblank paths, floating types, fully
+static Shapes, exact payload widths and size bounds, nonempty parameter lists, and counter
+ranges. It does not check group membership, session schema compatibility, finiteness, or
+algorithm-specific slot validity. `restore` performs those checks before any installation.
+
+**Goal and input.** Given `source = session.state()` from an existing compatible open session,
+reconstruct every entry from its exposed canonical bytes. For the external test's FLOAT32 Adam
+snapshot after one reset-and-step and one accumulate run, the counters are `(2, 1, 1)` and each
+`Shape.of(2)` entry has eight bytes in every payload. Low-precision logical payloads instead have
+four bytes; their optimizer payloads still have eight. This helper also handles FLOAT64, SGD,
+AdamW, and ordered mixed groups. Save the following as `DetachedTrainingCopy.java` with Training
+and its public dependencies on the classpath:
+
+```java
+import io.github.pho001.synaptik.training.TrainingState;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+
+public final class DetachedTrainingCopy {
+    public static TrainingState reconstruct(TrainingState source) {
+        var entries = new ArrayList<TrainingState.ParameterState>();
+        for (var entry : source.parameters()) {
+            byte[] logical = bytes(entry.parameterBytes());
+            byte[] master = bytes(entry.masterParameterBytes());
+            byte[] first = bytes(entry.firstMomentBytes());
+            byte[] pending = bytes(entry.accumulatedGradientBytes());
+            var second = entry.secondMomentBytes();
+            entries.add(second.isPresent()
+                    ? new TrainingState.ParameterState(entry.path(), entry.dataType(), entry.shape(),
+                            logical, master, first, bytes(second.orElseThrow()), pending)
+                    : new TrainingState.ParameterState(entry.path(), entry.dataType(), entry.shape(),
+                            logical, master, first, pending));
+        }
+        return new TrainingState(source.optimizer(), source.parameterGroups(), source.executions(),
+                source.optimizerSteps(), source.accumulatedGradientRuns(), entries);
+    }
+
+    private static byte[] bytes(ByteBuffer view) {
+        byte[] result = new byte[view.remaining()];
+        view.get(result);
+        return result;
+    }
+}
+```
+
+Each accessor supplies a fresh position-zero read-only view; `bytes` consumes only that view,
+not the stored value. Selecting the constructor by second-moment presence preserves SGD's
+absence and adaptive slots, including mixed-group assignments. The outer constructor retains
+immutable optimizer/group configurations and preserves both group and parameter order.
+After `TrainingState rebuilt = DetachedTrainingCopy.reconstruct(source)`, the configurations,
+schema, counters, slot presence, and every payload byte match `source`. Calling
+`session.restore(rebuilt)` on that compatible session and then `session.state()` gives the same
+snapshot contents. Reconstruction itself requires no open session or Engine, and the value
+remains readable after both close. Signed zero and nonzero pending sums with a zero pending-run
+count remain unchanged; the count does not normalize those bytes.
+
+**Failure and boundary.** A correctly sized negative adaptive second moment is structurally
+constructible, but restore rejects it before changing any parameter, slot, counter, or pending
+sum, even in the last entry. Reconstruction proves neither session compatibility nor complete
+automatic exact continuation, and supplies no durable codec or file format. The
+[external reconstruction test](../../extensions/training/src/test/java/io/github/pho001/synaptik/training/external/TrainingStateReconstructionTest.java)
+checks these byte, ownership, lifetime, and late-rejection properties through public APIs.
+
 ## Caller-coordinated in-memory recovery
 
 An exact next-input handoff is a caller-owned workflow across NN, the model-only Checkpoint API,

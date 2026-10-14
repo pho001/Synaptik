@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Change class
 
@@ -164,6 +164,25 @@ meaning changes, otherwise record the reasoned no-change conclusion. No normativ
 
 ## Result
 
-Empty until execution. Record completed changes/files, exact validation outcomes, independent
-review and documentation/Javadoc/glossary impact, limitations and follow-up, then
-`Status: Complete` or `Status: Incomplete` with specific `Follow-up required`.
+- `TrainingState.java`: only the grouped constructor and two defensive `ParameterState`
+  constructors became public; structural checks, exact bytes, and trusted adoption remain unchanged.
+- `TrainingSession.java`: restore Javadoc only; both captured and reconstructed values receive
+  complete session validation. Affected Javadocs were finalized by independent review.
+- New `external/TrainingStateReconstructionTest.java`: four methods, 342 lines, covering all four
+  floating types, SGD/Adam/AdamW and mixed groups, defensive ownership, retained pending bits,
+  signed zero, structural rejection, and invalid-last-entry restore atomicity.
+- `docs/api/training-api.md`: 69-line public reconstruction example and validation distinction.
+- `./gradlew :extensions:training:test --tests '*TrainingStateReconstructionTest' --tests '*TrainingStateOwnershipTest' --tests '*TrainingSessionTest' --tests '*AdamOptimizerTest' --tests '*TrainingSessionFailureContractTest' --console=plain`: BUILD SUCCESSFUL (3s), 61 tests, zero failures/skips.
+- `./gradlew :extensions:training:check :extensions:training:javadoc --console=plain`:
+  BUILD SUCCESSFUL (2s), 72 tests, zero failures/skips; XML totals independently confirmed by
+  coordinator and reviewer. Final `./gradlew :extensions:training:javadoc --console=plain`
+  after reviewer edits: BUILD SUCCESSFUL (1s). Successful Java tests were reused, not repeated.
+- Exact guide example compiled with Java 26 and executed for 12 dtype/algorithm inputs: PASS;
+  13 local API links/anchors, rendered Javadoc crosslinks, new-file whitespace, and diff checks: PASS.
+- Independent API/documentation review: APPROVE, no unresolved findings.
+- Closure synchronizes this brief, both masters, and roadmap; 123 local planning links/anchors,
+  whitespace checks, and `git diff --check` pass. Continuation explanation/glossary unchanged: ownership, meanings,
+  and exact-continuation limitations remain accurate. No normative/ADR changes or unresolved issues.
+- No successor authorized: 0006–0007 remain Draft pending design approval; user-selected first
+  0006 scope is Model + TrainingState, external state application-owned, not complete exact resume.
+- Status: Complete

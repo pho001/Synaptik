@@ -572,7 +572,12 @@ public final class TrainingSession implements AutoCloseable {
      * Failure before commit leaves all current state unchanged and discards newly staged inactive
      * accumulation or zero-momentum buffers. The supplied immutable state is not retained.</p>
      *
-     * @param state non-null detached state from a schema-compatible session
+     * <p>The value may come from {@link #state()} or public {@link TrainingState} constructors.
+     * Successful construction establishes structure only, not compatibility or payload validity
+     * for this session; both sources receive the same complete restore validation.</p>
+     *
+     * @param state non-null detached captured or reconstructed state compatible with this session's
+     *     exact optimizer configuration, ordered groups, and parameter schema
      * @throws NullPointerException if {@code state} is {@code null} after successful admission
      * @throws IllegalArgumentException if optimizer, counters, paths, schemas, or finite payloads
      *     differ

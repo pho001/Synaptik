@@ -48,10 +48,11 @@ integration commits and validation are recorded in the briefs and report. No wri
 The area rows summarize status. Only an explicitly Ready brief at an authorized frontier permits
 new execution. Training 0004 and bounded Checkpoint
 [0004A](extensions/checkpoint/tasks/0004a-direct-leaf-model-save.md) are Complete after independent
-review and configured integration gates. The user authorized continuing
-[Checkpoint 0005](extensions/checkpoint/tasks/0005-training-state-reconstruction.md), now Ready
-for Training-owned defensive reconstruction. The user selected Model + TrainingState for durable
-adapter 0006, with external state application-owned and a stored-state restoration guarantee,
+review and configured integration gates.
+[Checkpoint 0005](extensions/checkpoint/tasks/0005-training-state-reconstruction.md) is Complete:
+defensive reconstruction, external-package tests, final Javadoc/example validation, and independent
+API review passed. Training/Checkpoint authorized frontier: None. The user selected Model +
+TrainingState for durable adapter 0006, with external state application-owned and a stored-state restoration guarantee,
 not complete automatic exact continuation. 0006 remains Draft pending concrete composition,
 codec, and architecture design.
 
@@ -75,8 +76,8 @@ codec, and architecture design.
 | [NN](extensions/nn/master-plan.md) | State/layers/static recurrence/lazy initialization/convolution delivered. Runtime scan/backend/Data program 0021B–0024 Draft. |
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
-| [Training](extensions/training/master-plan.md) | Sessions, SGD/Adam/AdamW groups and in-memory state delivered; 0003A/0004 Complete, 0003 Superseded. Owns implementation of Ready [Checkpoint 0005 reconstruction](extensions/checkpoint/tasks/0005-training-state-reconstruction.md) in `io.github.pho001.synaptik.training`; no duplicate task, new restore facade, or durable artifact. Training broader checkpoint 0005 stays Draft. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through [0004A](extensions/checkpoint/tasks/0004a-direct-leaf-model-save.md): direct trained save/load and loaded re-save; independent review and coordinator gate passed. Authorized frontier [0005](extensions/checkpoint/tasks/0005-training-state-reconstruction.md) is Training-owned defensive construction only. 0006–0007 Draft; 0006 selects Model + TrainingState, external state application-owned, with composition/codec/architecture design pending. |
+| [Training](extensions/training/master-plan.md) | Sessions, SGD/Adam/AdamW groups and in-memory state delivered; 0003A/0004 Complete, 0003 Superseded. [Checkpoint 0005 reconstruction](extensions/checkpoint/tasks/0005-training-state-reconstruction.md) Complete after independent API review and validation; no durable artifact. Authorized frontier: None; Training broader checkpoint 0005 Draft. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through [0005](extensions/checkpoint/tasks/0005-training-state-reconstruction.md): Training-owned defensive constructors, external-package tests, Javadoc/example validation and independent review passed. Authorized frontier: None. 0006–0007 Draft pending design approval; first 0006 scope is Model + TrainingState, external state application-owned. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
@@ -112,8 +113,8 @@ codec, and architecture design.
    batching or text/image APIs. Runtime recurrent adoption still needs a concrete backend route.
 
 Step 2 records the completed decision and Training 0004 proof, not a durable artifact. Step 3 records
-completed Checkpoint 0003/0004/0004A and CPU 0024. Subsequent user authorization selects only
-the Ready Training-owned Checkpoint 0005 prerequisite, not the Draft durable adapter.
+completed Checkpoint 0003/0004/0004A and CPU 0024. The subsequently authorized Training-owned
+Checkpoint 0005 prerequisite is Complete, not authorization for the Draft durable adapter.
 Step 4 is a proposal, not a Ready implementation task.
 An independent performance/shape follow-up, [CPU 0023](backends/cpu/tasks/0023-vector-erf-direct-java-shape.md),
 is also Draft: the bounded vector ERF diagnostic did not demonstrate parity with direct Java.
@@ -121,18 +122,18 @@ It is not a prerequisite for unrelated Training/Checkpoint decisions or a new br
 
 The Training/Checkpoint order is:
 `Training 0003A` and `Checkpoint 0001 → 0004`, then completed `Training 0004`, followed by
-completed `Checkpoint 0004A →` Ready Training-owned `Checkpoint 0005 →` Draft `Checkpoint 0006`.
+completed `Checkpoint 0004A →` completed Training-owned `Checkpoint 0005 →` Draft `Checkpoint 0006`.
 CPU 0024 is a completed
 0004A prerequisite. Training 0003 is Superseded; no adapter-to-prerequisite cycle remains.
-0004A closure itself authorizes no successor or lower-layer design work. The user's subsequent
-authorization establishes 0005 as the sole Ready frontier at base
-`7a2a7337381e2ee8c7c09d8ff4829f9e5045dd01`. It is serial, conflicts with Training snapshot/restore
-API and shared documentation edits, and requires implementation then independent API/documentation
-review. The Training/Checkpoint coordinator owns shared-document integration and reuses successful
-Training tests with final Training Javadoc and link/diff validation; full metadata is in the brief.
+Closure authorizes no successor or lower-layer design work. No Training/Checkpoint frontier is
+Ready; 0005's serial implementation, independent API/documentation approval, and validation
+evidence are recorded in its brief. The Training/Checkpoint coordinator owns shared-document integration.
 0006 product scope is resolved: Model + TrainingState (optimizer/groups/slots/accumulation/counters).
 Data position, external RNG, and other absent caller-owned state stay with the application; no
-complete automatic exact-continuation claim is authorized. Concrete design remains pending.
+complete automatic exact-continuation claim is authorized. Pending user design question: existing
+`ArtifactEnvelope`-based capture/inspect/canonical bytes/load on `ModelCheckpoint`, then optional
+Training Checkpoint with only Training and Checkpoint public API dependencies. Concrete design
+approval remains pending; no API or wire design is selected here.
 
 ## Explicit non-goals and unresolved decisions
 

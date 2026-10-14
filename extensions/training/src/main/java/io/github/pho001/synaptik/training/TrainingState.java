@@ -17,13 +17,21 @@ import java.util.Optional;
  * pending accumulation count, and one stable-path entry for every
  * parameter. Each entry owns canonical big-endian logical-parameter, master-parameter, first-slot,
  * optional second-moment, and accumulated-gradient bytes. The first slot is SGD momentum or
- * Adam/AdamW's first moment; only Adam/AdamW entries have a second moment. Logical payloads use
+ * Adam/AdamW's first moment; in session snapshots, only Adam/AdamW entries have a second moment.
+ * Logical payloads use
  * the parameter's declared type; optimizer slots, master, and accumulation use {@code FLOAT64}
  * for {@code FLOAT64} parameters and
  * {@code FLOAT32} otherwise. Successful session snapshots contain only finite represented payload
  * values; restore revalidates this invariant before installation. The snapshot retains no Module,
  * Parameter, Tensor, storage, Engine, prepared execution, backend resource, or closeable owner and
  * remains readable after the originating session closes.</p>
+ *
+ * <p>Callers may reconstruct this value from its exposed configuration, schema, counters, and
+ * canonical bytes. Public construction checks structure only; it does not establish payload
+ * finiteness, optimizer-slot validity, group membership, or compatibility with a session.
+ * {@link TrainingSession#restore(TrainingState)} performs complete validation before installation.
+ * Construction preserves exact bytes, including signed zero and pending sums even when the
+ * pending run count is zero.</p>
  *
  * <p>This is an in-memory validate-before-install handoff, not a durable checkpoint format. It
  * defines no codec, version migration, file publication, graph/random state, data cursor, epoch,
@@ -59,19 +67,28 @@ public final class TrainingState {
     }
 
     /**
-     * Creates detached state with the exact ordered group configuration for restore matching.
+     * Reconstructs detached state with the exact ordered configuration and parameter schema.
+     *
+     * <p>Both lists are defensively copied without reordering; their immutable entries are
+     * retained. Use an empty group list for ungrouped state. Construction validates required
+     * references, list structure, and counter ranges only. Group membership, parameter-path
+     * compatibility, payload values, and algorithm-specific slot validity are checked by
+     * {@link TrainingSession#restore(TrainingState)}, not by this constructor.</p>
      *
      * @param optimizer non-null immutable default optimizer configuration
-     * @param parameterGroups non-null ordered list of non-null immutable groups, copied on capture
+     * @param parameterGroups non-null ordered list of non-null immutable groups, copied on capture;
+     *     empty for ungrouped state, with each group's path order preserved
      * @param executions non-negative successful execution count
      * @param optimizerSteps successful update count in {@code [0, executions]}
-     * @param accumulatedGradientRuns pending run count in {@code [0, executions]}
-     * @param parameters non-null, nonempty ordered list of non-null detached parameter states
+     * @param accumulatedGradientRuns pending run count in {@code [0, executions]}; zero does not
+     *     clear or normalize retained pending-gradient bytes
+     * @param parameters non-null, nonempty ordered list of non-null detached parameter states;
+     *     copied on capture, retaining immutable entries in the supplied schema order
      * @throws NullPointerException if {@code optimizer}, {@code parameterGroups},
      *     {@code parameters}, or an entry is null
      * @throws IllegalArgumentException if a counter is invalid or {@code parameters} is empty
      */
-    TrainingState(
+    public TrainingState(
             Optimizer optimizer,
             List<ParameterGroup> parameterGroups,
             long executions,
@@ -159,7 +176,10 @@ public final class TrainingState {
     }
 
     /**
-     * Returns all parameter snapshots in deterministic recursive Module traversal order.
+     * Returns all parameter states in their captured or supplied schema order.
+     *
+     * <p>Session snapshots use deterministic recursive Module traversal order. Public construction
+     * preserves the supplied order; restore requires that order to match the target session.</p>
      *
      * @return the same non-null immutable non-empty list on every call
      */
@@ -172,7 +192,9 @@ public final class TrainingState {
      *
      * <p>Canonical payload bytes are private, exact-width values exposed only through fresh
      * read-only views. This state owns its bytes independently of parameter storage and remains
-     * readable after the originating session closes.</p>
+     * readable after the originating session closes. Public constructors copy caller arrays
+     * without numeric conversion or normalization and validate schema and byte widths only;
+     * restore validates represented values and session-specific slot requirements.</p>
      */
     public static final class ParameterState {
         private enum PayloadOwnership {
@@ -193,7 +215,11 @@ public final class TrainingState {
          * Defensively captures caller-supplied canonical payloads for one parameter.
          *
          * <p>Each array is checked against the declared logical or optimizer width and copied, so
-         * later writes through a caller-retained reference cannot change this state.</p>
+         * later writes through a caller-retained reference cannot change this state. Canonical
+         * bytes are big-endian: logical bytes use the declared type, while all other payloads
+         * use FLOAT64 for FLOAT64 parameters and FLOAT32 otherwise. This overload has no second
+         * moment. Bytes are preserved exactly; finiteness and algorithm-specific slot validity
+         * are checked by restore, not construction.</p>
          *
          * @param path non-null, non-blank stable recursive parameter path
          * @param dataType non-null supported floating parameter type
@@ -204,8 +230,10 @@ public final class TrainingState {
          * @param accumulatedGradientBytes non-null optimizer-width canonical bytes, copied on construction
          * @throws NullPointerException if any argument is null
          * @throws IllegalArgumentException if the path, type, Shape, or a payload width is invalid
+         *     or either per-payload size exceeds the JVM byte-array limit
+         * @throws ArithmeticException if computing a payload size overflows {@code long}
          */
-        ParameterState(
+        public ParameterState(
                 String path,
                 DataType dataType,
                 Shape shape,
@@ -220,7 +248,13 @@ public final class TrainingState {
         /**
          * Defensively captures a state with an Adam/AdamW second-moment payload.
          *
-         * @param path non-null stable recursive path
+         * <p>Every payload is copied and its exact big-endian bytes are retained without numeric
+         * conversion or normalization. Logical bytes use the declared type; master, first moment,
+         * second moment, and pending sums use FLOAT64 for FLOAT64 parameters and FLOAT32 otherwise.
+         * Construction checks schema and byte widths only, not finiteness, second-moment sign,
+         * or session compatibility. Restore performs those checks before installation.</p>
+         *
+         * @param path non-null, non-blank stable recursive path
          * @param dataType non-null supported floating type
          * @param shape non-null fully static shape
          * @param parameterBytes non-null logical-width canonical bytes, copied
@@ -229,9 +263,11 @@ public final class TrainingState {
          * @param secondMomentBytes non-null optimizer-width canonical bytes, copied
          * @param accumulatedGradientBytes non-null optimizer-width canonical bytes, copied
          * @throws NullPointerException if a required argument is null
-         * @throws IllegalArgumentException if schema or payload widths are invalid
+         * @throws IllegalArgumentException if schema or payload widths are invalid or either
+         *     per-payload size exceeds the JVM byte-array limit
+         * @throws ArithmeticException if computing a payload size overflows {@code long}
          */
-        ParameterState(String path, DataType dataType, Shape shape, byte[] parameterBytes,
+        public ParameterState(String path, DataType dataType, Shape shape, byte[] parameterBytes,
                 byte[] masterParameterBytes, byte[] firstMomentBytes, byte[] secondMomentBytes,
                 byte[] accumulatedGradientBytes) {
             this(path, dataType, shape, parameterBytes, masterParameterBytes, firstMomentBytes,
@@ -414,9 +450,14 @@ public final class TrainingState {
         }
 
         /**
-         * Returns an independent read-only view of an adaptive second-moment slot, when present.
+         * Returns an independent read-only view of the supplied second-moment slot, when present.
          *
-         * @return a fresh big-endian view for Adam/AdamW, or empty for SGD
+         * <p>Session snapshots contain this slot exactly for Adam/AdamW parameters. Public
+         * construction records slot presence without checking the assigned algorithm; restore
+         * validates that assignment before installation.</p>
+         *
+         * @return a fresh big-endian, position-zero view with the exact optimizer-width payload
+         *     limit, or empty when constructed without a second moment
          */
         public Optional<ByteBuffer> secondMomentBytes() {
             return secondMomentBytes == null ? Optional.empty() : Optional.of(view(secondMomentBytes));

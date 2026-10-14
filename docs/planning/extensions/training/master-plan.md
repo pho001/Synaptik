@@ -75,18 +75,14 @@ The accepted contract snapshot, validation, and limitation are recorded in the
 [0004 brief](tasks/0004-joint-restore-preflight-and-candidate-commit.md). The test-only Checkpoint
 dependency in `testing/integration-tests` passed the integration-owner repository gate.
 The user-authorized [Checkpoint 0005](../checkpoint/tasks/0005-training-state-reconstruction.md)
-is Ready after completed Training 0004 and Checkpoint 0004A. It is the single reconstruction
-frontier, implemented and validated in Training; do not create a duplicate Training task.
+is Complete: defensive reconstruction, external-package tests, final Javadoc/example validation,
+and independent API review passed in Training; do not create a duplicate Training task.
 Training's broader capability checkpoint 0005 remains Draft and is not this prerequisite.
 
-Reconstruction changes only existing `TrainingState` and nested `ParameterState` in
-`io.github.pho001.synaptik.training`: the full grouped constructor and two defensive payload
-constructors become public; trusted adoption/helpers remain internal. Serial base:
-`7a2a7337381e2ee8c7c09d8ff4829f9e5045dd01`, parallel group None. Conflicts include snapshot
-ownership/construction, restore compatibility, and shared API/planning edits. Implement, then
-independently review API/documentation, then coordinator acceptance with reused Training tests,
-final Javadoc, and link/diff checks. The Training/Checkpoint coordinator owns shared-document
-integration. Exact metadata and bounded acceptance live in the linked Checkpoint brief.
+Authorized frontier: None. Checkpoint 0006 and Training's broader 0005 remain Draft pending
+design approval. Reconstruction exposes only three existing defensive constructors; trusted
+adoption/helpers remain internal. The Training/Checkpoint coordinator owns shared-document
+integration; exact metadata and evidence live in the linked Checkpoint brief.
 
 The public `ParameterGroup` type in `io.github.pho001.synaptik.training` assigns stable Module
 paths to immutable optimizer configuration; 0002B adds `Adam` and `AdamW` in that package and
@@ -137,7 +133,7 @@ documentation review fix `23d1e39d` and a successful repository checkpoint. Nume
 forward-context capture, training-mode BatchNorm buffer publication, and caller-state codec scope;
 targeted remediation and final re-review returned APPROVE with no findings. Joint
 restore proof at Training 0004 is Complete after independent Class C review and the integration
-gate. Checkpoint 0005 is Ready for Training-owned defensive reconstruction only; Checkpoint 0006
+gate. Checkpoint 0005 is Complete for Training-owned defensive reconstruction only; Checkpoint 0006
 remains Draft pending concrete composition/codec/architecture design. The user selected Model +
 TrainingState persistence (optimizer/groups/slots/accumulation/counters); data position, external
 RNG, and other state absent from the artifact remain application-owned. The guarantee is restored
@@ -146,11 +142,13 @@ Complete [Checkpoint 0004A](../checkpoint/tasks/0004a-direct-leaf-model-save.md)
 save-time expression-view workaround: the fixture saves the actual quiescent trained tree and
 directly re-saves loaded heap state before native parameter copying on the validated CPU route.
 This remains a bounded in-memory recovery proof, not durable Training continuation or generic
-zero-node Engine support. The user's subsequent authorization selects Checkpoint 0005 only;
-0004A closure itself does not authorize durable continuation or the adapter.
+zero-node Engine support. Completed Checkpoint 0005 authorizes no successor or durable adapter.
 
 ## Open questions
 
+- Pending Checkpoint design approval: existing `ArtifactEnvelope`-based capture/inspect/canonical
+  bytes/load on `ModelCheckpoint`, then optional Training Checkpoint using only Training and
+  Checkpoint public APIs. No API or wire design is selected here.
 - Task 0001C established an explicit pre-session copy into caller-owned shared native storage for
   initialized NN parameters. Direct native initialization remains a possible later convenience,
   not an implicit `TrainingSession.open` behavior.

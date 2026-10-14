@@ -35,31 +35,29 @@ model candidate and Engine handoff, not public save/load. [0004](tasks/0004-publ
 is Complete after CPU 0024, direct restored-heap Engine acceptance, targeted documentation, and
 the combined validation gate. [0004A](tasks/0004a-direct-leaf-model-save.md) is Complete with bounded
 direct leaf-state capture and workaround removal. User-authorized
-[0005](tasks/0005-training-state-reconstruction.md) is Ready for Training-owned reconstruction;
+[0005](tasks/0005-training-state-reconstruction.md) is Complete: defensive reconstruction,
+external-package tests, final Javadoc/example validation, and independent API review passed;
 0006–0007 remain Draft and unauthorized.
 
 ## Dependency DAG and authorized frontier
 
 Completed Checkpoint 0001 → 0002 → 0003 → 0004, with completed CPU 0024 → 0004.
 Checkpoint 0004, CPU 0024, and Training 0004 → completed Checkpoint 0004A.
-Training 0004 and Checkpoint 0004A → Ready Training-owned 0005 → Draft 0006; 0007 also awaits
+Training 0004 and Checkpoint 0004A → completed Training-owned 0005 → Draft 0006; 0007 also awaits
 the selected adapter/text gates. The user selected Model + TrainingState for 0006; external state
 remains application-owned. Concrete composition/codec/architecture design is still pending.
 These edges do not authorize the Draft successors.
 
-Authorized frontier: [0005](tasks/0005-training-state-reconstruction.md), explicitly authorized
-by the user after 0004A. Implementation belongs to `extensions/training`, not Checkpoint.
+Authorized frontier: None. [0005](tasks/0005-training-state-reconstruction.md) is Complete;
+its implementation belongs to `extensions/training`, not Checkpoint.
 [0004A](tasks/0004a-direct-leaf-model-save.md) closed after clean
 implementation, independent targeted review, and the configured coordinator gate. Capture remains
 Checkpoint-owned through existing public Engine compute; generic zero-node Engine/Prepare support
-is excluded. Evidence is in the completed brief. The new 0005 brief verifies completed predecessors
-at base `7a2a7337381e2ee8c7c09d8ff4829f9e5045dd01`; it does not authorize 0006.
+is excluded. Evidence is in the completed briefs; closure does not authorize 0006.
 
-0005 is serial (parallel group None): it conflicts with Training snapshot construction/ownership,
-restore compatibility, and shared Training API/planning edits. Implement, independently review,
-then accept before any successor. The Training/Checkpoint coordinator owns shared-document
-integration; reuse Training tests, finalize Training Javadoc, and validate links/diff as recorded
-in the brief. No repository-wide rerun is required for this module-local public API exposure.
+0005 closed serially (parallel group None) after independent review and affected-Training
+validation. The Training/Checkpoint coordinator owns shared-document integration; the brief
+records evidence. No successor is Ready; concrete design approval remains pending.
 
 ## Architecture references
 
@@ -151,7 +149,7 @@ contract but its project remains a later, separately gated implementation.
 
 ## Package structure
 
-The model-only packages exist; 0005 changes existing values in Training's own package. The
+The model-only packages exist; completed 0005 exposes existing values in Training's own package. The
 optional Training Checkpoint package remains planned:
 
 ```text
@@ -284,7 +282,7 @@ lambda or added as a generic reflective registry.
 | [0003](tasks/0003-model-schema-and-materialization-handoff.md) | Model schema and Engine materialization handoff | Complete | 0002 Complete; existing NN export and Engine compute | Internal fixed-ID schema, detached candidate, and bounded public Engine handoff implemented; 22 module tests, Javadoc, and independent Class C review passed. No public save/load. |
 | [0004](tasks/0004-public-model-checkpoint-save-inspect-load.md) | Model checkpoint save, inspect, and strict load | Complete | 0003; [CPU 0024](../../backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md) for direct restored-heap execution | Public save/inspect/load and direct restored-heap Engine regression passed, with independent review, documentation, and combined validation. |
 | [0004A](tasks/0004a-direct-leaf-model-save.md) | Direct leaf-model save | Complete | Checkpoint 0004; CPU 0024; Training 0004, all Complete | Exact native/heap leaf capture, direct trained save/load and loaded re-save passed; workaround removed, independent review and configured coordinator gate passed. |
-| [0005](tasks/0005-training-state-reconstruction.md) | Training-owned detached state reconstruction prerequisite | Ready | Training 0004; Checkpoint 0004A, both Complete | Expose existing defensive grouped TrainingState and parameter-payload constructors in Training; external-package roundtrip/accessibility tests and independent API review. No codec or caller-state choice. |
+| [0005](tasks/0005-training-state-reconstruction.md) | Training-owned detached state reconstruction prerequisite | Complete | Training 0004; Checkpoint 0004A, both Complete | Three defensive constructors exposed; external-package tests, final Javadoc/example validation, and independent API review passed. No codec. |
 | 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005; concrete composition/codec/architecture design | Selected Model + TrainingState persistence restores stored state; data position/external RNG and other absent caller-owned state remain application-owned. No complete automatic exact-continuation claim or execution authorization. Model-only Checkpoint stays independent of Training. |
 | 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004A; 0006 for selected stored training-state recovery; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, stored model + TrainingState recovery, documentation, and dependency enforcement. |
 
@@ -370,7 +368,7 @@ execution and the combined repository gate passed after
 Training 0004's same-route in-memory private-candidate handoff passed independent Class C review
 and the integration-owner repository gate. Training snapshots remain in-memory values, not a
 durable cross-owner exact-resume format. The user-authorized Training-owned
-[0005](tasks/0005-training-state-reconstruction.md) reconstruction prerequisite is Ready;
+[0005](tasks/0005-training-state-reconstruction.md) reconstruction prerequisite is Complete;
 0006–0007 remain Draft; 0006 product scope is Model + TrainingState with external state
 application-owned, while concrete composition/codec/architecture design remains pending. Complete
 [0004A](tasks/0004a-direct-leaf-model-save.md) removes the private expression-view workaround:
@@ -387,6 +385,9 @@ coordinator gate passed; no generic zero-node Engine/Prepare capability or new f
 - Design 0006's concrete model + TrainingState composition, bounded codecs, and architecture
   before making it Ready. Caller-state persistence is excluded from the selected first adapter;
   any future broader exact-recovery product would need a separate scope/design decision.
+- Pending user design question: expose capture/inspect/canonical bytes/load on `ModelCheckpoint`
+  through the existing `ArtifactEnvelope`, then use those APIs from optional Training Checkpoint
+  with only Training and Checkpoint public API dependencies? This is not an approved API or wire design.
 - Version retention beyond one explicitly replaceable target and crash-durable directory-entry
   publication remain later product decisions. Version 1 provides file flush and atomic live
   visibility, not a cross-platform power-loss guarantee or a non-atomic fallback.
