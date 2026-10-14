@@ -40,6 +40,93 @@ Forbidden:
 `extensions/nn` depends on `modules/model` for tensor and operation semantics. It must not make
 the model depend on neural-network layers or stateful module ownership.
 
+### Closed declarative models
+
+NN owns immutable semantic model specifications and reconstruction of a closed Tensor-to-Tensor
+Sequential tree. This is the selected NN0026 contract, not a claim that its API is implemented.
+The specification contains no live Tensor, callback, Java class name, backend, storage handle,
+persistent version, or bytes. Existing generic Model/ModelDefinition and Sequential APIs remain
+supported. Description never captures arbitrary Model.define code or custom module subclasses.
+
+The supported tree has nested Sequential, Linear, affine LayerNorm, Embedding, Conv1d/2d/3d,
+and closed RELU/TANH/SIGMOID steps. Parameter types are all four existing floating types:
+FLOAT64, FLOAT32, BFLOAT16 and FLOAT16. There is no homogeneous-input-type shortcut:
+
+| Step | Retained configuration and accepted input/output |
+|---|---|
+| Sequential | Ordered children; each receives its predecessor's exact result once. Empty returns the exact input. |
+| Linear | Positive resolved in/out features, bias presence, parameter type, and whether constructed with automatic input guards. Supplied-state form retains Model promotion and contraction checks; automatic form retains exact configured input type and positive static final feature extent. Output preserves leading Dimensions and replaces the final extent with out-features. |
+| LayerNorm | Positive fully static normalized trailing Shape, parameter type and exact ScalarValue epsilon type/bits; mandatory scale then bias. Input promotion, trailing matching and result-arithmetic epsilon checks remain Model-owned, including rejection when promotion makes retained epsilon incompatible. Output Shape is the input Shape. |
+| Embedding | Positive vocabulary/embedding sizes and floating table type; no padding/frozen row. INT32/INT64 input of any rank; output appends embedding width and has table type. Index-value bounds remain the existing Model/backend obligation. |
+| Conv1d/2d/3d | Positive resolved in/out channels and kernel extents, bias, exact parameter/input type and complete existing Conv1dAttrs/Conv2dAttrs/Conv3dAttrs (stride, symmetric padding, dilation, groups). Fixed NCW/NCHW/NCDHW layout; ranks 3/4/5, positive static matching channels and existing geometry guards. Batch/spatial Dimensions may vary compatibly; output geometry remains Model-owned. |
+| Activation | One closed kind, delegating to the matching Model Tensor operation; floating input, same Shape/type, existing gradient and numerical semantics. |
+
+Input/output constraints are derived by composing these rules, never saved from an example batch.
+Compatible variable leading Dimensions/ranks for Linear and LayerNorm, arbitrary index Shape for
+Embedding, and variable convolution batch/spatial Dimensions remain supported. Dynamic dimensions
+are accepted only where the existing corresponding layer/Model contract accepts them. Description
+requires all lazy parameters already bound; it does not run forward to initialize them. Initializers,
+seeds, source labels/layouts/provenance and modes are not reconstruction configuration: selected
+steps are mode-insensitive, reconstructed models start in evaluation mode, and state values load
+separately. BatchNorm, Dropout, recurrence, branches, reused execution nodes and custom I/O are out.
+An empty/activation-only tree is semantically eligible; NN promises neither generic zero-operation
+Engine execution nor a newly admitted backend route, dtype, layout or gradient (including Conv3d).
+
+The public boundary is ModelSpecification and final DeclarativeModel extending Model<Tensor,Tensor>
+in nn.module. A specification has one closed Sequence root, immutable typed step records and
+explicit AliasGroup path lists. ModelSpecification.describe(Sequential) describes an ordinary
+supported tree without taking ownership; DeclarativeModel.describe() describes its current tree.
+Both read current bindings under caller-owned quiescence, not creation-time alias metadata.
+Each supported concrete layer exposes one typed specification() step snapshot; public Activation
+in nn.layers supplies closed activation construction. No mutable-layer reflection or registry.
+ModelSpecification.stateDescriptors() exposes immutable (path, kind, dataType, Shape, requiresGrad)
+entries derived from configuration in exact Module.stateDictionary traversal order, without Tensors.
+ModelSpecification.outputDescriptor(TensorDescriptor) checks composed input constraints and returns
+the corresponding Model result metadata without evaluation, storage allocation or backend admission.
+
+The root is represented directly by DeclarativeModel's indexed children, not by a named wrapper.
+Root children are "0", "1", etc.; nested children extend the same dot-separated paths. Parameters
+remain weight then optional bias, or LayerNorm scale then bias. No buffers occur in this matrix.
+Numeric encounter order, not lexical sorting, defines traversal. A closed value tree carries no
+node IDs, arbitrary connections or references: wiring/ownership cycles and dangling references
+are unrepresentable through its safe public constructors. Reusing a step value means independent
+occurrences, never shared module identity. NN validates nulls, supported kinds, positive dimensions,
+parameter schema, epsilon, geometry and checked element/byte/count arithmetic before returning a
+specification or skeleton. Composition compatibility is checked for a supplied input descriptor
+through existing storage-free Model metadata operations on the cold path, and on each forward;
+there is no generic shape solver or proof that a tree admits every possible input. Runtime-dependent
+checks remain with their current owners; description needs no speculative input or fixed batch.
+NN bounds each root to 4096 step occurrences (including sequences) and depth 64 (root depth 1),
+checks limits before recursive reconstruction/copy, and uses stack-safe validation. Shape and
+convolution array-count constraints retain their existing owner rules. These bounds protect cold
+tree processing, not backend capability or runtime shape sizes. Future wire parsers separately
+own unknown IDs/fields, canonical ordering, string/rank/length limits and aggregate/file-byte
+preflight before allocating decoded objects; safe Java tree constructors do not validate raw bytes.
+
+An alias group means repeated exact parameter Tensor identity at distinct state paths, not equal
+values or overlapping physical storage. Groups have at least two distinct existing parameter paths,
+equal type/Shape/gradient schema, disjoint membership, members in state order, and groups ordered
+by first member. Unlisted paths are independent singletons. NN rejects invalid/noncanonical groups.
+Description recomputes groups by exact current identity; independent equal-valued parameters stay
+independent. Legal Parameter.replace or strict state loading may join/split groups; the next describe
+must reflect that change. No physical-overlap topology, view layout or source expression is recreated.
+Training's duplicate-identity/overlap rejection is unchanged; aliases are not split to evade it.
+
+DeclarativeModel.reconstruct(ModelSpecification) returns a private-candidate, fully bound descriptor
+skeleton, not a value-loaded executable model. It creates one storage-free, provenance-free,
+gradient-eligible Tensor per alias group or singleton, with the derived static parameter descriptor,
+and installs the exact same reference at every group path through NN-owned constructors/strict load.
+Linear/Embedding/LayerNorm accept supplied descriptor Tensors; convolutions bind reservations via
+strict load before any forward. Linear.fromState(Tensor, Optional<Tensor>, boolean automaticInputGuards)
+creates a fully bound layer retaining the selected supplied-state or automatic guard policy, without
+calling initialization. It is not a new lazy-initialization path or a change to existing constructors.
+No random source, weight-sized zero/one array, throwaway initialized weights, evaluation, native
+resource or new Engine path is permitted. Existing public stateDictionary/loadStateDictionary remain
+the value bridge: a later recovery owner sees these fully bound alias references and can load one
+fresh value Tensor per target identity group without changing its existing target-load contract.
+NN reconstruction validates before returning; failure exposes no partial candidate and never mutates
+the described source. Caller quiescence still owns consistency; NN adds no lock or transaction.
+
 ## `extensions/training`
 
 `extensions/training` owns optimizer algorithms and training orchestration over parameters

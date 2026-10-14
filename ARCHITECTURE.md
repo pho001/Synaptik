@@ -429,7 +429,7 @@ This compact routing summary does not replace the linked details:
 | Prepared schedules, residency, publication, and per-run mutable state | Runtime |
 | Explicit composition and public lifecycle | Engine |
 | Typed diagnostics | Trace |
-| Stateful modules, parameters, buffers, and train/eval behavior | NN |
+| Stateful modules, parameters, buffers, train/eval behavior, and closed declarative model description/reconstruction | NN; semantic data and state installation only, not persistent encoding or execution |
 | Optimizer algorithms, explicit pre-session native parameter copies, and training orchestration | Training |
 | Model-only checkpoint boundary, bounded opaque artifact envelope, file save/inspect/load, and model-envelope capture/inspect/canonical bytes/load | Checkpoint; NN retains whole-tree state installation |
 | Optional stored Model + TrainingState restoration; broader exact continuation requires all affecting state | Future Training Checkpoint adapter, after its separate gate; each state owner retains validation and restore authority |

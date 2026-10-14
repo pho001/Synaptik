@@ -2,10 +2,13 @@
 
 ## Status
 
-Proposed — 2026-10-14. Not an accepted contract or implementation authorization.
+Accepted NN decision — 2026-10-14; final independent review approved and coordinator verified NN0026
+Ready. Downstream persistence/Training/adapter decisions remain
+Proposed, not accepted contracts or implementation authorization.
 Replaces the Proposed direction in [ADR 0037](0037-stored-training-checkpoint-adapter.md),
 which is withdrawn as the primary product, not as evidence of useful low-level foundations.
-All new/revised tasks remain Draft pending the support matrix and coordinated contract cutover.
+Only the NN scope below is accepted and coordinated with the root and owning NN contract. NN0026
+is Ready; the other three tasks remain Draft. No future wire, TrainingRun or adapter acceptance.
 
 ## Context
 
@@ -38,15 +41,48 @@ and cotangent Arena, not the borrowed model, Engine or parameter Arena.
 4. Add a closed NN declarative specification, whole-model persistence and an optional adapter
    composing a Training-owned recipe and run. Propose this bounded option.
 
-## Proposed decision
+<a id="nn-decision-selected-for-review"></a>
+
+## Accepted NN decision
 
 NN owns a new immutable `ModelSpecification` and `DeclarativeModel extends Model<Tensor, Tensor>`
-in `io.github.pho001.synaptik.nn.module`; names are proposed, not existing.
-The specification describes owned layer instances, actual attributes, Tensor input/output signatures,
-ordered connections and explicit parameter alias groups. NN validates and reconstructs forward
+in `io.github.pho001.synaptik.nn.module`; these selected names are not yet implemented.
+The specification describes a closed Sequential tree, actual attributes, derived input/output
+constraints and explicit parameter Tensor-identity groups. NN validates and reconstructs forward
 semantics using Model only. It does not encode bytes, assign persistent versions or perform I/O.
 The existing callback ModelDefinition is unchanged. Unknown custom code and arbitrary Java records
 remain explicit application reconstruction, never routine automatic restore.
+
+The [owning NN contract](../../architecture/contracts/extensions-training.md#closed-declarative-models)
+selects nested Sequential, Linear, affine LayerNorm, Embedding, Conv1d/2d/3d and closed
+RELU/TANH/SIGMOID, across all existing floating parameter types. It preserves supplied Linear and
+LayerNorm input promotion, automatic Linear/convolution exact-type guards, integral Embedding
+input and compatible variable leading/batch Dimensions. No saved batch example defines a signature.
+The [NN0026 API packet](../../planning/extensions/nn/tasks/0026-declarative-model-specification.md#exact-public-api)
+freezes all constructors, typed step records, Activation and the bound Linear.fromState factory.
+Description reads current bindings under caller quiescence; it never trusts cached alias groups
+after legal parameter replacement or strict loading. Numeric nested paths have no new root prefix.
+
+Reconstruction creates one descriptor-only Tensor per validated alias group or singleton, binds
+NN-owned layers and returns a fully bound evaluation skeleton for existing strict state load.
+Existing TensorFactory.create and supplied-state constructors allocate no weight storage;
+convolution reservation-load tests prove initialization-free binding. This is source evidence,
+not a completed NN0026 executable proof. No random/throwaway weights or native ownership is needed.
+Current Checkpoint target-load semantics can consume the skeleton's shared references unchanged.
+Inference aliases preserve exact Tensor identity, not equal-byte sharing or physical overlaps;
+Training duplicate-identity/overlap rejection remains unchanged.
+
+Choosing a closed value tree avoids generic node IDs/references and graph-validation machinery.
+4096 occurrences/depth 64 bound cold tree processing, not backend sizes or capability. Input-specific
+composition checks use existing Model metadata operations, not a new shape solver. Empty/activation-
+only trees are semantically eligible without a generic zero-node Engine execution promise.
+Rejected alternatives for this NN scope are rejecting all aliases (unnecessary given exact-reference
+strict load), capturing arbitrary callbacks (no reconstruction meaning), and eager initialization
+then replacement (unnecessary weight-sized allocations). The cost is a deliberately bounded tree
+matrix and new typed layer configuration access, with focused semantic/allocation/API tests required.
+No dependency rule changes; the existing exact NN Model-only architecture guard remains sufficient.
+
+## Proposed downstream decision
 
 Training owns `TrainingRecipe` and `TrainingRun` in its existing public package.
 The recipe describes a supported scalar loss, options, named input/target static dtype/Shapes and
@@ -86,25 +122,13 @@ Advanced explicit envelope, target, fingerprint, limits and session APIs remain 
 
 ### Initial support and exact scope decision
 
-Propose Tensor-to-Tensor nested Sequential with Linear, LayerNorm, Embedding, Conv1d/2d/3d
-and closed RELU/TANH/SIGMOID activation steps using existing Model semantics;
-capture resolved dimensions, bias policy, epsilon type/bits, convolution groups/stride/padding/
-dilation/layout and all other forward-affecting attributes. This is a meaningful multi-layer
-subset, not a promise about all NN models. NN owns typed access to missing configuration facts:
-do not reverse-engineer private fields or infer attrs from weight Shapes alone.
-Declarative branches and explicit context-sensitive adapters are named successors, not detailed
-new tasks. BatchNorm/Dropout, recurrent typed states and arbitrary generic I/O are initially excluded.
-Approve or revise this exact matrix before Ready; backend execution remains separately admitted.
-Conv3d inference may load, but training gradients and recurrent BPTT remain fail-closed.
-
-Inference sharing must be described explicitly and either recreated faithfully by NN or rejected
-explicitly; `model.v1` alone stores per-path values, not source identity. Training refuses repeated
-parameter Tensor identities across recursive parameter paths or overlapping regions; never split
-or duplicate shared weights to evade that rule. Multiple forward uses of a uniquely owned layer
-are not that rejected alias case: child ownership is a tree, execution wiring may be a DAG.
-Decide whether the initial NN matrix implements inference aliases or rejects all
-nontrivial sharing. Descriptor-only bound skeleton construction is preferred, subject to focused
-proof against layer/state loading contracts; avoid random initialization and throwaway weight arrays.
+The NN matrix, aliases and descriptor skeleton are accepted above; NN0026 implementation and
+validation remain outstanding. Branches/contextual adapters,
+BatchNorm/Dropout, recurrent states and generic I/O remain excluded. Backend execution is separately
+admitted; Conv3d gradients and recurrent BPTT remain fail-closed. The closed initial tree has no
+reused execution nodes. A future execution DAG is a separate choice, not inference from ownership.
+`model.v1` alone stores per-path values, not source identity; future whole-model bytes must carry
+the selected NN alias meaning without altering the current values-only format.
 
 ### Proposed artifact composition and validation
 
@@ -148,9 +172,8 @@ Input-artifact fingerprints retain owner verification: the short overload requir
 digest; present digests require a typed explicit expected-identity overload and fail by default.
 No tokenizer parsing, automatic Text loading, generic LoadOptions or trust in a stored digest.
 
-NN input/output constraints must preserve supported leading dimensions rather than freezing an
-inference batch size from a save example; exact variable-batch policy is a Draft decision.
-Embedding input is integral and output floating, not a homogeneous-dtype signature.
+NN input/output constraints preserve compatible variable leading/batch Dimensions as selected
+in the owning NN contract; Embedding input is integral and output floating, not homogeneous dtype.
 Training signatures are independently static/dense/offset-zero for one prepared session.
 TrainingRun binds each fresh batch's borrowed host storage to stable placeholder Tensor identities
 with replaceHostStorage, validates exact layout/offset/view and capacity (not just type/Shape),
@@ -168,8 +191,10 @@ hot-path string lookup. Run admission excludes batch/save/close; borrowed inputs
   BatchNorm step-aligned training-buffer recovery or cross-device exact continuation is claimed.
 - Reuse file checksums and atomic-live publication; no authentication, universal power-loss
   guarantee, saved backend/device/compiled artifacts or automatic backend discovery.
-- Before Ready, cut over root ownership/dependencies and the owning extensions contract, affected
-  explanations, ADR and architecture tests. No normative/build edits are part of this proposal.
+- NN-only ownership, contract and explanations are accepted; no dependency/build
+  edge changes or new dependency test is needed. Before any downstream Ready decision, separately
+  coordinate its owning contract, explanations, ADR and applicable architecture/integration tests.
+  This NN selection neither accepts those future contracts nor opens their build gates.
 - Four cohesive capabilities, each clean implementation and independent review:
   NN 0026; Checkpoint 0005B; Training 0006; optional Checkpoint 0006. NN is the shared prerequisite;
   the two owner capabilities join at the adapter. No speculative mechanical cascade.

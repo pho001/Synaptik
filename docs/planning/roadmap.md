@@ -56,10 +56,11 @@ is Complete after envelope implementation, independent Class C API/documentation
 configured coordinator gates. Authorized Checkpoint frontier: None.
 The user revised the primary product to automatic usable-model load and a choice of inference or
 Training-owned resume, without routine callbacks/manual construction/digests/Arena.
-[Proposed ADR 0038](../design/decisions/0038-declarative-model-and-training-resume.md) replaces
-the withdrawn Proposed direction of ADR 0037. The complete bounded Draft program is NN 0026,
-Checkpoint 0005B, Training 0006 and revised Checkpoint 0006; no new Ready frontier, code or build
-inclusion is authorized. Current published explicit APIs remain implemented and compatible.
+[ADR 0038](../design/decisions/0038-declarative-model-and-training-resume.md#accepted-nn-decision) replaces
+the withdrawn Proposed direction of ADR 0037. Its NN-only decision is accepted; NN0026 is the sole
+authorized Ready frontier after final independent approval and coordinator verification. Checkpoint
+0005B, Training 0006 and revised Checkpoint 0006 remain Draft; their decisions remain Proposed.
+Current published explicit APIs remain implemented and compatible; code/build configuration is unchanged.
 
 | Area | Delivered baseline / remaining gate |
 |---|---|
@@ -78,7 +79,7 @@ inclusion is authorized. Current published explicit APIs remain implemented and 
 | [CUDA](backends/cuda/master-plan.md) | Marker/native scaffold only; no executable CUDA backend. 0001 Draft. |
 | [ONNX](extensions/onnx/master-plan.md) | Marker only; no importer/exporter. Area Draft; first mapping task not yet defined. |
 | [Data](extensions/data/master-plan.md) | No module. 0001 architecture decision precedes batching; current plan excludes sampler/epoch lifecycle. |
-| [NN](extensions/nn/master-plan.md) | State/layers/static recurrence/convolution delivered. [0026 declarative reconstruction](extensions/nn/tasks/0026-declarative-model-specification.md) Draft for whole-model load; no Ready frontier. Runtime scan/Data 0021B–0024 separate Draft stream. |
+| [NN](extensions/nn/master-plan.md) | State/layers/static recurrence/convolution delivered. [0026 declarative reconstruction](extensions/nn/tasks/0026-declarative-model-specification.md) Ready; sole authorized NN frontier, NN-only contract/API accepted and coordinator verification recorded. Runtime scan/Data 0021B–0024 separate Draft stream. |
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions/optimizers/state and private-candidate proof delivered. [0006 recipe/owned run](extensions/training/tasks/0006-supported-recipe-and-owned-run.md) Draft prerequisite for adapter; no persistence or Ready frontier. Broader 0005 separate Draft. |
@@ -131,7 +132,7 @@ The completed Training/Checkpoint chain remains:
 Training 0003 is Superseded. [ADR 0036](../design/decisions/0036-model-envelope-composition.md)
 and published model.v1 envelope APIs remain implemented, not durable training recovery.
 
-The revised Draft dependency DAG is:
+The program dependency DAG (NN0026 Ready; other three tasks Draft) is:
 `NN 0026 → Checkpoint 0005B and Training 0006 → optional Checkpoint 0006`,
 with completed 0005A also feeding the adapter. NN owns Model-only semantic specification/forward
 reconstruction; Checkpoint owns whole-model bytes/file APIs; Training owns recipe/run/batch/lifetime;
@@ -140,19 +141,27 @@ No unrelated recurrent/Data/Text task or broader Training checkpoint is a prereq
 Each is a cohesive capability with separate clean implementation and independent targeted review.
 No mechanical type/facade/test split or speculative detailed successor cascade.
 
-Freeze the exact initial NN/activation/loss/input/sharing matrix, canonical wire/default limits
-and owner-transfer/capture/restore bridge before Ready. Initial proposal includes nested Sequential,
-Linear/LayerNorm/Embedding/Conv1d/2d/3d and RELU/TANH/SIGMOID; branches/contextual layers are later
-explicit choices, not a claim about all Model.define code. Inference constraints are separate from
-static Training signatures. ArtifactFile v1/model.v1 remain untouched; whole-model.v1 and
-training-model.v1 are new proposed kinds, not same-file compatibility with withdrawn unpublished
-training-checkpoint.v1. Short loads refuse present input fingerprints until explicit verification.
+NN 0026's matrix/API is accepted and coordinated with root NN ownership, the owning scoped contract,
+architecture explanations and ADR 0038's NN decision. It includes nested Sequential,
+Linear/LayerNorm/Embedding/Conv1d/2d/3d and RELU/TANH/SIGMOID, source-faithful input constraints and
+Tensor-identity aliases, not arbitrary Model.define capture. Final independent approval and coordinator
+verification of dependencies, source base `8ad4302e938ef7adfed15853782e48b3d0180bb4` plus accepted NN
+documentation packet, inactive conflicts and authorized frontier are recorded. NN0026 alone is Ready.
 
-Before Ready coordinate root + owning extensions contract + explanations + ADR + architecture tests
-as applicable. No contract/build change occurs now. Parallel group None; coordinator owns shared
-documents and verifies source-matched base/dependencies/frontier before launch. Owner focused/module
-validation once; one combined source-matched repository test/Javadoc checkpoint after integration.
-Proposal review performs planning links/anchors/sizes/diff only, not Java reruns/performance work.
+Checkpoint 0005B, Training 0006 and optional Checkpoint 0006 remain Draft. Their loss/recipe,
+canonical wire/default limits and owner-transfer/capture/restore bridges remain Proposed and must
+be resolved with their own coordinated contracts before their respective Ready transitions.
+Inference constraints remain separate from static Training signatures. Existing ArtifactFile v1
+and model.v1 stay unchanged; whole-model.v1 and training-model.v1 remain proposed new kinds, not
+same-file compatibility with withdrawn unpublished training-checkpoint.v1. Proposed short loads
+refuse present input fingerprints until explicit verification.
+
+This packet changes NN normative ownership/detail, not dependency edges, build configuration or
+executable code. Parallel group None; coordinator owns shared documents and recorded Ready verification.
+NN worker runs affected-module test/Javadoc once; coordinator runs architecture and narrow CPU
+integration validation after review. The full source-matched repository test/Javadoc gate belongs
+to the four-capability join, not NN alone. Planning review checks links/anchors/sizes/diff only,
+with no Java reruns, native builds or performance campaign.
 Data cursor/RNG/scheduler/scaler stay application-owned; no exact automatic continuation, advancing
 dropout stream, BatchNorm training-buffer alignment, BPTT or Conv3d gradient widening.
 

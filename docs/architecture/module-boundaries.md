@@ -266,6 +266,18 @@ propagation belongs here rather than in an optimizer.
 own autograd construction, optimizer algorithms, training-step orchestration, backend storage,
 kernel selection, or concrete backend dependencies.
 
+The selected [closed declarative contract](contracts/extensions-training.md#closed-declarative-models)
+also places semantic description and reconstruction in NN, still with Model as its only production
+edge. NN0026 is not implemented yet. For an ordinary nested Sequential MLP, description records
+typed configuration, ordered numeric paths and current Tensor-identity groups; reconstruction
+returns the same paths and shared descriptor-only references, then existing strict state load supplies
+values. This avoids random throwaway weights and a persistence-owned layer interpreter. Description
+after a legal binding replacement observes the new groups under caller quiescence, not an old cache.
+The [selected ADR scope](../design/decisions/0038-declarative-model-and-training-resume.md#nn-decision-selected-for-review)
+explains why custom callbacks, physical-overlap reconstruction and backend execution stay outside it.
+File formats and Training-owned run proposals still require their own decisions; no new dependency
+or runner is introduced by this NN capability.
+
 The existing static RNN, GRU, LSTM, and bidirectional containers retain their snapshotted Java
 `long[]`, static unroll, compact per-step output, and final-state contracts. NN does not own the
 fixed scan operation or its prepared loop, and no existing container is silently redirected to

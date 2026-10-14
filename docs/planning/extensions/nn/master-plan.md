@@ -112,34 +112,42 @@ Draft rows without links have no detailed task brief.
 | [0025](tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) | Channels-first Conv1d, Conv2d, and Conv3d layers | Complete | 0020B; Model 0025G–0025H; Compiler 0006B and 0006B6; CPU 0008–0008A; Engine 0008 | Added rank-specific unary convolution layers/factory recipes with group-aware initialization, atomic inferred-channel binding, strict loading, and forward-only Conv3d boundary. |
 | [0025A](tasks/0025a-dimensional-convolution-user-capability-checkpoint.md) | Dimensional-convolution user-capability checkpoint | Complete | 0025; Engine 0004; CPU 0008A | Validated strict-loaded and factory convolution through public one-shot/reusable Engine workflows, numerical oracles, lifecycle ownership, and Conv3d backward rejection. |
 | [0025B](tasks/0025b-public-model-dependency-export.md) | Export public Model dependency | Complete | Existing NN facade; project review | Correct Gradle API visibility and validate an isolated NN-only consumer. |
-| [0026](tasks/0026-declarative-model-specification.md) | Declarative model specification and reconstruction | Draft | Completed 0025/0025A/0025B; approved NN matrix/contract | NN semantic configuration and forward reconstruction; no persistent codec or new dependency. |
+| [0026](tasks/0026-declarative-model-specification.md) | Declarative model specification and reconstruction | Ready | Verified Complete 0025/0025A/0025B; accepted NN matrix/contract | Authorized NN frontier; semantic configuration/reconstruction only, no persistent codec or new dependency. |
 
 ## Proposed whole-model checkpoint program
 
-[Proposed ADR 0038](../../../design/decisions/0038-declarative-model-and-training-resume.md)
+[ADR 0038](../../../design/decisions/0038-declarative-model-and-training-resume.md#nn-decision-selected-for-review)
 revises the primary product to automatic usable-model load, then inference or owned Training resume.
-0026 is a cohesive independent Draft candidate, not an authorized frontier.
+0026 is the sole authorized Ready NN frontier after final independent approval and coordinator verification.
 
 Dependency DAG: `NN 0026 → Checkpoint 0005B and Training 0006 → optional Checkpoint 0006`.
-No unrelated recurrent/Data work is a predecessor. Authorized frontier: None for this program.
-All proposals remain Draft until support matrix and root/owning-contract/explanation/ADR/
-architecture-test cutover are stable and dependency-verified. No implementation is authorized.
+No unrelated recurrent/Data work is a predecessor. Authorized frontier: NN0026 only for this program.
+NN0026's API/matrix and NN-only root/contract/explanation/ADR packet are accepted after final
+independent review; coordinator Ready verification is recorded in the brief. Downstream
+Checkpoint/Training/adapter contracts remain Proposed and their tasks remain Draft.
 
-Proposed package map: ModelSpecification and DeclarativeModel in existing nn.module, distinct from
-the ModelDefinition Java callback. Initial scope choice: nested Sequential, Linear/LayerNorm/
+Selected package map: ModelSpecification and DeclarativeModel in existing nn.module, distinct from
+the ModelDefinition Java callback; closed Activation in nn.layers. Initial scope: nested Sequential,
+Linear/LayerNorm/
 Embedding/Conv1d/2d/3d and closed RELU/TANH/SIGMOID steps, not all Java models.
 NN owns actual attrs/signatures/wiring/sharing. Children alone do not prove forward flow.
 Inference constraints need not freeze batch dimensions; Training signatures are independently static.
-Inference aliases reconstruct faithfully or reject; Training rejects repeated parameter-path
+Inference Tensor-identity aliases reconstruct faithfully; describe reads current bindings after
+legal replacement/load, without cached alias authority. Training rejects repeated parameter-path
 Tensor identities/overlapping stores, not every repeated forward use of one uniquely owned layer.
 Declarative branches/contextual adapters are explicit successors, not detailed new tasks.
-Descriptor-bound skeleton loading requires focused proof. Existing generic Model APIs stay intact.
+Descriptor-bound skeletons retain source numeric paths without a wrapper prefix and use supplied
+state/strict load without random weights; focused tests extend current source proof. The brief freezes
+exact records, typed configuration access and Linear.fromState guard policy; Model-only edges and
+existing generic APIs stay intact. 4096/depth64 bound cold-tree processing, not backend capability.
 
 NN remains Model-only; bytes/versioning/files belong to Checkpoint, recipe/run lifecycle to Training.
 The coordinator owns shared documents; each capability uses separate clean implementation/review.
-Parallel group None; planning base `52733fcfd32d278b651302e308487e0b6c6afa81` is reverified before Ready.
-Owner module validation once, one combined source-matched test/Javadoc checkpoint, no performance
-campaign. Exact metadata live in the briefs.
+Parallel group None; verified source base `8ad4302e938ef7adfed15853782e48b3d0180bb4` plus accepted
+NN documentation packet. Code is unchanged; coordinator records contract commit SHA after integration.
+Owner NN test/Javadoc once; coordinator architecture and narrow CPU integration after review, full
+source-matched checkpoint only at the four-capability join. No native/performance campaign.
+Exact metadata and 2026-10-14 dependency/base/contracts/review/conflict verification live in the Ready brief.
 
 ## Milestones and current frontier
 
@@ -147,6 +155,7 @@ campaign. Exact metadata live in the briefs.
   topology (0012–0020C), the fixed-scan architecture decision (0021A), and dimensional
   convolution plus its user checkpoint (0025–0025A).
 - Draft: 0021B–0024. None has a detailed task brief. Audit repair 0025B is Complete.
+- Ready and authorized frontier: NN0026 only; accepted NN contract integrates before clean implementation.
 - 0021B is the next ordered NN Draft candidate only after a planner revalidates its cross-area
   program and truthful concrete-backend coverage. It is not implementation authorization;
   Model 0032 is Complete, and the [roadmap](../../roadmap.md) owns current cross-area frontiers.

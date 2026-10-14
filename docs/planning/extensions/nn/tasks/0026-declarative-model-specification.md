@@ -2,118 +2,199 @@
 
 ## Status
 
-Draft — proposed immediate NN predecessor for whole-model persistence; no code is implemented.
-Exact support matrix, alias policy and input constraints await decision under ADR 0038.
+Ready — NN-only contract/API accepted; user approved continuing NN0026. Authorized frontier: NN0026.
+Coordinator records verification below; clean implementation follows accepted contract integration.
+Checkpoint 0005B, Training 0006 and optional Checkpoint 0006 remain Draft; no wire/lifecycle acceptance.
 
 ## Change class
 
-Class C implementation — durable reconstruction meaning, ownership/sharing and downstream contract.
-This brief is planning only; it changes no normative contract.
+Class C — semantic reconstruction, parameter identity and downstream state-load boundary.
+One clean implementation context and independent targeted documentation/review are required.
 
-## Goal
+## Goal and scope
 
-Let NN describe and reconstruct supported models as usable Tensor-to-Tensor models without Java
-callbacks. Deliver one cohesive NN capability: specification, model construction, focused tests,
-Javadoc and user documentation, with Model as its only production dependency.
-
-## Scope
-
-Proposed public `ModelSpecification` and `DeclarativeModel extends Model<Tensor, Tensor>` in
-`io.github.pho001.synaptik.nn.module`, including closed nested semantic layer/activation records;
-private reconstruction/activation modules only when required. Final names/surface freeze before Ready.
-Keep existing `ModelDefinition<I,O>` as the arbitrary Java callback, not a serializable DTO.
-Propose nested Sequential; Linear, LayerNorm, Embedding, Conv1d/2d/3d and closed RELU/TANH/SIGMOID
-steps. Include an ordinary Linear→RELU→Linear MLP, not merely a single Linear fixture.
-Specifications retain ownership names/order, forward wiring, resolved state schema, dtype,
-bias policy, typed epsilon and all convolution attrs. NN owns typed access to any configuration
-facts not currently public; no reflection/private-field scraping or guessing attrs from weights.
-
-NN distinguishes an owned child tree from execution wiring. Initial Sequential is closed linear
-wiring; a branch/reused-node DAG is an explicit later support choice, not inferred from children.
-Describe parameter alias groups; implement faithful inference aliases or reject explicitly
-according to the approved matrix. Repeated forward invocation of one uniquely owned layer is not
-a repeated parameter-path alias. Training's existing duplicate/overlap rejection is unchanged.
-Reconstruction should create descriptor-only bound skeletons accepted by supplied-state layer
-constructors and strict state load, if focused proof establishes this boundary; no random
-initialization or full throwaway weight arrays. Installation remains NN-owned.
-
-## Non-goals
-
-No bytes, file I/O, persistent versions/codecs, Engine, Training or Checkpoint dependencies.
-No arbitrary Java object/function serialization, class-name instantiation, registries or generic
-operation interpreter. No loss/optimizer meanings, runner, backend discovery or capability widening.
-No automatic export of existing Model.define captures or subclasses. Unknown custom models retain
-the explicit reconstruction workflow. BatchNorm/Dropout and recurrent/custom record I/O are initially
-excluded; declarative branches/contextual adapters are named successors, not detailed new tasks.
+Describe ordinary supported Sequential trees and reconstruct their forward configuration and
+parameter Tensor-identity topology as fully bound descriptor-only models. Deliver NN API, focused
+tests, narrow CPU integration test, Javadoc and user documentation as one cohesive capability.
+NN retains Model as its sole production dependency; existing supported APIs stay compatible.
 
 ## Contracts
 
-- [Root authority](../../../../../ARCHITECTURE.md#authority-incorporation-and-precedence),
+- Root [authority](../../../../../ARCHITECTURE.md#authority-incorporation-and-precedence),
   [scope index](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts),
-  [module ownership](../../../../../ARCHITECTURE.md#module-ownership-routing),
-  [dependency rules](../../../../../ARCHITECTURE.md#dependency-rules) and
-  [testing requirements](../../../../../ARCHITECTURE.md#testing-requirements).
-- Owning scoped headings: [extensions/nn](../../../../architecture/contracts/extensions-training.md#extensionsnn),
-  [extensions/training](../../../../architecture/contracts/extensions-training.md#extensionstraining),
-  [extensions/checkpoint](../../../../architecture/contracts/extensions-training.md#extensionscheckpoint),
-  [Optimizer/training lifecycle](../../../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle).
-- [Proposed ADR 0038](../../../../design/decisions/0038-declarative-model-and-training-resume.md).
+  [ownership](../../../../../ARCHITECTURE.md#module-ownership-routing),
+  [dependencies](../../../../../ARCHITECTURE.md#dependency-rules) and
+  [testing](../../../../../ARCHITECTURE.md#testing-requirements).
+- Owning [extensions/nn](../../../../architecture/contracts/extensions-training.md#extensionsnn),
+  including [Closed declarative models](../../../../architecture/contracts/extensions-training.md#closed-declarative-models).
+  Read [extensions/checkpoint](../../../../architecture/contracts/extensions-training.md#extensionscheckpoint)
+  for unchanged fully bound target/identity-group loading; read
+  [Optimizer/training lifecycle](../../../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle)
+  for unchanged duplicate/overlap rejection and no replacement in an open session.
+- [ADR 0038 NN decision](../../../../design/decisions/0038-declarative-model-and-training-resume.md#nn-decision-selected-for-review).
 
-The current contracts do not authorize the new product. Before Ready, coordinate root + owning
-extensions contract + affected architecture explanations + ADR + architecture tests as applicable.
-Stop on missing/ambiguous contracts; this proposal does not override them.
+Stop on ambiguity; no architecture or downstream scope may be invented during execution.
 
 ## Dependencies and integration
 
-- Depends on: completed NN 0025/0025A/0025B and existing module/state/layer contracts; approved 0038 NN scope.
-- Conflicts with: shared NN/Training/Checkpoint API, lifecycle, wire and authoritative documents.
-- Parallel group: None; owner tasks use separate clean contexts, serialized contract cutovers.
-- Common base revision: planning base `52733fcfd32d278b651302e308487e0b6c6afa81`; reverify before Ready.
+- Depends on: completed NN 0025/0025A/0025B, existing module/state/layer capability and accepted NN-only contract packet.
+- Conflicts with: NN configuration/state APIs and shared NN/Training/Checkpoint contracts.
+- Parallel group: None; contract integration, then clean implementation/review.
+- Common base revision: source `8ad4302e938ef7adfed15853782e48b3d0180bb4` + accepted NN documentation packet; code unchanged, contract commit SHA recorded by coordinator after integration.
 - Integration order: NN 0026 → Checkpoint 0005B and Training 0006 → optional Checkpoint 0006.
-- Integration validation: one combined source-matched test/Javadoc checkpoint after adapter integration.
+- Integration validation: coordinator architecture suite and focused CPU integration after review;
+  full source-matched repository test/Javadoc gate only at the four-capability join.
 - Shared-document integration owner: NN/Training/Checkpoint coordinator.
-- Authorized frontier: None; dependencies/support matrix/contracts must be verified before Ready.
+- Ready verification (2026-10-14): coordinator confirmed NN0025/25A/25B Complete with final
+  independent review/documentation/validation; HEAD source base above, no active conflict writer,
+  accepted root/scoped NN + ADR/explanations packet and final independent APPROVE (no P1/P2).
+  NN Model-only edge unchanged; authorized frontier NN0026 only, user continuation approved.
 
-## Files and symbols
+## Exact public API
 
-- `extensions/nn/.../nn/module/{Model,ModelDefinition,Sequential,ModuleFactory,Module,Parameter}.java`.
-- Selected `nn/layers/{Linear,LayerNorm,Embedding,Conv1d,Conv2d,Conv3d}.java` and attrs.
-- New specification/model in the existing module package; focused module/layer tests.
-- `docs/user-guide/running-models.md`, targeted NN API/glossary entries and architecture explanations.
+Selected API, not runnable today. All records/interfaces below are public nested members of final
+`io.github.pho001.synaptik.nn.module.ModelSpecification`; lists are defensive immutable copies.
+DataType/Shape/ScalarValue/TensorDescriptor and Conv*dAttrs are existing public Model types.
 
-## Acceptance criteria
+```java
+ModelSpecification(Sequence root, List<AliasGroup> aliases)
+static ModelSpecification describe(Sequential source)
+Sequence root()
+List<AliasGroup> aliases()
+List<StateDescriptor> stateDescriptors()
+TensorDescriptor outputDescriptor(TensorDescriptor input)
 
-- Approved closed matrix rejects unknown kinds/attrs/wiring/signatures before publishing a model.
-  Reject duplicate node IDs, unknown/dangling references and ownership/execution cycles; children
-  and state paths do not substitute for validated forward wiring.
-- Layer semantics and exact forward shape/provenance match ordinary direct NN construction:
-  MLP, normalization, embedding→projection and dimension-specific convolution examples.
-- State descriptors match names/order/kinds/types/Shapes; full data are loaded separately by NN.
-  Tests prove descriptor skeleton load and no eager/random weight-sized allocations.
-- Exact alias decisions are tested: supported aliases preserve identity; unsupported cases reject.
-  No silent value-based sharing or splitting, including equal-valued independent parameters.
-- Input/output contracts distinguish dtype and constraints: Embedding integral input/floating output;
-  Linear compatible leading dimensions need not freeze batch size. Decide variable-batch constraints
-  before Ready; static Training signatures remain a separate owner concern.
-- Existing generic Model/ModelDefinition/Sequential/ModuleFactory behavior remains compatible.
+sealed interface Step // permits precisely the eight records below
+record Sequence(List<Step> steps) implements Step
+record LinearStep(long inFeatures, long outFeatures, boolean bias,
+                  DataType dataType, boolean automaticInputGuards) implements Step
+record LayerNormStep(Shape normalizedShape, DataType dataType, ScalarValue epsilon) implements Step
+record EmbeddingStep(long vocabularySize, long embeddingSize, DataType dataType) implements Step
+record Conv1dStep(long inChannels, long outChannels, long kernelWidth,
+                  boolean bias, DataType dataType, Conv1dAttrs attrs) implements Step
+record Conv2dStep(long inChannels, long outChannels, long kernelHeight, long kernelWidth,
+                  boolean bias, DataType dataType, Conv2dAttrs attrs) implements Step
+record Conv3dStep(long inChannels, long outChannels, long kernelDepth, long kernelHeight,
+                  long kernelWidth, boolean bias, DataType dataType, Conv3dAttrs attrs) implements Step
+enum ActivationKind { RELU, TANH, SIGMOID }
+record ActivationStep(ActivationKind kind) implements Step
+record AliasGroup(List<String> paths)
+record StateDescriptor(String path, StateKind kind, DataType dataType,
+                       Shape shape, boolean requiresGrad)
+```
 
-## Validation
+Final `DeclarativeModel extends Model<Tensor, Tensor>` in nn.module has no public constructor;
+adds only `static DeclarativeModel reconstruct(ModelSpecification specification)`,
+`ModelSpecification describe()` and overridden `Tensor forward(Tensor input)` to inherited API.
+It owns root indexed children directly: no `root`, `model` or other wrapper prefix. Ordinary
+Sequential description borrows the source and changes neither ownership nor mode.
+Each selected layer adds exactly one public typed `specification()` returning its corresponding
+step snapshot, exposing retained attrs/guard policy without reflection. New final
+`io.github.pho001.synaptik.nn.layers.Activation extends UnaryTensorModule` has public
+`Activation(ModelSpecification.ActivationKind kind)`, `ActivationStep specification()` and
+`Tensor forward(Tensor input)`. No lambda/custom activation extension point.
 
-Future worker: focused new specification/reconstruction tests, then
-`./gradlew :extensions:nn:test :extensions:nn:javadoc` once after final code/docs.
-Coordinator adds architecture/integration coverage where the boundary changes; one combined
-`./gradlew test javadoc --max-workers=2 --console=plain` with source-matched device library after
-ordered program integration. No performance campaign or duplicate reviewer Java run.
-Planning now: local links/anchors, brief ≤200 lines/15KB and `git diff --check` only.
+Linear also adds `static Linear fromState(Tensor weight, Optional<Tensor> bias,
+boolean automaticInputGuards)`: validates/binds the complete supplied group before return,
+retains exact refs, stores the guard distinction explicitly. True preserves current automatic
+exact-input-type, positive static final feature, bound-width and Java-array guards; false retains
+supplied-state Model promotion/contraction semantics. Use NN-owned bound construction, not eager
+initialization then replacement. A private bound guard configuration may separate guards from
+initializers; existing constructors/automatic first binding must not change. No random source,
+factory or weight array is needed. An empty Optional means no bias; its container is non-null.
 
-## Documentation and review impact
+All other inputs/results are non-null. Null fails NPE; invalid schemas/tree/aliases or incompatible
+input fail IAE with path/step context; unbound description fails ISE. Checked arithmetic overflow
+and Tensor ID exhaustion retain existing failures. Failure returns no partial model/specification,
+mutates no source; no new checked exception, resource owner or lock.
 
-Clean implementation + independent targeted Class C review/documentation are mandatory.
-Document supported matrix, configuration/wiring versus callback distinction, signatures, sharing
-and skeleton ownership; Javadoc every new input/result/failure. Targeted glossary search, not full
-history. Coordinator owns shared documents and contract cutover before Ready.
+## Matrix, wiring and constraints
+
+Support nested Sequential, six parameterized families and three activations above, with all
+FLOAT64/FLOAT32/BFLOAT16/FLOAT16 parameter types. Linear supplied state may promote; automatic
+Linear and convolutions require exact configured input type; LayerNorm preserves Model promotion
+and retained epsilon compatibility (FLOAT16 parameter epsilon is FLOAT32, otherwise parameter type).
+No homogeneous dtype restriction, implicit cast or epsilon conversion. Embedding accepts INT32/
+INT64 at any rank, appends embedding width and returns table dtype. Activation uses floating Model
+semantics. Linear keeps compatible leading Dimensions/ranks; LayerNorm keeps compatible leading
+Dimensions and normalized trailing Shape; convolution keeps rank 3/4/5 NCW/NCHW/NCDHW, fixed positive
+static channels and compatible variable batch/spatial Dimensions. No saved example/fixed batch field.
+`outputDescriptor(input)` may use existing storage-free Model metadata operations on a cold path to
+check composition and return output type/Shape/layout/gradient metadata; empty root returns the
+exact input descriptor. No data allocation/evaluation/backend admission or generic shape solver.
+Forward preserves ordinary operation/provenance order; runtime-dependent checks retain their owners.
+
+Sequence list order is ownership/forward order, each child once; names are zero-based decimal
+indices. `Sequence([Linear, Sequence([LayerNorm])])` has `0.weight[,0.bias]`, then
+`1.0.scale,1.0.bias`, identically in reconstructed Model. LayerNorm declares scale then bias;
+others weight then optional bias. State descriptors predict parameter-only paths/kinds/types/static
+Shapes/true grad flags in Module traversal order, not lexical order. Values load separately.
+Kernel order W/HW/DHW; complete attrs preserve stride/padding/dilation/groups; no layout option.
+Description rejects custom/unknown modules and unbound reservations; never initializes by forward.
+
+Validate closed typed records before reconstruction/copy: <=4096 step occurrences, depth <=64
+(root 1). Stack-safe validation protects cold tree processing, not backend capability/shape sizes.
+Retain existing Shape/geometry/checked-count rules. No IDs/refs, so cycles/dangling wiring are
+unrepresentable through safe constructors; reused record means independent module occurrences.
+Future parser separately owns unknown wire IDs/fields, canonical encoding and string/rank/count/
+aggregate/file-byte preflight before allocation; no wire work here.
+
+## Aliases and skeleton proof
+
+AliasGroup has >=2 distinct existing parameter paths, matching type/Shape/grad, disjoint membership;
+members follow state order, groups follow first-member order. Unlisted paths are singletons. Reject
+malformed/repeated/unknown/mismatched/noncanonical groups. Both describe operations recompute exact
+current Tensor-identity groups under caller quiescence, including Parameter.replace/strict-load
+joins/splits; no creation-time cache or value-based sharing. Physical overlap, views/provenance are
+not reconstructed. Training duplicate/overlap rejection and open-session replacement ban stay intact.
+
+Reconstruct one TensorFactory.create descriptor leaf (no layout/storage/provenance) per group or
+singleton and install that exact Tensor at all member paths. Linear.fromState and supplied Embedding/
+LayerNorm constructors bind leaves directly; convolution reservations use harmless zeros policy/
+seed 0 and strict descriptor-state load before any forward. No initializer executes. Return an
+evaluation-mode fully bound skeleton with stateDictionary available but no materialized values.
+This is the target bridge for existing public Checkpoint load, not a new value installer/runner.
+Strict NN load retains exact candidate refs; Checkpoint can derive target groups and load one fresh
+value Tensor per identity group unchanged. Next describe observes current groups after value load.
+
+Source proof: TensorFactory.create(TensorDescriptor) allocates no storage; Linear/Embedding/LayerNorm
+supplied constructors retain refs after descriptor validation. Module.loadStateDictionary prepares
+reserved wrappers without new Tensors/initialization. ConvolutionStateDictionaryTest proves no-ID
+strict load and Integer.MAX_VALUE descriptor-only weight acceptance; SequentialTest proves nested
+paths and empty identity. Extend this evidence across the matrix and automatic Linear guards.
+
+## Files, acceptance and non-goals
+
+- Add ModelSpecification/DeclarativeModel under `extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/`;
+  Activation in sibling `nn/layers/`; edit six selected layers and focused module/layer/API tests,
+  including nested-record/public-surface guards. Helpers stay private within named owner types; no new top-level utility.
+- Add `testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/NnDeclarativeModelEngineIntegrationTest.java`:
+  CPU direct-vs-reconstruct+strict-load Linear→RELU→Linear MLP values, changed batch/leading ranks
+  and alias identity. Unit fixtures include nested normalization, embedding→projection and all
+  rank-specific convolution attrs/provenance; cover all four floating types and both index types.
+- Test paths/order/schema, full attrs/epsilon bits, promotion success/failure, unsupported/unbound
+  rejection, bounds and alias validation. Test joins/splits through both legal APIs, independent
+  equal values and alias-preserving reload. Large descriptor-only fixtures prove no random/
+  weight-sized/throwaway allocation, including automatic Linear. No native/performance work.
+- Empty/activation-only trees are semantically eligible; no generic zero-node Engine promise,
+  backend widening, Conv3d gradient widening, recurrence, bytes/versions/files, production Engine/
+  Training/Checkpoint imports, registry/runner, Model.define capture, branches, BatchNorm/Dropout,
+  arbitrary records, loss or optimizer semantics. Existing published checkpoint APIs remain unchanged.
+
+## Validation and documentation
+
+Worker final once: `./gradlew :extensions:nn:test :extensions:nn:javadoc --console=plain`.
+Coordinator after review runs separately: `./gradlew :testing:architecture-tests:test --console=plain`
+and `./gradlew :testing:integration-tests:test --tests '*NnDeclarativeModelEngineIntegrationTest'
+--console=plain`. Existing integration edges include NN/CPU. No new dependency test: current
+NnTrainingDependencyContractTest enforces exact NN Model-only edge, unchanged here. Add NN API guards.
+No planning build/native run; full repository test/Javadoc belongs to the four-capability join.
+Apply documentation rules/profiles; update running-models user guide, targeted glossary/API/Javadoc
+for describe→reconstruct→strict-load, promotion/sharing/limits. Independent Class C review reuses
+worker evidence; coordinator owns shared docs. Planning checks local links/anchors, <=200 lines/15KB,
+scope and `git diff --check` only.
 
 ## Result
 
-Empty until implementation. Completion must record files, validation, documentation/Javadoc,
-limits/follow-up and `Status: Complete` or `Status: Incomplete` with specific follow-up.
+Empty until implementation. Record changes/files, validation, documentation/Javadoc/glossary impact,
+limits/follow-up and `Status: Complete` or `Status: Incomplete` with required follow-up.
