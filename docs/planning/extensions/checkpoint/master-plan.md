@@ -246,7 +246,7 @@ lambda or added as a generic reflective registry.
 | [0001](tasks/0001-checkpoint-module-boundary.md) | Model Checkpoint module boundary | Complete | None; architecture decision is the deliverable | Empty project, contract, ADR, explanations, and dependency test reviewed; focused and repository gates passed. No persistence API or optional adapter. |
 | [0002](tasks/0002-bounded-artifact-envelope.md) | Bounded artifact envelope | Complete | 0001 Complete; corrected v1 policy in brief | Opaque file API, bounds, SHA-256, file flush and atomic live publication implemented; 15 checkpoint tests, Javadoc, architecture test, and independent Class C review passed. |
 | [0003](tasks/0003-model-schema-and-materialization-handoff.md) | Model schema and Engine materialization handoff | Complete | 0002 Complete; existing NN export and Engine compute | Internal fixed-ID schema, detached candidate, and bounded public Engine handoff implemented; 22 module tests, Javadoc, and independent Class C review passed. No public save/load. |
-| 0004 | Model checkpoint save, inspect, and strict load | Draft | 0003 | Persist materialized parameters/buffers and validate the entire artifact plus recreated topology before one strict NN installation; never serialize arbitrary `Model.define` lambdas. |
+| [0004](tasks/0004-public-model-checkpoint-save-inspect-load.md) | Model checkpoint save, inspect, and strict load | Draft | 0003 | Public typed-inspection/dependency and v1 alias/lazy-target decisions remain; then persist materialized state and validate before one strict NN installation. |
 | 0005 | Training-owned exact-resume snapshot prerequisite | Draft | Training 0004; Checkpoint 0004 | Consume stabilized optimizer/session and caller-state handoff plus cross-owner preflight/commit contracts; identify which concrete caller-owned participant schemas have owner validators/restorers. Training 0004 does not depend on this adapter. |
 | 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005; supported caller-state schemas/codecs | Encode and restore only the model, Training state, effective objective contexts, and caller-owned participants with versioned bounded codecs and owner validation; reject an exact artifact for any unsupported affecting state. Model-only Checkpoint stays independent of Training. |
 | 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004; 0006 when exact training resume is selected; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, exact training resume, documentation, and dependency enforcement. |
@@ -317,18 +317,20 @@ This is a future protocol, not a runnable current API or an atomicity guarantee 
 
 ## Current status
 
-Model-only module-boundary implementation and the bounded opaque artifact codec/publication API
-are Complete after focused validation and independent Class C reviews. The internal model-candidate
-schema and Engine handoff are implemented and module-validated but await independent Class C
-review. Missing work is public model-state persistence and coordinated restore, not access to
-bytes through Engine. Training snapshots are
-in-memory values, not a durable, cross-owner exact-resume format.
+Model-only module-boundary implementation, the bounded opaque artifact codec/publication API,
+and the internal model-candidate schema and Engine handoff are Complete after focused validation
+and independent Class C reviews. Public model-state persistence and strict restore remain Draft
+in [0004](tasks/0004-public-model-checkpoint-save-inspect-load.md), pending its public API and
+alias/lazy-target decisions. Training snapshots remain in-memory values, not a durable,
+cross-owner exact-resume format.
 
 ## Open questions
 
 - The v1 opaque envelope policy is selected in 0002. The internal model metadata and Engine
   handoff are complete in 0003; public persistence and strict restore remain
-  for 0004. Opaque artifact bytes alone are not a Tensor wire contract.
+  for 0004. Opaque artifact bytes alone are not a Tensor wire contract. Decide whether public
+  inspection exposes typed Model descriptors and whether v1 restore relies on the recreated
+  target's alias topology before marking 0004 Ready.
 - Implement and test Training 0004's cross-owner preflight/commit or rollback gate before an
   optional adapter claims exact, atomic recovery.
 - Version retention beyond one explicitly replaceable target and crash-durable directory-entry
