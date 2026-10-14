@@ -3,8 +3,9 @@
 ## Goal
 
 Plan durable, versioned model checkpoints without turning NN state references into backend storage
-access or forcing Training and Text dependencies on model-only users. Plan exact training resume as
-a separate optional downstream adapter over Training-owned snapshots.
+access or forcing Training and Text dependencies on model-only users. Plan stored model and
+TrainingState recovery as a separate optional downstream adapter over Training-owned snapshots;
+external state remains application-owned, not automatic exact continuation.
 
 Mental model:
 
@@ -18,7 +19,7 @@ NN StateDictionary of exact Tensor references
 Training-owned optimizer/session snapshot
   + validated model-checkpoint candidate
   -> optional Training Checkpoint adapter
-  -> exact-resume artifact
+  -> model + TrainingState artifact (external state remains application-owned)
 ```
 
 The opaque artifact, internal detached model candidate, and public model save/inspect/load are
@@ -33,20 +34,32 @@ The optional Training Checkpoint adapter is neither included nor implemented.
 model candidate and Engine handoff, not public save/load. [0004](tasks/0004-public-model-checkpoint-save-inspect-load.md)
 is Complete after CPU 0024, direct restored-heap Engine acceptance, targeted documentation, and
 the combined validation gate. [0004A](tasks/0004a-direct-leaf-model-save.md) is Complete with bounded
-direct leaf-state capture and workaround removal; tasks 0005–0007 remain Draft and unauthorized.
+direct leaf-state capture and workaround removal. User-authorized
+[0005](tasks/0005-training-state-reconstruction.md) is Ready for Training-owned reconstruction;
+0006–0007 remain Draft and unauthorized.
 
 ## Dependency DAG and authorized frontier
 
 Completed Checkpoint 0001 → 0002 → 0003 → 0004, with completed CPU 0024 → 0004.
 Checkpoint 0004, CPU 0024, and Training 0004 → completed Checkpoint 0004A.
-Training 0004 and Checkpoint 0004A → Draft 0005 → Draft 0006; 0007 also awaits the
-selected adapter/text gates. These edges do not authorize the Draft successors.
+Training 0004 and Checkpoint 0004A → Ready Training-owned 0005 → Draft 0006; 0007 also awaits
+the selected adapter/text gates. The user selected Model + TrainingState for 0006; external state
+remains application-owned. Concrete composition/codec/architecture design is still pending.
+These edges do not authorize the Draft successors.
 
-Authorized frontier: None. [0004A](tasks/0004a-direct-leaf-model-save.md) closed after clean
+Authorized frontier: [0005](tasks/0005-training-state-reconstruction.md), explicitly authorized
+by the user after 0004A. Implementation belongs to `extensions/training`, not Checkpoint.
+[0004A](tasks/0004a-direct-leaf-model-save.md) closed after clean
 implementation, independent targeted review, and the configured coordinator gate. Capture remains
 Checkpoint-owned through existing public Engine compute; generic zero-node Engine/Prepare support
-is excluded. Evidence is in the completed brief. A separate plan must select and authorize any
-successor; closure alone does not promote 0005 or 0006 from Draft.
+is excluded. Evidence is in the completed brief. The new 0005 brief verifies completed predecessors
+at base `7a2a7337381e2ee8c7c09d8ff4829f9e5045dd01`; it does not authorize 0006.
+
+0005 is serial (parallel group None): it conflicts with Training snapshot construction/ownership,
+restore compatibility, and shared Training API/planning edits. Implement, independently review,
+then accept before any successor. The Training/Checkpoint coordinator owns shared-document
+integration; reuse Training tests, finalize Training Javadoc, and validate links/diff as recorded
+in the brief. No repository-wide rerun is required for this module-local public API exposure.
 
 ## Architecture references
 
@@ -123,8 +136,8 @@ The optional `extensions/training-checkpoint` will own `TrainingCheckpoint` pers
 Training plus Checkpoint. Training owns the meaning and validation of optimizer/session state;
 the caller owns next-input progress, external random-number-generator (RNG) state, sampler cursor,
 and any scheduler/scaler state under its own explicit schema. Model owns graph RNG semantics, while
-the current fixed Training session has no per-run graph-RNG handoff. The adapter may encode only a
-participant set whose owners supply validation and coordinated installation. Training does not
+the current fixed Training session has no per-run graph-RNG handoff. The selected first adapter
+persists model + TrainingState only; it does not encode caller-owned participants. Training does not
 gain file I/O, and Checkpoint does not import optimizer concepts into its model-only core.
 
 Text remains independent. It writes and loads its own complete tokenizer artifact. A text
@@ -138,15 +151,19 @@ contract but its project remains a later, separately gated implementation.
 
 ## Package structure
 
-The model-only packages exist; the optional Training Checkpoint package remains planned:
+The model-only packages exist; 0005 changes existing values in Training's own package. The
+optional Training Checkpoint package remains planned:
 
 ```text
 io.github.pho001.synaptik.checkpoint/
   artifact/  bounded manifest, version, checksum, payload, and atomic-publication contracts
   model/     ModelCheckpoint schema, materialization handoff, strict save/inspect/load
 
+io.github.pho001.synaptik.training/
+  TrainingState and nested ParameterState defensive public construction (0005)
+
 io.github.pho001.synaptik.training.checkpoint/
-  training checkpoint schema and exact-resume save/inspect/load adapter
+  model + TrainingState schema and stored-state save/inspect/load adapter (design pending)
 ```
 
 Do not add `manager`, `service`, `repository`, `registry`, `plugin`, or backend-specific packages.
@@ -184,29 +201,26 @@ Engine boundary for state selection and materialization, never a backend represe
 
 ## Training checkpoint contract
 
-The planned `TrainingCheckpoint` is a strict superset of a compatible model checkpoint. An exact
-resume claim is conditional on every state owner selected by the Training contract:
+User decision (2026-10-14): the first durable `TrainingCheckpoint` persists Model + TrainingState.
+The planned stored content is:
 
-- optimizer type/configuration, parameter groups, stable parameter-path association, and every
-  optimizer slot such as Adam moments;
-- Training execution/optimizer-step and accumulation counters, plus caller-owned epoch and next
-  input/sampler cursor;
-- graph/dropout RNG construction state only for a supported fixed graph; a changing per-step
-  stream has no current Training handoff;
-- relevant per-module modes and the effective forward contexts actually supplied while
-  constructing the fixed objective, recorded separately; NN buffers require a proved step-aligned
-  detached capture boundary (training-mode BatchNorm is not currently eligible);
-- external data-shuffle/augmentation RNG state when used;
-- caller-owned scheduler and mixed-precision scaler state when present; and
-- the same model configuration and input-artifact fingerprints.
+- compatible model state and its configuration/input-artifact fingerprints;
+- exact Training optimizer configuration and ordered groups/parameter schema;
+- logical/master parameter bytes and optimizer slots, including adaptive moments; and
+- pending gradient accumulation and execution/optimizer-step/accumulation counters.
 
-If a data source cannot expose a stable sampler cursor, the artifact may support a documented
-restart mode but must not call it exact resume. Compiled/prepared/backend/device artifacts are
-never included; they are reconstructed for the current Engine and target after restore.
-The optional adapter cannot encode arbitrary caller-owned RNG, sampler, scheduler, or scaler
-objects. Each included participant needs an explicitly supported versioned, bounded schema and
-codec, owner validator/restorer, and mismatch/refusal tests. An exact artifact is refused if
-any affecting participant lacks that support; a distinct restart/partial artifact may omit it.
+The guarantee is restoration of stored state, not complete automatic exact continuation. Data
+position (including epoch/sampler cursor), external RNG, scheduler/scaler state, and any other
+caller-owned state absent from the artifact remain application-owned. Module modes, effective
+forward contexts, and objective construction inputs are not implicitly supplied by TrainingState;
+the application must provide what its computation requires. Compiled/prepared/backend/device
+artifacts are rebuilt, not stored. Concrete composition, bounded versioned codecs, validation,
+and architecture design remain to be specified before 0006 becomes Ready.
+
+Any application-level exact-continuation claim still requires all affecting state under the
+existing Training lifecycle contract. The selected artifact alone does not establish that claim,
+a changing per-step graph-RNG stream, or step-aligned training-mode BatchNorm buffer capture.
+No caller-state codecs or automatic caller-state restoration are selected for this first adapter.
 
 ## Validation, installation, and publication
 
@@ -219,10 +233,11 @@ Load is staged and fail-closed:
 5. Validate the complete path/kind/type/Shape set against a fully bound recreated topology;
    version-one load rejects an unbound/lazy target. A later NN lazy-binding contract would be
    required to admit one.
-6. For training resume, identify every affecting participant and validate all available detached
-   model, Training, effective-context, objective-input, and typed caller-state facts before
-   changing published state; refuse unproved step-aligned buffers and unsupported durable
-   caller-state schemas/codecs. A prior model inspection does not expose parameter value bytes.
+6. For the selected model + TrainingState adapter, validate all stored model and Training facts
+   before changing published state. The application supplies objective/context inputs and owns
+   external state; artifact load does not validate or restore absent caller-owned participants.
+   Any wider exact-continuation claim remains subject to the Training lifecycle contract.
+   A prior model inspection does not expose parameter value bytes.
 7. Training 0004 has proved a bounded same-route in-memory instance of the caller-coordinated
    private-candidate protocol selected by
    [ADR 0035](../../../design/decisions/0035-private-candidate-training-restore.md). Load NN
@@ -269,9 +284,9 @@ lambda or added as a generic reflective registry.
 | [0003](tasks/0003-model-schema-and-materialization-handoff.md) | Model schema and Engine materialization handoff | Complete | 0002 Complete; existing NN export and Engine compute | Internal fixed-ID schema, detached candidate, and bounded public Engine handoff implemented; 22 module tests, Javadoc, and independent Class C review passed. No public save/load. |
 | [0004](tasks/0004-public-model-checkpoint-save-inspect-load.md) | Model checkpoint save, inspect, and strict load | Complete | 0003; [CPU 0024](../../backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md) for direct restored-heap execution | Public save/inspect/load and direct restored-heap Engine regression passed, with independent review, documentation, and combined validation. |
 | [0004A](tasks/0004a-direct-leaf-model-save.md) | Direct leaf-model save | Complete | Checkpoint 0004; CPU 0024; Training 0004, all Complete | Exact native/heap leaf capture, direct trained save/load and loaded re-save passed; workaround removed, independent review and configured coordinator gate passed. |
-| 0005 | Training-owned exact-resume snapshot prerequisite | Draft | Training 0004 Complete; Checkpoint 0004A | Consume the tested in-memory private-candidate handoff after direct-save repair; identify which concrete caller-owned participant schemas have owner validators/restorers. No durable adapter or new frontier is authorized. |
-| 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005; supported caller-state schemas/codecs | Encode and restore only the model, Training state, effective objective contexts, and caller-owned participants with versioned bounded codecs and owner validation; reject an exact artifact for any unsupported affecting state. Model-only Checkpoint stays independent of Training. |
-| 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004A; 0006 when exact training resume is selected; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, exact training resume, documentation, and dependency enforcement. |
+| [0005](tasks/0005-training-state-reconstruction.md) | Training-owned detached state reconstruction prerequisite | Ready | Training 0004; Checkpoint 0004A, both Complete | Expose existing defensive grouped TrainingState and parameter-payload constructors in Training; external-package roundtrip/accessibility tests and independent API review. No codec or caller-state choice. |
+| 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005; concrete composition/codec/architecture design | Selected Model + TrainingState persistence restores stored state; data position/external RNG and other absent caller-owned state remain application-owned. No complete automatic exact-continuation claim or execution authorization. Model-only Checkpoint stays independent of Training. |
+| 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004A; 0006 for selected stored training-state recovery; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, stored model + TrainingState recovery, documentation, and dependency enforcement. |
 
 Checkpoint 0001 has made the explicit architecture decision. Checkpoint 0002 passed independent
 review; its corrected policy and compact brief were committed at serial base `7261d11d`. It conflicts
@@ -317,22 +332,23 @@ load and validate TokenizerArtifact
   -> compile/prepare for the selected current Engine/backends
 ```
 
-Resume training:
+Restore stored model + TrainingState (conceptual; concrete design pending):
 
 ```text
 load tokenizer artifact and verify fingerprint
   -> parse/checksum/validate the complete TrainingCheckpoint
-  -> recreate an isolated NN tree and only supported caller-owned progress/random/scheduler/scaler candidates
-  -> validate all available detached artifact, versioned owner-schema, effective-context, and objective-input facts
-  -> load NN bindings/modes on that unpublished tree; copy parameters to native storage when needed
-  -> construct the objective with recorded contexts from final NN Tensors; open a private session
-  -> compare canonical parameter bytes by path; restore TrainingSession and validate staged caller state
+  -> recreate an isolated NN tree; application supplies modes, contexts, and objective inputs
+  -> validate stored model + TrainingState facts
+  -> load NN bindings on that unpublished tree; copy parameters to native storage when needed
+  -> construct the objective from final NN Tensors; open a private session
+  -> compare canonical parameter bytes by path; restore TrainingSession
   -> publish the complete candidate only after successful owner validation
-  -> continue from recorded progress/RNG/sampler state
+  -> application separately manages data position, external RNG, and other absent external state
 ```
 
 This is a future protocol, not a runnable current API or an atomicity guarantee from today's
 `loadStateDictionary` and `TrainingSession.restore`; publication remains caller-controlled.
+It restores stored state, not complete automatic exact continuation.
 
 ## Milestones
 
@@ -340,7 +356,7 @@ This is a future protocol, not a runnable current API or an atomicity guarantee 
 - Bounded artifact and file-flushed atomic-publication foundation
 - Engine-owned host materialization used by model checkpointing
 - Strict model save/inspect/load with configuration and input-artifact fingerprints
-- Optional exact training-resume persistence without model-only Training dependency
+- Optional model + TrainingState persistence without model-only Training dependency
 - Corruption, recovery, and cross-extension integration checkpoint
 
 ## Current status
@@ -353,7 +369,10 @@ execution and the combined repository gate passed after
 [CPU 0024](../../backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md).
 Training 0004's same-route in-memory private-candidate handoff passed independent Class C review
 and the integration-owner repository gate. Training snapshots remain in-memory values, not a
-durable cross-owner exact-resume format; 0005–0007 remain Draft. Complete
+durable cross-owner exact-resume format. The user-authorized Training-owned
+[0005](tasks/0005-training-state-reconstruction.md) reconstruction prerequisite is Ready;
+0006–0007 remain Draft; 0006 product scope is Model + TrainingState with external state
+application-owned, while concrete composition/codec/architecture design remains pending. Complete
 [0004A](tasks/0004a-direct-leaf-model-save.md) removes the private expression-view workaround:
 ordinary save captures the actual quiescent trained tree and directly re-saves loaded heap state
 on the validated CPU route. Checkpoint selects raw-preserving leaf requests internally without
@@ -365,9 +384,9 @@ coordinator gate passed; no generic zero-node Engine/Prepare capability or new f
 - Decide whether a later schema should record source alias identity or support lazy targets.
   Version one uses the fully bound recreated target's alias topology and rejects lazy targets;
   opaque artifact bytes alone cannot establish either missing contract.
-- Before an optional adapter claims durable exact recovery, select supported versioned caller
-  participant schemas/codecs and owner validators/restorers; the in-memory Training 0004 proof
-  alone does not provide them.
+- Design 0006's concrete model + TrainingState composition, bounded codecs, and architecture
+  before making it Ready. Caller-state persistence is excluded from the selected first adapter;
+  any future broader exact-recovery product would need a separate scope/design decision.
 - Version retention beyond one explicitly replaceable target and crash-durable directory-entry
   publication remain later product decisions. Version 1 provides file flush and atomic live
   visibility, not a cross-platform power-loss guarantee or a non-atomic fallback.
