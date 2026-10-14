@@ -2,8 +2,7 @@
 
 ## Status
 
-Ready — NN-only contract/API accepted; user approved continuing NN0026. Authorized frontier: NN0026.
-Coordinator records verification below; clean implementation follows accepted contract integration.
+Complete — implementation frozen; final code/documentation APPROVE; coordinator gates passed.
 Checkpoint 0005B, Training 0006 and optional Checkpoint 0006 remain Draft; no wire/lifecycle acceptance.
 
 ## Change class
@@ -13,9 +12,8 @@ One clean implementation context and independent targeted documentation/review a
 
 ## Goal and scope
 
-Describe ordinary supported Sequential trees and reconstruct their forward configuration and
-parameter Tensor-identity topology as fully bound descriptor-only models. Deliver NN API, focused
-tests, narrow CPU integration test, Javadoc and user documentation as one cohesive capability.
+Describe supported Sequential trees and reconstruct their forward configuration/parameter identity
+as fully bound descriptor-only models, with NN API, unit/CPU integration tests, Javadoc and guides.
 NN retains Model as its sole production dependency; existing supported APIs stay compatible.
 
 ## Contracts
@@ -40,19 +38,17 @@ Stop on ambiguity; no architecture or downstream scope may be invented during ex
 - Depends on: completed NN 0025/0025A/0025B, existing module/state/layer capability and accepted NN-only contract packet.
 - Conflicts with: NN configuration/state APIs and shared NN/Training/Checkpoint contracts.
 - Parallel group: None; contract integration, then clean implementation/review.
-- Common base revision: source `8ad4302e938ef7adfed15853782e48b3d0180bb4` + accepted NN documentation packet; code unchanged, contract commit SHA recorded by coordinator after integration.
+- Common base revision: accepted NN contract commit `4472320ceb5498c46a661af549d6de74aa27ab6a`.
 - Integration order: NN 0026 → Checkpoint 0005B and Training 0006 → optional Checkpoint 0006.
 - Integration validation: coordinator architecture suite and focused CPU integration after review;
   full source-matched repository test/Javadoc gate only at the four-capability join.
 - Shared-document integration owner: NN/Training/Checkpoint coordinator.
-- Ready verification (2026-10-14): coordinator confirmed NN0025/25A/25B Complete with final
-  independent review/documentation/validation; HEAD source base above, no active conflict writer,
-  accepted root/scoped NN + ADR/explanations packet and final independent APPROVE (no P1/P2).
-  NN Model-only edge unchanged; authorized frontier NN0026 only, user continuation approved.
+- Ready verification (2026-10-14): coordinator verified completed dependencies, accepted NN-only
+  contracts, inactive conflicts and user-approved NN0026 frontier; Model-only edge unchanged.
 
 ## Exact public API
 
-Selected API, not runnable today. All records/interfaces below are public nested members of final
+Implemented API. All records/interfaces below are public nested members of final
 `io.github.pho001.synaptik.nn.module.ModelSpecification`; lists are defensive immutable copies.
 DataType/Shape/ScalarValue/TensorDescriptor and Conv*dAttrs are existing public Model types.
 
@@ -98,10 +94,9 @@ Linear also adds `static Linear fromState(Tensor weight, Optional<Tensor> bias,
 boolean automaticInputGuards)`: validates/binds the complete supplied group before return,
 retains exact refs, stores the guard distinction explicitly. True preserves current automatic
 exact-input-type, positive static final feature, bound-width and Java-array guards; false retains
-supplied-state Model promotion/contraction semantics. Use NN-owned bound construction, not eager
-initialization then replacement. A private bound guard configuration may separate guards from
-initializers; existing constructors/automatic first binding must not change. No random source,
-factory or weight array is needed. An empty Optional means no bias; its container is non-null.
+supplied-state Model promotion/contraction semantics. Bound construction uses no initialization,
+random source, factory or weight array; existing constructors/first binding stay unchanged.
+An empty Optional means no bias; its container is non-null.
 
 All other inputs/results are non-null. Null fails NPE; invalid schemas/tree/aliases or incompatible
 input fail IAE with path/step context; unbound description fails ISE. Checked arithmetic overflow
@@ -157,12 +152,6 @@ This is the target bridge for existing public Checkpoint load, not a new value i
 Strict NN load retains exact candidate refs; Checkpoint can derive target groups and load one fresh
 value Tensor per identity group unchanged. Next describe observes current groups after value load.
 
-Source proof: TensorFactory.create(TensorDescriptor) allocates no storage; Linear/Embedding/LayerNorm
-supplied constructors retain refs after descriptor validation. Module.loadStateDictionary prepares
-reserved wrappers without new Tensors/initialization. ConvolutionStateDictionaryTest proves no-ID
-strict load and Integer.MAX_VALUE descriptor-only weight acceptance; SequentialTest proves nested
-paths and empty identity. Extend this evidence across the matrix and automatic Linear guards.
-
 ## Files, acceptance and non-goals
 
 - Add ModelSpecification/DeclarativeModel under `extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/`;
@@ -184,17 +173,28 @@ paths and empty identity. Extend this evidence across the matrix and automatic L
 ## Validation and documentation
 
 Worker final once: `./gradlew :extensions:nn:test :extensions:nn:javadoc --console=plain`.
-Coordinator after review runs separately: `./gradlew :testing:architecture-tests:test --console=plain`
-and `./gradlew :testing:integration-tests:test --tests '*NnDeclarativeModelEngineIntegrationTest'
---console=plain`. Existing integration edges include NN/CPU. No new dependency test: current
-NnTrainingDependencyContractTest enforces exact NN Model-only edge, unchanged here. Add NN API guards.
-No planning build/native run; full repository test/Javadoc belongs to the four-capability join.
-Apply documentation rules/profiles; update running-models user guide, targeted glossary/API/Javadoc
+Coordinator validation commands/results are recorded below. Existing integration edges include NN/CPU;
+NnTrainingDependencyContractTest enforces the unchanged exact NN Model-only edge. Add NN API guards.
+No planning/native build; full repository test/Javadoc belongs to the four-capability join.
+Apply documentation profiles; update running-models user guide, targeted glossary/API/Javadoc
 for describe→reconstruct→strict-load, promotion/sharing/limits. Independent Class C review reuses
 worker evidence; coordinator owns shared docs. Planning checks local links/anchors, <=200 lines/15KB,
 scope and `git diff --check` only.
 
 ## Result
 
-Empty until implementation. Record changes/files, validation, documentation/Javadoc/glossary impact,
-limits/follow-up and `Status: Complete` or `Status: Incomplete` with required follow-up.
+Implemented specification/reconstruction, Activation, six snapshots and Linear.fromState: 9 production,
+6 NN test files, 2-test CPU integration fixture and declarative-models guide.
+Worker `./gradlew :extensions:nn:test :extensions:nn:javadoc --console=plain` passed:
+326 tests/43 suites, including 20 new NN tests; no failures/errors/skips. Evidence reused, not rerun.
+Coordinator `./gradlew :testing:integration-tests:test --tests '*NnDeclarativeModelEngineIntegrationTest'
+--console=plain --max-workers=2` passed 2/2 with no failures/errors/skips.
+Separate pre-existing architecture inventory repair `e26a3801c9466aa291c0fa915ce1434d6481e9b1`
+is integrated without NN executable changes; actual execution passed 10/10 (8 suites, no failures/errors/skips).
+Coordinator post-integration `:testing:architecture-tests:test` passed FROM-CACHE with identical declared inputs.
+`compileNnApiConsumer` was UP-TO-DATE from new-NN compilation; final code APPROVE, no P1/P2.
+Documentation APPROVE: exact API, guide example, glossary/status; 532 local links/anchors passed.
+Final `./gradlew :extensions:nn:javadoc --console=plain --max-workers=2` passed after comment-only
+edits; no Java test rerun. `git diff --check` passed.
+No unresolved NN issues; full repository test/Javadoc deferred to the four-capability join.
+Status: Complete

@@ -84,7 +84,7 @@ three appear in Training's public signatures, the NN, Model, and Engine Gradle e
 dependencies; a consumer declaring only Training still compiles against that complete public
 surface. This is not permission to import lower execution internals.
 
-NN also owns the selected, not-yet-implemented
+NN also owns the implemented
 [closed declarative specification/reconstruction boundary](contracts/extensions-training.md#closed-declarative-models).
 For example, describing a nested Sequential and constructing an alias-preserving descriptor skeleton
 uses only NN plus Model metadata; the existing downstream recovery owner can then load its values.

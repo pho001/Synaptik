@@ -57,10 +57,11 @@ configured coordinator gates. Authorized Checkpoint frontier: None.
 The user revised the primary product to automatic usable-model load and a choice of inference or
 Training-owned resume, without routine callbacks/manual construction/digests/Arena.
 [ADR 0038](../design/decisions/0038-declarative-model-and-training-resume.md#accepted-nn-decision) replaces
-the withdrawn Proposed direction of ADR 0037. Its NN-only decision is accepted; NN0026 is the sole
-authorized Ready frontier after final independent approval and coordinator verification. Checkpoint
+the withdrawn Proposed direction of ADR 0037. Its NN-only decision is accepted; NN0026 is
+Complete after final independent reviews and coordinator validation. Checkpoint
 0005B, Training 0006 and revised Checkpoint 0006 remain Draft; their decisions remain Proposed.
-Current published explicit APIs remain implemented and compatible; code/build configuration is unchanged.
+Current published explicit APIs remain implemented and compatible; NN adds only its accepted
+declarative boundary, with no dependency/build change.
 
 | Area | Delivered baseline / remaining gate |
 |---|---|
@@ -79,7 +80,7 @@ Current published explicit APIs remain implemented and compatible; code/build co
 | [CUDA](backends/cuda/master-plan.md) | Marker/native scaffold only; no executable CUDA backend. 0001 Draft. |
 | [ONNX](extensions/onnx/master-plan.md) | Marker only; no importer/exporter. Area Draft; first mapping task not yet defined. |
 | [Data](extensions/data/master-plan.md) | No module. 0001 architecture decision precedes batching; current plan excludes sampler/epoch lifecycle. |
-| [NN](extensions/nn/master-plan.md) | State/layers/static recurrence/convolution delivered. [0026 declarative reconstruction](extensions/nn/tasks/0026-declarative-model-specification.md) Ready; sole authorized NN frontier, NN-only contract/API accepted and coordinator verification recorded. Runtime scan/Data 0021B–0024 separate Draft stream. |
+| [NN](extensions/nn/master-plan.md) | State/layers/static recurrence/convolution and [0026 declarative reconstruction](extensions/nn/tasks/0026-declarative-model-specification.md) Complete; final independent reviews and coordinator gates passed. Authorized NN frontier: None. Runtime scan/Data 0021B–0024 separate Draft stream. |
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions/optimizers/state and private-candidate proof delivered. [0006 recipe/owned run](extensions/training/tasks/0006-supported-recipe-and-owned-run.md) Draft prerequisite for adapter; no persistence or Ready frontier. Broader 0005 separate Draft. |
@@ -132,7 +133,7 @@ The completed Training/Checkpoint chain remains:
 Training 0003 is Superseded. [ADR 0036](../design/decisions/0036-model-envelope-composition.md)
 and published model.v1 envelope APIs remain implemented, not durable training recovery.
 
-The program dependency DAG (NN0026 Ready; other three tasks Draft) is:
+The program dependency DAG (NN0026 Complete; other three tasks Draft) is:
 `NN 0026 → Checkpoint 0005B and Training 0006 → optional Checkpoint 0006`,
 with completed 0005A also feeding the adapter. NN owns Model-only semantic specification/forward
 reconstruction; Checkpoint owns whole-model bytes/file APIs; Training owns recipe/run/batch/lifetime;
@@ -145,8 +146,9 @@ NN 0026's matrix/API is accepted and coordinated with root NN ownership, the own
 architecture explanations and ADR 0038's NN decision. It includes nested Sequential,
 Linear/LayerNorm/Embedding/Conv1d/2d/3d and RELU/TANH/SIGMOID, source-faithful input constraints and
 Tensor-identity aliases, not arbitrary Model.define capture. Final independent approval and coordinator
-verification of dependencies, source base `8ad4302e938ef7adfed15853782e48b3d0180bb4` plus accepted NN
-documentation packet, inactive conflicts and authorized frontier are recorded. NN0026 alone is Ready.
+verification of dependencies, accepted contract base `4472320ceb5498c46a661af549d6de74aa27ab6a`,
+inactive conflicts and launch frontier are recorded. NN0026 implementation, final independent reviews
+and coordinator validation are complete. Evidence is in its brief; authorized NN frontier is now None.
 
 Checkpoint 0005B, Training 0006 and optional Checkpoint 0006 remain Draft. Their loss/recipe,
 canonical wire/default limits and owner-transfer/capture/restore bridges remain Proposed and must
@@ -156,8 +158,8 @@ and model.v1 stay unchanged; whole-model.v1 and training-model.v1 remain propose
 same-file compatibility with withdrawn unpublished training-checkpoint.v1. Proposed short loads
 refuse present input fingerprints until explicit verification.
 
-This packet changes NN normative ownership/detail, not dependency edges, build configuration or
-executable code. Parallel group None; coordinator owns shared documents and recorded Ready verification.
+NN0026 implements the accepted NN contract without changing dependency edges or build configuration.
+Parallel group None; coordinator owns shared documents and recorded Ready verification.
 NN worker runs affected-module test/Javadoc once; coordinator runs architecture and narrow CPU
 integration validation after review. The full source-matched repository test/Javadoc gate belongs
 to the four-capability join, not NN alone. Planning review checks links/anchors/sizes/diff only,

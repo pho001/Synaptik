@@ -266,9 +266,9 @@ propagation belongs here rather than in an optimizer.
 own autograd construction, optimizer algorithms, training-step orchestration, backend storage,
 kernel selection, or concrete backend dependencies.
 
-The selected [closed declarative contract](contracts/extensions-training.md#closed-declarative-models)
+The implemented [closed declarative boundary](contracts/extensions-training.md#closed-declarative-models)
 also places semantic description and reconstruction in NN, still with Model as its only production
-edge. NN0026 is not implemented yet. For an ordinary nested Sequential MLP, description records
+edge. NN0026 is independently reviewed and coordinator-validated. For an ordinary nested Sequential MLP, description records
 typed configuration, ordered numeric paths and current Tensor-identity groups; reconstruction
 returns the same paths and shared descriptor-only references, then existing strict state load supplies
 values. This avoids random throwaway weights and a persistence-owned layer interpreter. Description

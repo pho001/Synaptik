@@ -62,11 +62,11 @@ class LayerNormTest {
                                 List.of(Tensor.class, Tensor.class, ScalarValue.class),
                                 List.of(Shape.class, DataType.class, ScalarValue.class)),
                         constructors),
-                () -> assertEquals(Set.of("scale", "bias", "forward"), methods),
+                () -> assertEquals(Set.of("scale", "bias", "forward", "specification"), methods),
                 () -> assertSame(Parameter.class, scale.getReturnType()),
                 () -> assertSame(Parameter.class, bias.getReturnType()),
                 () -> assertSame(Tensor.class, forward.getReturnType()),
-                () -> assertEquals(3, Arrays.stream(LayerNorm.class.getDeclaredMethods())
+                () -> assertEquals(4, Arrays.stream(LayerNorm.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .count()),
                 () -> assertTrue(Arrays.stream(LayerNorm.class.getDeclaredMethods())

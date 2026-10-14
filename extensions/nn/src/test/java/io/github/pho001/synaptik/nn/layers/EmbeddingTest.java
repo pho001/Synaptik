@@ -77,10 +77,10 @@ class EmbeddingTest {
                                         ParameterInitialization.class,
                                         long.class)),
                         constructors),
-                () -> assertEquals(Set.of("weight", "forward"), publicMethods),
+                () -> assertEquals(Set.of("weight", "forward", "specification"), publicMethods),
                 () -> assertSame(Parameter.class, weight.getReturnType()),
                 () -> assertSame(Tensor.class, forward.getReturnType()),
-                () -> assertEquals(2, Arrays.stream(Embedding.class.getDeclaredMethods())
+                () -> assertEquals(3, Arrays.stream(Embedding.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .count()),
                 () -> assertFalse(Arrays.stream(Embedding.class.getDeclaredMethods())

@@ -79,16 +79,17 @@ class LinearTest {
                                         RandomGeneratorFactory.class,
                                         long.class)),
                         constructors),
-                () -> assertEquals(Set.of("weight", "bias", "forward"), methods),
+                () -> assertEquals(Set.of("weight", "bias", "forward", "specification", "fromState"), methods),
                 () -> assertSame(Parameter.class, weight.getReturnType()),
                 () -> assertSame(Optional.class, bias.getReturnType()),
                 () -> assertSame(Tensor.class, forward.getReturnType()),
-                () -> assertEquals(3, Arrays.stream(Linear.class.getDeclaredMethods())
+                () -> assertEquals(5, Arrays.stream(Linear.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .count()),
                 () -> assertTrue(Arrays.stream(Linear.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
-                        .noneMatch(method -> Modifier.isStatic(method.getModifiers()))),
+                        .filter(method -> Modifier.isStatic(method.getModifiers()))
+                        .allMatch(method -> method.getName().equals("fromState"))),
                 () -> assertFalse(Arrays.stream(UnaryTensorModule.class.getSuperclass().getDeclaredMethods())
                         .anyMatch(method -> method.getName().equals("forward"))));
     }

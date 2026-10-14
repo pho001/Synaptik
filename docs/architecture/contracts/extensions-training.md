@@ -43,7 +43,7 @@ the model depend on neural-network layers or stateful module ownership.
 ### Closed declarative models
 
 NN owns immutable semantic model specifications and reconstruction of a closed Tensor-to-Tensor
-Sequential tree. This is the selected NN0026 contract, not a claim that its API is implemented.
+Sequential tree. The NN0026 API is implemented, independently reviewed and coordinator-validated.
 The specification contains no live Tensor, callback, Java class name, backend, storage handle,
 persistent version, or bytes. Existing generic Model/ModelDefinition and Sequential APIs remain
 supported. Description never captures arbitrary Model.define code or custom module subclasses.

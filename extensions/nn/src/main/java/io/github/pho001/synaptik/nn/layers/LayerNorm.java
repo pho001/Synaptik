@@ -7,6 +7,7 @@ import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitializers;
+import io.github.pho001.synaptik.nn.module.ModelSpecification;
 import io.github.pho001.synaptik.nn.module.Parameter;
 import io.github.pho001.synaptik.nn.module.UnaryTensorModule;
 import java.util.Objects;
@@ -35,6 +36,21 @@ import java.util.Objects;
  * coordinate them when one scale-and-bias snapshot matters.</p>
  */
 public final class LayerNorm extends UnaryTensorModule {
+    /**
+     * Describes the bound schema and retained forward attributes without reading values.
+     *
+     * <p>The immutable snapshot contains no Tensor, mode, storage or initializer. Callers
+     * coordinate this read with binding replacement and strict loading.</p>
+     *
+     * @return non-null trailing-Shape/type snapshot with exact retained epsilon type/bits;
+     *     later input promotion still must satisfy ordinary Model epsilon compatibility
+     * @throws IllegalArgumentException if the bound schema fails declarative validation
+     * @throws ArithmeticException if checked element, byte or geometry arithmetic overflows
+     */
+    public ModelSpecification.LayerNormStep specification() {
+        return new ModelSpecification.LayerNormStep(normalizedShape, scale.value().descriptor().dataType(), epsilon);
+    }
+
     private final Parameter scale;
     private final Parameter bias;
     private final Shape normalizedShape;

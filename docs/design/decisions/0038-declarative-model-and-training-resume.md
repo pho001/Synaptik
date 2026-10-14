@@ -8,7 +8,8 @@ Proposed, not accepted contracts or implementation authorization.
 Replaces the Proposed direction in [ADR 0037](0037-stored-training-checkpoint-adapter.md),
 which is withdrawn as the primary product, not as evidence of useful low-level foundations.
 Only the NN scope below is accepted and coordinated with the root and owning NN contract. NN0026
-is Ready; the other three tasks remain Draft. No future wire, TrainingRun or adapter acceptance.
+is Complete with implementation independently reviewed and coordinator-validated.
+The other three tasks remain Draft. No future wire, TrainingRun or adapter acceptance.
 
 ## Context
 
@@ -46,7 +47,7 @@ and cotangent Arena, not the borrowed model, Engine or parameter Arena.
 ## Accepted NN decision
 
 NN owns a new immutable `ModelSpecification` and `DeclarativeModel extends Model<Tensor, Tensor>`
-in `io.github.pho001.synaptik.nn.module`; these selected names are not yet implemented.
+in `io.github.pho001.synaptik.nn.module`; the NN API is implemented and accepted.
 The specification describes a closed Sequential tree, actual attributes, derived input/output
 constraints and explicit parameter Tensor-identity groups. NN validates and reconstructs forward
 semantics using Model only. It does not encode bytes, assign persistent versions or perform I/O.
@@ -66,8 +67,9 @@ after legal parameter replacement or strict loading. Numeric nested paths have n
 Reconstruction creates one descriptor-only Tensor per validated alias group or singleton, binds
 NN-owned layers and returns a fully bound evaluation skeleton for existing strict state load.
 Existing TensorFactory.create and supplied-state constructors allocate no weight storage;
-convolution reservation-load tests prove initialization-free binding. This is source evidence,
-not a completed NN0026 executable proof. No random/throwaway weights or native ownership is needed.
+convolution reservation-load tests prove initialization-free binding. NN0026's focused tests now
+extend that evidence across its matrix; coordinator validation has passed.
+No random/throwaway weights or native ownership is needed.
 Current Checkpoint target-load semantics can consume the skeleton's shared references unchanged.
 Inference aliases preserve exact Tensor identity, not equal-byte sharing or physical overlaps;
 Training duplicate-identity/overlap rejection remains unchanged.

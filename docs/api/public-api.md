@@ -119,6 +119,19 @@ compatibility.
 
 ## Current public contracts
 
+The implemented `extensions:nn` declarative boundary adds `ModelSpecification` and
+`DeclarativeModel` in `nn.module`, plus closed `Activation` in `nn.layers`. Describe a
+bound supported Sequential, reconstruct an evaluation-mode descriptor-only skeleton, then
+use inherited strict state loading to supply values. The specification exposes immutable
+typed steps, canonical current Tensor-identity groups, ordered `stateDescriptors()` and
+input-specific `outputDescriptor(...)`; it captures neither arbitrary Model callbacks nor
+bytes. Six parameterized layer families and Activation expose typed `specification()`
+snapshots; `Linear.fromState(Tensor, Optional<Tensor>, boolean)` binds exact supplied state
+while retaining supplied promotion or automatic input guards. Existing APIs stay supported.
+See the [NN composition reference](training-api.md#current-nn-declarative-composition-contract)
+and [complete reconstruction example](../user-guide/declarative-models.md). Whole-model file
+reconstruction and Training-owned resume remain separate unimplemented capabilities.
+
 The implemented `modules:model` surface contains:
 
 - data type metadata, typed scalar values, and numeric promotion;

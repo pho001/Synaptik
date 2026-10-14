@@ -6,6 +6,7 @@ import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitializers;
+import io.github.pho001.synaptik.nn.module.ModelSpecification;
 import io.github.pho001.synaptik.nn.module.Parameter;
 import io.github.pho001.synaptik.nn.module.UnaryTensorModule;
 import java.util.Objects;
@@ -37,6 +38,23 @@ import java.util.random.RandomGeneratorFactory;
  * coordinate them when one stable table snapshot matters.</p>
  */
 public final class Embedding extends UnaryTensorModule {
+    /**
+     * Describes the bound schema and retained forward attributes without reading values.
+     *
+     * <p>The immutable snapshot contains no Tensor, mode, storage or initializer. Callers
+     * coordinate this read with binding replacement and strict loading.</p>
+     *
+     * @return non-null table dimensions/type snapshot; index inputs remain INT32/INT64 at any rank
+     * @throws IllegalArgumentException if the bound schema fails declarative validation
+     * @throws ArithmeticException if checked element, byte or geometry arithmetic overflows
+     */
+    public ModelSpecification.EmbeddingStep specification() {
+        var descriptor = weight.value().descriptor();
+        return new ModelSpecification.EmbeddingStep(
+                ((StaticDimension) descriptor.shape().dimension(0)).size(),
+                ((StaticDimension) descriptor.shape().dimension(1)).size(), descriptor.dataType());
+    }
+
     private final Parameter weight;
 
     /**

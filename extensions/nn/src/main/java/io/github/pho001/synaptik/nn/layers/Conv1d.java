@@ -8,6 +8,7 @@ import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitializers;
+import io.github.pho001.synaptik.nn.module.ModelSpecification;
 import io.github.pho001.synaptik.nn.module.Parameter;
 import io.github.pho001.synaptik.nn.module.UnaryTensorModule;
 import java.util.List;
@@ -32,6 +33,23 @@ import java.util.Optional;
  * coordination. The layer constructs expressions and performs no execution.</p>
  */
 public final class Conv1d extends UnaryTensorModule {
+    /**
+     * Describes the bound schema and retained forward attributes without reading values.
+     *
+     * <p>The immutable snapshot contains no Tensor, mode, storage or initializer. Callers
+     * coordinate this read with binding replacement and strict loading.</p>
+     *
+     * @return non-null typed configuration snapshot preserving exact Model attributes
+     * @throws IllegalStateException if any parameter reservation remains unbound
+     * @throws IllegalArgumentException if the bound schema fails declarative validation
+     * @throws ArithmeticException if checked element, byte or geometry arithmetic overflows
+     */
+    public ModelSpecification.Conv1dStep specification() {
+        long inChannels = inputChannels(weight().value().descriptor().shape());
+        return new ModelSpecification.Conv1dStep(inChannels, outChannels, kernelWidth,
+                biasConfigured, dataType, attrs);
+    }
+
     private final long outChannels;
     private final long kernelWidth;
     private final long groups;

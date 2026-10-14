@@ -7,6 +7,7 @@ import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitializers;
+import io.github.pho001.synaptik.nn.module.ModelSpecification;
 import io.github.pho001.synaptik.nn.module.Parameter;
 import io.github.pho001.synaptik.nn.module.UnaryTensorModule;
 import java.util.List;
@@ -47,6 +48,7 @@ import java.util.random.RandomGeneratorFactory;
 public final class Linear extends UnaryTensorModule {
     private final boolean biasConfigured;
     private final AutomaticConfiguration automaticConfiguration;
+    private final BoundGuards boundGuards;
 
     /**
      * Creates a no-bias layer from one exact caller-supplied weight Tensor.
@@ -64,6 +66,7 @@ public final class Linear extends UnaryTensorModule {
         parameter("weight", suppliedWeight);
         this.biasConfigured = false;
         this.automaticConfiguration = null;
+        this.boundGuards = null;
     }
 
     /**
@@ -87,6 +90,7 @@ public final class Linear extends UnaryTensorModule {
         parameter("bias", suppliedBias);
         this.biasConfigured = true;
         this.automaticConfiguration = null;
+        this.boundGuards = null;
     }
 
     /**
@@ -136,6 +140,7 @@ public final class Linear extends UnaryTensorModule {
         }
         this.biasConfigured = bias;
         this.automaticConfiguration = null;
+        this.boundGuards = null;
     }
 
     /**
@@ -191,10 +196,81 @@ public final class Linear extends UnaryTensorModule {
         this.biasConfigured = bias;
         this.automaticConfiguration = new AutomaticConfiguration(
                 outFeatures, parameterType, initialization, factory, seed);
+        this.boundGuards = null;
         reserveParameter("weight", this::validateAutomaticWeight);
         if (bias) {
             reserveParameter("bias", this::validateAutomaticBias);
         }
+    }
+
+    /**
+     * Binds complete supplied state without initialization, retaining the selected input policy.
+     *
+     * <p>True preserves automatic-constructor guards without a lazy reservation or initializer;
+     * false preserves the supplied-state Model promotion/contraction semantics. The layer borrows
+     * exact Tensors and owns only its wrappers; their storage lifetime stays caller-owned.
+     * Coordinate binding reads and replacement just as for ordinary supplied-state constructors.</p>
+     *
+     * @param weight non-null gradient-eligible positive static rank-two floating weight; retained exactly
+     * @param bias non-null optional exact matching gradient-eligible rank-one bias with
+     *     {@code outFeatures} elements and the weight type; empty disables bias
+     * @param automaticInputGuards whether to retain exact-type, positive static input-feature,
+     *     bound-width and Java-array-count guards used by automatic construction
+     * @return a fully bound non-null layer; no Tensor, generator or storage is created
+     * @throws NullPointerException if weight or the optional container is null
+     * @throws IllegalArgumentException if supplied schemas or selected count guards fail
+     * @throws ArithmeticException if checked count arithmetic overflows
+     */
+    public static Linear fromState(Tensor weight, Optional<Tensor> bias, boolean automaticInputGuards) {
+        return new Linear(weight, bias, automaticInputGuards);
+    }
+
+    /**
+     * Validates the complete supplied group before declaring either binding.
+     *
+     * @param weight non-null exact trainable rank-two floating weight
+     * @param bias non-null optional exact schema-matching trainable bias
+     * @param automaticInputGuards whether descriptor/count guards apply without an initializer
+     * @throws NullPointerException if weight or bias container is null
+     * @throws IllegalArgumentException if a supplied schema or selected count limit fails
+     * @throws ArithmeticException if checked count arithmetic overflows
+     */
+    private Linear(Tensor weight, Optional<Tensor> bias, boolean automaticInputGuards) {
+        Objects.requireNonNull(weight, "weight");
+        Objects.requireNonNull(bias, "bias");
+        validateWeight(weight);
+        bias.ifPresent(value -> validateBias(weight, value));
+        if (automaticInputGuards) {
+            validateJavaArrayCount(weight.descriptor().shape(), "linear automatic weight");
+            bias.ifPresent(value -> validateJavaArrayCount(
+                    value.descriptor().shape(), "linear automatic bias"));
+        }
+        this.biasConfigured = bias.isPresent();
+        this.automaticConfiguration = null;
+        this.boundGuards = automaticInputGuards
+                ? new BoundGuards(((StaticDimension) weight.descriptor().shape().dimension(0)).size(),
+                        weight.descriptor().dataType()) : null;
+        parameter("weight", weight);
+        bias.ifPresent(value -> parameter("bias", value));
+    }
+
+    /**
+     * Snapshots bound feature schema and input policy without initializing or changing state.
+     *
+     * <p>Caller quiescence is required across binding reads; no storage, mode, initializer,
+     * random source or Tensor reference is retained in the result.</p>
+     *
+     * @return immutable non-null configuration with no Tensor references or initialization policy
+     * @throws IllegalStateException if automatic reservations remain unbound
+     * @throws IllegalArgumentException if the bound schema fails declarative validation
+     * @throws ArithmeticException if checked element or byte arithmetic overflows
+     */
+    public ModelSpecification.LinearStep specification() {
+        var descriptor = weight().value().descriptor();
+        return new ModelSpecification.LinearStep(
+                ((StaticDimension) descriptor.shape().dimension(1)).size(),
+                ((StaticDimension) descriptor.shape().dimension(0)).size(),
+                biasConfigured, descriptor.dataType(), automaticConfiguration != null || boundGuards != null);
     }
 
     /**
@@ -239,7 +315,10 @@ public final class Linear extends UnaryTensorModule {
      * constructs the ordinary Model expression. Zero and one policies do not invoke the retained
      * factory. The method does not numerically execute that expression.</p>
      *
-     * @param input non-null Tensor; the automatic constructor requires the exact configured type,
+     * <p>A bound {@link #fromState(Tensor, Optional, boolean)} layer with automatic guards
+     * applies the same descriptor/count checks but never initializes state.</p>
+     *
+     * @param input non-null Tensor; automatic guards require the exact configured type,
      *     rank at least one, and a positive static final feature Dimension
      * @return a non-null fresh Model linear expression using the exact bindings observed once by
      *     this call
@@ -257,6 +336,9 @@ public final class Linear extends UnaryTensorModule {
     @Override
     public Tensor forward(Tensor input) {
         Tensor suppliedInput = Objects.requireNonNull(input, "input");
+        if (boundGuards != null) {
+            validateAutomaticInput(suppliedInput, boundGuards.outFeatures, boundGuards.dataType);
+        }
         if (automaticConfiguration != null) {
             AutomaticInput automaticInput = validateAutomaticInput(suppliedInput);
             if (!parameterReservationsBound()) {
@@ -275,7 +357,7 @@ public final class Linear extends UnaryTensorModule {
 
         Parameter currentWeightParameter = weight();
         Tensor currentWeight = currentWeightParameter.value();
-        if (automaticConfiguration != null) {
+        if (automaticConfiguration != null || boundGuards != null) {
             validateAutomaticBoundInput(suppliedInput, currentWeight);
         }
         if (!biasConfigured) {
@@ -288,11 +370,15 @@ public final class Linear extends UnaryTensorModule {
 
     private AutomaticInput validateAutomaticInput(Tensor input) {
         AutomaticConfiguration configuration = automaticConfiguration;
+        return validateAutomaticInput(input, configuration.outFeatures, configuration.dataType);
+    }
+
+    private AutomaticInput validateAutomaticInput(Tensor input, long outFeatures, DataType dataType) {
         DataType inputType = input.descriptor().dataType();
-        if (inputType != configuration.dataType) {
+        if (inputType != dataType) {
             throw new IllegalArgumentException(
                     "linear automatic input data type must equal configured data type: expected="
-                            + configuration.dataType + ", actual=" + inputType);
+                            + dataType + ", actual=" + inputType);
         }
         Shape inputShape = input.descriptor().shape();
         int rank = inputShape.rank();
@@ -312,9 +398,9 @@ public final class Linear extends UnaryTensorModule {
                     "linear automatic input must have positive inFeatures: " + inFeatures);
         }
 
-        Shape weightShape = Shape.of(configuration.outFeatures, inFeatures);
+        Shape weightShape = Shape.of(outFeatures, inFeatures);
         validateJavaArrayCount(weightShape, "linear automatic weight");
-        Shape biasShape = Shape.of(configuration.outFeatures);
+        Shape biasShape = Shape.of(outFeatures);
         if (biasConfigured) {
             validateJavaArrayCount(biasShape, "linear automatic bias");
         }
@@ -348,11 +434,12 @@ public final class Linear extends UnaryTensorModule {
     }
 
     private void validateAutomaticBoundInput(Tensor input, Tensor weight) {
-        AutomaticConfiguration configuration = automaticConfiguration;
-        if (input.descriptor().dataType() != configuration.dataType) {
+        DataType dataType = automaticConfiguration != null
+                ? automaticConfiguration.dataType : boundGuards.dataType;
+        if (input.descriptor().dataType() != dataType) {
             throw new IllegalArgumentException(
                     "linear automatic input data type must equal configured data type: expected="
-                            + configuration.dataType + ", actual="
+                            + dataType + ", actual="
                             + input.descriptor().dataType());
         }
         Shape inputShape = input.descriptor().shape();
@@ -511,5 +598,8 @@ public final class Linear extends UnaryTensorModule {
     }
 
     private record AutomaticInput(long inFeatures, Shape weightShape, Shape biasShape) {
+    }
+
+    private record BoundGuards(long outFeatures, DataType dataType) {
     }
 }

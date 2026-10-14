@@ -3365,6 +3365,29 @@ composition contract](api/training-api.md#current-nn-typed-model-composition-con
 [Current NN automatic parameter initialization
 contract](api/training-api.md#current-nn-automatic-parameter-initialization-contract).
 
+### Declarative model specification and descriptor-only skeleton
+
+An NN **model specification** is the implemented immutable `ModelSpecification`: semantic
+configuration for a closed nested Sequential tree, ordered parameter descriptors and explicit
+Tensor-identity alias groups. It contains no live Tensor, callback, state values, storage, mode,
+initializer, bytes or file format. Supported steps are Linear, affine LayerNorm, Embedding,
+Conv1d/2d/3d and closed RELU/TANH/SIGMOID activations. Input-specific metadata composition
+preserves each layer's ordinary guards and promotion, not a saved example-batch signature.
+
+A **descriptor-only skeleton** is the fully bound evaluation-mode `DeclarativeModel` returned
+by reconstruction. Its independent layers own direct numeric paths such as `0.weight` and
+`1.0.scale`, while parameter Tensors have static schema but no storage or provenance. One exact
+Tensor reference is used per alias group or singleton. Existing strict state load supplies the
+value references separately; a shallow StateDictionary is not a detached value snapshot.
+
+A **parameter identity alias group** contains at least two distinct state paths bound to the
+same exact Tensor, not merely equal values or overlapping storage. Members follow state traversal
+order; groups follow first-member order, have matching schema and disjoint memberships. Both
+description entry points read current bindings under caller quiescence, including joins/splits
+after legal replacement or strict loading. Training's duplicate/overlap rejection is unchanged.
+See the [reconstruction guide](user-guide/declarative-models.md); this capability does not implement
+automatic stored-model file reconstruction or training resume.
+
 ### Standard module factory
 
 The implemented NN **standard module factory** is the final `ModuleFactory` returned by
@@ -3397,7 +3420,7 @@ module ownership and unary invocation together at compile time without a cast, r
 adapter, or generic `Module.forward(...)`. It defines no shared Shape, data type, freshness,
 numerical, mode, state-transition, compiler, backend, or execution rule; each concrete child keeps
 its own contract. Current `Linear`, `LayerNorm`, `Embedding`, `Conv1d`, `Conv2d`, and `Conv3d`
-layers participate.
+layers participate. Closed `Activation` also participates, without a callback extension point.
 
 `BatchNorm`, `Dropout`, `RnnCell`, `GruCell`, and `LstmCell` deliberately remain outside this
 subtype. Batch

@@ -15,6 +15,10 @@ ordered publication metadata and supports explicit copying into detached immutab
   storage when each run begins.
 
 The Engine remains the composition owner. A session borrows it and must not outlive it.
+For a supported NN Sequential, [declarative reconstruction](declarative-models.md) can
+first build a descriptor-only model with stable state paths. Load its parameter values
+before constructing the forward expression to compile; reconstruction itself neither
+executes the model nor reconstructs it from a stored-model file.
 
 ## Compile and prepare once
 
@@ -126,6 +130,7 @@ falling back during a run.
 
 ## Related documentation
 
+- [Describe, reconstruct and load a closed NN model](declarative-models.md)
 - [Compile a graph](compiling-graphs.md)
 - [Prepare execution](preparing-execution.md)
 - [Runtime API](../api/runtime-api.md#current-ordinary-engine-boundary)

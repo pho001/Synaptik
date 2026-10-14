@@ -76,7 +76,7 @@ class Conv1dTest {
                         type.getDeclaredConstructors()[0].getParameterCount()),
                 () -> assertTrue(Modifier.isPublic(
                         type.getDeclaredConstructors()[0].getModifiers())),
-                () -> assertEquals(Set.of("weight", "bias", "forward"),
+                () -> assertEquals(Set.of("weight", "bias", "forward", "specification"),
                         java.util.Arrays.stream(type.getDeclaredMethods())
                                 .filter(method -> Modifier.isPublic(method.getModifiers()))
                                 .map(java.lang.reflect.Method::getName)
