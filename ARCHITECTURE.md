@@ -406,9 +406,9 @@ briefs and maintained navigation adopt the exact scoped destinations:
 | CPU routes and generated JVM bytecode | [Backend execution — CPU backend routes](docs/architecture/contracts/backend-execution.md#cpu-backend-routes) |
 | Metal | [Backend execution — Metal backend](docs/architecture/contracts/backend-execution.md#metal-backend) |
 | OpenBLAS provider | [Backend execution — OpenBLAS provider](docs/architecture/contracts/backend-execution.md#openblas-provider) |
-| NN | [Extensions/training — `extensions/nn`](docs/architecture/contracts/extensions-training.md#extensionsnn) |
+| NN stateful composition, semantic description and descriptor-only reconstruction | [Extensions/training — `extensions/nn`](docs/architecture/contracts/extensions-training.md#extensionsnn) |
 | Training | [Extensions/training — `extensions/training`](docs/architecture/contracts/extensions-training.md#extensionstraining) |
-| Opaque artifact envelope, current file and model-envelope APIs, and optional Training Checkpoint adapter | [Extensions/training — `extensions/checkpoint`](docs/architecture/contracts/extensions-training.md#extensionscheckpoint) |
+| Opaque artifact envelope, values-only APIs, bounded whole-model definition/composition, and optional Training Checkpoint adapter | [Extensions/training — `extensions/checkpoint`](docs/architecture/contracts/extensions-training.md#extensionscheckpoint) |
 | ONNX | [Extensions/training — `extensions/onnx`](docs/architecture/contracts/extensions-training.md#extensionsonnx) |
 | Optimizer/training lifecycle | [Extensions/training — optimizer/training lifecycle](docs/architecture/contracts/extensions-training.md#optimizertraining-lifecycle) |
 | CLI | [Backend execution — other tool scopes](docs/architecture/contracts/backend-execution.md#other-tool-scopes) |
@@ -431,7 +431,7 @@ This compact routing summary does not replace the linked details:
 | Typed diagnostics | Trace |
 | Stateful modules, parameters, buffers, train/eval behavior, and closed declarative model description/reconstruction | NN; semantic data and state installation only, not persistent encoding or execution |
 | Optimizer algorithms, explicit pre-session native parameter copies, and training orchestration | Training |
-| Model-only checkpoint boundary, bounded opaque artifact envelope, file save/inspect/load, and model-envelope capture/inspect/canonical bytes/load | Checkpoint; NN retains whole-tree state installation |
+| Model-only checkpoint boundary, bounded opaque artifact envelope, values-only APIs, and canonical whole-model definition/file/envelope composition | Checkpoint; NN retains semantic description, descriptor-only reconstruction and whole-tree state installation; Training resume remains separately proposed |
 | Optional stored Model + TrainingState restoration; broader exact continuation requires all affecting state | Future Training Checkpoint adapter, after its separate gate; each state owner retains validation and restore authority |
 | Exact training continuation claim and cross-owner restore coordination | Each state owner retains its state; the caller stages an unpublished replacement and controls exclusion and publication under the [Training lifecycle contract](docs/architecture/contracts/extensions-training.md#optimizertraining-lifecycle) |
 | Fixed benchmark evidence | `tools/benchmarks` |

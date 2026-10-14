@@ -72,12 +72,13 @@ Stop on missing/ambiguous contracts; this proposal does not override them.
 
 ## Dependencies and integration
 
-- Depends on: NN 0026; completed Training 0004 and Checkpoint 0005 defensive reconstruction;
+- Depends on: NN0026 Complete; CP0005B; NN0027 semantic recurrence; CP0005C versioned persistence;
+  completed Training 0004 and Checkpoint 0005 defensive reconstruction;
   approved TrainingRecipe/TrainingRun ownership and support matrix under ADR 0038.
 - Conflicts with: Training session/lifecycle contracts and shared NN/Training/Checkpoint documents.
 - Parallel group: None; separate clean context with serialized shared contract edits.
 - Common base revision: planning base `52733fcfd32d278b651302e308487e0b6c6afa81`; reverify before Ready.
-- Integration order: NN 0026 first; Training 0006 and Checkpoint 0005B join before Checkpoint 0006.
+- Integration order: NN0026 → CP0005B → NN0027 → CP0005C → Training0006 → optional CP0006.
 - Integration validation: one source-matched combined repository test/Javadoc checkpoint.
 - Shared-document integration owner: NN/Training/Checkpoint coordinator.
 - Authorized frontier: None while Draft; exact dependencies/contracts reverified before launch.

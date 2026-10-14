@@ -331,6 +331,23 @@ The internal candidate and codec remain package-private; file calls keep their r
 policies. Reusing the decoder prevents a standalone envelope from bypassing limits or BOOL
 validation merely because it did not pass through the file reader.
 
+The [accepted whole-model contract](contracts/extensions-training.md#whole-model-definition-and-composition)
+adds semantic definition bytes downstream of NN without changing edges. This CP0005B capability
+is not implemented yet. It keeps existing ModelCheckpoint, accepts ordinary supported Sequential
+or DeclarativeModel roots, and reconstructs only NN's closed matrix. Values-only APIs remain the
+advanced foundation; they do not acquire automatic reconstruction of arbitrary Model callbacks.
+The separate whole-model kind binds canonical definition bytes, complete values and exact aliases.
+Checkpoint owns bytes/versions/preflight; NN owns meaning and strict installation. Reusing public
+component validation avoids inventing a trusted-image credential or private parsing interface.
+
+Conceptual future scenario: a quiescent Sequential contains two FLOAT32 Linear layers whose
+weight paths `0.weight` and `1.weight` share the same Tensor. Whole-model save retains an explicit
+identity group as well as both per-path values; load first compares schema/configuration and group
+bytes, then returns an alias-preserving heap-backed eval DeclarativeModel. Equal independent
+weights remain independent. A corrupted group with unequal bytes fails before returning a model.
+Saving a custom Model.define callback instead rejects before Engine/file work: shapes and weights
+cannot establish that Java code's meaning. No Training state or native run lifetime is implied.
+
 Conceptual adapter scenario (requires a separately approved adapter): a model envelope contains
 parameter `layer.weight`, FLOAT32 Shape.of(2), with canonical bytes `3f800000 80000000`.
 Inspection supplies its descriptor; canonical-byte access supplies those exact bytes by NN path.

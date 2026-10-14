@@ -63,13 +63,16 @@ Revised proposed product in [ADR 0038](../../../design/decisions/0038-declarativ
 automatic usable-model load and optional owned resume, not snapshot-only Model + TrainingState.
 [ADR 0037](../../../design/decisions/0037-stored-training-checkpoint-adapter.md) is withdrawn Proposed;
 raw state codecs/comparison remain useful. New DAG:
-`NN 0026 → Training 0006 and Checkpoint 0005B → optional Checkpoint 0006`;
+`NN0026 Complete → CP0005B → NN0027 semantics → CP0005C persistence → Training0006 → optional CP0006`;
 completed Checkpoint 0005A also precedes the adapter. No cycle or unrelated 0005 prerequisite.
 
-Authorized frontier: None. [Training 0006](tasks/0006-supported-recipe-and-owned-run.md),
-NN 0026, Checkpoint 0005B and revised adapter 0006 are Draft. Stabilize exact supported matrix,
-owner bridges and root/owning-contract/explanation/ADR/architecture-test cutover before Ready.
-Current scoped lifecycle wins until cutover; no code/build changes are authorized.
+Authorized Training frontier: None. NN0026 is Complete; CP0005B is Ready with accepted CP-only
+contract after final independent approval and coordinator verification. NN0027/CP0005C are Draft rows with no detailed briefs;
+NN owns recurrent semantics, Checkpoint owns versioned persistence. Initial-state/output selection,
+format version and Training gradient admission remain future decisions. Training0006 and adapter
+remain Draft/Proposed until their separate owner bridges and contract cutovers. No optimized
+RecurrentScan/backend BPTT/Data hard dependency is added by this ordering.
+Current scoped lifecycle wins until Training cutover; no Training code/build changes are authorized.
 
 Proposed package map: TrainingRecipe and TrainingRun in existing
 `io.github.pho001.synaptik.training`, including a narrow nested checkpoint capture borrow.
@@ -110,7 +113,7 @@ the brief. No duplicate pure validator, transaction framework, reverse edge or n
 | 0003 | Exact-resume progress state | Superseded | 0003A decision | No new Training progress API: caller owns next input, sampler/epoch, external RNG, scheduler, and scaler handoff. |
 | [0004](tasks/0004-joint-restore-preflight-and-candidate-commit.md) | Joint restore on an unpublished candidate | Complete | 0003A; Checkpoint 0001 and 0004; CPU 0024 | Bounded same-route in-memory private-candidate restore proved in integration tests; independent Class C review and repository gate passed. No production facade or durable artifact. |
 | 0005 | Broader training capability checkpoint | Draft | 0002A–0004 | Validate broader optimizers, state-path stability, exact-resume claims, documentation, architecture boundaries, and a representative peak-memory measurement of parameter, slot, candidate, rollback, and snapshot storage before claiming large-model support. |
-| [0006](tasks/0006-supported-recipe-and-owned-run.md) | Supported recipe and owned reusable run | Draft | NN 0026; completed Training 0004/Checkpoint 0005; approved owner contract | Cohesive Training-owned loss/signature/batch/resource lifecycle for downstream automatic resume; no file I/O. |
+| [0006](tasks/0006-supported-recipe-and-owned-run.md) | Supported recipe and owned reusable run | Draft | NN0026/0027; CP0005B/0005C; completed Training0004/Checkpoint0005; future owner contract | Proposed Training loss/signature/batch/resource lifecycle; no file I/O. |
 
 
 ## Milestones
@@ -124,21 +127,25 @@ the brief. No duplicate pure validator, transaction framework, reverse edge or n
 Sessions, SGD/Adam/AdamW groups, detached state, defensive reconstruction and bounded same-route
 private-candidate restore are implemented. Completed evidence lives in linked briefs.
 ModelCheckpoint direct leaf save/re-save and public envelope composition are also Complete.
-No durable adapter, supported recipe/run convenience or whole-model specification is implemented.
+NN0026's whole-model semantic specification is implemented; no whole-model persistence, durable
+adapter or supported recipe/run convenience is implemented.
 
 The user revised checkpoint direction (2026-10-14): normal load returns a usable supported model,
-with inference or automatic Training-owned resume. [Proposed ADR 0038](../../../design/decisions/0038-declarative-model-and-training-resume.md)
+with inference or automatic Training-owned resume. [ADR 0038](../../../design/decisions/0038-declarative-model-and-training-resume.md)
 and the new Draft owner capabilities replace the snapshot-only primary UX. External cursor/RNG/
 scheduler/scaler remain application-owned, not automatic exact continuation.
-BatchNorm training-buffer alignment, BPTT, Conv3d gradients and changing dropout streams remain
+BatchNorm training-buffer alignment, fixed RecurrentScan BPTT, Conv3d gradients and changing dropout streams remain
 fail-closed. Current native-copy/session APIs remain unchanged and available for advanced use.
+Ordinary static unrolling depends on constituent-operation adjoints, not a blanket recurrent ban.
 
 ## Open questions
 
-- Decide exact NN/loss/signature/mode matrix, inference aliases and descriptor-only skeleton proof.
+- NN matrix/aliases/descriptor skeleton are accepted and implemented; after CP0005B, NN0027
+  decides semantic recurrent reconstruction and CP0005C decides persistence before Training0006. Loss/signature/mode
+  and Training run contracts remain Proposed.
 - Freeze Training-owned model transfer, coherent capture/restore bridge, batch admission and
   failure cleanup; these are bounded contract decisions before Ready, not a new prerequisite waterfall.
-- Coordinate owning contract changes under proposed ADR 0038; broader Training 0005 is separate.
+- Coordinate Proposed Training contract scope under ADR 0038; broader Training0005 is separate.
 - Preserve existing native-only update domain and duplicate-path/overlap rejection; do not quietly
   split shared parameters or widen backend/gradient capability.
 - Rollback storage remains provisioned; optional rollback policy requires a separate contract

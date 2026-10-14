@@ -113,6 +113,7 @@ Draft rows without links have no detailed task brief.
 | [0025A](tasks/0025a-dimensional-convolution-user-capability-checkpoint.md) | Dimensional-convolution user-capability checkpoint | Complete | 0025; Engine 0004; CPU 0008A | Validated strict-loaded and factory convolution through public one-shot/reusable Engine workflows, numerical oracles, lifecycle ownership, and Conv3d backward rejection. |
 | [0025B](tasks/0025b-public-model-dependency-export.md) | Export public Model dependency | Complete | Existing NN facade; project review | Correct Gradle API visibility and validate an isolated NN-only consumer. |
 | [0026](tasks/0026-declarative-model-specification.md) | Declarative model specification and reconstruction | Complete | Verified Complete 0025/0025A/0025B; accepted NN matrix/contract | Describe/reconstruct/strict-load delivered with final reviews and coordinator gates; no persistent codec or new dependency. |
+| 0027 | Semantic recurrent description and reconstruction | Draft | NN0026 Complete; CP0005B complete and reviewed before launch | Model-only static Rnn/Gru/Lstm meaning; initial-state/output policy remains future, no bytes/versions or detailed brief. |
 
 ## Proposed whole-model checkpoint program
 
@@ -120,11 +121,24 @@ Draft rows without links have no detailed task brief.
 revises the primary product to automatic usable-model load, then inference or owned Training resume.
 0026 is Complete after final independent reviews and coordinator validation.
 
-Dependency DAG: `NN 0026 → Checkpoint 0005B and Training 0006 → optional Checkpoint 0006`.
-No unrelated recurrent/Data work is a predecessor. Authorized NN frontier: None for this program.
+Selected serial DAG: `NN0026 Complete → CP0005B → NN0027 → CP0005C → Training0006 → optional CP0006`.
+NN0027 owns only semantic description/reconstruction using existing static Rnn/Gru/Lstm capabilities;
+CP0005C owns explicit versioned recurrent definition wire/whole-save/load adoption. This is an owner split,
+not a hard dependency on optimized RecurrentScan/backend BPTT/Data. Authorized NN frontier: None.
 NN0026's API/matrix and NN-only root/contract/explanation/ADR packet are accepted after final
 independent review; coordinator Ready verification is recorded in the brief. Downstream
-Checkpoint/Training/adapter contracts remain Proposed and their tasks remain Draft.
+CP0005B's whole-model contract/API/wire/default packet is accepted after final independent approval
+and coordinator verification; CP0005B is Ready, the sole Checkpoint frontier. NN0027/CP0005C/Training/
+adapter decisions remain Proposed and their tasks remain Draft.
+
+NN0027 ordering metadata: Depends on NN0026 and CP0005B; Conflicts with shared NN semantic/API
+contracts and CP0005C/Training0006/adapter0006; Parallel group None; Common base revision
+`f892cd3fbde4f8b7722b7eb5b14f4b0a5f3b2669` (reverify after CP integration); Integration order
+after CP0005B and before CP0005C; Integration validation future NN semantic reconstruction tests
+and semantic round trips plus architecture at its join; Shared-document integration owner NN/Training/Checkpoint
+coordinator. Input/output/default carried-state policy is future before a detailed brief or Ready.
+CP0005C format version and Training gradient admission are separate future decisions. Current
+whole-model v1 rejects all recurrent IDs; NN0027 owns no persistent format or I/O.
 
 Selected package map: ModelSpecification and DeclarativeModel in existing nn.module, distinct from
 the ModelDefinition Java callback; closed Activation in nn.layers. Initial scope: nested Sequential,
@@ -146,7 +160,7 @@ The coordinator owns shared documents; each capability uses separate clean imple
 Parallel group None; accepted contract base `4472320ceb5498c46a661af549d6de74aa27ab6a`.
 Implementation, final reviews and coordinator validation are complete; evidence is in the task brief.
 Owner NN test/Javadoc once; coordinator architecture and narrow CPU integration after review, full
-source-matched checkpoint only at the four-capability join. No native/performance campaign.
+source-matched checkpoint only at the selected program join. No native/performance campaign.
 Exact metadata and 2026-10-14 dependency/base/contracts/review/conflict verification live in the Ready brief.
 
 ## Milestones and current frontier
@@ -156,8 +170,10 @@ Exact metadata and 2026-10-14 dependency/base/contracts/review/conflict verifica
   convolution plus its user checkpoint (0025–0025A).
 - Draft: 0021B–0024. None has a detailed task brief. Audit repair 0025B is Complete.
 - Complete: NN0026 with final independent reviews and coordinator validation.
-  Authorized NN frontier: None; downstream tasks remain Draft. Evidence is in the brief.
-- 0021B is the next ordered NN Draft candidate only after a planner revalidates its cross-area
+  Authorized NN frontier: None; NN0027 remains Draft. CP0005B is Ready; later successors remain Draft.
+- NN0027 is the selected semantic recurrent follow-up AFTER CP0005B and BEFORE CP0005C/Training0006;
+  no detailed speculative brief until recurrent policy is decided. No scan/backend BPTT/Data gate.
+- 0021B remains a separate Draft execution candidate only after a planner revalidates its cross-area
   program and truthful concrete-backend coverage. It is not implementation authorization;
   Model 0032 is Complete, and the [roadmap](../../roadmap.md) owns current cross-area frontiers.
 - Completed NN work used recorded roadmap interleaves. NN 0016/0017 were a bounded parallel pair,
@@ -184,9 +200,10 @@ dependency plans, and roadmap above.
   graph structure. Invalid lengths fail before published-result mutation, padded coordinates are
   not recurrent inputs, and dense masking must not be described as skipped recurrent work. Static
   sequence APIs remain unchanged until 0022 makes an explicit compatibility/migration decision.
-- **Differentiation gate:** recurrent backpropagation through time remains fail-closed and belongs
-  to Compiler. Conv3d gradients likewise remain fail-closed while Compiler 0006C is Draft. NN and
-  Training must not imply either capability.
+- **Differentiation gate:** fixed RecurrentScan backpropagation through time remains fail-closed and
+  belongs to Compiler. Ordinary static unrolled recurrence depends on normal constituent-operation
+  adjoints; it is not covered by a blanket recurrent-autograd prohibition. Conv3d gradients remain
+  fail-closed while Compiler 0006C is Draft. NN/Training must not imply either blocked capability.
 - **Persistence/training gate:** NN owns in-memory state paths and strict Tensor-reference
   load, with declarative reconstruction delivered in 0026. Durable artifacts belong to
   [Checkpoint](../checkpoint/master-plan.md), whose published explicit APIs remain implemented;

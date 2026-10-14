@@ -3,13 +3,16 @@
 ## Status
 
 Accepted NN decision — 2026-10-14; final independent review approved and coordinator verified NN0026
-Ready. Downstream persistence/Training/adapter decisions remain
-Proposed, not accepted contracts or implementation authorization.
+Ready. Accepted CP-only whole-model decision — 2026-10-14; final independent contract APPROVE
+and coordinator verification authorize CP0005B Ready, not an implementation result. Future recurrent/Training/adapter decisions
+remain Proposed, not accepted contracts or implementation authorization.
 Replaces the Proposed direction in [ADR 0037](0037-stored-training-checkpoint-adapter.md),
 which is withdrawn as the primary product, not as evidence of useful low-level foundations.
-Only the NN scope below is accepted and coordinated with the root and owning NN contract. NN0026
+The NN scope is accepted and coordinated with the root and owning NN contract. NN0026
 is Complete with implementation independently reviewed and coordinator-validated.
-The other three tasks remain Draft. No future wire, TrainingRun or adapter acceptance.
+CP0005B is Ready, the sole authorized Checkpoint frontier. NN0027 semantic
+recurrent reconstruction and CP0005C persistence adoption are Draft rows only; Training0006/adapter0006 remain
+Draft with Proposed decisions. No TrainingRun or adapter acceptance.
 
 ## Context
 
@@ -84,7 +87,53 @@ then replacement (unnecessary weight-sized allocations). The cost is a deliberat
 matrix and new typed layer configuration access, with focused semantic/allocation/API tests required.
 No dependency rule changes; the existing exact NN Model-only architecture guard remains sufficient.
 
-## Proposed downstream decision
+<a id="checkpoint-decision-selected-for-review"></a>
+
+## Accepted Checkpoint decision
+
+Accepted CP scope only — 2026-10-14, after final independent approval of all 13 packet docs (no
+P1/P2; 276 links) and coordinator base/dependency/contract/frontier/conflict verification recorded
+in the CP0005B brief. The user selected whole-model persistence first,
+then recurrent reconstruction before simple Training resume. The coordinated
+[whole-model contract](../../architecture/contracts/extensions-training.md#whole-model-definition-and-composition)
+freezes the exact ModelCheckpoint overloads, failure types, encoded defaults and canonical fields.
+Use Module input recognized only as Sequential or DeclarativeModel so an ordinary supported
+Sequential can be saved without manual conversion; custom roots fail before Engine/file work.
+Short save/load need no caller digest. Advanced overloads use ArtifactLimits and one immutable
+32-byte InputArtifactFingerprint, requiring expected presence and bytes on explicit load; short
+load rejects stored input identity rather than treating it as verified. No new public image wrapper.
+
+The new kind is whole-model.v1: canonical SYNDEF01 version-one definition/schema plus unchanged
+model.v1 entries prefixed model/. The definition is a prefix closed eight-kind Sequence tree with
+all NN attributes, Linear guard policy, exact ScalarValue bits and canonical numeric-path identity
+groups. No IDs/edge tables/graph-cycle fields are needed: arbitrary edges and cycles are
+unrepresentable in the closed value tree.
+Configuration SHA-256 covers the exact definition; complete ordered descriptors and alias raw bytes
+must independently agree before private NN reconstruction and public target-load can return a model.
+Use only public capture/inspect/canonicalStateBytes/load for the values component.
+
+Defaults are 256 MiB complete file/aggregate, 4 MiB manifest, 16384 entries, 64-byte kind/key,
+64 MiB single payload. A fixed 1 MiB definition and NN 4096-occurrence/depth-64 ceiling also apply
+to advanced limits. These are encoded bounds, not peak-heap budgets. Dry-size/check definition and
+residual metadata, encode at most 1 MiB, hash, then public capture with exact projected limits
+preflights actual component/outer bounds before Engine or bulk values. Recheck before prefixed
+copies; no duplicate private parser or new validator. Description and values capture may each read
+state under caller quiescence, not a combined snapshot transaction. File publication stays intact.
+
+This choice rejects DeclarativeModel-only save (unnecessary user reconstruction), raw untyped
+fingerprints (ambiguous advanced identity), a public validation credential/zero-copy image (weaker
+publication), and fresh generic persistence/validator machinery (duplicates owner boundaries).
+Its cost is bounded defensive copies and independent repeated component validation, not a
+large-model heap guarantee. Load returns heap-backed eval state without Engine/autograd/compile,
+native ownership or throwaway initialization; identity trees have no generic zero-node promise.
+Unknown recurrent IDs fail closed now. NN0027 owns only Model-only semantic description/reconstruction
+using existing static Rnn/Gru/Lstm capabilities; CP0005C owns explicit versioned recurrent definition
+wire/whole-save/load adoption. Initial-state/output selection, format version and Training gradient
+admission are future decisions before detailed briefs. Neither waits on optimized scan/backend
+BPTT/Data, and CP0005B v1 claims no recurrent files. Ordinary unrolled differentiation depends
+on its constituent operations; only fixed RecurrentScan BPTT is explicitly blocked here.
+
+## Proposed Training and adapter decision
 
 Training owns `TrainingRecipe` and `TrainingRun` in its existing public package.
 The recipe describes a supported scalar loss, options, named input/target static dtype/Shapes and
@@ -124,17 +173,17 @@ Advanced explicit envelope, target, fingerprint, limits and session APIs remain 
 
 ### Initial support and exact scope decision
 
-The NN matrix, aliases and descriptor skeleton are accepted above; NN0026 implementation and
-validation remain outstanding. Branches/contextual adapters,
+The NN matrix, aliases and descriptor skeleton are implemented and validated. Branches/contextual adapters,
 BatchNorm/Dropout, recurrent states and generic I/O remain excluded. Backend execution is separately
-admitted; Conv3d gradients and recurrent BPTT remain fail-closed. The closed initial tree has no
+admitted; Conv3d gradients and fixed RecurrentScan BPTT remain fail-closed. Ordinary static unrolling
+depends on normal constituent-operation adjoints, not a blanket recurrent-autograd ban. The closed initial tree has no
 reused execution nodes. A future execution DAG is a separate choice, not inference from ownership.
-`model.v1` alone stores per-path values, not source identity; future whole-model bytes must carry
-the selected NN alias meaning without altering the current values-only format.
+`model.v1` alone stores per-path values, not source identity; the selected whole-model contract carries
+NN alias meaning without altering the current values-only format. Recurrent policy remains future.
 
-### Proposed artifact composition and validation
+### Artifact composition and proposed Training validation
 
-Checkpoint owns canonical bounded encoding and persistent versions. Use distinct whole-model kind
+Checkpoint's selected review contract owns canonical bounded encoding and persistent versions. Use distinct whole-model kind
 `whole-model.v1`: `definition/schema` plus prefixed `model.v1` entries under `model/`.
 Definition bytes contain real configuration/wiring/sharing; Checkpoint computes configuration
 SHA-256 from canonical encoding automatically. Semantic compatibility still checks supported
@@ -151,7 +200,8 @@ TrainingState. The unpublished 0037 `training-checkpoint.v1` proposal is replace
 same-file-v1 compatible. ArtifactFile v1 and `model.v1` bytes/APIs remain untouched.
 Retain 0037's explicit optimizer IDs/raw coefficients, ordered groups, logical/master/slots/pending
 payloads and counters as the state-codec foundation; Training public constructors and restore
-remain the validators. Exact recipe wire IDs/limits and defaults are decisions before Ready.
+remain the validators. Recipe wire IDs/limits and Training defaults remain decisions before Ready;
+CP0005B defaults are frozen separately, not acceptance of adapter outer limits.
 
 Before publishing any model/run, compare definition-predicted complete NN state descriptors and
 alias topology to independently validated raw values; training additionally compares the COMPLETE
@@ -193,13 +243,17 @@ hot-path string lookup. Run admission excludes batch/save/close; borrowed inputs
   BatchNorm step-aligned training-buffer recovery or cross-device exact continuation is claimed.
 - Reuse file checksums and atomic-live publication; no authentication, universal power-loss
   guarantee, saved backend/device/compiled artifacts or automatic backend discovery.
-- NN-only ownership, contract and explanations are accepted; no dependency/build
+- NN ownership and implementation are accepted; CP-only whole-model contract/explanations are
+  accepted after final independent approval. No dependency/build
   edge changes or new dependency test is needed. Before any downstream Ready decision, separately
   coordinate its owning contract, explanations, ADR and applicable architecture/integration tests.
-  This NN selection neither accepts those future contracts nor opens their build gates.
-- Four cohesive capabilities, each clean implementation and independent review:
-  NN 0026; Checkpoint 0005B; Training 0006; optional Checkpoint 0006. NN is the shared prerequisite;
-  the two owner capabilities join at the adapter. No speculative mechanical cascade.
+  CP0005B is Ready after coordinator verification, with source f892 plus accepted packet as its
+  execution base. The launcher records the final contract commit after integration. Neither this
+  acceptance nor NN accepts future recurrent/Training/adapter contracts or opens their build gates.
+- Selected serial order, with each capability in clean implementation and independent review:
+  NN0026 Complete → Checkpoint0005B → NN0027 semantics → Checkpoint0005C persistence
+  → Training0006 → optional Checkpoint0006. NN0027/CP0005C have no detailed speculative briefs;
+  the split follows NN meaning versus Checkpoint bytes ownership, not mechanical API/test staging.
   Each owner runs focused/module validation once; integration owner runs one source-matched
   cross-module repository test/Javadoc checkpoint. No performance campaign.
 

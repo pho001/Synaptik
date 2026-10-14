@@ -2,130 +2,189 @@
 
 ## Status
 
-Draft — immediate Checkpoint successor to NN 0026. This is a proposal, not implemented code.
-Requires stable NN support matrix and whole-model wire/API contract before Ready.
+Ready — accepted CP-only whole-model contract; final independent contract approval and coordinator
+verification recorded below. Sole authorized Checkpoint frontier, not implemented code.
 
 ## Change class
 
-Class C implementation — new persistent kind and automatic semantic reconstruction boundary.
+Class C — new persistent kind and automatic semantic reconstruction/publication boundary.
 
 ## Goal
 
-Persist supported model definition + weights and return a usable NN model from high-level
-ModelCheckpoint.load(Path), without callbacks, manual construction, digests or Arena plumbing.
-Deliver whole-model file/envelope API, codec, tests and docs as one Checkpoint capability.
+Save an ordinary supported Sequential or DeclarativeModel and load a usable heap-backed evaluation
+DeclarativeModel without manual reconstruction, callbacks, digests or Arena plumbing. Deliver codec,
+existing-facade file/envelope APIs, tests, Javadoc and focused docs as one Checkpoint capability.
 
-## Scope
+## Scope and frozen API
 
-Extend existing `io.github.pho001.synaptik.checkpoint.model.ModelCheckpoint` with distinctly named
-whole-model envelope operations and high-level overloads using existing `ArtifactEnvelope`.
-Proposed private `WholeModelDefinitionCodec` and `WholeModelComposition` in that package; no
-public image wrapper, trusted validation token or private model-codec access by downstream adapters.
-NN defines meaning/reconstruction; Checkpoint defines canonical persistent encoding/versions.
-
-Conceptual signatures, not existing APIs:
+The [owning whole-model contract](../../../../architecture/contracts/extensions-training.md#whole-model-definition-and-composition)
+is the sole detailed authority for API, failures, wire fields, limits, preflight and coherence.
+Add these static methods to existing ModelCheckpoint; file calls throw IOException, envelope calls
+ArtifactFormatException. Module roots are recognized ONLY as Sequential or DeclarativeModel.
 
 ```text
-ModelCheckpoint.save(Path, DeclarativeModel, Engine): void
-ModelCheckpoint.load(Path): DeclarativeModel
-ModelCheckpoint.captureWholeModel(DeclarativeModel, Engine, ArtifactLimits): ArtifactEnvelope
-ModelCheckpoint.loadWholeModel(ArtifactEnvelope, ArtifactLimits): DeclarativeModel
+void save(Path, Module, Engine)
+void save(Path, Module, Engine, ArtifactLimits)
+void save(Path, Module, Engine, InputArtifactFingerprint, ArtifactLimits)
+DeclarativeModel load(Path)
+DeclarativeModel load(Path, ArtifactLimits)
+DeclarativeModel load(Path, InputArtifactFingerprint, ArtifactLimits)
+ArtifactEnvelope captureWholeModel(Module, Engine, ArtifactLimits)
+ArtifactEnvelope captureWholeModel(Module, Engine, InputArtifactFingerprint, ArtifactLimits)
+DeclarativeModel loadWholeModel(ArtifactEnvelope, ArtifactLimits)
+DeclarativeModel loadWholeModel(ArtifactEnvelope, InputArtifactFingerprint, ArtifactLimits)
 ```
 
-Freeze typed expected-input-fingerprint and configurable ArtifactLimits overloads before Ready.
-Simple overloads require absent input fingerprint; present fingerprints reject with a diagnostic
-requiring explicit expected identity. No generic LoadOptions, registry or automatic Text loading.
-Preserve all existing explicit model.v1 file/envelope/target APIs exactly.
+InputArtifactFingerprint is final: public InputArtifactFingerprint(byte[]) constructor, defensive byte[] bytes(), value
+equals/hashCode, exactly 32 SHA-256 bytes. Explicit overloads require non-null owner-verified
+identity. Others save absence and reject stored presence. Existing values-only APIs stay unchanged.
+Nulls: NullPointerException; invalid source/limits: IllegalArgumentException; unbound/Engine contract:
+IllegalStateException; capture arithmetic overflow: ArithmeticException. Stored malformed/unsupported/
+incoherent/over-limit data and fingerprint mismatch: ArtifactFormatException, owner failures wrapped
+with cause; file I/O/publication: IOException. Tensor-ID exhaustion stays IllegalStateException.
 
 ## Non-goals
 
-No arbitrary callback/subclass capture inference, training recipe/state, backend discovery,
-compiled/device formats, optimizer/session reconstruction, NN→Checkpoint edge or ModelExecutor.
-Do not upconvert values-only files or guess topology from weight Shapes.
+No Training recipe/state/run, recurrence, branches/custom callback or record I/O, registry,
+reflection/Java serialization, backend discovery/compile/device format, new state installer,
+public image wrapper/validator/credential, zero-copy publication or generic transaction.
+No topology guessing from model.v1; no changes to ArtifactEnvelope or old wire/methods.
+No backend rank-16 limit, optimized RecurrentScan/backend BPTT/Data prerequisite or performance campaign.
 
 ## Contracts
 
-- [Root authority](../../../../../ARCHITECTURE.md#authority-incorporation-and-precedence),
-  [scope index](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts),
-  [module ownership](../../../../../ARCHITECTURE.md#module-ownership-routing),
-  [dependency rules](../../../../../ARCHITECTURE.md#dependency-rules) and
-  [testing requirements](../../../../../ARCHITECTURE.md#testing-requirements).
-- Owning scoped headings: [extensions/nn](../../../../architecture/contracts/extensions-training.md#extensionsnn),
-  [extensions/training](../../../../architecture/contracts/extensions-training.md#extensionstraining),
+- Root exact headings: [Authority, incorporation, and precedence](../../../../../ARCHITECTURE.md#authority-incorporation-and-precedence),
+  [Core invariants](../../../../../ARCHITECTURE.md#core-invariants),
+  [Scope-indexed normative contracts](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts),
+  [Module-ownership routing](../../../../../ARCHITECTURE.md#module-ownership-routing),
+  [Dependency rules](../../../../../ARCHITECTURE.md#dependency-rules),
+  [Testing requirements](../../../../../ARCHITECTURE.md#testing-requirements).
+- Scoped exact headings: [extensions/nn](../../../../architecture/contracts/extensions-training.md#extensionsnn),
+  [Closed declarative models](../../../../architecture/contracts/extensions-training.md#closed-declarative-models),
   [extensions/checkpoint](../../../../architecture/contracts/extensions-training.md#extensionscheckpoint),
-  [Optimizer/training lifecycle](../../../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle).
-- [Proposed ADR 0038](../../../../design/decisions/0038-declarative-model-and-training-resume.md).
+  [Whole-model definition and composition](../../../../architecture/contracts/extensions-training.md#whole-model-definition-and-composition),
+  [Optimizer/training lifecycle](../../../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle)
+  (quiescence/no installation into open Training session only).
+- [ADR 0038 accepted CP scope](../../../../design/decisions/0038-declarative-model-and-training-resume.md#accepted-checkpoint-decision).
 
-The current contracts do not authorize the new product. Before Ready, coordinate root + owning
-extensions contract + affected architecture explanations + ADR + architecture tests as applicable.
-Stop on missing/ambiguous contracts; this proposal does not override them.
+Stop on real conflict or ambiguity; plans and ADR do not override these contracts.
 
 ## Dependencies and integration
 
-- Depends on: NN 0026; completed Checkpoint 0002/0004/0004A/0005A; approved 0038 whole-model contract.
-- Conflicts with: shared NN/Training/Checkpoint API, lifecycle, wire and authoritative documents.
-- Parallel group: None; owner tasks use separate clean contexts, serialized contract cutovers.
-- Common base revision: planning base `52733fcfd32d278b651302e308487e0b6c6afa81`; reverify before Ready.
-- Integration order: NN 0026 → Checkpoint 0005B; join Training 0006 before optional Checkpoint 0006.
-- Integration validation: one combined source-matched test/Javadoc checkpoint after adapter integration.
+- Depends on: NN0026 and Checkpoint0002/0004/0004A/0005A Complete, including required review/docs/
+  gates; accepted whole-model contract with final independent approval and coordinator verification.
+- Conflicts with: NN/Checkpoint semantic/wire/API and shared authoritative/explanatory documents;
+  NN0027, CP0005C, Training0006 and adapter0006 serialized behind this capability.
+- Parallel group: None; separate clean implementation and independent review contexts.
+- Common base revision: source `f892cd3fbde4f8b7722b7eb5b14f4b0a5f3b2669` plus accepted contract
+  packet; coordinator records the final contract commit in the launcher after integration.
+- Integration order: NN0026 → CP0005B → NN0027 semantic recurrent reconstruction
+  → CP0005C versioned persistence → Training0006 → optional adapter CP0006; CP0005A also feeds adapter.
+- Integration validation: architecture + WholeModelCheckpointEngineIntegrationTest after review; one combined
+  source-matched test/Javadoc checkpoint at the program join after adapter integration.
 - Shared-document integration owner: NN/Training/Checkpoint coordinator.
-- Authorized frontier: None; dependencies/support matrix/contracts must be verified before Ready.
+- Authorized frontier: CP0005B only for Checkpoint; clean implementation after coordinator integration.
+
+Verified 2026-10-14 by coordinator: stable source HEAD/base f892cd3fbde4f8b7722b7eb5b14f4b0a5f3b2669;
+NN0026 Complete with 326 NN/2 CPU/10 architecture tests and final reviews; CP0002/0004/0004A/0005A
+Complete with review/docs/gates. Exact root/scoped headings above and ADR0038 CP scope are accepted;
+final independent contract review APPROVE on all 13 packet docs, no P1/P2, 276 links validated.
+User-approved serial order and sole Checkpoint frontier verified; no conflicting code writers;
+NN/Engine/Model are still exactly the three direct public project edges. Execution base is source
+plus accepted packet; final contract commit belongs in the post-integration launcher, not guessed here.
 
 ## Files and symbols
 
-- `extensions/checkpoint/.../checkpoint/model/ModelCheckpoint.java`; new private whole-model codecs.
-- Existing public `artifact/{ArtifactFile,ArtifactEnvelope,ArtifactLimits}.java` reused unchanged.
-- NN specification/reconstruction API; Checkpoint API/module tests and integration fixtures.
-- `docs/api/model-checkpoint-api.md`, running-models guide and affected architecture explanations.
+All production names below are in `io.github.pho001.synaptik.checkpoint.model`:
+
+- Existing `extensions/checkpoint/src/main/java/.../checkpoint/model/ModelCheckpoint.java`: overloads.
+- New package-private final `WholeModelDefinitionCodec`: dry sizing, fixed wire IDs, encode/decode.
+- New package-private final `WholeModelComposition`: outer preflight/projection and owner coherence.
+- New public final `InputArtifactFingerprint`: the only new public production type.
+- Existing public `checkpoint.artifact.{ArtifactFile,ArtifactEnvelope,ArtifactLimits}` reused unchanged;
+  public ModelCheckpoint.capture/inspect/canonicalStateBytes/load are the component bridge.
+- Read NN `nn.module.{ModelSpecification,DeclarativeModel,Sequential}` and their focused tests;
+  read Model ScalarValue and Conv1d/2d/3dAttrs only for exact codec semantics.
+- Extend Checkpoint model/artifact/API unit tests for codec/composition/limits/corruption.
+- Add `testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/WholeModelCheckpointEngineIntegrationTest.java`
+  in existing integration-test package for the new end-to-end user workflow. Existing NN/CPU/
+  Checkpoint test edges suffice; no build/whitelist change or NN production change.
 
 ## Acceptance criteria
 
-- Proposed outer kind `whole-model.v1` has `definition/schema` and prefixed unchanged model.v1
-  entries under `model/`. Checkpoint canonical encoding contains actual attrs, wiring, signatures
-  and alias topology; automatically compute model config SHA-256 from exact definition bytes.
-- Use public capture/inspect/canonicalStateBytes/load for model.v1 validation and installation.
-  Definition version/kinds/attrs/input-output constraints and complete NN predicted state descriptors/
-  aliases match independent validated raw data BEFORE any model is returned.
-- Reconstruct a private descriptor-bound NN skeleton; load through public ModelCheckpoint, with
-  no random weight initialization, private ordinal parsing or temporary component files.
-- Return independent heap-backed eval model; gradient-eligible parameters remain ordinary NN state.
-  Model load performs no autograd/compile; ordinary Engine.compute is forward-only and its
-  HostTensorValue result detached. Model remains usable after file/source/native Arena closure.
-- Values-only model.v1 high-level load fails clearly: missing definition, use existing target-load.
-  Published model.v1 and ArtifactFile v1 remain byte/API compatible, not silently redefined.
-- Selected NN matrix includes MLP activation/config round trips, Embedding mixed input/output dtype,
-  all convolution attrs, supported leading-dimension constraints and explicit sharing decision.
-  Reject arbitrary callback/custom kind; no promise about all standard models.
-- Safe default existing ArtifactLimits, configurable advanced overloads; decide concrete defaults
-  before Ready. Preflight outer AND projected model component, nested counts/ranks/strings,
-  checked sizes and array ceilings before allocation/copy. Limits are not peak-heap budgets.
-- Bound definition node/edge/depth/path counts; reject duplicate IDs, unknown/dangling references
-  and ownership/execution cycles before reconstruction or model publication. Test malformed and
-  over-limit definitions even when their values component is independently valid.
-- Reject corruption/truncation/unknown/duplicate/extra keys, mismatched definitions/raw descriptors/
-  alias bytes, config hash and expected input identity. Hashes are not authentication/approval.
-- Empty/identity Sequential inference remains subject to existing Engine leaf/zero-node admission;
-  decide eligibility explicitly before Ready without widening Engine or backend capability.
-- Save uses existing file force/revalidation/atomic-live policy and caller quiescence; no weaker
-  move fallback/power-loss claim. Failure returns no model and preserves published objects.
+- Reject custom/unbound source before Engine/filesystem work. Describe Sequential normally, or
+  DeclarativeModel's current bindings, under whole-call caller quiescence. Description + public
+  values capture may read state twice; promise neither one combined snapshot nor a transaction.
+- Implement the exact owning canonical definition: SYNDEF01/i32 v1, prefix Sequence tree with
+  eight closed kind IDs/complete attributes/guard/scalar raw bits, then canonical alias groups.
+  Numeric traversal paths, not lexical order; no node IDs, edge tables or cycle fields.
+- Keep DataType IDs 1 F64, 2 F32, 3 BF16, 4 I32, 5 I64, 6 BOOL, 7 F16; only floating parameters.
+  Unknown recurrent/type/enum/version IDs fail closed; future adoption explicitly versions format.
+- Outer whole-model.v1 = definition/schema + model/ prefixed UNCHANGED model.v1 entries.
+  Configuration SHA-256 is exact definition bytes, automatically computed, not authentication.
+- Default ArtifactLimits: (268435456L,4194304,16384,64,67108864,268435456L); fixed definition
+  ceiling 1048576 bytes under advanced limits too. NN occurrence/depth 4096/64 remain fixed.
+  Limits bound encoded file/aggregate/manifest/entries/keys/single payload, not peak heap.
+- For n inner entries (states + schema), delta manifest = 67+6n; file delta = D+67+6n;
+  aggregate delta D; entries delta 1; projected key limit outer minus 6. Check outer kind/definition
+  keys and D separately; maxPayload stays unchanged. Checked residual file ≥48, manifest ≥8 and
+  valid other minima before constructing projected limits. Public capture's preflight must ensure
+  outer bounds BEFORE Engine/bulk value copies without duplicating private schema/ordinal parsing.
+  Order: dry-size/check D and residuals → encode bounded ≤1 MiB metadata → SHA → public capture
+  (actual component preflight) → recheck complete outer/coherence → prefixed payload copies.
+  Test each outer-only boundary where the unprefixed component fits; rejection must precede
+  Engine admission/bulk values (including residuals below constructor minima).
+- Envelope-load outer preflight precedes copies/projection. Before decoded allocation, bound
+  counts, paths and LayerNorm rank by remaining definition bytes (including scalar suffix), not
+  backend rank 16. Reject strict-UTF8 errors, unknown fields, noncanonical flags/order, duplicates,
+  extra/missing keys, trailing bytes, overflow, depth/count and every encoded-bound violation.
+- Independently use public inspect/canonicalStateBytes to compare complete ordered descriptors,
+  kinds/types/Shapes/byte lengths, config/input digests and every alias group's exact raw bytes.
+  Reconstruct private NN descriptor skeleton, public target-load, return only after complete success.
+  No private component parser, temp files, trusted inspection token or weakened defensive copy.
+- Return independent heap-backed eval model; parameters retain gradient eligibility. Load does
+  no Engine/autograd/compile/native ownership/RNG/throwaway initialization. Test after Engine/source
+  Arena/file closure, alias joins/splits on re-save, all layer attrs/floating types/scalar bits,
+  variable leading dimensions, Embedding integral inputs and direct CPU inference/re-save.
+  Named integration fixture: ordinary Sequential save → close source Arena/Engine → automatic
+  load → CPU compute with a fresh Engine; cover exact aliases, variable batches and loaded re-save.
+- Empty/activation-only/identity semantic trees are allowed; empty state makes no Engine call.
+  Do not claim generic zero-node admission. Old values-only load gives target-load diagnostic.
+- Reuse ArtifactFile force/revalidate/one atomic move; failures return no partial model and do not
+  mutate published models. Preserve existing file failure/cleanup semantics and wire compatibility.
 
 ## Validation
 
-Future worker: focused whole-model API/canonical/config/limits tests, then
-`./gradlew :extensions:checkpoint:test :extensions:checkpoint:javadoc` once.
-Coordinator: relevant architecture/end-to-end tests and one source-matched combined
-`./gradlew test javadoc --max-workers=2 --console=plain` after program integration.
-Independent review reuses successful Java evidence; no performance campaign.
-Planning now: local links/anchors, ≤200 lines/15KB and `git diff --check`; no build.
+Future worker: focused new codec/composition/public API tests, then once:
+
+```bash
+./gradlew :extensions:checkpoint:test :extensions:checkpoint:javadoc --max-workers=2 --console=plain
+```
+
+Coordinator runs these distinct gates once after independent CP review (no duplicate NN/module
+tests or performance campaign):
+
+```bash
+./gradlew :testing:architecture-tests:test --max-workers=2 --console=plain
+./gradlew :testing:integration-tests:test --tests io.github.pho001.synaptik.testing.integration.WholeModelCheckpointEngineIntegrationTest --max-workers=2 --console=plain
+```
+
+Reuse worker evidence unless integration changed code. At program join:
+`./gradlew test javadoc --max-workers=2 --console=plain`.
+No dependency change: no new architecture edge test/build inclusion needed for CP0005B.
+Packet now: local Markdown targets/anchors, ≤200 lines/15KB, `git diff --check`; no Java reruns.
 
 ## Documentation and review impact
 
-Clean implementation and independent Class C targeted API/format/documentation review.
-Explain new whole-model kind versus old values-only API, exact matrix, fingerprint expectations,
-alias/input constraints, default limits and detached lifetime; final Javadoc/glossary targeted review.
-Coordinator owns shared explanations and root/scoped-contract cutover before Ready.
+Independent Class C contract/API/wire/preflight review approved; clean implementation and
+independent targeted implementation/documentation review remain required before Complete.
+Coordinator owns root/scoped contract, architecture explanations, ADR and planning integration.
+Future implementation updates `docs/api/model-checkpoint-api.md`, running-models guide, Javadoc
+and targeted glossary where needed; existing runnable API docs must not claim Ready means shipped.
+Review exact failures, fingerprint presence, matrix, alias semantics, encoded limits and lifetime.
 
 ## Result
 
-Empty until implementation; record completed changes/files/validation/docs/limitations/follow-up
-and required completion status. Planning does not mark code implemented.
+Implementation result empty. Ready authorizes the recorded clean implementation, not Complete.
+Future executor records changes/files, validation, Javadoc/glossary impact, limitations/follow-up,
+and `Status: Complete` or `Status: Incomplete` with specific follow-up.

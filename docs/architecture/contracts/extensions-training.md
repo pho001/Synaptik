@@ -187,8 +187,8 @@ Checkpoint must not inspect backend representations or reach through Engine into
 Runtime, Prepare, tuning, or concrete backends.
 
 Its model package owns a separate version-one metadata codec, a detached candidate, and a public
-`ModelCheckpoint` file and model-envelope facade; it is not a state installer. Under caller-owned
-quiescence, capture calls
+`ModelCheckpoint` file and model-envelope facade; it is not a state installer. For the existing
+values-only operations, under caller-owned quiescence, capture calls
 `Module.stateDictionary()` exactly once; an unbound or incomplete NN state fails there. Before
 any Engine call or Checkpoint-owned payload-sized allocation, capture validates exact NN paths,
 32-byte caller-supplied SHA-256 configuration and optional input-artifact fingerprints, static
@@ -295,6 +295,162 @@ Checkpoint must not depend on Training or Text. Model, NN, Training, Engine, and
 modules must not depend on Checkpoint. The direct public Model edge is limited to checkpoint
 Tensor descriptors and restoration; it does not authorize backend storage access or a second
 execution pipeline.
+
+### Whole-model definition and composition
+
+This is the accepted CP0005B contract (2026-10-14), independently approved and coordinator-verified
+for its Ready implementation; the API is not implemented yet. NN's closed declarative contract above owns meaning; Checkpoint owns the
+following persistent representation and public composition. Training and recurrent extensions
+remain Proposed. Existing values-only methods, `model.v1`, ArtifactFile v1, and ArtifactEnvelope's
+defensive-copy boundary remain unchanged. No dependency edge or Java-object serialization is added.
+
+#### Whole-model public API and failures
+
+Add only these static overloads to existing `checkpoint.model.ModelCheckpoint` (types use their
+existing owning packages). File methods declare `IOException`; envelope methods declare
+`ArtifactFormatException`, the checked IOException subtype. These signatures are accepted:
+
+```text
+void save(Path, Module, Engine)
+void save(Path, Module, Engine, ArtifactLimits)
+void save(Path, Module, Engine, InputArtifactFingerprint, ArtifactLimits)
+DeclarativeModel load(Path)
+DeclarativeModel load(Path, ArtifactLimits)
+DeclarativeModel load(Path, InputArtifactFingerprint, ArtifactLimits)
+ArtifactEnvelope captureWholeModel(Module, Engine, ArtifactLimits)
+ArtifactEnvelope captureWholeModel(Module, Engine, InputArtifactFingerprint, ArtifactLimits)
+DeclarativeModel loadWholeModel(ArtifactEnvelope, ArtifactLimits)
+DeclarativeModel loadWholeModel(ArtifactEnvelope, InputArtifactFingerprint, ArtifactLimits)
+```
+
+The Module source is recognized only as Sequential or final DeclarativeModel; use respectively
+ModelSpecification.describe(source) or source.describe(). Reject custom roots/children and
+unbound state before Engine or filesystem work. A save checks its required arguments and captures
+before calling ArtifactFile.save; no temporary component files. Entire-call caller quiescence
+spans description and public values capture. Each may read state: values capture's existing
+stateDictionary-once rule is not a combined whole-model snapshot, lock or transaction promise.
+
+The only new public type is final `io.github.pho001.synaptik.checkpoint.model.InputArtifactFingerprint`:
+public constructor `InputArtifactFingerprint(byte[] bytes)`, public `byte[] bytes()`, and value
+`boolean equals(Object)`/`int hashCode()`. Constructor and accessor copy exactly 32 SHA-256 bytes; null rejects
+with NullPointerException, wrong length with IllegalArgumentException. Equality uses all 32 bytes.
+It is expected application-verified identity, not verification performed by Checkpoint, a trust
+credential or authentication. Fingerprint overloads require a non-null value. Overloads without
+it save absent input digest and require absence on load; explicit load requires presence and exact
+bytes. A mismatch, including stored presence on default load, throws ArtifactFormatException with
+an explicit-expected-identity diagnostic. No generic options, registry or input-artifact parsing.
+
+Required null arguments throw NullPointerException. Unsupported/unbound sources, source schema
+and preflight failures retain existing IllegalArgumentException/IllegalStateException and checked
+arithmetic ArithmeticException. Engine unchecked failures propagate. Malformed/unsupported stored
+data, incoherent descriptors/config/aliases, input mismatch and decode bounds/overflow are
+ArtifactFormatException (wrap owner validation failures with their cause). File access/publication
+failures remain IOException; fatal VM failures are not converted. Tensor-identifier exhaustion
+remains IllegalStateException. A values-only file fails high-level load with a missing-definition
+message directing callers to existing target-load, never inferred topology or silent upconversion.
+
+#### Whole-model limits and preflight
+
+Short file overloads use `ArtifactLimits(268435456L, 4194304, 16384, 64, 67108864, 268435456L)`:
+complete file/aggregate 256 MiB, manifest 4 MiB, entries 16384, ASCII kind/key 64 bytes, single
+payload 64 MiB; MiB is 1048576 bytes. Advanced overloads reuse existing ArtifactLimits, but every
+definition is at most 1048576 bytes even with larger limits. NN's 4096 occurrences/depth 64 still
+apply (root counts once at depth 1). These are encoded bounds, not peak-heap/workspace promises.
+
+Dry-size the canonical definition with checked arithmetic before creating its byte array. Let D
+be that size and n the predicted inner model entry count (stateDescriptors.size() + 1 for schema).
+The inner manifest is `66 + 58*(n-1)` bytes. Outer kind length is 14 instead of 8, each inner key
+gains the 6-byte `model/` prefix, and the new 17-byte `definition/schema` key adds 61 bytes:
+manifest delta is `67 + 6*n`, file delta `D + 67 + 6*n`, aggregate delta D, entry delta 1.
+Check outer kind/definition key lengths, D against both definition and single-payload ceilings,
+and checked residuals before invoking public capture. Pass projected limits with file minus file
+delta, manifest minus manifest delta, entries minus 1, key bytes minus 6, unchanged maxPayloadBytes,
+and aggregate minus D. Reject residual file <48, manifest <8, negative counts/bytes or unusable
+key ceilings safely before constructing ArtifactLimits. With separately checked outer keys/D,
+these residuals are faithful equivalence to the outer framing, not a new public validator or a
+duplicate private schema/ordinal parser. The feasible capture order is: dry-size D and check outer
+definition/residual metadata bounds; encode the already bounded definition (at most 1 MiB); hash
+those exact bytes; pass that digest and projected limits to public values capture, whose actual
+component preflight precedes Engine and bulk value-sized allocations/copies. The bounded definition
+allocation is metadata, not bulk values; no new public validator/streaming proof layer is required.
+After capture, check complete outer sizes/coherence again before prefixed payload copies; caller
+quiescence makes the described count stable. Validate final correspondence anew.
+
+On envelope load, preflight all six outer encoded limits using entry sizes/read-only views and
+checked `48 + manifest + aggregate` before any definition/payload copy or projected envelope
+construction. Check exact outer keys/kind and definition ceiling, then apply the equivalent
+projected limits and public component validation. File load uses ArtifactFile.read first; its
+framing preflight already precedes file payload allocation. Raw nested counts/lengths are bounded
+by remaining definition bytes and derived state counts before arrays/lists/strings are allocated.
+In particular positive LayerNorm rank requires room for `8*rank` extent bytes plus its typed
+scalar before allocating long[]; no backend rank-16 restriction belongs in this format.
+
+#### Canonical definition version 1
+
+All fields are big-endian, with no padding, optional extensions or trailing bytes. `i32`/`i64`
+are signed 32/64-bit fields; counts are nonnegative unless specified positive. `u8` is one byte.
+Flags accept exactly 0 or 1. The payload is eight ASCII magic bytes `SYNDEF01`, i32 version 1,
+one root node (must be Sequence), then i32 alias-group count and those groups. Nodes use prefix
+order: one u8 kind ID then precisely the fields below; Sequence children follow immediately.
+No IDs, edge tables, cycles, saved batch signatures or redundant output descriptors are encoded:
+the closed value tree represents wiring, and NN derives input/output constraints from these fields.
+
+| ID / kind | Fields after kind, in exact order |
+|---|---|
+| 1 Sequence | i32 child count; each child node in numeric encounter order. |
+| 2 Linear | i64 inFeatures; i64 outFeatures; u8 bias; u8 parameter DataType; u8 automaticInputGuards. |
+| 3 LayerNorm | u8 parameter DataType; positive i32 normalized rank; positive i64 extents in axis order; ScalarValue epsilon. |
+| 4 Embedding | i64 vocabularySize; i64 embeddingSize; u8 parameter DataType. |
+| 5 Conv1d | i64 inChannels, outChannels, kernelWidth; u8 bias; u8 parameter DataType; i64 stride, padding, dilation, groups. |
+| 6 Conv2d | i64 inChannels, outChannels, kernelHeight, kernelWidth; u8 bias; u8 parameter DataType; i64 strideHeight, strideWidth, paddingHeight, paddingWidth, dilationHeight, dilationWidth, groups. |
+| 7 Conv3d | i64 inChannels, outChannels, kernelDepth, kernelHeight, kernelWidth; u8 bias; u8 parameter DataType; i64 strideDepth, strideHeight, strideWidth, paddingDepth, paddingHeight, paddingWidth, dilationDepth, dilationHeight, dilationWidth, groups. |
+| 8 Activation | u8 activation ID: 1 RELU, 2 TANH, 3 SIGMOID. |
+
+Feature/channel/vocabulary/kernel/stride/dilation/group fields are positive element counts;
+padding is nonnegative elements per side, not total padding. NN's existing geometry, divisibility,
+epsilon, element/byte arithmetic and Java-array constraints apply through its public constructors.
+DataType IDs are the unchanged model.v1 assignments: 1 FLOAT64, 2 FLOAT32, 3 BFLOAT16, 4 INT32,
+5 INT64, 6 BOOL, 7 FLOAT16. Parameter fields permit only 1/2/3/7. No enum ordinal or class name.
+ScalarValue is u8 DataType followed by raw bits at declared logical width: FLOAT64/INT64 8 bytes,
+FLOAT32/INT32 4, BFLOAT16/FLOAT16 2, BOOL 1 (only 0/1). Floating decoders use raw-bit Model
+factories (no conversion/NaN normalization); integral fields are two's-complement. LayerNorm's
+epsilon must satisfy NN: finite positive, parameter type except FLOAT16 uses FLOAT32 arithmetic.
+Thus integral/BOOL/FLOAT16 epsilon encodings are invalid here even though their scalar codec is
+defined. Unknown dtype/activation/node/version values fail closed, including all recurrent IDs.
+Recurrent adoption needs an explicit future versioned format decision, never a registry.
+
+Canonical empty root/no-alias example is 21 bytes:
+`53594e4445463031 00000001 01 00000000 00000000` (magic, version, Sequence, children, groups).
+It is semantic identity, not evidence of an executable zero-node backend route.
+
+Each alias group is positive i32 member count (at least 2), then members as positive i32 UTF-8
+byte length plus exact strict UTF-8 path bytes. Paths must equal derived numeric dot-separated
+state paths without a root prefix or leading-zero child index. No normalization is permitted.
+Members follow NN state traversal order, groups ascend by first member; disjoint existing paths
+must have identical kind/type/Shape/gradient schema. Unlisted paths are singleton identities;
+equal bytes never imply sharing. Bound group/member totals by derived state count and remaining
+bytes before allocation. Reject duplicate/reordered/unknown paths, malformed UTF-8, noncanonical
+flags, count/depth/rank/size/overflow violations and trailing bytes before model publication.
+
+#### Whole-model coherence and publication
+
+Outer kind is exactly `whole-model.v1`, with `definition/schema` and every unchanged `model.v1`
+entry prefixed `model/` (`model/schema`, `model/state/00000000`, ...); no other entries. Compute
+configuration SHA-256 from exact canonical definition bytes, not caller input. Project the values
+component using existing ArtifactEnvelope defensive copies, then use public ModelCheckpoint
+capture/inspect/canonicalStateBytes/load only: no private ordinal parser or component temp files.
+Independently validate complete ordered value descriptors/lengths against NN-derived parameter
+descriptors (all gradient-eligible), configuration digest, exact expected input presence/bytes,
+and byte equality for every declared alias group before reconstruction/value installation returns
+anything. Do not trust an inspection result as a validation credential. On capture check the same
+coherence before returning an envelope. Hashes bind configuration but do not prove authenticity.
+
+Reconstruct only a private NN descriptor skeleton, then public target-load values; return one
+independent heap-backed evaluation DeclarativeModel only after full validation and installation.
+No RNG, throwaway weights, autograd, compile, native ownership, source mutation or weakened
+publication. No Engine is required for load. Semantic empty/identity trees are allowed with
+no Engine call for empty state, not a generic zero-node execution promise. Save reuses existing
+ArtifactFile force/revalidate/one-atomic-move policy unchanged. Failure exposes no partial model.
 
 A separate optional `extensions/training-checkpoint` adapter is reserved for durable recovery.
 Its selected first product is Model + TrainingState only, with a saved-state restoration

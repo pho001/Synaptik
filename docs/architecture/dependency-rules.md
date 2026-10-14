@@ -91,6 +91,14 @@ uses only NN plus Model metadata; the existing downstream recovery owner can the
 Putting a file codec, Engine runner or Training lifecycle inside NN would reverse the owner boundary.
 This addition changes no project edge; existing exact NN dependency tests continue to apply.
 
+The [accepted CP0005B whole-model contract](contracts/extensions-training.md#whole-model-definition-and-composition)
+keeps persistence downstream: Checkpoint describes via public NN, captures/validates the unchanged
+values component via public ModelCheckpoint, and reconstructs/loads a private NN candidate. No
+new edge, private component parser or public validation credential is needed. For example, loading
+a supported Sequential definition returns heap-backed eval state without opening an Engine;
+executing its forward result remains the caller's ordinary Engine responsibility. This is not
+implemented API or acceptance of future recurrent/Training resume contracts.
+
 Checkpoint declares exactly NN, public Engine, and Model as `api` project edges because its public
 typed inspection and save/load facade expose all three contracts. Its artifact API reads and
 publishes bounded opaque files; its model package captures detached bytes through public Engine

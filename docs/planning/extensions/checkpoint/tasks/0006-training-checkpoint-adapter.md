@@ -50,12 +50,12 @@ Stop on missing/ambiguous contracts; this proposal does not override them.
 
 ## Dependencies and integration
 
-- Depends on: NN 0026; Checkpoint 0005B; Training 0006; completed Checkpoint 0002/0004/0004A/
-  0005/0005A and Training 0004. New predecessors are Draft and NOT satisfied.
+- Depends on: NN0026 Complete; NN0027; Checkpoint0005B/0005C; Training0006; completed Checkpoint0002/0004/0004A/
+  0005/0005A and Training0004. Remaining new predecessors are Draft and NOT satisfied.
 - Conflicts with: adapter wire/API/build, owning contracts and shared NN/Training/Checkpoint docs.
 - Parallel group: None; separate clean implementation contexts, serialized contract cutover.
 - Common base revision: planning base `52733fcfd32d278b651302e308487e0b6c6afa81`; refresh before Ready.
-- Integration order: approve/cut over contracts → NN 0026 → Checkpoint 0005B + Training 0006
+- Integration order: separate contract gates → NN0026 → CP0005B → NN0027 → CP0005C → Training0006
   → adapter 0006 → independent review → coordinator acceptance. No mechanical task split.
 - Integration validation: once-only source-matched repository checkpoint specified below.
 - Shared-document integration owner: NN/Training/Checkpoint coordinator.

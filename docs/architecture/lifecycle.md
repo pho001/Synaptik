@@ -227,6 +227,19 @@ boundary decision](../design/decisions/0031-model-checkpoint-extension-boundary.
 [public model checkpoint decision](../design/decisions/0034-public-model-checkpoint.md)
 records the bound-target and alias policy.
 
+The [accepted CP0005B whole-model lifecycle](contracts/extensions-training.md#whole-model-definition-and-composition)
+is a separate, not-yet-implemented convenience. Under caller quiescence, NN description and public
+values capture may each read state; no combined snapshot transaction is promised. Dry sizing and
+residual checks precede bounded definition encoding/hash; public capture's projected preflight
+enforces outer bounds before Engine work or bulk value copies. Load preflights outer framing before
+any copy/projection, independently validates configuration/descriptors/alias bytes, reconstructs an
+unpublished descriptor-only NN candidate and invokes public values target-load. Only the complete
+heap-backed eval model is returned, with no Engine/native owner or autograd. For example, closing
+the source Arena and Engine after successful save cannot invalidate a later loaded model's values;
+its forward expression still needs an admitted caller Engine route. Empty identity models retain
+semantics without promising zero-operation Engine execution. Default load rejects a stored input
+digest; explicit verified identity must match presence/bytes. File durability policy is unchanged.
+
 The first update domain is scalar `FLOAT32`/`FLOAT64` objectives and connected, fully static,
 dense-contiguous, offset-zero non-view parameters in exact-capacity writable shareable native
 host storage. Unsupported Engine preparation/execution—including a Metal or mixed plan outside

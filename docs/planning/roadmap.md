@@ -53,13 +53,14 @@ review and configured integration gates.
 defensive reconstruction, external-package tests, final Javadoc/example validation, and independent
 API review passed. [Checkpoint 0005A](extensions/checkpoint/tasks/0005a-model-envelope-composition.md)
 is Complete after envelope implementation, independent Class C API/documentation approval, and
-configured coordinator gates. Authorized Checkpoint frontier: None.
+configured coordinator gates. Authorized Checkpoint frontier: CP0005B only (Ready), after final
+independent contract approval and coordinator verification on 2026-10-14.
 The user revised the primary product to automatic usable-model load and a choice of inference or
 Training-owned resume, without routine callbacks/manual construction/digests/Arena.
 [ADR 0038](../design/decisions/0038-declarative-model-and-training-resume.md#accepted-nn-decision) replaces
-the withdrawn Proposed direction of ADR 0037. Its NN-only decision is accepted; NN0026 is
-Complete after final independent reviews and coordinator validation. Checkpoint
-0005B, Training 0006 and revised Checkpoint 0006 remain Draft; their decisions remain Proposed.
+the withdrawn Proposed direction of ADR0037. Its NN and CP-only whole-model decisions are accepted;
+NN0026 is Complete after final reviews/validation, and CP0005B is Ready, not implemented.
+NN0027/CP0005C/Training0006/adapter0006 remain Draft with future decisions Proposed.
 Current published explicit APIs remain implemented and compatible; NN adds only its accepted
 declarative boundary, with no dependency/build change.
 
@@ -84,7 +85,7 @@ declarative boundary, with no dependency/build change.
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions/optimizers/state and private-candidate proof delivered. [0006 recipe/owned run](extensions/training/tasks/0006-supported-recipe-and-owned-run.md) Draft prerequisite for adapter; no persistence or Ready frontier. Broader 0005 separate Draft. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through 0005A. [0005B whole-model load](extensions/checkpoint/tasks/0005b-whole-model-save-load.md) and revised [0006 save/loadModel/resume](extensions/checkpoint/tasks/0006-training-checkpoint-adapter.md) Draft under ADR 0038. Authorized frontier: None; 0007 later Draft. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through 0005A. [0005B whole-model load](extensions/checkpoint/tasks/0005b-whole-model-save-load.md) Ready with accepted CP-only contract, final independent approval and coordinator verification; sole authorized Checkpoint frontier. CP0005C and revised [0006 save/loadModel/resume](extensions/checkpoint/tasks/0006-training-checkpoint-adapter.md) remain Draft/Proposed; 0007 later Draft. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
@@ -133,12 +134,14 @@ The completed Training/Checkpoint chain remains:
 Training 0003 is Superseded. [ADR 0036](../design/decisions/0036-model-envelope-composition.md)
 and published model.v1 envelope APIs remain implemented, not durable training recovery.
 
-The program dependency DAG (NN0026 Complete; other three tasks Draft) is:
-`NN 0026 → Checkpoint 0005B and Training 0006 → optional Checkpoint 0006`,
+The selected serial program DAG (NN0026 Complete; CP0005B Ready; later successors Draft) is:
+`NN0026 → CP0005B → NN0027 → CP0005C → Training0006 → optional CP0006`,
 with completed 0005A also feeding the adapter. NN owns Model-only semantic specification/forward
 reconstruction; Checkpoint owns whole-model bytes/file APIs; Training owns recipe/run/batch/lifetime;
 the adapter has exactly Training + Checkpoint api edges and consumes these public owner capabilities.
-No unrelated recurrent/Data/Text task or broader Training checkpoint is a prerequisite.
+NN0027 owns only Model-only recurrent description/reconstruction; CP0005C owns explicit versioned
+recurrent definition wire/whole-save/load adoption. Both are minimal Draft rows without detailed
+briefs. No optimized RecurrentScan/backend BPTT/Data/Text or broader Training checkpoint is required.
 Each is a cohesive capability with separate clean implementation and independent targeted review.
 No mechanical type/facade/test split or speculative detailed successor cascade.
 
@@ -150,22 +153,30 @@ verification of dependencies, accepted contract base `4472320ceb5498c46a661af549
 inactive conflicts and launch frontier are recorded. NN0026 implementation, final independent reviews
 and coordinator validation are complete. Evidence is in its brief; authorized NN frontier is now None.
 
-Checkpoint 0005B, Training 0006 and optional Checkpoint 0006 remain Draft. Their loss/recipe,
-canonical wire/default limits and owner-transfer/capture/restore bridges remain Proposed and must
-be resolved with their own coordinated contracts before their respective Ready transitions.
+CP0005B is Ready with the accepted CP-only whole-model contract/API/wire/default packet. Final
+independent contract APPROVE and coordinator 2026-10-14 dependency/base/contract/frontier/conflict
+verification are recorded in its brief. Execution base is source
+`f892cd3fbde4f8b7722b7eb5b14f4b0a5f3b2669` plus accepted packet; coordinator records final contract
+commit in the launcher after integration. No code started. Defaults: 256 MiB file/aggregate, 4 MiB
+manifest, 16384 entries, 64-byte keys, 64 MiB payload; fixed 1 MiB definition/4096 nodes/depth64.
+NN0027/CP0005C recurrent initial-state/output selection/format version and Training gradient admission
+remain future decisions. Training0006/adapter0006 loss/recipe and owner-transfer/capture/restore
+bridges remain Proposed, each requiring its own coordinated contract before Ready.
 Inference constraints remain separate from static Training signatures. Existing ArtifactFile v1
-and model.v1 stay unchanged; whole-model.v1 and training-model.v1 remain proposed new kinds, not
-same-file compatibility with withdrawn unpublished training-checkpoint.v1. Proposed short loads
-refuse present input fingerprints until explicit verification.
+and model.v1 stay unchanged; whole-model.v1 is accepted for CP implementation, not implemented or recurrent-file
+support. training-model.v1 remains Proposed, not same-file compatibility with withdrawn unpublished
+training-checkpoint.v1. CP short load rejects stored input digests; typed explicit expected identity
+must match presence/bytes. No new public wrapper/validator or dependency edge.
 
 NN0026 implements the accepted NN contract without changing dependency edges or build configuration.
 Parallel group None; coordinator owns shared documents and recorded Ready verification.
 NN worker runs affected-module test/Javadoc once; coordinator runs architecture and narrow CPU
 integration validation after review. The full source-matched repository test/Javadoc gate belongs
-to the four-capability join, not NN alone. Planning review checks links/anchors/sizes/diff only,
+to the selected program join, not NN alone. Planning review checks links/anchors/sizes/diff only,
 with no Java reruns, native builds or performance campaign.
 Data cursor/RNG/scheduler/scaler stay application-owned; no exact automatic continuation, advancing
-dropout stream, BatchNorm training-buffer alignment, BPTT or Conv3d gradient widening.
+dropout stream, BatchNorm training-buffer alignment, fixed RecurrentScan BPTT or Conv3d gradient widening.
+Ordinary static unrolling depends on normal constituent-operation adjoints, not a blanket ban.
 
 ## Explicit non-goals and unresolved decisions
 
