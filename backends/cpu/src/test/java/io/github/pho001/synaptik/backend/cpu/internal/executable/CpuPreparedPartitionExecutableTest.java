@@ -66,6 +66,24 @@ class CpuPreparedPartitionExecutableTest {
         } finally { run.close(); }
     }
 
+    @Test void defaultSegmentChildrenBindHeapInputsAcrossComposedUnits() {
+        var original = context();
+        var defaultContext = new PrepareContext<>(original.partition(), original.nodes(),
+                original.values(), original.memoryRequirements(), original.constants(),
+                CpuPartitionAnalysisInputs.DEFAULT);
+        var executable = finalizeSequence(new CpuPartitionPreparer().analyze(defaultContext));
+        float[] intermediate = new float[4];
+        float[] output = new float[4];
+        var run = state(executable, List.of(new float[] {1, -2, 3, 4},
+                new float[] {2}, new float[] {.5f}, intermediate,
+                new float[] {-3, 2, -10, 1}, output));
+        try {
+            executable.bind(run).execute();
+            assertArrayEquals(new float[] {2.5f, -3.5f, 6.5f, 8.5f}, intermediate);
+            assertArrayEquals(new float[] {0, 0, 0, 9.5f}, output);
+        } finally { run.close(); }
+    }
+
     @Test void rejectsCrossUnitAliasBeforeTheConv2dWrite() {
         var executable = finalizeSequence(new CpuPartitionPreparer().analyze(context()));
         float[] shared = {1, -2, 3, 4};

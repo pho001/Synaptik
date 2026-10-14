@@ -58,6 +58,11 @@ import java.util.Optional;
  * before invoking any child, while this child binds every compatible repeated or cross-unit
  * consumer directly to the completed workspace. Ordinary preparation selects direct children and
  * never asks Runtime to choose among retained representation candidates.
+ * A prepared segment carrier accepts the exact selected heap segment as well as native storage;
+ * explicit array-carrier specializations retain their direct array arguments. The choice is
+ * resolved during cold binding and never changes the generated entry or its hot loop. Cold overlap
+ * checks compare exact selected storage even when one boundary uses a segment and another uses
+ * its observable primitive-array carrier.
  * For an affine plan, cold binding additionally validates the exact two boundary carriers and
  * represented address spans, rejects source/result overlap, and retains the composed address
  * pairs directly. Runtime invokes only the prepared range and never interprets the view chain.
@@ -1480,7 +1485,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         var entry = memoryPlan().buffers().get(bufferSelection(index).bufferIndex());
         if (cpu.byteSize() != entry.byteSize()) return false;
         try {
-            CpuBufferArgument argument = cpu.argument();
+            CpuBufferArgument argument = preparedArgument(cpu, index);
             CarrierAccess actual = carrierAccess(argument);
             boolean aligned = !(argument instanceof CpuBufferArgument.Segment segment)
                     || segment.segment().address() % entry.byteAlignment() == 0;
@@ -1561,8 +1566,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             throw new IllegalArgumentException("workspace count disagrees with prepared use");
         }
         var arguments = new ArrayList<CpuBufferArgument>(bindings.size());
-        for (BufferRepresentation buffer : buffers) {
-            arguments.add(((CpuBufferRepresentation) buffer).argument());
+        for (int index = 0; index < buffers.length; index++) {
+            arguments.add(preparedArgument((CpuBufferRepresentation) buffers[index], index));
         }
         int firstOutputIndex = bindings.size() - outputCount;
         if (randomGeometry.filter(g -> g.family()
@@ -2178,37 +2183,54 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         return geometry;
     }
 
+    /**
+     * Tests represented byte spans on the exact selected storage, regardless of the two prepared
+     * access forms. The segment intersection establishes shared backing storage before addresses
+     * (heap carrier-relative offsets or native addresses) are compared.
+     *
+     * @param left non-null first selected argument
+     * @param leftBinding non-null first access plan with a checked selected-region span
+     * @param right non-null second selected argument
+     * @param rightBinding non-null second access plan with a checked selected-region span
+     * @return whether both nonempty accessed byte spans intersect in the same storage
+     */
     private static boolean overlaps(CpuBufferArgument left, CpuAccessPlan.Binding leftBinding,
             CpuBufferArgument right, CpuAccessPlan.Binding rightBinding) {
         if (leftBinding.elementCount() == 0 || rightBinding.elementCount() == 0) return false;
-        Object leftCarrier = carrier(left);
-        Object rightCarrier = carrier(right);
-        if (leftCarrier instanceof MemorySegment a && rightCarrier instanceof MemorySegment b
-                && a.asOverlappingSlice(b).isEmpty()) return false;
-        if (leftCarrier != rightCarrier && !(leftCarrier instanceof MemorySegment
-                && rightCarrier instanceof MemorySegment)) return false;
+        MemorySegment leftSegment = selectedSegment(left);
+        MemorySegment rightSegment = selectedSegment(right);
+        if (leftSegment.asOverlappingSlice(rightSegment).isEmpty()) return false;
         int leftWidth = dataType(left).byteWidth();
         int rightWidth = dataType(right).byteWidth();
-        long leftStart = Math.addExact(carrierBase(left),
+        long leftStart = Math.addExact(leftSegment.address(),
                 Math.multiplyExact(leftBinding.accessedElementStart(), leftWidth));
-        long leftEnd = Math.addExact(carrierBase(left),
+        long leftEnd = Math.addExact(leftSegment.address(),
                 Math.multiplyExact(leftBinding.accessedElementEnd(), leftWidth));
-        long rightStart = Math.addExact(carrierBase(right),
+        long rightStart = Math.addExact(rightSegment.address(),
                 Math.multiplyExact(rightBinding.accessedElementStart(), rightWidth));
-        long rightEnd = Math.addExact(carrierBase(right),
+        long rightEnd = Math.addExact(rightSegment.address(),
                 Math.multiplyExact(rightBinding.accessedElementEnd(), rightWidth));
         return leftStart < rightEnd && rightStart < leftEnd;
     }
 
+    /**
+     * Tests the prepared affine copy's exact accessed element addresses, so unused bytes in
+     * overlapping selected slices do not cause a false rejection. Both boundaries have the same
+     * element type and width in an affine copy.
+     *
+     * @param left non-null first selected argument
+     * @param right non-null second selected argument
+     * @param leftIndex first boundary index in the prepared affine address pairs
+     * @param rightIndex second boundary index in the prepared affine address pairs
+     * @return whether the selected range reads and writes any shared element address
+     */
     private boolean affineOverlaps(CpuBufferArgument left, CpuBufferArgument right,
             int leftIndex, int rightIndex) {
-        Object leftCarrier = carrier(left), rightCarrier = carrier(right);
-        if (leftCarrier instanceof MemorySegment a && rightCarrier instanceof MemorySegment b
-                && a.asOverlappingSlice(b).isEmpty()) return false;
-        if (leftCarrier != rightCarrier && !(leftCarrier instanceof MemorySegment
-                && rightCarrier instanceof MemorySegment)) return false;
+        MemorySegment leftSegment = selectedSegment(left);
+        MemorySegment rightSegment = selectedSegment(right);
+        if (leftSegment.asOverlappingSlice(rightSegment).isEmpty()) return false;
         int width = artifact.specialization().boundaryDataTypes().get(leftIndex).byteWidth();
-        long leftBase = carrierBase(left), rightBase = carrierBase(right);
+        long leftBase = leftSegment.address(), rightBase = rightSegment.address();
         var addresses = new java.util.HashSet<Long>();
         for (long logical = start; logical < end; logical++) {
             int pair = Math.toIntExact(Math.multiplyExact(logical, 2));
@@ -2224,9 +2246,30 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         return false;
     }
 
-    private static long carrierBase(CpuBufferArgument argument) {
-        return argument instanceof CpuBufferArgument.Segment segment
-                ? segment.segment().address() : argument.byteOffset();
+    /**
+     * Recreates only the bounded segment view of an array argument for cold overlap analysis;
+     * the generated call retains its original direct array or segment carrier. Segment arguments
+     * already retain their exact selected view, including read-only and native slices.
+     *
+     * @param argument non-null classified argument with a valid selected byte region
+     * @return an exact, non-owning view of that selected region and its original backing storage
+     */
+    private static MemorySegment selectedSegment(CpuBufferArgument argument) {
+        return switch (argument) {
+            case CpuBufferArgument.Doubles value -> MemorySegment.ofArray(value.carrier())
+                    .asSlice(value.byteOffset(), value.byteSize());
+            case CpuBufferArgument.Floats value -> MemorySegment.ofArray(value.carrier())
+                    .asSlice(value.byteOffset(), value.byteSize());
+            case CpuBufferArgument.Shorts value -> MemorySegment.ofArray(value.carrier())
+                    .asSlice(value.byteOffset(), value.byteSize());
+            case CpuBufferArgument.Ints value -> MemorySegment.ofArray(value.carrier())
+                    .asSlice(value.byteOffset(), value.byteSize());
+            case CpuBufferArgument.Longs value -> MemorySegment.ofArray(value.carrier())
+                    .asSlice(value.byteOffset(), value.byteSize());
+            case CpuBufferArgument.Bytes value -> MemorySegment.ofArray(value.carrier())
+                    .asSlice(value.byteOffset(), value.byteSize());
+            case CpuBufferArgument.Segment value -> value.segment();
+        };
     }
 
     @FunctionalInterface private interface KernelCall { void invoke() throws Throwable; }
@@ -2332,6 +2375,22 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (argument instanceof CpuBufferArgument.Longs) return CarrierAccess.LONG_ARRAY;
         if (argument instanceof CpuBufferArgument.Bytes) return CarrierAccess.BYTE_ARRAY;
         return CarrierAccess.MEMORY_SEGMENT;
+    }
+
+    /**
+     * Selects the argument form already fixed by this executable's prepared boundary. A matching
+     * heap array may satisfy a segment route through its exact selected segment, but a segment
+     * cannot satisfy an explicitly specialized array route.
+     *
+     * @param representation non-null accessible CPU representation retaining the selected region
+     * @param index zero-based boundary index in the prepared carrier pattern
+     * @return non-null direct argument in the prepared form; never a copied region
+     * @throws IllegalArgumentException if an observable heap carrier conflicts with its data type
+     * @throws IllegalStateException if the representation is closed or inaccessible
+     */
+    private CpuBufferArgument preparedArgument(CpuBufferRepresentation representation, int index) {
+        return carrierPattern.get(index) == CarrierAccess.MEMORY_SEGMENT
+                ? representation.segmentArgument() : representation.argument();
     }
 
     private static io.github.pho001.synaptik.model.datatype.DataType dataType(

@@ -27,7 +27,9 @@ import java.lang.invoke.MethodHandles;
  * in list order, stopping at the first failure. An explicitly selected representation candidate
  * contributes at most two generated affine-copy units. Binding validates all copy resources
  * before mutation; execution invokes each copy exactly once before all represented consumers, so
- * compatible repeated and cross-unit uses share the completed workspace. A child may be the
+ * compatible repeated and cross-unit uses share the completed workspace. A segment-form copy
+ * source binds the exact selected segment even when its primitive heap carrier is observable;
+ * explicit array-form copies keep their classified carrier. A child may be the
  * narrow native MATMUL recipe when the already-selected route uses one copy. Runtime owns the
  * surrounding atomic validity transition and each run's resources and never selects a candidate.
  */
@@ -195,7 +197,11 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
         List<BoundInvocation> invocations = List.copyOf(bound);
         var copyCalls = new ArrayList<GeneratedCopyCall>(copies.size());
         for (CopyUnit copy : copies) {
-            CpuBufferArgument source = arguments[copy.bufferPosition()];
+            CpuBufferRepresentation sourceBuffer = (CpuBufferRepresentation)
+                    buffers[copy.bufferPosition()];
+            CpuBufferArgument source = copy.plan().sourceCarrier()
+                    == io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
+                    ? sourceBuffer.segmentArgument() : arguments[copy.bufferPosition()];
             if (carrierAccess(source) != copy.plan().sourceCarrier()) throw new IllegalArgumentException(
                     "CPU copy source carrier changed after analysis");
             CpuContiguousWorkspace target = (CpuContiguousWorkspace)

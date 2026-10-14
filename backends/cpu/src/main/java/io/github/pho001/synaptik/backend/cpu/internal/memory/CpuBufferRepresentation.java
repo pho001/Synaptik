@@ -9,8 +9,10 @@ import java.util.Objects;
  * Common non-public CPU representation metadata and its once-classified direct argument.
  *
  * <p>The representation retains exact data type, byte size, and segment identity. Construction
- * performs the cold storage classification once. Accessors remain valid only while the concrete
- * owning or borrowed representation is open and accessible to the calling thread.</p>
+ * performs the cold storage classification once. A prepared segment-form route can also borrow
+ * the exact selected heap segment without erasing an incompatible observable carrier. Accessors
+ * remain valid only while the concrete owning or borrowed representation is open and accessible
+ * to the calling thread.</p>
  */
 public abstract class CpuBufferRepresentation implements BufferRepresentation {
     private final DataType dataType;
@@ -66,6 +68,23 @@ public abstract class CpuBufferRepresentation implements BufferRepresentation {
             throw new IllegalArgumentException("heap carrier is incompatible with data type");
         }
         return argument;
+    }
+
+    /**
+     * Returns the exact selected segment for a prepared segment-access route, even when its
+     * matching primitive-array carrier is observable. Classification must first succeed so an
+     * incompatible heap carrier cannot be disguised as a segment. This view neither copies nor
+     * extends the borrowed segment's lifetime; the caller must retain this representation through
+     * execution.
+     *
+     * @return a non-owning argument retaining the exact selected segment or slice
+     * @throws IllegalStateException if the representation is closed or inaccessible
+     * @throws IllegalArgumentException if an observable heap carrier conflicts with the data type
+     */
+    public final CpuBufferArgument.Segment segmentArgument() {
+        CpuBufferArgument classified = argument();
+        return classified instanceof CpuBufferArgument.Segment exact ? exact
+                : new CpuBufferArgument.Segment(dataType, segment, byteSize, segment.isReadOnly());
     }
 
     /** Reports concrete-owner closure.

@@ -1096,6 +1096,46 @@ class CpuPreparedExecutableTest {
         } finally { state.close(); }
     }
 
+    @Test void explicitMaterializationCopiesHeapThroughPreparedSegmentSource() {
+        Shape shape = Shape.of(2, 3);
+        var dense = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var general = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {1, 2}, 0, true)), false);
+        var policy = new CpuPartitionAnalysisInputs.MaterializationPolicy(true,
+                0, 1, 10, 1, 2, 48, 1, 1);
+        var segmentPattern = List.of(CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.MEMORY_SEGMENT);
+        var analysis = CpuPartitionPreparerTest.analyze(dense, dense, general, dense,
+                new CpuPartitionAnalysisInputs(false, segmentPattern,
+                        PortableExecutionConfig.DEFAULT, policy));
+        var candidate = CpuPartitionPreparerTest.explicitRepresentationCandidate(analysis,
+                policy, 2);
+        var executable = CpuPartitionFinalizerTest.finalizePreparedExecutable(candidate,
+                Optional.empty());
+        var a = CpuNativeBuffer.allocate(DataType.FLOAT64, 48, 8);
+        var b = CpuNativeBuffer.allocate(DataType.FLOAT64, 48, 8);
+        double[] carrier = {99, 2, 3, 3, 4, 4, 5, 99};
+        var source = borrow(carrier, 1, 6);
+        var output = CpuNativeBuffer.allocate(DataType.FLOAT64, 48, 8);
+        var workspace = CpuContiguousWorkspace.allocate(48, 8);
+        var run = state(executable, List.of(a, b, source, output), List.of(workspace));
+        try {
+            for (int i = 0; i < 6; i++) {
+                a.segment().set(DOUBLE, i * 8L, i - 2.0);
+                b.segment().set(DOUBLE, i * 8L, 0.5);
+            }
+            executable.bind(run).execute();
+            for (int row = 0; row < 2; row++) for (int column = 0; column < 3; column++) {
+                int logical = row * 3 + column;
+                double selected = carrier[1 + row + column * 2];
+                assertEquals(CpuScalarReferenceKernel.gelu(logical - 1.5) * selected,
+                        output.segment().get(DOUBLE, logical * 8L), 0.0);
+            }
+        } finally { run.close(); }
+    }
+
     @Test void executesAllSixteenDirectCarrierPatternsForEveryEligibleStrategy() {
         int count = DoubleVector.SPECIES_PREFERRED.length() * 2 + 1;
         Shape shape = Shape.of(count);
@@ -1272,13 +1312,114 @@ class CpuPreparedExecutableTest {
         finally { overlapping.close(); }
     }
 
-    @Test void rejectsConcreteCarrierPatternDifferentFromPreparedSpecialization() {
+    @Test void defaultSegmentRouteBindsHeapSlicesButExplicitArrayRouteRejectsNative() {
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(Shape.of(4), Optional.empty());
-        var state = state(executable, List.of(borrow(new double[4], 0),
-                borrow(new double[4], 0), borrow(new double[4], 0),
-                borrow(new double[4], 0)));
-        try { assertThrows(IllegalArgumentException.class, () -> executable.bind(state)); }
-        finally { state.close(); }
+        double[] left = {99, 1, 2, 3, 4, 99};
+        double[] right = {0.5, 0.5, 0.5, 0.5};
+        double[] multiplier = {2, 2, 2, 2};
+        double[] output = new double[4];
+        var heap = state(executable, List.of(borrow(left, 1, 4), borrow(right, 0),
+                borrow(multiplier, 0), borrow(output, 0)));
+        try {
+            executable.bind(heap).execute();
+            for (int i = 0; i < 4; i++) assertEquals(
+                    CpuScalarReferenceKernel.gelu(left[i + 1] + right[i]) * multiplier[i],
+                    output[i], 1e-6);
+        } finally { heap.close(); }
+
+        var wrongCarrier = borrowed(DataType.FLOAT64, 4, MemorySegment.ofArray(new long[4]));
+        var wrong = state(executable, List.of(wrongCarrier, borrow(right, 0),
+                borrow(multiplier, 0), borrow(new double[4], 0)));
+        try { assertThrows(IllegalArgumentException.class, () -> executable.bind(wrong)); }
+        finally { wrong.close(); }
+
+        double[] shared = {1, 2, 3, 4};
+        var overlap = state(executable, List.of(borrow(shared, 0), borrow(right, 0),
+                borrow(multiplier, 0), borrow(shared, 0)));
+        try { assertThrows(IllegalArgumentException.class, () -> executable.bind(overlap)); }
+        finally { overlap.close(); }
+
+        var readOnlyOutput = borrowed(DataType.FLOAT64, 4,
+                MemorySegment.ofArray(new double[4]).asReadOnly());
+        var readOnly = state(executable, List.of(borrow(left, 1, 4), borrow(right, 0),
+                borrow(multiplier, 0), readOnlyOutput));
+        try { assertThrows(IllegalArgumentException.class, () -> executable.bind(readOnly)); }
+        finally { readOnly.close(); }
+
+        Shape shape = Shape.of(4);
+        var descriptor = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var arrayRoute = CpuPartitionFinalizerTest.finalizeExecutable(
+                CpuPartitionPreparerTest.analyze(descriptor, descriptor, descriptor, descriptor,
+                        new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.DOUBLE_ARRAY,
+                                CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY,
+                                CarrierAccess.DOUBLE_ARRAY))), Optional.empty());
+        var nativeInput = CpuNativeBuffer.allocate(DataType.FLOAT64, 32, 8);
+        var incompatible = state(arrayRoute, List.of(nativeInput, borrow(right, 0),
+                borrow(multiplier, 0), borrow(new double[4], 0)));
+        try { assertThrows(IllegalArgumentException.class, () -> arrayRoute.bind(incompatible)); }
+        finally { incompatible.close(); }
+    }
+
+    @Test void mixedPreparedPointwiseCarriersRejectSharedHeapWritesBeforeExecution() {
+        Shape shape = Shape.of(4);
+        var descriptor = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var segmentInput = CpuPartitionFinalizerTest.finalizeExecutable(
+                CpuPartitionPreparerTest.analyze(descriptor, descriptor, descriptor, descriptor,
+                        new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
+                                CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY,
+                                CarrierAccess.DOUBLE_ARRAY))), Optional.empty());
+        assertEquals(List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.DOUBLE_ARRAY,
+                CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY),
+                segmentInput.artifact().specialization().carrierPattern());
+        double[] shared = {90, 1, 2, 3, 4, 70, 70, 70, 70, 90};
+        double[] original = shared.clone();
+        double[] zeros = new double[4];
+        double[] ones = {1, 1, 1, 1};
+        var overlapping = state(segmentInput, List.of(borrow(shared, 1, 4), borrow(zeros, 0),
+                borrow(ones, 0), borrow(shared, 3, 4)));
+        try {
+            var failure = assertThrows(IllegalArgumentException.class,
+                    () -> segmentInput.bind(overlapping));
+            assertEquals("output accessed span must not overlap an input", failure.getMessage());
+            assertArrayEquals(original, shared);
+        } finally { overlapping.close(); }
+
+        // A read-only heap segment has no observable heapBase on JDK 26, but still aliases.
+        var readOnlyInput = borrowed(DataType.FLOAT64, 4,
+                MemorySegment.ofArray(shared).asSlice(8, 32).asReadOnly());
+        var readOnlyOverlap = state(segmentInput, List.of(readOnlyInput, borrow(zeros, 0),
+                borrow(ones, 0), borrow(shared, 3, 4)));
+        try {
+            assertThrows(IllegalArgumentException.class, () -> segmentInput.bind(readOnlyOverlap));
+            assertArrayEquals(original, shared);
+        } finally { readOnlyOverlap.close(); }
+
+        var disjoint = state(segmentInput, List.of(borrow(shared, 1, 4), borrow(zeros, 0),
+                borrow(ones, 0), borrow(shared, 5, 4)));
+        try {
+            segmentInput.bind(disjoint).execute();
+            for (int i = 0; i < 4; i++) {
+                assertEquals(original[i + 1], shared[i + 1]);
+                assertEquals(CpuScalarReferenceKernel.gelu(original[i + 1]), shared[i + 5], 1e-6);
+            }
+        } finally { disjoint.close(); }
+
+        var segmentOutput = CpuPartitionFinalizerTest.finalizeExecutable(
+                CpuPartitionPreparerTest.analyze(descriptor, descriptor, descriptor, descriptor,
+                        new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.DOUBLE_ARRAY,
+                                CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY,
+                                CarrierAccess.MEMORY_SEGMENT))), Optional.empty());
+        double[] reverseShared = original.clone();
+        var reverseOverlap = state(segmentOutput, List.of(borrow(reverseShared, 1, 4),
+                borrow(zeros, 0), borrow(ones, 0), borrow(reverseShared, 3, 4)));
+        try {
+            var failure = assertThrows(IllegalArgumentException.class,
+                    () -> segmentOutput.bind(reverseOverlap));
+            assertEquals("output accessed span must not overlap an input", failure.getMessage());
+            assertArrayEquals(original, reverseShared);
+        } finally { reverseOverlap.close(); }
     }
 
     @Test void affineColdBindingRejectsOverlappingSourceAndResultAddresses() {
@@ -1294,6 +1435,33 @@ class CpuPreparedExecutableTest {
         var run = state(executable, List.of(input, output));
         try { assertThrows(IllegalArgumentException.class, () -> executable.bind(run)); }
         finally { run.close(); }
+    }
+
+    @Test void mixedPreparedAffineCarriersCompareOnlyAccessedHeapAddresses() {
+        var context = CpuAffineLayoutLoweringTest.select(DataType.INT32,
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.INT_ARRAY));
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(context), Optional.empty());
+        assertEquals(List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.INT_ARRAY),
+                executable.artifact().specialization().carrierPattern());
+        int[] shared = {90, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21};
+        int[] original = shared.clone();
+        var overlap = state(executable, List.of(borrow(shared, 1, 9), borrow(shared, 4, 8)));
+        try {
+            var failure = assertThrows(IllegalArgumentException.class,
+                    () -> executable.bind(overlap));
+            assertEquals("output accessed span must not overlap an input", failure.getMessage());
+            assertArrayEquals(original, shared);
+        } finally { overlap.close(); }
+
+        // The selected slices overlap, but the three affine read/write addresses do not.
+        var disjoint = state(executable, List.of(borrow(shared, 1, 9), borrow(shared, 2, 8)));
+        try {
+            executable.bind(disjoint).execute();
+            assertEquals(original[2], shared[3]);
+            assertEquals(original[5], shared[6]);
+            assertEquals(original[8], shared[9]);
+        } finally { disjoint.close(); }
     }
 
     @Test void movementColdBindingExecutesRangesAndRejectsOutputInputOverlapBeforeWrite() {

@@ -253,6 +253,7 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0021 | [Composed validation and loss binding repair](tasks/0021-composed-value-validation-and-loss-bindings.md) | Complete | 0019–0020; project review | Fix F16 softmax reading, value checks after producers, and occurrence-level loss bindings. |
 | 0022 | [Activation extremes and low working precision](tasks/0022-activation-extremes-and-low-working-precision.md) | Complete | Reviewed/integrated 0021; current Model semantics | Fix ERF/GELU large-finite saturation and low activation F32 working sites; serialize generated identity work. |
 | 0023 | [Vector ERF direct-Java shape](tasks/0023-vector-erf-direct-java-shape.md) | Draft | 0022 Complete; explicit selection | Follow up the bounded vector ERF timing gap and preexisting coefficient-loop shape; no broad benchmark campaign or parity claim. |
+| 0024 | [Default segment route heap carrier binding](tasks/0024-default-segment-route-heap-carrier-binding.md) | Complete | 0022 Complete; ordinary heap Engine reproduction; explicit user approval | Exact heap segment binding and mixed-carrier overlap repair passed focused, public Engine, independent re-review, and combined validation. |
 
 ## Milestones and current frontier
 
@@ -270,7 +271,8 @@ The table owns order and status; linked tasks own detailed evidence.
   and independent Class C re-review passed. [0020](tasks/0020-bare-matmul-realization-strategy-alignment.md)
   is Complete from clean `f4e35b45`, with portable public execution and independent review
   passing. Audit repairs 0021 and 0022 are Complete after independent review and the combined
-  checkpoint; 0023 is a proposed Draft follow-up. CPU 0007A1D's historical failed performance
+  checkpoint; 0023 is a proposed Draft follow-up. CPU 0024 is Complete, with the heap-carrier
+  binding and mixed-carrier overlap repair accepted. CPU 0007A1D's historical failed performance
   gate is closed as Superseded, not accepted as passing.
 - Documentation-only 0010K and 0010L and profile realization
   [0017](tasks/0017-explicit-accelerator-numerical-profile-realization.md) are Complete. CPU 0017
@@ -288,6 +290,10 @@ Historical profile integration evidence remains in its completed task records.
 
 ## Live gates and decisions
 
+- CPU 0024 is Complete after exact heap-segment binding, the P1 mixed-carrier overlap fix,
+  clean independent re-review, and direct Engine/Checkpoint acceptance. Its combined
+  source-matched `test javadoc` checkpoint passed. No new CPU Ready frontier is established;
+  CPU 0023 remains Draft.
 - CPU 0023 is a proposed bounded vector ERF shape follow-up, not an authorized successor. The
   audit diagnostic shows a current timing gap, but does not establish its cause or a regression.
 - CPU 0018 closed the virtualized-output/shared-weight recognition validation hole with

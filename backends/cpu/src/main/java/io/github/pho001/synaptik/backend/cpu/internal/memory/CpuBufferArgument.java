@@ -5,12 +5,13 @@ import java.lang.foreign.MemorySegment;
 import java.util.Objects;
 
 /**
- * A non-owning, direct buffer argument produced once during CPU cold binding.
+ * A non-owning, direct buffer argument selected during CPU cold binding.
  *
  * <p>Array variants expose an observable primitive heap carrier and express the selected region
  * with a carrier-relative byte offset. {@link Segment} retains the exact selected
- * {@link MemorySegment} when no matching carrier can be observed, including genuine native
- * segments and JDK 26 read-only heap segments whose {@link MemorySegment#heapBase()} is empty.
+ * {@link MemorySegment} for a prepared segment-access route, including native segments, matching
+ * heap arrays selected for that route, and JDK 26 read-only heap segments whose
+ * {@link MemorySegment#heapBase()} is empty.
  * No variant copies bytes, extends the segment lifetime, or permits access after the owner or
  * borrower closes the underlying segment.</p>
  */
@@ -118,8 +119,8 @@ public sealed interface CpuBufferArgument {
     }
 
     /**
-     * Direct access through one exact segment or slice whose matching primitive heap carrier is
-     * not observable.
+     * Direct access through one exact selected segment or slice. Its matching primitive heap
+     * carrier may be observable when the prepared route explicitly uses segment access.
      *
      * <p>This name describes the access form, not the segment's provenance: the retained segment
      * may be native or heap-backed. In particular, JDK 26 does not expose a heap base for a
