@@ -100,6 +100,36 @@ class ModelArtifactTest {
     }
 
     @Test
+    void mixedLeavesAndExpressionsPreserveOriginalIdentityOrderAndBindings() {
+        var module = new Fixture();
+        try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+            Tensor nativeLeaf = tensor(arena, DataType.FLOAT32, new float[] {3.0f, 4.0f}, true);
+            Tensor heapLeaf = TensorFactory.scalar(-0.0f, Optional.empty(), false);
+            Tensor expression = nativeLeaf.contiguous();
+            Tensor distinct = tensor(arena, DataType.FLOAT32, new float[] {5.0f, 6.0f});
+            module.addParameter("weight", nativeLeaf);
+            module.add("shadow", nativeLeaf);
+            module.add("expression", expression);
+            module.add("heap", heapLeaf);
+            module.add("repeat", nativeLeaf);
+            module.add("distinct", distinct);
+            var before = module.stateDictionary().entries();
+            ModelArtifactCandidate candidate = ModelArtifactCapture.capture(module, engine, CONFIG, null, LIMITS);
+            assertEquals(before.stream().map(entry -> entry.path()).toList(),
+                    candidate.states().stream().map(ModelArtifactCodec.State::path).toList());
+            assertArrayEquals(payload(candidate, 0), payload(candidate, 1));
+            assertArrayEquals(payload(candidate, 0), payload(candidate, 2));
+            assertArrayEquals(payload(candidate, 0), payload(candidate, 4));
+            assertArrayEquals(ByteBuffer.allocate(4).putInt(0x80000000).array(), payload(candidate, 3));
+            assertArrayEquals(ByteBuffer.allocate(8).putFloat(5).putFloat(6).array(), payload(candidate, 5));
+            var after = module.stateDictionary().entries();
+            for (int i = 0; i < before.size(); i++) assertSame(before.get(i).value(), after.get(i).value());
+            assertTrue(nativeLeaf.provenance().isEmpty());
+            assertSame(nativeLeaf, expression.provenance().orElseThrow().inputs().getFirst());
+        }
+    }
+
+    @Test
     void unicodePathsAndFingerprintsAreCanonicalAndFileBytesDeterministic() throws Exception {
         var module = new Fixture();
         byte[] config = new byte[32]; config[0] = 7;
@@ -227,7 +257,7 @@ class ModelArtifactTest {
     @Test
     void preflightRejectsLimitsAndEngineFailureLeavesNoCandidateOrBindingChange() {
         var module = new Fixture();
-        Tensor value = TensorFactory.scalar(2.0f, Optional.empty(), false).contiguous();
+        Tensor value = TensorFactory.scalar(2.0f, Optional.empty(), false);
         module.add("value", value);
         Engine closed = Engine.standard(); closed.close();
         assertThrows(IllegalArgumentException.class, () -> ModelArtifactCapture.capture(
@@ -309,7 +339,33 @@ class ModelArtifactTest {
         byte[] copy = bytes.clone(); ByteBuffer.wrap(copy).putLong(at, value); return copy;
     }
 
+    /**
+     * Creates a non-gradient native leaf for exact capture tests without an expression wrapper.
+     *
+     * @param arena non-null live shared Arena that owns the copied storage through capture
+     * @param type non-null storage data type matching the primitive array carrier
+     * @param values non-null two-element carrier copied without numeric conversion
+     * @return fresh dense rank-one leaf with independently copied native storage
+     * @throws RuntimeException if allocation, carrier compatibility, or Tensor validation fails
+     */
     private static Tensor tensor(Arena arena, DataType type, Object values) {
+        return tensor(arena, type, values, false);
+    }
+
+    /**
+     * Copies represented primitive-array bits into a native leaf, preserving original identity
+     * for parameter/buffer alias tests. The caller retains the Arena; this helper transfers no
+     * resource ownership and adds no provenance.
+     *
+     * @param arena non-null live shared Arena kept open through Engine capture
+     * @param type non-null data type; FLOAT64 uses double[], FLOAT32 float[], low types short[],
+     *     INT32 int[], INT64 long[], and BOOL canonical byte[]
+     * @param values non-null matching two-element array; copied and never mutated
+     * @param grad whether the leaf is gradient-eligible, including for parameter registration
+     * @return fresh dense Shape.of(2) leaf borrowing Arena-owned native storage
+     * @throws RuntimeException if allocation, carrier compatibility, or Tensor validation fails
+     */
+    private static Tensor tensor(Arena arena, DataType type, Object values, boolean grad) {
         MemorySegment source = switch (type) {
             case FLOAT64 -> MemorySegment.ofArray((double[]) values);
             case FLOAT32 -> MemorySegment.ofArray((float[]) values);
@@ -320,14 +376,23 @@ class ModelArtifactTest {
         };
         Shape shape = Shape.of(2);
         var descriptor = new TensorDescriptor(type, shape,
-                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+                Optional.of(LayoutDescriptor.contiguous(shape)), grad);
         MemorySegment segment = arena.allocate(source.byteSize(), type.byteWidth());
         MemorySegment.copy(source, 0, segment, 0, source.byteSize());
         return TensorFactory.create(descriptor, Optional.empty(), Optional.of(
-                new MemorySegmentStorage(type, 2, segment))).contiguous();
+                new MemorySegmentStorage(type, 2, segment)));
     }
 
     private static final class Fixture extends Module {
         void add(String name, Tensor tensor) { buffer(name, tensor); }
+        /**
+         * Registers a parameter without copying its Tensor so mixed-role alias identity is tested.
+         *
+         * @param name non-null valid unique local NN state name
+         * @param tensor non-null floating gradient-eligible Tensor retained as the parameter binding
+         * @throws IllegalArgumentException if NN rejects the name or parameter descriptor
+         * @throws NullPointerException if either argument is null
+         */
+        void addParameter(String name, Tensor tensor) { parameter(name, tensor); }
     }
 }

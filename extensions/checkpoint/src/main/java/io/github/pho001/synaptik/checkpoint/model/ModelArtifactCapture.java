@@ -25,9 +25,15 @@ final class ModelArtifactCapture {
 
     /**
      * Preflights the complete artifact without entry-proportional Checkpoint storage. Only then
-     * does it index aliases for one ordered bounded Engine compute and copy detached canonical
-     * values into an immutable candidate. The limit bounds encoded canonical payload bytes, not
-     * Engine workspace, source values, defensive copies, or peak heap.
+     * does it index original Tensor identities and select raw-preserving contiguous expressions
+     * for provenance-free leaves, retaining existing expression outputs. One ordered bounded
+     * Engine compute copies detached canonical values into an immutable candidate without
+     * changing NN bindings or original schema descriptors. Deduplication uses original Tensor
+     * identity in first-encounter order, not the fresh movement wrappers. The Engine limit counts
+     * unique canonical state bytes; the artifact aggregate limit counts schema plus every path's
+     * payload, including aliases. Neither bounds Engine workspace, source values, defensive
+     * copies, or peak heap. Leaf normalization is internal to capture, not a generic guarantee
+     * that Engine can prepare provenance-free outputs.
      *
      * @param module complete bound NN tree, quiescent for this synchronous call
      * @param engine open public Engine facade; unused for empty state
@@ -78,7 +84,7 @@ final class ModelArtifactCapture {
             Integer position = positions.get(tensor);
             if (position == null) {
                 position = unique.size();
-                unique.add(tensor);
+                unique.add(tensor.provenance().isEmpty() ? tensor.contiguous() : tensor);
                 positions.put(tensor, position);
                 uniqueBytes = Math.addExact(uniqueBytes, states.get(i).length());
             }

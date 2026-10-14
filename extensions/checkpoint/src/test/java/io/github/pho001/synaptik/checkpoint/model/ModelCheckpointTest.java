@@ -22,30 +22,42 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.lang.foreign.Arena;
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ModelCheckpointTest {
     private static final ArtifactLimits LIMITS = new ArtifactLimits(16384, 8192, 32, 32, 8192, 8192);
     private static final byte[] CONFIG = new byte[32];
     @TempDir Path directory;
 
-    @Test
-    void savesInspectsAndLoadsSevenTypesWithExactBitsAndNativeCarriers() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void directLeavesSaveLoadAndResaveSevenTypesWithExactBits(boolean nativeSource) throws Exception {
         var source = new Fixture();
         var target = new Fixture();
         var cases = List.of(
-                new Case("f64", DataType.FLOAT64, Shape.of(2), words(8,
-                        0x7ff8000000000123L, 0x8000000000000000L), double[].class),
-                new Case("f32", DataType.FLOAT32, Shape.of(2), words(4,
-                        0x7fc01234L, 0x80000000L), float[].class),
-                new Case("bf16", DataType.BFLOAT16, Shape.scalar(), words(2, 0x7fc1), short[].class),
-                new Case("f16", DataType.FLOAT16, Shape.scalar(), words(2, 0x7e11), short[].class),
-                new Case("i32", DataType.INT32, Shape.of(2), words(4, 0x87654321L, 0xffffffffL), int[].class),
-                new Case("i64", DataType.INT64, Shape.scalar(), words(8, 0xfedcba9876543210L), long[].class),
+                new Case("f64", DataType.FLOAT64, Shape.of(8), words(8,
+                        0, 0x8000000000000000L, 1, 0x8000000000000001L,
+                        0x7ff0000000000000L, 0xfff0000000000000L,
+                        0x7ff8000000000123L, 0xfff0000000000456L), double[].class),
+                new Case("f32", DataType.FLOAT32, Shape.of(8), words(4,
+                        0, 0x80000000L, 1, 0x80000001L, 0x7f800000L, 0xff800000L,
+                        0x7fc01234L, 0xff801234L), float[].class),
+                new Case("bf16", DataType.BFLOAT16, Shape.of(8), words(2,
+                        0, 0x8000, 1, 0x8001, 0x7f80, 0xff80, 0x7fc1, 0xff81), short[].class),
+                new Case("f16", DataType.FLOAT16, Shape.of(8), words(2,
+                        0, 0x8000, 1, 0x8001, 0x7c00, 0xfc00, 0x7e11, 0xfc11), short[].class),
+                new Case("i32", DataType.INT32, Shape.of(4), words(4,
+                        0x80000000L, 0x7fffffffL, 0x87654321L, 0xffffffffL), int[].class),
+                new Case("i64", DataType.INT64, Shape.of(4), words(8,
+                        Long.MIN_VALUE, Long.MAX_VALUE, 0xfedcba9876543210L, -1), long[].class),
                 new Case("bool", DataType.BOOL, Shape.of(2), new byte[] {1, 0}, byte[].class),
+                new Case("scalar", DataType.FLOAT32, Shape.scalar(), words(4, 1), float[].class),
                 new Case("empty", DataType.FLOAT32, Shape.of(0, 2), new byte[0], float[].class));
         for (Case value : cases)
             target.addBuffer(value.name, leaf(value.type, value.shape, new byte[value.bytes.length], false));
@@ -53,16 +65,25 @@ class ModelCheckpointTest {
         byte[] input = new byte[32]; input[0] = 9;
         try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
             for (Case value : cases)
-                source.addBuffer(value.name, nativeLeaf(arena, value.type, value.shape,
-                        value.bytes, false).contiguous());
+                source.addBuffer(value.name, nativeSource
+                        ? nativeLeaf(arena, value.type, value.shape, value.bytes, false)
+                        : leaf(value.type, value.shape, value.bytes, false));
+            var before = source.stateDictionary().entries();
             ModelCheckpoint.save(file, source, engine, CONFIG, input, LIMITS);
+            var after = source.stateDictionary().entries();
+            for (int i = 0; i < before.size(); i++) assertSame(before.get(i).value(), after.get(i).value());
         }
         var inspected = ModelCheckpoint.inspect(file, LIMITS);
         assertEquals(cases.stream().map(Case::name).toList(),
                 inspected.states().stream().map(ModelCheckpointInspection.State::path).toList());
         assertEquals(StateKind.BUFFER, inspected.states().getFirst().kind());
         assertEquals(DataType.FLOAT64, inspected.states().getFirst().dataType());
-        assertEquals(16, inspected.states().getFirst().byteLength());
+        assertEquals(64, inspected.states().getFirst().byteLength());
+        for (int i = 0; i < cases.size(); i++) {
+            assertEquals(cases.get(i).type, inspected.states().get(i).dataType());
+            assertEquals(cases.get(i).shape, inspected.states().get(i).shape());
+            assertArrayEquals(cases.get(i).bytes, payload(ArtifactFile.read(file, LIMITS), i + 1));
+        }
         input[0] = 0;
         assertEquals(9, inspected.inputDigest()[0]);
         inspected.configDigest()[0] = 5;
@@ -72,6 +93,12 @@ class ModelCheckpointTest {
         byte[] expectedInput = new byte[32]; expectedInput[0] = 9;
         ModelCheckpoint.load(file, target, CONFIG, expectedInput, LIMITS);
         try (Engine engine = Engine.standard()) {
+            Path resaved = directory.resolve("resaved.chk");
+            ModelCheckpoint.save(resaved, target, engine, CONFIG, expectedInput, LIMITS);
+            assertArrayEquals(inspected.schemaFingerprint(),
+                    ModelCheckpoint.inspect(resaved, LIMITS).schemaFingerprint());
+            assertArrayEquals(Files.readAllBytes(file), Files.readAllBytes(resaved));
+            ModelCheckpoint.load(resaved, target, CONFIG, expectedInput, LIMITS);
             var restored = target.stateDictionary().entries();
             for (int i = 0; i < cases.size(); i++) {
                 Case value = cases.get(i);
@@ -110,6 +137,15 @@ class ModelCheckpointTest {
         assertSame(loaded.get(0).value(), loaded.get(1).value());
         assertNotSame(shared, loaded.get(0).value());
         assertTrue(loaded.get(0).value().descriptor().requiresGrad());
+        try (Engine engine = Engine.standard()) {
+            Path resaved = directory.resolve("alias-resaved.chk");
+            ModelCheckpoint.save(resaved, target, engine, CONFIG, null, LIMITS);
+            assertArrayEquals(Files.readAllBytes(file), Files.readAllBytes(resaved));
+            ModelCheckpoint.load(resaved, target, CONFIG, null, LIMITS);
+            assertSame(target.stateDictionary().entries().get(0).value(),
+                    target.stateDictionary().entries().get(1).value());
+        }
+        loaded = target.stateDictionary().entries();
 
         byte[] schema = payload(ArtifactFile.read(file, LIMITS), 0);
         var conflict = new ArtifactEnvelope("model.v1", List.of(

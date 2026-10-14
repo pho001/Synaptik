@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.testing.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -19,8 +20,6 @@ import io.github.pho001.synaptik.nn.module.ForwardContext;
 import io.github.pho001.synaptik.nn.module.ForwardMode;
 import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Parameter;
-import io.github.pho001.synaptik.nn.module.StateDictionary;
-import io.github.pho001.synaptik.nn.module.StateEntry;
 import io.github.pho001.synaptik.training.GradientMode;
 import io.github.pho001.synaptik.training.Sgd;
 import io.github.pho001.synaptik.training.TrainingParameterStorage;
@@ -30,6 +29,7 @@ import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -104,7 +104,7 @@ final class PrivateTrainingRestoreIntegrationTest {
                 RecoveryPoint point = fixture.capture(directory.resolve(fault + ".model"));
                 if (fault == Fault.PARAMETER_BYTES) {
                     Path other = directory.resolve("different.model");
-                    ModelCheckpoint.save(other, snapshotForCheckpoint(new Tree(9.0f)), fixture.engine,
+                    ModelCheckpoint.save(other, new Tree(9.0f), fixture.engine,
                             CONFIG, null, LIMITS);
                     point = point.withArtifact(other);
                 }
@@ -346,12 +346,8 @@ final class PrivateTrainingRestoreIntegrationTest {
 
         /**
          * Captures one quiescent successful-run boundary after a step and pending accumulation.
-         * The live tree's state consists of leaf Tensors, for which the current public
-         * Engine.compute route cannot prepare a nonempty graph. The caller instead installs fresh
-         * raw-preserving contiguous expressions over those exact live Tensor references in an
-         * unpublished model-only tree. Checkpoint materializes that tree into detached artifact
-         * values; there is no manual value read or second copy pipeline. This does not claim
-         * direct save of the live trained tree is supported by that Engine route.
+         * Saves the actual trained tree's native parameter and heap buffer leaves through
+         * ordinary Model Checkpoint, without a private expression view or binding changes.
          *
          * @param artifact non-null bounded model-artifact destination in the temporary directory
          * @return complete detached in-memory recovery participants
@@ -360,7 +356,7 @@ final class PrivateTrainingRestoreIntegrationTest {
         synchronized RecoveryPoint capture(Path artifact) throws IOException {
             step();
             step();
-            ModelCheckpoint.save(artifact, snapshotForCheckpoint(published.tree), engine,
+            ModelCheckpoint.save(artifact, published.tree, engine,
                     CONFIG, null, LIMITS);
             return new RecoveryPoint(artifact, published.session.state(),
                     published.tree.mode(),
@@ -372,6 +368,8 @@ final class PrivateTrainingRestoreIntegrationTest {
          * Stages and validates a distinct candidate, then retires the old holder and publishes
          * exactly one replacement reference under caller exclusion. Test faults never mutate the
          * published holder; ordinary failure closes the private session and Arena.
+         * Loaded heap leaves are saved and loaded again before native parameter copying;
+         * complete artifact equality verifies that this intermediate round trip preserves bits.
          *
          * @param point non-null complete in-memory boundary
          * @param fault test-owned injection or publicly reachable owner rejection to exercise
@@ -403,6 +401,10 @@ final class PrivateTrainingRestoreIntegrationTest {
                 ModelCheckpoint.load(point.artifact(), candidate.tree, expectedDigest, null, LIMITS);
                 assertEquals(BUFFER_VALUE, storedFloat(candidate.tree.offset.value()));
                 if (fault == Fault.AFTER_LOAD) throw new IllegalStateException("after load");
+                Path resaved = point.artifact().resolveSibling(point.artifact().getFileName() + ".resaved");
+                ModelCheckpoint.save(resaved, candidate.tree, engine, CONFIG, null, LIMITS);
+                assertArrayEquals(Files.readAllBytes(point.artifact()), Files.readAllBytes(resaved));
+                ModelCheckpoint.load(resaved, candidate.tree, CONFIG, null, LIMITS);
                 candidate.tree.eval();
                 if (point.parentMode() == ForwardMode.TRAINING) candidate.tree.train();
                 if (point.branchMode() == ForwardMode.TRAINING) candidate.tree.branch.train();
@@ -517,25 +519,6 @@ final class PrivateTrainingRestoreIntegrationTest {
             case LATE_CURSOR -> "caller input schema differs";
             case NONE -> throw new IllegalArgumentException("success is not a failure stage");
         };
-    }
-
-    /**
-     * Wraps each quiescent live NN binding in a raw-preserving Model expression on a private
-     * tree. This tree is only a save-time view; Checkpoint/Engine, not this helper, materialize
-     * and detach the current parameter and buffer values into the model artifact.
-     *
-     * @param source non-null fully bound live tree held quiescent through Checkpoint save
-     * @return distinct fully bound tree whose state expressions refer to the exact source Tensors
-     * @throws IllegalArgumentException if NN rejects a source binding's target schema
-     */
-    private static Tree snapshotForCheckpoint(Tree source) {
-        Tree snapshot = new Tree(0.0f, -3.0f);
-        var expressions = source.stateDictionary().entries().stream()
-                .map(entry -> new StateEntry(entry.path(), entry.kind(),
-                        entry.value().contiguous()))
-                .toList();
-        snapshot.loadStateDictionary(new StateDictionary(expressions));
-        return snapshot;
     }
 
     /**

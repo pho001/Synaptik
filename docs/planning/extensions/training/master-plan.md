@@ -126,6 +126,11 @@ forward-context capture, training-mode BatchNorm buffer publication, and caller-
 targeted remediation and final re-review returned APPROVE with no findings. Joint
 restore proof at Training 0004 is Complete after independent Class C review and the integration
 gate. Checkpoint 0005–0006 remain Draft; no durable Training Checkpoint adapter is implemented.
+Complete [Checkpoint 0004A](../checkpoint/tasks/0004a-direct-leaf-model-save.md) removes the
+save-time expression-view workaround: the fixture saves the actual quiescent trained tree and
+directly re-saves loaded heap state before native parameter copying on the validated CPU route.
+This remains a bounded in-memory recovery proof, not durable Training continuation or generic
+zero-node Engine support; no successor frontier is authorized by closure.
 
 ## Open questions
 
@@ -149,10 +154,10 @@ gate. Checkpoint 0005–0006 remain Draft; no durable Training Checkpoint adapte
   memory budget; do not disable rollback implicitly as a memory optimization.
 - Training 0004 proved the selected unpublished-candidate handoff for one bounded same-route CPU
   fixture. Session-specific state is validated after private open, and the caller publishes only
-  the complete replacement under exclusion. The save fixture needs a private expression view
-  because direct save of the trained leaf-only tree fails Engine empty-partition preparation;
-  this is a separate Checkpoint/Engine follow-up, not proof of direct leaf-only save. No in-place
-  rollback, general transaction API, or durable Training artifact is provided.
+  the complete replacement under exclusion. Checkpoint 0004A now supports direct trained-tree
+  save and loaded heap re-save without the private expression view, using Checkpoint-owned raw
+  movement requests through existing Engine compute. No generic zero-node Engine support,
+  in-place rollback, general transaction API, or durable Training artifact is provided.
 
 ## Decisions made
 

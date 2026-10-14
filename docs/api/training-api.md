@@ -266,13 +266,20 @@ typed next-input cursor with all affecting external state. `Module.stateDictiona
 its Tensor references are not detached value evidence. Neither `TrainingState` counters nor
 `ModelCheckpoint.inspect` can reconstruct the next input or expose model value bytes.
 
+Ordinary `ModelCheckpoint.save` captures the actual quiescent trained tree's parameter and buffer
+leaves on the validated CPU route, without a caller-created expression view. Checkpoint internally
+selects raw-preserving movement after full preflight; it neither rebinds that tree nor guarantees
+generic leaf-output support in Engine. Keep source storage live and accessible through save.
+
 The supported integration fixture follows this sequence under caller-owned exclusion:
 
 1. Check participant completeness and every fact available from detached state without changing
    the published run. Create a **distinct, unpublished**, fully bound NN tree.
 2. Call `ModelCheckpoint.load` on that private tree. Load rereads and validates the artifact even
-   if it was previously inspected. Restore local modes parent first, then child overrides for a
-   mixed-mode tree.
+   if it was previously inspected. The fixture also directly saves this loaded heap tree, compares
+   complete artifact bytes, and loads it again before native copying; this is a model round-trip
+   check, not a required recovery stage. Restore local modes parent first, then child overrides
+   for a mixed-mode tree.
 3. Use `TrainingParameterStorage.copyToSharedNative(privateTree, privateArena)` before building
    the replacement objective or opening a session. Loaded parameters are heap-backed and
    Engine-executable, but `TrainingSession.open` requires writable, shareable native parameter

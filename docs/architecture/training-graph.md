@@ -249,9 +249,13 @@ advancing-stream continuation: `TrainingSession.run` exposes no per-run graph-RN
 The [Training 0004 integration fixture](../../testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/PrivateTrainingRestoreIntegrationTest.java)
 exercises this bounded caller-coordinated joint restore; it does not introduce a general
 transaction API. It uses a model-only artifact for NN values and keeps Training and typed caller
-state in memory. Its save-time private expression view is needed because direct save of the
-trained leaf-only tree currently fails Engine's empty-partition preparation; that view is not a
-general model-save API. See the [model checkpoint limitations](../api/model-checkpoint-api.md#failures-and-limitations).
+state in memory. It saves the actual quiescent trained tree through ordinary `ModelCheckpoint.save`.
+Checkpoint preflights the original state and internally selects raw-preserving `CONTIGUOUS`
+outputs for unique provenance-free leaves through the existing public Engine path; it does not
+replace NN bindings or add generic zero-node Engine/Prepare support. The fixture strict-loads a
+private heap tree, directly re-saves it, checks complete artifact equality, and loads it again
+before native parameter copying. This proves a bounded model round trip, not durable Training
+continuation or cross-owner atomicity. See the [model checkpoint lifecycle](../api/model-checkpoint-api.md#lifecycle-and-invariants).
 Read this sequence as moving from detached evidence to private mutation to publication:
 
 ```text

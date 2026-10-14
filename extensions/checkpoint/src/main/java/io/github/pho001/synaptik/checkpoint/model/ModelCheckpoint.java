@@ -25,6 +25,15 @@ public final class ModelCheckpoint {
      * revalidated sibling file and one atomic move. A pre-move failure leaves the prior target
      * untouched; a failed move has provider-dependent target state and must be inspected. A
      * successful move gives atomic live visibility, not portable rename power-loss durability.
+     * Fully bound leaf state, including loaded heap state on the supported CPU route, requires no
+     * caller expression wrappers. After complete metadata and bounds preflight, capture internally
+     * selects raw-preserving contiguous movement for leaves and retains existing expressions for
+     * one bounded public Engine computation. Save does not replace source bindings or descriptors;
+     * every state path retains its own payload even when materialization shares an original Tensor.
+     * This does not guarantee generic leaf-output support in Engine or expand backend capability.
+     * The aggregate payload ceiling counts schema plus all paths, including aliases, not transient
+     * Engine workspace, defensive copies, or peak heap. Borrowed source storage must remain live,
+     * accessible, and free from conflicting mutation until this synchronous call returns.
      *
      * @param target non-null path in an existing trusted local directory without concurrent writers
      * @param module non-null fully bound quiescent NN tree to snapshot once

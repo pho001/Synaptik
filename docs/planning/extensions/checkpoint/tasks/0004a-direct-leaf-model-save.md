@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready — user-authorized bounded repair; dependencies and frontier verified on 2026-10-14.
+Complete — implementation, independent review, and configured coordinator gate passed on 2026-10-14.
 
 ## Change class
 
@@ -152,6 +152,25 @@ are planned because the selected implementation preserves the current contracts.
 
 ## Result
 
-Empty until execution. Record completed changes/files, exact commands/outcomes, independent
-review, documentation/Javadoc/glossary impact, unresolved issues and specific follow-up, then
-`Status: Complete` or `Status: Incomplete` with `Follow-up required: <specific follow-up>`.
+- Capture now selects raw-preserving leaf outputs after full preflight, preserving original
+  descriptors, Tensor-identity order, one bounded Engine call, bindings, and the v1 wire.
+- Direct native/heap save/load/re-save covers all seven types and exact bits, scalar/empty state,
+  mixed expressions, aliases, and rejection bounds. Private recovery saves the actual trained
+  tree and re-saves loaded heap state before native copying; the expression workaround is removed.
+- Changed code/tests: `ModelArtifactCapture`, `ModelCheckpoint`, `ModelArtifactTest`,
+  `ModelCheckpointTest`, and `PrivateTrainingRestoreIntegrationTest` in the paths listed above.
+- Worker commands in Validation passed: focused checkpoint tests, focused private recovery,
+  affected-module checks, and affected Javadocs. Initial integration check failed only for missing
+  native-library configuration; the configured integration check passed.
+- Final coordinator command:
+  `SYNAPTIK_METAL_TEST_LIBRARY=/Users/phujka/IdeaProjects/Synaptik/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib ./gradlew test javadoc --max-workers=2 --console=plain`
+  passed in 6s (105 tasks: 10 executed, 58 from cache, 37 up-to-date); source-matched native unchanged.
+  Current XML reports: checkpoint 29 tests/0 skipped/0 failures; integration 125/1 skipped/0 failures.
+- Independent targeted review found no blocking findings and finalized affected Javadocs,
+  `docs/api/model-checkpoint-api.md`, `docs/api/training-api.md`,
+  `docs/architecture/training-graph.md`, and checkpoint glossary text; 317 links and diff checks passed.
+- Closure updates only this brief, Checkpoint/Training masters, and roadmap; 117 planning links/anchors and
+  `git diff --check` passed. No normative contract, ADR, dependency, or public API change.
+- No unresolved acceptance issues or required follow-up. Generic zero-node Engine support and
+  durable Training recovery remain outside scope; 0005–0007 stay Draft pending a separate plan.
+- Status: Complete

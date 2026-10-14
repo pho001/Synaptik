@@ -20,8 +20,10 @@ metadata and bytes, and Engine materializes save-time values. Loading does not u
 ## Core contracts
 
 `save(Path, Module, Engine, configDigest, inputDigest, ArtifactLimits)` snapshots the complete
-state once through public Engine materialization and publishes the existing version-one envelope
-when Engine can prepare that computation. `inspect(Path, ArtifactLimits)`
+state once through public Engine materialization and publishes the existing version-one envelope.
+Fully bound native and matching primitive-array heap leaves, including previously loaded state,
+can be saved directly on the validated CPU route; callers need no expression wrappers.
+`inspect(Path, ArtifactLimits)`
 validates the whole file, including checksums, the model schema, every payload, and canonical
 `BOOL` bytes (`0` or `1`). It returns ordered typed path, role, data type, Shape, and byte-length
 descriptors plus defensive digest copies. The inspection owns no file or live module/Engine data.
@@ -53,6 +55,20 @@ operation. NN's wrappers remain, but their Tensor bindings change after a succes
 
 ## Lifecycle and invariants
 
+Before Engine work or payload-sized allocation, capture preflights caller fingerprints, original
+ordered paths/kinds/types/Shapes, checked byte lengths, and entry, payload, aggregate, manifest,
+and final-file limits. Only afterward does it deduplicate original Tensor identities in
+first-encounter order. Internally, each unique provenance-free leaf becomes a raw-preserving
+`CONTIGUOUS` request; an existing expression stays an expression. These requests normalize
+save-time outputs, not NN bindings or schema descriptors. One public `Engine.compute` call
+materializes nonempty state and checks returned type, Shape, and byte length. Empty state makes
+no Engine call, even with a closed Engine. Each path still receives a separate payload.
+
+This raw movement preserves signed zeros, subnormals, infinities, and NaN payload/sign bits;
+it uses neither identity arithmetic nor casts. Tests cover all seven data types on native and
+matching heap carriers, scalar and zero-extent state, and mixed leaves/expressions. It is not a
+generic promise that Engine prepares provenance-free outputs, or a backend capability expansion.
+
 Checkpoint validates all file bytes, digests, paths, kinds, data types, Shapes, alias values, and
 reconstructed candidates before one NN whole-tree installation attempt. Ordinary validation or
 reconstruction failure changes no target binding. There is no cross-owner transaction or
@@ -66,8 +82,8 @@ A failed move can have provider-dependent target state; inspect the target befor
 This JShell-style example saves one rank-one `FLOAT32` buffer. The trusted local directory exists
 before save. The source uses a live native host segment; the target starts with an independent heap
 Tensor of the same descriptor. The result is one restored buffer, a typed inspection reporting
-path `runningMean` and eight payload bytes, and direct Engine materialization of the restored
-Tensor.
+path `runningMean` and eight payload bytes, a direct save of the loaded tree, and Engine
+materialization through an explicit contiguous expression.
 
 ```java
 import io.github.pho001.synaptik.checkpoint.artifact.ArtifactLimits;
@@ -109,7 +125,7 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
     sourceBytes.setAtIndex(ValueLayout.JAVA_FLOAT, 1, -0.0f);
     Tensor source = TensorFactory.create(descriptor, Optional.empty(), Optional.of(
             new MemorySegmentStorage(DataType.FLOAT32, 2, sourceBytes)));
-    ModelCheckpoint.save(file, new StateModule(source.contiguous()), engine,
+    ModelCheckpoint.save(file, new StateModule(source), engine,
             config, null, limits);
 }
 
@@ -119,14 +135,16 @@ StateModule target = new StateModule(TensorFactory.allocate(descriptor));
 ModelCheckpoint.load(file, target, config, null, limits);
 Tensor restored = target.stateDictionary().entries().getFirst().value();
 try (Engine engine = Engine.standard()) {
+    ModelCheckpoint.save(directory.resolve("resaved.chk"), target, engine, config, null, limits);
     var computed = engine.compute(restored.contiguous(), 1024);
     int firstBits = computed.bytes().getInt(0);  // 0x3f800000 (1.0f)
     int secondBits = computed.bytes().getInt(4); // 0x80000000 (-0.0f)
 }
 ```
 
-`restored` is a fresh heap-backed Tensor, and `Engine.compute` directly returns its two values
-as canonical big-endian bytes, including the signed-zero bit. The example demonstrates model
+`restored` is a fresh heap-backed leaf Tensor. Saving `target` needs no caller wrapper and leaves
+its bindings unchanged; `Engine.compute(restored.contiguous(), ...)` separately returns its two
+values as canonical big-endian bytes, including the signed-zero bit. The example demonstrates model
 state recovery and execution, not training-session resume. If `config` differs, or if the target
 path, type, or Shape differs, load rejects the entire candidate and leaves the target's prior
 binding unchanged. Inspection alone does not authorize loading a later-mutated file.
@@ -138,22 +156,23 @@ or over-limit files; other `IOException`s report file and publication failures. 
 digests, target schema, or target alias-value conflicts raise `IllegalArgumentException`. An
 unbound target raises `IllegalStateException`. SHA-256 is an integrity and identity check, not
 adversarial authentication or encryption. Limits bound encoded bytes, not peak JVM heap or Engine
-workspace. The v1 format has no migration or source-alias metadata.
+workspace. The retained aggregate payload bound counts schema plus every path's canonical bytes,
+including repeated aliases. The Engine materialization bound counts only unique state outputs;
+neither bound includes transient workspace, detached source values, defensive copies, or peak
+heap. The v1 format has no migration or source-alias metadata.
 
 Model-only save, inspection, and load are available; the restored heap Tensors can be passed
-directly to Engine for computation on the validated CPU path. This API does not persist
+to Engine through supported expressions for computation on the validated CPU path. This API does not persist
 `TrainingState`, module modes, caller progress, or other state needed for exact training
 continuation. A caller-coordinated [private training restore](training-api.md#caller-coordinated-in-memory-recovery)
 can load a model artifact into a distinct, fully bound unpublished tree, but no durable
 `TrainingCheckpoint` adapter or built-in cross-owner transaction exists.
 
-There is a current save-time execution limitation: calling `ModelCheckpoint.save` directly on
-the trained fixture's leaf-only NN state fails because Engine cannot prepare an empty partition
-plan for those output leaves. The focused integration test instead creates a private model-only
-expression view with raw-preserving `contiguous()` expressions over the exact, quiescent **live**
-Tensor references; Checkpoint then materializes and detaches those values through Engine. That
-view is test evidence for this bounded case, not a general save API or a promise that direct
-leaf-only save works. Callers must verify their save-time expression route is supported.
+The focused integration test saves the actual quiescent trained tree, then strict-loads and
+directly re-saves its heap-backed replacement before any native parameter copy. Complete file
+equality checks that intermediate round trip. Caller exclusion and live, accessible source
+storage remain required throughout save; arbitrary Engine compositions must support the selected
+movement and existing expression occurrences. No Engine/Prepare zero-node support is implied.
 
 ## Related API and architecture
 

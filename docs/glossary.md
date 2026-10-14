@@ -2953,6 +2953,11 @@ optional input-artifact digests. The public model facade saves, fully inspects, 
 that file into a fully bound target. The target's Tensor identity defines alias groups: their
 stored values must be byte-identical, and each group receives one fresh heap-backed Tensor.
 The v1 wire does not encode source sharing, so configuration fingerprints must cover it.
+Save accepts fully bound native and matching heap leaves on the validated CPU route, including
+loaded trees. After complete preflight, internal raw-preserving contiguous requests normalize
+unique leaf outputs without rebinding NN state; this is not generic leaf-output Engine support.
+The retained aggregate payload ceiling counts schema and every path, including aliases, not
+transient Engine workspace or peak heap. See the [model checkpoint API](api/model-checkpoint-api.md).
 A separately gated optional Training Checkpoint adapter would coordinate Training-owned state and
 caller-owned continuation data without making the model-only project depend on Training. A
 bounded caller-owned in-memory private-candidate restore is exercised by an integration test;
