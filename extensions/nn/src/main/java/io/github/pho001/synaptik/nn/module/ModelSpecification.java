@@ -653,4 +653,3 @@ public final class ModelSpecification {
         }
     }
 }
-
