@@ -150,6 +150,47 @@ without numeric conversion or NaN normalization. NN alone performs the one stric
 installation attempt after all checkpoint validation and reconstruction. Save and load require
 caller-owned quiescence; a prior inspection is not trusted for later load.
 
+The following model-envelope composition boundary is approved for Checkpoint 0005A but is not
+implemented yet. The current public model API remains the file-based facade described above.
+The existing `ModelCheckpoint` may add these static operations using existing public types:
+
+- `capture(Module, Engine, byte[] configDigest, byte[] inputDigest, ArtifactLimits)` returns
+  `ArtifactEnvelope` and declares checked `ArtifactFormatException` for semantic decode failure.
+- `inspect(ArtifactEnvelope, ArtifactLimits)` returns `ModelCheckpointInspection` and declares
+  checked `ArtifactFormatException`.
+- `canonicalStateBytes(ArtifactEnvelope, ArtifactLimits)` returns `Map<String, ByteBuffer>` and
+  declares checked `ArtifactFormatException`.
+- `load(ArtifactEnvelope, Module, byte[] expectedConfigDigest, byte[] expectedInputDigest,
+  ArtifactLimits)` returns `void` and declares checked `ArtifactFormatException`.
+
+These operations must reuse the current internal capture, model codec, and restoration machinery,
+including `ModelArtifactCodec.decode` and its preflight of every `ArtifactLimits` dimension before
+schema copying. Standalone envelopes have not passed `ArtifactFile.read`: validate kind, schema,
+exact payload correspondence, canonical BOOL bytes, and all limits, including the equivalent v1
+manifest and complete file size, on each call. An in-memory envelope has no encoded file checksum
+to verify; file framing and integrity validation remain the file reader's responsibility.
+Capture returns only a fully validated detached envelope. No live Module, Tensor, Engine, or
+borrowed storage lifetime escapes. Limits retain their existing meaning: aggregate canonical
+bytes include schema and every aliased path, not defensive copies, workspace, or peak heap.
+
+Canonical bytes include every parameter and buffer under its exact NN path in model metadata
+order, not lexical path order or artifact-key order. The map structure is immutable and each
+call returns fresh independent read-only buffers positioned at zero, with exact payload limits
+and `BIG_ENDIAN` byte order. Payload bytes are immutable; buffer position, limit, and byte-order
+settings remain caller-mutable and must not affect another call or path view. All seven stored
+data types retain their raw logical bits, including signed zero and NaN payloads; no conversion
+or numerical normalization is authorized. Inspection supplies descriptors, not a validation
+credential: canonical-byte access and load independently validate the supplied envelope.
+
+Envelope load must validate the complete model and expected digests before delegating one strict
+NN installation attempt, preserving the fully bound target and target-defined alias policies.
+The file API must delegate to the same semantic machinery while retaining rereads on every
+inspect/load, existing checked `IOException` signatures, failure types and validation ordering,
+and the existing save publication policy. The internal `ModelArtifactCandidate`,
+`ModelArtifactCodec`, `ModelArtifactCapture`, and `ModelStateRestoration` remain package-private.
+This approval adds no public model-image wrapper, schema, codec, registry, temporary-file
+composition pipeline, backend access, Training validator, or shared transaction.
+
 For a trusted existing local directory and quiescent caller-owned target, save writes a newly
 created sibling temporary file, forces that file through its writing channel, closes, reopens, and
 fully validates it against the source image, then attempts exactly one `ATOMIC_MOVE`. It may
@@ -168,12 +209,20 @@ modules must not depend on Checkpoint. The direct public Model edge is limited t
 Tensor descriptors and restoration; it does not authorize backend storage access or a second
 execution pipeline.
 
-A separate optional `extensions/training-checkpoint` adapter is reserved for durable exact
-training continuation. It may depend on Training and Checkpoint, but is neither included in
+A separate optional `extensions/training-checkpoint` adapter is reserved for durable recovery.
+Its selected first product is Model + TrainingState only, with a saved-state restoration
+guarantee, not complete automatic exact continuation. A concrete downstream need for the approved
+model-envelope API is comparison of the complete model parameter descriptors and raw logical
+bytes against TrainingState before restore/publication. External input position/cursor, RNG,
+Module modes, effective forward contexts, scheduler, and scaler remain application-owned.
+Broader exact-continuation claims still require all affecting state under the lifecycle below.
+The adapter may depend on Training and Checkpoint, but is neither included in
 Gradle settings nor implemented until its later adapter gate. Training keeps optimizer/session
 state meaning, and the caller and other state owners keep their own validation and restore
 authority under the optimizer/training lifecycle below. Neither Training nor Checkpoint gains a
 reverse dependency or a generic persistence or state-installation API from this reservation.
+Model-envelope approval does not select a training wire format or open the Checkpoint 0006
+adapter build gate; 0006 remains Draft.
 
 ## `extensions/onnx`
 

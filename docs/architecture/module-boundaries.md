@@ -311,12 +311,33 @@ bytes reside at `state/00000000`. See the [model checkpoint API](../api/model-ch
 [public model checkpoint decision](../design/decisions/0034-public-model-checkpoint.md)
 explains typed inspection, the direct Model dependency, and target-defined aliases.
 
+Approved, not yet implemented: Checkpoint 0005A extends this same facade to capture, inspect,
+read canonical state bytes, and load the existing `ArtifactEnvelope` without file I/O. The
+[owning Checkpoint contract](contracts/extensions-training.md#extensionscheckpoint) and
+[ADR 0036](../design/decisions/0036-model-envelope-composition.md) define that boundary.
+The internal candidate and codec remain package-private; file calls keep their reread and publication
+policies. Reusing the decoder prevents a standalone envelope from bypassing limits or BOOL
+validation merely because it did not pass through the file reader.
+
+Conceptual scenario (requires 0005A and a separately approved adapter): a model envelope contains
+parameter `layer.weight`, FLOAT32 Shape.of(2), with canonical bytes `3f800000 80000000`.
+Inspection supplies its descriptor; canonical-byte access supplies those exact bytes by NN path.
+An optional adapter compares the complete parameter set, descriptors, and bytes with TrainingState.
+A TrainingState value ending in `00000000` instead differs: positive and negative zero are not
+interchangeable stored values. Rejection precedes publication of the private replacement.
+Matching bytes alone do not establish optimizer/session compatibility; Training still validates
+restore, and NN still owns installation. This scenario is not a runnable current API.
+
 Exact training continuation is a different problem: it also requires Training-owned state and
 caller-owned progress or random state. An optional downstream Training Checkpoint adapter is
 reserved for that coordination after a separate gate; it is not included or implemented today.
 Putting that adapter's state into the model-only project would make inference users depend on
 Training and blur which owner validates restored values. See the [checkpoint boundary
 decision](../design/decisions/0031-model-checkpoint-extension-boundary.md).
+The selected first adapter persists only Model + TrainingState and restores saved state, not
+automatic exact continuation. Modes, effective contexts, input cursor, external RNG, scheduler,
+and scaler stay application-owned. The adapter remains Draft, absent from the build, and
+unimplemented; 0005A does not authorize its codec or inclusion.
 
 ### `extensions/onnx`
 

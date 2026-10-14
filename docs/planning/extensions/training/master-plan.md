@@ -80,8 +80,12 @@ and independent API review passed in Training; do not create a duplicate Trainin
 Training's broader capability checkpoint 0005 remains Draft and is not this prerequisite.
 
 Authorized frontier: None. Checkpoint 0006 and Training's broader 0005 remain Draft pending
-design approval. Reconstruction exposes only three existing defensive constructors; trusted
-adoption/helpers remain internal. The Training/Checkpoint coordinator owns shared-document
+their separate design gates. The selected Checkpoint successor is
+[0005A](../checkpoint/tasks/0005a-model-envelope-composition.md), Ready after independent review
+and frontier verification; coordinator acceptance/integration precedes launch. It introduces no
+Training work or dependency; 0006 also depends on completed 0005A. Reconstruction exposes only
+three existing defensive constructors; trusted adoption/helpers remain internal.
+The Training/Checkpoint coordinator owns shared-document
 integration; exact metadata and evidence live in the linked Checkpoint brief.
 
 The public `ParameterGroup` type in `io.github.pho001.synaptik.training` assigns stable Module
@@ -146,9 +150,10 @@ zero-node Engine support. Completed Checkpoint 0005 authorizes no successor or d
 
 ## Open questions
 
-- Pending Checkpoint design approval: existing `ArtifactEnvelope`-based capture/inspect/canonical
-  bytes/load on `ModelCheckpoint`, then optional Training Checkpoint using only Training and
-  Checkpoint public APIs. No API or wire design is selected here.
+- [ADR 0036](../../../design/decisions/0036-model-envelope-composition.md) resolves the model
+  composition boundary: planned existing-ArtifactEnvelope capture/inspect/canonical bytes/load
+  on ModelCheckpoint. Checkpoint 0005A is Ready, not launched or implemented; the
+  optional adapter's wire/composition/build design is still separate, with no reverse edge.
 - Task 0001C established an explicit pre-session copy into caller-owned shared native storage for
   initialized NN parameters. Direct native initialization remains a possible later convenience,
   not an implicit `TrainingSession.open` behavior.

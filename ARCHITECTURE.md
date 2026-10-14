@@ -408,7 +408,7 @@ briefs and maintained navigation adopt the exact scoped destinations:
 | OpenBLAS provider | [Backend execution — OpenBLAS provider](docs/architecture/contracts/backend-execution.md#openblas-provider) |
 | NN | [Extensions/training — `extensions/nn`](docs/architecture/contracts/extensions-training.md#extensionsnn) |
 | Training | [Extensions/training — `extensions/training`](docs/architecture/contracts/extensions-training.md#extensionstraining) |
-| Opaque artifact envelope, Model Checkpoint, and optional Training Checkpoint adapter | [Extensions/training — `extensions/checkpoint`](docs/architecture/contracts/extensions-training.md#extensionscheckpoint) |
+| Opaque artifact envelope, current file API, approved model-envelope composition, and optional Training Checkpoint adapter | [Extensions/training — `extensions/checkpoint`](docs/architecture/contracts/extensions-training.md#extensionscheckpoint) |
 | ONNX | [Extensions/training — `extensions/onnx`](docs/architecture/contracts/extensions-training.md#extensionsonnx) |
 | Optimizer/training lifecycle | [Extensions/training — optimizer/training lifecycle](docs/architecture/contracts/extensions-training.md#optimizertraining-lifecycle) |
 | CLI | [Backend execution — other tool scopes](docs/architecture/contracts/backend-execution.md#other-tool-scopes) |
@@ -431,8 +431,8 @@ This compact routing summary does not replace the linked details:
 | Typed diagnostics | Trace |
 | Stateful modules, parameters, buffers, and train/eval behavior | NN |
 | Optimizer algorithms, explicit pre-session native parameter copies, and training orchestration | Training |
-| Model-only checkpoint boundary, bounded opaque artifact envelope, and public model-state save/inspect/load | Checkpoint; NN retains whole-tree state installation |
-| Optional persistence of exact training continuation | Future Training Checkpoint adapter, after its separate gate; each state owner retains validation and restore authority |
+| Model-only checkpoint boundary, bounded opaque artifact envelope, current file save/inspect/load, and approved envelope composition (not yet implemented) | Checkpoint; NN retains whole-tree state installation |
+| Optional stored Model + TrainingState restoration; broader exact continuation requires all affecting state | Future Training Checkpoint adapter, after its separate gate; each state owner retains validation and restore authority |
 | Exact training continuation claim and cross-owner restore coordination | Each state owner retains its state; the caller stages an unpublished replacement and controls exclusion and publication under the [Training lifecycle contract](docs/architecture/contracts/extensions-training.md#optimizertraining-lifecycle) |
 | Fixed benchmark evidence | `tools/benchmarks` |
 | Model-autotuning measurement, cache coordination, and selection | `tools/tuning` |
