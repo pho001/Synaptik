@@ -1,200 +1,192 @@
-# Task 0006: Stored Model + TrainingState adapter
+# Task 0006: Whole-model TrainingCheckpoint save, inference load and resume
 
 ## Status
 
-Draft — concrete proposal for approval, not implementation authorization.
-Single remaining decision: approve the API/wire below and optional adapter build gate together.
-No executor may launch or mark this Ready before approval and the authoritative contract decision.
+Draft — revised primary product, not implementation authorization.
+Replaces the snapshot-only direction of withdrawn Proposed ADR 0037 with Proposed ADR 0038.
+Support matrix, owner bridges, default limits and exact wire decisions must stabilize before Ready.
 
 ## Change class
 
-Class C implementation — new downstream module edge, durable wire, and cross-owner restore workflow.
-This planning-only change alters no normative contract, build, Java, or test.
+Class C implementation — optional downstream module, persistent kind and cross-owner recovery.
+This planning revision changes no normative contract, build, Java or test.
 
 ## Goal
 
-Persist ONE file containing Model + TrainingState and restore its stored state through existing
-owners. A detached snapshot means immutable bytes, not an automatically resumable live session.
+Save one supported stored model + Training-owned recipe + TrainingState, then load a usable model
+for inference or resume a Training-owned run automatically. No routine lambda, model reconstruction,
+ArtifactEnvelope, config digest or Arena plumbing. Retain explicit advanced APIs.
 
 ## Scope and non-goals
 
-Propose optional `extensions/training-checkpoint`, with exactly two direct public project edges:
+Optional `extensions/training-checkpoint` has exactly two direct public project edges:
 `api(project(":extensions:training"))` and `api(project(":extensions:checkpoint"))`.
-NN/Model/Engine types are transitive; no reverse/lower/backend edge. Reuse public Artifact/Model/
-Training APIs without changing `model.v1` or envelope v1 or accessing private codecs.
-Exclude progress/cursor/epoch, RNG, modes, effective ForwardContexts, objective construction,
-scheduler/scaler, compiled/prepared/device state: all remain application-owned.
-No automatic exact continuation, generic participants/transactions/serializers, new pure Training
-validator, general options/limits class, cross-device bitwise claim, or broad performance campaign.
+Use published NN/Model/Engine transitively; no reverse or lower/backend edge.
+Training owns recipe semantics, objective construction, batch binding and run lifecycle; Checkpoint
+owns codecs/file publication; NN owns model definition and forward reconstruction.
+
+No arbitrary Java serialization/callback capture/reflection/class-name factory/registry, general
+transactions/participants, ModelExecutor, automatic backend discovery, saved device/compiled
+formats or new pure Training validator. Exclude caller cursor/epoch/external RNG/scheduler/scaler.
+Restore stored state, not complete automatic exact continuation, changing dropout stream,
+BatchNorm training-buffer alignment, BPTT or Conv3d gradients.
 
 ## Contracts
 
 - [Root authority](../../../../../ARCHITECTURE.md#authority-incorporation-and-precedence),
   [scope index](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts),
-  [Dependency rules](../../../../../ARCHITECTURE.md#dependency-rules), and
-  [Testing requirements](../../../../../ARCHITECTURE.md#testing-requirements).
-- Owning scoped headings: [extensions/checkpoint](../../../../architecture/contracts/extensions-training.md#extensionscheckpoint),
+  [module ownership](../../../../../ARCHITECTURE.md#module-ownership-routing),
+  [dependency rules](../../../../../ARCHITECTURE.md#dependency-rules) and
+  [testing requirements](../../../../../ARCHITECTURE.md#testing-requirements).
+- Owning scoped headings: [extensions/nn](../../../../architecture/contracts/extensions-training.md#extensionsnn),
   [extensions/training](../../../../architecture/contracts/extensions-training.md#extensionstraining),
+  [extensions/checkpoint](../../../../architecture/contracts/extensions-training.md#extensionscheckpoint),
   [Optimizer/training lifecycle](../../../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle).
-- [Proposed ADR 0037](../../../../design/decisions/0037-stored-training-checkpoint-adapter.md).
+- [Proposed ADR 0038](../../../../design/decisions/0038-declarative-model-and-training-resume.md).
 
-The current contract reserves but forbids inclusion/implementation before the separate adapter gate.
-This proposal does not override it. Stop on any missing or ambiguous applicable contract.
+The current contracts do not authorize the new product. Before Ready, coordinate root + owning
+extensions contract + affected architecture explanations + ADR + architecture tests as applicable.
+Stop on missing/ambiguous contracts; this proposal does not override them.
 
 ## Dependencies and integration
 
-- Depends on: completed Checkpoint 0002, 0004, 0004A, 0005, 0005A; completed Training 0004.
-- Dependency verification: satisfied against current public source/tests/contracts at the base below.
-- Conflicts with: adapter wire/API, owning contracts, build inclusion, shared Training/Checkpoint docs.
-- Parallel group: None; serialize contract cutover and implementation.
-- Common base revision: `6bbd17321e246c9c7ded90f6931ffcfc7d344711`.
-- Integration order: approval and independently Class C-reviewed authoritative update before Ready;
-  clean implementation delivers project/build/tests/docs in the same overall change, followed by
-  independent Class C review and acceptance; no coordinator code work or new prerequisite task.
-- Integration validation: named worker/coordinator commands below, with source-matched device library.
-- Shared-document integration owner: Training/Checkpoint coordinator.
-- Authorized frontier: None while Draft; satisfied predecessors do not authorize launch.
+- Depends on: NN 0026; Checkpoint 0005B; Training 0006; completed Checkpoint 0002/0004/0004A/
+  0005/0005A and Training 0004. New predecessors are Draft and NOT satisfied.
+- Conflicts with: adapter wire/API/build, owning contracts and shared NN/Training/Checkpoint docs.
+- Parallel group: None; separate clean implementation contexts, serialized contract cutover.
+- Common base revision: planning base `52733fcfd32d278b651302e308487e0b6c6afa81`; refresh before Ready.
+- Integration order: approve/cut over contracts → NN 0026 → Checkpoint 0005B + Training 0006
+  → adapter 0006 → independent review → coordinator acceptance. No mechanical task split.
+- Integration validation: once-only source-matched repository checkpoint specified below.
+- Shared-document integration owner: NN/Training/Checkpoint coordinator.
+- Authorized frontier: None. No implementation or build inclusion is authorized by this brief.
 
-## Proposed production types and facade
+## Proposed types and high-level API
 
-In optional package `io.github.pho001.synaptik.training.checkpoint`: public final `TrainingCheckpoint`
-and its public final nested `Snapshot`; package-private
-`TrainingArtifactCodec` (metadata/slots), `TrainingArtifactComposition` (namespace/size preflight),
-and `TrainingParameterMatch` (complete path/descriptor/logical-byte comparison); no extra public type.
+In `io.github.pho001.synaptik.training.checkpoint`: public final `TrainingCheckpoint` and nested
+immutable advanced `Snapshot`; private `TrainingArtifactCodec`, `TrainingArtifactComposition`
+and `TrainingParameterMatch`. Reuse TrainingRecipe/TrainingRun and ArtifactEnvelope, no live image
+wrapper or duplicate validation credential. Final signature freeze is a Ready condition.
 
-Proposed signatures (not current APIs):
+Conceptual, not existing APIs:
 
 ```text
-TrainingCheckpoint.save(Path, ArtifactEnvelope model, TrainingState, ArtifactLimits): void throws IOException
+TrainingCheckpoint.save(Path, TrainingRun): void throws IOException
+TrainingCheckpoint.loadModel(Path): DeclarativeModel throws IOException
+TrainingCheckpoint.resume(Path, Engine): TrainingRun throws IOException
 TrainingCheckpoint.read(Path, ArtifactLimits): Snapshot throws IOException
-Snapshot.modelInspection(): ModelCheckpointInspection
-Snapshot.trainingState(): TrainingState
-Snapshot.loadModel(Module privateTarget, byte[] configDigest, byte[] inputDigest, ArtifactLimits): void throws ArtifactFormatException
-Snapshot.restoreTraining(TrainingSession privateSession): void
 ```
 
-Snapshot is privately constructed after complete checks, owning detached envelope/inspection and
-TrainingState; accessors expose immutable values, never borrowed Module/Engine/session/storage.
-Read/accessors prove neither whole-model installation nor a restorable-session credential.
-`loadModel` independently delegates ModelCheckpoint.load with supplied limits and digests; existing
-bound-target/alias policy and one strict NN install remain unchanged. Null inputDigest means absent.
-`restoreTraining` obtains privateSession.state(), compares the complete parameter path set, types,
-shapes and exact logical bytes with saved state, then calls privateSession.restore(saved).
-These are TWO separately admitted operations: caller grants exclusive candidate/session use across
-both; no new lock or atomic admission is claimed. Preserve Training lifecycle errors and its
-validate-before-install guarantee. Mismatch is IllegalArgumentException, not partial installation.
-This checks only session parameters: the caller must loadModel onto the SAME private tree before
-session open and keep its loaded buffers unchanged through restore/publication; no identity token.
+Typed expected-input-identity and ArtifactLimits overloads serve advanced callers without generic
+LoadOptions. Short overloads require absent input digest; present fingerprint rejects until supplied
+expected identity is verified. No automatic tokenizer load (Text remains Draft).
+Advanced detached save/read/model-component/TrainingState access and explicit target/session
+restore remain available; do not turn successful read into a restorable-session certificate.
+Existing published ArtifactFile and ModelCheckpoint explicit APIs are unchanged.
 
-## Proposed canonical wire
+## Stored model and recipe
 
-Outer kind `training-checkpoint.v1`; framing remains ArtifactFile v1. Prefix every supplied
-`model.v1` entry key with `model/`, preserving payload bytes exactly. Save validates the supplied
-kind/schema through public ModelCheckpoint APIs. Add schema/slots below; reconstruct `model.v1`
-by stripping exactly `model/`; use public ModelCheckpoint.inspect/canonicalStateBytes/load,
-never parse private model ordinal metadata.
-`training/schema` is BIG_ENDIAN, no padding/trailing bytes, in this order:
+Initial proposal is NN 0026's Tensor-to-Tensor nested Sequential with Linear, LayerNorm, Embedding,
+Conv1d/2d/3d and closed RELU/TANH/SIGMOID steps; exact matrix remains a decision before Ready.
+Capture actual attrs and wiring, state descriptors and explicit sharing; never infer ModelForward
+captures. NN input constraints need not freeze inference batch size. Training recipe separately
+records STATIC dense/offset-zero input/target dtype/Shapes, roles/binding meaning, selected loss/
+options/reduction and modes/effective contexts/gradient mode. Scalar objective is FLOAT32/FLOAT64;
+low predictions cast explicitly as the approved loss requires. Saved optimizer alone is insufficient.
+TrainingState alone stores optimizer/default/groups; do not duplicate them in recipe encoding.
+Unknown custom/generic record models use existing explicit reconstruction, not routine resume.
 
-1. Eight ASCII bytes `SYNTRN01`, i32 version `1`, default optimizer record.
-2. i32 group count (>=0); each group: optimizer record, i32 path count (>0), ordered paths.
-3. i64 executions, i64 optimizerSteps, i64 accumulatedGradientRuns.
-4. i32 parameter count (>0, <=100000000); each ordered parameter: path, u8 dtype ID,
-   i32 static rank (>=0), rank i64 nonnegative extents, u8 second-slot presence (0/1),
-   i64 logical length and i64 optimizer-width length.
+Inference sharing must reconstruct source identity or reject it explicitly. Training rejects repeated
+parameter Tensor identities across paths/overlapping regions; never silently duplicate shared
+weights. A uniquely owned layer called multiple times is a different execution-DAG case.
+Current Training capability, compiler/backend gradients and context limits remain fail-closed.
 
-Paths: i32 positive UTF-8 length + exact bytes; reject malformed UTF-8/surrogates; no normalization/sorting.
-Optimizer record: u8 stable ID `1` SGD, `2` Adam, `3` AdamW. SGD has four raw IEEE binary64
-coefficients in accessor order learningRate, momentum, dampening, weightDecay, then u8 nesterov
-(0/1). Adam/AdamW have five: learningRate, beta1, beta2, epsilon, weightDecay.
-Encode raw long bits, decode with longBitsToDouble and public constructors; preserve signed zero.
-No enum IDs, NaN normalization or F32 narrowing; dtype IDs: `1` FLOAT64, `2` FLOAT32,
-`3` BFLOAT16, `7` FLOAT16.
+## Proposed canonical wire and retained foundation
 
-For parameter ordinal N, eight-digit ASCII decimal `00000000`..`99999999`, required keys are
-`training/parameter/N/logical`, `/master`, `/first`, `/pending`, and `/second` iff presence=1
-(each suffix shares the full `training/parameter/N` prefix). Accept exactly schema-derived ordinal/
-presence keys, not arbitrary keys matching a prefix. Logical bytes have declared width;
-all other slots use F64 for F64, F32 otherwise. Each entry length must equal its schema length,
-which must equal checked Shape element count times width. Preserve every raw byte, including low
-logical bytes distinct from masters, signed zeros, NaN payloads, and pending sums at zero count.
+Use new kind `training-model.v1` over UNCHANGED ArtifactFile v1 framing/publication. Prefix a
+validated `whole-model.v1` component under `whole-model/`, plus `recipe/schema` and Training
+schema/slot entries. Checkpoint 0005B defines whole-model canonical definition bytes and config
+SHA automatically. Reconstruct components by namespace only; delegate public whole-model operations
+and model.v1 inspect/canonicalStateBytes/load, NEVER parse private model metadata.
+Published `model.v1` remains untouched. Unpublished 0037 `training-checkpoint.v1` is replaced,
+not same-file-v1 compatible; no migration promise to an unimplemented wire.
 
-## Validation and allocation responsibilities
+Retain 0037's raw TrainingState codec foundation: BIG_ENDIAN, strict UTF-8 paths without
+normalization, explicit SGD=1/Adam=2/AdamW=3 IDs; raw binary64 optimizer coefficients in accessor
+order, ordered groups, execution/optimizer-step/pending counters, ordered static parameter schema.
+Dtype IDs 1 FLOAT64, 2 FLOAT32, 3 BFLOAT16, 7 FLOAT16. For ordinal N (eight-digit decimal), keys
+`training/parameter/N/{logical,master,first,pending}` plus `second` iff adaptive slot is present.
+Logical payload uses its dtype width; masters/slots/pending use F64 for F64, F32 otherwise.
+Preserve signed zeros, low logical/master distinctions and raw slot/pending bytes exactly.
+Structural constructors permit zero-size values; session restore decides actual trainability.
 
-Save/read must compare the COMPLETE model parameter path set with TrainingState: exact paths,
-PARAMETER kind, type, structural Shape and logical bytes, not a subset/schema-only comparison.
-Buffers retain all seven types/raw bits. Preserve Training order; reject duplicate/missing/extra
-paths, buffer substitution, mismatched type/shape/bytes, and unknown/extra/
-missing/duplicate artifact keys or IDs, unsupported versions, truncation or trailing data.
+Before Ready freeze magic/version/record order for revised Training schema and recipe loss IDs/
+options/signatures/context records; no generic caller-object encoding. Do not invent a duplicate
+certificate or pure validator. Public defensive TrainingState/ParameterState/ParameterGroup
+constructors establish structure; algorithm slot validity/finiteness/group membership/order and
+coefficient narrowing/session compatibility remain Training.restore authority.
 
-Structural checks match constructors: nonempty parameter list, static shapes (zero-element allowed),
-four floating types, exact widths, nonblank paths; 0<=steps,pending<=executions. ParameterGroup
-enforces nonempty/distinct/nonblank LOCAL paths.
-Global membership/cross-group overlap, algorithm-specific second-slot presence, slot finiteness,
-nonnegative second moments, positive session element counts, coefficient narrowing, captured order,
-and session compatibility remain Training.restore authority. NN path grammar for parameter entries
-comes from complete model comparison; do not silently strengthen group-path constructor rules.
-Read reconstructs through public grouped TrainingState and defensive ParameterState constructors.
-Before payload-sized schema allocation or ANY Entry/ParameterState clone, preflight complete
-projected outer AND reconstructed model framing, names, counts, schema/payload/aggregate/file sizes.
-ArtifactLimits applies unchanged: conservative array ceiling Integer.MAX_VALUE-8, stricter than
-ParameterState's ceiling. For each projection use checked long arithmetic:
-manifest=8+kindASCIIlength+sum(44+keyASCIIlength); file=48+manifest+aggregate.
-Names include prefixed outer keys and shorter reconstructed model keys/kind; independently enforce
-all six limits on both projections. Do not expose private ArtifactWire to obtain sizing.
-Bound EVERY nested count, rank and path length by remaining metadata/minimum record widths before
-list/string/extent allocation, plus byte-array ceilings; group count is not bounded by maxEntries
-alone. Do a noncopying metadata/descriptor scan and complete expected-key/length plan before payload
-copies. ArtifactFile.read itself bounds/checks outer bytes before returning its immutable envelope;
-adapter scan precedes additional component/Training copies. Existing immutable values may already
-copy; encoded canonical-byte limits are NOT a peak-heap budget or large-model support promise.
+## Validation, capture and recovery
 
-Malformed/unsupported/over-limit wire and cross-component save/read mismatch use checked
-ArtifactFormatException (IOException subtype); wrap encoded constructor/arithmetic failures there.
-Null caller arguments use NullPointerException; filesystem/force/move failures remain IOException.
-Model load semantic/limit decode failures remain checked ArtifactFormatException; target/digest
-mismatches and Training compatibility/lifecycle failures retain their documented unchecked types.
-No partial Snapshot or trusted inspection. ArtifactFile.save retains temporary-file validation,
-force and one atomic move; no fallback, target deletion, authentication or universal power-loss promise.
+Bound/checksum outer file first; preflight checked outer AND projected whole-model/model framing,
+schema/payload/aggregate sizes and all ArtifactLimits before component or ParameterState clones.
+Bound every nested count/rank/path/string by remaining bytes/minimum record size and array ceilings.
+Defaults must be conservative and configurable; canonical encoded limits are not peak-heap budgets.
+Reject missing/duplicate/extra keys, unknown versions/IDs, malformed/trailing data and truncation.
+Retain existing checked ArtifactFormatException/I/O taxonomy; owner/lifecycle errors stay owner errors.
 
-## Caller workflow and acceptance criteria
+Before save/read returns any detached snapshot, compare COMPLETE model parameter paths, PARAMETER
+kind, dtype/Shape and independent canonical logical bytes with TrainingState, including no extras.
+Buffers stay NN/model-owned with all seven raw model types. Definition must predict the whole NN
+descriptor/alias set; config SHA is not authentication, approval or a replacement for semantic checks.
+High-level save holds TrainingRun's narrow checkpoint exclusion across model capture + session.state;
+equality cannot prove quiescence. No old open-session binding replacement or capture race.
 
-Under application exclusion spanning BOTH session.state() and ModelCheckpoint.capture, capture one
-coherent pair including buffers, slots and counters; equality cannot prove capture quiescence.
-Detached save performs no live captures. For recovery, read; create a distinct fully bound private
-tree; loadModel on that SAME tree BEFORE session open; copy to supported native storage if needed;
-apply app modes/contexts and build objective from final Tensors; open private session; restoreTraining
-under exclusion; validate app handoff; publish replacement only after success. Never load NN bindings
-while that tree's session is open. Failure closes/discards candidate and preserves published tree.
-Example acceptance: CPU save/read/reopen followed by the same caller-selected next input matches the
-uninterrupted admitted route; mismatched candidate logical bytes reject before Training mutation.
-This proves stored-state recovery, not absent external-state or cross-device exact continuation.
+Recovery order is fixed:
 
-Tests cover all four Training dtypes, SGD/Adam/AdamW, ordered/mixed groups, raw coefficients/slots,
-counters/pending sums/low masters; immutable snapshots after source closure; all seven buffer types;
-complete path/type/Shape/raw-byte mismatches; structurally valid but session-invalid round trips;
-owner rejection; every outer/projected limit and nested allocation bound; corruption/extra keys;
-pre-move failure preserves target; failed private candidate preserves published tree;
-CPU next-input recovery and actual Metal smoke with source-matched library (explicit skip if absent).
+1. Read/bound/validate all components, definition/recipe meaning, fingerprints and raw-value coherence.
+2. NN reconstructs a private descriptor-bound model; public whole-model load installs heap state
+   BEFORE any session opens, preserving sharing or rejecting unsupported aliases.
+3. TrainingRun owns it exclusively, allocates/copies shared native parameter storage and applies
+   saved modes/contexts. Build placeholders and supported objective from final parameter Tensors.
+4. Open ONE ordinary TrainingSession with saved optimizer/groups; compare canonical parameters
+   and call ordinary restore through Training's private-run admission/restore bridge.
+5. Return only the complete run. Failure closes/discards everything acquired; session closes before
+   parameter/placeholder Arenas, all cleanup attempted and failures retained/suppressed.
 
-## Architecture cutover, documentation and validation
+Engine is borrowed, never closed by load/resume/run. TrainingRun.trainBatch validates actual dense
+dtype/Shape/layout/offset/view/storage and binds borrowed fresh batch storage to stable placeholder
+IDs through replaceHostStorage; roles resolve once from compiled metadata, associations clear in
+finally. No hot-path string dispatch/new input mapping authority, per-batch compile or input closure.
+Shape changes fail for fixed prepared recipe; an advancing graph-RNG stream is not provided.
+Run/native model never escapes as indefinitely usable state. loadModel instead returns independent
+heap-backed eval model, with no arena or TrainingSession; inference uses forward-only Engine.compute.
+High-level model-only load rejects legacy values-only files with a clear existing-target-load hint.
 
-After approval, independently Class C-review root/owning-contract decision before Ready; update root
-Dependency rules/ownership/Testing requirements, extensions/checkpoint + lifecycle; accept ADR 0037.
-Clean implementation delivers the following build/tests/docs in that same overall change, including
-`docs/architecture/{module-boundaries,dependency-rules,lifecycle}.md` and API/example/glossary as needed.
-Include optional project in settings with exactly the two api edges. Update existing
-`testing/architecture-tests/.../CheckpointDependencyContractTest.java`: replace absent-adapter
-assertion with exact inclusion/two-edge checks and forbid reverse edges from NN/Training/Checkpoint,
-modules/backends/tuning; retain Checkpoint's exact three-edge checks. Add no backend behavior.
-Add adapter test dependency and durable private-candidate fixture to testing/integration-tests.
-Clean implementation and independent targeted Class C review/docs are mandatory; Javadocs cover
-every parameter/result/failure/exclusion responsibility. Reuse successful executable evidence.
+## Acceptance, documentation and validation
+
+Tests cover high-level no-callback MLP inference and CPU next-input resume matching uninterrupted
+admitted route; all four Training dtypes, optimizers/mixed groups/raw slots/counters/pending;
+complete descriptor/raw-byte/alias/recipe/fingerprint mismatch; corruption/nested/outer/projected
+bounds; immutable values after source close; failed candidate preserving published state; native
+resource cleanup at every failure and borrowed Engine/input lifetime; reusable static batch binding.
+Add bounded actual Metal smoke with source-matched library and report absence/skips honestly;
+no cross-device exactness or broad performance claim.
+
+Before Ready coordinate root + owning extensions contract + explanations + ADR0038 acceptance
+and architecture tests; include optional project and exact two api edges only in implementation.
+Update CheckpointDependencyContractTest's absent-adapter assertion/exact edges and forbid reverse
+edges; retain model-only exact three-edge check. Add durable end-to-end integration fixture.
+Clean implementation + independent targeted Class C API/docs review. Update user examples,
+model/training API/Javadoc and targeted glossary terms; shared-doc coordinator integrates once.
 
 Future worker: `./gradlew :extensions:training-checkpoint:test :extensions:training-checkpoint:javadoc`.
-Coordinator: `SYNAPTIK_METAL_TEST_LIBRARY=<source-matched-library> ./gradlew test javadoc --max-workers=2 --console=plain`
-once after integration: architecture, durable integration and actual Metal/device evidence; use a
-verified source-matched library, reuse worker evidence and report device skips honestly.
-Validate local documentation links/anchors, brief <=200 lines/15KB, and `git diff --check`.
-Planning-only validation: no Java tests; existing Javadocs and glossary terms remain unchanged.
+Coordinator once after integration:
+`SYNAPTIK_METAL_TEST_LIBRARY=<source-matched-library> ./gradlew test javadoc --max-workers=2 --console=plain`.
+Reuse owner evidence; independent reviewer does not rerun successful Java suites.
+Planning now: local links/anchors, brief ≤200 lines/15KB, `git diff --check`; no Java/build edits/tests.
 
 ## Result
+
+Empty until implementation. Record changes/files/validation/docs/limitations/follow-up and required
+completion status; this planning revision marks no code implemented.

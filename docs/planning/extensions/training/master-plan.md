@@ -51,48 +51,47 @@ parameters declared by `extensions/nn`.
 
 ## Dependency DAG and authorized frontier
 
-`0001E -> 0002A -> 0002B -> 0002C -> 0003A -> 0004` is the completed correctness,
-decision, and private-candidate recovery chain. Future work is `0004 -> 0005`.
-Task 0004 also depends on Checkpoint 0001's accepted architecture, Checkpoint 0004's model
-artifact, and CPU 0024's restored-heap execution repair. It does not depend on the future
-Training Checkpoint adapter (Checkpoint 0006).
-[0002A](tasks/0002a-sgd-parameter-groups.md) is Complete after focused validation, independent
-Class B review, and the integration-owner `./gradlew test javadoc` checkpoint.
-[0002B](tasks/0002b-adam-and-adamw-optimizers.md) is Complete after independent Class B approval
-and the integration-owner repository test/Javadoc checkpoint. Audit repair 0002C is Complete;
-0004 is Complete after its executable proof, independent Class C review, and integration gate;
-0005 remains Draft. Accepted
-[ADR 0035](../../../design/decisions/0035-private-candidate-training-restore.md) selects
-caller-owned exclusion and an unpublished replacement using existing public APIs, with no
-mandatory pure validator or production transaction facade. Task 0003A is Complete after independent
-Class C approval at base `34fb1c8d6a48f9a9352c25597a86045180477fbc`; it selects a bounded
-state-complete claim without a new Training 0003 API. Governing
-headings are `ARCHITECTURE.md` scope index, module ownership and dependency rules, plus
-`docs/architecture/contracts/extensions-training.md` sections `extensions/nn`,
-`extensions/training`, and `Optimizer/training lifecycle`.
+Completed correctness/recovery chain:
+`0001E → 0002A → 0002B → 0002C → 0003A → 0004`.
+Training 0004 depends on completed Checkpoint model persistence and CPU 0024; it does not depend
+on the future optional adapter. Existing broader Training capability checkpoint 0005 stays Draft.
+Training-owned [Checkpoint 0005 reconstruction](../checkpoint/tasks/0005-training-state-reconstruction.md)
+and [Checkpoint 0005A envelope composition](../checkpoint/tasks/0005a-model-envelope-composition.md)
+are Complete; they do not authorize new execution.
 
-The accepted contract snapshot, validation, and limitation are recorded in the
-[0004 brief](tasks/0004-joint-restore-preflight-and-candidate-commit.md). The test-only Checkpoint
-dependency in `testing/integration-tests` passed the integration-owner repository gate.
-The user-authorized [Checkpoint 0005](../checkpoint/tasks/0005-training-state-reconstruction.md)
-is Complete: defensive reconstruction, external-package tests, final Javadoc/example validation,
-and independent API review passed in Training; do not create a duplicate Training task.
-Training's broader capability checkpoint 0005 remains Draft and is not this prerequisite.
+Revised proposed product in [ADR 0038](../../../design/decisions/0038-declarative-model-and-training-resume.md):
+automatic usable-model load and optional owned resume, not snapshot-only Model + TrainingState.
+[ADR 0037](../../../design/decisions/0037-stored-training-checkpoint-adapter.md) is withdrawn Proposed;
+raw state codecs/comparison remain useful. New DAG:
+`NN 0026 → Training 0006 and Checkpoint 0005B → optional Checkpoint 0006`;
+completed Checkpoint 0005A also precedes the adapter. No cycle or unrelated 0005 prerequisite.
 
-Authorized frontier: None. [Checkpoint 0006](../checkpoint/tasks/0006-training-checkpoint-adapter.md)
-remains Draft awaiting approval of its proposed API/wire/optional gate in
-[proposed ADR 0037](../../../design/decisions/0037-stored-training-checkpoint-adapter.md).
-Training's broader 0005 retains its separate Draft gate. Checkpoint
-[0005A](../checkpoint/tasks/0005a-model-envelope-composition.md) is Complete after implementation,
-independent Class C API/documentation approval, and configured coordinator gates. It introduces no
-Training work or dependency; 0006 depends on completed 0005A but is not authorized. Reconstruction exposes only
-three existing defensive constructors; trusted adoption/helpers remain internal.
-The Training/Checkpoint coordinator owns shared-document
-integration; exact metadata and evidence live in the linked Checkpoint brief.
+Authorized frontier: None. [Training 0006](tasks/0006-supported-recipe-and-owned-run.md),
+NN 0026, Checkpoint 0005B and revised adapter 0006 are Draft. Stabilize exact supported matrix,
+owner bridges and root/owning-contract/explanation/ADR/architecture-test cutover before Ready.
+Current scoped lifecycle wins until cutover; no code/build changes are authorized.
 
-The public `ParameterGroup` type in `io.github.pho001.synaptik.training` assigns stable Module
-paths to immutable optimizer configuration; 0002B adds `Adam` and `AdamW` in that package and
-extends only Training-owned state. NN keeps parameter declaration and traversal ownership.
+Proposed package map: TrainingRecipe and TrainingRun in existing
+`io.github.pho001.synaptik.training`, including a narrow nested checkpoint capture borrow.
+Training owns recipe loss/signature/mode meaning, stable batch placeholders and run resource
+admission/cleanup; the optional adapter owns only persistence composition.
+Recipe excludes duplicate optimizer/groups encoding: saved TrainingState is sole wire authority.
+Initial scalar MSE uses SUM/MEAN; objective FLOAT32/FLOAT64, low predictions explicitly cast as needed.
+Static dense offset-zero signatures reuse one prepared session; no per-batch recompile or RNG advance.
+Inference NN constraints may admit variable leading dimensions separately.
+
+TrainingRun owns private model/session/shared parameter Arena/placeholders, borrows Engine and
+batch storage, closes session before arenas and attempts all cleanup with retained failures.
+Batch binding uses fixed prototype IDs and borrowed replaceHostStorage/clearHostStorage in finally,
+not fresh IDs/list positions; roles resolve once from compiled metadata. Capture admission spans
+session.state and downstream model capture. No unrestricted model can outlive dead native storage.
+Repeated parameter Tensor identities across recursive paths/overlap reject; repeated forward use
+of one uniquely owned parameter path is distinct.
+
+Parallel group None, planning base `52733fcfd32d278b651302e308487e0b6c6afa81` reverified before Ready.
+Clean owner implementation and independent targeted Class C review; coordinator owns shared
+documents and once-only source-matched combined test/Javadoc validation. Exact metadata live in
+the brief. No duplicate pure validator, transaction framework, reverse edge or new runner.
 
 ## Task list
 
@@ -111,6 +110,7 @@ extends only Training-owned state. NN keeps parameter declaration and traversal 
 | 0003 | Exact-resume progress state | Superseded | 0003A decision | No new Training progress API: caller owns next input, sampler/epoch, external RNG, scheduler, and scaler handoff. |
 | [0004](tasks/0004-joint-restore-preflight-and-candidate-commit.md) | Joint restore on an unpublished candidate | Complete | 0003A; Checkpoint 0001 and 0004; CPU 0024 | Bounded same-route in-memory private-candidate restore proved in integration tests; independent Class C review and repository gate passed. No production facade or durable artifact. |
 | 0005 | Broader training capability checkpoint | Draft | 0002A–0004 | Validate broader optimizers, state-path stability, exact-resume claims, documentation, architecture boundaries, and a representative peak-memory measurement of parameter, slot, candidate, rollback, and snapshot storage before claiming large-model support. |
+| [0006](tasks/0006-supported-recipe-and-owned-run.md) | Supported recipe and owned reusable run | Draft | NN 0026; completed Training 0004/Checkpoint 0005; approved owner contract | Cohesive Training-owned loss/signature/batch/resource lifecycle for downstream automatic resume; no file I/O. |
 
 
 ## Milestones
@@ -121,71 +121,34 @@ extends only Training-owned state. NN keeps parameter declaration and traversal 
 
 ## Current status
 
-Task [0001](tasks/0001-public-training-session-and-sgd-lifecycle.md) is Complete from exact base
-`2e110c7688ead480faa4215ff67f9814fa81f4ad`. Mandatory external Class C review first returned
-`BLOCK` with six P1 and one P2 findings. After remediation and full validation, external re-review
-returned `APPROVE` with findings `0`. The task provides the first public TrainingSession, SGD,
-accumulation, detached in-memory state, strict restore, qualified CPU parameter-carrier coverage,
-and the existing Metal objective path recorded by ADR 0018. This does not claim BFLOAT16 or
-FLOAT16 Metal training execution; low-precision parameters keep private FLOAT32 masters, momentum,
-and accumulated gradients, with exact logical and optimizer-width snapshot payloads. Tasks
-0001A–0001E are Complete after focused validation and independent review. Task 0001C also passed
-a configured full-repository test/Javadoc run. Task 0001E removed idle inactive staging arrays
-and was pushed as `cbd14f3b`. Task 0002A added path-based SGD groups after independent approval
-and a successful repository test/Javadoc checkpoint, then was pushed as `19b7785c`. Task 0002B
-added mixed SGD/Adam/AdamW groups and exact two-moment state at `10d507a3`, with independent
-documentation review fix `23d1e39d` and a successful repository checkpoint. Numerical repair
-0002C is Complete. Decision task 0003A's independent Class C review initially blocked on
-forward-context capture, training-mode BatchNorm buffer publication, and caller-state codec scope;
-targeted remediation and final re-review returned APPROVE with no findings. Joint
-restore proof at Training 0004 is Complete after independent Class C review and the integration
-gate. Checkpoint 0005 is Complete for Training-owned defensive reconstruction only; Checkpoint 0006
-has a concrete proposed design awaiting API/wire/optional-gate approval, not Ready. The user selected Model +
-TrainingState persistence (optimizer/groups/slots/accumulation/counters); data position, external
-RNG, and other state absent from the artifact remain application-owned. The guarantee is restored
-stored state, not complete automatic exact continuation. No durable adapter is implemented.
-Completed [Checkpoint 0005A](../checkpoint/tasks/0005a-model-envelope-composition.md) now exposes
-detached model envelopes, ordered descriptors, independently validated canonical raw bytes, and
-strict envelope load for future comparison with TrainingState. Existing private helpers, file
-semantics and module edges remain unchanged; proposed ADR 0037 supplies the adapter design,
-but neither its wire nor optional build gate is approved.
-Complete [Checkpoint 0004A](../checkpoint/tasks/0004a-direct-leaf-model-save.md) removes the
-save-time expression-view workaround: the fixture saves the actual quiescent trained tree and
-directly re-saves loaded heap state before native parameter copying on the validated CPU route.
-This remains a bounded in-memory recovery proof, not durable Training continuation or generic
-zero-node Engine support. Completed Checkpoint 0005 authorizes no successor or durable adapter.
+Sessions, SGD/Adam/AdamW groups, detached state, defensive reconstruction and bounded same-route
+private-candidate restore are implemented. Completed evidence lives in linked briefs.
+ModelCheckpoint direct leaf save/re-save and public envelope composition are also Complete.
+No durable adapter, supported recipe/run convenience or whole-model specification is implemented.
+
+The user revised checkpoint direction (2026-10-14): normal load returns a usable supported model,
+with inference or automatic Training-owned resume. [Proposed ADR 0038](../../../design/decisions/0038-declarative-model-and-training-resume.md)
+and the new Draft owner capabilities replace the snapshot-only primary UX. External cursor/RNG/
+scheduler/scaler remain application-owned, not automatic exact continuation.
+BatchNorm training-buffer alignment, BPTT, Conv3d gradients and changing dropout streams remain
+fail-closed. Current native-copy/session APIs remain unchanged and available for advanced use.
 
 ## Open questions
 
-- Approve or revise the concrete [0006 proposal](../checkpoint/tasks/0006-training-checkpoint-adapter.md)
-  and coordinate its authoritative contract decision before Ready. It uses the implemented
-  existing-ArtifactEnvelope capture/inspect/canonical bytes/load boundary recorded by
-  [ADR 0036](../../../design/decisions/0036-model-envelope-composition.md) and completed
-  [Checkpoint 0005A](../checkpoint/tasks/0005a-model-envelope-composition.md), with no reverse edge.
-- Task 0001C established an explicit pre-session copy into caller-owned shared native storage for
-  initialized NN parameters. Direct native initialization remains a possible later convenience,
-  not an implicit `TrainingSession.open` behavior.
-- Task 0001E makes only inactive staging candidates demand-driven. Rollback storage remains
-  provisioned; any optional rollback policy needs a separate contract decision. Large snapshots
-  remain bounded by one Java byte array per payload; chunking needs a separate state
-  representation decision.
-- Dynamic compiled-input overlap is still checked pairwise on each run. Replacing that check
-  requires a separate proof for native, heap, and sliced segment identities and diagnostics.
-- An unavailable next-input cursor or external random state downgrades the claim to partial
-  restore/restart. Data 0001–0004 do not add sampling or epoch ownership.
-- Saved local Module modes do not establish the effective forward contexts supplied at objective
-  construction. Training-mode BatchNorm remains outside today's exact-continuation claim until
-  step-aligned detached running-buffer publication is proved. Durable caller-owned state needs
-  supported versioned schemas/codecs and owner validation; no generic object encoding is promised.
-- Measure and document aggregate parameter/slot/candidate/snapshot capacity before claiming
-  large-model support. Per-array limits and demand-driven staging do not constitute a total
-  memory budget; do not disable rollback implicitly as a memory optimization.
-- Training 0004 proved the selected unpublished-candidate handoff for one bounded same-route CPU
-  fixture. Session-specific state is validated after private open, and the caller publishes only
-  the complete replacement under exclusion. Checkpoint 0004A now supports direct trained-tree
-  save and loaded heap re-save without the private expression view, using Checkpoint-owned raw
-  movement requests through existing Engine compute. No generic zero-node Engine support,
-  in-place rollback, general transaction API, or durable Training artifact is provided.
+- Decide exact NN/loss/signature/mode matrix, inference aliases and descriptor-only skeleton proof.
+- Freeze Training-owned model transfer, coherent capture/restore bridge, batch admission and
+  failure cleanup; these are bounded contract decisions before Ready, not a new prerequisite waterfall.
+- Coordinate owning contract changes under proposed ADR 0038; broader Training 0005 is separate.
+- Preserve existing native-only update domain and duplicate-path/overlap rejection; do not quietly
+  split shared parameters or widen backend/gradient capability.
+- Rollback storage remains provisioned; optional rollback policy requires a separate contract
+  decision and must not be silently disabled as a memory optimization.
+- Snapshot payloads remain bounded by individual Java byte arrays; chunking requires a separate
+  state-representation decision, not merely larger encoded limits.
+- Dynamic compiled-input overlap remains pairwise per run; replacing it requires proof for native,
+  heap and sliced segment identities and preserved diagnostics.
+- Caller progress/RNG and large-model aggregate memory policy remain outside this artifact.
+  Stored encoded-byte limits do not establish a peak-memory budget.
 
 ## Decisions made
 

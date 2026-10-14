@@ -112,6 +112,34 @@ Draft rows without links have no detailed task brief.
 | [0025](tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) | Channels-first Conv1d, Conv2d, and Conv3d layers | Complete | 0020B; Model 0025G–0025H; Compiler 0006B and 0006B6; CPU 0008–0008A; Engine 0008 | Added rank-specific unary convolution layers/factory recipes with group-aware initialization, atomic inferred-channel binding, strict loading, and forward-only Conv3d boundary. |
 | [0025A](tasks/0025a-dimensional-convolution-user-capability-checkpoint.md) | Dimensional-convolution user-capability checkpoint | Complete | 0025; Engine 0004; CPU 0008A | Validated strict-loaded and factory convolution through public one-shot/reusable Engine workflows, numerical oracles, lifecycle ownership, and Conv3d backward rejection. |
 | [0025B](tasks/0025b-public-model-dependency-export.md) | Export public Model dependency | Complete | Existing NN facade; project review | Correct Gradle API visibility and validate an isolated NN-only consumer. |
+| [0026](tasks/0026-declarative-model-specification.md) | Declarative model specification and reconstruction | Draft | Completed 0025/0025A/0025B; approved NN matrix/contract | NN semantic configuration and forward reconstruction; no persistent codec or new dependency. |
+
+## Proposed whole-model checkpoint program
+
+[Proposed ADR 0038](../../../design/decisions/0038-declarative-model-and-training-resume.md)
+revises the primary product to automatic usable-model load, then inference or owned Training resume.
+0026 is a cohesive independent Draft candidate, not an authorized frontier.
+
+Dependency DAG: `NN 0026 → Checkpoint 0005B and Training 0006 → optional Checkpoint 0006`.
+No unrelated recurrent/Data work is a predecessor. Authorized frontier: None for this program.
+All proposals remain Draft until support matrix and root/owning-contract/explanation/ADR/
+architecture-test cutover are stable and dependency-verified. No implementation is authorized.
+
+Proposed package map: ModelSpecification and DeclarativeModel in existing nn.module, distinct from
+the ModelDefinition Java callback. Initial scope choice: nested Sequential, Linear/LayerNorm/
+Embedding/Conv1d/2d/3d and closed RELU/TANH/SIGMOID steps, not all Java models.
+NN owns actual attrs/signatures/wiring/sharing. Children alone do not prove forward flow.
+Inference constraints need not freeze batch dimensions; Training signatures are independently static.
+Inference aliases reconstruct faithfully or reject; Training rejects repeated parameter-path
+Tensor identities/overlapping stores, not every repeated forward use of one uniquely owned layer.
+Declarative branches/contextual adapters are explicit successors, not detailed new tasks.
+Descriptor-bound skeleton loading requires focused proof. Existing generic Model APIs stay intact.
+
+NN remains Model-only; bytes/versioning/files belong to Checkpoint, recipe/run lifecycle to Training.
+The coordinator owns shared documents; each capability uses separate clean implementation/review.
+Parallel group None; planning base `52733fcfd32d278b651302e308487e0b6c6afa81` is reverified before Ready.
+Owner module validation once, one combined source-matched test/Javadoc checkpoint, no performance
+campaign. Exact metadata live in the briefs.
 
 ## Milestones and current frontier
 
@@ -149,8 +177,9 @@ dependency plans, and roadmap above.
 - **Differentiation gate:** recurrent backpropagation through time remains fail-closed and belongs
   to Compiler. Conv3d gradients likewise remain fail-closed while Compiler 0006C is Draft. NN and
   Training must not imply either capability.
-- **Persistence/training gate:** NN owns only in-memory state paths and strict Tensor-reference
-  load. Durable artifacts belong to the Draft [Checkpoint plan](../checkpoint/master-plan.md);
+- **Persistence/training gate:** NN owns in-memory state paths and strict Tensor-reference
+  load, with declarative reconstruction proposed in 0026. Durable artifacts belong to
+  [Checkpoint](../checkpoint/master-plan.md), whose published explicit APIs remain implemented;
   optimizer/session/update orchestration belongs to [Training](../training/master-plan.md).
 - **Still-open API decisions:** select a persistent codec only with a concrete consumer; add a
   frozen padding row only with an owning gradient/replacement/update contract; add a shared

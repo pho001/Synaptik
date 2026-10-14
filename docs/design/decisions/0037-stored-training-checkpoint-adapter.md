@@ -2,10 +2,15 @@
 
 ## Status
 
-Proposed — 2026-10-14. Not accepted and not a build/implementation authorization.
-The single remaining decision is approval of the concrete API, wire and optional build gate in
-[Checkpoint 0006](../../planning/extensions/checkpoint/tasks/0006-training-checkpoint-adapter.md).
-No earlier ADR is superseded. The architecture root and owning scoped contract remain unchanged.
+Withdrawn Proposed direction — 2026-10-14; superseded as the primary product by
+[Proposed ADR 0038](0038-declarative-model-and-training-resume.md).
+Never accepted or implemented. The user revised direction to automatic usable-model load with
+inference or Training-owned resume; values + TrainingState alone cannot deliver that workflow.
+The original proposal below is retained as historical design evidence. Its linked 0006 brief is
+now revised, not an unchanged wire specification. Raw optimizer/group/slot/counter encoding,
+complete logical-byte comparison and bounded public-owner composition remain useful foundations.
+The unpublished training-checkpoint.v1 wire is not claimed compatible with 0038's new kind/content.
+Published model.v1/envelope APIs and current authoritative contracts remain unchanged.
 
 ## Context
 
@@ -38,9 +43,10 @@ The optional adapter is currently reserved but absent and forbidden from build i
 Create optional `extensions/training-checkpoint`, package
 `io.github.pho001.synaptik.training.checkpoint`, with exactly public Training and Checkpoint project
 dependencies. Existing NN/Model/Engine public types are transitive; there are no reverse/lower/backend
-edges. The [concrete brief](../../planning/extensions/checkpoint/tasks/0006-training-checkpoint-adapter.md#proposed-production-types-and-facade)
-specifies TrainingCheckpoint.save/read and a privately constructed immutable nested Snapshot with
-modelInspection/trainingState/loadModel/restoreTraining. No other public production type is proposed.
+edges. The original 0037 facade proposed TrainingCheckpoint.save/read and a privately constructed
+immutable nested Snapshot with modelInspection/trainingState/loadModel/restoreTraining.
+The [revised brief](../../planning/extensions/checkpoint/tasks/0006-training-checkpoint-adapter.md#proposed-types-and-high-level-api)
+supersedes that primary facade; the original proposal added no other public production type.
 
 Use outer kind `training-checkpoint.v1` over unchanged ArtifactFile framing/publication. Copy existing
 model entry bytes into fixed `model/` names and reconstruct `model.v1` for public ModelCheckpoint
@@ -48,8 +54,8 @@ validation/load. Do not inspect private ordinal metadata. A separate `training/s
 ordinal slot names encode explicit version/IDs, raw binary64 optimizer coefficients, ordered groups,
 ordered path/type/static-shape descriptors, lengths, second-slot presence and counters. Raw logical,
 master, momentum/moment and pending payload bytes are separate entries. The
-[wire proposal](../../planning/extensions/checkpoint/tasks/0006-training-checkpoint-adapter.md#proposed-canonical-wire)
-is the single detailed design; neither model.v1 nor envelope v1 changes. Existing framing SHA-256
+[original wire proposal, now revised](../../planning/extensions/checkpoint/tasks/0006-training-checkpoint-adapter.md#proposed-canonical-wire-and-retained-foundation)
+was not implemented; neither model.v1 nor envelope v1 changes. Existing framing SHA-256
 protects all encoded bytes; preserve existing model fingerprints without another certificate layer.
 
 Complete model parameter set/type/shape/logical-byte equality is required before save and before read
