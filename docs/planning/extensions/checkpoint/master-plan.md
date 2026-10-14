@@ -48,13 +48,15 @@ Training 0004 and Checkpoint 0004A → completed Training-owned 0005 → complet
 0007 also awaits
 the selected adapter/text gates. The user selected Model + TrainingState for 0006; external state
 remains application-owned. The model-envelope composition boundary is implemented under
-[ADR 0036](../../../design/decisions/0036-model-envelope-composition.md); the adapter codec,
-composition protocol, and build gate remain pending.
+[ADR 0036](../../../design/decisions/0036-model-envelope-composition.md).
+[Draft 0006](tasks/0006-training-checkpoint-adapter.md) and
+[proposed ADR 0037](../../../design/decisions/0037-stored-training-checkpoint-adapter.md) specify the
+concrete adapter API/wire and optional gate for approval, not implementation authorization.
 These edges do not authorize the Draft successors.
 
 Authorized frontier: None. [0005A](tasks/0005a-model-envelope-composition.md) is Complete after
 implementation, independent Class C API/documentation approval, and configured coordinator gates.
-0006 remains Draft pending concrete composition/codec/build-gate design; no new execution is authorized.
+0006 remains Draft awaiting approval of the proposed API/wire/optional gate; no execution is authorized.
 [0005](tasks/0005-training-state-reconstruction.md) is Complete;
 its implementation belongs to `extensions/training`, not Checkpoint.
 [0004A](tasks/0004a-direct-leaf-model-save.md) closed after clean
@@ -170,7 +172,7 @@ io.github.pho001.synaptik.training/
   TrainingState and nested ParameterState defensive public construction (0005)
 
 io.github.pho001.synaptik.training.checkpoint/
-  model + TrainingState schema and stored-state save/inspect/load adapter (design pending)
+  proposed model + TrainingState schema and stored-state save/read/load/restore adapter (0006 Draft)
 ```
 
 Do not add `manager`, `service`, `repository`, `registry`, `plugin`, or backend-specific packages.
@@ -226,8 +228,9 @@ position (including epoch/sampler cursor), external RNG, scheduler/scaler state,
 caller-owned state absent from the artifact remain application-owned. Module modes, effective
 forward contexts, and objective construction inputs are not implicitly supplied by TrainingState;
 the application must provide what its computation requires. Compiled/prepared/backend/device
-artifacts are rebuilt, not stored. Concrete composition, bounded versioned codecs, validation,
-and architecture design remain to be specified before 0006 becomes Ready.
+artifacts are rebuilt, not stored. [Draft 0006](tasks/0006-training-checkpoint-adapter.md) specifies
+concrete proposed composition, bounded wire, owner workflow and validation; approval and the
+authoritative contract decision are required before Ready.
 
 Any application-level exact-continuation claim still requires all affecting state under the
 existing Training lifecycle contract. The selected artifact alone does not establish that claim,
@@ -300,7 +303,7 @@ lambda or added as a generic reflective registry.
 | [0004A](tasks/0004a-direct-leaf-model-save.md) | Direct leaf-model save | Complete | Checkpoint 0004; CPU 0024; Training 0004, all Complete | Exact native/heap leaf capture, direct trained save/load and loaded re-save passed; workaround removed, independent review and configured coordinator gate passed. |
 | [0005](tasks/0005-training-state-reconstruction.md) | Training-owned detached state reconstruction prerequisite | Complete | Training 0004; Checkpoint 0004A, both Complete | Three defensive constructors exposed; external-package tests, final Javadoc/example validation, and independent API review passed. No codec. |
 | [0005A](tasks/0005a-model-envelope-composition.md) | Model-envelope composition | Complete | 0004A and 0005 Complete | Four existing-ArtifactEnvelope operations implemented; independent Class C API/documentation review and configured coordinator gates passed; file semantics and module edges unchanged. |
-| 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005A; concrete adapter composition/codec design | Selected Model + TrainingState persistence restores stored state; data position/external RNG and other absent caller-owned state remain application-owned. No complete automatic exact-continuation claim or execution authorization. Model-only Checkpoint stays independent of Training. |
+| [0006](tasks/0006-training-checkpoint-adapter.md) | Optional Training Checkpoint adapter | Draft | Completed 0002, 0004–0005A and Training 0004; proposed API/wire/optional-gate approval | Concrete proposed Model + TrainingState design in ADR 0037; external state remains application-owned. No automatic exact continuation or execution authorization. |
 | 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004A; 0006 for selected stored training-state recovery; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, stored model + TrainingState recovery, documentation, and dependency enforcement. |
 
 Checkpoint 0001 has made the explicit architecture decision. Checkpoint 0002 passed independent
@@ -348,7 +351,7 @@ load and validate TokenizerArtifact
   -> compile/prepare for the selected current Engine/backends
 ```
 
-Restore stored model + TrainingState (conceptual; concrete design pending):
+Restore stored model + TrainingState (conceptual; proposed 0006 design awaits approval):
 
 ```text
 load tokenizer artifact and verify fingerprint
@@ -391,8 +394,8 @@ durable cross-owner exact-resume format. The user-authorized Training-owned
 0006–0007 remain Draft; 0006 product scope is Model + TrainingState with external state
 application-owned. [0005A](tasks/0005a-model-envelope-composition.md) is Complete after envelope
 implementation, independent Class C API/documentation review, and configured coordinator gates.
-Adapter composition/codec/build
-authorization remains pending. Complete
+The concrete [0006 proposal](tasks/0006-training-checkpoint-adapter.md) awaits API/wire/optional-gate
+approval; build inclusion and implementation remain unauthorized. Complete
 [0004A](tasks/0004a-direct-leaf-model-save.md) removes the private expression-view workaround:
 ordinary save captures the actual quiescent trained tree and directly re-saves loaded heap state
 on the validated CPU route. Checkpoint selects raw-preserving leaf requests internally without
@@ -404,8 +407,8 @@ coordinator gate passed; no generic zero-node Engine/Prepare capability or new f
 - Decide whether a later schema should record source alias identity or support lazy targets.
   Version one uses the fully bound recreated target's alias topology and rejects lazy targets;
   opaque artifact bytes alone cannot establish either missing contract.
-- Design 0006's concrete model + TrainingState composition, bounded codecs, and architecture
-  before making it Ready. Caller-state persistence is excluded from the selected first adapter;
+- Approve or revise the concrete [0006](tasks/0006-training-checkpoint-adapter.md) API/wire/optional
+  gate proposal and coordinate the authoritative contract decision before Ready. Caller state is excluded;
   any future broader exact-recovery product would need a separate scope/design decision.
 - Version retention beyond one explicitly replaceable target and crash-durable directory-entry
   publication remain later product decisions. Version 1 provides file flush and atomic live

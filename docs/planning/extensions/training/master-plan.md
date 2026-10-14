@@ -79,8 +79,10 @@ is Complete: defensive reconstruction, external-package tests, final Javadoc/exa
 and independent API review passed in Training; do not create a duplicate Training task.
 Training's broader capability checkpoint 0005 remains Draft and is not this prerequisite.
 
-Authorized frontier: None. Checkpoint 0006 and Training's broader 0005 remain Draft pending
-their separate design gates. Checkpoint
+Authorized frontier: None. [Checkpoint 0006](../checkpoint/tasks/0006-training-checkpoint-adapter.md)
+remains Draft awaiting approval of its proposed API/wire/optional gate in
+[proposed ADR 0037](../../../design/decisions/0037-stored-training-checkpoint-adapter.md).
+Training's broader 0005 retains its separate Draft gate. Checkpoint
 [0005A](../checkpoint/tasks/0005a-model-envelope-composition.md) is Complete after implementation,
 independent Class C API/documentation approval, and configured coordinator gates. It introduces no
 Training work or dependency; 0006 depends on completed 0005A but is not authorized. Reconstruction exposes only
@@ -138,14 +140,15 @@ forward-context capture, training-mode BatchNorm buffer publication, and caller-
 targeted remediation and final re-review returned APPROVE with no findings. Joint
 restore proof at Training 0004 is Complete after independent Class C review and the integration
 gate. Checkpoint 0005 is Complete for Training-owned defensive reconstruction only; Checkpoint 0006
-remains Draft pending concrete composition/codec/architecture design. The user selected Model +
+has a concrete proposed design awaiting API/wire/optional-gate approval, not Ready. The user selected Model +
 TrainingState persistence (optimizer/groups/slots/accumulation/counters); data position, external
 RNG, and other state absent from the artifact remain application-owned. The guarantee is restored
 stored state, not complete automatic exact continuation. No durable adapter is implemented.
 Completed [Checkpoint 0005A](../checkpoint/tasks/0005a-model-envelope-composition.md) now exposes
 detached model envelopes, ordered descriptors, independently validated canonical raw bytes, and
 strict envelope load for future comparison with TrainingState. Existing private helpers, file
-semantics, and module edges remain unchanged; this does not select the adapter codec or build gate.
+semantics and module edges remain unchanged; proposed ADR 0037 supplies the adapter design,
+but neither its wire nor optional build gate is approved.
 Complete [Checkpoint 0004A](../checkpoint/tasks/0004a-direct-leaf-model-save.md) removes the
 save-time expression-view workaround: the fixture saves the actual quiescent trained tree and
 directly re-saves loaded heap state before native parameter copying on the validated CPU route.
@@ -154,7 +157,8 @@ zero-node Engine support. Completed Checkpoint 0005 authorizes no successor or d
 
 ## Open questions
 
-- The remaining optional adapter wire/composition/build design must use the implemented
+- Approve or revise the concrete [0006 proposal](../checkpoint/tasks/0006-training-checkpoint-adapter.md)
+  and coordinate its authoritative contract decision before Ready. It uses the implemented
   existing-ArtifactEnvelope capture/inspect/canonical bytes/load boundary recorded by
   [ADR 0036](../../../design/decisions/0036-model-envelope-composition.md) and completed
   [Checkpoint 0005A](../checkpoint/tasks/0005a-model-envelope-composition.md), with no reverse edge.

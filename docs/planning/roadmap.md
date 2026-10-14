@@ -56,7 +56,9 @@ is Complete after envelope implementation, independent Class C API/documentation
 configured coordinator gates. Authorized Checkpoint frontier: None. The user selected Model +
 TrainingState for durable adapter 0006, with external state application-owned and a stored-state restoration guarantee,
 not complete automatic exact continuation. Model-envelope composition is implemented;
-0006 remains Draft pending adapter composition/codec design and its separate build gate.
+[0006](extensions/checkpoint/tasks/0006-training-checkpoint-adapter.md) remains Draft: concrete
+proposed API/wire/optional gate in [proposed ADR 0037](../design/decisions/0037-stored-training-checkpoint-adapter.md)
+await approval; no build inclusion or implementation is authorized.
 
 | Area | Delivered baseline / remaining gate |
 |---|---|
@@ -79,7 +81,7 @@ not complete automatic exact continuation. Model-envelope composition is impleme
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions, SGD/Adam/AdamW groups and in-memory state delivered; 0003A/0004 Complete, 0003 Superseded. [Checkpoint 0005 reconstruction](extensions/checkpoint/tasks/0005-training-state-reconstruction.md) Complete after independent API review and validation; no durable artifact. Authorized frontier: None; Training broader checkpoint 0005 Draft. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through [0005A](extensions/checkpoint/tasks/0005a-model-envelope-composition.md): envelope capture/inspect/canonical bytes/load, independent Class C review and configured gates passed. Authorized frontier: None. 0006–0007 Draft; first 0006 scope is Model + TrainingState, external state application-owned. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through [0005A](extensions/checkpoint/tasks/0005a-model-envelope-composition.md). Authorized frontier: None. [0006](extensions/checkpoint/tasks/0006-training-checkpoint-adapter.md) Draft: proposed Model + TrainingState API/wire/optional gate awaits approval; external state application-owned. 0007 remains Draft. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
@@ -138,8 +140,9 @@ complete automatic exact-continuation claim is authorized.
 existing ArtifactEnvelope-based capture/inspect/canonical bytes/load on ModelCheckpoint, reusing
 internal machinery and preserving file semantics and module edges. Complete descriptors and raw
 logical bytes are available by exact path for future TrainingState comparison, not an implemented
-durable recovery protocol. 0006 depends on completed 0005A but remains Draft; no adapter wire design,
-build inclusion, reverse dependency, or implementation is authorized.
+durable recovery protocol. 0006 depends on completed 0005A but remains Draft. Proposed ADR 0037 and
+its brief now specify concrete API/wire/owner workflow awaiting approval and authoritative contract
+decision before Ready; no build inclusion, reverse dependency, or implementation is authorized.
 
 ## Explicit non-goals and unresolved decisions
 
