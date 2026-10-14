@@ -20,7 +20,8 @@ metadata and bytes, and Engine materializes save-time values. Loading does not u
 ## Core contracts
 
 `save(Path, Module, Engine, configDigest, inputDigest, ArtifactLimits)` snapshots the complete
-state once and publishes the existing version-one envelope. `inspect(Path, ArtifactLimits)`
+state once through public Engine materialization and publishes the existing version-one envelope
+when Engine can prepare that computation. `inspect(Path, ArtifactLimits)`
 validates the whole file, including checksums, the model schema, every payload, and canonical
 `BOOL` bytes (`0` or `1`). It returns ordered typed path, role, data type, Shape, and byte-length
 descriptors plus defensive digest copies. The inspection owns no file or live module/Engine data.
@@ -142,7 +143,17 @@ workspace. The v1 format has no migration or source-alias metadata.
 Model-only save, inspection, and load are available; the restored heap Tensors can be passed
 directly to Engine for computation on the validated CPU path. This API does not persist
 `TrainingState`, module modes, caller progress, or other state needed for exact training
-continuation. A separate Training Checkpoint adapter remains future work.
+continuation. A caller-coordinated [private training restore](training-api.md#caller-coordinated-in-memory-recovery)
+can load a model artifact into a distinct, fully bound unpublished tree, but no durable
+`TrainingCheckpoint` adapter or built-in cross-owner transaction exists.
+
+There is a current save-time execution limitation: calling `ModelCheckpoint.save` directly on
+the trained fixture's leaf-only NN state fails because Engine cannot prepare an empty partition
+plan for those output leaves. The focused integration test instead creates a private model-only
+expression view with raw-preserving `contiguous()` expressions over the exact, quiescent **live**
+Tensor references; Checkpoint then materializes and detaches those values through Engine. That
+view is test evidence for this bounded case, not a general save API or a promise that direct
+leaf-only save works. Callers must verify their save-time expression route is supported.
 
 ## Related API and architecture
 

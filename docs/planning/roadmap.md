@@ -46,7 +46,8 @@ integration commits and validation are recorded in the briefs and report. No wri
 ## Area map
 
 The area rows summarize status. Only an explicitly Ready brief at an authorized frontier permits
-new execution; this closure establishes no new Ready frontier.
+new execution. Training 0004 has closed after its integration gate; no Training/Checkpoint
+successor is Ready.
 
 | Area | Delivered baseline / remaining gate |
 |---|---|
@@ -68,8 +69,8 @@ new execution; this closure establishes no new Ready frontier.
 | [NN](extensions/nn/master-plan.md) | State/layers/static recurrence/lazy initialization/convolution delivered. Runtime scan/backend/Data program 0021B–0024 Draft. |
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
-| [Training](extensions/training/master-plan.md) | Sessions, SGD/Adam/AdamW groups and in-memory state delivered. Decision 0003A is Complete after independent Class C approval; 0003 is Superseded. Joint preflight/commit 0004 remains Draft. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through [0004](extensions/checkpoint/tasks/0004-public-model-checkpoint-save-inspect-load.md): public save/inspect/load, typed inspection, target-defined v1 aliases, and direct restored-heap Engine execution validated; 0005–0007 Draft. |
+| [Training](extensions/training/master-plan.md) | Sessions, SGD/Adam/AdamW groups and in-memory state delivered. Decision 0003A and [bounded private-candidate recovery 0004](extensions/training/tasks/0004-joint-restore-preflight-and-candidate-commit.md) are Complete; 0003 is Superseded. No production restore facade or durable Training artifact. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through [0004](extensions/checkpoint/tasks/0004-public-model-checkpoint-save-inspect-load.md): public model save/inspect/load and direct restored-heap Engine execution validated. Direct save of a trained leaf-only tree remains an Engine empty-partition limitation; 0005–0007 Draft. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
@@ -83,8 +84,11 @@ new execution; this closure establishes no new Ready frontier.
    is Complete after independent Class C approval at base
    `34fb1c8d6a48f9a9352c25597a86045180477fbc`. It selects a bounded state-complete
    claim, caller-owned next-input/external-state handoff, and no Training 0003 API.
-   Before a durable exact-resume claim, prepare Training 0004's joint preflight/commit gate; do
-   not invent a DataLoader or imply the current fixed session advances graph RNG between runs.
+   The bounded caller-owned private-candidate proof in
+   [Training 0004](extensions/training/tasks/0004-joint-restore-preflight-and-candidate-commit.md)
+   is Complete after independent Class C review and the integration-owner repository gate.
+   It is in-memory, same-route evidence, not durable exact-resume persistence. Do not invent a
+   DataLoader or imply the current fixed session advances graph RNG between runs.
 3. Durable model save/load was the selected stream and is now Complete. [Checkpoint 0001](extensions/checkpoint/tasks/0001-checkpoint-module-boundary.md)
    has completed the model-only module boundary. [Checkpoint 0002](extensions/checkpoint/tasks/0002-bounded-artifact-envelope.md)
    is Complete with a bounded single-file codec and atomic-live-publication policy;
@@ -96,18 +100,18 @@ new execution; this closure establishes no new Ready frontier.
 4. In a separately selected stream, Data 0001 authorizes Data/Text/Vision architecture before
    batching or text/image APIs. Runtime recurrent adoption still needs a concrete backend route.
 
-Step 2 records a completed decision, not authorization for Training 0004
-implementation. Step 3 records completed Checkpoint 0003/0004 and CPU 0024, not authorization
-for future Training or Checkpoint Draft tasks.
+Step 2 records the completed decision and Training 0004 proof, not a durable artifact. Step 3 records
+completed Checkpoint 0003/0004 and CPU 0024, not authorization for Checkpoint Draft successors.
 Step 4 is a proposal, not a Ready implementation task.
 An independent performance/shape follow-up, [CPU 0023](backends/cpu/tasks/0023-vector-erf-direct-java-shape.md),
 is also Draft: the bounded vector ERF diagnostic did not demonstrate parity with direct Java.
 It is not a prerequisite for unrelated Training/Checkpoint decisions or a new broad campaign.
 
 The Training/Checkpoint order is:
-`Training 0003A` and `Checkpoint 0001 → 0004`, then
-`Training 0004 → Checkpoint 0005 → Checkpoint 0006`. Training 0003 is Superseded; no
-adapter-to-prerequisite cycle remains.
+`Training 0003A` and `Checkpoint 0001 → 0004`, then completed `Training 0004`, followed by
+Draft `Checkpoint 0005 → Checkpoint 0006`. Training 0003 is Superseded; no
+adapter-to-prerequisite cycle remains. The leaf-only model-save limitation is a separate
+Checkpoint/Engine follow-up, not an implicit new frontier.
 
 ## Explicit non-goals and unresolved decisions
 

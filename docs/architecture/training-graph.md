@@ -221,14 +221,18 @@ its external augmentation generator's next state `81`, graph construction inputs
 the effective `ForwardContext(TRAINING)` supplied to dropout when constructing the objective,
 and every relevant module's local mode; it also obtains `TrainingState`. The explicit context
 must be recorded even if dropout's local mode was `EVALUATION`. For recovery it builds a
-compatible NN tree and parameter storage, restores local modes, supplies the recorded forward
-context while reconstructing the same objective from the final NN bindings, then opens a new
-session, restores `TrainingState`, restores caller progress and external generator state, and
-supplies `C` as the next input. The key/counter is rebuilt as a graph expression;
+distinct private NN tree, loads its saved bindings, restores local modes, copies parameter storage
+to the supported native domain, supplies the recorded forward context while reconstructing
+the same objective from the final NN bindings, then opens a new private session. It compares
+canonical logical parameter bytes, restores `TrainingState`, stages caller progress and external
+generator state, publishes the validated holder under exclusion, and supplies `C` as the next
+input. The key/counter is rebuilt as a graph expression;
 `81` belongs to the separate caller-owned generator; its in-memory handoff is not a Checkpoint
-codec. The current APIs do not make that multi-owner sequence atomic, so a recovery coordinator
-must finish validation and installation
-before publishing the recovered run as exact. The example does not claim a new dropout draw for
+codec. The current APIs do not make that multi-owner sequence atomic. The caller instead keeps
+the replacement tree and session private, compares the newly opened private session's canonical
+logical parameter bytes from `TrainingSession.state()` with the saved `TrainingState` bytes before
+restore, and publishes the replacement and staged caller state only after restore and all other
+checks succeed under caller-owned exclusion. The example does not claim a new dropout draw for
 each batch: the fixed graph reuses `(17, 4)`.
 
 **Refusal scenario.** If the augmentation generator is seeded again but its state after `B` is
@@ -242,18 +246,39 @@ Likewise, a program expecting dropout to consume graph state `(17, 4)` at `A` an
 automatically use its returned next state at `B` cannot call the current fixed session an exact
 advancing-stream continuation: `TrainingSession.run` exposes no per-run graph-RNG handoff.
 
-Training 0004 is the gate for a future joint restore. Under exclusive caller coordination, it
-must quiesce and close the old session, prepare detached NN values/modes and Training/caller state,
-prevalidate every schema and value, including NN/Training parameter-byte agreement by stable
-path, effective forward-context reconstruction, and fixed-objective compatibility before any
-installation,
-then install NN bindings and modes on an isolated unpublished replacement tree. Only after those
-bindings are final may it construct the objective, open a session against that tree, and restore
-Training state. It publishes the candidate and caller state together after success, or discards
-the candidate on ordinary failure. An in-place alternative needs complete rollback. Today's
-`loadStateDictionary` and `TrainingSession.restore` each validate only their own state; in
-particular Training cannot prevalidate restore without opening a session. Training 0004 must
-provide and test the missing joint preflight/commit mechanism before claiming atomic recovery.
+The [Training 0004 integration fixture](../../testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/PrivateTrainingRestoreIntegrationTest.java)
+exercises this bounded caller-coordinated joint restore; it does not introduce a general
+transaction API. It uses a model-only artifact for NN values and keeps Training and typed caller
+state in memory. Its save-time private expression view is needed because direct save of the
+trained leaf-only tree currently fails Engine's empty-partition preparation; that view is not a
+general model-save API. See the [model checkpoint limitations](../api/model-checkpoint-api.md#failures-and-limitations).
+Read this sequence as moving from detached evidence to private mutation to publication:
+
+```text
+quiesce published state; validate available detached facts and participant completeness
+  -> load NN values/modes and prepare native parameter storage on a distinct private tree
+  -> rebuild objective from its final Tensors; open a private session
+  -> compare canonical NN/Training logical bytes by stable path; restore TrainingState
+  -> validate staged caller state and candidate; publish under caller exclusion
+```
+
+Every check available from detached state precedes mutation of a published object. The NN load,
+native copy, Engine preparation, and session restore may mutate or allocate within the private
+candidate; their failure closes and discards that candidate without publication. In particular,
+`TrainingSession.restore` needs an open session to validate its fixed parameter view and payload.
+No separate pure pre-open Training validator is required. The newly opened candidate's
+`TrainingSession.state()` provides a detached canonical-byte view for the required comparison
+when the NN source does not expose comparable detached bytes; it copies the complete parameter
+and optimizer snapshot, so an earlier detached comparison is preferable when those bytes are
+already available. `ModelCheckpoint.inspect` exposes descriptors, not value bytes, and the
+loaded NN Tensor's native-order storage must not be compared directly with Training's canonical
+big-endian bytes. The old session may remain quiescent while a distinct candidate is built; the
+caller owns its retirement at handoff. Publication is a caller-controlled
+transition under exclusion, not rollback of an already closed old session or a linearizable view
+for readers that ignore exclusion. A participant that cannot be staged for that transition
+precludes an exact claim. The [restore decision](../design/decisions/0035-private-candidate-training-restore.md)
+explains why the validation stages are split.
+
 A future Checkpoint adapter may only encode and recover participants with supported versioned,
 bounded schemas/codecs and owner validators/restorers; it cannot create a missing sampler,
 random-state handoff, or scheduler. The BatchNorm training path needs separate step-aligned

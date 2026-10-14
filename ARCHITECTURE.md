@@ -433,7 +433,7 @@ This compact routing summary does not replace the linked details:
 | Optimizer algorithms, explicit pre-session native parameter copies, and training orchestration | Training |
 | Model-only checkpoint boundary, bounded opaque artifact envelope, and public model-state save/inspect/load | Checkpoint; NN retains whole-tree state installation |
 | Optional persistence of exact training continuation | Future Training Checkpoint adapter, after its separate gate; each state owner retains validation and restore authority |
-| Exact training continuation claim and cross-owner restore coordination | Each state owner retains its state; the caller coordinates the handoff under the [Training lifecycle contract](docs/architecture/contracts/extensions-training.md#optimizertraining-lifecycle) |
+| Exact training continuation claim and cross-owner restore coordination | Each state owner retains its state; the caller stages an unpublished replacement and controls exclusion and publication under the [Training lifecycle contract](docs/architecture/contracts/extensions-training.md#optimizertraining-lifecycle) |
 | Fixed benchmark evidence | `tools/benchmarks` |
 | Model-autotuning measurement, cache coordination, and selection | `tools/tuning` |
 

@@ -262,22 +262,36 @@ Rules:
 - NN state installation and Training restore currently validate only their own boundaries and
   do not form a cross-owner atomic transaction. `Module.loadStateDictionary(...)` replaces Tensor
   bindings and is forbidden while a Training session over that tree is open: the session captured
-  fixed wrapper, Tensor, storage, and objective identities at open. A future cross-owner atomic
-  restore requires a coordinator protocol: quiesce and close the old session; capture or construct
-  detached candidate NN values and per-module modes plus Training and caller-owned state; jointly
-  prevalidate their complete schemas, values, effective forward contexts, fixed-objective
-  construction inputs, and route compatibility before any live installation, including equality
-  between candidate NN parameter values and Training logical bytes at every stable path. On an
-  isolated, unpublished replacement tree,
-  install NN bindings and modes first, then construct the objective from those final Tensors,
-  open the replacement session, restore Training state, and stage caller progress/random state.
-  Publish the complete replacement only after all steps succeed under external exclusion; discard
-  the candidate on ordinary failure. An alternative in-place design must prove complete rollback
-  for every owner before claiming joint atomicity. Current NN and Training APIs cannot jointly
-  prevalidate a Training restore before opening a session, so the future capability must define
-  and test the missing preflight/commit mechanism; this ordering is a future design gate, not a
-  current transaction. A later Checkpoint adapter may persist only supported, validated participant
-  schemas and must not invent an NN-to-Training dependency.
+  fixed wrapper, Tensor, storage, and objective identities at open. For a coordinated exact
+  recovery, the caller quiesces published state and prepares a distinct, isolated, unpublished
+  replacement tree and session. Before mutating any published object, it identifies all required
+  participants: detached NN values or a bounded model artifact, per-module modes, Training state,
+  effective forward contexts, fixed-objective construction inputs, and typed caller-owned state.
+  It rejects missing or unsupported participants and validates every available detached fact,
+  including schemas, exposed values, and declared route requirements. A shallow
+  `StateDictionary` is not detached value evidence. The caller stages external progress, random,
+  scheduler, or scaler state so it can be handed off under exclusion without changing published
+  state during candidate preparation.
+
+  On the private tree, install NN bindings and modes first, revalidating any model artifact during
+  load. Prepare supported native parameter storage if needed, then construct the objective from
+  those final Tensors and open the replacement session. Before restore and publication, compare
+  the candidate's canonical logical parameter bytes with the supplied Training state's logical
+  bytes at every stable path. This comparison
+  may be made from already comparable detached values before open, or from the new private
+  session's `state()` snapshot after open; `ModelCheckpoint.inspect` alone exposes no value bytes.
+  Session-specific compatibility and payload validation may then occur through
+  `TrainingSession.restore`; it need not be duplicated in a pure pre-open Training validator.
+  Validate the resulting candidate and caller-state handoff completely, then publish the whole
+  replacement only after success under caller-owned exclusion. On ordinary failure, close and
+  discard the private candidate without publishing it. The old session need not be closed before
+  a distinct private candidate is prepared; the caller owns its quiescence and retirement during
+  the handoff. No end-to-end rollback of an already closed old session, general transaction API,
+  or simultaneous visibility to readers outside the exclusion is promised. If a participant
+  cannot be staged and handed off safely, do not claim exact recovery. Training 0004 must test
+  both rejection before publication and the successful next-input handoff. A later Checkpoint
+  adapter may persist only supported, validated participant schemas and must not invent an
+  NN-to-Training dependency.
 - Before opening a session, a caller may explicitly ask Training to copy a fully initialized
   Module tree's current parameters into a caller-owned shareable Arena. Training validates the
   complete recursive parameter set and source storage before replacing any Tensor association,

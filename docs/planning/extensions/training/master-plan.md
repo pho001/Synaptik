@@ -51,20 +51,30 @@ parameters declared by `extensions/nn`.
 
 ## Dependency DAG and authorized frontier
 
-`0001E -> 0002A -> 0002B -> 0002C -> 0003A` is the completed correctness and decision chain.
-Future work is `0003A -> 0004 (joint restore handoff) -> 0005`.
-Task 0004 also depends on Checkpoint 0001's accepted architecture and Checkpoint 0004's model
-artifact. It does not depend on the implemented Training Checkpoint adapter (Checkpoint 0006).
+`0001E -> 0002A -> 0002B -> 0002C -> 0003A -> 0004` is the completed correctness,
+decision, and private-candidate recovery chain. Future work is `0004 -> 0005`.
+Task 0004 also depends on Checkpoint 0001's accepted architecture, Checkpoint 0004's model
+artifact, and CPU 0024's restored-heap execution repair. It does not depend on the future
+Training Checkpoint adapter (Checkpoint 0006).
 [0002A](tasks/0002a-sgd-parameter-groups.md) is Complete after focused validation, independent
 Class B review, and the integration-owner `./gradlew test javadoc` checkpoint.
 [0002B](tasks/0002b-adam-and-adamw-optimizers.md) is Complete after independent Class B approval
 and the integration-owner repository test/Javadoc checkpoint. Audit repair 0002C is Complete;
-0004–0005 remain Draft behind the accepted 0003A decision. Task 0003A is Complete after independent
+0004 is Complete after its executable proof, independent Class C review, and integration gate;
+0005 remains Draft. Accepted
+[ADR 0035](../../../design/decisions/0035-private-candidate-training-restore.md) selects
+caller-owned exclusion and an unpublished replacement using existing public APIs, with no
+mandatory pure validator or production transaction facade. Task 0003A is Complete after independent
 Class C approval at base `34fb1c8d6a48f9a9352c25597a86045180477fbc`; it selects a bounded
 state-complete claim without a new Training 0003 API. Governing
 headings are `ARCHITECTURE.md` scope index, module ownership and dependency rules, plus
 `docs/architecture/contracts/extensions-training.md` sections `extensions/nn`,
 `extensions/training`, and `Optimizer/training lifecycle`.
+
+The accepted contract snapshot, validation, and limitation are recorded in the
+[0004 brief](tasks/0004-joint-restore-preflight-and-candidate-commit.md). The test-only Checkpoint
+dependency in `testing/integration-tests` passed the integration-owner repository gate.
+Checkpoint 0005 follows reviewed 0004 completion but remains Draft; no new frontier is authorized.
 
 The public `ParameterGroup` type in `io.github.pho001.synaptik.training` assigns stable Module
 paths to immutable optimizer configuration; 0002B adds `Adam` and `AdamW` in that package and
@@ -85,7 +95,7 @@ extends only Training-owned state. NN keeps parameter declaration and traversal 
 | [0002C](tasks/0002c-adaptive-update-operation-order.md) | Adaptive-update operation order | Complete | 0002B; project review | Preserve documented multiply-before-divide order and finite-update admission for Adam/AdamW. |
 | [0003A](tasks/0003a-exact-resume-state-ownership-decision.md) | Resume-state ownership and claim decision | Complete | 0002C; audit reconciliation | ADR 0030 accepts bounded exact continuation and the future joint restore gate; independent Class C re-review approved. |
 | 0003 | Exact-resume progress state | Superseded | 0003A decision | No new Training progress API: caller owns next input, sampler/epoch, external RNG, scheduler, and scaler handoff. |
-| 0004 | Training checkpoint integration boundary | Draft | 0003A; Checkpoint 0001 and 0004 | Define/test joint preflight and isolated unpublished candidate or complete rollback; NN install/mode and objective construction precede `TrainingSession.open`/restore. |
+| [0004](tasks/0004-joint-restore-preflight-and-candidate-commit.md) | Joint restore on an unpublished candidate | Complete | 0003A; Checkpoint 0001 and 0004; CPU 0024 | Bounded same-route in-memory private-candidate restore proved in integration tests; independent Class C review and repository gate passed. No production facade or durable artifact. |
 | 0005 | Broader training capability checkpoint | Draft | 0002A–0004 | Validate broader optimizers, state-path stability, exact-resume claims, documentation, architecture boundaries, and a representative peak-memory measurement of parameter, slot, candidate, rollback, and snapshot storage before claiming large-model support. |
 
 
@@ -114,7 +124,8 @@ documentation review fix `23d1e39d` and a successful repository checkpoint. Nume
 0002C is Complete. Decision task 0003A's independent Class C review initially blocked on
 forward-context capture, training-mode BatchNorm buffer publication, and caller-state codec scope;
 targeted remediation and final re-review returned APPROVE with no findings. Joint
-restore and Checkpoint work remain Draft behind Training 0004's preflight/commit gate.
+restore proof at Training 0004 is Complete after independent Class C review and the integration
+gate. Checkpoint 0005–0006 remain Draft; no durable Training Checkpoint adapter is implemented.
 
 ## Open questions
 
@@ -136,9 +147,12 @@ restore and Checkpoint work remain Draft behind Training 0004's preflight/commit
 - Measure and document aggregate parameter/slot/candidate/snapshot capacity before claiming
   large-model support. Per-array limits and demand-driven staging do not constitute a total
   memory budget; do not disable rollback implicitly as a memory optimization.
-- Training 0004 must prove joint preflight/commit or complete rollback. An isolated unpublished NN
-  tree may install bindings and mode before constructing the objective and opening its replacement
-  session; the current per-owner APIs are not one atomic transaction.
+- Training 0004 proved the selected unpublished-candidate handoff for one bounded same-route CPU
+  fixture. Session-specific state is validated after private open, and the caller publishes only
+  the complete replacement under exclusion. The save fixture needs a private expression view
+  because direct save of the trained leaf-only tree fails Engine empty-partition preparation;
+  this is a separate Checkpoint/Engine follow-up, not proof of direct leaf-only save. No in-place
+  rollback, general transaction API, or durable Training artifact is provided.
 
 ## Decisions made
 
@@ -149,6 +163,8 @@ restore and Checkpoint work remain Draft behind Training 0004's preflight/commit
 - [ADR 0030](../../../design/decisions/0030-exact-training-resume-state-ownership.md) keeps
   caller next-input/progress and external state outside `TrainingState`; the fixed session does
   not advance graph RNG between runs, and no new Training 0003 public API is selected.
+- [ADR 0035](../../../design/decisions/0035-private-candidate-training-restore.md) selects the
+  private-candidate validation/publication order for Training 0004.
 - Training owns optimizer/session snapshot semantics; Checkpoint owns durable encoding and file
   publication. A separate optional Training Checkpoint adapter preserves model-only checkpoint
   use without forcing a Training dependency.

@@ -22,8 +22,9 @@ Training-owned optimizer/session snapshot
 ```
 
 The opaque artifact, internal detached model candidate, and public model save/inspect/load are
-Complete, including direct Engine execution of restored heap Tensors; training flows remain
-future plans. [Checkpoint 0001](tasks/0001-checkpoint-module-boundary.md)
+Complete, including direct Engine execution of restored heap Tensors. Training 0004's bounded
+in-memory private-candidate handoff is proved; durable training flows remain future plans.
+[Checkpoint 0001](tasks/0001-checkpoint-module-boundary.md)
 completed the model-only boundary and initially empty Gradle project from base `81d50901`, after focused
 validation, independent Class C review, and the repository test/Javadoc gate.
 The optional Training Checkpoint adapter is neither included nor implemented.
@@ -204,17 +205,20 @@ Load is staged and fail-closed:
 5. Validate the complete path/kind/type/Shape set against a fully bound recreated topology;
    version-one load rejects an unbound/lazy target. A later NN lazy-binding contract would be
    required to admit one.
-6. For training resume, jointly prevalidate model, optimizer/session, effective forward contexts,
-   fixed-objective construction, next-input, RNG, sampler, scheduler, and scaler candidates before
-   any live installation; refuse unproved step-aligned buffer values and unsupported caller-state
-   schemas/codecs;
-   model parameter payloads must match Training logical bytes at each stable path.
-7. Training 0004 must supply the missing cross-owner preflight/commit protocol. On an isolated
-   unpublished replacement tree, install NN bindings and modes before constructing the objective
-   and opening/restoring a replacement `TrainingSession`; publish the complete candidate only on
-   success, or discard it on ordinary failure. An in-place alternative needs complete rollback.
-   Today's per-owner APIs do not supply one atomic transaction. No backend storage bypass or
-   partial permissive mode is implied.
+6. For training resume, identify every affecting participant and validate all available detached
+   model, Training, effective-context, objective-input, and typed caller-state facts before
+   changing published state; refuse unproved step-aligned buffers and unsupported durable
+   caller-state schemas/codecs. A prior model inspection does not expose parameter value bytes.
+7. Training 0004 has proved a bounded same-route in-memory instance of the caller-coordinated
+   private-candidate protocol selected by
+   [ADR 0035](../../../design/decisions/0035-private-candidate-training-restore.md). Load NN
+   bindings and modes only on a distinct unpublished tree, copy parameters to native storage when
+   needed, construct the objective from final Tensors, and open a private session. Compare the
+   candidate's canonical logical parameter bytes with Training's at every stable path before
+   restore/publication; `TrainingSession.state()` can provide those candidate bytes after open.
+   Let `TrainingSession.restore` validate its session-specific state, then publish the complete
+   candidate and staged caller state under exclusion. Ordinary failure discards the candidate.
+   No pure pre-open validator, generic transaction, or backend-storage bypass is required.
 
 The current artifact save creates a sibling temporary file in a trusted local directory.
 It writes the header and manifest before the contiguous bounded payloads, forces the temporary
@@ -250,7 +254,7 @@ lambda or added as a generic reflective registry.
 | [0002](tasks/0002-bounded-artifact-envelope.md) | Bounded artifact envelope | Complete | 0001 Complete; corrected v1 policy in brief | Opaque file API, bounds, SHA-256, file flush and atomic live publication implemented; 15 checkpoint tests, Javadoc, architecture test, and independent Class C review passed. |
 | [0003](tasks/0003-model-schema-and-materialization-handoff.md) | Model schema and Engine materialization handoff | Complete | 0002 Complete; existing NN export and Engine compute | Internal fixed-ID schema, detached candidate, and bounded public Engine handoff implemented; 22 module tests, Javadoc, and independent Class C review passed. No public save/load. |
 | [0004](tasks/0004-public-model-checkpoint-save-inspect-load.md) | Model checkpoint save, inspect, and strict load | Complete | 0003; [CPU 0024](../../backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md) for direct restored-heap execution | Public save/inspect/load and direct restored-heap Engine regression passed, with independent review, documentation, and combined validation. |
-| 0005 | Training-owned exact-resume snapshot prerequisite | Draft | Training 0004; Checkpoint 0004 | Consume stabilized optimizer/session and caller-state handoff plus cross-owner preflight/commit contracts; identify which concrete caller-owned participant schemas have owner validators/restorers. Training 0004 does not depend on this adapter. |
+| 0005 | Training-owned exact-resume snapshot prerequisite | Draft | Training 0004 Complete; Checkpoint 0004 | Consume the tested in-memory private-candidate handoff; identify which concrete caller-owned participant schemas have owner validators/restorers. No durable adapter or new frontier is authorized. |
 | 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005; supported caller-state schemas/codecs | Encode and restore only the model, Training state, effective objective contexts, and caller-owned participants with versioned bounded codecs and owner validation; reject an exact artifact for any unsupported affecting state. Model-only Checkpoint stays independent of Training. |
 | 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004; 0006 when exact training resume is selected; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, exact training resume, documentation, and dependency enforcement. |
 
@@ -271,8 +275,9 @@ adapter consumes the Training handoff, never implements its prerequisite.
 
 ## Planned end-to-end flows
 
-The text and training flows below are conceptual. The model checkpoint API and direct
-restored-heap Engine execution are implemented and validated.
+The text and durable-training flows below are conceptual. The model checkpoint API and direct
+restored-heap Engine execution are implemented and validated; Training 0004 proves only a bounded
+in-memory private-candidate handoff.
 
 Build and save a text model:
 
@@ -302,15 +307,16 @@ Resume training:
 load tokenizer artifact and verify fingerprint
   -> parse/checksum/validate the complete TrainingCheckpoint
   -> recreate an isolated NN tree and only supported caller-owned progress/random/scheduler/scaler candidates
-  -> jointly prevalidate all artifact, versioned owner-schema, effective forward-context, and fixed-objective inputs
-  -> install NN bindings/modes on that unpublished tree
-  -> construct the objective with the recorded contexts from final NN Tensors, then open and restore TrainingSession
+  -> validate all available detached artifact, versioned owner-schema, effective-context, and objective-input facts
+  -> load NN bindings/modes on that unpublished tree; copy parameters to native storage when needed
+  -> construct the objective with recorded contexts from final NN Tensors; open a private session
+  -> compare canonical parameter bytes by path; restore TrainingSession and validate staged caller state
   -> publish the complete candidate only after successful owner validation
   -> continue from recorded progress/RNG/sampler state
 ```
 
 This is a future protocol, not a runnable current API or an atomicity guarantee from today's
-`loadStateDictionary` and `TrainingSession.restore`.
+`loadStateDictionary` and `TrainingSession.restore`; publication remains caller-controlled.
 
 ## Milestones
 
@@ -329,15 +335,25 @@ target-defined alias and fail-closed unbound-target policy is implemented in
 [0004](tasks/0004-public-model-checkpoint-save-inspect-load.md). Direct restored-heap Engine
 execution and the combined repository gate passed after
 [CPU 0024](../../backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md).
-Training snapshots remain in-memory values, not a durable cross-owner exact-resume format.
+Training 0004's same-route in-memory private-candidate handoff passed independent Class C review
+and the integration-owner repository gate. Training snapshots remain in-memory values, not a
+durable cross-owner exact-resume format; 0005–0007 remain Draft. The fixture saves a private
+raw-preserving expression view over live Tensor references because direct model save of the
+trained leaf-only tree fails Engine empty-partition preparation. That workaround does not establish
+general direct leaf-only save support.
 
 ## Open questions
 
 - Decide whether a later schema should record source alias identity or support lazy targets.
   Version one uses the fully bound recreated target's alias topology and rejects lazy targets;
   opaque artifact bytes alone cannot establish either missing contract.
-- Implement and test Training 0004's cross-owner preflight/commit or rollback gate before an
-  optional adapter claims exact, atomic recovery.
+- Decide ownership and a bounded repair for direct `ModelCheckpoint.save` of a trained leaf-only
+  NN tree: Engine currently rejects the empty-partition prepare plan. Validate any repair with a
+  direct leaf-only model-save regression, without treating Training 0004's private expression
+  view as proof of that route. This follow-up has no detailed task or authorized frontier yet.
+- Before an optional adapter claims durable exact recovery, select supported versioned caller
+  participant schemas/codecs and owner validators/restorers; the in-memory Training 0004 proof
+  alone does not provide them.
 - Version retention beyond one explicitly replaceable target and crash-durable directory-entry
   publication remain later product decisions. Version 1 provides file flush and atomic live
   visibility, not a cross-platform power-loss guarantee or a non-atomic fallback.

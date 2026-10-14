@@ -9,6 +9,7 @@ dependencies {
     testImplementation(project(":backends:cpu"))
     testImplementation(project(":extensions:nn"))
     testImplementation(project(":extensions:training"))
+    testImplementation(project(":extensions:checkpoint"))
 }
 
 tasks.withType<Test>().configureEach {

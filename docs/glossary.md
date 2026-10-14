@@ -2954,8 +2954,10 @@ that file into a fully bound target. The target's Tensor identity defines alias 
 stored values must be byte-identical, and each group receives one fresh heap-backed Tensor.
 The v1 wire does not encode source sharing, so configuration fingerprints must cover it.
 A separately gated optional Training Checkpoint adapter would coordinate Training-owned state and
-caller-owned continuation data without making the model-only project depend on Training. No
-model migration rule, training-resume protocol, or universal serialization contract exists.
+caller-owned continuation data without making the model-only project depend on Training. A
+bounded caller-owned in-memory private-candidate restore is exercised by an integration test;
+there is no built-in cross-owner transaction, durable training-resume codec, model migration
+rule, or universal serialization contract.
 Existing in-memory optimizer/session snapshots and graph RNG
 expressions are not checkpoint payloads; compiler, runtime, and backend state are not part of
 model-state persistence. `StateDictionary` is the shallow in-memory module-state input to the
@@ -6514,7 +6516,10 @@ the actual forward contexts used to construct the objective, caller input positi
 random state, and any scheduler/scaler remain separate. Training-mode BatchNorm currently lacks
 a proved step-aligned running-buffer capture boundary for this claim. The
 fixed compiled `TrainingSession` has no per-run graph-RNG handoff, and no current cross-owner
-atomic restore API exists. A durable exact artifact also requires supported versioned schemas,
+atomic restore API exists. A private candidate is a distinct unpublished NN tree and Training
+session that the caller validates before replacing the live run under its own exclusion; the
+current integration fixture demonstrates that in-memory handoff, not a production coordinator.
+A durable exact artifact also requires supported versioned schemas,
 bounded codecs, and owner validation for every caller-owned participant; it cannot encode
 arbitrary state. This term promises neither a changing dropout stream nor bitwise identity across
 devices or execution routes. See the

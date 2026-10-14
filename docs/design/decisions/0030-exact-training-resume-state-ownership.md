@@ -5,6 +5,8 @@
 Accepted — 2026-10-13, after independent Class C approval of Training 0003A. This record
 explains the [authoritative Training lifecycle
 contract](../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle).
+Its participant ownership and exclusions remain accepted. The joint-restore ordering in its
+original version was refined on 2026-10-14 by [ADR 0035](0035-private-candidate-training-restore.md).
 
 ## Context
 
@@ -61,28 +63,14 @@ key/counter can be recorded and the fixed expression rebuilt, but the current se
 advance a dropout stream across runs. Changing per-step graph RNG requires a
 separate per-run API decision. No cross-device or cross-route bitwise promise follows.
 
-For future joint recovery, Training 0004 must establish this ordered gate under exclusive caller
-coordination:
-
-1. Quiesce and close the old session before any NN binding change.
-2. Stage proven step-aligned detached NN values, per-module modes, effective forward contexts,
-   Training state, fixed-objective construction inputs, and caller
-   progress/random/scheduler/scaler state; reject missing participants.
-3. Prevalidate the complete NN schema and values, Training configuration/path/schema/payloads,
-   matching NN parameter and Training logical bytes at each stable path,
-   objective-construction inputs, effective contexts, route compatibility, and each caller-owned
-   schema before installing any live participant.
-4. On an isolated unpublished replacement tree, install NN bindings and modes, then construct the
-   objective from those final Tensors, open the replacement session, and restore Training state.
-   Stage caller-owned next-input and external state; publish the complete candidate only after
-   success under external exclusion. Discard the candidate on ordinary failure. An in-place
-   alternative must roll back every owner before it can claim joint atomicity.
-
-Current per-owner APIs do not jointly prevalidate Training restore before session open or supply
-the publication transition in step 4. Training 0004 must design and test the missing
-preflight/commit mechanism before Checkpoint 0005–0006 can claim an
-atomic end-to-end restore. A Checkpoint adapter may persist only participant types with supported
-versioned, bounded schemas/codecs and owner validators/restorers. It cannot encode arbitrary
+For future joint recovery, Training 0004 must coordinate the supported participants on an
+isolated unpublished replacement and publish only after the candidate and caller-owned state
+have passed validation under external exclusion. [ADR 0035](0035-private-candidate-training-restore.md)
+sets the revised validation order: check available detached facts first, then allow
+session-specific restore checks after opening a private candidate. It does not require a
+general preflight/commit API or rollback of the old session. A Checkpoint adapter may persist
+only participant types with supported versioned, bounded schemas/codecs and owner
+validators/restorers. It cannot encode arbitrary
 caller-owned RNG, sampler, scheduler, or scaler objects as exact state; unsupported participants
 require refusal of an exact artifact or an explicitly labeled restart/partial mode. The adapter
 does not own NN state semantics, create a Data module, or make NN depend on Training.
@@ -91,8 +79,8 @@ does not own NN state semantics, create a Data module, or make NN depend on Trai
 
 The state affecting a future run spans several lifecycles. Keeping each value with its owner
 allows the owner to validate it and makes omissions visible. A single unvalidated Training blob
-would hide missing progress and random state. Prevalidation before installation prevents a known
-late schema failure from leaving NN and Training at different recovery points.
+would hide missing progress and random state. Private-candidate validation prevents a late
+schema failure from changing the published NN and Training recovery point.
 
 ## Consequences
 
@@ -103,7 +91,7 @@ for recovery; the current training-mode BatchNorm path has no proved step-aligne
 Mixed local modes and effective forward contexts require separate capture and reconstruction.
 Advancing
 graph-random streams cannot be represented by the current supported session workflow. Training
-0004 needs a new coordinated validation/installation design and failure tests. Checkpoint work
+0004 needs a coordinated private-candidate handoff and failure tests. Checkpoint work
 must wait for that gate and supported caller-state schemas/codecs before promising joint recovery.
 This decision adds no Java API, codec,
 backend route, or persistence format.
