@@ -18,12 +18,15 @@ import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.StateKind;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.ReadOnlyBufferException;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.lang.foreign.Arena;
 import java.nio.file.Path;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -63,17 +66,29 @@ class ModelCheckpointTest {
             target.addBuffer(value.name, leaf(value.type, value.shape, new byte[value.bytes.length], false));
         Path file = directory.resolve("model.chk");
         byte[] input = new byte[32]; input[0] = 9;
+        ArtifactEnvelope captured;
+        Map<String, ByteBuffer> capturedBytes;
         try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
             for (Case value : cases)
                 source.addBuffer(value.name, nativeSource
                         ? nativeLeaf(arena, value.type, value.shape, value.bytes, false)
                         : leaf(value.type, value.shape, value.bytes, false));
             var before = source.stateDictionary().entries();
+            captured = ModelCheckpoint.capture(source, engine, CONFIG, input, LIMITS);
+            capturedBytes = ModelCheckpoint.canonicalStateBytes(captured, LIMITS);
             ModelCheckpoint.save(file, source, engine, CONFIG, input, LIMITS);
             var after = source.stateDictionary().entries();
             for (int i = 0; i < before.size(); i++) assertSame(before.get(i).value(), after.get(i).value());
         }
         var inspected = ModelCheckpoint.inspect(file, LIMITS);
+        var envelopeInspection = ModelCheckpoint.inspect(captured, LIMITS);
+        assertEquals(inspected.states(), envelopeInspection.states());
+        assertArrayEquals(inspected.configDigest(), envelopeInspection.configDigest());
+        assertArrayEquals(inspected.inputDigest(), envelopeInspection.inputDigest());
+        assertArrayEquals(inspected.schemaFingerprint(), envelopeInspection.schemaFingerprint());
+        Path composed = directory.resolve("composed.chk");
+        ArtifactFile.save(composed, captured, LIMITS);
+        assertArrayEquals(Files.readAllBytes(file), Files.readAllBytes(composed));
         assertEquals(cases.stream().map(Case::name).toList(),
                 inspected.states().stream().map(ModelCheckpointInspection.State::path).toList());
         assertEquals(StateKind.BUFFER, inspected.states().getFirst().kind());
@@ -83,6 +98,14 @@ class ModelCheckpointTest {
             assertEquals(cases.get(i).type, inspected.states().get(i).dataType());
             assertEquals(cases.get(i).shape, inspected.states().get(i).shape());
             assertArrayEquals(cases.get(i).bytes, payload(ArtifactFile.read(file, LIMITS), i + 1));
+            ByteBuffer view = capturedBytes.get(cases.get(i).name);
+            assertTrue(view.isReadOnly());
+            assertEquals(ByteOrder.BIG_ENDIAN, view.order());
+            assertEquals(0, view.position());
+            assertEquals(cases.get(i).bytes.length, view.limit());
+            assertEquals(cases.get(i).bytes.length, view.capacity());
+            byte[] bytes = new byte[view.remaining()]; view.get(bytes);
+            assertArrayEquals(cases.get(i).bytes, bytes);
         }
         input[0] = 0;
         assertEquals(9, inspected.inputDigest()[0]);
@@ -91,7 +114,17 @@ class ModelCheckpointTest {
         assertArrayEquals(CONFIG, inspected.configDigest());
         assertNotEquals(5, inspected.schemaFingerprint()[0]);
         byte[] expectedInput = new byte[32]; expectedInput[0] = 9;
+        byte[] wrongInput = expectedInput.clone(); wrongInput[31] = 1;
+        assertThrows(IllegalArgumentException.class,
+                () -> ModelCheckpoint.load(captured, target, CONFIG, wrongInput, LIMITS));
+        assertThrows(IllegalArgumentException.class,
+                () -> ModelCheckpoint.load(captured, target, CONFIG, null, LIMITS));
+        assertThrows(NullPointerException.class, () -> ModelCheckpoint.inspect(captured, null));
+        assertThrows(NullPointerException.class, () -> ModelCheckpoint.canonicalStateBytes(captured, null));
+        assertThrows(NullPointerException.class,
+                () -> ModelCheckpoint.load(captured, target, CONFIG, expectedInput, null));
         ModelCheckpoint.load(file, target, CONFIG, expectedInput, LIMITS);
+        ModelCheckpoint.load(captured, target, CONFIG, expectedInput, LIMITS);
         try (Engine engine = Engine.standard()) {
             Path resaved = directory.resolve("resaved.chk");
             ModelCheckpoint.save(resaved, target, engine, CONFIG, expectedInput, LIMITS);
@@ -132,7 +165,8 @@ class ModelCheckpointTest {
         var target = new Fixture();
         target.addParameter("weight", shared);
         target.addBuffer("shadow", shared);
-        ModelCheckpoint.load(file, target, CONFIG, null, LIMITS);
+        ArtifactEnvelope envelope = ArtifactFile.read(file, LIMITS);
+        ModelCheckpoint.load(envelope, target, CONFIG, null, LIMITS);
         var loaded = target.stateDictionary().entries();
         assertSame(loaded.get(0).value(), loaded.get(1).value());
         assertNotSame(shared, loaded.get(0).value());
@@ -156,6 +190,8 @@ class ModelCheckpointTest {
         Tensor before = loaded.getFirst().value();
         assertThrows(IllegalArgumentException.class,
                 () -> ModelCheckpoint.load(file, target, CONFIG, null, LIMITS));
+        assertThrows(IllegalArgumentException.class,
+                () -> ModelCheckpoint.load(conflict, target, CONFIG, null, LIMITS));
         assertSame(before, target.stateDictionary().entries().getFirst().value());
         assertSame(before, target.stateDictionary().entries().get(1).value());
     }
@@ -172,22 +208,38 @@ class ModelCheckpointTest {
         var target = new Fixture();
         Tensor old = leaf(DataType.BOOL, Shape.scalar(), new byte[] {0}, false);
         target.addBuffer("flag", old);
+        ArtifactEnvelope valid = ArtifactFile.read(file, LIMITS);
+        assertThrows(IllegalArgumentException.class,
+                () -> ModelCheckpoint.load(valid, target, CONFIG, new byte[32], LIMITS));
         assertThrows(IllegalArgumentException.class,
                 () -> ModelCheckpoint.load(file, target, CONFIG, new byte[32], LIMITS));
         byte[] wrong = CONFIG.clone(); wrong[0] = 1;
+        assertThrows(IllegalArgumentException.class,
+                () -> ModelCheckpoint.load(valid, target, wrong, null, LIMITS));
         assertThrows(IllegalArgumentException.class,
                 () -> ModelCheckpoint.load(file, target, wrong, null, LIMITS));
         assertSame(old, target.stateDictionary().entries().getFirst().value());
         assertThrows(IllegalStateException.class,
                 () -> ModelCheckpoint.load(file, new LazyFixture(), CONFIG, null, LIMITS));
+        assertThrows(IllegalStateException.class,
+                () -> ModelCheckpoint.load(valid, new LazyFixture(), CONFIG, null, LIMITS));
+        assertThrows(IllegalArgumentException.class,
+                () -> ModelCheckpoint.load(valid, new Fixture(), CONFIG, null, LIMITS));
+        var wrongPath = new Fixture(); wrongPath.addBuffer("other", old);
+        assertThrows(IllegalArgumentException.class,
+                () -> ModelCheckpoint.load(valid, wrongPath, CONFIG, null, LIMITS));
+        assertSame(old, wrongPath.stateDictionary().entries().getFirst().value());
         assertThrows(IllegalArgumentException.class,
                 () -> ModelCheckpoint.load(file, new Fixture(), CONFIG, null, LIMITS));
 
         ModelCheckpointInspection prior = ModelCheckpoint.inspect(file, LIMITS);
-        ArtifactEnvelope valid = ArtifactFile.read(file, LIMITS);
-        ArtifactFile.save(file, new ArtifactEnvelope("model.v1", List.of(
+        ModelCheckpointInspection priorEnvelope = ModelCheckpoint.inspect(valid, LIMITS);
+        ArtifactEnvelope invalid = new ArtifactEnvelope("model.v1", List.of(
                 new ArtifactEnvelope.Entry("schema", payload(valid, 0)),
-                new ArtifactEnvelope.Entry("state/00000000", new byte[] {2}))), LIMITS);
+                new ArtifactEnvelope.Entry("state/00000000", new byte[] {2})));
+        assertEnvelopeRejected(invalid, LIMITS, target);
+        assertEquals(prior.states(), priorEnvelope.states());
+        ArtifactFile.save(file, invalid, LIMITS);
         assertThrows(ArtifactFormatException.class, () -> ModelCheckpoint.inspect(file, LIMITS));
         assertThrows(ArtifactFormatException.class,
                 () -> ModelCheckpoint.load(file, target, CONFIG, null, LIMITS));
@@ -214,9 +266,18 @@ class ModelCheckpointTest {
         target.addBuffer("second", second);
         assertThrows(IllegalArgumentException.class,
                 () -> ModelCheckpoint.load(file, target, CONFIG, null, LIMITS));
+        assertThrows(IllegalArgumentException.class,
+                () -> ModelCheckpoint.load(ArtifactFile.read(file, LIMITS), target, CONFIG, null, LIMITS));
         var state = target.stateDictionary().entries();
         assertSame(first, state.getFirst().value());
         assertSame(second, state.get(1).value());
+        var wrongRole = new Fixture();
+        Tensor parameter = leaf(DataType.FLOAT32, Shape.scalar(), words(4, 0x40000000), true);
+        wrongRole.addParameter("first", parameter);
+        wrongRole.addBuffer("second", second);
+        assertThrows(IllegalArgumentException.class,
+                () -> ModelCheckpoint.load(ArtifactFile.read(file, LIMITS), wrongRole, CONFIG, null, LIMITS));
+        assertSame(parameter, wrongRole.stateDictionary().entries().getFirst().value());
     }
 
     @Test
@@ -225,12 +286,143 @@ class ModelCheckpointTest {
         closed.close();
         Path file = directory.resolve("empty.chk");
         ModelCheckpoint.save(file, new Fixture(), closed, CONFIG, null, LIMITS);
+        ArtifactEnvelope empty = ModelCheckpoint.capture(new Fixture(), closed, CONFIG, null, LIMITS);
+        assertTrue(ModelCheckpoint.inspect(empty, LIMITS).states().isEmpty());
+        assertTrue(ModelCheckpoint.canonicalStateBytes(empty, LIMITS).isEmpty());
+        assertDoesNotThrow(() -> ModelCheckpoint.load(empty, new Fixture(), CONFIG, null, LIMITS));
         assertTrue(ModelCheckpoint.inspect(file, LIMITS).states().isEmpty());
         assertDoesNotThrow(() -> ModelCheckpoint.load(file, new Fixture(), CONFIG, null, LIMITS));
         ArtifactLimits tinyFile = new ArtifactLimits(48, 8192, 32, 32, 8192, 8192);
         assertThrows(ArtifactFormatException.class, () -> ModelCheckpoint.inspect(file, tinyFile));
         assertThrows(ArtifactFormatException.class,
                 () -> ModelCheckpoint.load(file, new Fixture(), CONFIG, null, tinyFile));
+        assertEnvelopeRejected(empty, tinyFile, new Fixture());
+    }
+
+    @Test
+    void canonicalViewsHaveImmutableStructureAndIndependentAliasCursors() throws Exception {
+        var source = new Fixture();
+        Tensor shared = leaf(DataType.FLOAT32, Shape.of(2), words(4, 0x80000000L, 0x7fc01234L), true);
+        source.addParameter("z重み/🦉 space", shared);
+        source.addBuffer("a", shared);
+        ArtifactEnvelope envelope;
+        try (Engine engine = Engine.standard()) {
+            envelope = ModelCheckpoint.capture(source, engine, CONFIG, null, LIMITS);
+        }
+        var first = ModelCheckpoint.canonicalStateBytes(envelope, LIMITS);
+        var second = ModelCheckpoint.canonicalStateBytes(envelope, LIMITS);
+        assertEquals(List.of("z重み/🦉 space", "a"), new ArrayList<>(first.keySet()));
+        assertThrows(UnsupportedOperationException.class, first::clear);
+        assertThrows(UnsupportedOperationException.class, () -> first.put("new", ByteBuffer.allocate(0)));
+        assertThrows(UnsupportedOperationException.class,
+                () -> first.entrySet().iterator().next().setValue(ByteBuffer.allocate(0)));
+        ByteBuffer moved = first.get("z重み/🦉 space");
+        assertNotSame(moved, first.get("a"));
+        assertNotSame(moved, second.get("z重み/🦉 space"));
+        assertThrows(ReadOnlyBufferException.class, () -> moved.putInt(0, 7));
+        moved.position(4).limit(4).order(ByteOrder.LITTLE_ENDIAN);
+        for (ByteBuffer unaffected : List.of(first.get("a"), second.get("z重み/🦉 space"),
+                ModelCheckpoint.canonicalStateBytes(envelope, LIMITS).get("z重み/🦉 space"),
+                envelope.entries().get(1).payload())) {
+            assertEquals(0, unaffected.position());
+            assertEquals(8, unaffected.limit());
+            assertEquals(ByteOrder.BIG_ENDIAN, unaffected.order());
+            assertEquals(0x80000000, unaffected.getInt(0));
+            assertEquals(0x7fc01234, unaffected.getInt(4));
+        }
+    }
+
+    @Test
+    void standaloneEnvelopeOperationsApplyEveryExactLimitIncludingAliases() throws Exception {
+        var source = new Fixture();
+        Tensor shared = leaf(DataType.INT32, Shape.of(64), new byte[256], false);
+        source.addBuffer("first", shared); source.addBuffer("second", shared);
+        ArtifactEnvelope envelope;
+        try (Engine engine = Engine.standard()) {
+            envelope = ModelCheckpoint.capture(source, engine, CONFIG, null, LIMITS);
+        }
+        int schema = envelope.entries().getFirst().size();
+        int manifest = 66 + 58 * 2; // v1 kind/schema plus two ordinal descriptors
+        long aggregate = schema + 512L;
+        long file = 48L + manifest + aggregate;
+        var exact = new ArtifactLimits(file, manifest, 3, 14, 256, aggregate);
+        assertEquals(2, ModelCheckpoint.inspect(envelope, exact).states().size());
+        assertEquals(2, ModelCheckpoint.canonicalStateBytes(envelope, exact).size());
+        assertDoesNotThrow(() -> ModelCheckpoint.load(envelope, source, CONFIG, null, exact));
+        try (Engine engine = Engine.standard()) {
+            assertDoesNotThrow(() -> ModelCheckpoint.capture(source, engine, CONFIG, null, exact));
+        }
+        List<ArtifactLimits> below = List.of(
+                new ArtifactLimits(file - 1, manifest, 3, 14, 256, aggregate),
+                new ArtifactLimits(file, manifest - 1, 3, 14, 256, aggregate),
+                new ArtifactLimits(file, manifest, 2, 14, 256, aggregate),
+                new ArtifactLimits(file, manifest, 3, 13, 256, aggregate),
+                new ArtifactLimits(file, manifest, 3, 14, 255, aggregate),
+                new ArtifactLimits(file, manifest, 3, 14, 256, aggregate - 1));
+        Engine closed = Engine.standard(); closed.close();
+        var before = source.stateDictionary().entries();
+        for (ArtifactLimits limits : below) {
+            assertEnvelopeRejected(envelope, limits, source);
+            assertThrows(IllegalArgumentException.class,
+                    () -> ModelCheckpoint.capture(source, closed, CONFIG, null, limits));
+        }
+        var empty = ModelCheckpoint.capture(new Fixture(), closed, CONFIG, null, LIMITS);
+        var exactEmpty = new ArtifactLimits(163, 66, 1, 8, 49, 49);
+        assertEquals(0, ModelCheckpoint.inspect(empty, exactEmpty).states().size());
+        assertEquals(0, ModelCheckpoint.canonicalStateBytes(empty, exactEmpty).size());
+        assertDoesNotThrow(() -> ModelCheckpoint.load(empty, new Fixture(), CONFIG, null, exactEmpty));
+        assertDoesNotThrow(() -> ModelCheckpoint.capture(new Fixture(), closed, CONFIG, null, exactEmpty));
+        assertEnvelopeRejected(empty, new ArtifactLimits(163, 66, 1, 7, 49, 49), new Fixture());
+        var belowSchema = new ArtifactLimits(163, 66, 1, 8, 48, 49);
+        assertEnvelopeRejected(empty, belowSchema, new Fixture());
+        assertThrows(IllegalArgumentException.class,
+                () -> ModelCheckpoint.capture(new Fixture(), closed, CONFIG, null, belowSchema));
+        for (int i = 0; i < before.size(); i++)
+            assertSame(before.get(i).value(), source.stateDictionary().entries().get(i).value());
+    }
+
+    @Test
+    void preservesFileArgumentFailureOrderingAndEnvelopeNullContracts() {
+        Path missing = directory.resolve("missing.chk");
+        var target = new Fixture();
+        assertThrows(NullPointerException.class,
+                () -> ModelCheckpoint.save(null, null, null, null, null, null));
+        assertThrows(NullPointerException.class,
+                () -> ModelCheckpoint.load(missing, null, new byte[31], null, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> ModelCheckpoint.load((Path) null, target, new byte[31], null, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> ModelCheckpoint.load(missing, target, CONFIG, new byte[31], null));
+        assertThrows(NullPointerException.class, () -> ModelCheckpoint.inspect((Path) null, null));
+        assertThrows(NullPointerException.class,
+                () -> ModelCheckpoint.inspect((ArtifactEnvelope) null, LIMITS));
+        assertThrows(NullPointerException.class,
+                () -> ModelCheckpoint.canonicalStateBytes(null, LIMITS));
+        assertThrows(NullPointerException.class,
+                () -> ModelCheckpoint.load((ArtifactEnvelope) null, target, CONFIG, null, LIMITS));
+        assertThrows(IllegalArgumentException.class,
+                () -> ModelCheckpoint.load((ArtifactEnvelope) null, target, new byte[31], null, null));
+        assertThrows(NullPointerException.class,
+                () -> ModelCheckpoint.capture(target, null, CONFIG, null, LIMITS));
+    }
+
+    /**
+     * Checks independent facade rejection and complete binding preservation for invalid bytes/bounds.
+     *
+     * @param envelope detached image expected to fail semantic decode
+     * @param limits bounds under which the image is invalid
+     * @param target fully bound tree whose exact bindings must remain unchanged
+     */
+    private static void assertEnvelopeRejected(ArtifactEnvelope envelope, ArtifactLimits limits,
+                                                Module target) {
+        var before = target.stateDictionary().entries();
+        assertThrows(ArtifactFormatException.class, () -> ModelCheckpoint.inspect(envelope, limits));
+        assertThrows(ArtifactFormatException.class,
+                () -> ModelCheckpoint.canonicalStateBytes(envelope, limits));
+        assertThrows(ArtifactFormatException.class,
+                () -> ModelCheckpoint.load(envelope, target, CONFIG, null, limits));
+        var after = target.stateDictionary().entries();
+        for (int i = 0; i < before.size(); i++) assertSame(before.get(i).value(), after.get(i).value());
     }
 
     private static byte[] payload(ArtifactEnvelope envelope, int index) {

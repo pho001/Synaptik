@@ -2,13 +2,14 @@
 
 ## Status
 
-Accepted — 2026-10-14. Boundary approved; API implementation is planned in Checkpoint 0005A.
+Accepted — 2026-10-14. The approved API scope is implemented in the Checkpoint 0005A change;
+coordinator acceptance remains a separate validation gate, not a new architecture decision.
 The optional Training Checkpoint adapter 0006 remains Draft and has no build authorization.
 
 ## Context
 
-The current ModelCheckpoint file API validates and installs model state, but inspection exposes
-descriptors without values. The selected future Model + TrainingState product needs complete
+At decision time, the ModelCheckpoint file API validated and installed model state, but inspection
+exposed descriptors without values. The selected future Model + TrainingState product needs complete
 model parameter descriptors and raw logical bytes to compare against detached TrainingState.
 Otherwise composition would require private implementation access or an unnecessary file round
 trip. This record explains the [owning contract](../../architecture/contracts/extensions-training.md#extensionscheckpoint);
@@ -32,7 +33,7 @@ it does not override the [architecture root](../../../ARCHITECTURE.md).
 
 ## Decision
 
-Choose option 3. Plan `capture`, envelope `inspect`, `canonicalStateBytes`, and envelope `load`
+Choose option 3. Expose `capture`, envelope `inspect`, `canonicalStateBytes`, and envelope `load`
 on the existing ModelCheckpoint. Reuse internal capture, decode/preflight, and restoration;
 keep their production types package-private. The new operations declare checked
 ArtifactFormatException for semantic decode rejection; capture retains existing unchecked
@@ -78,5 +79,6 @@ making model-only users acquire Training or allowing inspection to act as a trus
 - [Current file facade](0034-public-model-checkpoint.md)
 - [Private-candidate protocol](0035-private-candidate-training-restore.md)
 - [Module-boundary explanation](../../architecture/module-boundaries.md#extensionscheckpoint)
+- [File-free model API example](../../api/model-checkpoint-api.md#file-free-example)
 - [0005A execution brief](../../planning/extensions/checkpoint/tasks/0005a-model-envelope-composition.md)
 - [Existing dependency assertions](../../../testing/architecture-tests/src/test/java/io/github/pho001/synaptik/testing/architecture/CheckpointDependencyContractTest.java)

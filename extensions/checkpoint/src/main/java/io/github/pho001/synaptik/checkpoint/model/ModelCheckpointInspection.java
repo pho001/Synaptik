@@ -8,9 +8,12 @@ import java.util.Objects;
 
 /**
  * Detached, typed description of a completely validated version-one model checkpoint. It owns
- * no file, Tensor, module, Engine, or closeable resource. A later load rereads its path and does
- * not trust this snapshot. The digests identify caller-defined configuration and optional input
- * artifact bytes; Checkpoint does not interpret their meaning.
+ * no file, Tensor, module, Engine, or closeable resource. A later file load rereads its path;
+ * envelope byte access and load independently validate their supplied image. None trusts this
+ * snapshot as a validation credential. The digests identify caller-defined configuration and
+ * optional input artifact bytes; Checkpoint does not interpret their meaning. State descriptors
+ * contain no value bytes; use {@link ModelCheckpoint#canonicalStateBytes} for independently
+ * validated raw logical bytes keyed by their exact paths.
  */
 public final class ModelCheckpointInspection {
     private final byte[] configDigest;
@@ -54,14 +57,14 @@ public final class ModelCheckpointInspection {
 
     /**
      * Returns the fingerprint binding both caller digests and every ordered state descriptor.
-     * It describes this inspected image, not a promise about the file's later contents.
+     * It describes this inspected image, not a promise about another image or a file's later contents.
      *
      * @return a fresh 32-byte digest of exact canonical model metadata, never null
      */
     public byte[] schemaFingerprint() { return schemaFingerprint.clone(); }
 
     /**
-     * Returns the file's state descriptors in metadata order. They do not carry payload bytes,
+     * Returns the inspected image's state descriptors in metadata order. They do not carry payload bytes,
      * Tensor identity, or a live NN binding.
      *
      * @return immutable ordered descriptors, with no payload or live state references
@@ -76,8 +79,7 @@ public final class ModelCheckpointInspection {
 
     /**
      * One state path and its persisted logical descriptor. Instances returned by
-     * {@link ModelCheckpoint#inspect(java.nio.file.Path,
-     * io.github.pho001.synaptik.checkpoint.artifact.ArtifactLimits)} have validated NN paths;
+     * either {@code ModelCheckpoint.inspect} overload have validated NN paths;
      * direct construction checks only that the path is non-null. The value is not exposed;
      * byte length counts canonical dense payload bytes, including zero for empty Shape.
      *

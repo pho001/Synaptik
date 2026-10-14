@@ -232,26 +232,23 @@ class ModelArtifactTest {
         invalid.add(setLong(valid, 69, 5)); // expected length
         invalid.add(Arrays.copyOf(valid, valid.length - 1));
         invalid.add(Arrays.copyOf(valid, valid.length + 1));
-        for (byte[] metadata : invalid) assertThrows(ArtifactFormatException.class,
-                () -> ModelArtifactCodec.decode(envelope(metadata, payload), LIMITS));
-        assertThrows(ArtifactFormatException.class, () -> ModelArtifactCodec.decode(
-                new ArtifactEnvelope("model.v1", List.of(new ArtifactEnvelope.Entry("schema", valid))), LIMITS));
-        assertThrows(ArtifactFormatException.class, () -> ModelArtifactCodec.decode(
-                envelope(valid, new ArtifactEnvelope.Entry("state/00000001", new byte[4])), LIMITS));
-        assertThrows(ArtifactFormatException.class, () -> ModelArtifactCodec.decode(
-                envelope(valid, new ArtifactEnvelope.Entry("state/00000000", new byte[3])), LIMITS));
-        assertThrows(ArtifactFormatException.class, () -> ModelArtifactCodec.decode(
-                envelope(valid, payload, new ArtifactEnvelope.Entry("state/00000001", new byte[0])), LIMITS));
-        assertThrows(ArtifactFormatException.class, () -> ModelArtifactCodec.decode(
-                new ArtifactEnvelope("wrong", List.of(new ArtifactEnvelope.Entry("schema", valid), payload)), LIMITS));
-        assertThrows(ArtifactFormatException.class, () -> ModelArtifactCodec.decode(
-                envelope(valid, payload), new ArtifactLimits(8192, 4096, 1, 32, 4096, 4096)));
+        ModelCheckpoint.inspect(envelope(valid, payload), LIMITS);
+        for (byte[] metadata : invalid) assertRejected(envelope(metadata, payload), LIMITS);
+        assertRejected(new ArtifactEnvelope("model.v1",
+                List.of(new ArtifactEnvelope.Entry("schema", valid))), LIMITS);
+        assertRejected(envelope(valid, new ArtifactEnvelope.Entry("state/00000001", new byte[4])), LIMITS);
+        assertRejected(envelope(valid, new ArtifactEnvelope.Entry("state/00000000", new byte[3])), LIMITS);
+        assertRejected(envelope(valid, payload,
+                new ArtifactEnvelope.Entry("state/00000001", new byte[0])), LIMITS);
+        assertRejected(new ArtifactEnvelope("wrong",
+                List.of(new ArtifactEnvelope.Entry("schema", valid), payload)), LIMITS);
+        assertRejected(envelope(valid, payload), new ArtifactLimits(8192, 4096, 1, 32, 4096, 4096));
         var pair = List.of(states.getFirst(), new ModelArtifactCodec.State("bb", StateKind.BUFFER,
                 DataType.FLOAT32, Shape.of(1), 4));
         byte[] duplicatePath = ModelArtifactCodec.encode(pair, CONFIG, null, LIMITS).bytes();
         duplicatePath[81] = 'a'; duplicatePath[82] = 'a';
-        assertThrows(ArtifactFormatException.class, () -> ModelArtifactCodec.decode(envelope(
-                duplicatePath, payload, new ArtifactEnvelope.Entry("state/00000001", new byte[4])), LIMITS));
+        assertRejected(envelope(duplicatePath, payload,
+                new ArtifactEnvelope.Entry("state/00000001", new byte[4])), LIMITS);
     }
 
     @Test
@@ -260,17 +257,17 @@ class ModelArtifactTest {
         Tensor value = TensorFactory.scalar(2.0f, Optional.empty(), false);
         module.add("value", value);
         Engine closed = Engine.standard(); closed.close();
-        assertThrows(IllegalArgumentException.class, () -> ModelArtifactCapture.capture(
+        assertThrows(IllegalArgumentException.class, () -> ModelCheckpoint.capture(
                 module, closed, new byte[31], null, LIMITS));
-        assertThrows(IllegalArgumentException.class, () -> ModelArtifactCapture.capture(
+        assertThrows(IllegalArgumentException.class, () -> ModelCheckpoint.capture(
                 module, closed, CONFIG, null, new ArtifactLimits(8192, 4096, 20, 32, 4, 4096)));
-        assertThrows(IllegalArgumentException.class, () -> ModelArtifactCapture.capture(
+        assertThrows(IllegalArgumentException.class, () -> ModelCheckpoint.capture(
                 module, closed, CONFIG, null, new ArtifactLimits(8192, 4096, 1, 32, 4096, 4096)));
-        assertThrows(IllegalArgumentException.class, () -> ModelArtifactCapture.capture(
+        assertThrows(IllegalArgumentException.class, () -> ModelCheckpoint.capture(
                 module, closed, CONFIG, null, new ArtifactLimits(8192, 60, 20, 32, 4096, 4096)));
-        assertThrows(IllegalArgumentException.class, () -> ModelArtifactCapture.capture(
+        assertThrows(IllegalArgumentException.class, () -> ModelCheckpoint.capture(
                 module, closed, CONFIG, null, new ArtifactLimits(80, 4096, 20, 32, 4096, 4096)));
-        assertThrows(IllegalStateException.class, () -> ModelArtifactCapture.capture(
+        assertThrows(IllegalStateException.class, () -> ModelCheckpoint.capture(
                 module, closed, CONFIG, null, LIMITS));
         assertSame(value, module.stateDictionary().entries().getFirst().value());
         assertThrows(IllegalArgumentException.class, () -> ModelArtifactCodec.encode(List.of(
@@ -309,6 +306,25 @@ class ModelArtifactTest {
                 states, CONFIG, null,
                 new ArtifactLimits(100_000_000, 58_000_000, 1_000_001, 32, 4096, 1_000)));
         assertEquals(0, reads.get(), "manifest rejection must precede descriptor access");
+    }
+
+    /**
+     * Reuses each corrupt-wire fixture across the internal decoder and every public envelope reader.
+     *
+     * @param envelope detached malformed image, independent of prior inspection
+     * @param limits caller ceilings under which decode must reject the image
+     */
+    private static void assertRejected(ArtifactEnvelope envelope, ArtifactLimits limits) {
+        assertThrows(ArtifactFormatException.class, () -> ModelArtifactCodec.decode(envelope, limits));
+        assertThrows(ArtifactFormatException.class, () -> ModelCheckpoint.inspect(envelope, limits));
+        assertThrows(ArtifactFormatException.class,
+                () -> ModelCheckpoint.canonicalStateBytes(envelope, limits));
+        var target = new Fixture();
+        Tensor old = TensorFactory.scalar(1.0f, Optional.empty(), false);
+        target.add("aa", old);
+        assertThrows(ArtifactFormatException.class,
+                () -> ModelCheckpoint.load(envelope, target, CONFIG, null, limits));
+        assertSame(old, target.stateDictionary().entries().getFirst().value());
     }
 
     private static ArtifactEnvelope envelope(byte[] schema, ArtifactEnvelope.Entry... states) {

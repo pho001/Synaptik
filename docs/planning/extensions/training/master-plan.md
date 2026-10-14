@@ -80,10 +80,10 @@ and independent API review passed in Training; do not create a duplicate Trainin
 Training's broader capability checkpoint 0005 remains Draft and is not this prerequisite.
 
 Authorized frontier: None. Checkpoint 0006 and Training's broader 0005 remain Draft pending
-their separate design gates. The selected Checkpoint successor is
-[0005A](../checkpoint/tasks/0005a-model-envelope-composition.md), Ready after independent review
-and frontier verification; coordinator acceptance/integration precedes launch. It introduces no
-Training work or dependency; 0006 also depends on completed 0005A. Reconstruction exposes only
+their separate design gates. Checkpoint
+[0005A](../checkpoint/tasks/0005a-model-envelope-composition.md) is Complete after implementation,
+independent Class C API/documentation approval, and configured coordinator gates. It introduces no
+Training work or dependency; 0006 depends on completed 0005A but is not authorized. Reconstruction exposes only
 three existing defensive constructors; trusted adoption/helpers remain internal.
 The Training/Checkpoint coordinator owns shared-document
 integration; exact metadata and evidence live in the linked Checkpoint brief.
@@ -142,6 +142,10 @@ remains Draft pending concrete composition/codec/architecture design. The user s
 TrainingState persistence (optimizer/groups/slots/accumulation/counters); data position, external
 RNG, and other state absent from the artifact remain application-owned. The guarantee is restored
 stored state, not complete automatic exact continuation. No durable adapter is implemented.
+Completed [Checkpoint 0005A](../checkpoint/tasks/0005a-model-envelope-composition.md) now exposes
+detached model envelopes, ordered descriptors, independently validated canonical raw bytes, and
+strict envelope load for future comparison with TrainingState. Existing private helpers, file
+semantics, and module edges remain unchanged; this does not select the adapter codec or build gate.
 Complete [Checkpoint 0004A](../checkpoint/tasks/0004a-direct-leaf-model-save.md) removes the
 save-time expression-view workaround: the fixture saves the actual quiescent trained tree and
 directly re-saves loaded heap state before native parameter copying on the validated CPU route.
@@ -150,10 +154,10 @@ zero-node Engine support. Completed Checkpoint 0005 authorizes no successor or d
 
 ## Open questions
 
-- [ADR 0036](../../../design/decisions/0036-model-envelope-composition.md) resolves the model
-  composition boundary: planned existing-ArtifactEnvelope capture/inspect/canonical bytes/load
-  on ModelCheckpoint. Checkpoint 0005A is Ready, not launched or implemented; the
-  optional adapter's wire/composition/build design is still separate, with no reverse edge.
+- The remaining optional adapter wire/composition/build design must use the implemented
+  existing-ArtifactEnvelope capture/inspect/canonical bytes/load boundary recorded by
+  [ADR 0036](../../../design/decisions/0036-model-envelope-composition.md) and completed
+  [Checkpoint 0005A](../checkpoint/tasks/0005a-model-envelope-composition.md), with no reverse edge.
 - Task 0001C established an explicit pre-session copy into caller-owned shared native storage for
   initialized NN parameters. Direct native initialization remains a possible later convenience,
   not an implicit `TrainingSession.open` behavior.

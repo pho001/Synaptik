@@ -100,7 +100,7 @@ Checkpoint must not inspect backend representations or reach through Engine into
 Runtime, Prepare, tuning, or concrete backends.
 
 Its model package owns a separate version-one metadata codec, a detached candidate, and a public
-`ModelCheckpoint` save/inspect/load facade; it is not a state installer. Under caller-owned
+`ModelCheckpoint` file and model-envelope facade; it is not a state installer. Under caller-owned
 quiescence, capture calls
 `Module.stateDictionary()` exactly once; an unbound or incomplete NN state fails there. Before
 any Engine call or Checkpoint-owned payload-sized allocation, capture validates exact NN paths,
@@ -150,9 +150,9 @@ without numeric conversion or NaN normalization. NN alone performs the one stric
 installation attempt after all checkpoint validation and reconstruction. Save and load require
 caller-owned quiescence; a prior inspection is not trusted for later load.
 
-The following model-envelope composition boundary is approved for Checkpoint 0005A but is not
-implemented yet. The current public model API remains the file-based facade described above.
-The existing `ModelCheckpoint` may add these static operations using existing public types:
+The public model-envelope composition boundary implements the scope approved for Checkpoint
+0005A alongside the file-based facade. `ModelCheckpoint` exposes these static operations using
+existing public types:
 
 - `capture(Module, Engine, byte[] configDigest, byte[] inputDigest, ArtifactLimits)` returns
   `ArtifactEnvelope` and declares checked `ArtifactFormatException` for semantic decode failure.
@@ -188,7 +188,7 @@ The file API must delegate to the same semantic machinery while retaining reread
 inspect/load, existing checked `IOException` signatures, failure types and validation ordering,
 and the existing save publication policy. The internal `ModelArtifactCandidate`,
 `ModelArtifactCodec`, `ModelArtifactCapture`, and `ModelStateRestoration` remain package-private.
-This approval adds no public model-image wrapper, schema, codec, registry, temporary-file
+This boundary adds no public model-image wrapper, schema, codec, registry, temporary-file
 composition pipeline, backend access, Training validator, or shared transaction.
 
 For a trusted existing local directory and quiescent caller-owned target, save writes a newly
@@ -211,7 +211,7 @@ execution pipeline.
 
 A separate optional `extensions/training-checkpoint` adapter is reserved for durable recovery.
 Its selected first product is Model + TrainingState only, with a saved-state restoration
-guarantee, not complete automatic exact continuation. A concrete downstream need for the approved
+guarantee, not complete automatic exact continuation. A concrete downstream need for the current
 model-envelope API is comparison of the complete model parameter descriptors and raw logical
 bytes against TrainingState before restore/publication. External input position/cursor, RNG,
 Module modes, effective forward contexts, scheduler, and scaler remain application-owned.
@@ -221,7 +221,7 @@ Gradle settings nor implemented until its later adapter gate. Training keeps opt
 state meaning, and the caller and other state owners keep their own validation and restore
 authority under the optimizer/training lifecycle below. Neither Training nor Checkpoint gains a
 reverse dependency or a generic persistence or state-installation API from this reservation.
-Model-envelope approval does not select a training wire format or open the Checkpoint 0006
+Model-envelope implementation does not select a training wire format or open the Checkpoint 0006
 adapter build gate; 0006 remains Draft.
 
 ## `extensions/onnx`

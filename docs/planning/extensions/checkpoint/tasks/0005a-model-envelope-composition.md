@@ -2,14 +2,12 @@
 
 ## Status
 
-Ready — independent contract/brief review APPROVE; dependencies and frontier verified.
-Implementation not started. Coordinator acceptance/integration of this contract packet and a
-recorded integrated launch revision are required before launch; 0006 remains Draft.
+Complete — implementation, independent Class C API/documentation review, and coordinator gates
+are accepted. 0006 remains Draft, outside the build, and unauthorized; no new Ready frontier.
 
 ## Change class
 
 Class C — supported model composition, detached payload ownership, and cross-owner recovery facts.
-Use a clean implementation context and a separate independent targeted review/documentation context.
 
 ## Goal
 
@@ -19,7 +17,7 @@ parameter descriptors/raw logical bytes with TrainingState without private acces
 
 ## Scope
 
-Add only these static ModelCheckpoint operations (planned, not implemented):
+Implemented only these static ModelCheckpoint operations:
 
 ```text
 ArtifactEnvelope capture(Module module, Engine engine, byte[] configDigest,
@@ -73,8 +71,8 @@ cursor/RNG/modes/effective contexts/scheduler/scaler remain application-owned.
 - Conflicts with: writers to ModelCheckpoint/model semantics, artifact v1/limits, the owning
   Checkpoint/Training lifecycle contract, and shared Checkpoint/Training planning documents.
 - Parallel group: None; serial implementation followed by independent review.
-- Common base revision: `381aea658a561245c925e6cb4f075c0ffc72727b`; integrate the reviewed
-  contract/brief change first and record the resulting implementation launch revision.
+- Common base revision: `fbd14c13bcba4d82e875d866336cd1f5cc3448a9`; serial implementation
+  branch `work/checkpoint-model-envelope`.
 - Integration order: contract/brief review → Ready verification → implementation → independent
   API/documentation review → coordinator acceptance; 0006 stays Draft.
 - Integration validation: checkpoint module check/Javadoc; CheckpointDependencyContractTest;
@@ -82,16 +80,6 @@ cursor/RNG/modes/effective contexts/scheduler/scaler remain application-owned.
   repository test/Javadoc gate for the implemented cross-owner value boundary.
 - Shared-document integration owner: Training/Checkpoint coordinator; independent review finalizes
   focused API/Javadoc documentation serially, coordinator synchronizes masters/roadmap.
-
-Preparation verification: independent targeted Class C review APPROVE, no unresolved findings.
-HEAD, main, and locally recorded origin/main match the common base; 0004A/0005 Result sections
-record Complete, independent review, and configured validation. Current source/focused tests
-confirm the bounded machinery and owner policies; all seven integration fields are filled.
-0005A is the sole Checkpoint Ready frontier; the reviewer is the sole writer for this scope.
-192 local links/anchors, new-file whitespace, and `git diff --check` pass. No Java, dependency, or build
-change: reviewed Javadocs and dependency assertions remain accurate; no Java/Javadoc/device run
-is needed for preparation. Existing glossary meanings are unchanged. Coordinator must integrate
-this packet, supply the final launch revision, and recheck base/conflicts before later launch.
 
 ## Files and symbols
 
@@ -107,8 +95,7 @@ Under `extensions/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/
 
 Focused tests under `extensions/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/`:
 `model/ModelCheckpointTest.java`, `model/ModelArtifactTest.java`, `artifact/ArtifactWireTest.java`.
-Reuse/extend existing raw-dtype, alias, and failure cases; do not duplicate their full matrix.
-For public-use evidence only, add the small external-package test
+Reuse existing raw-dtype/alias/failure cases; add only the small public-use external-package test
 `extensions/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/api/ModelCheckpointEnvelopeApiTest.java`,
 or compile the final API-guide consumer outside `checkpoint.model`; no reflection.
 Read-only cross-module checks:
@@ -170,16 +157,12 @@ Coordinator integration checks after ordered integration (reuse successful uncha
 git diff --check
 ```
 
-One coordinator repository gate is warranted when 0005A is implemented because it exposes
-cross-owner recovery values and redirects the file facade. Before `./gradlew test javadoc`, configure
-`SYNAPTIK_METAL_TEST_LIBRARY` to the source-matched native Metal artifact using the
-[native build/test setup](../../../../../native/metal-macos-arm64/README.md#validation); record
-the artifact path, source revision/build provenance, and actual device-suite outcome.
-Missing setup is not a passing device gate. This is not a repeat of older
-0004A/0005 gates or a requirement for this documentation-only preparation. No dependency
-test source change is expected: its exact three edges and absent-adapter assertions remain correct.
-Review reuses executable evidence unless code changes or a named uncovered risk warrants rerun;
-generate checkpoint Javadoc after final reviewer Javadoc edits and validate changed links/anchors.
+The coordinator gate covers cross-owner values and file-facade delegation. Use source-matched
+`SYNAPTIK_METAL_TEST_LIBRARY` per the
+[native build/test setup](../../../../../native/metal-macos-arm64/README.md#validation), recording
+path, provenance, and actual device outcome; missing setup is not a passing gate. Dependency-test
+inputs remain unchanged. Review/closure reuse accepted executable evidence; final reviewer Javadoc
+and changed links/anchors must be validated.
 
 ## Documentation and review impact
 
@@ -193,6 +176,25 @@ No terminology change is required by this plan; no glossary edit is needed now.
 
 ## Result
 
-Implementation not started. On completion record changed files, exact validation outcomes,
-independent review, documentation/Javadoc/glossary impact, unresolved issues and required follow-up,
-then `Status: Complete` or `Status: Incomplete` with specific follow-up. Do not mark 0006 Ready.
+- Implemented all four envelope operations, reusing the private capture/codec/restoration core;
+  file behavior/parity/error ordering unchanged; all seven types retain raw bits and fresh read-only views.
+- Production: `ModelCheckpoint.java`, `ModelCheckpointInspection.java` only; extended `ModelCheckpointTest`/`ModelArtifactTest`; added external-package `ModelCheckpointEnvelopeApiTest`.
+- Independent Class C source/helper/test/ownership and API/documentation review: APPROVE, no issues.
+  API guide complete Java example compiled and ran PASS; final checkpoint Javadoc PASS;
+  71 documentation links/anchors and new-file whitespace/diff checks PASS (general/API/example profiles).
+- Root/scoped contract, module-boundary explanation, and ADR 0036 labels now implemented, not a new decision.
+  Artifact guide and glossary unchanged: meaning, ownership, and terminology remain accurate.
+- Worker commands above: focused 17 tests PASS; checkpoint check/Javadoc 33 tests, 0 failures/skips PASS.
+- Coordinator: `./gradlew :testing:architecture-tests:test --tests '*CheckpointDependencyContractTest' :testing:integration-tests:test --tests '*PrivateTrainingRestoreIntegrationTest' --tests '*EngineCpuHeapContiguousIntegrationTest' --max-workers=2 --console=plain` — BUILD SUCCESSFUL (1s).
+  Architecture 1 PASS FROM-CACHE (unchanged edges/inputs); private restore 2 + heap-contiguous 3 fresh PASS, 0 failures/skips.
+- Final gate: `SYNAPTIK_METAL_TEST_LIBRARY=/private/tmp/synaptik-envelope-native.CjXawZ/native/metal-macos-arm64/build/package-v1/macos-arm64/libsynaptik_metal_foundation.dylib ./gradlew test javadoc --max-workers=2 --console=plain` — BUILD SUCCESSFUL (6s); 105 tasks: 4 executed, 1 cached, 100 up-to-date.
+  Integration: 125 tests, 1 skip, 0 failures/errors; all 77 tests in 8 Metal-named classes fresh PASS,
+  zero device skips (XML timestamps 2026-10-14T12:36:47–12:36:50); unchanged modules reused cache/up-to-date results.
+  Sole skip: `EngineModelAutotuningIntegrationTest.eligibleCpuAlternativesCompleteBothPublicTuningPhases(Path)`;
+  assumption “host CPU fixture has no eligible local-workload alternatives” (expected host fixture, not device/checkpoint failure).
+- Native package freshly built from exact common-base source in an isolated worktree: `build.sh`, fixed ad-hoc codesign,
+  `package-local.sh`, `verify-package.sh` PASS; SHA-256 `03cba3ebfa0bbb78c1bff369ff3451c591846fd975c0034fa7f67fdd2209985a`.
+  Native/Metal/build sources unchanged; no ABI/schema/dependency change; existing main native artifacts untouched.
+- Closure: this brief, both masters, roadmap only; planning links/anchors/whitespace/diff PASS; no unresolved issues. Future 0006 needs concrete composition/codec/build-gate design, remains Draft/not included; no new Ready frontier.
+
+Status: Complete

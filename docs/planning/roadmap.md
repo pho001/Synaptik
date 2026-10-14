@@ -51,12 +51,11 @@ new execution. Training 0004 and bounded Checkpoint
 review and configured integration gates.
 [Checkpoint 0005](extensions/checkpoint/tasks/0005-training-state-reconstruction.md) is Complete:
 defensive reconstruction, external-package tests, final Javadoc/example validation, and independent
-API review passed. Authorized Checkpoint frontier:
-[0005A](extensions/checkpoint/tasks/0005a-model-envelope-composition.md), Ready after independent
-contract/brief APPROVE and dependency/base/conflict verification. Coordinator acceptance/integration
-and the integrated launch revision are required before launch. The user selected Model +
+API review passed. [Checkpoint 0005A](extensions/checkpoint/tasks/0005a-model-envelope-composition.md)
+is Complete after envelope implementation, independent Class C API/documentation approval, and
+configured coordinator gates. Authorized Checkpoint frontier: None. The user selected Model +
 TrainingState for durable adapter 0006, with external state application-owned and a stored-state restoration guarantee,
-not complete automatic exact continuation. Model-envelope composition is approved, not implemented;
+not complete automatic exact continuation. Model-envelope composition is implemented;
 0006 remains Draft pending adapter composition/codec design and its separate build gate.
 
 | Area | Delivered baseline / remaining gate |
@@ -80,7 +79,7 @@ not complete automatic exact continuation. Model-envelope composition is approve
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions, SGD/Adam/AdamW groups and in-memory state delivered; 0003A/0004 Complete, 0003 Superseded. [Checkpoint 0005 reconstruction](extensions/checkpoint/tasks/0005-training-state-reconstruction.md) Complete after independent API review and validation; no durable artifact. Authorized frontier: None; Training broader checkpoint 0005 Draft. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through [0005](extensions/checkpoint/tasks/0005-training-state-reconstruction.md). Authorized frontier: [0005A](extensions/checkpoint/tasks/0005a-model-envelope-composition.md), Ready after independent review and verification, not launched; coordinator acceptance/integration required. 0006–0007 Draft; first 0006 scope is Model + TrainingState, external state application-owned. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through [0005A](extensions/checkpoint/tasks/0005a-model-envelope-composition.md): envelope capture/inspect/canonical bytes/load, independent Class C review and configured gates passed. Authorized frontier: None. 0006–0007 Draft; first 0006 scope is Model + TrainingState, external state application-owned. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
@@ -126,19 +125,20 @@ It is not a prerequisite for unrelated Training/Checkpoint decisions or a new br
 The Training/Checkpoint order is:
 `Training 0003A` and `Checkpoint 0001 → 0004`, then completed `Training 0004`, followed by
 completed `Checkpoint 0004A →` completed Training-owned `Checkpoint 0005 →`
-Ready `Checkpoint 0005A →` Draft `Checkpoint 0006`.
+completed `Checkpoint 0005A →` Draft `Checkpoint 0006`.
 CPU 0024 is a completed
 0004A prerequisite. Training 0003 is Superseded; no adapter-to-prerequisite cycle remains.
-0005A is the verified Ready frontier with independently approved contract/brief, awaiting coordinator
-acceptance/integration before launch. No implementation is launched here; 0005's serial implementation,
-independent API/documentation approval, and validation
-evidence are recorded in its brief. The Training/Checkpoint coordinator owns shared-document integration.
+0005A is Complete; accepted implementation, independent API/documentation review, and configured
+gate evidence are recorded in its brief. No new Ready frontier is selected.
+The Training/Checkpoint coordinator owns shared-document integration.
 0006 product scope is resolved: Model + TrainingState (optimizer/groups/slots/accumulation/counters).
 Data position, external RNG, and other absent caller-owned state stay with the application; no
 complete automatic exact-continuation claim is authorized.
-[ADR 0036](../design/decisions/0036-model-envelope-composition.md) resolves the model boundary:
+[ADR 0036](../design/decisions/0036-model-envelope-composition.md) records the implemented model boundary:
 existing ArtifactEnvelope-based capture/inspect/canonical bytes/load on ModelCheckpoint, reusing
-internal machinery. 0006 depends on completed 0005A but remains Draft; no adapter wire design,
+internal machinery and preserving file semantics and module edges. Complete descriptors and raw
+logical bytes are available by exact path for future TrainingState comparison, not an implemented
+durable recovery protocol. 0006 depends on completed 0005A but remains Draft; no adapter wire design,
 build inclusion, reverse dependency, or implementation is authorized.
 
 ## Explicit non-goals and unresolved decisions
