@@ -12,7 +12,8 @@ replaces the withdrawn Proposed snapshot-only direction of
 [ADR 0037](../../../design/decisions/0037-stored-training-checkpoint-adapter.md).
 The user approved CP0005B direction, then recurrent reconstruction before simple Training resume.
 Only CP0005B's coordinated contract is accepted; final independent approval and coordinator
-verification make it Ready, not implemented. Recurrent/Training/adapter decisions remain Proposed.
+verification authorized implementation; CP0005B is Complete after final reviews/gates (2026-10-15).
+Recurrent/Training/adapter decisions remain Proposed.
 
 ## Contracts and common base
 
@@ -51,7 +52,7 @@ overlapping stores, not every repeated forward use of one uniquely owned layer.
 | Package | Delivered or proposed owner |
 |---|---|
 | `checkpoint.artifact` | Existing ArtifactEnvelope, ArtifactFile, ArtifactLimits and publication. |
-| `checkpoint.model` | Existing ModelCheckpoint; selected WholeModelDefinitionCodec/WholeModelComposition (package-private) and public InputArtifactFingerprint/overloads (0005B), not implemented. |
+| `checkpoint.model` | ModelCheckpoint whole-model overloads and InputArtifactFingerprint implemented (0005B); WholeModelDefinitionCodec/WholeModelComposition remain package-private. |
 | `nn.module` | Implemented ModelSpecification/DeclarativeModel (NN 0026); existing callback ModelDefinition unchanged. |
 | `training` | Existing snapshots/session; proposed TrainingRecipe/TrainingRun and narrow capture borrow (Training 0006). |
 | `training.checkpoint` | Proposed TrainingCheckpoint/Snapshot and private TrainingState/recipe composition codecs in optional project (0006). |
@@ -71,7 +72,8 @@ NN0026 Complete → CP0005B → NN0027 semantics → CP0005C wire → Training00
 completed CP0005A ────────────────────────────────────────────────────────────────────┘
 ```
 
-Authorized Checkpoint frontier: CP0005B only (Ready). Final independent contract approval and
+Authorized Checkpoint frontier: None. CP0005B is Complete after final independent code/docs review,
+57 module tests, final Javadoc and coordinator architecture/3-test integration gates. Contract approval and
 2026-10-14 coordinator base/dependency/contract/frontier/conflict verification are recorded in its
 brief. NN0027/CP0005C remain Draft rows only (no speculative briefs).
 No task waits on optimized scan/backend BPTT/Data/Text or broader Training checkpoint.
@@ -95,12 +97,12 @@ Completed rows preserve published API history; unfinished rows describe future c
 | [0004A](tasks/0004a-direct-leaf-model-save.md) | Direct leaf-model save | Complete | Checkpoint 0004; CPU 0024; Training 0004, all Complete | Exact native/heap leaf capture, direct trained save/load and loaded re-save passed; workaround removed, independent review and configured coordinator gate passed. |
 | [0005](tasks/0005-training-state-reconstruction.md) | Training-owned detached state reconstruction prerequisite | Complete | Training 0004; Checkpoint 0004A, both Complete | Three defensive constructors exposed; external-package tests, final Javadoc/example validation, and independent API review passed. No codec. |
 | [0005A](tasks/0005a-model-envelope-composition.md) | Model-envelope composition | Complete | 0004A and 0005 Complete | Four existing-ArtifactEnvelope operations implemented; independent Class C API/documentation review and configured coordinator gates passed; file semantics and module edges unchanged. |
-| [0005B](tasks/0005b-whole-model-save-load.md) | Whole-model save and automatic inference load | Ready | NN0026; CP0002/0004/0004A/0005A Complete; accepted CP contract | Final independent approval and coordinator verification recorded; sole Checkpoint frontier, code not started. |
+| [0005B](tasks/0005b-whole-model-save-load.md) | Whole-model save and automatic inference load | Complete | NN0026; CP0002/0004/0004A/0005A Complete; accepted CP contract | Ten overloads/typed identity and closed codec/composition; independent reviews, 57 module tests, final Javadoc and coordinator gates passed. |
 | 0005C | Versioned recurrent definition and whole-model persistence adoption | Draft | CP0005B; NN0027 | Checkpoint owns bytes/versions/save/load; exact version/policy future, no detailed speculative brief. |
 | [0006](tasks/0006-training-checkpoint-adapter.md) | Optional whole-model TrainingCheckpoint | Draft | NN0026/0027; CP0005B/0005C; Training0006; completed 0005A/Training0004 | Proposed high-level save/loadModel/resume; separate contract gate. |
 | 0007 | Broader recovery/text checkpoint | Draft | 0005B/0006; Text 0003 only for text integration | Later broader corruption/recovery/text validation; not an extra implementation prerequisite or duplicate gate. |
 
-Exact conflict/base/order/validation metadata live in briefs. CP0005B is the sole Ready Checkpoint task.
+Exact conflict/base/order/validation metadata live in briefs. No Checkpoint task is currently Ready.
 
 CP0005C ordering metadata: Depends on CP0005B and NN0027; Conflicts with shared Checkpoint wire/API
 and NN semantic contract cutovers/Training0006/adapter0006; Parallel group None; Common base revision
@@ -167,8 +169,8 @@ Planning now checks links/anchors, brief limits and diff only, with no Java reru
 
 ## Open decisions and risks
 
-- CP0005B contract review and Ready verification are complete; clean implementation, independent
-  implementation/docs review and recorded validation remain before Complete.
+- CP0005B is Complete with independent implementation/docs approval and recorded validation;
+  successors require their own contract/frontier verification before Ready.
 - NN0027 owns semantic recurrent input/output/default-state policy only. CP0005C owns explicit
   versioned wire/save/load adoption; no detailed briefs before those future decisions. Unknown
   recurrent wire types reject now; no registry or recurrent files in CP0005B v1.

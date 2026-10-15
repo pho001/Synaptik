@@ -66,8 +66,8 @@ raw state codecs/comparison remain useful. New DAG:
 `NN0026 Complete → CP0005B → NN0027 semantics → CP0005C persistence → Training0006 → optional CP0006`;
 completed Checkpoint 0005A also precedes the adapter. No cycle or unrelated 0005 prerequisite.
 
-Authorized Training frontier: None. NN0026 is Complete; CP0005B is Ready with accepted CP-only
-contract after final independent approval and coordinator verification. NN0027/CP0005C are Draft rows with no detailed briefs;
+Authorized Training frontier: None. NN0026 and CP0005B are Complete, including final independent
+reviews and coordinator gates. NN0027/CP0005C are Draft rows with no detailed briefs;
 NN owns recurrent semantics, Checkpoint owns versioned persistence. Initial-state/output selection,
 format version and Training gradient admission remain future decisions. Training0006 and adapter
 remain Draft/Proposed until their separate owner bridges and contract cutovers. No optimized

@@ -20,6 +20,93 @@ first build a descriptor-only model with stable state paths. Load its parameter 
 before constructing the forward expression to compile; reconstruction itself neither
 executes the model nor reconstructs it from a stored-model file.
 
+## Load a saved whole model
+
+To recover a supported bound `Sequential` without rebuilding its layers, use
+`ModelCheckpoint.save(path, source, engine)` and `ModelCheckpoint.load(path)`. Load returns a
+value-loaded `DeclarativeModel`, not a descriptor-only skeleton. It needs no Engine or Arena;
+ordinary forward construction and execution still use the caller's Engine. No backend or prepared
+session is stored in the file.
+
+This complete Java 26 example needs Checkpoint, NN, Model and Engine on the classpath and
+`jdk.incubator.vector` enabled. Its trusted local directory is created before save. The source has
+FLOAT32 diagonal weights `[1, 0; 0, 2]` followed by RELU. Both source owners close before load;
+the saved file is then deleted before fresh-CPU inference. The input `[-3, 4]` should produce
+`[0, 8]`.
+
+```java
+import io.github.pho001.synaptik.checkpoint.model.ModelCheckpoint;
+import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.layers.Activation;
+import io.github.pho001.synaptik.nn.layers.Linear;
+import io.github.pho001.synaptik.nn.module.DeclarativeModel;
+import io.github.pho001.synaptik.nn.module.ModelSpecification.ActivationKind;
+import io.github.pho001.synaptik.nn.module.Sequential;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
+
+public final class WholeModelExample {
+    static Tensor tensor(MemorySegment storage, Shape shape, boolean gradientEligible) {
+        var descriptor = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), gradientEligible);
+        return TensorFactory.create(descriptor, Optional.empty(), Optional.of(
+                new MemorySegmentStorage(DataType.FLOAT32,
+                        shape.knownElementCount().orElseThrow(), storage)));
+    }
+
+    public static void main(String[] args) throws Exception {
+        Path directory = Files.createTempDirectory("whole-model-example");
+        Path file = directory.resolve("model.chk");
+        try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+            MemorySegment initial = MemorySegment.ofArray(new float[] {1, 0, 0, 2});
+            MemorySegment storage = arena.allocate(initial.byteSize(), 4);
+            storage.copyFrom(initial);
+            Sequential source = new Sequential(List.of(
+                    new Linear(tensor(storage, Shape.of(2, 2), true)),
+                    new Activation(ActivationKind.RELU)));
+            source.train();
+            ModelCheckpoint.save(file, source, engine);
+        }
+        DeclarativeModel loaded = ModelCheckpoint.load(file);
+        Files.delete(file);
+        Tensor input = tensor(MemorySegment.ofArray(new float[] {-3, 4}), Shape.of(2), false);
+        try (Engine fresh = Engine.standard()) {
+            var result = fresh.compute(loaded.forward(input)).bytes().asFloatBuffer();
+            float first = result.get();
+            float second = result.get();
+            if (first != 0 || second != 8) throw new AssertionError("restored inference");
+            ModelCheckpoint.save(directory.resolve("resaved.chk"), loaded, fresh);
+            System.out.println(first + ", " + second);
+        }
+    }
+}
+```
+
+Expected output is `0.0, 8.0`. Linear first produces `[-3, 8]`; RELU produces `[0, 8]`.
+The source's training mode is not persisted: the loaded tree starts in evaluation mode, while
+parameters remain gradient-eligible. Its heap values survive source Arena/Engine closure and file
+deletion; re-saving needs no caller expression wrappers or native parameter copy. This does not
+prove a saved execution plan or training continuation. Exact repeated parameter identities are
+preserved, and compatible batch dimensions can change when a new forward expression is built.
+
+The short calls use absent input-artifact identity. If the file stores one, default load raises
+`ArtifactFormatException`; pass an application-verified `InputArtifactFingerprint` and explicit
+`ArtifactLimits` instead. A values-only `model.v1` file needs the existing fully bound target-load
+API, not automatic topology inference. Custom modules, unbound state and recurrent models are not
+supported by this whole-model workflow. See [whole-model limits and failures](../api/model-checkpoint-api.md#bounds-lifetime-and-failures)
+before selecting advanced encoded bounds; they are not peak-heap budgets.
+
 ## Compile and prepare once
 
 Compile the requested output boundary once, then open the session:
@@ -130,6 +217,7 @@ falling back during a run.
 
 ## Related documentation
 
+- [Whole-model and values-only checkpoint API](../api/model-checkpoint-api.md)
 - [Describe, reconstruct and load a closed NN model](declarative-models.md)
 - [Compile a graph](compiling-graphs.md)
 - [Prepare execution](preparing-execution.md)

@@ -5,6 +5,7 @@ import io.github.pho001.synaptik.checkpoint.artifact.ArtifactFile;
 import io.github.pho001.synaptik.checkpoint.artifact.ArtifactFormatException;
 import io.github.pho001.synaptik.checkpoint.artifact.ArtifactLimits;
 import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.nn.module.DeclarativeModel;
 import io.github.pho001.synaptik.nn.module.Module;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -17,15 +18,230 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Public version-one model-state persistence boundary. The caller recreates the complete NN
- * module and supplies fingerprints of its versioned configuration and optional input artifact;
- * Java model code, optimizer state, and training continuation are not persisted. Capture, save,
- * and load require caller-owned quiescence of module bindings and storage for their entire calls. This
+ * Public version-one model persistence boundary. Values-only operations require a recreated NN
+ * target and caller configuration digest. Whole-model operations save a closed supported Sequential
+ * or DeclarativeModel and automatically load independent heap-backed evaluation state; configuration
+ * identity is computed from the canonical definition. Java callbacks, optimizer state, and training
+ * continuation are not persisted. Whole-model roots are recognized only as
+ * {@link io.github.pho001.synaptik.nn.module.Sequential} or {@link DeclarativeModel}; arbitrary
+ * Java model definitions, custom children and recurrent layers are unsupported. Values-only
+ * {@code model.v1} and whole-model {@code whole-model.v1} are distinct kinds: old target-load and
+ * inspection operations do not infer topology or inspect the outer whole-model envelope.
+ * Capture, save and target-load require caller-owned quiescence of module bindings and storage
+ * for their entire calls. Whole-model description and values capture may each read state; there
+ * is no combined snapshot or transaction. This
  * facade uses only public Engine materialization and delegates installation to NN's strict
  * whole-tree loader. It has no cross-call cache or live resource after return.
+ *
+ * <p>Whole-model load uses no Engine or caller Arena and returns independent heap-backed evaluation
+ * state only after complete validation. Parameters remain gradient-eligible: evaluation mode does
+ * not construct autograd or promise a no-gradient execution route. No backend, device state or
+ * compiled/prepared plan is saved. Semantic empty trees gain no generic zero-operation Engine
+ * guarantee. Configuration SHA-256 binds exact definition bytes, not authenticity; any external
+ * input identity must already have been verified by the application.</p>
  */
 public final class ModelCheckpoint {
     private ModelCheckpoint() { }
+
+    /**
+     * Saves a supported whole model with default encoded limits and absent input identity.
+     * Uses 256 MiB file/aggregate, 4 MiB manifest, 16384 entries, 64-byte names and 64 MiB payloads.
+     * Definition metadata is always bounded to one MiB; these are not peak-heap limits.
+     * The exact limits tuple is {@code (268435456L, 4194304, 16384, 64, 67108864, 268435456L)};
+     * one MiB is 1048576 bytes. NN's 4096-occurrence/depth-64 tree bounds still apply.
+     * @param target non-null publication path in an existing trusted local directory
+     * @param module non-null fully bound Sequential or DeclarativeModel, with bindings/storage
+     *     live, accessible and quiescent throughout
+     * @param engine non-null Engine, open if values need materialization; unused for empty state
+     * @throws IOException if capture validation or atomic file publication fails
+     * @throws IllegalArgumentException if source configuration or encoded bounds are invalid
+     * @throws IllegalStateException if state is unbound or Engine materialization fails
+     * @throws ArithmeticException if checked capture arithmetic overflows
+     * @throws NullPointerException if a required argument is null
+     */
+    public static void save(Path target, Module module, Engine engine) throws IOException {
+        save(target, module, engine, WholeModelComposition.DEFAULT_LIMITS);
+    }
+
+    /**
+     * Saves a whole model with caller encoded bounds and absent input identity. Description and
+     * public values capture may each read state; caller quiescence spans both, not a transaction.
+     * Capture completes before filesystem work; publication retains the existing atomic-move policy.
+     * A successful move provides atomic live visibility, not portable power-loss durability.
+     * Inspect a target after a failed move because its state is provider-dependent.
+     * @param target non-null publication path in an existing trusted local directory
+     * @param module non-null fully bound Sequential or DeclarativeModel, with bindings/storage
+     *     live, accessible and quiescent throughout
+     * @param engine non-null Engine, open for nonempty state; borrowed only during this call
+     * @param limits non-null encoded ceilings, not heap/workspace bounds
+     * @throws IOException if capture validation or file publication fails
+     * @throws IllegalArgumentException if source or preflight bounds are invalid
+     * @throws IllegalStateException if source is unbound or Engine materialization fails
+     * @throws ArithmeticException if checked capture arithmetic overflows
+     * @throws NullPointerException if a required argument is null
+     */
+    public static void save(Path target, Module module, Engine engine, ArtifactLimits limits) throws IOException {
+        Objects.requireNonNull(target, "target");
+        ArtifactFile.save(target, captureWholeModel(module, engine, limits), limits);
+    }
+
+    /**
+     * Saves a supported whole model bound to application-verified input identity. Checkpoint does
+     * not read or authenticate that input artifact. Entire-call source quiescence is caller-owned;
+     * description and values capture are separate reads. Captured bytes outlive all source resources.
+     * Publication uses the same force/revalidation/one-atomic-move policy as values-only save,
+     * not portable power-loss durability. Inspect the target after an uncertain failed move.
+     * @param target non-null publication path in a trusted existing directory
+     * @param module non-null fully bound Sequential or DeclarativeModel with live, accessible,
+     *     quiescent bindings and storage
+     * @param engine non-null Engine, open for nonempty state; unused for empty state
+     * @param input non-null application-verified SHA-256 input identity
+     * @param limits non-null complete encoded ceilings, not peak-heap bounds
+     * @throws IOException if capture validation or atomic publication fails
+     * @throws IllegalArgumentException if source or preflight bounds are invalid
+     * @throws IllegalStateException if source is unbound or Engine materialization fails
+     * @throws ArithmeticException if checked capture arithmetic overflows
+     * @throws NullPointerException if a required argument is null
+     */
+    public static void save(Path target, Module module, Engine engine, InputArtifactFingerprint input,
+                            ArtifactLimits limits) throws IOException {
+        Objects.requireNonNull(target, "target");
+        ArtifactFile.save(target, captureWholeModel(module, engine, input, limits), limits);
+    }
+
+    /**
+     * Automatically loads a supported whole model using default encoded ceilings and requiring
+     * absent input identity. Values-only files require the existing target-load API instead.
+     * Default limits are the same as {@link #save(Path, Module, Engine)}. Stored input presence
+     * raises {@link ArtifactFormatException}; it is never treated as verified identity by default.
+     * @param source non-null quiescent regular file, not a symlink
+     * @return non-null independent heap-backed evaluation model with gradient-eligible parameters
+     * @throws IOException if access, framing, definition, values, limits or expected absence fail
+     * @throws IllegalStateException if Tensor identifiers are exhausted
+     * @throws NullPointerException if source is null
+     */
+    public static DeclarativeModel load(Path source) throws IOException {
+        return load(source, WholeModelComposition.DEFAULT_LIMITS);
+    }
+
+    /**
+     * Loads a private descriptor skeleton and exact heap values, returning only after complete
+     * validation. Loading performs no Engine work, RNG initialization, autograd or compilation;
+     * it retains no native handle or live file and requires no caller Arena.
+     * Stored input-identity presence is rejected unless explicitly expected through the typed overload.
+     * @param source non-null quiescent regular whole-model file
+     * @param limits non-null complete encoded ceilings
+     * @return non-null independent heap-backed evaluation model with gradient-eligible parameters,
+     *     surviving file/source closure
+     * @throws IOException if access or stored kind, metadata, values, identity or bounds are invalid
+     * @throws IllegalStateException if Tensor identifiers are exhausted
+     * @throws NullPointerException if a required argument is null
+     */
+    public static DeclarativeModel load(Path source, ArtifactLimits limits) throws IOException {
+        return loadWholeModel(ArtifactFile.read(Objects.requireNonNull(source, "source"),
+                Objects.requireNonNull(limits, "limits")), limits);
+    }
+
+    /**
+     * Automatically loads only when stored input presence and bytes match verified expected identity.
+     * Hashes bind configuration, not authenticity; the application verifies the input artifact.
+     * @param source non-null quiescent regular whole-model file
+     * @param input non-null verified expected SHA-256 input identity; presence is required
+     * @param limits non-null complete encoded ceilings, not peak-heap bounds
+     * @return independent non-null heap-backed evaluation model with gradient-eligible parameters,
+     *     no live Engine or file handle, and no caller Arena lifetime
+     * @throws IOException if access, stored data, bounds or expected input identity fail
+     * @throws IllegalStateException if Tensor identifiers are exhausted
+     * @throws NullPointerException if a required argument is null
+     */
+    public static DeclarativeModel load(Path source, InputArtifactFingerprint input, ArtifactLimits limits)
+            throws IOException {
+        Objects.requireNonNull(source, "source");
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(limits, "limits");
+        return loadWholeModel(ArtifactFile.read(source, limits), input, limits);
+    }
+
+    /**
+     * Captures a closed whole model with absent input identity, without filesystem work. Current
+     * aliases mean exact Tensor identity, never merely equal bytes. Unsupported/unbound sources and
+     * all encoded limits fail before Engine admission or bulk value copying. Description and values
+     * capture may read bindings separately under caller quiescence; no combined snapshot is promised.
+     * Empty semantic trees need no Engine call but gain no generic zero-operation execution route.
+     * @param module non-null fully bound Sequential or DeclarativeModel with live, accessible,
+     *     quiescent bindings and storage throughout
+     * @param engine non-null borrowed Engine, open when nonempty values need materialization
+     * @param limits non-null complete encoded ceilings; fixed definition ceiling is one MiB
+     * @return fully coherent detached immutable whole-model envelope, with no live source resource
+     * @throws ArtifactFormatException if captured definition/value coherence is invalid
+     * @throws IllegalArgumentException if source or preflight limits are invalid
+     * @throws IllegalStateException if source is unbound or Engine materialization fails
+     * @throws ArithmeticException if checked capture arithmetic overflows
+     * @throws NullPointerException if a required argument is null
+     */
+    public static ArtifactEnvelope captureWholeModel(Module module, Engine engine, ArtifactLimits limits)
+            throws ArtifactFormatException {
+        return WholeModelComposition.capture(module, engine, null, limits);
+    }
+
+    /**
+     * Captures a whole model and verified input identity through the same bounded public values
+     * boundary. No input-artifact parsing or authentication is performed. Quiescence spans separate
+     * description/value reads; state and resources are neither mutated nor retained.
+     * @param module non-null fully bound Sequential or DeclarativeModel with live, accessible,
+     *     quiescent bindings/storage throughout
+     * @param engine non-null borrowed Engine; unused for empty state
+     * @param input non-null owner-verified input SHA-256 identity, stored as present
+     * @param limits non-null encoded ceilings, not peak-heap bounds; definition at most one MiB
+     * @return non-null detached immutable coherent envelope surviving source/Engine closure
+     * @throws ArtifactFormatException if final semantic coherence fails
+     * @throws IllegalArgumentException if source or encoded preflight is invalid
+     * @throws IllegalStateException if source is unbound or Engine materialization fails
+     * @throws ArithmeticException if checked capture arithmetic overflows
+     * @throws NullPointerException if a required argument is null
+     */
+    public static ArtifactEnvelope captureWholeModel(Module module, Engine engine, InputArtifactFingerprint input,
+                                                     ArtifactLimits limits) throws ArtifactFormatException {
+        Objects.requireNonNull(input, "input");
+        return WholeModelComposition.capture(module, engine, input, limits);
+    }
+
+    /**
+     * Independently validates outer bounds, definition, complete value schema and alias bytes before
+     * reconstructing a private NN skeleton and installing exact heap values. Requires absent input
+     * identity; stored presence directs callers to supply a verified typed expected identity.
+     * No Engine, initialization, RNG, autograd or native resource is used. Failure publishes no model.
+     * @param envelope non-null detached whole-model image, never modified
+     * @param limits non-null complete encoded ceilings, not defensive-copy or peak-heap budgets
+     * @return non-null independent heap-backed evaluation model with gradient-eligible parameters
+     * @throws ArtifactFormatException if stored kind, definition, values, identity or bounds fail
+     * @throws IllegalStateException if Tensor identifiers are exhausted
+     * @throws NullPointerException if a required argument is null
+     */
+    public static DeclarativeModel loadWholeModel(ArtifactEnvelope envelope, ArtifactLimits limits)
+            throws ArtifactFormatException {
+        return WholeModelComposition.load(envelope, null, limits);
+    }
+
+    /**
+     * Loads a whole model only after independently checking complete definition/value/alias coherence
+     * and exact expected input presence and bytes. Uses public target-load on a private NN skeleton;
+     * failure exposes no partial candidate. No Engine, initialization, native lifetime or RNG is used.
+     * Loading performs no autograd or compilation and needs no caller Arena.
+     * @param envelope non-null detached whole-model image, never modified
+     * @param input non-null owner-verified expected input identity; stored presence is required
+     * @param limits non-null complete encoded ceilings, not peak-heap bounds
+     * @return non-null independent heap-backed evaluation model with gradient-eligible parameters
+     *     and exact declared identity aliases
+     * @throws ArtifactFormatException if stored data, limits or expected input identity fail
+     * @throws IllegalStateException if Tensor identifiers are exhausted
+     * @throws NullPointerException if a required argument is null
+     */
+    public static DeclarativeModel loadWholeModel(ArtifactEnvelope envelope, InputArtifactFingerprint input,
+                                                 ArtifactLimits limits) throws ArtifactFormatException {
+        Objects.requireNonNull(input, "input");
+        return WholeModelComposition.load(envelope, input, limits);
+    }
 
     /**
      * Captures one complete neural-network (NN) state snapshot as a detached, semantically

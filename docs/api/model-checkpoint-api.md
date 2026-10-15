@@ -2,13 +2,110 @@
 
 ## Purpose and mental model
 
-`ModelCheckpoint` captures a fully bound neural-network (NN) module's parameter and buffer values,
-inspects their detached envelope or file, exposes canonical bytes, and loads those values into a
-recreated fully bound module of the same schema. An envelope is an immutable in-memory collection
+`ModelCheckpoint` supports two recovery workflows: save a supported whole model and automatically
+load a `DeclarativeModel`, or capture values and restore them into a caller-recreated fully bound
+neural-network (NN) module. An envelope is an immutable in-memory collection
 of named byte payloads; canonical bytes encode logical elements in row-major order, big-endian.
 The [architecture contract](../architecture/contracts/extensions-training.md#extensionscheckpoint)
 owns this model-only boundary. It does not persist a Java module class, optimizer, or training
 continuation.
+
+| Workflow | Stored kind | What load requires and returns |
+|---|---|---|
+| Whole model | `whole-model.v1` | No target or configuration digest; returns an independent, value-loaded evaluation `DeclarativeModel`. |
+| Values only | `model.v1` | Caller-recreated fully bound target and expected digests; installs values into that target. |
+
+Choose whole-model recovery for the closed layer matrix below; values-only recovery remains the
+advanced boundary for other NN state. The opaque artifact API interprets neither kind.
+
+## Whole-model save and automatic load
+
+The following ten static overloads use existing `ModelCheckpoint`; file operations declare
+`IOException`, and envelope operations declare its subtype `ArtifactFormatException`:
+
+```text
+void save(Path, Module, Engine)
+void save(Path, Module, Engine, ArtifactLimits)
+void save(Path, Module, Engine, InputArtifactFingerprint, ArtifactLimits)
+DeclarativeModel load(Path)
+DeclarativeModel load(Path, ArtifactLimits)
+DeclarativeModel load(Path, InputArtifactFingerprint, ArtifactLimits)
+ArtifactEnvelope captureWholeModel(Module, Engine, ArtifactLimits)
+ArtifactEnvelope captureWholeModel(Module, Engine, InputArtifactFingerprint, ArtifactLimits)
+DeclarativeModel loadWholeModel(ArtifactEnvelope, ArtifactLimits)
+DeclarativeModel loadWholeModel(ArtifactEnvelope, InputArtifactFingerprint, ArtifactLimits)
+```
+
+Although the source parameter is `Module`, only ordinary supported `Sequential` and final
+`DeclarativeModel` roots are recognized. Custom roots/children and unbound state fail before
+Engine or filesystem work. The supported NN0026 matrix is nested sequences, Linear, affine
+LayerNorm, Embedding, Conv1d/2d/3d, and RELU/TANH/SIGMOID. Parameters support FLOAT64, FLOAT32,
+BFLOAT16 and FLOAT16. Each layer retains its complete configuration, guards and input semantics:
+Embedding accepts INT32/INT64 indices; compatible leading Dimensions are not frozen to an example
+batch. See the [layer compatibility guide](../user-guide/declarative-models.md#compatibility-sharing-and-failures).
+Recurrence, BatchNorm, Dropout, branches, custom I/O and arbitrary `Model.define` callbacks are not
+captured. No topology is guessed from values or Shapes.
+
+`whole-model.v1` contains canonical `SYNDEF01` version-one definition bytes at `definition/schema`
+and unchanged values-only entries under `model/`. Configuration SHA-256 is automatically computed
+from those exact definition bytes. Complete ordered descriptors and raw bytes within every alias
+group are independently checked before publication. Aliases mean the same exact parameter Tensor,
+not equal values or overlapping storage; re-saving observes current joins and splits. Neither hashes
+nor a prior inspection authenticate the artifact or authorize later validation. Existing values-only
+inspection/byte-access methods still accept `model.v1`, not the outer whole-model kind.
+
+### Expected input identity
+
+The sole new public type, `checkpoint.model.InputArtifactFingerprint`, represents an input
+artifact's SHA-256 identity already verified by the application. Its constructor requires exactly
+32 non-null bytes; construction and `bytes()` defensively copy, and equality/hash code use all bytes.
+Checkpoint neither reads nor verifies that external artifact.
+
+Overloads without this value save absent input identity and require absence on load. Stored
+presence is **not** silently accepted by default load. Explicit overloads require a non-null value;
+load requires both stored presence and exact bytes. Absence differs from every present digest,
+including an all-zero digest. A mismatch raises `ArtifactFormatException`; supply the application-verified expected
+identity through the typed overload rather than treating stored bytes as verified input.
+
+### Bounds, lifetime and failures
+
+Short file calls use exactly
+`ArtifactLimits(268435456L, 4194304, 16384, 64, 67108864, 268435456L)`: 256 MiB complete file,
+4 MiB manifest, 16384 entries, 64-byte ASCII kind/key, 64 MiB single payload, and 256 MiB aggregate
+payload. One MiB is 1048576 bytes. The definition ceiling remains 1048576 bytes even with advanced
+limits; NN bounds remain 4096 occurrences and depth 64, counting the root at depth one. These
+limits bound encoded bytes, not defensive copies, workspace or peak heap; no backend rank-16
+restriction is added. Capture checks outer bounds before Engine admission or bulk value copies.
+
+Keep source bindings and storage live, accessible and quiescent for the entire save/capture.
+Description and public values capture may each read state; there is no combined snapshot, lock or
+transaction. Empty state makes no Engine call, but still requires a non-null Engine. Semantic
+empty/identity models do not imply generic zero-operation Engine admission.
+
+Load needs no Engine or caller Arena. It returns only after complete validation and installation
+into a private NN candidate: independent heap-backed, evaluation-mode state, with gradient-eligible
+parameters. It performs no autograd, compilation, RNG initialization or native allocation and retains
+no source/file handle. The values survive source Arena/Engine closure and file deletion. To execute,
+construct a forward expression and use a fresh caller Engine with an admitted route. No backend,
+device state or compiled/prepared plan is saved. Evaluation mode is not a no-gradient guarantee.
+
+Required nulls raise `NullPointerException`; unsupported source/configuration or capture bounds raise
+`IllegalArgumentException`; unbound state/Engine contract failures raise `IllegalStateException`;
+checked capture overflow raises `ArithmeticException`. Engine unchecked failures propagate.
+Malformed, unsupported, incoherent or over-limit stored data and expected-input mismatches raise
+`ArtifactFormatException`, with owner validation causes retained. Tensor identifier exhaustion
+remains `IllegalStateException`. File access/publication failures remain `IOException`. Loading a
+values-only file automatically reports a missing definition and directs callers to target-load.
+Failures return no partial model. Save retains the [artifact atomic-live-publication policy](checkpoint-artifact-api.md#lifecycle-and-invariants),
+not portable power-loss durability or a cross-owner transaction.
+
+For the concrete save → source closure → automatic load → fresh-Engine workflow, use the
+[running-models example](../user-guide/running-models.md#load-a-saved-whole-model).
+
+## Values-only recovery
+
+The remaining sections describe the unchanged advanced values-only API, including its caller
+digests, fully bound target, failure types and target-defined aliases.
 
 ```text
 quiescent Module --one NN snapshot + public Engine.compute--> detached model.v1 envelope

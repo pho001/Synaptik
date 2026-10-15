@@ -2,8 +2,8 @@
 
 ## Status
 
-Ready — accepted CP-only whole-model contract; final independent contract approval and coordinator
-verification recorded below. Sole authorized Checkpoint frontier, not implemented code.
+Complete — 2026-10-15. Frozen implementation on accepted packet base `7d65f660051becc9bc6adc6f08af155b08096b59`,
+independent code/documentation APPROVE and recorded module/Javadoc/coordinator gates. No successor authorized.
 
 ## Change class
 
@@ -83,7 +83,7 @@ Stop on real conflict or ambiguity; plans and ADR do not override these contract
 - Integration validation: architecture + WholeModelCheckpointEngineIntegrationTest after review; one combined
   source-matched test/Javadoc checkpoint at the program join after adapter integration.
 - Shared-document integration owner: NN/Training/Checkpoint coordinator.
-- Authorized frontier: CP0005B only for Checkpoint; clean implementation after coordinator integration.
+- Authorized frontier: None after CP0005B completion; successors remain Draft pending separate gates.
 
 Verified 2026-10-14 by coordinator: stable source HEAD/base f892cd3fbde4f8b7722b7eb5b14f4b0a5f3b2669;
 NN0026 Complete with 326 NN/2 CPU/10 architecture tests and final reviews; CP0002/0004/0004A/0005A
@@ -155,13 +155,13 @@ All production names below are in `io.github.pho001.synaptik.checkpoint.model`:
 
 ## Validation
 
-Future worker: focused new codec/composition/public API tests, then once:
+Worker: focused new codec/composition/public API tests, then once (completed):
 
 ```bash
 ./gradlew :extensions:checkpoint:test :extensions:checkpoint:javadoc --max-workers=2 --console=plain
 ```
 
-Coordinator runs these distinct gates once after independent CP review (no duplicate NN/module
+Coordinator ran these distinct gates once after independent CP review (no duplicate NN/module
 tests or performance campaign):
 
 ```bash
@@ -172,19 +172,29 @@ tests or performance campaign):
 Reuse worker evidence unless integration changed code. At program join:
 `./gradlew test javadoc --max-workers=2 --console=plain`.
 No dependency change: no new architecture edge test/build inclusion needed for CP0005B.
-Packet now: local Markdown targets/anchors, ≤200 lines/15KB, `git diff --check`; no Java reruns.
 
 ## Documentation and review impact
 
-Independent Class C contract/API/wire/preflight review approved; clean implementation and
-independent targeted implementation/documentation review remain required before Complete.
+Independent Class C contract/API/wire/preflight and implementation/documentation reviews APPROVE.
 Coordinator owns root/scoped contract, architecture explanations, ADR and planning integration.
-Future implementation updates `docs/api/model-checkpoint-api.md`, running-models guide, Javadoc
-and targeted glossary where needed; existing runnable API docs must not claim Ready means shipped.
-Review exact failures, fingerprint presence, matrix, alias semantics, encoded limits and lifetime.
+Implementation updates `docs/api/model-checkpoint-api.md`, running/declarative guides, Javadoc
+and targeted glossary; status reconciliation changes no accepted semantics or future decisions.
 
 ## Result
 
-Implementation result empty. Ready authorizes the recorded clean implementation, not Complete.
-Future executor records changes/files, validation, Javadoc/glossary impact, limitations/follow-up,
-and `Status: Complete` or `Status: Incomplete` with specific follow-up.
+Seven code/test files deliver ten ModelCheckpoint overloads, sole public InputArtifactFingerprint,
+package-private codec/composition and unit/integration coverage. Existing values-only APIs/wire unchanged.
+Worker `:extensions:checkpoint:test :extensions:checkpoint:javadoc --max-workers=2 --console=plain`
+PASS: 57 tests (24 new), no failures/errors/skips; 3 tasks executed, 31 up-to-date. Tests not rerun by docs.
+Coordinator architecture command above PASS: 21 up-to-date; valid prior 10-test evidence reused,
+no dependency/architecture-test input change. Focused integration command above actually ran PASS:
+3 tests, no failures/errors/skips; XML 2026-10-15T05:14:25Z; 2 tasks executed, 35 up-to-date.
+Independent final code APPROVE covers all seven frozen files; no unresolved production finding.
+Independent docs review finalized ModelCheckpoint/InputArtifactFingerprint comments only, API,
+running/declarative guides, glossary, accepted-contract/explanation/ADR and current plan statuses.
+Final `./gradlew :extensions:checkpoint:javadoc --max-workers=2 --console=plain` PASS after comments:
+2 tasks executed, 15 up-to-date; no behavior change (comment-stripped hashes unchanged).
+Docs links/anchors (524), whitespace including untracked files and brief size PASS; running-guide
+Java 26 example executed: `0.0, 8.0`. No unresolved CP0005B follow-up; no commit/stage/push.
+NN0027/CP0005C/Training0006/adapter remain Draft/Proposed; no recurrent wire or API expansion.
+Status: Complete

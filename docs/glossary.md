@@ -2946,13 +2946,25 @@ a versioned, bounded single-file container with strict names, lengths, and SHA-2
 checks. It does not assign meaning to payload bytes. Saving this envelope forces its temporary
 file and uses one atomic move for live visibility; Java NIO does not portably guarantee that the
 rename survives power loss. A failed move can leave the target in a provider-dependent state.
-A package-private **model artifact candidate** adds canonical version-one metadata and
+A package-private values-only **model artifact candidate** adds canonical version-one metadata and
 detached per-path payload bytes from one complete NN state snapshot through public Engine compute.
 Its schema fingerprint is SHA-256 over exact metadata, including caller-supplied configuration and
 optional input-artifact digests. The public model facade saves, fully inspects, and strictly loads
 that file into a fully bound target. The target's Tensor identity defines alias groups: their
 stored values must be byte-identical, and each group receives one fresh heap-backed Tensor.
-The v1 wire does not encode source sharing, so configuration fingerprints must cover it.
+The values-only `model.v1` wire does not encode source sharing, so its caller configuration
+fingerprints must cover it. Whole-model `whole-model.v1` instead stores a canonical closed NN
+definition, explicit parameter identity groups and unchanged values entries under `model/`.
+Its configuration fingerprint is automatically computed SHA-256 of exact definition bytes;
+automatic load returns an independent heap-backed evaluation `DeclarativeModel`, not a descriptor
+skeleton or a caller-recreated target. Parameters remain gradient-eligible, but loading constructs
+no autograd, Engine, compiled plan or native owner. No backend or prepared execution is stored.
+An **input-artifact fingerprint** is application-verified expected SHA-256 identity of external
+input data/configuration, not authentication performed by Checkpoint. Whole-model overloads use
+immutable `InputArtifactFingerprint` with exactly 32 defensive-copy bytes. Default overloads save
+absence and reject stored presence; explicit load requires presence and exact expected bytes.
+Hashes never make an unverified artifact trustworthy. Values-only APIs retain their byte-array
+digests and unchanged target-load contract.
 Save accepts fully bound native and matching heap leaves on the validated CPU route, including
 loaded trees. After complete preflight, internal raw-preserving contiguous requests normalize
 unique leaf outputs without rebinding NN state; this is not generic leaf-output Engine support.
@@ -3385,8 +3397,10 @@ same exact Tensor, not merely equal values or overlapping storage. Members follo
 order; groups follow first-member order, have matching schema and disjoint memberships. Both
 description entry points read current bindings under caller quiescence, including joins/splits
 after legal replacement or strict loading. Training's duplicate/overlap rejection is unchanged.
-See the [reconstruction guide](user-guide/declarative-models.md); this capability does not implement
-automatic stored-model file reconstruction or training resume.
+See the [reconstruction guide](user-guide/declarative-models.md). NN owns semantic reconstruction,
+not file I/O; downstream [whole-model Checkpoint](api/model-checkpoint-api.md#whole-model-save-and-automatic-load)
+stores this closed configuration and detached values, then returns a value-loaded model.
+Neither capability supplies training resume or arbitrary Java model capture.
 
 ### Standard module factory
 

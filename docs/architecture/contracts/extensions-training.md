@@ -299,7 +299,9 @@ execution pipeline.
 ### Whole-model definition and composition
 
 This is the accepted CP0005B contract (2026-10-14), independently approved and coordinator-verified
-for its Ready implementation; the API is not implemented yet. NN's closed declarative contract above owns meaning; Checkpoint owns the
+for implementation. CP0005B is Complete (2026-10-15): implementation, independent code and
+documentation reviews, module/Javadoc and coordinator gates passed. NN's closed declarative
+contract above owns meaning; Checkpoint owns the
 following persistent representation and public composition. Training and recurrent extensions
 remain Proposed. Existing values-only methods, `model.v1`, ArtifactFile v1, and ArtifactEnvelope's
 defensive-copy boundary remain unchanged. No dependency edge or Java-object serialization is added.

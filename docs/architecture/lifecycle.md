@@ -228,7 +228,8 @@ boundary decision](../design/decisions/0031-model-checkpoint-extension-boundary.
 records the bound-target and alias policy.
 
 The [accepted CP0005B whole-model lifecycle](contracts/extensions-training.md#whole-model-definition-and-composition)
-is a separate, not-yet-implemented convenience. Under caller quiescence, NN description and public
+is implemented and reviewed (Complete, 2026-10-15), separately from values-only recovery.
+Under caller quiescence, NN description and public
 values capture may each read state; no combined snapshot transaction is promised. Dry sizing and
 residual checks precede bounded definition encoding/hash; public capture's projected preflight
 enforces outer bounds before Engine work or bulk value copies. Load preflights outer framing before

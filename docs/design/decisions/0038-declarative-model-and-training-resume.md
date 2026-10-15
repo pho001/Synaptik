@@ -4,13 +4,15 @@
 
 Accepted NN decision — 2026-10-14; final independent review approved and coordinator verified NN0026
 Ready. Accepted CP-only whole-model decision — 2026-10-14; final independent contract APPROVE
-and coordinator verification authorize CP0005B Ready, not an implementation result. Future recurrent/Training/adapter decisions
+and coordinator verification authorized CP0005B implementation. CP0005B is Complete (2026-10-15),
+with independent code/documentation approval, module tests, final Javadoc and coordinator gates.
+Future recurrent/Training/adapter decisions
 remain Proposed, not accepted contracts or implementation authorization.
 Replaces the Proposed direction in [ADR 0037](0037-stored-training-checkpoint-adapter.md),
 which is withdrawn as the primary product, not as evidence of useful low-level foundations.
 The NN scope is accepted and coordinated with the root and owning NN contract. NN0026
 is Complete with implementation independently reviewed and coordinator-validated.
-CP0005B is Ready, the sole authorized Checkpoint frontier. NN0027 semantic
+CP0005B is Complete; no successor is authorized Ready. NN0027 semantic
 recurrent reconstruction and CP0005C persistence adoption are Draft rows only; Training0006/adapter0006 remain
 Draft with Proposed decisions. No TrainingRun or adapter acceptance.
 
@@ -247,8 +249,8 @@ hot-path string lookup. Run admission excludes batch/save/close; borrowed inputs
   accepted after final independent approval. No dependency/build
   edge changes or new dependency test is needed. Before any downstream Ready decision, separately
   coordinate its owning contract, explanations, ADR and applicable architecture/integration tests.
-  CP0005B is Ready after coordinator verification, with source f892 plus accepted packet as its
-  execution base. The launcher records the final contract commit after integration. Neither this
+  CP0005B is Complete on accepted packet base `7d65f660051becc9bc6adc6f08af155b08096b59`,
+  with independent reviews and recorded module/Javadoc/integration evidence in its brief. Neither this
   acceptance nor NN accepts future recurrent/Training/adapter contracts or opens their build gates.
 - Selected serial order, with each capability in clean implementation and independent review:
   NN0026 Complete → Checkpoint0005B → NN0027 semantics → Checkpoint0005C persistence

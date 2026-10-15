@@ -128,8 +128,8 @@ not a hard dependency on optimized RecurrentScan/backend BPTT/Data. Authorized N
 NN0026's API/matrix and NN-only root/contract/explanation/ADR packet are accepted after final
 independent review; coordinator Ready verification is recorded in the brief. Downstream
 CP0005B's whole-model contract/API/wire/default packet is accepted after final independent approval
-and coordinator verification; CP0005B is Ready, the sole Checkpoint frontier. NN0027/CP0005C/Training/
-adapter decisions remain Proposed and their tasks remain Draft.
+and coordinator verification; CP0005B is Complete with final reviews/gates (2026-10-15), no new
+frontier. NN0027/CP0005C/Training/adapter decisions remain Proposed and their tasks remain Draft.
 
 NN0027 ordering metadata: Depends on NN0026 and CP0005B; Conflicts with shared NN semantic/API
 contracts and CP0005C/Training0006/adapter0006; Parallel group None; Common base revision
@@ -170,7 +170,7 @@ Exact metadata and 2026-10-14 dependency/base/contracts/review/conflict verifica
   convolution plus its user checkpoint (0025–0025A).
 - Draft: 0021B–0024. None has a detailed task brief. Audit repair 0025B is Complete.
 - Complete: NN0026 with final independent reviews and coordinator validation.
-  Authorized NN frontier: None; NN0027 remains Draft. CP0005B is Ready; later successors remain Draft.
+  Authorized NN frontier: None; NN0027 remains Draft. CP0005B is Complete; later successors remain Draft.
 - NN0027 is the selected semantic recurrent follow-up AFTER CP0005B and BEFORE CP0005C/Training0006;
   no detailed speculative brief until recurrent policy is decided. No scan/backend BPTT/Data gate.
 - 0021B remains a separate Draft execution candidate only after a planner revalidates its cross-area

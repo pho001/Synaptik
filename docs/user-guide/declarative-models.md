@@ -137,10 +137,14 @@ No arbitrary `Model.define` capture, branches, recurrence, BatchNorm, Dropout,
 wire codec, file I/O, optimizer state or runtime runner is provided. Metadata checks
 do not admit a backend route or widen Conv3d gradient support. Empty trees return
 the exact input semantically, without a generic zero-operation Engine guarantee.
-Automatic reconstruction from a stored-model file is not implemented by this NN capability;
-Checkpoint 0005B remains a separate gate. The existing
-[model checkpoint API](../api/model-checkpoint-api.md) loads values into a caller-provided
-fully bound target; it does not store this specification or reconstruct it from a file.
+NN reconstruction itself still has no codec or file I/O. Downstream Checkpoint now offers
+[whole-model save and automatic load](../api/model-checkpoint-api.md#whole-model-save-and-automatic-load)
+for this same closed matrix: it stores canonical configuration, exact identity groups and detached
+values, then returns an independent heap-backed evaluation `DeclarativeModel`. Its load requires
+neither an Engine, Arena, manual skeleton nor caller configuration digest. This differs from the
+unchanged values-only API, which needs a caller-provided fully bound target and expected digests.
+Use the [stored-model inference example](running-models.md#load-a-saved-whole-model) for that workflow;
+the shallow state-dictionary example above deliberately does not detach source values.
 
 See the [NN declarative contract](../architecture/contracts/extensions-training.md#closed-declarative-models)
 for the owning boundary, the [specification/skeleton glossary](../glossary.md#declarative-model-specification-and-descriptor-only-skeleton)
