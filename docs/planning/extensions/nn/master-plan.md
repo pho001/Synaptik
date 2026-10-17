@@ -36,6 +36,8 @@ storage/lowering/kernel selection, tokenization, or raw-data padding.
 
 ## Module invariants and dependencies
 
+The following describes CURRENT ownership; the target cutover is distinguished below.
+
 - A module declares and owns its `Parameter` and `Buffer` wrappers, child modules, stable names,
   and local forward mode. A parameter replacement must preserve its declaration schema.
 - State dictionaries are ordered in-memory Tensor-reference snapshots with strict complete
@@ -58,11 +60,14 @@ storage/lowering/kernel selection, tokenization, or raw-data padding.
   three spatial axes. Conv3d forward execution is supported, but its gradient remains fail-closed
   until Compiler 0006C or a replacement owner decision completes.
 
-Allowed production dependency: `modules/model` only.
+Allowed direct public production dependencies: `modules/model` and `:extensions:training`.
 
-Forbidden dependencies: `extensions/training`, `modules/compiler`, `modules/runtime`,
-`modules/prepare`, `modules/engine`, and every concrete backend. Training depends on NN, never the
-reverse.
+Forbidden direct dependencies: `modules/compiler`, `modules/runtime`, `modules/prepare`,
+`modules/engine`, Checkpoint and every concrete backend. Training0007 removes Training→NN and
+adds NN→Training only for its live parameter adapter. Later target NN consumes generic Checkpoint
+and the public Engine facade, never Compiler/Runtime/Prepare internals. Those later edges require
+their separate coordinated cutovers; see the
+[target dependency map](../../model-execution-refactor.md#target-dependencies-not-current-permission).
 
 ## Package map
 
@@ -72,6 +77,10 @@ reverse.
 | `io.github.pho001.synaptik.nn.initialization` | Public closed initialization policies and stateless eager initializers; no retained source, registry, callback model, or layer schema. |
 | `io.github.pho001.synaptik.nn.layers` | Public concrete layers, cells, sequences, and typed results. Rank-shared convolution binding/initialization remains package-private implementation detail. |
 | `io.github.pho001.synaptik.nn.functional` | Reserved planning direction only; no current production package or public API. |
+
+Immediate cross-area implementation: Training0007 adds public `Module.trainingParameters()` with a private
+live adapter in `nn.module`, atomically with generic Training and NN's `api(:extensions:training)`
+edge. It adds no high-level Model execution or direct NN Engine/Checkpoint edge. NN0028 remains Draft.
 
 ## Task list
 
@@ -113,7 +122,8 @@ Draft rows without links have no detailed task brief.
 | [0025A](tasks/0025a-dimensional-convolution-user-capability-checkpoint.md) | Dimensional-convolution user-capability checkpoint | Complete | 0025; Engine 0004; CPU 0008A | Validated strict-loaded and factory convolution through public one-shot/reusable Engine workflows, numerical oracles, lifecycle ownership, and Conv3d backward rejection. |
 | [0025B](tasks/0025b-public-model-dependency-export.md) | Export public Model dependency | Complete | Existing NN facade; project review | Correct Gradle API visibility and validate an isolated NN-only consumer. |
 | [0026](tasks/0026-declarative-model-specification.md) | Declarative model specification and reconstruction | Complete | Verified Complete 0025/0025A/0025B; accepted NN matrix/contract | Describe/reconstruct/strict-load delivered with final reviews and coordinator gates; no persistent codec or new dependency. |
-| 0027 | Semantic recurrent description and reconstruction | Draft | NN0026 Complete; CP0005B complete and reviewed before launch | Model-only static Rnn/Gru/Lstm meaning; initial-state/output policy remains future, no bytes/versions or detailed brief. |
+| 0027 | Semantic recurrent description and reconstruction | Draft | NN0026/CP0005B Complete; P2 review and any separately selected recurrent scope | Held despite CP0005D planning completion; no bytes/versions or detailed brief. |
+| 0028 | Owned ordinary tensor Model workflow | Draft | Engine0021; Training0008; Checkpoint0008 | defineTensor/load, same-instance withEngine, terminal compute/configured train/save, owned state/lifecycle and old-v1 coexistence; independent review before Ready. |
 
 ## Proposed whole-model checkpoint program
 
@@ -121,7 +131,63 @@ Draft rows without links have no detailed task brief.
 revises the primary product to automatic usable-model load, then inference or owned Training resume.
 0026 is Complete after final independent reviews and coordinator validation.
 
-Selected serial DAG: `NN0026 Complete → CP0005B → NN0027 → CP0005C → Training0006 → optional CP0006`.
+Earlier proposed serial DAG (held):
+`NN0026 Complete → CP0005B Complete | HOLD: NN0027 → CP0005C → Training0006 → optional CP0006`.
+[CP0005D](../checkpoint/tasks/0005d-portable-graph-persistence-decision.md) is Complete for bounded
+planning/review after independent review, the sole P2 correction and coordinator acceptance;
+[ADR0039](../../../design/decisions/0039-portable-graph-model-persistence.md) records the accepted target, not enacted contracts.
+The user approved one model.compute/train/save/load direction for manual/file tensors and generic
+Training/Checkpoint modules. The [cross-area program](../../model-execution-refactor.md) owns the
+phases, exact edges and independently approved P2 planning packet. NN stays extensions/nn, supplies the
+live named-parameter adapter and receives NN-specific Checkpoint glue after removal of reverse edges.
+Same-signature execution targets Engine PreparedExecution plus Engine.runValues with fresh per-run
+borrowed storage, not the InferenceSession/Engine.session API removed by Engine0021. Model's
+high-level compute/train hides preparation; no replacement runner/session facade. Normal use
+does not reconstruct via outputs(actualInputs) or mutate shared placeholders.
+
+Current Model<I,O> permits arbitrary Java forward and Module.train() is mode-only; both remain.
+P2 selects defineTensor(signature, definition) and load(Path) returning Model<Tensor,Tensor>,
+with compute(Tensor), configured train(Tensor,Tensor), save and close. No manual forward/leaf
+enumeration/second Model is required for ordinary NN use. The one-shot definition produces a
+source graph; discard its callback after private leaf acquisition/reconstruction, so a captured
+external weight cannot escape into later symbolic forward. Explicit symbolic forward reconstructs
+the owned source cold; compute/train never do so per batch. Legacy Model.define stays unchanged.
+Advanced graph/loadGraph supports Tensor lists, not arbitrary Java-record serialization.
+Detached HostTensorValue results are not generic O; no cast or new public model/result hierarchy.
+Keep ModelSpecification/DeclarativeModel and flexible v1 rank/batch behavior until explicit migration.
+Source restoration creates ordinary Tensor expressions/weights before compile without Engine/batch.
+No loaded-model hierarchy, second execution pipeline or per-RNN recipe prerequisite.
+
+Approved target amendment: `Model.load(path[, limits]).withEngine(engine)` returns the exact same
+ordinary Model, as does application-built Model binding. It borrows one Engine for compute/train;
+existing explicit borrowed-Engine overloads remain. Otherwise Engine.standard() is lazy/model-owned,
+currently CPU-only, without discovery/global state. Binding freezes at first inference/training
+preparation setup, including failed setup, before Engine/native/compile/prepare work. No later
+rebinding or automatic reprepare after rebinding; null/closed candidates reject without mutation.
+The [exact admission, errors and configureTraining timing](../../../design/decisions/0039-portable-graph-model-persistence.md#target-model-engine-binding)
+are NN0028 targets. compute(batch) still returns detached HostTensorValue, not a request/wrapper;
+no Model methods or lifecycle are implemented by Training0007.
+
+No NN implementation is Ready. Engine0020's backend/native-only cutover is Complete after
+integration, independent review and combined validation. The user's later five choices are now
+accepted. Engine0021 delivered the thin-session removal, authority cutover and mechanical Training
+migration; independent Class C approval and the native-enabled test/Javadoc gate passed. Its brief
+owns evidence. Training0007, including its atomic NN adapter, is Complete after final independent
+APPROVE and the coordinator gate. Authorized Training frontier: None. Compiler0008 is the next
+planning candidate, still Draft with no brief or launch; NN0028/Training0008 remain Draft.
+NN0028 joins Engine0021, Training0008 and Checkpoint0008. Training0007 atomically removes its
+reverse edge and adds Module.trainingParameters; Checkpoint0008 moves the nine NN glue classes
+into nn.checkpoint while removing Checkpoint→NN. No transitional cycle.
+NN0028 privately acquires external weights once, keeps one working set for compute/train/save,
+creates Engine.standard lazily (or borrows explicit Engine), and rejects stale mode/binding changes.
+One high-level operation at a time; detached compute/TrainingStep values outlive close.
+Known source/signature enables save-before-compute; model-only save is not optimizer/RNG resume.
+Package additions are private typed model implementations/state namespaces in nn.module, not a
+public TensorModel or execution adapter. The generic boundary types belong to Training/Checkpoint.
+Shared documents integrate serially under the model-execution coordinator; parallel group None,
+common base is current main including completed Engine0021, reverified before launch. Exact DAG and
+migration map live in the program; the [Training0007 brief](../training/tasks/0007-generic-live-parameter-admission.md)
+records final independent approval and successful coordinator validation; no successor is launched.
 NN0027 owns only semantic description/reconstruction using existing static Rnn/Gru/Lstm capabilities;
 CP0005C owns explicit versioned recurrent definition wire/whole-save/load adoption. This is an owner split,
 not a hard dependency on optimized RecurrentScan/backend BPTT/Data. Authorized NN frontier: None.
@@ -129,9 +195,9 @@ NN0026's API/matrix and NN-only root/contract/explanation/ADR packet are accepte
 independent review; coordinator Ready verification is recorded in the brief. Downstream
 CP0005B's whole-model contract/API/wire/default packet is accepted after final independent approval
 and coordinator verification; CP0005B is Complete with final reviews/gates (2026-10-15), no new
-frontier. NN0027/CP0005C/Training/adapter decisions remain Proposed and their tasks remain Draft.
+frontier. NN0027/CP0005C/Training0006/adapter remain held Draft; their optional policies are not P2 gates.
 
-NN0027 ordering metadata: Depends on NN0026 and CP0005B; Conflicts with shared NN semantic/API
+NN0027 ordering metadata (held, revalidate after remaining ADR0039 semantic decisions): Depends on NN0026 and CP0005B; Conflicts with shared NN semantic/API
 contracts and CP0005C/Training0006/adapter0006; Parallel group None; Common base revision
 `f892cd3fbde4f8b7722b7eb5b14f4b0a5f3b2669` (reverify after CP integration); Integration order
 after CP0005B and before CP0005C; Integration validation future NN semantic reconstruction tests
@@ -155,7 +221,8 @@ state/strict load without random weights; focused tests extend that evidence. Th
 exact records, typed configuration access and Linear.fromState guard policy; Model-only edges and
 existing generic APIs stay intact. 4096/depth64 bound cold-tree processing, not backend capability.
 
-NN remains Model-only; bytes/versioning/files belong to Checkpoint, recipe/run lifecycle to Training.
+NN0026 itself changed no dependency. Training0007 now adds only the public generic Training edge
+for live admission; the future Checkpoint/Engine edges remain unimplemented and separately gated.
 The coordinator owns shared documents; each capability uses separate clean implementation/review.
 Parallel group None; accepted contract base `4472320ceb5498c46a661af549d6de74aa27ab6a`.
 Implementation, final reviews and coordinator validation are complete; evidence is in the task brief.
@@ -170,9 +237,10 @@ Exact metadata and 2026-10-14 dependency/base/contracts/review/conflict verifica
   convolution plus its user checkpoint (0025–0025A).
 - Draft: 0021B–0024. None has a detailed task brief. Audit repair 0025B is Complete.
 - Complete: NN0026 with final independent reviews and coordinator validation.
-  Authorized NN frontier: None; NN0027 remains Draft. CP0005B is Complete; later successors remain Draft.
-- NN0027 is the selected semantic recurrent follow-up AFTER CP0005B and BEFORE CP0005C/Training0006;
-  no detailed speculative brief until recurrent policy is decided. No scan/backend BPTT/Data gate.
+  Authorized NN frontier: None; NN0027 remains Draft. CP0005B is Complete; later NN semantic
+  successors remain Draft. Engine0020's completed layout cutover does not authorize NN work.
+- NN0027 is the earlier Draft recurrent follow-up, held with CP0005C/Training0006 held as an optional older proposal,
+  not a prerequisite of NN0028; no scan/backend BPTT/Data gate.
 - 0021B remains a separate Draft execution candidate only after a planner revalidates its cross-area
   program and truthful concrete-backend coverage. It is not implementation authorization;
   Model 0032 is Complete, and the [roadmap](../../roadmap.md) owns current cross-area frontiers.

@@ -67,7 +67,7 @@ final class TrainingSessionCpuIntegrationTest {
                         new ParameterGroup(List.of("second"), new Sgd(0.2d)),
                         new ParameterGroup(List.of("third"),
                                 new AdamW(0.1d, 0.5d, 0.25d, 0.01d, 0.1d)));
-                try (TrainingSession session = TrainingSession.open(engine, module, objective,
+                try (TrainingSession session = TrainingSession.open(engine, module.trainingParameters(), objective,
                         new Adam(0.1d, 0.5d, 0.25d, 0.01d, 0.1d), groups)) {
                     var prepared = session.compiledGraph();
                     session.run(List.of(), GradientMode.RESET_AND_STEP);
@@ -105,7 +105,7 @@ final class TrainingSessionCpuIntegrationTest {
             Pair module = new Pair(arena);
             Tensor objective = module.first.value().add(module.second.value());
             try (TrainingSession session = TrainingSession.open(
-                    engine, module, objective, new Sgd(0.1d),
+                    engine, module.trainingParameters(), objective, new Sgd(0.1d),
                     List.of(new ParameterGroup(List.of("first"), new Sgd(0.25d))))) {
                 var graph = session.compiledGraph();
                 TrainingState initial = session.state();
@@ -145,9 +145,9 @@ final class TrainingSessionCpuIntegrationTest {
             Tensor error = output.sub(target);
             Tensor objective = error.mul(error).sum();
             assertThrows(IllegalArgumentException.class,
-                    () -> TrainingSession.open(engine, linear, objective, new Sgd(0.1)));
+                    () -> TrainingSession.open(engine, linear.trainingParameters(), objective, new Sgd(0.1)));
 
-            TrainingParameterStorage.copyToSharedNative(linear, arena);
+            TrainingParameterStorage.copyToSharedNative(linear.trainingParameters(), arena);
             assertSame(weight, linear.weight().value());
             assertSame(bias, linear.bias().orElseThrow().value());
             assertArrayEquals(weightBits,
@@ -158,7 +158,7 @@ final class TrainingSessionCpuIntegrationTest {
             assertTrue(biasSource.isAlive());
 
             try (TrainingSession session = TrainingSession.open(
-                    engine, linear, objective, new Sgd(0.1))) {
+                    engine, linear.trainingParameters(), objective, new Sgd(0.1))) {
                 var compiled = session.compiledGraph();
                 float firstLoss = session.run(
                         List.of(input, target), GradientMode.RESET_AND_STEP)
@@ -184,7 +184,7 @@ final class TrainingSessionCpuIntegrationTest {
             Tensor objective = difference.mul(difference);
 
             try (TrainingSession session = TrainingSession.open(
-                    engine, module, objective, new Sgd(0.1d))) {
+                    engine, module.trainingParameters(), objective, new Sgd(0.1d))) {
                 var compiled = session.compiledGraph();
                 float firstLoss = Float.NaN;
                 retained = null;
@@ -228,8 +228,8 @@ final class TrainingSessionCpuIntegrationTest {
             Tensor seed = tensor(arena, DataType.FLOAT32, false, 10, 20, 30);
             var compiled = engine.compile(
                     List.of(data.gather(indices, 0)), List.of(seed), List.of(data));
-            try (var session = engine.session(compiled);
-                    var result = session.run(List.of(data, indices, seed))) {
+            try (var session = engine.prepare(compiled);
+                    var result = engine.run(session, List.of(data, indices, seed))) {
                 var gradient = result.materialize(result.publications().get(1), 4L * Float.BYTES)
                         .bytes();
                 assertEquals(30.0f, gradient.getFloat(), 0.0f);
@@ -252,7 +252,7 @@ final class TrainingSessionCpuIntegrationTest {
                 Tensor input = vectorOne(arena, 3.0f, false);
                 Tensor objective = module.value().value().neg().add(input).sum();
                 try (TrainingSession session = TrainingSession.open(
-                        engine, module, objective, new Sgd(0.1d))) {
+                        engine, module.trainingParameters(), objective, new Sgd(0.1d))) {
                     TrainingStep step = session.run(
                             List.of(input), GradientMode.RESET_AND_STEP);
                     assertEquals(2.1f, parameterValue(module), 1e-6f);
@@ -277,7 +277,7 @@ final class TrainingSessionCpuIntegrationTest {
 
                 IllegalStateException unsupported = assertThrows(
                         IllegalStateException.class,
-                        () -> TrainingSession.open(engine, module, objective, new Sgd(0.1d)));
+                        () -> TrainingSession.open(engine, module.trainingParameters(), objective, new Sgd(0.1d)));
 
                 assertTrue(unsupported.getMessage().contains(
                         "no hard-eligible backend is available for ownership selection"));
@@ -303,12 +303,12 @@ final class TrainingSessionCpuIntegrationTest {
 
                 try (TrainingSession source = TrainingSession.open(
                                 engine,
-                                sourceModule,
+                                sourceModule.trainingParameters(),
                                 sourceDifference.mul(sourceDifference),
                                 optimizer);
                         TrainingSession resumed = TrainingSession.open(
                                 engine,
-                                resumedModule,
+                                resumedModule.trainingParameters(),
                                 resumedDifference.mul(resumedDifference),
                                 optimizer)) {
                     short initialBits = rawLow(sourceParameter);
@@ -365,7 +365,7 @@ final class TrainingSessionCpuIntegrationTest {
                 Tensor badObjective =
                         badParameter.cast(DataType.FLOAT32).mul(nonFinite);
                 try (TrainingSession session = TrainingSession.open(
-                        engine, badModule, badObjective, new Sgd(0.1d))) {
+                        engine, badModule.trainingParameters(), badObjective, new Sgd(0.1d))) {
                     TrainingState before = session.state();
                     short rawBefore = rawLow(badParameter);
                     assertThrows(

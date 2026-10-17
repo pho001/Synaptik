@@ -50,8 +50,8 @@ import io.github.pho001.synaptik.tools.tuning.WorkloadTuningResult;
  * adapter and admits synchronous operations through a cold lifecycle gate. Compilation produces
  * an opaque owner-bound handle, preparation produces an opaque reusable owner-bound handle, and
  * each run creates isolated mutable Runtime state behind a lifecycle-only result. Engine closure
- * closes successful open results in reverse run order, retained ordinary inference sessions and
- * standalone ordinary/advanced prepared handles in reverse preparation-publication order, and
+ * closes successful open results in reverse run order, retained
+ * ordinary/advanced prepared handles in reverse preparation-publication order, and
  * then the adapter. Caller storage and advanced caller-created borrowed input representations
  * remain caller-owned. Ordinary runs reuse this lifecycle owner privately but transfer cleanup of
  * their Engine-created non-owning wrappers to the registered result; the wrapped storage never
@@ -578,40 +578,6 @@ public final class AdvancedEngine implements AutoCloseable {
         return finishPreparedHandle(result);
     }
 
-    /**
-     * Admits one session construction, performs one ordinary preparation, and registers only the
-     * resulting session as the outward preparation owner.
-     *
-     * @param owner non-null ordinary Engine facade owning {@code compiledGraph}
-     * @param compiledGraph non-null compile handle created by {@code owner}
-     * @return a fresh non-null registered inference session
-     * @throws NullPointerException if an argument is {@code null}
-     * @throws IllegalArgumentException if ownership or inward preparation is invalid
-     * @throws IllegalStateException if Engine closure has begun
-     * @throws RuntimeException if preparation or rollback reports an unchecked failure
-     * @throws Error if preparation or rollback reports a fatal failure
-     */
-    InferenceSession openInferenceSession(Engine owner, CompiledGraph compiledGraph) {
-        beginOperation();
-        io.github.pho001.synaptik.engine.PreparedExecution preparedExecution = null;
-        InferenceSession result;
-        try {
-            Objects.requireNonNull(owner, "owner");
-            Objects.requireNonNull(compiledGraph, "compiledGraph");
-            requireOrdinaryOwner(owner, compiledGraph.owner());
-            preparedExecution = prepareOrdinaryOpen(owner, compiledGraph);
-            result = new InferenceSession(owner, compiledGraph, preparedExecution);
-            preparedExecution = null;
-        } catch (RuntimeException | Error failure) {
-            if (preparedExecution != null) {
-                closeWithSuppression(preparedExecution, failure);
-            }
-            finishFailure();
-            throw failure;
-        }
-        return finishPreparedHandle(result);
-    }
-
     /** Poisons later registry lookup for focused ordinary direct-reference lifecycle evidence. */
     void poisonBackendLookupForTesting() {
         composition.poisonLookupForTesting();
@@ -633,28 +599,21 @@ public final class AdvancedEngine implements AutoCloseable {
     }
 
     /**
-     * Admits one session run and checks the hidden preparation before any caller-input state.
-     * Engine lifecycle admission intentionally remains first.
+     * Admits positional fresh values through the same prepared binding and execution path.
      *
      * @param owner non-null exact ordinary Engine owner
-     * @param preparedExecution non-null hidden preparation owned by the session
-     * @param inputs caller inputs inspected only after prepared admission
+     * @param preparedExecution non-null preparation checked before input inspection
+     * @param values non-null positional values checked only after Engine/prepared admission
      * @return a fresh non-null publication lease
      */
-    io.github.pho001.synaptik.engine.RunResult runSessionOrdinary(
+    io.github.pho001.synaptik.engine.RunResult runValuesOrdinary(
             Engine owner,
             io.github.pho001.synaptik.engine.PreparedExecution preparedExecution,
-            List<Tensor> inputs) {
+            List<Tensor> values) {
         beginOperation();
         OrdinaryRun ordinaryRun;
         try {
-            Objects.requireNonNull(owner, "owner");
-            Objects.requireNonNull(preparedExecution, "preparedExecution");
-            requireOrdinaryOwner(owner, preparedExecution.owner());
-            io.github.pho001.synaptik.runtime.execution.PreparedExecution execution =
-                    preparedExecution.execution();
-            ordinaryRun = runOrdinaryOpen(
-                    owner, preparedExecution, inputs, execution);
+            ordinaryRun = runOrdinaryOpen(owner, preparedExecution, values, true);
         } catch (RuntimeException | Error failure) {
             finishFailure();
             throw failure;
@@ -662,23 +621,34 @@ public final class AdvancedEngine implements AutoCloseable {
         return finishOrdinaryRun(ordinaryRun);
     }
 
+    /**
+     * Publishes a completed result or rolls it back before releasing Engine admission.
+     *
+     * @param ordinaryRun non-null completed run whose owner has not yet been registered
+     * @return the non-null result after successful registration
+     * @throws RuntimeException if registration or rollback fails, or shutdown has begun
+     * @throws Error if registration or rollback reports a fatal failure
+     */
     private io.github.pho001.synaptik.engine.RunResult finishOrdinaryRun(OrdinaryRun ordinaryRun) {
+        Throwable publicationFailure;
         synchronized (lifecycleLock) {
             if (lifecycle == Lifecycle.OPEN) {
-                openResults.add(ordinaryRun.owner());
-                activeOperations--;
-                lifecycleLock.notifyAll();
-                return ordinaryRun.result();
+                try {
+                    openResults.add(ordinaryRun.owner());
+                    activeOperations--;
+                    lifecycleLock.notifyAll();
+                    return ordinaryRun.result();
+                } catch (RuntimeException | Error failure) {
+                    publicationFailure = failure;
+                }
+            } else {
+                publicationFailure = closedFailure();
             }
         }
-        IllegalStateException closed = closedFailure();
-        try {
-            ordinaryRun.owner().close();
-        } catch (RuntimeException | Error rollbackFailure) {
-            suppressDistinct(closed, rollbackFailure);
-        }
+        closeWithSuppression(ordinaryRun.owner(), publicationFailure);
         finishFailure();
-        throw closed;
+        rethrow(publicationFailure);
+        throw new AssertionError("result publication failed without an unchecked throwable");
     }
 
     /**
@@ -1334,61 +1304,111 @@ public final class AdvancedEngine implements AutoCloseable {
         }
     }
 
+    /**
+     * Checks the exact delegate before inputs, validates all bindings before borrowing, and
+     * executes through captured adapters. Runtime alone acquires the prepared run lease.
+     *
+     * @param owner exact non-null ordinary facade with an existing Engine admission
+     * @param preparedExecution non-null handle checked for exact owner and closure first
+     * @param inputs caller list snapshotted only after prepared admission
+     * @return completed unpublished result and cleanup owner; never null
+     * @throws NullPointerException if an admitted argument or indexed input is null
+     * @throws IllegalArgumentException if ownership, binding, positional geometry or storage rejects
+     * @throws IllegalStateException if preparation/storage is closed, absent or inaccessible
+     */
     private OrdinaryRun runOrdinaryOpen(
             Engine owner,
             io.github.pho001.synaptik.engine.PreparedExecution preparedExecution,
             List<Tensor> inputs) {
-        return runOrdinaryOpen(owner, preparedExecution, inputs, null);
+        return runOrdinaryOpen(owner, preparedExecution, inputs, false);
     }
 
+    /**
+     * Shares validated storage/adapter execution across the two ordinary binding modes.
+     *
+     * @param owner exact non-null facade with an existing Engine admission
+     * @param preparedExecution non-null handle checked before input inspection
+     * @param inputs caller list snapshotted after exact delegate admission
+     * @param positional true for fresh compiled-order values; false for exact-ID arbitrary order
+     * @return completed unpublished result and its cleanup owner; never null
+     * @throws NullPointerException if an admitted argument or indexed input is null
+     * @throws IllegalArgumentException if ownership, binding, positional geometry or storage rejects
+     * @throws IllegalStateException if preparation/storage is closed, absent or inaccessible
+     */
     private OrdinaryRun runOrdinaryOpen(
             Engine owner,
             io.github.pho001.synaptik.engine.PreparedExecution preparedExecution,
             List<Tensor> inputs,
-            io.github.pho001.synaptik.runtime.execution.PreparedExecution precheckedExecution) {
+            boolean positional) {
         var borrowed = new ArrayList<BufferRepresentation>();
         io.github.pho001.synaptik.runtime.run.RunResult inwardResult = null;
         boolean ownershipTransferred = false;
         try {
             Objects.requireNonNull(owner, "owner");
             Objects.requireNonNull(preparedExecution, "preparedExecution");
-            Objects.requireNonNull(inputs, "inputs");
             requireOrdinaryOwner(owner, preparedExecution.owner());
+            io.github.pho001.synaptik.runtime.execution.PreparedExecution execution =
+                    preparedExecution.execution();
             List<Tensor> supplied = snapshotElements(inputs, "inputs");
             List<CompiledGraph.Input> required = preparedExecution.compiledGraph().inputs();
 
-            Map<TensorId, CompiledGraph.Input> expected = new HashMap<>();
-            required.forEach(input -> expected.put(input.tensorId(), input));
-            Map<TensorId, Tensor> suppliedById = new HashMap<>();
-            for (Tensor tensor : supplied) {
-                TensorId id = tensor.id();
-                CompiledGraph.Input input = expected.get(id);
-                if (input == null) {
-                    throw new IllegalArgumentException("unexpected input " + id);
-                }
-                if (suppliedById.putIfAbsent(id, tensor) != null) {
-                    throw new IllegalArgumentException("duplicate input " + id);
-                }
-                if (!tensor.descriptor().equals(input.descriptor())) {
-                    throw new IllegalArgumentException("input descriptor does not match " + id);
-                }
-            }
-            if (suppliedById.size() != required.size()) {
-                throw new IllegalArgumentException(
-                        "input count must equal required input count: expected="
-                                + required.size() + ", actual=" + suppliedById.size());
-            }
-
             var storages = new ArrayList<HostTensorStorage>(required.size());
-            for (CompiledGraph.Input input : required) {
-                Tensor tensor = suppliedById.get(input.tensorId());
-                if (tensor == null) {
-                    throw new IllegalArgumentException("missing input " + input.tensorId());
+            if (positional) {
+                if (supplied.size() != required.size()) {
+                    throw new IllegalArgumentException(
+                            "input count must equal required input count: expected="
+                                    + required.size() + ", actual=" + supplied.size());
                 }
-                HostTensorStorage storage = tensor.hostStorage().orElseThrow(
-                        () -> new IllegalStateException(
-                                "input has no host storage: " + input.tensorId()));
-                storages.add(storage);
+                for (int index = 0; index < required.size(); index++) {
+                    CompiledGraph.Input input = required.get(index);
+                    Tensor tensor = supplied.get(index);
+                    if (!tensor.descriptor().equals(input.descriptor())) {
+                        throw new IllegalArgumentException(
+                                "input descriptor does not match at position " + index);
+                    }
+                    long span = preparedExecution.valueElementSpan(index);
+                    HostTensorStorage storage = tensor.hostStorage().orElseThrow(
+                            () -> new IllegalStateException(
+                                    "input has no host storage: " + input.tensorId()));
+                    if (storage.elementCapacity() < span) {
+                        throw new IllegalArgumentException(
+                                "input storage capacity is insufficient for " + input.tensorId());
+                    }
+                    storages.add(storage);
+                }
+            } else {
+                Map<TensorId, CompiledGraph.Input> expected = new HashMap<>();
+                required.forEach(input -> expected.put(input.tensorId(), input));
+                Map<TensorId, Tensor> suppliedById = new HashMap<>();
+                for (Tensor tensor : supplied) {
+                    TensorId id = tensor.id();
+                    CompiledGraph.Input input = expected.get(id);
+                    if (input == null) {
+                        throw new IllegalArgumentException("unexpected input " + id);
+                    }
+                    if (suppliedById.putIfAbsent(id, tensor) != null) {
+                        throw new IllegalArgumentException("duplicate input " + id);
+                    }
+                    if (!tensor.descriptor().equals(input.descriptor())) {
+                        throw new IllegalArgumentException("input descriptor does not match " + id);
+                    }
+                }
+                if (suppliedById.size() != required.size()) {
+                    throw new IllegalArgumentException(
+                            "input count must equal required input count: expected="
+                                    + required.size() + ", actual=" + suppliedById.size());
+                }
+
+                for (CompiledGraph.Input input : required) {
+                    Tensor tensor = suppliedById.get(input.tensorId());
+                    if (tensor == null) {
+                        throw new IllegalArgumentException("missing input " + input.tensorId());
+                    }
+                    HostTensorStorage storage = tensor.hostStorage().orElseThrow(
+                            () -> new IllegalStateException(
+                                    "input has no host storage: " + input.tensorId()));
+                    storages.add(storage);
+                }
             }
             for (int index = 0; index < required.size(); index++) {
                 validateStorage(required.get(index), storages.get(index));
@@ -1403,10 +1423,6 @@ public final class AdvancedEngine implements AutoCloseable {
                 borrowed.add(inputAdapters.get(index).borrow(storages.get(index)));
             }
 
-            io.github.pho001.synaptik.runtime.execution.PreparedExecution execution =
-                    precheckedExecution == null
-                            ? preparedExecution.execution()
-                            : precheckedExecution;
             inwardResult = runner.run(execution, borrowed);
             List<CompiledGraph.PublicationSpec> specifications =
                     preparedExecution.compiledGraph().publicationSpecs();
@@ -1721,17 +1737,17 @@ public final class AdvancedEngine implements AutoCloseable {
 
     /**
      * Rejects new work, waits for admitted Engine operations, closes retained results in reverse
-     * successful-run publication order, then closes inference sessions and standalone prepared
-     * handles in their shared reverse preparation-publication order, and finally closes the owned
-     * backend composition. Closing a session or prepared handle rejects later runs but does not
+     * successful-run publication order, then closes ordinary and advanced prepared handles in
+     * reverse preparation-publication order, and finally closes the owned backend composition.
+     * Closing a prepared handle rejects later runs but does not
      * close an already returned result; a run that already owns Runtime's prepared lease may
      * finish, with deferred prepared-resource cleanup performed when its last lease releases.
      * Concurrent and repeated Engine-close callers wait for the first attempt and rethrow its
      * exact retained first cleanup failure, if any.
      *
-     * @throws RuntimeException if result, session, preparation, or composition cleanup first
+     * @throws RuntimeException if result, prepared-handle, or composition cleanup first
      *     reports one
-     * @throws Error if result, session, preparation, or composition cleanup first reports one
+     * @throws Error if result, prepared-handle, or composition cleanup first reports one
      */
     @Override
     public void close() {
@@ -1811,12 +1827,6 @@ public final class AdvancedEngine implements AutoCloseable {
     void unregister(AdvancedPreparedExecution preparation) {
         synchronized (lifecycleLock) {
             openPreparations.remove(preparation);
-        }
-    }
-
-    void unregister(InferenceSession session) {
-        synchronized (lifecycleLock) {
-            openPreparations.remove(session);
         }
     }
 

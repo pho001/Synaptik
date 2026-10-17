@@ -45,7 +45,7 @@ final class CheckpointDependencyContractTest {
                 "api(project(\":modules:model\"))"), projectEdges,
                 "the public model checkpoint must expose exactly NN, Engine, and Model edges");
 
-        for (String area : List.of("modules", "backends")) {
+        for (String area : List.of("modules")) {
             try (Stream<Path> builds = Files.walk(root.resolve(area))) {
                 for (Path build : builds.filter(path -> path.getFileName().toString()
                         .equals("build.gradle.kts")).toList()) {
@@ -54,7 +54,7 @@ final class CheckpointDependencyContractTest {
                 }
             }
         }
-        for (String project : List.of("extensions/nn", "extensions/training", "tools/tuning")) {
+        for (String project : List.of("extensions/nn", "modules/training", "tools/tuning")) {
             Path build = root.resolve(project + "/build.gradle.kts");
             assertFalse(Files.readString(build).contains(":extensions:checkpoint"),
                     () -> project + " must not depend on Checkpoint");

@@ -16,7 +16,7 @@ import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.EngineMixedOwnerTestAccess;
-import io.github.pho001.synaptik.engine.InferenceSession;
+import io.github.pho001.synaptik.engine.PreparedExecution;
 import io.github.pho001.synaptik.engine.ModelAutotuningPreparation;
 import io.github.pho001.synaptik.engine.ModelAutotuningRequest;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -81,9 +81,9 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 var compiled = engine.compile(List.of(input.neg()));
                 assertTrue(events.isEmpty(), "compile emits no Metal preparation or run event");
 
-                try (InferenceSession session = engine.session(compiled)) {
+                try (PreparedExecution session = engine.prepare(compiled)) {
                     assertEquals(2, events.size());
-                    try (var first = session.run(List.of(input))) {
+                    try (var first = engine.run(session, List.of(input))) {
                         assertRawBits(
                                 first.materialize(
                                         first.publications().getFirst(), 2L * Float.BYTES).bytes(),
@@ -92,7 +92,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                     Float.floatToRawIntBits(2.0f)
                                 });
                     }
-                    try (var second = session.run(List.of(input))) {
+                    try (var second = engine.run(session, List.of(input))) {
                         assertRawBits(
                                 second.materialize(
                                         second.publications().getFirst(), 2L * Float.BYTES).bytes(),
@@ -163,8 +163,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     var compiled = engine.compile(List.of(output));
                     assertEquals(List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                    try (InferenceSession session = engine.session(compiled);
-                            var result = session.run(List.of(left, right))) {
+                    try (PreparedExecution session = engine.prepare(compiled);
+                            var result = engine.run(session, List.of(left, right))) {
                         int[] actual = rawBits(result.materialize(
                                 result.publications().getFirst(), 8L).bytes(), 2);
                         assertFloat32PrimitiveSiteResult(BinaryArithmeticKind.ADD,
@@ -182,8 +182,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("cpu"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                    try (InferenceSession session = engine.session(compiled);
-                            var result = session.run(List.of(left, right))) {
+                    try (PreparedExecution session = engine.prepare(compiled);
+                            var result = engine.run(session, List.of(left, right))) {
                         assertEquals(1, result.resultCount());
                         ByteBuffer canonical = result.materialize(
                                 result.publications().getFirst(), 8L).bytes();
@@ -245,10 +245,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
                 List<Tensor> inputs = List.of(matrix, row, scalar);
 
-                InferenceSession first = engine.session(compiled);
-                try (InferenceSession independent = engine.session(compiled)) {
+                PreparedExecution first = engine.prepare(compiled);
+                try (PreparedExecution independent = engine.prepare(compiled)) {
                     Object firstPublication;
-                    try (var initial = first.run(inputs)) {
+                    try (var initial = engine.run(first, inputs)) {
                         assertBinaryResults(
                                 initial, matrixBits, rowBits, scalarBits);
                         firstPublication = EngineMixedOwnerTestAccess
@@ -256,7 +256,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                 .publications()
                                 .getFirst();
                     }
-                    try (var reused = first.run(inputs)) {
+                    try (var reused = engine.run(first, inputs)) {
                         assertBinaryResults(
                                 reused, matrixBits, rowBits, scalarBits);
                         assertNotSame(firstPublication, EngineMixedOwnerTestAccess
@@ -264,7 +264,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                 .publications()
                                 .getFirst());
                     }
-                    try (var separate = independent.run(inputs)) {
+                    try (var separate = engine.run(independent, inputs)) {
                         assertBinaryResults(
                                 separate, matrixBits, rowBits, scalarBits);
                     }
@@ -272,7 +272,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertTrue(first.isClosed());
                     assertThrows(
                             IllegalStateException.class,
-                            () -> first.run(inputs));
+                            () -> engine.run(first, inputs));
                 } finally {
                     first.close();
                 }
@@ -280,8 +280,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 assertEquals(Shape.of(2, 1), column.descriptor().shape());
                 Tensor columnBroadcast = matrix.add(column);
                 var columnCompiled = engine.compile(List.of(columnBroadcast));
-                try (InferenceSession session = engine.session(columnCompiled);
-                        var result = session.run(List.of(matrix, column))) {
+                try (PreparedExecution session = engine.prepare(columnCompiled);
+                        var result = engine.run(session, List.of(matrix, column))) {
                     int[] actual = rawBits(result.materialize(
                             result.publications().getFirst(),
                             (long) matrixBits.length * Integer.BYTES).bytes(),
@@ -341,17 +341,17 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
                     List<Tensor> inputs = List.of(input);
 
-                    InferenceSession first = engine.session(compiled);
-                    try (InferenceSession independent = engine.session(compiled)) {
+                    PreparedExecution first = engine.prepare(compiled);
+                    try (PreparedExecution independent = engine.prepare(compiled)) {
                         Object firstPublication;
-                        try (var initial = first.run(inputs)) {
+                        try (var initial = engine.run(first, inputs)) {
                             assertReductionResults(initial);
                             firstPublication = EngineMixedOwnerTestAccess
                                     .runOwnedIdentities(initial)
                                     .publications()
                                     .getFirst();
                         }
-                        try (var reused = first.run(inputs)) {
+                        try (var reused = engine.run(first, inputs)) {
                             assertReductionResults(reused);
                             assertNotSame(firstPublication, EngineMixedOwnerTestAccess
                                     .runOwnedIdentities(reused)
@@ -365,7 +365,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             var left = executor.submit(() -> {
                                 ready.countDown();
                                 start.await();
-                                try (var result = first.run(inputs)) {
+                                try (var result = engine.run(first, inputs)) {
                                     assertReductionResults(result);
                                 }
                                 return null;
@@ -373,7 +373,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             var right = executor.submit(() -> {
                                 ready.countDown();
                                 start.await();
-                                try (var result = independent.run(inputs)) {
+                                try (var result = engine.run(independent, inputs)) {
                                     assertReductionResults(result);
                                 }
                                 return null;
@@ -386,7 +386,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
                         first.close();
                         assertTrue(first.isClosed());
-                        assertThrows(IllegalStateException.class, () -> first.run(inputs));
+                        assertThrows(IllegalStateException.class, () -> engine.run(first, inputs));
                     } finally {
                         first.close();
                     }
@@ -442,8 +442,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
                     List<Tensor> inputs =
                             List.of(prediction, target, noGradPrediction, noGradTarget);
-                    try (InferenceSession reused = engine.session(compiled);
-                            InferenceSession independent = engine.session(compiled)) {
+                    try (PreparedExecution reused = engine.prepare(compiled);
+                            PreparedExecution independent = engine.prepare(compiled)) {
                         assertEquals(4, events.size());
                         for (ObservedTrace event : events) {
                             assertEquals("PREPARE", event.phase());
@@ -452,14 +452,14 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                     enumName(component(event.payload(), "route")));
                         }
                         Object firstPublication;
-                        try (var first = reused.run(inputs)) {
+                        try (var first = engine.run(reused, inputs)) {
                             assertMsePublicResults(first);
                             firstPublication = EngineMixedOwnerTestAccess
                                     .runOwnedIdentities(first)
                                     .publications()
                                     .getFirst();
                         }
-                        try (var repeated = reused.run(inputs)) {
+                        try (var repeated = engine.run(reused, inputs)) {
                             assertMsePublicResults(repeated);
                             assertNotSame(
                                     firstPublication,
@@ -468,7 +468,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                             .publications()
                                             .getFirst());
                         }
-                        try (var separate = independent.run(inputs)) {
+                        try (var separate = engine.run(independent, inputs)) {
                             assertMsePublicResults(separate);
                         }
                     }
@@ -498,14 +498,14 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(nestedCompiled));
                     int nestedPreparationIndex = events.size();
-                    try (InferenceSession nested = engine.session(nestedCompiled)) {
+                    try (PreparedExecution nested = engine.prepare(nestedCompiled)) {
                         assertEquals(nestedPreparationIndex + 2, events.size());
                         ObservedTrace preparation = events.get(nestedPreparationIndex);
                         assertEquals("PREPARE", preparation.phase());
                         assertEquals(
                                 "CUSTOM_KERNEL",
                                 enumName(component(preparation.payload(), "route")));
-                        try (var result = nested.run(List.of(noGradPrediction, noGradTarget))) {
+                        try (var result = engine.run(nested, List.of(noGradPrediction, noGradTarget))) {
                             assertEquals(1, result.resultCount());
                             assertPublication(result, 0, 1.0f, 1.0f, 4.0f, 16.0f);
                         }
@@ -520,8 +520,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(backwardCompiled));
-                    try (InferenceSession backward = engine.session(backwardCompiled);
-                            var result = backward.run(List.of(prediction, target, seed))) {
+                    try (PreparedExecution backward = engine.prepare(backwardCompiled);
+                            var result = engine.run(backward, List.of(prediction, target, seed))) {
                         assertEquals(3, result.resultCount());
                         assertPublication(result, 0, 5.5f);
                         assertPublication(result, 1, 0.5f, 0.5f, 1.0f, 2.0f);
@@ -619,29 +619,29 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
 
-                    InferenceSession reused = engine.session(compiled);
-                    try (InferenceSession independent = engine.session(compiled)) {
+                    PreparedExecution reused = engine.prepare(compiled);
+                    try (PreparedExecution independent = engine.prepare(compiled)) {
                         Object firstPublication;
-                        try (var first = reused.run(inputs)) {
+                        try (var first = engine.run(reused, inputs)) {
                             assertAbsEngineResults(first, inputBits);
                             firstPublication = EngineMixedOwnerTestAccess
                                     .runOwnedIdentities(first)
                                     .publications()
                                     .getFirst();
                         }
-                        try (var second = reused.run(inputs)) {
+                        try (var second = engine.run(reused, inputs)) {
                             assertAbsEngineResults(second, inputBits);
                             assertNotSame(firstPublication, EngineMixedOwnerTestAccess
                                     .runOwnedIdentities(second)
                                     .publications()
                                     .getFirst());
                         }
-                        try (var separate = independent.run(inputs)) {
+                        try (var separate = engine.run(independent, inputs)) {
                             assertAbsEngineResults(separate, inputBits);
                         }
                         reused.close();
                         assertTrue(reused.isClosed());
-                        assertThrows(IllegalStateException.class, () -> reused.run(inputs));
+                        assertThrows(IllegalStateException.class, () -> engine.run(reused, inputs));
                     } finally {
                         reused.close();
                     }
@@ -667,8 +667,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                    try (InferenceSession session = engine.session(compiled);
-                            var result = session.run(List.of(input))) {
+                    try (PreparedExecution session = engine.prepare(compiled);
+                            var result = engine.run(session, List.of(input))) {
                         assertEquals(2, result.resultCount());
                         for (int publication = 0; publication < 2; publication++) {
                             int[] actual = rawBits(
@@ -708,8 +708,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                    try (InferenceSession session = engine.session(compiled);
-                            var result = session.run(List.of(finite, infinity, nan))) {
+                    try (PreparedExecution session = engine.prepare(compiled);
+                            var result = engine.run(session, List.of(finite, infinity, nan))) {
                         assertEquals(4, result.resultCount());
                         assertEquals(0, rawBits(result.materialize(
                                 result.publications().get(0), Integer.BYTES).bytes(), 1)[0]);
@@ -760,8 +760,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
                     assertTrue(events.isEmpty(), "compile performs no native preparation");
 
-                    InferenceSession first = engine.session(compiled);
-                    try (InferenceSession second = engine.session(compiled)) {
+                    PreparedExecution first = engine.prepare(compiled);
+                    try (PreparedExecution second = engine.prepare(compiled)) {
                         assertEquals(4, events.size());
                         for (ObservedTrace event : events) {
                             assertEquals("PREPARE", event.phase());
@@ -772,22 +772,22 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
                         assertThrows(
                                 IllegalArgumentException.class,
-                                () -> first.run(List.of()));
-                        try (var recovered = first.run(List.of(input))) {
+                                () -> engine.run(first, List.of()));
+                        try (var recovered = engine.run(first, List.of(input))) {
                             assertRemainingExactUnaryResults(recovered, inputBits);
                         }
-                        try (var repeated = first.run(List.of(input))) {
+                        try (var repeated = engine.run(first, List.of(input))) {
                             assertRemainingExactUnaryResults(repeated, inputBits);
                         }
 
                         try (var executor = Executors.newFixedThreadPool(2)) {
                             var left = executor.submit(() -> {
-                                try (var result = first.run(List.of(input))) {
+                                try (var result = engine.run(first, List.of(input))) {
                                     assertRemainingExactUnaryResults(result, inputBits);
                                 }
                             });
                             var right = executor.submit(() -> {
-                                try (var result = second.run(List.of(input))) {
+                                try (var result = engine.run(second, List.of(input))) {
                                     assertRemainingExactUnaryResults(result, inputBits);
                                 }
                             });
@@ -797,7 +797,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
                         first.close();
                         assertTrue(first.isClosed());
-                        assertThrows(IllegalStateException.class, () -> first.run(List.of(input)));
+                        assertThrows(IllegalStateException.class, () -> engine.run(first, List.of(input)));
                     } finally {
                         first.close();
                     }
@@ -824,8 +824,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                    try (InferenceSession session = engine.session(compiled);
-                            var result = session.run(List.of(input))) {
+                    try (PreparedExecution session = engine.prepare(compiled);
+                            var result = engine.run(session, List.of(input))) {
                         assertArrayEquals(
                                 expectedBits,
                                 rawBits(result.materialize(
@@ -863,8 +863,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 var compiled = engine.compile(List.of(output));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                try (InferenceSession session = engine.session(compiled);
-                        var result = session.run(List.of(left, right, addend))) {
+                try (PreparedExecution session = engine.prepare(compiled);
+                        var result = engine.run(session, List.of(left, right, addend))) {
                     assertArrayEquals(
                             new int[] {
                                 0x4140_0000, 0x41c0_0000, 0x4210_0000, 0x4240_0000
@@ -903,8 +903,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 var compiled = engine.compile(List.of(output));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                try (InferenceSession session = engine.session(compiled);
-                        var result = session.run(List.of(input, weight, addend))) {
+                try (PreparedExecution session = engine.prepare(compiled);
+                        var result = engine.run(session, List.of(input, weight, addend))) {
                     assertArrayEquals(
                             new int[] {
                                 0x42ca_0000, 0x434a_0000, 0x4397_8000,
@@ -986,8 +986,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         Tensor output = left.matmul(right).add(addend).relu();
         var compiled = engine.compile(List.of(output));
         assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled));
-        try (InferenceSession session = engine.session(compiled);
-                var result = session.run(List.of(left, right, addend))) {
+        try (PreparedExecution session = engine.prepare(compiled);
+                var result = engine.run(session, List.of(left, right, addend))) {
             int[] expectedBits = new int[expected.length];
             for (int index = 0; index < expected.length; index++) {
                 expectedBits[index] = Float.floatToRawIntBits(expected[index]);
@@ -1020,8 +1020,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 .relu();
         var compiled = engine.compile(List.of(output));
         assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled));
-        try (InferenceSession session = engine.session(compiled);
-                var result = session.run(List.of(left, right))) {
+        try (PreparedExecution session = engine.prepare(compiled);
+                var result = engine.run(session, List.of(left, right))) {
             assertArrayEquals(
                     new int[] {Float.floatToRawIntBits(64.0f)},
                     rawBits(result.materialize(
@@ -1075,16 +1075,16 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 assertEquals(
                         List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                try (InferenceSession session = engine.session(compiled)) {
+                try (PreparedExecution session = engine.prepare(compiled)) {
                     assertEquals(2, events.size());
                     assertEquals("PREPARE", events.getFirst().phase());
                     assertEquals(
                             "GRAPH_EXECUTABLE",
                             enumName(component(events.getFirst().payload(), "route")));
-                    try (var first = session.run(List.of(input))) {
+                    try (var first = engine.run(session, List.of(input))) {
                         assertNoGradScalarResults(first, inputBits, scalarBits);
                     }
-                    try (var repeated = session.run(List.of(input))) {
+                    try (var repeated = engine.run(session, List.of(input))) {
                         assertNoGradScalarResults(repeated, inputBits, scalarBits);
                     }
                     assertArrayEquals(inputBits, inputBytes.toArray(ValueLayout.JAVA_INT));
@@ -1104,8 +1104,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 assertEquals(
                         List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(gradientCompiled));
-                try (InferenceSession session = engine.session(gradientCompiled);
-                        var result = session.run(List.of(gradInput, seed))) {
+                try (PreparedExecution session = engine.prepare(gradientCompiled);
+                        var result = engine.run(session, List.of(gradInput, seed))) {
                     assertPublication(result, 0, 27);
                     assertPublication(result, 1, 9);
                     assertPublication(result, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -1144,8 +1144,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
 
-                try (InferenceSession session = engine.session(compiled);
-                        var result = session.run(
+                try (PreparedExecution session = engine.prepare(compiled);
+                        var result = engine.run(session,
                                 List.of(data, gatherIndices, oneHotIndices))) {
                     assertEquals(2, result.resultCount());
                     assertRawBits(
@@ -1168,10 +1168,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 }
 
                 gatherIndexBytes.setAtIndex(ValueLayout.JAVA_INT, 1, 4);
-                try (InferenceSession session = engine.session(compiled)) {
+                try (PreparedExecution session = engine.prepare(compiled)) {
                     IndexOutOfBoundsException failure = assertThrows(
                             IndexOutOfBoundsException.class,
-                            () -> session.run(
+                            () -> engine.run(session,
                                     List.of(data, gatherIndices, oneHotIndices)));
                     assertEquals(
                             "GATHER index at logical position 1 for data axis 1"
@@ -1188,10 +1188,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
                 gatherIndexBytes.setAtIndex(ValueLayout.JAVA_INT, 1, 0);
                 oneHotIndexBytes.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
-                try (InferenceSession session = engine.session(compiled)) {
+                try (PreparedExecution session = engine.prepare(compiled)) {
                     IndexOutOfBoundsException failure = assertThrows(
                             IndexOutOfBoundsException.class,
-                            () -> session.run(
+                            () -> engine.run(session,
                                     List.of(data, gatherIndices, oneHotIndices)));
                     assertEquals(
                             "ONE_HOT index at logical position 1"
@@ -1240,8 +1240,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
 
-                try (InferenceSession session = engine.session(compiled);
-                        var result = session.run(List.of(data, indices, updates))) {
+                try (PreparedExecution session = engine.prepare(compiled);
+                        var result = engine.run(session, List.of(data, indices, updates))) {
                     assertRawBits(
                             result.materialize(
                                     result.publications().getFirst(),
@@ -1258,10 +1258,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 assertArrayEquals(updateBits, updateBytes.toArray(ValueLayout.JAVA_INT));
 
                 indexBytes.setAtIndex(ValueLayout.JAVA_INT, 1, 3);
-                try (InferenceSession session = engine.session(compiled)) {
+                try (PreparedExecution session = engine.prepare(compiled)) {
                     IndexOutOfBoundsException failure = assertThrows(
                             IndexOutOfBoundsException.class,
-                            () -> session.run(List.of(data, indices, updates)));
+                            () -> engine.run(session, List.of(data, indices, updates)));
                     assertEquals(
                             "SCATTER_ELEMENTS index at logical position 1 for data axis 1"
                                     + " is out of bounds: value=3, extent=3",
@@ -1272,10 +1272,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
                 indexBytes.setAtIndex(ValueLayout.JAVA_INT, 0, 1);
                 indexBytes.setAtIndex(ValueLayout.JAVA_INT, 1, 1);
-                try (InferenceSession session = engine.session(compiled)) {
+                try (PreparedExecution session = engine.prepare(compiled)) {
                     IllegalArgumentException failure = assertThrows(
                             IllegalArgumentException.class,
-                            () -> session.run(List.of(data, indices, updates)));
+                            () -> engine.run(session, List.of(data, indices, updates)));
                     assertEquals(
                             "SCATTER_ELEMENTS duplicate target at logical update position 1;"
                                     + " first addressed at logical update position 0",
@@ -1316,8 +1316,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                    try (InferenceSession session = engine.session(compiled);
-                            var result = session.run(List.of(input))) {
+                    try (PreparedExecution session = engine.prepare(compiled);
+                            var result = engine.run(session, List.of(input))) {
                         assertRawBits(
                                 result.materialize(
                                         result.publications().getFirst(),
@@ -1388,9 +1388,9 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
                     List<Tensor> inputs = List.of(
                             data, indices, updates, foldAxis, fold2d, fold3d, products, booleans);
-                    try (InferenceSession session = engine.session(compiled);
-                            InferenceSession independent = engine.session(compiled)) {
-                        try (var first = session.run(inputs)) {
+                    try (PreparedExecution session = engine.prepare(compiled);
+                            PreparedExecution independent = engine.prepare(compiled)) {
+                        try (var first = engine.run(session, inputs)) {
                             assertTask0060PublicResults(
                                     first,
                                     dataBits,
@@ -1399,7 +1399,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                     fold2dBits,
                                     fold3dBits);
                         }
-                        try (var repeated = session.run(inputs)) {
+                        try (var repeated = engine.run(session, inputs)) {
                             assertTask0060PublicResults(
                                     repeated,
                                     dataBits,
@@ -1408,7 +1408,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                     fold2dBits,
                                     fold3dBits);
                         }
-                        try (var separate = independent.run(inputs)) {
+                        try (var separate = engine.run(independent, inputs)) {
                             assertTask0060PublicResults(
                                     separate,
                                     dataBits,
@@ -1420,12 +1420,12 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         MemorySegment indexBytes = ((MemorySegmentStorage)
                                 indices.hostStorage().orElseThrow()).segment();
                         indexBytes.setAtIndex(ValueLayout.JAVA_LONG, 1, 3L);
-                        assertThrows(RuntimeException.class, () -> session.run(inputs));
+                        assertThrows(RuntimeException.class, () -> engine.run(session, inputs));
                         indexBytes.setAtIndex(ValueLayout.JAVA_LONG, 1, 1L);
                         indexBytes.setAtIndex(ValueLayout.JAVA_LONG, 0, 4L);
-                        assertThrows(RuntimeException.class, () -> session.run(inputs));
+                        assertThrows(RuntimeException.class, () -> engine.run(session, inputs));
                         indexBytes.setAtIndex(ValueLayout.JAVA_LONG, 0, 3L);
-                        try (var recovered = session.run(inputs)) {
+                        try (var recovered = engine.run(session, inputs)) {
                             assertTask0060PublicResults(
                                     recovered,
                                     dataBits,
@@ -1442,7 +1442,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             var left = executor.submit(() -> {
                                 ready.countDown();
                                 start.await();
-                                try (var result = session.run(inputs)) {
+                                try (var result = engine.run(session, inputs)) {
                                     assertTask0060PublicResults(
                                             result,
                                             dataBits,
@@ -1456,7 +1456,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             var right = executor.submit(() -> {
                                 ready.countDown();
                                 start.await();
-                                try (var result = session.run(inputs)) {
+                                try (var result = engine.run(session, inputs)) {
                                     assertTask0060PublicResults(
                                             result,
                                             dataBits,
@@ -1539,8 +1539,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                    try (InferenceSession session = engine.session(compiled);
-                            var result = session.run(List.of(integralAxis))) {
+                    try (PreparedExecution session = engine.prepare(compiled);
+                            var result = engine.run(session, List.of(integralAxis))) {
                         assertEquals(1, result.resultCount());
                         assertRawBits(
                                 result.materialize(
@@ -1614,9 +1614,9 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         vector,
                         scalarNdIndex);
 
-                InferenceSession session = engine.session(compiled);
-                try (InferenceSession independent = engine.session(compiled)) {
-                    try (var first = session.run(inputs)) {
+                PreparedExecution session = engine.prepare(compiled);
+                try (PreparedExecution independent = engine.prepare(compiled)) {
+                    try (var first = engine.run(session, inputs)) {
                         assertTask0059PublicResults(first);
                         assertEquals(
                                 first.resultCount(),
@@ -1624,10 +1624,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                         .runOwnedIdentities(first)
                                         .publications()).size());
                     }
-                    try (var repeated = session.run(inputs)) {
+                    try (var repeated = engine.run(session, inputs)) {
                         assertTask0059PublicResults(repeated);
                     }
-                    try (var separate = independent.run(inputs)) {
+                    try (var separate = engine.run(independent, inputs)) {
                         assertTask0059PublicResults(separate);
                     }
 
@@ -1637,7 +1637,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         var left = executor.submit(() -> {
                             ready.countDown();
                             start.await();
-                            try (var result = session.run(inputs)) {
+                            try (var result = engine.run(session, inputs)) {
                                 assertTask0059PublicResults(result);
                             }
                             return null;
@@ -1645,7 +1645,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         var right = executor.submit(() -> {
                             ready.countDown();
                             start.await();
-                            try (var result = session.run(inputs)) {
+                            try (var result = engine.run(session, inputs)) {
                                 assertTask0059PublicResults(result);
                             }
                             return null;
@@ -1659,7 +1659,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     session.close();
                 }
                 assertTrue(session.isClosed());
-                assertThrows(IllegalStateException.class, () -> session.run(inputs));
+                assertThrows(IllegalStateException.class, () -> engine.run(session, inputs));
             }
         }
     }
@@ -1689,10 +1689,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
 
                 elementBytes.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
-                try (InferenceSession session = engine.session(compiled)) {
+                try (PreparedExecution session = engine.prepare(compiled)) {
                     IndexOutOfBoundsException failure = assertThrows(
                             IndexOutOfBoundsException.class,
-                            () -> session.run(List.of(data, elementIndices, ndIndices)));
+                            () -> engine.run(session, List.of(data, elementIndices, ndIndices)));
                     assertEquals(
                             "GATHER_ELEMENTS index at logical position 1 for data axis 1"
                                     + " is out of bounds: value=-1, extent=3",
@@ -1701,10 +1701,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
                 elementBytes.setAtIndex(ValueLayout.JAVA_INT, 1, 0);
                 ndBytes.setAtIndex(ValueLayout.JAVA_LONG, 1, 2L);
-                try (InferenceSession session = engine.session(compiled)) {
+                try (PreparedExecution session = engine.prepare(compiled)) {
                     IndexOutOfBoundsException failure = assertThrows(
                             IndexOutOfBoundsException.class,
-                            () -> session.run(List.of(data, elementIndices, ndIndices)));
+                            () -> engine.run(session, List.of(data, elementIndices, ndIndices)));
                     assertEquals(
                             "GATHER_ND index at logical position 1 for data axis 0"
                                     + " is out of bounds: value=2, extent=2",
@@ -1761,17 +1761,17 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         matrixBits,
                         singletonBits);
                 List<Tensor> inputs = List.of(matrix, row, singleton);
-                try (InferenceSession first = engine.session(compiled);
-                        InferenceSession second = engine.session(compiled);
+                try (PreparedExecution first = engine.prepare(compiled);
+                        PreparedExecution second = engine.prepare(compiled);
                         var executor = Executors.newFixedThreadPool(2)) {
                     CountDownLatch start = new CountDownLatch(1);
                     var leftFuture = executor.submit(() -> {
                         start.await();
-                        return first.run(inputs);
+                        return engine.run(first, inputs);
                     });
                     var rightFuture = executor.submit(() -> {
                         start.await();
-                        return first.run(inputs);
+                        return engine.run(first, inputs);
                     });
                     start.countDown();
                     io.github.pho001.synaptik.engine.RunResult left =
@@ -1816,8 +1816,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     }
                     assertTrue(right.isClosed());
 
-                    assertAffineResults(first, inputs, expected);
-                    assertAffineResults(second, inputs, expected);
+                    assertAffineResults(engine, first, inputs, expected);
+                    assertAffineResults(engine, second, inputs, expected);
                 }
             }
         }
@@ -1907,8 +1907,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         absoluteBits,
                         addedBits,
                         reducedBits);
-                try (InferenceSession session = engine.session(compiled);
-                        var result = session.run(List.of(input))) {
+                try (PreparedExecution session = engine.prepare(compiled);
+                        var result = engine.run(session, List.of(input))) {
                     assertEquals(expected.size(), result.resultCount());
                     for (int index = 0; index < expected.size(); index++) {
                         ByteBuffer bytes = result.materialize(
@@ -1946,7 +1946,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 metal.close();
                 IllegalArgumentException failure = assertThrows(
                         IllegalArgumentException.class,
-                        () -> engine.session(compiled));
+                        () -> engine.prepare(compiled));
                 assertTrue(failure.getMessage().startsWith(
                         "unsupported cross-owner transfer from metal to cpu for "));
             }
@@ -1987,10 +1987,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         var compiled = engine.compile(fixture.outputs());
                         assertMixedStructure(EngineMixedOwnerTestAccess.compileArtifacts(compiled),
                                 fixture);
-                        try (var session = engine.session(compiled)) {
+                        try (var session = engine.prepare(compiled)) {
                             assertPreparedTransfers(session, fixture.transfers(), shape);
                             for (int run = 0; run < 2; run++) {
-                                try (var result = session.run(List.of(input))) {
+                                try (var result = engine.run(session, List.of(input))) {
                                     assertMixedPublications(result, fixture.expected());
                                 }
                             }
@@ -2014,9 +2014,9 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 var scalarTransfer = engine.compile(List.of(reductionInput.sum().exp()));
                 assertEquals(List.of("metal", "cpu"),
                         EngineMixedOwnerTestAccess.partitionOwners(scalarTransfer));
-                try (var session = engine.session(scalarTransfer)) {
+                try (var session = engine.prepare(scalarTransfer)) {
                     assertPreparedTransfers(session, List.of("METAL_TO_CPU"), Shape.scalar());
-                    try (var result = session.run(List.of(reductionInput))) {
+                    try (var result = engine.run(session, List.of(reductionInput))) {
                         assertMixedPublications(result, new float[][] {{strictExp(4.0f)}});
                     }
                 }
@@ -2024,9 +2024,9 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 var scalarUpload = engine.compile(List.of(scalar.exp().reshape(1)));
                 assertEquals(List.of("cpu", "metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(scalarUpload));
-                try (var session = engine.session(scalarUpload)) {
+                try (var session = engine.prepare(scalarUpload)) {
                     assertPreparedTransfers(session, List.of("CPU_TO_METAL"), Shape.scalar());
-                    try (var result = session.run(List.of(scalar))) {
+                    try (var result = engine.run(session, List.of(scalar))) {
                         assertMixedPublications(result, new float[][] {{strictExp(1.25f)}});
                     }
                 }
@@ -2055,10 +2055,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 var metalCompiled = engine.compile(List.of(input.neg()));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(metalCompiled));
-                try (var session = engine.session(metalCompiled)) {
+                try (var session = engine.prepare(metalCompiled)) {
                     assertEquals(List.of(), EngineMixedOwnerTestAccess.preparedTransfers(session));
                     for (int run = 0; run < 2; run++) {
-                        try (var result = session.run(List.of(input))) {
+                        try (var result = engine.run(session, List.of(input))) {
                             ByteBuffer canonical = result.materialize(
                                     result.publications().getFirst(), 8L).bytes();
                             assertEquals(Float.floatToRawIntBits(-1.25f),
@@ -2206,21 +2206,21 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             seed);
 
                     List<Tensor> gradientInputs = List.of(seed, right, left);
-                    InferenceSession reused = engine.session(gradientCompiled);
-                    try (InferenceSession independent = engine.session(gradientCompiled)) {
+                    PreparedExecution reused = engine.prepare(gradientCompiled);
+                    try (PreparedExecution independent = engine.prepare(gradientCompiled)) {
                         for (int run = 0; run < 2; run++) {
-                            try (var result = reused.run(gradientInputs)) {
+                            try (var result = engine.run(reused, gradientInputs)) {
                                 assertMatmulGradientResults(result);
                             }
                         }
-                        try (var result = independent.run(gradientInputs)) {
+                        try (var result = engine.run(independent, gradientInputs)) {
                             assertMatmulGradientResults(result);
                         }
                         reused.close();
                         assertTrue(reused.isClosed());
                         assertThrows(
                                 IllegalStateException.class,
-                                () -> reused.run(gradientInputs));
+                                () -> engine.run(reused, gradientInputs));
                     } finally {
                         reused.close();
                     }
@@ -2236,8 +2236,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             linearGraph.nodes().stream()
                                     .map(node -> node.operation().kind())
                                     .toList());
-                    try (InferenceSession session = engine.session(linearCompiled);
-                            var result = session.run(List.of(left, weight))) {
+                    try (PreparedExecution session = engine.prepare(linearCompiled);
+                            var result = engine.run(session, List.of(left, weight))) {
                         assertPublication(result, 0,
                                 74.0f, 80.0f, 86.0f, 92.0f,
                                 173.0f, 188.0f, 203.0f, 218.0f);
@@ -2324,8 +2324,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(forward));
-                    try (InferenceSession session = engine.session(forward);
-                            var result = session.run(List.of(
+                    try (PreparedExecution session = engine.prepare(forward);
+                            var result = engine.run(session, List.of(
                                     vectorLeft, vectorRight, mixedSource, mixedRight))) {
                         assertPublication(result, 0, 32);
                         assertPublication(result, 1, 17, 39);
@@ -2339,8 +2339,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(dotGradients));
-                    try (InferenceSession session = engine.session(dotGradients);
-                            var result = session.run(List.of(dotSeed, dotRight, dotLeft))) {
+                    try (PreparedExecution session = engine.prepare(dotGradients);
+                            var result = engine.run(session, List.of(dotSeed, dotRight, dotLeft))) {
                         assertPublication(result, 0, 32);
                         assertPublication(result, 1, 8, 10, 12);
                         assertPublication(result, 2, 2, 4, 6);
@@ -2353,8 +2353,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(gradients));
-                    try (InferenceSession session = engine.session(gradients);
-                            var result = session.run(List.of(
+                    try (PreparedExecution session = engine.prepare(gradients);
+                            var result = engine.run(session, List.of(
                                     seed, batchedRight, batchedLeft))) {
                         assertEquals(3, result.resultCount());
                         assertPublication(
@@ -2378,8 +2378,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(composed));
-                    try (InferenceSession session = engine.session(composed);
-                            var result = session.run(List.of(
+                    try (PreparedExecution session = engine.prepare(composed);
+                            var result = engine.run(session, List.of(
                                     explicitSource,
                                     explicitRight,
                                     nestedLeft,
@@ -2407,8 +2407,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(vectorMatrixGradients));
-                    try (InferenceSession session = engine.session(vectorMatrixGradients);
-                            var result = session.run(List.of(
+                    try (PreparedExecution session = engine.prepare(vectorMatrixGradients);
+                            var result = engine.run(session, List.of(
                                     vectorMatrixSeed, vectorMatrixRight, vectorMatrixLeft))) {
                         assertPublication(result, 0, 22, 28);
                         assertPublication(result, 1, 21, 43, 65);
@@ -2423,8 +2423,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(matrixVectorGradients));
-                    try (InferenceSession session = engine.session(matrixVectorGradients);
-                            var result = session.run(List.of(
+                    try (PreparedExecution session = engine.prepare(matrixVectorGradients);
+                            var result = engine.run(session, List.of(
                                     matrixVectorSeed, matrixVectorRight, matrixVectorLeft))) {
                         assertPublication(result, 0, 14, 32);
                         assertPublication(result, 1, 1, 2, 3, 10, 20, 30);
@@ -2450,8 +2450,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                    try (InferenceSession session = engine.session(compiled);
-                            var result = session.run(List.of(
+                    try (PreparedExecution session = engine.prepare(compiled);
+                            var result = engine.run(session, List.of(
                                     intLeftSource, intRight, promotedLeft, promotedRight))) {
                         ByteBuffer intResult = result.materialize(
                                 result.publications().get(0), Integer.BYTES).bytes();
@@ -2473,8 +2473,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                    try (InferenceSession session = engine.session(compiled);
-                            var result = session.run(List.of(
+                    try (PreparedExecution session = engine.prepare(compiled);
+                            var result = engine.run(session, List.of(
                                     intLeftSource, intRight, promotedLeft, promotedRight))) {
                         ByteBuffer intResult = result.materialize(
                                 result.publications().get(0), Integer.BYTES).bytes();
@@ -2542,8 +2542,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(bfloatGradient));
-                    try (InferenceSession session = engine.session(bfloatGradient);
-                            var result = session.run(List.of(
+                    try (PreparedExecution session = engine.prepare(bfloatGradient);
+                            var result = engine.run(session, List.of(
                                     bfloatGradientLeft,
                                     bfloatGradientRight,
                                     bfloatGradientSeed))) {
@@ -2983,7 +2983,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
      * @param shape canonical FLOAT32 shape preserved by every transfer without conversion
      */
     private static void assertPreparedTransfers(
-            InferenceSession session, List<String> directions, Shape shape) {
+            PreparedExecution session, List<String> directions, Shape shape) {
         var transfers = EngineMixedOwnerTestAccess.preparedTransfers(session);
         assertEquals(directions, transfers.stream()
                 .map(EngineMixedOwnerTestAccess.TransferFact::direction).toList());
@@ -3026,11 +3026,11 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             Engine engine, Tensor input, MixedFixture fixture) {
         var compiled = engine.compile(fixture.outputs());
         assertMixedStructure(EngineMixedOwnerTestAccess.compileArtifacts(compiled), fixture);
-        try (var session = engine.session(compiled)) {
+        try (var session = engine.prepare(compiled)) {
             assertPreparedTransfers(session, fixture.transfers(), input.descriptor().shape());
             EngineMixedOwnerTestAccess.poisonBackendLookup(engine);
             for (int run = 0; run < 2; run++) {
-                try (var result = session.run(List.of(input))) {
+                try (var result = engine.run(session, List.of(input))) {
                     assertMixedPublications(result, fixture.expected());
                 }
             }
@@ -3123,7 +3123,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
                 assertTrue(events.isEmpty(), "compile neither prepares nor probes a fallback");
 
-                try (InferenceSession session = engine.session(compiled)) {
+                try (PreparedExecution session = engine.prepare(compiled)) {
                     assertEquals(2, events.size());
                     assertEquals("PREPARE", events.getFirst().phase());
                     assertEquals("CUSTOM_KERNEL",
@@ -3131,7 +3131,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
                     List<Tensor> canonicalInputs =
                             List.of(classified, boolColumn, boolRow, trueBranch, falseBranch);
-                    try (var result = session.run(canonicalInputs)) {
+                    try (var result = engine.run(session, canonicalInputs)) {
                         assertBoolPublication(result, 0, 1, 0, 0, 0, 1, 0);
                         assertBoolPublication(result, 1, 0, 0, 1, 0, 0, 1);
                         assertBoolPublication(result, 2, 0, 1, 0, 1, 0, 0);
@@ -3169,7 +3169,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertThrows(
                             RuntimeException.class,
                             () -> {
-                                try (var ignored = session.run(List.of(
+                                try (var ignored = engine.run(session, List.of(
                                         classified,
                                         boolColumn,
                                         invalidBoolRow,
@@ -3183,7 +3183,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             events.size(),
                             "canonical BOOL ingress fails before native invocation or fallback");
 
-                    try (var recovered = session.run(canonicalInputs)) {
+                    try (var recovered = engine.run(session, canonicalInputs)) {
                         assertBoolPublication(recovered, 3, 1, 0, 0, 0, 0, 0);
                     }
                     Object recovery = events.getLast().payload();
@@ -3237,21 +3237,21 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 var compiled = engine.compile(publications);
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                try (InferenceSession session = engine.session(compiled);
-                        InferenceSession independent = engine.session(compiled)) {
+                try (PreparedExecution session = engine.prepare(compiled);
+                        PreparedExecution independent = engine.prepare(compiled)) {
                     for (int repetition = 0; repetition < 2; repetition++) {
-                        try (var result = session.run(List.of(left, right))) {
+                        try (var result = engine.run(session, List.of(left, right))) {
                             assertTask0052Results(result);
                         }
                     }
                     try (var executor = Executors.newFixedThreadPool(2)) {
                         var first = executor.submit(() -> {
-                            try (var result = session.run(List.of(left, right))) {
+                            try (var result = engine.run(session, List.of(left, right))) {
                                 assertTask0052Results(result);
                             }
                         });
                         var second = executor.submit(() -> {
-                            try (var result = independent.run(List.of(left, right))) {
+                            try (var result = engine.run(independent, List.of(left, right))) {
                                 assertTask0052Results(result);
                             }
                         });
@@ -3434,8 +3434,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     private static void assertAffineResults(
-            InferenceSession session, List<Tensor> inputs, List<int[]> expected) {
-        try (var result = session.run(inputs)) {
+            Engine engine, PreparedExecution session, List<Tensor> inputs, List<int[]> expected) {
+        try (var result = engine.run(session, inputs)) {
             assertAffineResults(result, expected);
         }
     }

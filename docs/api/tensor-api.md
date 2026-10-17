@@ -86,9 +86,11 @@ overlap-summing target transformation. The two `unfold2d` forms add NCHW im2col 
 positive-zero or exact typed padding, while `fold2d` adds overlap-summing col2im with exact static
 or symbolic compatibility.
 `HostTensorStorage` exposes current raw host-storage facts, but `Tensor` has no typed element
-getters or setters. The public Engine now owns the separate compile, inference-session, and run
+getters or setters. The public Engine now owns the separate compile, prepare, and run
 lifecycle for Tensor expressions. Public compilation can request forward and supported
-first-order gradient publication occurrences; session runs bind caller inputs, and an open
+first-order gradient publication occurrences. Engine.run binds exact input identities in any order;
+Engine.runValues binds fresh fully static exact-descriptor values in compiled order without
+mutating Tensor prototypes. Both use the same prepared owner and an open
 `RunResult` can explicitly materialize one occurrence as a detached host value.
 `Engine.standard()` uses one fixed CPU-only composition; preparation and execution remain bounded
 by exact CPU capability and fail closed for

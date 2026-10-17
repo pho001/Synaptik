@@ -548,7 +548,7 @@ closes optional provider ownership; repeated and concurrent close calls are idem
 The low-level OpenBLAS provider owns library loading, symbol binding, GEMM calls, and thread
 control only. It does not interpret graphs or choose fusion, broadcasting, representations,
 materialization, or Runtime lifetime. Dependency direction is
-`backends/cpu -> backends/openblas-provider`.
+`modules/backend/cpu -> modules/backend/openblas-provider`.
 
 ## Historical provisional foundation
 

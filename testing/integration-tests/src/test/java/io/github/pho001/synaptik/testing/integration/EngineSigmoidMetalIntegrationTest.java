@@ -47,9 +47,9 @@ final class EngineSigmoidMetalIntegrationTest {
                 var compiled = engine.compile(List.of(input.sigmoid()));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                try (var session = engine.session(compiled)) {
-                    assertSigmoid(session.run(List.of(input)), samples);
-                    assertSigmoid(session.run(List.of(input)), samples);
+                try (var session = engine.prepare(compiled)) {
+                    assertSigmoid(engine.run(session, List.of(input)), samples);
+                    assertSigmoid(engine.run(session, List.of(input)), samples);
                 }
                 for (int index = 0; index < samples.length; index++) {
                     assertEquals(Float.floatToRawIntBits(samples[index]),
@@ -87,9 +87,9 @@ final class EngineSigmoidMetalIntegrationTest {
                             input.sigmoid(), input.cast(DataType.FLOAT32).sigmoid()));
                     assertEquals(List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                    try (var session = engine.session(compiled)) {
-                        assertMixedSigmoid(session.run(List.of(input)), low, original);
-                        assertMixedSigmoid(session.run(List.of(input)), low, original);
+                    try (var session = engine.prepare(compiled)) {
+                        assertMixedSigmoid(engine.run(session, List.of(input)), low, original);
+                        assertMixedSigmoid(engine.run(session, List.of(input)), low, original);
                     }
                     for (int index = 0; index < original.length; index++) {
                         assertEquals(original[index], storage.getAtIndex(JAVA_SHORT, index));

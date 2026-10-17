@@ -1,5 +1,9 @@
 # CPU Backend Master Plan
 
+Current source: `modules/backend/cpu`; Gradle identity remains `:backends:cpu`. Planning tasks and
+completed reports retain their original locations; see the
+[path migration table](../../../developer-guide/repository-layout.md#backend-path-migration-and-historical-navigation).
+
 ## Goal
 
 Maintain a truthful CPU plan. Preparation owns lowering, route/representation choice, resources,
@@ -84,7 +88,7 @@ backends, inferred relaxed numerics, or platform-label-selected vendor routes.
 
 Allowed direct production dependencies are `modules/model`,
 `modules/config`, `modules/planning`, `modules/runtime`, `modules/prepare`,
-`modules/backend-contract`, `modules/trace`, and `backends/openblas-provider`. `modules/engine` is
+`modules/backend-contract`, `modules/trace`, and `modules/backend/openblas-provider`. `modules/engine` is
 forbidden. Engine 0011 removed the historical production Compiler edge; Compiler is test-only.
 CPU does not depend on tuning tools; its collaborations expose opaque candidates.
 

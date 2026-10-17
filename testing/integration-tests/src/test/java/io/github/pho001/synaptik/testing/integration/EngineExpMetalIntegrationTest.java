@@ -50,9 +50,9 @@ final class EngineExpMetalIntegrationTest {
                 var compiled = engine.compile(List.of(input.exp()));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                try (var session = engine.session(compiled)) {
-                    assertExp(session.run(List.of(input)), samples);
-                    assertExp(session.run(List.of(input)), samples);
+                try (var session = engine.prepare(compiled)) {
+                    assertExp(engine.run(session, List.of(input)), samples);
+                    assertExp(engine.run(session, List.of(input)), samples);
                 }
                 for (int index = 0; index < samples.length; index++) {
                     assertEquals(Float.floatToRawIntBits(samples[index]),
@@ -89,9 +89,9 @@ final class EngineExpMetalIntegrationTest {
                     var compiled = engine.compile(List.of(input.cast(DataType.FLOAT32).exp()));
                     assertEquals(List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled), low.toString());
-                    try (var session = engine.session(compiled)) {
-                        assertExp(session.run(List.of(input)), samples);
-                        assertExp(session.run(List.of(input)), samples);
+                    try (var session = engine.prepare(compiled)) {
+                        assertExp(engine.run(session, List.of(input)), samples);
+                        assertExp(engine.run(session, List.of(input)), samples);
                     }
                     for (int index = 0; index < samples.length; index++) {
                         assertEquals(original[index], storage.getAtIndex(JAVA_SHORT, index),
@@ -127,9 +127,9 @@ final class EngineExpMetalIntegrationTest {
                     var compiled = engine.compile(List.of(input.exp()));
                     assertEquals(List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(compiled), low.name());
-                    try (var session = engine.session(compiled)) {
+                    try (var session = engine.prepare(compiled)) {
                         for (int repeat = 0; repeat < 2; repeat++) {
-                            try (RunResult result = session.run(List.of(input))) {
+                            try (RunResult result = engine.run(session, List.of(input))) {
                                 ByteBuffer bytes = result.materialize(
                                         result.publications().getFirst(),
                                         (long) samples.length * Short.BYTES).bytes();

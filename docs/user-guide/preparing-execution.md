@@ -34,24 +34,18 @@ and Metal own their concrete lowering, specialization, route choice, physical st
 executable construction, and direct transfer endpoints. Runtime receives the completed recipe and
 does not repeat those decisions.
 
-## Prefer an inference session for ordinary repeated runs
+<a id="prefer-an-inference-session-for-ordinary-repeated-runs"></a>
 
-`InferenceSession` is the thin user-facing owner for the same prepared execution:
+## Reuse the prepared owner
 
-```java
-CompiledGraph graph = engine.compile(List.of(output));
-try (InferenceSession session = engine.session(graph)) {
-    try (RunResult result = session.run(inputs)) {
-        // Inspect or materialize this run's ordered publications.
-    }
-}
-```
+Use the same closeable prepared handle for ordinary repeated runs and bounded tuning handoff.
+`Engine.run(prepared, inputs)` accepts the exact compiled Tensor identities in arbitrary order;
+`Engine.runValues(prepared, values)` accepts fresh fully static exact-descriptor values in final
+`graph.inputs()` order. Neither method compiles or prepares again. See the
+[fresh-value example](running-models.md#run-fresh-values-in-compiled-order).
 
-`engine.session(graph)` performs the same ordinary preparation exactly once and keeps its
-`PreparedExecution` private. The session adds no compiler, scheduler, runner, cache, result type,
-backend discovery, or per-run lookup. Use it when one fixed graph should run repeatedly. Use the
-lower-level standalone prepared handle when direct handle ownership is required, including the
-existing bounded autotuning handoff.
+`InferenceSession` and `Engine.session` were removed. Replace their factory with `Engine.prepare`
+and each session run with `engine.run(prepared, inputs)`, then recompile; there is no shim.
 
 ## Optional bounded single-owner autotuning
 
@@ -85,11 +79,11 @@ prevents new runs and is the final cleanup boundary for a handle the caller leav
 | Preparation rejects a handle from another Engine | Owner identity is part of the lifecycle contract. | Compile and prepare with the same open Engine. |
 | Preparation rejects a zero-node graph | Current composition requires a non-empty partition plan. | Compile an operation supported by a registered owner, not a leaf-only publication. |
 | Preparation rejects mixed-owner transfer | One required edge is outside the exact all-seven-carrier rank-0..16 static canonical or positive-stride non-overlapping CPU/Metal transfer domain, or an owner is not registered. | Register both integrations and keep cross-owner values inside the checked physical-span and native-storage boundary; there is no fallback or conversion. |
-| A prepared recipe is rebuilt for every run | One-shot and reusable lifecycles were confused. | Open one session for ordinary reuse; retain a standalone prepared handle only when direct ownership is required. |
+| A prepared recipe is rebuilt for every run | One-shot and reusable lifecycles were confused. | Retain one prepared handle for reuse. |
 
 ## Related documentation
 
 - [Compile a graph](compiling-graphs.md)
-- [Run a reusable inference session](running-models.md)
+- [Run a prepared graph](running-models.md)
 - [Runtime/Prepare/backend boundary](../architecture/runtime-prepare-backend-boundary.md)
 - [Public API status](../api/public-api.md)

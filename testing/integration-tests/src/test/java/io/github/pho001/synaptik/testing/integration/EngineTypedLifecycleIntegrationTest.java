@@ -15,6 +15,7 @@ import io.github.pho001.synaptik.engine.ScalarObjectiveBackwardResult;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -29,6 +30,38 @@ import org.junit.jupiter.api.Test;
 
 /** Exercises the ordinary public Engine lifecycle through the real CPU composition. */
 final class EngineTypedLifecycleIntegrationTest {
+    @Test
+    void freshBatchesReuseOnePreparationAndDetachIndependentKnownValues() {
+        HostTensorValue firstDetached;
+        HostTensorValue secondDetached;
+        try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+            Tensor prototype = floatTensor(arena, new float[] {20, 30});
+            HostTensorStorage originalStorage = prototype.hostStorage().orElseThrow();
+            var compiled = engine.compile(List.of(prototype.neg()));
+            try (var prepared = engine.prepare(compiled)) {
+                Tensor firstBatch = floatTensor(arena, new float[] {1, -2});
+                Tensor secondBatch = floatTensor(arena, new float[] {3, -4});
+                try (RunResult first = engine.runValues(prepared, List.of(firstBatch));
+                        RunResult second = engine.runValues(prepared, List.of(secondBatch))) {
+                    assertSame(compiled, prepared.compiledGraph());
+                    assertThrows(IllegalArgumentException.class,
+                            () -> engine.run(prepared, List.of(firstBatch)));
+                    assertThrows(IllegalArgumentException.class,
+                            () -> engine.runValues(prepared,
+                                    List.of(floatTensor(arena, new float[] {1, 2, 3, 4}))));
+                    prepared.close();
+                    firstDetached = first.materialize(first.publications().getFirst(), 8);
+                    secondDetached = second.materialize(second.publications().getFirst(), 8);
+                    assertSame(originalStorage, prototype.hostStorage().orElseThrow());
+                    assertEquals(20.0f, originalStorage.segment().get(
+                            java.lang.foreign.ValueLayout.JAVA_FLOAT, 0));
+                }
+            }
+        }
+        assertArrayEquals(bytes(8).putFloat(-1).putFloat(2).array(), read(firstDetached));
+        assertArrayEquals(bytes(8).putFloat(-3).putFloat(4).array(), read(secondDetached));
+    }
+
     @Test
     void runsForwardWithReversedLogicalInputOrderAndMetadataOnlyResult() {
         try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
@@ -101,10 +134,10 @@ final class EngineTypedLifecycleIntegrationTest {
                     List.of(leftOutput, rightOutput), List.of(seed, seed), List.of(left, right));
             assertEquals(List.of(left.id(), right.id(), seedLeaf.id()),
                     compiled.inputs().stream().map(input -> input.tensorId()).toList());
-            try (var session = engine.session(compiled)) {
+            try (var session = engine.prepare(compiled)) {
                 assertSame(compiled, session.compiledGraph());
-                RunResult first = session.run(List.of(seedLeaf, right, left));
-                RunResult second = session.run(List.of(left, right, seedLeaf));
+                RunResult first = engine.run(session, List.of(seedLeaf, right, left));
+                RunResult second = engine.run(session, List.of(left, right, seedLeaf));
                 List<RunResult.Publication> firstPublications = first.publications();
                 List<RunResult.Publication> secondPublications = second.publications();
                 try (first; second) {

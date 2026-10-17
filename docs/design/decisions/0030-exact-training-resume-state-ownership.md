@@ -8,6 +8,13 @@ contract](../../architecture/contracts/extensions-training.md#optimizertraining-
 Its participant ownership and exclusions remain accepted. The joint-restore ordering in its
 original version was refined on 2026-10-14 by [ADR 0035](0035-private-candidate-training-restore.md).
 
+2026-10-16 dependency reconciliation: Training0007/ [ADR0039](0039-portable-graph-model-persistence.md#necessary-boundary-types-not-a-new-model-hierarchy)
+supersede only this record's blanket absence of an NN→Training edge. NN now exposes generic live
+parameter admission through `Module.trainingParameters()`; it gains no recovery coordinator,
+optimizer algorithm or state-installation authority. Participant ownership, private-candidate
+recovery and exact-continuation exclusions below remain unchanged. Current dependency permission
+comes from the [root](../../../ARCHITECTURE.md#dependency-rules), not this historical wording.
+
 ## Context
 
 `TrainingSession.state()` produces detached optimizer and parameter bytes, slots, pending

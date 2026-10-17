@@ -37,9 +37,9 @@ The engine depends on the components it composes:
 compiler
 runtime
 prepare
-backends/cpu
-backends/metal
-backends/cuda
+modules/backend/cpu
+modules/backend/metal
+modules/backend/cuda
 tools/tuning
   -> engine
 ```
@@ -50,7 +50,7 @@ The concrete CPU backend consumes only shared Model, Planning, Prepare, Runtime,
 contracts plus CPU-owned configuration. Engine passes Compiler-owned `CompileArtifacts` to
 shared Prepare, which projects stable partition and schedule facts before invoking CPU. The CPU
 build therefore has no production dependency on Compiler. Its compiler-backed fixtures use a
-test-only dependency, while the prohibited `backends/cpu -> modules/engine` edge also remains
+test-only dependency, while the prohibited `modules/backend/cpu -> modules/engine` edge also remains
 absent.
 
 The first advanced Engine lifecycle facade directly names Model-owned `Tensor` and
@@ -71,25 +71,25 @@ architecture decision.
 Neural-network composition and training have a separate extension direction:
 
 ```text
-modules/model -> extensions/nn
-modules/model + extensions/nn + public modules/engine facade -> extensions/training
+modules/model + public modules/engine facade -> modules/training (:extensions:training)
+modules/model + modules/training -> extensions/nn
 extensions/nn + public modules/engine facade + modules/model -> extensions/checkpoint
-extensions/training + extensions/checkpoint -> optional future extensions/training-checkpoint
+modules/training + extensions/checkpoint -> optional future extensions/training-checkpoint
 ```
 
-`extensions/nn` owns modules, parameters, buffers, and train/eval forward behavior. Training
-consumes that module-owned parameter contract and deliberately uses Model Tensor/schema contracts
-and the public Engine lifecycle for one compiled/prepared forward/backward session. Because all
-three appear in Training's public signatures, the NN, Model, and Engine Gradle edges are `api`
-dependencies; a consumer declaring only Training still compiles against that complete public
-surface. This is not permission to import lower execution internals.
+`extensions/nn` owns modules, parameters, buffers, and train/eval forward behavior. Generic
+Training has exactly Model and Engine `api` edges; a Training-only consumer needs no NN types.
+NN has exactly Model and Training `api` edges: `Module.trainingParameters()` adapts its live tree
+to Training's ordered admission boundary. That adapter owns no optimizer state or execution.
+Training retains its public Engine lifecycle for one compiled/prepared forward/backward session.
+This is not permission to import lower execution internals or add a direct NN Engine edge.
 
 NN also owns the implemented
 [closed declarative specification/reconstruction boundary](contracts/extensions-training.md#closed-declarative-models).
 For example, describing a nested Sequential and constructing an alias-preserving descriptor skeleton
 uses only NN plus Model metadata; the existing downstream recovery owner can then load its values.
 Putting a file codec, Engine runner or Training lifecycle inside NN would reverse the owner boundary.
-This addition changes no project edge; existing exact NN dependency tests continue to apply.
+That declarative addition changed no edge; Training0007 separately reverses the admission edge.
 
 The [accepted CP0005B whole-model contract](contracts/extensions-training.md#whole-model-definition-and-composition)
 keeps persistence downstream: Checkpoint describes via public NN, captures/validates the unchanged
@@ -117,11 +117,12 @@ explains the Model edge and target-defined alias policy.
 - `modules/runtime` must not depend on concrete backends or engine.
 - `modules/prepare` must not depend on concrete backend implementations.
 - Concrete backends must not depend on `modules/engine`.
-- `backends/openblas-provider` must not depend on compiler, planning, runtime, prepare, engine, or the Tensor API.
-- `extensions/nn` may depend on `modules/model` but must not depend on `extensions/training`, compiler, runtime, prepare, engine, or concrete backends.
-- `extensions/training` may depend on Model, `extensions/nn`, and the public Engine facade. It must
-  not reverse the NN dependency or depend directly on Runtime, Prepare, tuning, Engine internals,
-  or concrete backend modules.
+- `modules/backend/openblas-provider` must not depend on compiler, planning, runtime, prepare, engine, or the Tensor API.
+- `extensions/nn` exposes only Model and Training directly; it must not directly depend on
+  Compiler, Runtime, Prepare, Engine, Checkpoint, or concrete backends.
+- `modules/training` exposes only Model and public Engine directly. It has no NN dependency or
+  import, including test fixtures, and no direct Compiler, Runtime, Prepare, tuning, Engine
+  internals, or concrete backend dependency.
 - `extensions/checkpoint` depends directly only on NN, the public Engine facade, and Model; it
   must not depend on Training, Text, lower execution layers, tuning, or concrete backends. Inward
   modules, NN, and Training must not depend on Checkpoint.
@@ -159,13 +160,14 @@ implements an Engine-owned interface. Their appearance in public builder signatu
 Engine-to-CPU and Engine-to-Metal dependencies API-visible to Engine consumers, but never adds a
 backend-to-Engine edge or exposes backend types through execution handles.
 
-### Training is downstream of neural-network composition
+### Generic Training admission is independent of neural-network composition
 
-Layers need a stable way to declare their trainable values and persistent state whether or not an
-optimizer is selected. If `extensions/nn` imported training to represent a parameter or choose
-train/eval behavior, a layer would be coupled to optimizer orchestration and reusable inference
-composition would acquire a reverse dependency. Keeping `Parameter` and `Buffer` in `nn` lets a
-training extension traverse declared parameters without knowing concrete layer types.
+Layers declare their own Parameter/Buffer state and choose train/eval forward behavior without
+selecting an optimizer. NN's narrow Training edge exposes a live membership adapter, not state
+declaration or optimizer orchestration. A non-NN owner can supply the same `TrainingParameters`
+boundary without importing layers. Frozen lists cannot detect later binding replacement, so the
+NN adapter retains the root and re-traverses exact ordered paths/wrappers/Tensors. Training checks
+storage separately; copying into native memory therefore preserves that same membership adapter.
 
 ### Model-only recovery is downstream of NN, Engine, and Model
 
@@ -173,8 +175,9 @@ NN state paths and values can be meaningful without an optimizer; Engine provide
 host-materialization boundary for any executed values. A model-only Checkpoint owner can consume
 both without teaching NN file I/O or leaking backend representation access into persistence. A
 future training-resume artifact adds Training-owned state through a separate adapter. If
-Checkpoint instead imported Training now, even a model-only inference application would inherit
-Training's dependency and restore rules.
+Checkpoint instead coordinated Training state now, model-only persistence would acquire optimizer
+restore obligations. NN's transitive live-admission dependency grants no such ownership or restore
+authority to Checkpoint.
 
 ## Dependency scenario
 
@@ -198,7 +201,8 @@ Source-level dependency tests should also protect the boundaries that type depen
 - Compile-time plans hold `BackendId`, not live backend services.
 - CPU routes such as scalar, Vector API, generated JVM-bytecode CPU computation kernels, and
   OpenBLAS remain implementation routes inside the CPU backend.
-- `extensions/nn` owns `Parameter`, `Buffer`, and train/eval behavior; `extensions/training` owns optimizer algorithms and training orchestration.
+- `extensions/nn` owns `Parameter`, `Buffer`, train/eval behavior and its live adapter;
+  `modules/training` owns generic admission, optimizer algorithms and training orchestration.
 
 ## Architecture-test enforcement
 
@@ -217,7 +221,8 @@ Tests under `testing/architecture-tests/` should fail when forbidden module or p
 - absence of backend support APIs on `Operation`;
 - absence of compile-time graph types in the runtime hot path; and
 - absence of concrete implementation references in partition scoring.
-- the Model/NN and public-Engine-to-Training direction.
+- exact public Model/Engine-to-Training and Model/Training-to-NN edges, physical Training mapping,
+  generic signatures, NN-free Training sources and isolated consumer compilation.
 - Checkpoint's present exact NN/Engine/Model edges, absent reverse edges, and exclusion of the optional
   Training Checkpoint adapter until its separate gate.
 

@@ -68,7 +68,7 @@ scalar reaches Metal RELU without becoming a rank-one tensor. For `x = 0`, the r
 `1`. This repair does not admit scalar EXP, SIGMOID, FLOOR, CEIL, SIGN, or scalar ADD/SUB/DIV.
 The [scalar integration regression](../../testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineScalarMetalIntegrationTest.java)
 covers direct and composed execution, input preservation, special values, and both low types
-independently; [Task-0079 evidence](../../backends/metal/evidence/0079/validation.json) records the
+independently; [Task-0079 evidence](../../modules/backend/metal/evidence/0079/validation.json) records the
 source-matched package and validation commands.
 
 The current provider also admits no-gradient `EXP` over one canonical FLOAT32, BFLOAT16, or
@@ -80,7 +80,7 @@ historical v1 `ACCELERATOR` answer remains false; current v2 records all three a
 FLOAT64, gradient-bearing, scalar-rank, noncanonical, mixed-low, and over-limit Metal `EXP` remain
 unsupported.
 
-The [real-device EXP test](../../backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalExpNativeTest.java)
+The [real-device EXP test](../../modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalExpNativeTest.java)
 checks zero, infinity, NaN, overflow, and underflow classes separately from its ordinary-finite
 oracle and relative-error threshold. Those are route-qualification tests, not a Runtime tolerance
 policy or a public accuracy envelope.
@@ -100,7 +100,7 @@ denormals-are-zero (DAZ). It selects `x` for negative input or `-x` otherwise, e
 `EXP`, selects that result or typed one as numerator, adds typed one to the exponent as denominator,
 and divides. For example, input `[-1, 0, 1]` selects exponent arguments `[-1, -0, -1]` and
 produces approximately `[0.26894, 0.5, 0.73106]`; the zero result is exactly `0.5`. The
-[real-device SIGMOID test](../../backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalSigmoidNativeTest.java)
+[real-device SIGMOID test](../../modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalSigmoidNativeTest.java)
 separates exact class/guard checks, output underflow and saturation gates, and test-only
 ordinary-finite relative thresholds of `2e-6` for FLOAT32, `0.0040` for BFLOAT16, and `0.00055`
 for FLOAT16. It creates no Runtime tolerance policy or numerical certification. Each low type
@@ -233,7 +233,7 @@ candidates still requires a separate reviewed capability change, not a runtime b
 Java uses JDK 26 Foreign Function and Memory (FFM) APIs. The native bridge requires an
 Apple-silicon macOS host, Xcode Command Line Tools, and Foundation, Metal, and
 MetalPerformanceShadersGraph. Build and ABI instructions are in the
-[native Metal guide](../../native/metal-macos-arm64/README.md).
+[native Metal guide](../../modules/backend/metal/macos-arm64/README.md).
 
 Backend-local and public integration tests supply the dylib's absolute path directly. The backend
 does not discover, extract, package, sign, notarize, or cache the library.
@@ -686,8 +686,8 @@ materialization, and checksums stay outside it.
 Run the bounded smoke profile after building the explicit bridge:
 
 ```bash
-./native/metal-macos-arm64/build.sh
-SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" \
+./modules/backend/metal/macos-arm64/build.sh
+SYNAPTIK_METAL_TEST_LIBRARY="$PWD/modules/backend/metal/macos-arm64/build/libsynaptik_metal_foundation.dylib" \
   ./gradlew -q :tools:benchmarks:metalBenchmark -Pprofile=smoke
 ```
 
@@ -1302,7 +1302,7 @@ Related documentation:
 - [Metal task 0064](../planning/backends/metal/tasks/0064-convolution-pooling-and-attention-boundary.md)
 - [Metal task 0065](../planning/backends/metal/tasks/0065-explicit-state-rng-dropout-and-recurrent-boundary.md)
 - [Metal task 0066](../planning/backends/metal/tasks/0066-dtype-layout-gradient-gap-closure.md)
-- [Native ABI and build guide](../../native/metal-macos-arm64/README.md)
+- [Native ABI and build guide](../../modules/backend/metal/macos-arm64/README.md)
 
 ## Numerical semantics and capability
 

@@ -65,8 +65,8 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                 var compiled = engine.compile(List.of(convolution, maximum, average));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                try (var firstSession = engine.session(compiled);
-                        var secondSession = engine.session(compiled)) {
+                try (var firstSession = engine.prepare(compiled);
+                        var secondSession = engine.prepare(compiled)) {
                     List<byte[]> original = List.of(
                             floats(3.5f, 5.5f, 7.5f),
                             floats(2, 3, 4),
@@ -76,16 +76,16 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                             floats(4, 3, 2),
                             floats(3.5f, 2.5f, 1.5f));
                     try (RunResult firstResult =
-                            firstSession.run(List.of(bias, weight, input))) {
+                            engine.run(firstSession, List.of(bias, weight, input))) {
                         writeFloats(mutableInput.storage(), 4, 3, 2, 1);
                         try (RunResult secondResult =
-                                secondSession.run(List.of(input, weight, bias))) {
+                                engine.run(secondSession, List.of(input, weight, bias))) {
                             assertOpenResults(secondResult, changed);
                             assertOpenResults(firstResult, original);
                         }
                     }
                     assertResults(
-                            firstSession.run(List.of(weight, bias, input)), changed);
+                            engine.run(firstSession, List.of(weight, bias, input)), changed);
                 }
             }
         }
@@ -129,7 +129,7 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                 var compiled = engine.compile(outputs);
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                try (var session = engine.session(compiled)) {
+                try (var session = engine.prepare(compiled)) {
                     assertEquals(3, events.size(),
                             "structural, low-precision, and outcome preparation events");
                     ObservedTrace preparation = events.get(0);
@@ -160,7 +160,7 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                             outcome.payload().getClass().getSimpleName());
                     assertEquals("SUCCEEDED", enumName(component(outcome.payload(), "status")));
                     assertEquals("CUSTOM_KERNEL", enumName(component(outcome.payload(), "route")));
-                    assertResults(session.run(List.of(
+                    assertResults(engine.run(session, List.of(
                             bias3d,
                             mixedInput,
                             input2d,
@@ -197,8 +197,8 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                         List.of(average), List.of(seed), List.of(input));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                try (var session = engine.session(compiled)) {
-                    assertResults(session.run(List.of(seed, input)), List.of(
+                try (var session = engine.prepare(compiled)) {
+                    assertResults(engine.run(session, List.of(seed, input)), List.of(
                             floats(2.5f),
                             floats(0.25f, 0.25f, 0.25f, 0.25f)));
                 }
@@ -216,8 +216,8 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                         List.of(average3d), List.of(seed3d), List.of(input3d));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled3d));
-                try (var session = engine.session(compiled3d)) {
-                    assertResults(session.run(List.of(input3d, seed3d)), List.of(
+                try (var session = engine.prepare(compiled3d)) {
+                    assertResults(engine.run(session, List.of(input3d, seed3d)), List.of(
                             floats(1, 2, 3, 4, 5, 6, 7, 8),
                             floats(1, 1, 1, 1, 1, 1, 1, 1)));
                 }
@@ -257,9 +257,9 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                         List.of(inputOutput), List.of(inputSeed), List.of(inputTarget));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(inputCompiled));
-                try (var session = engine.session(inputCompiled)) {
+                try (var session = engine.prepare(inputCompiled)) {
                     assertResults(
-                            session.run(List.of(inputBias, inputSeed, inputTarget, inputWeight)),
+                            engine.run(session, List.of(inputBias, inputSeed, inputTarget, inputWeight)),
                             List.of(
                                     floats(3, 5, 7, 9),
                                     floats(2, 2, 2, 2)));
@@ -277,9 +277,9 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                         List.of(weightOutput), List.of(weightSeed), List.of(weightTarget));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(weightCompiled));
-                try (var session = engine.session(weightCompiled)) {
+                try (var session = engine.prepare(weightCompiled)) {
                     assertResults(
-                            session.run(List.of(weightTarget, weightInput, weightSeed, weightBias)),
+                            engine.run(session, List.of(weightTarget, weightInput, weightSeed, weightBias)),
                             List.of(
                                     floats(3, 5, 7, 9),
                                     floats(10)));
@@ -297,9 +297,9 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                         List.of(biasOutput), List.of(biasSeed), List.of(biasTarget));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(biasCompiled));
-                try (var session = engine.session(biasCompiled)) {
+                try (var session = engine.prepare(biasCompiled)) {
                     assertResults(
-                            session.run(List.of(biasTarget, biasInput, biasWeight, biasSeed)),
+                            engine.run(session, List.of(biasTarget, biasInput, biasWeight, biasSeed)),
                             List.of(
                                     floats(3, 5, 7, 9),
                                     floats(4)));
@@ -317,9 +317,9 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                         List.of(jointInput, jointWeight));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(jointCompiled));
-                try (var session = engine.session(jointCompiled)) {
+                try (var session = engine.prepare(jointCompiled)) {
                     assertResults(
-                            session.run(List.of(jointInput, jointWeight, jointSeed)),
+                            engine.run(session, List.of(jointInput, jointWeight, jointSeed)),
                             List.of(
                                     floats(2, 4, 6, 8),
                                     floats(2, 2, 2, 2),
@@ -346,9 +346,9 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                 assertEquals(
                         List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(maximumCompiled));
-                try (var session = engine.session(maximumCompiled)) {
+                try (var session = engine.prepare(maximumCompiled)) {
                     assertResults(
-                            session.run(List.of(poolInput, poolSeed)),
+                            engine.run(session, List.of(poolInput, poolSeed)),
                             List.of(floats(4), floats(0, 0, 0, 1)));
                 }
 
@@ -382,8 +382,8 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                 var maximumCompiled = engine.compile(List.of(maximum));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(maximumCompiled));
-                try (var session = engine.session(maximumCompiled)) {
-                    assertResults(session.run(List.of(input)), List.of(floats(2)));
+                try (var session = engine.prepare(maximumCompiled)) {
+                    assertResults(engine.run(session, List.of(input)), List.of(floats(2)));
                 }
 
                 Tensor average = input.averagePool2d(
@@ -393,8 +393,8 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                 var arithmetic = engine.compile(List.of(average, convolution));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(arithmetic));
-                try (var session = engine.session(arithmetic)) {
-                    assertResults(session.run(List.of(input, weight)), List.of(
+                try (var session = engine.prepare(arithmetic)) {
+                    assertResults(engine.run(session, List.of(input, weight)), List.of(
                             floats(1.5f), floats(2, 4)));
                 }
             }

@@ -68,11 +68,11 @@ final class EngineOrderingMetalIntegrationTest {
                         assertEquals(List.of("metal"),
                                 EngineMixedOwnerTestAccess.partitionOwners(compiled));
                         List<byte[]> expected = expected(type, raw);
-                        try (var first = engine.session(compiled);
-                                var independent = engine.session(compiled)) {
-                            assertResults(first.run(List.of(input)), expected);
-                            assertResults(first.run(List.of(input)), expected);
-                            assertResults(independent.run(List.of(input)), expected);
+                        try (var first = engine.prepare(compiled);
+                                var independent = engine.prepare(compiled)) {
+                            assertResults(engine.run(first, List.of(input)), expected);
+                            assertResults(engine.run(first, List.of(input)), expected);
+                            assertResults(engine.run(independent, List.of(input)), expected);
                         }
                     }
                 }
@@ -92,10 +92,10 @@ final class EngineOrderingMetalIntegrationTest {
                 var valuesOnly = engine.compile(List.of(top.values()));
                 var indicesOnly = engine.compile(List.of(top.indices()));
                 List<byte[]> all = expected(DataType.FLOAT32, raw);
-                try (var valuesSession = engine.session(valuesOnly);
-                        var indicesSession = engine.session(indicesOnly);
-                        RunResult values = valuesSession.run(List.of(input));
-                        RunResult indices = indicesSession.run(List.of(input))) {
+                try (var valuesSession = engine.prepare(valuesOnly);
+                        var indicesSession = engine.prepare(indicesOnly);
+                        RunResult values = engine.run(valuesSession, List.of(input));
+                        RunResult indices = engine.run(indicesSession, List.of(input))) {
                     assertEquals(1, values.resultCount());
                     assertEquals(1, indices.resultCount());
                     assertPublication(values, 0, all.get(2));
@@ -161,8 +161,8 @@ final class EngineOrderingMetalIntegrationTest {
                             longWords(3),
                             longWords(5),
                             longWords(0, 1, 2, 4));
-                    try (var session = engine.session(compiled)) {
-                        assertResults(session.run(List.of(input)), expected);
+                    try (var session = engine.prepare(compiled)) {
+                        assertResults(engine.run(session, List.of(input)), expected);
                     }
                 }
             }
@@ -213,9 +213,9 @@ final class EngineOrderingMetalIntegrationTest {
                 assertEquals(
                         List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(sortCompiled));
-                try (var session = engine.session(sortCompiled)) {
+                try (var session = engine.prepare(sortCompiled)) {
                     assertResults(
-                            session.run(List.of(input, sortSeed)),
+                            engine.run(session, List.of(input, sortSeed)),
                             List.of(
                                     words(
                                             DataType.FLOAT32,
@@ -242,9 +242,9 @@ final class EngineOrderingMetalIntegrationTest {
                 assertEquals(
                         List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(topCompiled));
-                try (var session = engine.session(topCompiled)) {
+                try (var session = engine.prepare(topCompiled)) {
                     assertResults(
-                            session.run(List.of(input, topSeed)),
+                            engine.run(session, List.of(input, topSeed)),
                             List.of(
                                     words(DataType.FLOAT32, selection.values()),
                                     words(DataType.FLOAT32, topGradient)));

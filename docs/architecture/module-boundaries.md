@@ -177,11 +177,10 @@ finalization through the existing staged lifecycle.
 
 Owns the public lifecycle facade and explicit composition root. Current `Engine.standard()`
 constructs and owns one fresh fixed CPU composition. It exposes owner-bound compile handles,
-`InferenceSession` as the ordinary reusable one-graph/one-preparation owner, typed logical input
-binding, leased publication metadata, explicit detached host materialization, fresh one-shot
-compute/backward conveniences, and bounded optional CPU-local autotuning. Direct
-`PreparedExecution` ownership and `run(preparedExecution, inputs)` remain available as the
-lower-level public lifecycle. `AdvancedEngine.takeOwnership(...)` instead takes explicit cleanup
+`PreparedExecution` as the sole ordinary reusable owner, exact-ID arbitrary-order `Engine.run`,
+fresh exact-static-descriptor positional `Engine.runValues`, independent publication leases,
+detached host materialization and fresh one-shot compute/backward conveniences. Runtime remains
+the sole prepared-resource and run-lease authority; Engine retains direct outward adapters. `AdvancedEngine.takeOwnership(...)` instead takes explicit cleanup
 ownership of one supported CPU integration and exposes the representation lifecycle.
 
 The public multi-backend construction boundary is `Engine.Builder` with concrete CPU and Metal
@@ -217,7 +216,7 @@ specialization, or preparation to repeat.
 
 ## Concrete backend modules
 
-`backends/cpu`, `backends/metal`, and `backends/cuda` are vertical implementations. Each backend
+`modules/backend/cpu`, `modules/backend/metal`, and `modules/backend/cuda` are vertical implementations. Each backend
 owns its capability provider, deterministic partition analysis, lowering, fusion, specialization,
 route selection, opaque analysis plan, executable finalization against assigned slots, executable
 units, physical buffer and workspace representations, their allocation/release/transfer/access
@@ -226,11 +225,11 @@ mechanics, typed cold-bound invocation objects, trace contributions, and native 
 Concrete backend logic belongs in the backend that implements it:
 
 - CPU scalar, Vector API, generated JVM-bytecode CPU computation kernels, and OpenBLAS are routes
-  inside `backends/cpu`, not separate backends. CPU owns generation and compatible generated-
+  inside `modules/backend/cpu`, not separate backends. CPU owns generation and compatible generated-
   artifact caching during preparation; shared Prepare and Runtime do not interpret or select
   those kernels.
-- MPSGraph and custom Metal kernels, Metal storage, and native bridges belong to `backends/metal`.
-- CUDA lowering, kernels, storage, and native integration belong to `backends/cuda`.
+- MPSGraph and custom Metal kernels, Metal storage, and native bridges belong to `modules/backend/metal`.
+- CUDA lowering, kernels, storage, and native integration belong to `modules/backend/cuda`.
 
 Metal also owns its immutable public configuration, native-library path validation, native context
 construction, and partial-open rollback. Engine may own an already-opened Metal integration, but
@@ -250,7 +249,7 @@ does not leak into planning or shared parameter bags.
 
 Backends may consume model, config, planning, runtime, prepare, backend-contract, and trace contracts. They must not own public tensor APIs or global compiler logic, and must not depend on engine.
 
-`backends/openblas-provider` is a lower-level leaf used by the CPU backend. It owns loading, symbol binding, GEMM calls, and thread control only. It does not interpret config, decide fallback or ownership, participate in planning, manage residency, or expose the Tensor API. Dependency direction is `backends/cpu -> backends/openblas-provider`.
+`modules/backend/openblas-provider` is a lower-level leaf used by the CPU backend. It owns loading, symbol binding, GEMM calls, and thread control only. It does not interpret config, decide fallback or ownership, participate in planning, manage residency, or expose the Tensor API. Dependency direction is `modules/backend/cpu -> modules/backend/openblas-provider`.
 
 ## Extensions
 
@@ -267,8 +266,9 @@ own autograd construction, optimizer algorithms, training-step orchestration, ba
 kernel selection, or concrete backend dependencies.
 
 The implemented [closed declarative boundary](contracts/extensions-training.md#closed-declarative-models)
-also places semantic description and reconstruction in NN, still with Model as its only production
-edge. NN0026 is independently reviewed and coordinator-validated. For an ordinary nested Sequential MLP, description records
+also places semantic description and reconstruction in NN. Model supplies semantics; the separate
+public Training edge now supplies only generic live admission. NN0026 is independently reviewed
+and coordinator-validated. For an ordinary nested Sequential MLP, description records
 typed configuration, ordered numeric paths and current Tensor-identity groups; reconstruction
 returns the same paths and shared descriptor-only references, then existing strict state load supplies
 values. This avoids random throwaway weights and a persistence-owned layer interpreter. Description
@@ -284,17 +284,21 @@ fixed scan operation or its prepared loop, and no existing container is silently
 it. Runtime-length API and compatibility migration remain a later NN decision after the complete
 Model, Compiler, Engine, and concrete-backend path is executable.
 
-### `extensions/training`
+### `modules/training` (Gradle `:extensions:training`)
 
 Owns public backend-neutral optimizer algorithms, reusable training sessions, training steps, and
 detached in-memory optimizer/session state. The implemented lifecycle provides `Optimizer`,
 `Sgd`, `Adam`, `AdamW`, `ParameterGroup`, `GradientMode`, `TrainingSession`, `TrainingStep`, and
-`TrainingState` over parameters declared by `extensions/nn`. Ordered groups may assign different
+`TrainingState` over generic live `TrainingParameters` sources. NN's `Module.trainingParameters()`
+retains its live tree and exact ordered paths/wrappers/Tensors; no frozen-map validation bypass
+is allowed. Storage associations and bytes are checked by Training, not frozen by membership.
+Ordered groups may assign different
 algorithms to parameters within one session and one global optimizer step. Training does not own
 `Parameter`, `Buffer`, layer behavior, or train/eval mode.
 
-The dependency direction is Model and NN into Training, plus Training's intentional dependency on
-the public Engine facade. Training uses one Engine compile and one Engine inference session; it
+Training has exactly public Model/Engine edges and no NN dependency; NN has exactly public
+Model/Training edges. A Training-only caller can supply an ordinary Tensor owner without a Module.
+Training uses one Engine compile and one Engine prepared execution; it
 must not depend on Runtime, Prepare, tuning, or concrete backend modules or implement another
 execution path. A fused optimizer route on Metal, for example, remains a Metal backend
 prepare/kernel concern rather than a `MetalOptimizerBridge` in training. See [Training
@@ -362,8 +366,9 @@ demonstrates public descriptor and raw-byte access without implementing that ada
 Exact training continuation is a different problem: it also requires Training-owned state and
 caller-owned progress or random state. An optional downstream Training Checkpoint adapter is
 reserved for that coordination after a separate gate; it is not included or implemented today.
-Putting that adapter's state into the model-only project would make inference users depend on
-Training and blur which owner validates restored values. See the [checkpoint boundary
+Putting that adapter's state into the model-only project would couple inference persistence to
+Training restore rules and blur which owner validates restored values. NN's narrow admission edge
+does not grant Checkpoint that ownership. See the [checkpoint boundary
 decision](../design/decisions/0031-model-checkpoint-extension-boundary.md).
 The selected first adapter persists only Model + TrainingState and restores saved state, not
 automatic exact continuation. Modes, effective contexts, input cursor, external RNG, scheduler,

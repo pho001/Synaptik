@@ -5,6 +5,7 @@ import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.nn.module.Model;
 import io.github.pho001.synaptik.nn.module.Parameter;
+import io.github.pho001.synaptik.training.TrainingParameters;
 
 /**
  * Compile-only witness that NN exports the Model types needed by ordinary public API calls.
@@ -15,6 +16,17 @@ import io.github.pho001.synaptik.nn.module.Parameter;
 final class NnApiConsumer {
     /** Prevents instantiation of this compile-only witness. */
     private NnApiConsumer() { }
+
+    /**
+     * Obtains live admission through NN's exported Training edge without a direct dependency.
+     * @param module caller-owned initialized Module
+     * @return immutable membership with live owner validation
+     */
+    static TrainingParameters parameters(io.github.pho001.synaptik.nn.module.Module module) {
+        TrainingParameters parameters = module.trainingParameters();
+        parameters.validateUnchanged();
+        return parameters;
+    }
 
     /**
      * Reads the exact Tensor currently bound to a caller-supplied parameter without copying it.

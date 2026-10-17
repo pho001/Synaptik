@@ -1,8 +1,10 @@
-# Run a reusable inference session
+<a id="run-a-reusable-inference-session"></a>
+
+# Run a prepared graph
 
 ## Outcome
 
-This guide compiles one fixed inference graph, opens one `InferenceSession`, and runs the same
+This guide compiles one fixed inference graph, prepares one closeable `PreparedExecution`, and runs the same
 prepared execution repeatedly with current caller-owned input storage. Each run returns typed,
 ordered publication metadata and supports explicit copying into detached immutable
 `HostTensorValue` objects.
@@ -14,7 +16,7 @@ ordered publication metadata and supports explicit copying into detached immutab
 - Every Tensor reported by `CompiledGraph.inputs()`, with compatible live caller-owned host
   storage when each run begins.
 
-The Engine remains the composition owner. A session borrows it and must not outlive it.
+The Engine remains the composition owner. A prepared handle borrows it and must not outlive it.
 For a supported NN Sequential, [declarative reconstruction](declarative-models.md) can
 first build a descriptor-only model with stable state paths. Load its parameter values
 before constructing the forward expression to compile; reconstruction itself neither
@@ -26,7 +28,7 @@ To recover a supported bound `Sequential` without rebuilding its layers, use
 `ModelCheckpoint.save(path, source, engine)` and `ModelCheckpoint.load(path)`. Load returns a
 value-loaded `DeclarativeModel`, not a descriptor-only skeleton. It needs no Engine or Arena;
 ordinary forward construction and execution still use the caller's Engine. No backend or prepared
-session is stored in the file.
+execution is stored in the file.
 
 This complete Java 26 example needs Checkpoint, NN, Model and Engine on the classpath and
 `jdk.incubator.vector` enabled. Its trusted local directory is created before save. The source has
@@ -109,17 +111,17 @@ before selecting advanced encoded bounds; they are not peak-heap budgets.
 
 ## Compile and prepare once
 
-Compile the requested output boundary once, then open the session:
+Compile the requested output boundary once, then retain its prepared owner:
 
 ```java
 CompiledGraph graph = engine.compile(List.of(output));
-try (InferenceSession session = engine.session(graph)) {
-    assert session.compiledGraph() == graph;
-    // Reuse session.run(...) while both session and Engine remain open.
+try (PreparedExecution prepared = engine.prepare(graph)) {
+    assert prepared.compiledGraph() == graph;
+    // Reuse engine.run(prepared, ...) while both prepared handle and Engine remain open.
 }
 ```
 
-`engine.session(graph)` performs exactly one preparation before returning. It does not execute the
+`engine.prepare(graph)` performs exactly one preparation before returning. It does not execute the
 graph or bind input storage. The graph fixes both boundaries:
 
 - `graph.inputs()` is the stable input membership and Compiler occurrence order; and
@@ -132,15 +134,15 @@ The input list may use any order because Engine binds by exact Tensor identity:
 
 ```java
 HostTensorValue retained;
-try (InferenceSession session = engine.session(graph)) {
-    try (RunResult result = session.run(List.of(rightInput, leftInput))) {
+try (PreparedExecution prepared = engine.prepare(graph)) {
+    try (RunResult result = engine.run(prepared, List.of(rightInput, leftInput))) {
         RunResult.Publication first = result.publications().getFirst();
         retained = result.materialize(first, 2L * Float.BYTES);
     }
 
     // Replace a required Tensor's host-storage association here when the next call
     // should use another compatible caller-owned storage.
-    try (RunResult result = session.run(List.of(leftInput, rightInput))) {
+    try (RunResult result = engine.run(prepared, List.of(leftInput, rightInput))) {
         assert result.publications().getFirst().index() == 0;
     }
 }
@@ -158,61 +160,108 @@ run's result closes.
 `TensorId`, final descriptor, forward or gradient role, and applicable derivative metadata.
 `materialize(...)` accepts only the exact occurrence object from that result and performs a fresh
 bounded copy through the publication adapter captured during preparation. A detached
-`HostTensorValue` remains readable after the result, session, Engine, and input-storage arena close.
+`HostTensorValue` remains readable after the result, prepared handle, Engine, and input-storage arena close.
+
+## Run fresh values in compiled order
+
+**Goal and inputs.** Prepare negation of a storage-free FLOAT32 [2] prototype once, then supply
+fresh batches [1,-2] and [3,-4]. With Java 26, Engine and Model on the classpath and
+`jdk.incubator.vector` enabled, this complete block uses their ordinary CPU heap-input support:
+
+```java
+var shape = Shape.of(2);
+var descriptor = new TensorDescriptor(DataType.FLOAT32, shape,
+        Optional.of(LayoutDescriptor.contiguous(shape)), false);
+Tensor prototype = TensorFactory.create(descriptor);
+Tensor firstBatch = TensorFactory.fromFlatArray(
+        descriptor, Optional.empty(), new float[] {1, -2});
+Tensor secondBatch = TensorFactory.fromFlatArray(
+        descriptor, Optional.empty(), new float[] {3, -4});
+try (Engine engine = Engine.standard()) {
+    var graph = engine.compile(List.of(prototype.neg()));
+    try (var prepared = engine.prepare(graph)) {
+        for (Tensor batch : List.of(firstBatch, secondBatch)) {
+            try (var result = engine.runValues(prepared, List.of(batch))) {
+                var values = result.materialize(result.publications().getFirst(), 8).bytes();
+                System.out.println(values.getFloat() + ", " + values.getFloat());
+            }
+        }
+    }
+}
+```
+
+Use the Model/Engine imports from the whole-model example above. Compilation fixes the single
+input position; preparation is outside the loop. Each run binds that batch's current storage
+without changing the prototype. Output is `-1.0, 2.0`, then `-3.0, 4.0`; detached values may be
+retained after every owner closes. With multiple inputs, follow `graph.inputs()` order, not
+expression discovery order. A value may fill multiple matching slots.
+
+runValues requires exact count and full static descriptors (dtype, shape, layout including absence
+versus presence, and requiresGrad). A compiled [32,784] input rejects [64,784]. All storage is
+validated before any borrow, including checked referenced spans for resolved layouts or checked
+canonical element/byte geometry for absent layouts. Unknown/overflow geometry rejects. This extra
+absent-layout check does not change identity-based run; `engine.run(prepared, List.of(firstBatch))`
+rejects here because the fresh ID is not the prototype ID.
 
 ## Reuse and concurrency
 
-Sequential and concurrent calls share the session's immutable prepared recipe and direct captured
+Sequential and concurrent calls share the immutable prepared recipe and direct captured
 input/publication adapters. Every call receives a distinct mutable Runtime `RunState`, borrowed
 input wrappers, internal buffers, and workspaces. A run performs no compilation, preparation,
 provider or availability interrogation, Engine-registry lookup, backend selection, kernel
 selection, or schedule assembly.
 
-The session adds no cache and no result type. It delegates to the existing Engine run contract, so
-it adds no per-run allocation or copy beyond that contract. `Engine.compute(...)` and
+The prepared owner adds no cache or result type. `Engine.compute(...)` and
 `Engine.backward(...)` make a different lifetime choice: every call performs fresh compilation,
 preparation, execution, materialization, and cleanup.
 
 ## Close and in-flight runs
 
-Close the session when its reuse window ends. Close is idempotent, closes the one prepared
+Close the prepared handle when its reuse window ends. Close is idempotent, closes the one prepared
 execution exactly once, and immediately prevents later run admission. It does not close a
 `RunResult` that was already returned.
 
 If close races a run, Runtime's existing prepared lease decides the race:
 
-- a run that acquired the lease first may finish; session close does not wait for it; and
+- a run that acquired the lease first may finish; prepared close does not wait for it; and
 - a close-first run is rejected.
 
-Engine admission is checked first. Under an open Engine, the session checks its prepared close
+Engine admission is checked first. Under an open Engine, both run methods check prepared nullness/exact ownership and the exact inward delegate's close
 gate before reading the input list, Tensor metadata, storage, or adapters. A run attempted after
-session close therefore reports `prepared execution is closed` without borrowing storage even when
+prepared close therefore reports `prepared execution is closed` without borrowing storage even when
 the supplied inputs are invalid. If Engine closure has begun, `advanced engine is closed` wins
 before any argument inspection.
 
 Engine closure waits for admitted Engine operations, then closes retained results in reverse
-successful-run order, sessions and standalone prepared handles in their shared reverse
+successful-run order, ordinary and advanced prepared handles in reverse
 preparation-publication order, and finally backend integrations. Engine closure is the final
-cleanup boundary for a session the caller leaves open.
+cleanup boundary for a prepared handle the caller leaves open.
+
+Both methods now check the exact prepared delegate before inputs. This intentionally changes
+former direct-run diagnostic precedence: closed prepared wins null/malformed/dead inputs without
+borrowing; null or foreign prepared handles also precede list errors.
+
+`InferenceSession` and `Engine.session` are removed. Migrate to prepare/run explicitly and
+recompile; no replacement wrapper is introduced.
 
 ## Common errors
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Session construction rejects a graph | The graph belongs to another Engine, Engine closure began, or cold preparation rejected its plan. | Compile and open the session with the same open Engine; inspect the prepare-time capability failure. |
+| Preparation rejects a graph | The graph belongs to another Engine, Engine closure began, or cold preparation rejected its plan. | Compile and prepare with the same open Engine; inspect the prepare-time capability failure. |
 | A run reports a missing, duplicate, or unexpected input | The supplied identities do not exactly match `graph.inputs()`. | Supply every required Tensor exactly once; list order is arbitrary. |
 | A run rejects a descriptor or storage | The Tensor descriptor changed identity expectations, or storage type, capacity, lifetime, or thread accessibility is incompatible. | Use the exact compiled Tensor and attach compatible accessible live storage before the run. |
-| A run reports `prepared execution is closed` | Session close won admission. | Open a new session from the still-valid graph and Engine if more runs are needed. |
+| A run reports `prepared execution is closed` | Prepared close won admission. | Prepare a new handle from the still-valid graph and Engine if more runs are needed. |
 | Materialization rejects a publication | The occurrence belongs to another result, the result or Engine is closed, or the byte limit is too small. | Use an occurrence from the same open result and a sufficient checked bound. |
 
 ## Limitations
 
-Inference sessions are synchronous and fixed to one compiled graph and one prepared execution.
-They do not provide asynchronous submission, dynamic input identities or descriptors, implicit
+Prepared runs are synchronous and fixed to one compiled graph. Fresh identities are supported only
+by runValues; neither method provides dynamic descriptors, asynchronous submission, implicit
 materialization, persistence, generic device-result handles, or tuning controls. Explicit
 CPU/Metal composition supports current single-owner execution and the bounded all-seven-carrier
 rank-0..16 static canonical or positive-stride non-overlapping transfer domain; unsupported
-capability or transfer combinations fail during compile or session construction rather than
+capability or transfer combinations fail during compile or preparation rather than
 falling back during a run.
 
 ## Related documentation

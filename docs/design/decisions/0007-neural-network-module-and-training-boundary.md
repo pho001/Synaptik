@@ -4,6 +4,15 @@
 
 Accepted — 2026-07-13.
 
+2026-10-16 boundary reconciliation: [ADR0039](0039-portable-graph-model-persistence.md#necessary-boundary-types-not-a-new-model-hierarchy)
+and Training0007 supersede only the dependency direction and Training's physical placement below.
+Training now lives at `modules/training` (unchanged project/package identities), has exactly public
+Model/Engine edges, and accepts generic live `TrainingParameters`. NN has exactly public
+Model/Training edges for `Module.trainingParameters()`. Parameter/Buffer and mode ownership remain
+NN concerns; optimizer algorithms/orchestration remain Training concerns. The historical rationale
+below is retained, not current dependency permission. The
+[owning contract](../../architecture/contracts/extensions-training.md#modulestraining) governs.
+
 ## Context
 
 The architecture previously placed `Parameter` in `extensions/training`. A parameter, however,

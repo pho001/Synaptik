@@ -317,8 +317,8 @@ final class PrivateTrainingRestoreIntegrationTest {
             try {
                 initial.tree.eval();
                 initial.tree.branch.train();
-                TrainingParameterStorage.copyToSharedNative(initial.tree, initial.arena);
-                initial.session = TrainingSession.open(engine, initial.tree,
+                TrainingParameterStorage.copyToSharedNative(initial.tree.trainingParameters(), initial.arena);
+                initial.session = TrainingSession.open(engine, initial.tree.trainingParameters(),
                         initial.tree.objective(initial.input, EFFECTIVE), OPTIMIZER);
                 published = initial;
             } catch (RuntimeException | Error failure) {
@@ -411,7 +411,7 @@ final class PrivateTrainingRestoreIntegrationTest {
                 else candidate.tree.branch.eval();
                 if (point.dropMode() == ForwardMode.TRAINING) candidate.tree.branch.drop.train();
                 else candidate.tree.branch.drop.eval();
-                TrainingParameterStorage.copyToSharedNative(candidate.tree, candidate.arena);
+                TrainingParameterStorage.copyToSharedNative(candidate.tree.trainingParameters(), candidate.arena);
                 if (fault == Fault.AFTER_COPY) throw new IllegalStateException("after copy");
 
                 Tensor objective = fault == Fault.INVALID_OBJECTIVE
@@ -419,7 +419,7 @@ final class PrivateTrainingRestoreIntegrationTest {
                         : candidate.tree.objective(candidate.input, candidate.effective);
                 Sgd optimizer = fault == Fault.RESTORE_MISMATCH
                         ? new Sgd(0.2, 0.5, 0.0, false) : OPTIMIZER;
-                candidate.session = TrainingSession.open(engine, candidate.tree, objective, optimizer);
+                candidate.session = TrainingSession.open(engine, candidate.tree.trainingParameters(), objective, optimizer);
                 if (fault == Fault.AFTER_OPEN) throw new IllegalStateException("after open");
                 assertCanonicalParameterBytes(point.training(), candidate.session.state());
                 candidate.session.restore(point.training());

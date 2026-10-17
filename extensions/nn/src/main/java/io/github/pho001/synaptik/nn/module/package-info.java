@@ -11,6 +11,12 @@
  * checkpoint formats, optimizer and session state, graph random state, execution, and backend
  * storage remain outside it.</p>
  *
+ * <p>{@link io.github.pho001.synaptik.nn.module.Module#trainingParameters()} exposes Training's
+ * generic live admission boundary through a private root-retaining adapter. It validates ordered
+ * paths, wrapper identities and exact Tensors against fresh traversal, not just frozen entries.
+ * Storage associations and bytes are deliberately outside membership so explicit pre-session
+ * native copying preserves the same adapter; Training owns their validation and updates.</p>
+ *
  * <p>A concrete module may privately reserve future parameter names whose input-dependent Shapes
  * are not known at construction. No incomplete Parameter is exposed: complete parameter
  * discovery and state export fail until all reservations of every visited module are published.

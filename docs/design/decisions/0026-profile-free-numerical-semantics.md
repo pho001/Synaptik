@@ -129,10 +129,10 @@ fail-closed. Removing the graph-wide profile does not create a gradient-only num
 
 The exact/stored boundary is independently useful: a bit-preserving move of low word `0x0001`
 must remain a move even when arithmetic on that value underflows. The current
-[CPU generated scatter regression](../../../backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuScatterGeneratedKernelTest.java)
+[CPU generated scatter regression](../../../modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuScatterGeneratedKernelTest.java)
 contains a `maxFinite * 2 * 0` witness for its exact `+0` result; that route-local result does not
 exclude a NaN-producing rounded tree under the revised rule. The
-[Metal stored-subnormal regression](../../../backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalStoredSubnormalProviderNativeTest.java)
+[Metal stored-subnormal regression](../../../modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalStoredSubnormalProviderNativeTest.java)
 records custom-program raw movement, cast, comparison/extrema, and arithmetic observations. These
 tests are evidence about their specified routes, not universal Model rules or proof for other
 routes. Task 0032's integrated validation and independent review are recorded in its Result.

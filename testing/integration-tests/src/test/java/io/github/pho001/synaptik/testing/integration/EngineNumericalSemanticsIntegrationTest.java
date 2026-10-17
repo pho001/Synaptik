@@ -43,12 +43,12 @@ final class EngineNumericalSemanticsIntegrationTest {
             var compiled = engine.compile(List.of(forward));
             float[] first;
             float[] second;
-            try (var session = engine.session(compiled)) {
-                try (var result = session.run(List.of(input))) {
+            try (var session = engine.prepare(compiled)) {
+                try (var result = engine.run(session, List.of(input))) {
                     first = floats(result.materialize(
                             result.publications().getFirst(), 3L * Float.BYTES));
                 }
-                try (var result = session.run(List.of(input))) {
+                try (var result = engine.run(session, List.of(input))) {
                     second = floats(result.materialize(
                             result.publications().getFirst(), 3L * Float.BYTES));
                 }

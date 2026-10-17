@@ -1,113 +1,98 @@
 package io.github.pho001.synaptik.testing.architecture;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Set;
-import java.util.regex.Pattern;
+import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
-/** Verifies NN-to-Training direction and both extensions' exact public API dependency surfaces. */
+/** Enforces the coordinated generic Training/NN boundary without directory exemptions. */
 final class NnTrainingDependencyContractTest {
     /**
-     * Checks the exact Model/NN/Engine-to-Training direction and exported public API types.
-     *
-     * @throws IOException if a required build file cannot be read
+     * Checks physical identity preservation and exact public edges, including test dependencies.
+     * @throws IOException if required repository files cannot be read
      */
     @Test
     void nnAndTrainingUseTheDeclaredOneWayDependency() throws IOException {
-        Path repositoryRoot = repositoryRoot();
-        String settings = Files.readString(repositoryRoot.resolve("settings.gradle.kts"));
-        Path nnBuild = repositoryRoot.resolve("extensions/nn/build.gradle.kts");
-        Path trainingBuild = repositoryRoot.resolve("extensions/training/build.gradle.kts");
-
-        assertTrue(settings.contains("\":extensions:nn\""),
-                "extensions/nn must be included explicitly in the Gradle build");
-        assertTrue(Files.isRegularFile(nnBuild), "the included NN project must declare its build");
-        assertTrue(Files.isRegularFile(trainingBuild), "the training project must declare its build");
-
-        String nnBuildScript = Files.readString(nnBuild);
-        String trainingBuildScript = Files.readString(trainingBuild);
-        assertTrue(nnBuildScript.contains("api(project(\":modules:model\"))"),
-                "extensions/nn must expose Tensor, DataType, and Shape from modules/model");
-        assertTrue(
-                Pattern.compile("project\\(\\\"([^\\\"]+)\\\"\\)")
-                        .matcher(nnBuildScript)
-                        .results()
-                        .map(match -> match.group(1))
-                        .collect(java.util.stream.Collectors.toUnmodifiableSet())
-                        .equals(Set.of(":modules:model")),
-                "extensions/nn may have only the modules/model project dependency");
-        assertFalse(nnBuildScript.contains(":extensions:training"),
-                "extensions/nn must not depend on extensions/training");
-        assertFalse(nnBuildScript.contains(":modules:compiler"),
-                "extensions/nn must not depend on modules/compiler");
-        assertFalse(nnBuildScript.contains(":modules:runtime"),
-                "extensions/nn must not depend on modules/runtime");
-        assertFalse(nnBuildScript.contains(":modules:prepare"),
-                "extensions/nn must not depend on modules/prepare");
-        assertFalse(nnBuildScript.contains(":modules:engine"),
-                "extensions/nn must not depend on modules/engine");
-        assertFalse(nnBuildScript.contains(":backends:"),
-                "extensions/nn must not depend on concrete backends");
-        assertTrue(trainingBuildScript.contains("api(project(\":extensions:nn\"))"),
-                "extensions/training must expose Module and Parameter from extensions/nn");
-        assertTrue(trainingBuildScript.contains("api(project(\":modules:model\"))"),
-                "extensions/training must expose Tensor, DataType, and Shape from modules/model");
-        assertTrue(trainingBuildScript.contains("api(project(\":modules:engine\"))"),
-                "extensions/training must expose its intentional public Engine dependency");
-        assertTrue(
-                Pattern.compile("api\\(project\\(\\\"([^\\\"]+)\\\"\\)\\)")
-                        .matcher(trainingBuildScript)
-                        .results()
-                        .map(match -> match.group(1))
-                        .collect(java.util.stream.Collectors.toUnmodifiableSet())
-                        .equals(Set.of(
-                                ":extensions:nn",
-                                ":modules:model",
-                                ":modules:engine")),
-                "Training API dependencies must be exactly NN, Model, and Engine");
-        assertFalse(Pattern.compile("implementation\\(project\\(")
-                        .matcher(trainingBuildScript).find(),
-                "Training must not hide project types used by its public API");
-        assertTrue(
-                Pattern.compile("project\\(\\\"([^\\\"]+)\\\"\\)")
-                        .matcher(trainingBuildScript)
-                        .results()
-                        .map(match -> match.group(1))
-                        .collect(java.util.stream.Collectors.toUnmodifiableSet())
-                        .equals(Set.of(
-                                ":extensions:nn",
-                                ":modules:model",
-                                ":modules:engine")),
-                "extensions/training may depend only on NN, Model, and the public Engine facade");
-        assertFalse(trainingBuildScript.contains(":modules:runtime"),
-                "extensions/training must not depend on Runtime");
-        assertFalse(trainingBuildScript.contains(":modules:prepare"),
-                "extensions/training must not depend on Prepare");
-        assertFalse(trainingBuildScript.contains(":tools:tuning"),
-                "extensions/training must not depend on tuning");
-        assertFalse(trainingBuildScript.contains(":backends:"),
-                "extensions/training must not depend on concrete backends");
+        Path root = repositoryRoot();
+        String settings = Files.readString(root.resolve("settings.gradle.kts"));
+        assertTrue(settings.contains("\":extensions:training\","));
+        assertTrue(settings.contains(
+                "project(\":extensions:training\").projectDir = file(\"modules/training\")"));
+        assertFalse(Files.exists(root.resolve("extensions/training/build.gradle.kts")));
+        assertFalse(Files.exists(root.resolve("extensions/training/src")));
+        assertEquals(List.of("api(project(\":modules:model\"))",
+                "api(project(\":modules:engine\"))"),
+                projectEdges(root.resolve("modules/training/build.gradle.kts")));
+        assertEquals(List.of("api(project(\":modules:model\"))",
+                "api(project(\":extensions:training\"))"),
+                projectEdges(root.resolve("extensions/nn/build.gradle.kts")));
     }
 
     /**
-     * Locates the repository root from the architecture-test working directory.
-     *
-     * @return the directory containing {@code settings.gradle.kts}, never {@code null}
-     * @throws IllegalStateException if no ancestor is the repository root
+     * Rejects NN imports in all Training sources and locks generic public admission signatures.
+     * @throws IOException if a required source file cannot be read
+     */
+    @Test
+    void trainingPublicAdmissionIsGenericAndNnOwnsTheLiveAdapter() throws IOException {
+        Path root = repositoryRoot();
+        Path training = root.resolve("modules/training/src");
+        try (Stream<Path> sources = Files.walk(training)) {
+            for (Path source : sources.filter(path -> path.toString().endsWith(".java")).toList()) {
+                assertFalse(Files.readString(source).contains("io.github.pho001.synaptik.nn."),
+                        () -> "Training must be NN-independent, including tests: " + source);
+            }
+        }
+        Path main = training.resolve("main/java/io/github/pho001/synaptik/training");
+        String session = Files.readString(main.resolve("TrainingSession.java"));
+        assertEquals(2, session.lines().filter(line ->
+                line.contains("public static TrainingSession open(")).count());
+        assertEquals(2, java.util.regex.Pattern.compile(
+                "public static TrainingSession open\\(\\s*Engine engine,\\s*TrainingParameters parameterSource,")
+                .matcher(session).results().count());
+        assertFalse(session.contains("import io.github.pho001.synaptik.engine.internal"));
+        String storage = Files.readString(main.resolve("TrainingParameterStorage.java"));
+        assertTrue(storage.contains("public static void copyToSharedNative(TrainingParameters parameters, Arena arena)"));
+        assertFalse(storage.contains("public static void copyToSharedNative(Module"));
+        String source = Files.readString(main.resolve("TrainingParameters.java"));
+        assertTrue(source.contains("public interface TrainingParameters"));
+        assertTrue(source.contains("List<Entry> entries();"));
+        assertTrue(source.contains("void validateUnchanged();"));
+        assertTrue(source.contains("record Entry(String path, Tensor tensor)"));
+        String module = Files.readString(root.resolve(
+                "extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Module.java"));
+        assertTrue(module.contains("public final TrainingParameters trainingParameters()"));
+        assertTrue(module.contains("private static final class LiveTrainingParameters implements TrainingParameters"));
+        assertTrue(module.contains("Map<String, Parameter> current = root.parametersRecursively();"));
+    }
+
+    /**
+     * Reads all project edges to forbid even test-only back-edges.
+     * @param build required build script
+     * @return ordered normalized project dependency lines
+     * @throws IOException if the build script cannot be read
+     */
+    private static List<String> projectEdges(Path build) throws IOException {
+        return Files.readString(build).lines().map(String::strip)
+                .filter(line -> line.contains("project(")).toList();
+    }
+
+    /**
+     * Locates settings independently of the test working directory.
+     * @return repository root containing settings, never null
+     * @throws IllegalStateException if no ancestor contains settings
      */
     private static Path repositoryRoot() {
         Path directory = Path.of("").toAbsolutePath();
         while (directory != null && !Files.isRegularFile(directory.resolve("settings.gradle.kts"))) {
             directory = directory.getParent();
         }
-        if (directory == null) {
-            throw new IllegalStateException("could not locate the repository root");
-        }
+        if (directory == null) throw new IllegalStateException("could not locate repository root");
         return directory;
     }
 }

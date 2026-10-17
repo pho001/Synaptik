@@ -25,10 +25,10 @@ final class CpuDependencyContractTest {
     /** Confirms Compiler is test-only, Engine is absent, and every production edge remains exact. */
     @Test
     void cpuHasOnlyTheApprovedDirectDependencies() throws IOException {
-        String build = Files.readString(repositoryRoot().resolve("backends/cpu/build.gradle.kts"));
+        String build = Files.readString(repositoryRoot().resolve("modules/backend/cpu/build.gradle.kts"));
         assertEquals(APPROVED, projectDependencyLines(build));
         assertFalse(build.contains(":modules:engine"));
-        Path production = repositoryRoot().resolve("backends/cpu/src/main");
+        Path production = repositoryRoot().resolve("modules/backend/cpu/src/main");
         try (var paths = Files.walk(production)) {
             assertFalse(paths.filter(Files::isRegularFile).anyMatch(path -> {
                 try {

@@ -6,7 +6,7 @@ The ordinary public lifecycle is runnable through `Engine.standard()` for fixed 
 through `Engine.builder()` for explicit CPU/Metal ownership. Builder preparation composes
 single-owner or mixed-owner partitions through deterministic owner-indexed representations and
 explicit bidirectional transfer for all seven model data types over exact rank-0..16 static
-canonical or positive-stride non-overlapping storage layouts. The public Training extension now
+canonical or positive-stride non-overlapping storage layouts. The public Training module now
 layers one optimizer/session owner over that same Engine compile, prepare, run, publication, and
 materialization path. CUDA execution remains planned.
 The [roadmap](../planning/roadmap.md) records delivery status.
@@ -150,39 +150,38 @@ neither another lease nor a waiting close.
 
 ## Current public Engine lifecycle
 
-The ordinary reusable session path is:
+The ordinary reusable prepared path is:
 
 ```text
-Tensor outputs -> engine.compile(...) -> engine.session(...)
-caller-owned input Tensors -> session.run(...) -> leased RunResult
+Tensor outputs -> engine.compile(...) -> engine.prepare(...) -> prepared owner
+exact-ID inputs in any order -> engine.run(prepared, inputs) -> leased RunResult
+fresh values in compiled order -> engine.runValues(prepared, values) -> leased RunResult
 exact publication occurrence -> result.materialize(...) -> detached HostTensorValue
 ```
 
-`Engine.session(compiledGraph)` performs one ordinary preparation and makes the returned
-`InferenceSession` its sole outward owner. The session borrows rather than owns the Engine and
-therefore cannot outlive the Engine composition. Its `compiledGraph()` returns the exact graph;
-`CompiledGraph.inputs()` supplies authoritative caller-input membership and occurrence order. A
-caller may pass those Tensors to `run(...)` in any order because Engine matches exact Tensor
-identities, then snapshots their current storage associations in compiled order.
+One Engine prepared handle borrows the composition lifetime and owns its exact inward preparation;
+Runtime alone owns persistent-resource and run-lease authority. The final `CompiledGraph.inputs()`
+list authenticates identity membership for run and positional order for runValues. Fresh values
+require fully static exact descriptors, including layout presence and requiresGrad. Neither path
+mutates prototypes, recompiles, prepares, queries providers/registries or adds per-element work.
+Before any borrow, both snapshot associations once and validate storage. runValues additionally
+uses checked canonical static element/byte geometry for absent layouts, or checked referenced spans
+for resolved layouts. Unknown/overflow geometry rejects only positional eligibility.
 
-The session adds no execution mechanism. Every run uses the same immutable prepared recipe and
-direct captured adapters through the existing Engine and stateless Runtime runner. It performs no
-compile, prepare, provider, availability, registry, route, or schedule lookup. Every run receives
-isolated mutable `RunState` and fresh run-owned resources, so repeated and concurrent calls share
-only immutable prepared state. `RunResult` retains its publication lease and caller-input borrows
-until close, while each materialized `HostTensorValue` is a copied immutable value that remains
-readable after the result, session, Engine, and caller storage close.
+Both calls check Engine admission, prepared nullness/exact owner and exact inward delegate closure
+before inputs. This intentionally changes former direct-run precedence: closed preparation wins
+null/malformed/dead inputs with `prepared execution is closed` and zero borrows. Runtime still
+arbitrates any later close/run race without an outward lock held through execution.
 
-Closing a session closes its exact prepared execution, rejects new runs, and does not wait for a
-run that already acquired Runtime's lease. Such a run may finish, and an already returned result
-remains independently usable while its Engine remains open. Engine shutdown first waits for
-admitted operations, then closes retained results in reverse run-publication order, sessions and
-standalone prepared handles in their shared reverse preparation-publication order, and backend
-composition.
+Each run has isolated mutable state and a result retaining caller-input borrows until result close.
+A prepared close does not wait for already leased runs or close returned results. Materialization
+remains usable while result and Engine are open. Metadata survives close; detached values survive
+result/prepared/Engine/input-storage closure. Engine shutdown waits for admitted operations, then
+closes results, ordinary/advanced preparations and integrations in their reverse publication or
+registration order, with rollback, suppression and failure replay.
 
-The lower-level `engine.prepare(graph)` and `engine.run(prepared, inputs)` lifecycle remains
-available for direct prepared-handle ownership and bounded tuning handoff. It uses the same
-prepared recipe, binding, run, result, and close semantics; it is not a separate execution path.
+`InferenceSession`/`Engine.session` are removed; migrate to explicit prepare/run and recompile.
+No new owner/wrapper or lease protocol replaces them.
 `Engine.compute(...)` is a different lifetime choice: it discovers reachable expression leaves,
 then freshly compiles, prepares, runs, materializes, closes the temporary result, and closes the
 temporary preparation during every call. `Engine.backward(...)` does the same for one scalar
@@ -190,26 +189,26 @@ objective and explicit gradient targets. Neither convenience installs gradient s
 
 ## Public training lifecycle
 
-`TrainingSession.open(engine, module, objective, optimizer)` snapshots the Module's deterministic
-recursive parameter paths and exact wrapper/Tensor/storage identities, compiles the scalar
+`TrainingSession.open(engine, parameters, objective, optimizer)` snapshots the live source's
+ordered paths and exact Tensor/storage identities, compiles the scalar
 objective with those parameters as ordered first-gradient targets once, and calls
-`engine.session(compiledGraph)` once. It borrows Engine and Module, owns the resulting
-`InferenceSession`, a private native cotangent seed, primitive optimizer/accumulation staging
+`engine.prepare(compiledGraph)` once. It borrows Engine and the live source, owns the resulting
+Engine `PreparedExecution`, a private native cotangent seed, primitive optimizer/accumulation staging
 buffers, counters, and persistent optimizer slots.
 
 ```text
-open: snapshot parameters -> Engine.compile once -> Engine.session once
-run:  bind captured parameters + caller inputs -> InferenceSession.run
+open: snapshot parameters -> Engine.compile once -> Engine.prepare once
+run:  bind captured parameters + caller inputs -> Engine.run(prepared, inputs)
       -> validate/materialize objective and target-indexed gradients
       -> stage and validate every update -> atomically publish parameters/state/counters
 ```
 
-Every later `run` uses the same compiled graph and prepared inference session. Training neither
+Every later `run` uses the same compiled graph and prepared execution. Training neither
 calls Runtime/Prepare nor reconstructs publication mapping: `CompiledGraph.inputs()` supplies
 input identity/order and each gradient publication's `targetIndex` maps to the snapshotted
 parameter position. Only one Training operation is admitted at a time. Close rejects new work,
-waits for admitted Training work, closes the inference session and private seed arena once, and
-never closes the borrowed Engine, Module, or parameter storage. Detached `TrainingStep` and
+waits for admitted Training work, closes the prepared execution and private seed arena once, and
+never closes the borrowed Engine, source, or parameter storage. Detached `TrainingStep` and
 `TrainingState` values outlive all of those owners.
 
 Checkpoint does not add a step to this execution lifecycle. Its model API can save one complete
@@ -285,12 +284,11 @@ Current CPU/Metal transfers cover all seven carriers over exact rank-0..16 stati
 positive-stride non-overlapping layouts with checked physical spans; there is no retry, owner
 substitution, conversion, heap staging, or CPU fallback.
 
-An inference session owns one hidden prepared handle; a standalone prepared Engine handle exposes
-that ownership directly. Both keep direct non-owning adapter references in caller-input and
+One outward prepared Engine handle keeps direct non-owning adapter references in caller-input and
 publication occurrence order while Engine owns the integrations. Run uses each input adapter to
 wrap caller host storage, and each result publication uses its captured adapter for backend-owned
 host materialization. Neither operation re-queries the registry. Engine shutdown closes retained
-results first, then sessions and standalone prepared handles in their shared reverse
+results first, then ordinary and advanced prepared handles in reverse
 preparation-publication order, then integrations, so no captured reference can outlive its owner.
 
 `prepareTuned(...)` accepts one eligible single-owner CPU plan or exact singleton-NEG Metal plan.
@@ -300,9 +298,9 @@ remain ineligible. A safe-heuristic fallback always prepares through the already
 it never substitutes CPU for Metal or otherwise changes ownership.
 
 Engine shutdown rejects new work, waits for admitted Engine operations, closes retained results in
-reverse successful-run publication order, then sessions and standalone prepared handles in their
-shared reverse preparation-publication order, and finally backend integrations in reverse
-registration order. Closing a session or standalone prepared handle rejects later runs without
+reverse successful-run publication order, then ordinary and advanced prepared handles in
+reverse preparation-publication order, and finally backend integrations in reverse
+registration order. Closing a prepared handle rejects later runs without
 closing an already returned result. A run that already acquired Runtime's prepared lease may
 finish; close does not wait for it, and deferred prepared-resource cleanup occurs when the final
 lease releases. The registry map has no post-prepare execution role, and no capability query,
@@ -420,8 +418,12 @@ run:
   training-step schedule
 ```
 
-In both forms, `extensions/training` owns optimizer algorithms and training orchestration over the
-parameters declared by `extensions/nn`. It remains independent of concrete backends. Backend-
+In both forms, `modules/training` owns optimizer algorithms and training orchestration over a
+generic live parameter source. NN supplies `Module.trainingParameters()` without moving wrapper
+ownership into Training. Live membership validation precedes run/state/restore and every existing
+complete-view precommit check; Training separately checks exact storage and finite values. A
+pre-session native copy preserves the same source by changing only storage associations.
+Training remains independent of concrete backends. Backend-
 specific optimizer execution belongs to backend prepare and kernels.
 
 ## Numerical semantics across the lifecycle

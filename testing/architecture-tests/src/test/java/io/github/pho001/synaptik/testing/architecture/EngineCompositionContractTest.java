@@ -9,7 +9,7 @@ import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/** Locks Engine's exact direct dependency inventory and one-way composition boundary. */
+/** Locks Engine's exact direct dependencies and inward composition boundary, including nested backends. */
 final class EngineCompositionContractTest {
     private static final List<String> APPROVED_ENGINE = List.of(
             "implementation(project(\":modules:model\"))",
@@ -50,8 +50,14 @@ final class EngineCompositionContractTest {
                 .filter(path -> path.getFileName().toString().equals("build.gradle.kts"))
                 .toList()) {
             Path relative = root.relativize(build);
-            boolean inwardProduction = relative.startsWith("modules")
-                    || relative.startsWith("backends");
+            boolean inwardProduction = relative.startsWith("modules");
+            if (relative.equals(Path.of("modules/training/build.gradle.kts"))) {
+                assertEquals(List.of("api(project(\":modules:model\"))",
+                        "api(project(\":modules:engine\"))"),
+                        projectDependencyLines(Files.readString(build)),
+                        "only Training's public Engine lifecycle role permits this inward edge");
+                continue;
+            }
             if (inwardProduction && !build.equals(root.resolve("modules/engine/build.gradle.kts"))) {
                 assertFalse(Files.readString(build).contains("project(\":modules:engine\")"),
                         () -> "inward dependency on Engine in " + relative);

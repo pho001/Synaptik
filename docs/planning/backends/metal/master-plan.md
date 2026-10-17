@@ -1,5 +1,10 @@
 # Metal Backend Master Plan
 
+Current source: `modules/backend/metal`; Gradle identity remains `:backends:metal`. The
+[native build guide](../../../../modules/backend/metal/macos-arm64/README.md) is colocated with
+Metal. Original planning/report locations and evidence remain unchanged; use the
+[path migration table](../../../developer-guide/repository-layout.md#backend-path-migration-and-historical-navigation).
+
 ## Goal and authority
 
 Maintain truthful Metal capability, MPSGraph/custom routes, native storage and resources across

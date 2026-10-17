@@ -70,13 +70,16 @@ The repository groups responsibilities by architectural role:
 
 ```text
 modules/       shared model, configuration, planning, compiler, prepare,
-               runtime, engine, backend contracts, and tracing
-backends/      concrete CPU, Metal, and CUDA backends, plus leaf providers
-extensions/    optional training and ONNX functionality
+               runtime, engine, generic training, backend contracts, and tracing
+modules/backend/ concrete CPU, Metal, and CUDA backends, plus leaf providers
+extensions/    NN composition, Checkpoint, and ONNX functionality
 tools/         tuning, benchmarks, and CLI tooling
-native/        platform-specific native integration
+modules/backend/metal/macos-arm64/ platform-specific Metal native integration
 testing/       architecture, backend-conformance, and integration tests
 docs/          explanatory architecture, design, user, backend, and developer docs
 ```
 
-Production Java packages use the `io.github.pho001.synaptik.*` namespace. Module directories remain concise, such as `modules/compiler`, `backends/cpu`, and `extensions/training`.
+Production Java packages use the `io.github.pho001.synaptik.*` namespace. Module directories remain
+concise, such as `modules/compiler`, `modules/backend/cpu`, and `modules/training`. Training retains
+Gradle identity `:extensions:training` and its Java packages through an explicit settings mapping.
+Its generic live admission depends only on public Model/Engine; NN supplies a live Module adapter.

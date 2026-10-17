@@ -90,65 +90,74 @@ discovery or graph interpretation.
 `Engine.standard()` creates a fresh independent CPU-only composition and privately owns its
 advanced lifecycle delegate. `compile(...)` returns an immutable owner-bound `CompiledGraph`,
 whose `inputs()` list reports final caller-bindable `TensorId` and descriptor pairs.
-`session(...)` accepts only a graph from the same exact Engine, prepares it once, and returns a
-closeable `InferenceSession` that owns that one preparation while borrowing the Engine. Its
-`compiledGraph()` accessor returns the exact graph, and every `run(...)` delegates to the existing
-prepared run path. The lower-level `prepare(...)` method remains available and returns a fresh
-immutable `io.github.pho001.synaptik.engine.PreparedExecution` owner for direct lifecycle and
-tuning handoff. Neither facade exposes the inward Runtime recipe of the same simple name.
-`run(...)` accepts every required logical Tensor exactly once in arbitrary caller order. It
-matches `Tensor.id()` by value equality, verifies the complete descriptor, then reads each
-Tensor's current `HostTensorStorage` association exactly once in final Compiler binding order.
-That per-run association snapshot is neither atomic across all inputs nor a copy or pin of the
-underlying bytes. Engine borrows one fresh non-owning CPU representation per input, including
-when distinct Tensor identities share one storage object. The caller retains every storage and
-arena and must keep its scope alive, accessible where used, and free from conflicting mutation
-until the returned result closes, including after the synchronous call has returned.
+The ordinary reusable lifecycle is:
 
-The Engine `RunResult` is a publication lease. Its immutable publication list is ordered
-with requested forward occurrences first and first-order gradient-target occurrences second.
-Forward metadata identifies the requested output Tensor. Gradient metadata identifies the
-requested target Tensor, derivative order one, and the target's zero-based request position; the
-descriptor belongs to the final gradient value. Repeated gradient values and forward/gradient
-aliases remain distinct Java occurrence objects even when they select one inward representation.
-That does not assert physical aliasing or expose storage or numerical values. Numerical access is
-an explicit second operation: while both result and Engine remain open, the caller passes the
-exact occurrence object to `materialize(publication, maximumBytes)` and receives a fresh detached
-`HostTensorValue`.
+```text
+ordered Tensor output expressions -> CompiledGraph -> engine.prepare -> PreparedExecution
+prepared + exact-ID Tensors in any order -> engine.run       -> RunResult
+prepared + fresh values in compiled order -> engine.runValues -> RunResult
+exact publication occurrence -> materialize -> detached HostTensorValue
+```
 
-A successful `run(...)` return is the completion barrier for that invocation: every scheduled
-action and native operation has completed and published destinations are usable. Failure returns no
-`RunResult`. The result is a completed-state resource/publication lease, not a future, event, fence,
-or in-flight completion handle; it may remain open after return to own output resources. Engine
-synchronizes materialization against outward result close, while inward Runtime `RunResult` and
-`RunState` remain non-thread-safe.
+`compile(List<Tensor>)` creates a forward-only handle. The three-list overload accepts ordered
+outputs, explicit output-aligned cotangent seeds and identity-unique ordered gradient targets.
+It infers neither seeds nor targets. `CompiledGraph.inputs()` is the final input membership and
+Compiler occurrence-order authority, retaining descriptors and IDs, not caller storage.
 
-Repeated or concurrent session calls receive isolated mutable state. They do not promise device
-overlap, submission or completion order, fairness, queue topology, or throughput. The current API
-has no asynchronous run, cancellation, timeout, polling, callback, completion stage, explicit
-event, device enumeration, physical-device selector, or multi-device scheduler.
+`prepare(graph)` accepts a graph from that exact Engine, performs one preparation, and registers
+one closeable outward `PreparedExecution` owner. Its `compiledGraph()` returns the exact graph.
+The handle borrows the Engine's composition lifetime; Runtime owns persistent resources and the
+unique run-lease protocol. Failed preparation, wrapper construction or publication rolls back
+acquired resources while preserving the primary failure and suppressed cleanup failures.
 
-Closing a result releases its inward Runtime lease and Engine-created wrappers but never caller
-storage. Closing an inference session or standalone prepared handle rejects later run admission
-without closing an already returned result. Delegate retrieval is synchronized with the inward
-close transition but does not itself admit a run or hold the wrapper monitor over execution;
-Runtime's unique lease authority decides that later race. Once outward `isClosed()` is observable
-as true, inward close has transitioned and no later delegate retrieval can admit work. An already
-leased run may finish after session or prepared-handle close and performs any deferred inward
-resource cleanup when its lease releases.
+`run(prepared, inputs)` matches every compiled TensorId exactly once in arbitrary order and checks
+the complete descriptor. `runValues(prepared, values)` instead binds by final compiled input order,
+with no ID requirement. It requires exact count and fully static exact descriptors: dtype, shape,
+layout presence/geometry and requiresGrad. One fresh Tensor may fill distinct matching slots.
+There is no shape specialization: [64,784] rejects a compiled [32,784] slot.
 
-Session run checks the Engine lifecycle before all other work. Under an open Engine it retrieves
-and checks the exact hidden prepared delegate before inspecting inputs or adapters, so a
-post-session-close call reports `prepared execution is closed` without input validation or storage
-borrow. Engine closure instead reports `advanced engine is closed` before argument inspection.
+Both calls snapshot each selected host-storage association once and validate all inputs before
+any borrow: presence, storage dtype, capacity, liveness and current-thread accessibility.
+runValues uses checked referenced element/byte spans for resolved layouts and checked canonical
+static geometry for absent layouts, rejecting unknown/overflow geometry. That extra absent-layout
+check does not change identity-based run. The snapshot neither copies nor pins bytes and is not
+atomic across inputs. The caller must keep storage usable and free from conflicting mutation until
+result close; replacing a Tensor association later cannot redirect an existing run.
 
-Closing the Engine waits for admitted operations, then closes any still-open results in reverse
-successful-run order, retained inference sessions and standalone prepared handles in their shared
-reverse preparation-publication order, and its backend integrations. Immutable session graph and
-result metadata plus completed detached host values remain readable after closure. Closing one
-standard
-Engine does not affect another, and repeated or concurrent close calls share the delegated
-exactly-once cleanup result.
+Both methods first admit the Engine, then validate prepared nullness/exact ownership, then
+retrieve/check its exact inward delegate, then inspect inputs. This deliberately changes former
+direct-run diagnostic precedence: closed preparation wins null/malformed/dead inputs with
+`prepared execution is closed` and zero borrows. Null/foreign prepared handles also precede
+input-list errors. Closed Engine still reports `advanced engine is closed` before all arguments.
+A later close race is decided only by Runtime's unique nonwaiting lease; no outward monitor is
+held through execution.
+
+A successful run is a synchronous completion barrier, not a future or in-flight command.
+`RunResult` owns completed run-state resources and the borrowed input wrappers. Its immutable
+publication list is dense forward-then-gradient order. Gradient metadata identifies the requested
+target, derivative order and target index; aliased values remain distinct occurrence objects.
+`materialize` authenticates the exact occurrence from that result and returns a fresh detached
+`HostTensorValue`, without caching or deduplication.
+
+Repeated/concurrent runs reuse immutable recipes, precomputed geometry and direct input/publication
+adapters, with isolated mutable Runtime state and results. They do not mutate prototypes, construct
+synthetic Tensors, recapture, compile, prepare, query providers/registries, or add per-element binding
+work. There is no device-overlap, throughput, fairness, asynchronous or cancellation promise.
+
+Prepared close rejects new runs but does not close returned results. A leased run may finish;
+Runtime defers prepared-resource cleanup to its last lease release without making close wait.
+Result materialization remains valid after prepared close while result and Engine are open.
+Engine shutdown rejects new work, waits for admitted operations, then closes results in reverse
+run-publication order, ordinary/advanced preparations in reverse preparation-publication order,
+and integrations in reverse registration order. Cleanup is attempt-all and failure-retaining.
+Metadata stays readable after closure; detached values outlive result, preparation, Engine and
+caller storage.
+
+`InferenceSession` and `Engine.session` are removed without a compatibility shim. Migrate
+`engine.session(graph)` to `engine.prepare(graph)` and `session.run(inputs)` to
+`engine.run(prepared, inputs)`, then recompile. Fresh values explicitly opt into runValues.
+`TrainingSession` and the advanced lifecycle remain; this is not a Training API redesign.
+See the [fresh-value example](../user-guide/running-models.md#run-fresh-values-in-compiled-order).
 
 The current fixed CPU path requires fully static Shapes and resolved compatible layouts. Ordinary
 builder composition may prepare multiple CPU/Metal partitions and transfers only fully static
@@ -164,7 +173,7 @@ caller-owned shared arena:
 import io.github.pho001.synaptik.engine.CompiledGraph;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
-import io.github.pho001.synaptik.engine.InferenceSession;
+import io.github.pho001.synaptik.engine.PreparedExecution;
 import io.github.pho001.synaptik.engine.RunResult;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -206,8 +215,8 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
     Tensor rightOutput = right.contiguous();
 
     CompiledGraph graph = engine.compile(List.of(leftOutput, rightOutput));
-    try (InferenceSession session = engine.session(graph);
-            RunResult result = session.run(List.of(right, left))) {
+    try (PreparedExecution prepared = engine.prepare(graph);
+            RunResult result = engine.run(prepared, List.of(right, left))) {
         assert graph.inputs().stream().map(CompiledGraph.Input::tensorId).toList()
                 .equals(List.of(left.id(), right.id()));
         assert result.publications().stream()
@@ -247,8 +256,8 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
             List.of(leftOutput, rightOutput),
             List.of(seed, seed),
             List.of(left, right));
-    try (InferenceSession session = engine.session(graph);
-            RunResult result = session.run(List.of(seedLeaf, right, left))) {
+    try (PreparedExecution prepared = engine.prepare(graph);
+            RunResult result = engine.run(prepared, List.of(seedLeaf, right, left))) {
         assert result.publications().stream().map(RunResult.Publication::role).toList()
                 .equals(List.of(
                         RunResult.Role.FORWARD,
@@ -291,10 +300,9 @@ owners have exact registered adapters. Single-owner plans remain supported; mixe
 must stay inside the all-seven-carrier rank-0..16 fully static canonical or positive-stride
 non-overlapping transfer domain with checked physical spans. The aggregate limit is not a bound on
 inputs, Runtime allocation, workspaces, object overhead, defensive copies, or peak memory. Use
-`compile -> session -> run -> materialize` for ordinary repeated runs or selective output copies.
-Each session run intentionally continues to require caller-supplied logical inputs. The lower-level
-`compile -> prepare -> run` lifecycle remains available when direct prepared-handle ownership is
-required. Automatic discovery is only the one-shot convenience. Selected
+`compile -> prepare -> run -> materialize` for ordinary repeated runs or selective output copies.
+Each reusable run requires explicit inputs, through exact-ID run or positional runValues.
+Automatic discovery is only the one-shot convenience. Selected
 storage remains caller-owned through synchronous completion, no Tensor or provenance state escapes
 the call, and no cache is retained. This adds no `output.execute()` Tensor method, implicit
 fallback, general conversion or transfer domain, tuning, or cache.

@@ -45,7 +45,7 @@ and MSE policy it would enable. It also lacked cross-target strata, selected-pla
 paired execution, and a valid retained-batch floor. Those reports and aggregates were invalidated.
 
 The retained schema-3 scalar reports under
-`backends/cpu/evidence/cpu-0010m-defaults/` validate the hardened observational harness only. They
+`modules/backend/cpu/evidence/cpu-0010m-defaults/` validate the hardened observational harness only. They
 are machine-local and explicitly ineligible to authorize a route/default change because public
 Engine does not expose backend-private selected-plan facts. The manifest retains a minimum future
 acceptance framework only. A future reviewed task must seal the exact target strata, workload

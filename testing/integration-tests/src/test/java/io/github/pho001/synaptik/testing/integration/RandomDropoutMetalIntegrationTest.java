@@ -87,16 +87,16 @@ final class RandomDropoutMetalIntegrationTest {
                         floatWords(firstExpected.output()),
                         floatWords(branchExpected.output()),
                         floatWords(chainedExpected.output()));
-                try (var firstSession = engine.session(compiled);
-                        var independent = engine.session(compiled)) {
-                    assertResults(firstSession.run(List.of(input)), expected);
-                    assertResults(firstSession.run(List.of(input)), expected);
-                    assertResults(independent.run(List.of(input)), expected);
+                try (var firstSession = engine.prepare(compiled);
+                        var independent = engine.prepare(compiled)) {
+                    assertResults(engine.run(firstSession, List.of(input)), expected);
+                    assertResults(engine.run(firstSession, List.of(input)), expected);
+                    assertResults(engine.run(independent, List.of(input)), expected);
                 }
 
                 Callable<List<byte[]>> invocation = () -> {
-                    try (var session = engine.session(compiled);
-                            var result = session.run(List.of(input))) {
+                    try (var session = engine.prepare(compiled);
+                            var result = engine.run(session, List.of(input))) {
                         return materialize(result, expected);
                     }
                 };
@@ -153,8 +153,8 @@ final class RandomDropoutMetalIntegrationTest {
                             : Float.floatToRawIntBits(
                                     Float.intBitsToFloat(seedBits[index]) * scale);
                 }
-                try (var session = engine.session(compiled)) {
-                    assertResults(session.run(List.of(seed, input)), List.of(
+                try (var session = engine.prepare(compiled)) {
+                    assertResults(engine.run(session, List.of(seed, input)), List.of(
                             floatWords(forward.output()),
                             floatWords(expectedGradient)));
                 }
@@ -193,9 +193,9 @@ final class RandomDropoutMetalIntegrationTest {
                     List<byte[]> publications = List.of(
                             lowCanonicalWords(type, expected),
                             lowCanonicalWords(type, expected));
-                    try (var session = engine.session(compiled)) {
-                        assertResults(session.run(List.of(seed, input)), publications);
-                        assertResults(session.run(List.of(seed, input)), publications);
+                    try (var session = engine.prepare(compiled)) {
+                        assertResults(engine.run(session, List.of(seed, input)), publications);
+                        assertResults(engine.run(session, List.of(seed, input)), publications);
                     }
                 }
             }

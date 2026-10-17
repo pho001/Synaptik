@@ -58,9 +58,11 @@ This index is current. The architecture describes the intended complete system. 
 now has substantive Model, Backend Contract, Planning, Compiler, Runtime, Prepare, Engine, CPU,
 and Metal implementations, plus partial Config and Trace contracts. The public lifecycle is
 runnable through fixed CPU `Engine.standard()` or explicit `Engine.builder()` registration of
-opened CPU and Metal integrations. `Engine.session(...)` prepares one compiled graph once and
-exposes repeated or concurrent runs through the same prepared execution and existing result
-lifecycle. Ordinary preparation composes non-empty plans across registered owners, with
+opened CPU and Metal integrations. `Engine.prepare(...)` publishes one reusable prepared owner;
+`Engine.run` binds exact IDs in any order and `Engine.runValues` binds fresh fully static
+exact-descriptor values in compiled order. Both reuse Runtime's unique lease and existing result
+lifecycle. The former InferenceSession facade is removed; see
+[ADR 0039](../design/decisions/0039-portable-graph-model-persistence.md). Ordinary preparation composes non-empty plans across registered owners, with
 deterministic owner-indexed representations and explicit direct CPU-to-Metal and Metal-to-CPU
 transfers for all seven current data types over fully static rank-0..16 canonical or positive-stride
 non-overlapping layouts with checked physical spans.

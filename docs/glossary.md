@@ -1904,7 +1904,7 @@ configuration, lifecycle boundary, samples or distributions, and summary statist
 never selects or mutates production settings and never substitutes for correctness tests. The
 current report-only CPU lifecycle harness and its smoke, baseline, and evidence profiles live in
 `tools/benchmarks`; CPU 0010M's hardened machine-local scalar baseline and minimum future
-acceptance framework live under `backends/cpu/evidence/cpu-0010m-defaults/`. The framework is not
+acceptance framework live under `modules/backend/cpu/evidence/cpu-0010m-defaults/`. The framework is not
 a sealed measurement protocol. Those reports are explicitly ineligible to authorize a production
 route/default change because the public lifecycle
 does not expose actual selected-plan facts. A benchmark never applies the measured setting;
@@ -2405,7 +2405,7 @@ metadata remains readable after Engine closure. See the
 
 ### Concrete backend
 
-A module that implements a backend, such as `backends/cpu`, `backends/metal`, or `backends/cuda`.
+A module that implements a backend, such as `modules/backend/cpu`, `modules/backend/metal`, or `modules/backend/cuda`.
 It owns backend-specific capability reporting, prepare-time lowering, fusion, specialization,
 kernel selection, executable units, storage, workspaces, and native integration. Concrete
 backends do not own public tensor semantics or global graph compilation. CPU supplies its current
@@ -2688,21 +2688,15 @@ from the categorical-loss `MEAN` denominator. The value is operation attributes 
 than a Tensor producer input; the public API uses one required scalar overload rather than a
 public `Optional`.
 
-### Inference session / `InferenceSession`
+<a id="inference-session--inferencesession"></a>
 
-The implemented public Engine owner for repeated execution of one exact `CompiledGraph`.
-`Engine.session(graph)` performs one ordinary preparation and publishes a session that owns that
-one prepared execution while borrowing the Engine's composition lifetime. `compiledGraph()`
-returns the exact graph. Its stable `inputs()` metadata defines logical input membership and
-Compiler occurrence order; each `run(...)` accepts those Tensors in arbitrary order and snapshots
-their current caller-owned host-storage associations in compiled order.
+### Former inference session / `InferenceSession`
 
-The session adds no compiler, scheduler, runner, cache, result type, backend discovery, or tuning
-surface. Sequential and concurrent calls reuse the immutable prepared recipe and direct captured
-adapters while Runtime creates isolated mutable state and run-owned resources. Each call returns
-the existing ordered `RunResult` publication lease. Session close rejects later runs and closes
-the prepared execution without waiting for a run that already acquired Runtime's lease; it does
-not close an already returned result. Engine shutdown remains the final cleanup boundary.
+The removed thin Engine facade, superseded by existing
+[Engine prepared ownership](#prepared-execution--preparedexecution). Migrate
+`engine.session(graph)` to `engine.prepare(graph)` and `session.run(inputs)` to
+`engine.run(prepared, inputs)`, then recompile. There is no compatibility shim or replacement
+wrapper. Stateful [TrainingSession](#training-session--trainingsession) is retained.
 
 ### Dimension
 
@@ -5339,7 +5333,7 @@ leaf storage remains caller-owned through synchronous completion, and no Tensor/
 or cache survives the call. Current support requires every owner and directed transfer in the
 non-empty, fully static, resolved-layout plan to be registered and supported. The aggregate limit
 covers returned canonical payload lengths only. Use
-`compile -> session -> run(explicit inputs) -> materialize` for ordinary repeated runs or selective
+`compile -> prepare -> run(explicit inputs) -> materialize` for ordinary repeated runs or selective
 publication copying; direct prepared-handle ownership remains available at the lower level. See
 [Public API](api/public-api.md#current-ordinary-explicit-composition-and-advanced-lifecycle) and
 [Runtime API](api/runtime-api.md#current-ordinary-engine-boundary).
@@ -6512,29 +6506,39 @@ The compile-time computation used for a training-capable mode. It contains the f
 
 ### Native parameter copy / `TrainingParameterStorage`
 
-An explicit pre-session Training operation that copies every initialized Module parameter's
+An explicit pre-session Training operation that copies every generic live source parameter's
 represented bytes from current heap or native host storage into fresh caller-owned shareable
 native storage. It changes each existing Tensor's borrowed host-storage association, not its
 identity or graph provenance, and leaves source storage ownership with the caller. The caller
 keeps the destination Arena alive through session close. It is not a backend transfer or an
 implicit behavior of `TrainingSession.open`. See [Training API](api/training-api.md#explicit-native-parameter-copy).
 
+### Live parameter source / `TrainingParameters`
+
+A caller-owned ordered admission boundary for Training, independent of NN. `entries()` returns
+immutable path/exact-Tensor membership; `validateUnchanged()` re-reads the live owner, not merely
+that frozen list, and rejects changed membership. NN's `Module.trainingParameters()` additionally
+retains and validates exact wrappers through fresh root traversal. Membership deliberately does
+not freeze storage associations or bytes, so the same source survives explicit native copying
+and may open a session afterward. Training owns descriptor, storage and finite-value validation.
+See [generic admission](api/training-api.md#generic-live-parameter-admission).
+
 ### Parameter group / `ParameterGroup`
 
-An immutable ordered list of distinct stable recursive Module parameter paths with one SGD, Adam,
+An immutable ordered list of distinct stable live-source parameter paths with one SGD, Adam,
 or AdamW configuration.
-Paths are the keys of `Module.parametersRecursively()`. One Training session may assign disjoint
+Paths come from `TrainingParameters.entries()` (NN adapters use recursive Module paths). One Training session may assign disjoint
 groups while unlisted parameters use its default optimizer. Both group order and path order participate
 in exact Training-state restore compatibility; groups do not create separate counters or freeze
 gradient targets. See [Training API](api/training-api.md#session-construction-and-input-mapping).
 
 ### Training session / `TrainingSession`
 
-The implemented public Training owner for one scalar objective, one stable recursive NN parameter
+The implemented public Training owner for one scalar objective, one stable generic live parameter
 set, one immutable default optimizer configuration and optional ordered parameter groups, one
-compiled graph, and one prepared Engine inference session. Opening snapshots exact parameter
-paths/wrappers/Tensors/storages, then compiles and
-prepares once. Each run reuses that session, authenticates target-indexed gradients, stages all
+compiled graph, and one Engine PreparedExecution. Opening snapshots exact parameter
+paths/Tensors/storages (NN adapters also retain wrappers), then compiles and
+prepares once. Each run reuses that preparation through Engine.run, authenticates target-indexed gradients, stages all
 assigned optimizer/accumulation work, and commits only after complete precommit validation. Its update
 domain is non-empty, finite `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` parameters with fully
 static dense offset-zero non-view layouts and exact-capacity writable, shareable native host
@@ -6543,7 +6547,7 @@ payload at FLOAT32 width (or FLOAT64 width for FLOAT64 parameters) must independ
 Java byte array (at most `Integer.MAX_VALUE` bytes). An oversized payload is rejected during
 capture before that parameter's storage is inspected or its update buffers are allocated.
 
-The session borrows Engine, Module, and caller storage; it owns the inference session, private
+The session borrows Engine, the live source, and caller storage; it owns the prepared execution, private
 cotangent seed memory, counters, first optimizer slots, Adam/AdamW second-moment slots, and gradient accumulation. It admits one
 operation, waits for admitted work during close, and produces detached `TrainingStep` and
 `TrainingState` values. It is not a compiler, Runtime runner, backend adapter, device optimizer,
@@ -6879,3 +6883,14 @@ Runtime/backend state binds those positions to per-run physical representations.
 requires a proved lifetime/interference model. The slot and plan records themselves still contain
 no source mapping or physical binding, so graph and analysis identities remain distinct from both
 slot identities and physical resources.
+
+### Fresh-value binding / `Engine.runValues`
+
+Positional binding of Tensor values to the final compiled input order on an existing Engine
+PreparedExecution. Identities may be fresh or repeated across matching slots, but count and full
+static descriptors (dtype, shape, layout presence/geometry, requiresGrad) must match exactly.
+Before any borrow, Engine snapshots each association once and validates every storage. Checked
+referenced spans apply to resolved layouts and checked canonical static element/byte geometry
+to absent layouts; unknown/overflow geometry rejects. Identity-based Engine.run retains its
+exact-ID/arbitrary-order meaning and does not gain the additional absent-layout restriction.
+Neither method mutates prototypes or compiles/prepares again.

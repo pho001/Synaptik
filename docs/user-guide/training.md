@@ -20,6 +20,11 @@ entire parameter payload even if a later step fails; plan the Arena lifetime bef
 
 This complete example starts with a `FLOAT32` one-input, one-output `Linear` and a target of zero.
 The input and target have native storage too, because the CPU Engine needs live host inputs.
+`TrainingParameters` is a live ordered admission source. NN's `layer.trainingParameters()`
+retains the layer and its exact paths/wrappers/Tensors, revalidating the live tree rather than only
+a frozen list. It does not freeze storage associations, so this example reuses the same source
+after copying. For a non-NN owner, implement that boundary as shown in the
+[generic admission example](../api/training-api.md#generic-live-parameter-admission).
 
 ```java
 static Tensor nativeMatrix(Arena arena, float value) {
@@ -43,10 +48,11 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
     Tensor objective = error.mul(error).sum();
 
     // This call is explicit; open does not copy heap-backed parameters.
-    TrainingParameterStorage.copyToSharedNative(layer, arena);
+    TrainingParameters parameters = layer.trainingParameters();
+    TrainingParameterStorage.copyToSharedNative(parameters, arena);
     assert layer.weight().value() == originalWeight;
     try (TrainingSession session = TrainingSession.open(
-            engine, layer, objective, new Sgd(0.1))) {
+            engine, parameters, objective, new Sgd(0.1))) {
         float firstLoss = session.run(
                 List.of(input, target), GradientMode.RESET_AND_STEP)
                 .objective().bytes().getFloat();
@@ -126,7 +132,7 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
     Tensor loss = error.mul(error);
 
     try (TrainingSession training = TrainingSession.open(
-            engine, model, loss, new Sgd(0.1))) {
+            engine, model.trainingParameters(), loss, new Sgd(0.1))) {
         // inputs() excludes the captured parameter and private cotangent seed.
         assert training.inputs().size() == 1;
         assert training.inputs().getFirst().tensorId().equals(target.id());
@@ -149,7 +155,9 @@ float finalLoss = last.objective().bytes().getFloat();
 ```
 
 `TrainingSession.open` performs the only gradient compile and the only preparation. Every `run`
-reuses that `InferenceSession`. Inputs may be supplied in any list order, but every identity listed
+reuses that Engine `PreparedExecution` through `engine.run(prepared, inputs)`.
+Generic live-source admission changes open/copy signatures but not atomic update algorithms;
+fresh-value Training input admission remains outside the current API. Inputs may be supplied in any list order, but every identity listed
 by `training.inputs()` must occur exactly once with a compatible live storage association.
 
 ## Configure an optimizer
@@ -171,7 +179,7 @@ private FLOAT32 arithmetic domain as well as before it; FLOAT64 uses the configu
 
 To give `weight` and `bias` different rates in the `Linear` example above, replace its session
 opening and run block with this variation after `copyToSharedNative` succeeds. A parameter group
-is an immutable ordered list of distinct recursive paths from `layer.parametersRecursively()`
+is an immutable ordered list of distinct paths from `layer.trainingParameters().entries()`
 plus one optimizer configuration. In this example the group's `weight` uses SGD rate `0.05`;
 unlisted `bias` uses the default SGD rate `0.1`:
 
@@ -179,7 +187,7 @@ unlisted `bias` uses the default SGD rate `0.1`:
 List<ParameterGroup> groups = List.of(
         new ParameterGroup(List.of("weight"), new Sgd(0.05)));
 try (TrainingSession session = TrainingSession.open(
-        engine, layer, objective, new Sgd(0.1), groups)) {
+        engine, layer.trainingParameters(), objective, new Sgd(0.1), groups)) {
     TrainingState before = session.state();
     session.run(List.of(input, target), GradientMode.RESET_AND_STEP);
     assert session.optimizerSteps() == 1;
@@ -203,7 +211,7 @@ same successful global step:
 List<ParameterGroup> groups = List.of(
         new ParameterGroup(List.of("weight"),
                 new AdamW(0.001, 0.9, 0.999, 1e-8, 0.01)));
-try (TrainingSession session = TrainingSession.open(engine, layer, objective,
+try (TrainingSession session = TrainingSession.open(engine, layer.trainingParameters(), objective,
         new Adam(0.001, 0.9, 0.999, 1e-8, 0.0), groups)) {
     session.run(List.of(input, target), GradientMode.RESET_AND_STEP);
     assert session.optimizerSteps() == 1;
@@ -270,12 +278,13 @@ or checkpoint format.
 ## Lifetimes and concurrency
 
 The caller owns the Engine, Module, parameter storage, and external inputs; all must outlive the
-session and any admitted operation. The session owns one Engine `InferenceSession`, its private
+session and any admitted operation. The session owns one Engine `PreparedExecution`, its private
 cotangent seed memory, optimizer slots, accumulation, and counters. It admits one operation at a
 time. Admission happens before argument validation: Engine closure wins first, then session
 closing/closure, then a busy operation. Close rejects later admission, waits for already-admitted
 Training work to finish, attempts all owned cleanup once, and never closes caller-owned objects.
-Repeated close calls replay the retained cleanup result.
+It closes the prepared owner before its private seed arena, and each run result closes before
+that owner. Repeated close calls replay the retained cleanup result.
 
 A failed validation, Engine run, publication check, materialization, decode, non-finite arithmetic,
 represented overflow, or candidate calculation changes no parameter bytes, private masters,

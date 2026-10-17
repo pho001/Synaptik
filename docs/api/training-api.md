@@ -2,10 +2,10 @@
 
 ## Purpose and implementation status
 
-`extensions/training` now provides the first public backend-neutral optimizer/session lifecycle.
-It consumes stable recursive `Parameter` paths from `extensions/nn`, Model Tensor/storage types,
-and the public Engine facade; those three dependencies are exported because all appear in public
-Training signatures. Training does not import Runtime, Prepare, tuning, or a concrete backend.
+`modules/training` (Gradle `:extensions:training`, unchanged Java packages) provides the public
+backend-neutral optimizer/session lifecycle. It accepts generic live `TrainingParameters`, Model
+Tensor/storage types, and the public Engine facade. Its only direct project dependencies are
+public Model and Engine; it imports no NN, Runtime, Prepare, tuning, or concrete backend.
 One `TrainingSession` compiles and prepares a scalar forward/backward graph once, reuses it for
 every run, maps gradients by Compiler `targetIndex`, and commits optimizer changes only after
 complete validation.
@@ -17,29 +17,33 @@ The public surface is:
 | `Optimizer` | Sealed marker for immutable built-in optimizer configuration. |
 | `Sgd` | Learning rate plus optional momentum, dampening, coupled weight decay, and Nesterov. |
 | `Adam` / `AdamW` | Bias-corrected first and second moments with coupled / decoupled weight decay. |
-| `ParameterGroup` | Immutable ordered recursive parameter paths with one built-in optimizer configuration. |
+| `ParameterGroup` | Immutable ordered stable source `Entry.path()` values with one built-in optimizer configuration; recursive paths only for NN adapters. |
 | `GradientMode` | `RESET_AND_STEP`, `ACCUMULATE`, or `ACCUMULATE_AND_STEP`. |
-| `TrainingSession` | Closeable owner of one prepared Engine session, parameter bindings, counters, accumulation, and optimizer slots. |
-| `TrainingParameterStorage` | Explicit copy of an initialized Module parameter tree into caller-owned shareable native host memory before session open. |
+| `TrainingParameters` / `Entry` | Immutable ordered path/Tensor membership with live-owner validation. |
+| `TrainingSession` | Closeable owner of one Engine PreparedExecution, parameter bindings, counters, accumulation, and optimizer slots. |
+| `TrainingParameterStorage` | Explicit copy of a complete live source into caller-owned shareable native host memory before session open. |
 | `TrainingStep` | Detached objective and successful execution/update numbering for one run. |
 | `TrainingState` | Detached immutable parameter/optimizer/accumulation snapshot for strict in-memory restore. |
 
 ## Session construction and input mapping
 
-`TrainingSession.open(engine, module, objective, optimizer)` borrows the Engine and Module. The
-objective must be one gradient-eligible scalar `FLOAT32` or `FLOAT64` expression. The Module must
-have at least one recursively discoverable parameter, and every discovered parameter is an
-identity-unique connected gradient target. Construction snapshots each recursive path, wrapper,
-Tensor, and host-storage identity before calling `Engine.compile(...)` exactly once and
-`Engine.session(...)` exactly once.
+`TrainingSession.open(engine, parameters, objective, optimizer)` borrows the Engine and live source.
+The objective must be one gradient-eligible scalar `FLOAT32` or `FLOAT64` expression. The source
+must expose at least one parameter, and every parameter is an identity-unique connected gradient
+target. Construction snapshots each path, exact Tensor and host-storage identity in caller
+encounter order, never sorted, before calling `Engine.compile(...)` exactly once and
+`Engine.prepare(...)` exactly once. It owns that prepared handle and executes through
+`Engine.run(prepared, inputs)`, preserving exact-ID binding and transaction algorithms.
+Engine.runValues is not a fresh-input Training API.
 
-`TrainingSession.open(engine, module, objective, defaultOptimizer, groups)` additionally assigns
-an optimizer configuration to each path named by a `ParameterGroup`. Paths are exactly the keys of
-`module.parametersRecursively()` (for example, `weight` and `bias` on a direct `Linear`, or a
-dot-separated child path). Unlisted parameters use `defaultOptimizer`; an empty groups list is
+`TrainingSession.open(engine, parameters, objective, defaultOptimizer, groups)` additionally assigns
+an optimizer configuration to each path named by a `ParameterGroup`. Paths are the stable
+`Entry.path()` values in the `parameters.entries()` list (for NN, `module.trainingParameters()`
+derives recursive paths such as `weight`, `bias`, and dot-separated child paths). Unlisted
+parameters use `defaultOptimizer`; an empty groups list is
 equivalent to the four-argument overload. Every parameter remains a gradient target. The
 session defensively captures group order and each group's path order, and resolves one algorithm per
-parameter in Module traversal order before compile. A null or duplicate group/path, empty or
+parameter in source encounter order before compile. A null or duplicate group/path, empty or
 blank path, unknown path, or assigned dtype-incompatible coefficient fails before private seed
 allocation, compile, or prepare. Group order and path order are exact state/restore identity,
 not separate optimizer-step namespaces.
@@ -51,7 +55,7 @@ two-rate variation uses learning rate `0.05` for `weight` and the default `0.1` 
 List<ParameterGroup> groups = List.of(
         new ParameterGroup(List.of("weight"), new Sgd(0.05)));
 try (TrainingSession session = TrainingSession.open(
-        engine, layer, objective, new Sgd(0.1), groups)) {
+        engine, layer.trainingParameters(), objective, new Sgd(0.1), groups)) {
     session.run(List.of(input, target), GradientMode.RESET_AND_STEP);
     TrainingState snapshot = session.state();
     assert snapshot.parameterGroups().equals(groups);
@@ -71,7 +75,7 @@ List<ParameterGroup> mixed = List.of(
         new ParameterGroup(List.of("second"), new Sgd(0.2)),
         new ParameterGroup(List.of("third"),
                 new AdamW(0.1, 0.5, 0.25, 0.01, 0.1)));
-TrainingSession session = TrainingSession.open(engine, module, objective,
+TrainingSession session = TrainingSession.open(engine, module.trainingParameters(), objective,
         new Adam(0.1, 0.5, 0.25, 0.01, 0.1), mixed);
 ```
 
@@ -102,14 +106,72 @@ bytes). Capture rejects an oversized payload before inspecting that parameter's 
 allocating its update buffers or the private seed, or compiling; earlier parameters may already
 have been captured. JVM-heap, read-only, thread-confined, strided/view,
 integral, BOOL, and device-only parameter storage are outside this domain. The caller grants the
-session exclusive use of the captured Module bindings and parameter bytes until close.
+session exclusive use of the live source's membership, storage associations and parameter bytes until close.
+
+## Generic live parameter admission
+
+`TrainingParameters` declares `List<Entry> entries()` and `void validateUnchanged()`; its nested
+`Entry(String path, Tensor tensor)` rejects null path/Tensor and blank paths. Training rejects null
+sources/lists/entries, empty membership and duplicate paths before seed allocation, compilation,
+preparation or copy mutation. Entries expose immutable ordered membership, not detached values.
+The source must retain its live owner and validate count/order/paths/exact Tensors by reading that
+owner again. Comparing only a frozen list cannot detect replacement.
+
+For NN, use `module.trainingParameters()`: its private adapter retains the root and exact ordered
+paths/wrappers/Tensors, re-traverses on every validation, and rejects incomplete reservations at
+creation. It deliberately ignores storage associations and bytes. Training checks descriptors,
+exact storage identity/schema/capacity/liveness/accessibility and finite values separately.
+Validation occurs at capture, before run/state/restore, and at complete-view accumulation,
+update and restore precommit. A late live-owner failure publishes no Training state.
+
+This complete NN-free example trains one FLOAT32 scalar from `2.0` to `1.6` with one SGD step on
+`p * p`. The mutable `live` list stands for the owner's current bindings, not the frozen entries:
+
+```java
+import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.training.*;
+import java.lang.foreign.Arena;
+import java.lang.foreign.ValueLayout;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+Tensor p = TensorFactory.scalar(2.0f, Optional.empty(), true);
+List<Tensor> live = new ArrayList<>(List.of(p));
+TrainingParameters parameters = new TrainingParameters() {
+    private final List<Entry> snapshot = List.of(new Entry("weight", p));
+    public List<Entry> entries() { return snapshot; }
+    public void validateUnchanged() {
+        if (live.size() != 1 || live.getFirst() != p) {
+            throw new IllegalStateException("live parameter binding changed");
+        }
+    }
+};
+try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+    TrainingParameterStorage.copyToSharedNative(parameters, arena);
+    try (TrainingSession session = TrainingSession.open(engine, parameters, p.mul(p), new Sgd(0.1))) {
+        session.run(List.of(), GradientMode.RESET_AND_STEP);
+        float value = p.hostStorage().orElseThrow().segment().get(ValueLayout.JAVA_FLOAT, 0);
+        assert Math.abs(value - 1.6f) < 1e-6f;
+    }
+}
+```
+
+Copy changes only storage, so the same live source opens successfully. The derivative is `2 * 2 = 4`;
+SGD computes `2 - 0.1 * 4 = 1.6`. Replacing `live[0]` with another Tensor would reject the next
+operation even though `entries()` still returns the old Tensor. Callers exclude such mutation
+while copying or borrowing a session. Neither operation closes caller arenas or transfers backend values.
 
 ## Explicit native parameter copy
 
-`TrainingParameterStorage.copyToSharedNative(module, arena)` is an opt-in transition for an
-initialized Module whose current parameter storage may be heap or native. The destination
-`Arena` must be live and shareable (`Arena.ofShared()` is the normal choice). The method discovers
-all recursive parameter paths, validates the complete non-empty set, copies exact represented
+`TrainingParameterStorage.copyToSharedNative(parameters, arena)` is an opt-in transition for a
+live source whose current parameter storage may be heap or native. The destination
+`Arena` must be live and shareable (`Arena.ofShared()` is the normal choice). A zero-byte scope
+probe preserves destination-shareability failure precedence, including foreign-thread
+`WrongThreadException`, before source storage inspection. The method snapshots ordered paths,
+validates the complete non-empty source before destination parameter allocation, copies exact represented
 bytes into fresh aligned writable native segments, then changes each existing Tensor's borrowed
 host-storage association in path order. It returns no owner and never replaces a Parameter or
 Tensor, so expressions already built from those Tensors retain their identities. Read-only or
@@ -117,7 +179,8 @@ unaligned source storage is accepted; the destination is aligned. Non-finite val
 initialization, duplicate Tensor identities, overlapping source regions, invalid geometry,
 unsupported types or widths, and
 missing/dead/inaccessible storage are rejected before any association changes. An ordinary
-installation failure restores earlier exact associations; allocations consumed from the supplied
+installation failure restores earlier exact associations and suppresses distinct rollback failures;
+live membership is checked again before installation. Allocations consumed from the supplied
 Arena cannot be individually reclaimed.
 
 For example, a caller can construct an initialized `Linear` and its objective, then make the
@@ -129,9 +192,9 @@ Tensor output = layer.forward(input); // input is a live FLOAT32 [1, 1] Tensor
 Tensor difference = output.sub(target); // target is a live FLOAT32 [1, 1] Tensor
 Tensor objective = difference.mul(difference).sum();
 try (Arena parameterArena = Arena.ofShared(); Engine engine = Engine.standard()) {
-    TrainingParameterStorage.copyToSharedNative(layer, parameterArena);
+    TrainingParameterStorage.copyToSharedNative(layer.trainingParameters(), parameterArena);
     try (TrainingSession session = TrainingSession.open(
-            engine, layer, objective, new Sgd(0.1))) {
+            engine, layer.trainingParameters(), objective, new Sgd(0.1))) {
         session.run(List.of(input, target), GradientMode.RESET_AND_STEP);
     }
 }
@@ -179,7 +242,7 @@ one global step together:
 List<ParameterGroup> groups = List.of(
         new ParameterGroup(List.of("weight"),
                 new AdamW(0.001, 0.9, 0.999, 1e-8, 0.01)));
-try (TrainingSession session = TrainingSession.open(engine, layer, objective,
+try (TrainingSession session = TrainingSession.open(engine, layer.trainingParameters(), objective,
         new Adam(0.001, 0.9, 0.999, 1e-8, 0.0), groups)) {
     session.run(List.of(input, target), GradientMode.RESET_AND_STEP);
     assert session.optimizerSteps() == 1;
@@ -321,7 +384,7 @@ count remain unchanged; the count does not normalize those bytes.
 constructible, but restore rejects it before changing any parameter, slot, counter, or pending
 sum, even in the last entry. Reconstruction proves neither session compatibility nor complete
 automatic exact continuation, and supplies no durable codec or file format. The
-[external reconstruction test](../../extensions/training/src/test/java/io/github/pho001/synaptik/training/external/TrainingStateReconstructionTest.java)
+[external reconstruction test](../../modules/training/src/test/java/io/github/pho001/synaptik/training/external/TrainingStateReconstructionTest.java)
 checks these byte, ownership, lifetime, and late-rejection properties through public APIs.
 
 ## Caller-coordinated in-memory recovery
@@ -349,7 +412,7 @@ The supported integration fixture follows this sequence under caller-owned exclu
    complete artifact bytes, and loads it again before native copying; this is a model round-trip
    check, not a required recovery stage. Restore local modes parent first, then child overrides
    for a mixed-mode tree.
-3. Use `TrainingParameterStorage.copyToSharedNative(privateTree, privateArena)` before building
+3. Use `TrainingParameterStorage.copyToSharedNative(privateTree.trainingParameters(), privateArena)` before building
    the replacement objective or opening a session. Loaded parameters are heap-backed and
    Engine-executable, but `TrainingSession.open` requires writable, shareable native parameter
    storage. Keep the Arena alive through session close.
@@ -1051,7 +1114,7 @@ Engine compile/prepare/run/materialization authority.
 ```text
 TrainingSession.open
   -> compile forward + first gradients once
-  -> prepare one InferenceSession once
+  -> prepare one Engine PreparedExecution once
   -> repeated run/materialize/stage/commit
 ```
 

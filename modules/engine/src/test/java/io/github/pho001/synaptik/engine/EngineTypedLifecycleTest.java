@@ -61,6 +61,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** Exercises ordinary identity binding, publication metadata, ownership, and cleanup. */
 final class EngineTypedLifecycleTest {
@@ -97,6 +99,312 @@ final class EngineTypedLifecycleTest {
             assertTrue(composition.compileQueries.get() > 0);
             assertEquals(0, composition.borrowCount.get());
         }
+    }
+
+    @Test
+    void freshValuesUseCompiledOrderWithoutMutatingPrototypesOrLookingUpProviders() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor left = leaf(false, false);
+            Tensor right = leaf(false, false);
+            var compiled = engine.compile(List.of(left.sub(right)));
+            try (var prepared = engine.prepare(compiled)) {
+                int queries = composition.compileQueries.get();
+                engine.poisonBackendLookupForTesting();
+                Tensor first = leaf(false, true);
+                Tensor second = leaf(false, true);
+                HostTensorStorage firstStorage = first.hostStorage().orElseThrow();
+                HostTensorStorage secondStorage = second.hostStorage().orElseThrow();
+                try (var one = engine.runValues(prepared, List.of(first, second));
+                        var two = engine.runValues(prepared, List.of(second, first));
+                        var duplicate = engine.runValues(prepared, List.of(first, first))) {
+                    assertNotSame(one, two);
+                    assertNotSame(one.publications().getFirst(), two.publications().getFirst());
+                    assertThrows(IllegalArgumentException.class,
+                            () -> one.materialize(two.publications().getFirst(), 8));
+                    assertEquals(1, duplicate.resultCount());
+                }
+                assertEquals(List.of(firstStorage, secondStorage, secondStorage, firstStorage,
+                        firstStorage, firstStorage), composition.borrowedStorages);
+                assertEquals(queries, composition.compileQueries.get());
+                assertEquals(1, composition.prepareCount.get());
+                assertTrue(left.hostStorage().isEmpty());
+                assertTrue(right.hostStorage().isEmpty());
+                assertThrows(IllegalArgumentException.class,
+                        () -> engine.run(prepared, List.of(first, second)));
+            }
+        }
+    }
+
+    @Test
+    void freshValuesValidateEveryDescriptorAndStorageBeforeAnyBorrow() throws Exception {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Arena arena = Arena.ofConfined();
+            Tensor prototype = leaf(false, false);
+            var compiled = engine.compile(List.of(prototype.neg()));
+            try (var prepared = engine.prepare(compiled)) {
+                var shape = Shape.of(2);
+                var mismatches = List.of(
+                        new TensorDescriptor(DataType.FLOAT64, shape,
+                                Optional.of(LayoutDescriptor.contiguous(shape)), false),
+                        new TensorDescriptor(DataType.FLOAT32, Shape.of(1, 2),
+                                Optional.of(LayoutDescriptor.contiguous(Shape.of(1, 2))), false),
+                        new TensorDescriptor(DataType.FLOAT32, shape, Optional.empty(), false),
+                        new TensorDescriptor(DataType.FLOAT32, shape,
+                                Optional.of(LayoutDescriptor.contiguous(shape)), true),
+                        new TensorDescriptor(DataType.FLOAT32, shape,
+                                Optional.of(LayoutDescriptor.of(shape, new long[] {2}, 1, true)),
+                                false));
+                for (var mismatch : mismatches) {
+                    assertThrows(IllegalArgumentException.class,
+                            () -> engine.runValues(prepared, List.of(TensorFactory.create(mismatch))));
+                }
+                assertThrows(NullPointerException.class, () -> engine.runValues(prepared, null));
+                assertThrows(NullPointerException.class,
+                        () -> engine.runValues(prepared, Collections.singletonList(null)));
+                assertThrows(IllegalArgumentException.class,
+                        () -> engine.runValues(prepared, List.of()));
+                assertThrows(IllegalArgumentException.class,
+                        () -> engine.runValues(prepared, List.of(prototype, prototype)));
+                assertThrows(IllegalStateException.class,
+                        () -> engine.runValues(prepared, List.of(prototype)));
+                Tensor nativeValue = TensorFactory.create(prototype.descriptor(), Optional.empty(),
+                        Optional.of(new MemorySegmentStorage(DataType.FLOAT32, 2,
+                                arena.allocate(8, 4))));
+                try (var executor = Executors.newSingleThreadExecutor()) {
+                    assertTrue(executor.submit(() -> assertThrows(IllegalStateException.class,
+                            () -> engine.runValues(prepared, List.of(nativeValue))))
+                            .get(10, TimeUnit.SECONDS).getMessage().contains("not accessible"));
+                }
+                arena.close();
+                assertTrue(assertThrows(IllegalStateException.class,
+                        () -> engine.runValues(prepared, List.of(nativeValue)))
+                        .getMessage().contains("not alive"));
+                assertEquals(0, composition.borrowCount.get());
+            }
+        }
+    }
+
+    @Test
+    void freshAssociationsAreAllSnapshottedBeforeTheFirstBorrow() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor left = leaf(false, false);
+            Tensor right = leaf(false, false);
+            Tensor first = leaf(false, true);
+            Tensor second = leaf(false, true);
+            var expected = List.of(first.hostStorage().orElseThrow(),
+                    second.hostStorage().orElseThrow());
+            composition.beforeBorrow = () -> {
+                first.replaceHostStorage(leaf(false, true).hostStorage().orElseThrow());
+                second.replaceHostStorage(leaf(false, true).hostStorage().orElseThrow());
+            };
+            try (var prepared = engine.prepare(engine.compile(List.of(left.sub(right))));
+                    var result = engine.runValues(prepared, List.of(first, second))) {
+                assertEquals(expected, composition.borrowedStorages);
+                assertEquals(1, result.resultCount());
+            }
+        }
+    }
+
+    @Test
+    void laterInvalidFreshStorageCannotBorrowEarlierValidInput() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor left = leaf(false, false);
+            Tensor right = leaf(false, false);
+            try (var prepared = engine.prepare(engine.compile(List.of(left.add(right))))) {
+                assertThrows(IllegalStateException.class,
+                        () -> engine.runValues(prepared, List.of(leaf(false, true), right)));
+                assertEquals(0, composition.borrowCount.get());
+            }
+        }
+    }
+
+    @Test
+    void failedWrapperConstructionClosesTheUnpublishedInwardOwner() {
+        RecordingComposition composition = new RecordingComposition();
+        var expected = new AssertionError("wrapper");
+        var cleanup = new RuntimeException("prepared cleanup");
+        composition.preparedCloseFailure = cleanup;
+        try (Engine engine = engine(composition)) {
+            var compiled = engine.compile(List.of(leaf(false, true).neg()));
+            replaceField(compiled, "inputs", new java.util.AbstractList<CompiledGraph.Input>() {
+                @Override public int size() { throw expected; }
+                @Override public CompiledGraph.Input get(int index) { throw expected; }
+            });
+            assertSame(expected, assertThrows(AssertionError.class,
+                    () -> engine.prepare(compiled)));
+            assertArrayEquals(new Throwable[] {cleanup}, expected.getSuppressed());
+            assertEquals(1, composition.preparedResources.getFirst().closeCount.get());
+        }
+    }
+
+    @Test
+    void unresolvedFreshGeometryChecksCapacityWithoutWideningIdentityRun() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            var descriptor = new TensorDescriptor(DataType.FLOAT32, Shape.of(2),
+                    Optional.empty(), false);
+            Tensor shortValue = TensorFactory.create(descriptor, Optional.empty(),
+                    Optional.of(new MemorySegmentStorage(DataType.FLOAT32, 1,
+                            java.lang.foreign.MemorySegment.ofArray(new float[] {1}))));
+            try (var prepared = engine.prepare(engine.compile(List.of(shortValue.neg())))) {
+                assertThrows(IllegalArgumentException.class,
+                        () -> engine.runValues(prepared, List.of(shortValue)));
+                assertEquals(0, composition.borrowCount.get());
+                try (var unchanged = engine.run(prepared, List.of(shortValue))) {
+                    assertEquals(1, unchanged.resultCount());
+                }
+                Tensor enough = TensorFactory.create(descriptor, Optional.empty(),
+                        Optional.of(new MemorySegmentStorage(DataType.FLOAT32, 2,
+                                java.lang.foreign.MemorySegment.ofArray(new float[] {3, 4}))));
+                try (var fresh = engine.runValues(prepared, List.of(enough))) {
+                    assertEquals(1, fresh.resultCount());
+                }
+            }
+        }
+    }
+
+    @Test
+    void positionalGeometryIneligibilityDoesNotRejectExistingPreparation() {
+        // Build valid ordinary artifacts first, then substitute only immutable input metadata
+        // to test Engine geometry independently of Compiler's own static geometry restrictions.
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(false, true);
+            var compiled = engine.compile(List.of(input.neg()));
+            List<TensorDescriptor> descriptors = List.of(
+                    new TensorDescriptor(DataType.FLOAT32,
+                            Shape.ofDimensions(new DynamicDimension("N")), Optional.empty(), false),
+                    new TensorDescriptor(DataType.FLOAT32, Shape.of(Long.MAX_VALUE, 2),
+                            Optional.empty(), false),
+                    new TensorDescriptor(DataType.FLOAT32, Shape.of(Long.MAX_VALUE / 2),
+                            Optional.empty(), false));
+            for (var descriptor : descriptors) {
+                replaceField(compiled, "inputs", List.of(
+                        new CompiledGraph.Input(input.id(), descriptor)));
+                try (var prepared = engine.prepare(compiled)) {
+                    assertFalse(prepared.isClosed());
+                    assertThrows(IllegalArgumentException.class,
+                            () -> engine.runValues(prepared,
+                                    List.of(TensorFactory.create(descriptor))));
+                }
+            }
+            assertEquals(3, composition.prepareCount.get());
+            assertEquals(0, composition.borrowCount.get());
+        }
+    }
+
+    @Test
+    void bothRunMethodsCheckOwnerAndClosedDelegateBeforeInputs() {
+        RecordingComposition composition = new RecordingComposition();
+        Engine engine = engine(composition);
+        try (Engine other = engine(new RecordingComposition())) {
+            Tensor input = leaf(false, true);
+            var prepared = engine.prepare(engine.compile(List.of(input.neg())));
+            for (boolean positional : List.of(false, true)) {
+                java.util.function.BiFunction<io.github.pho001.synaptik.engine.PreparedExecution,
+                        List<Tensor>, RunResult> run = positional ? engine::runValues : engine::run;
+                assertEquals("preparedExecution", assertThrows(NullPointerException.class,
+                        () -> run.apply(null, null)).getMessage());
+                var foreign = other.prepare(other.compile(List.of(input.neg())));
+                assertEquals("handle belongs to another engine",
+                        assertThrows(IllegalArgumentException.class,
+                                () -> run.apply(foreign, null)).getMessage());
+                prepared.close();
+                for (List<Tensor> invalid : java.util.Arrays.<List<Tensor>>asList(
+                        null, Collections.singletonList(null), List.of(), List.of(input, input))) {
+                    assertEquals("prepared execution is closed",
+                            assertThrows(IllegalStateException.class,
+                                    () -> run.apply(prepared, invalid)).getMessage());
+                }
+                foreign.close();
+            }
+            assertEquals(0, composition.borrowCount.get());
+            engine.close();
+            assertEquals("advanced engine is closed", assertThrows(IllegalStateException.class,
+                    () -> engine.runValues(null, null)).getMessage());
+        }
+    }
+
+    @Test
+    void failedOrdinaryResultPublicationRollsBackAndReleasesAdmission() {
+        for (boolean positional : List.of(false, true)) {
+            RecordingComposition composition = new RecordingComposition();
+            composition.closeOrder = new ArrayList<>();
+            var publicationFailure = new AssertionError("result publication");
+            var cleanupFailure = new RuntimeException("result cleanup");
+            var borrowFailure = new RuntimeException("borrow cleanup");
+            composition.runtimeCloseFailure = cleanupFailure;
+            composition.borrowCloseFailureIndex = 0;
+            composition.borrowCloseFailure = borrowFailure;
+            Engine engine = engine(composition);
+            Tensor input = leaf(false, true);
+            var prepared = engine.prepare(engine.compile(List.of(input.neg())));
+            replaceField(engine.lifecycleOwner(), "openResults",
+                    rejectingPublications(publicationFailure));
+            assertSame(publicationFailure, assertThrows(AssertionError.class,
+                    () -> { if (positional) engine.runValues(prepared, List.of(input));
+                            else engine.run(prepared, List.of(input)); }));
+            assertArrayEquals(new Throwable[] {cleanupFailure},
+                    publicationFailure.getSuppressed());
+            assertArrayEquals(new Throwable[] {borrowFailure}, cleanupFailure.getSuppressed());
+            assertEquals(List.of("runtime-result", "borrow-0"), composition.closeOrder);
+            engine.close();
+            assertEquals(List.of("runtime-result", "borrow-0", "prepared", "backend"),
+                    composition.closeOrder);
+        }
+    }
+
+    @Test
+    void failedPreparedPublicationClosesOneOwnerAndReleasesAdmission() {
+        RecordingComposition composition = new RecordingComposition();
+        var publicationFailure = new AssertionError("prepared publication");
+        var cleanupFailure = new RuntimeException("prepared cleanup");
+        composition.preparedCloseFailure = cleanupFailure;
+        Engine engine = engine(composition);
+        var compiled = engine.compile(List.of(leaf(false, true).neg()));
+        replaceField(engine.lifecycleOwner(), "openPreparations",
+                rejectingPublications(publicationFailure));
+        assertSame(publicationFailure, assertThrows(AssertionError.class,
+                () -> engine.prepare(compiled)));
+        assertArrayEquals(new Throwable[] {cleanupFailure}, publicationFailure.getSuppressed());
+        assertEquals(1, composition.preparedResources.getFirst().closeCount.get());
+        engine.close();
+        assertEquals(1, composition.preparedResources.getFirst().closeCount.get());
+    }
+
+    /**
+     * Injects a deterministic test-local failure into private publication collections or metadata.
+     *
+     * @param target non-null test object with the named instance field
+     * @param name exact declared field name
+     * @param value replacement test fixture; never a production mutation API
+     * @throws AssertionError if reflective test setup fails
+     */
+    private static void replaceField(Object target, String name, Object value) {
+        try {
+            var field = target.getClass().getDeclaredField(name);
+            field.setAccessible(true);
+            field.set(target, value);
+        } catch (ReflectiveOperationException failure) {
+            throw new AssertionError(failure);
+        }
+    }
+
+    /**
+     * Creates a collection that fails at the ordinary publication transaction boundary.
+     *
+     * @param failure exact fatal failure to preserve through rollback
+     * @param <T> publication owner type
+     * @return empty collection rejecting every add while allowing cleanup/removal
+     */
+    private static <T> ArrayList<T> rejectingPublications(Error failure) {
+        return new ArrayList<>() {
+            @Override public boolean add(T value) { throw failure; }
+        };
     }
 
     @Test
@@ -239,8 +547,10 @@ final class EngineTypedLifecycleTest {
         assertEquals(1, composition.preparedResources.getFirst().closeCount.get());
     }
 
-    @Test
-    void ordinaryPreparedCloseWinningBeforeDelegateRetrievalRejectsRun() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void ordinaryPreparedCloseWinningBeforeDelegateRetrievalRejectsRun(boolean positional)
+            throws Exception {
         RecordingComposition composition = new RecordingComposition();
         Engine engine = engine(composition);
         Tensor input = leaf(false, true);
@@ -262,7 +572,8 @@ final class EngineTypedLifecycleTest {
             awaitBlocked(closeThread);
             runThread = Thread.ofPlatform().start(() -> {
                 try {
-                    engine.run(prepared, List.of(input));
+                    if (positional) engine.runValues(prepared, List.of(input));
+                    else engine.run(prepared, List.of(input));
                 } catch (Throwable failure) {
                     runFailure.set(failure);
                 }
@@ -279,8 +590,61 @@ final class EngineTypedLifecycleTest {
         assertTrue(runFailure.get() instanceof IllegalStateException);
         assertEquals("prepared execution is closed", runFailure.get().getMessage());
         assertEquals(0, composition.executionCount.get());
+        assertEquals(0, composition.borrowCount.get());
         assertEquals(1, composition.preparedResources.getFirst().closeCount.get());
         engine.close();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void preparedCloseAfterDelegateCheckWinsBeforeRuntimeLeaseAndCleansBorrows(
+            boolean positional) throws Exception {
+        RecordingComposition composition = new RecordingComposition();
+        composition.closeOrder = new ArrayList<>();
+        composition.executionEntered = new CountDownLatch(1);
+        composition.executionRelease = new CountDownLatch(0);
+        var cleanupFailure = new AssertionError("second borrowed wrapper cleanup");
+        composition.borrowCloseFailureIndex = 1;
+        composition.borrowCloseFailure = cleanupFailure;
+        Engine engine = engine(composition);
+        Tensor left = leaf(false, true);
+        Tensor right = leaf(false, true);
+        var prepared = engine.prepare(engine.compile(List.of(left.add(right))));
+        AtomicInteger borrowEntries = new AtomicInteger();
+        composition.beforeBorrow = () -> {
+            // Every borrow is strictly after the outward delegate check and before runner.run.
+            // Closing on the second borrow ensures both wrappers need reverse cleanup.
+            if (borrowEntries.incrementAndGet() == 2) prepared.close();
+        };
+        List<Tensor> inputs = positional
+                ? List.of(leaf(false, true), leaf(false, true)) : List.of(right, left);
+
+        var failure = assertThrows(IllegalStateException.class, () -> {
+            if (positional) engine.runValues(prepared, inputs);
+            else engine.run(prepared, inputs);
+        });
+        assertEquals("prepared execution is closed", failure.getMessage());
+        assertArrayEquals(new Throwable[] {cleanupFailure}, failure.getSuppressed());
+        assertEquals(2, composition.borrowCount.get());
+        assertEquals(0, composition.executionCount.get());
+        assertEquals(1, composition.executionEntered.getCount());
+        assertEquals(1, composition.preparedResources.getFirst().closeCount.get());
+        assertEquals(List.of("prepared", "borrow-1", "borrow-0"), composition.closeOrder);
+        assertTrue(prepared.isClosed());
+
+        AtomicReference<Throwable> closeFailure = new AtomicReference<>();
+        Thread close = Thread.ofPlatform().daemon().start(() -> {
+            try {
+                engine.close();
+            } catch (Throwable problem) {
+                closeFailure.set(problem);
+            }
+        });
+        close.join(10_000);
+        assertFalse(close.isAlive(), "failed run must release Engine admission");
+        assertNull(closeFailure.get());
+        assertEquals(List.of("prepared", "borrow-1", "borrow-0", "backend"),
+                composition.closeOrder);
     }
 
     @Test
@@ -366,8 +730,9 @@ final class EngineTypedLifecycleTest {
         first.close();
     }
 
-    @Test
-    void partialBorrowFailureClosesEarlierWrappersAndPreservesOriginalFailure() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void partialBorrowFailureClosesEarlierWrappersAndPreservesOriginalFailure(boolean positional) {
         List<String> order = new ArrayList<>();
         RuntimeException expected = new RuntimeException("second borrow");
         RecordingComposition composition = new RecordingComposition();
@@ -380,7 +745,10 @@ final class EngineTypedLifecycleTest {
         var prepared = engine.prepare(engine.compile(List.of(first.add(second))));
 
         assertSame(expected,
-                assertThrows(RuntimeException.class, () -> engine.run(prepared, List.of(first, second))));
+                assertThrows(RuntimeException.class, () -> {
+                    if (positional) engine.runValues(prepared, List.of(first, second));
+                    else engine.run(prepared, List.of(first, second));
+                }));
         assertEquals(List.of("borrow-0"), order);
         engine.close();
     }
@@ -816,7 +1184,7 @@ final class EngineTypedLifecycleTest {
     }
 
     @Test
-    void inferenceSessionPreparesOnceReusesCapturedAdaptersAndPreservesOccurrences() {
+    void preparedExecutionPreparesOnceReusesCapturedAdaptersAndPreservesOccurrences() {
         RecordingComposition composition = new RecordingComposition();
         composition.aliasPublications = true;
         composition.copyBytes = new byte[8];
@@ -832,11 +1200,11 @@ final class EngineTypedLifecycleTest {
             HostTensorStorage firstRight = right.hostStorage().orElseThrow();
             HostTensorStorage firstSeed = seed.hostStorage().orElseThrow();
 
-            try (InferenceSession session = engine.session(compiled)) {
+            try (io.github.pho001.synaptik.engine.PreparedExecution session = engine.prepare(compiled)) {
                 assertSame(compiled, session.compiledGraph());
                 assertEquals(1, composition.prepareCount.get());
                 engine.poisonBackendLookupForTesting();
-                try (RunResult first = session.run(List.of(seed, right, left))) {
+                try (RunResult first = engine.run(session, List.of(seed, right, left))) {
                     assertEquals(
                             List.of(output.id(), left.id(), right.id()),
                             first.publications().stream()
@@ -859,7 +1227,7 @@ final class EngineTypedLifecycleTest {
                 left.replaceHostStorage(secondLeft);
                 right.replaceHostStorage(secondRight);
                 seed.replaceHostStorage(secondSeed);
-                try (RunResult second = session.run(List.of(right, left, seed))) {
+                try (RunResult second = engine.run(session, List.of(right, left, seed))) {
                     assertEquals(3, second.resultCount());
                 }
 
@@ -876,31 +1244,31 @@ final class EngineTypedLifecycleTest {
     }
 
     @Test
-    void inferenceSessionRejectsInvalidInputsAndResultOutlivesSession() {
+    void preparedExecutionRejectsInvalidInputsAndResultOutlivesPreparation() {
         RecordingComposition composition = new RecordingComposition();
         composition.copyBytes = new byte[8];
         Engine engine = engine(composition);
         Tensor input = leaf(false, true);
         CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
         assertEquals("compiledGraph",
-                assertThrows(NullPointerException.class, () -> engine.session(null)).getMessage());
+                assertThrows(NullPointerException.class, () -> engine.prepare(null)).getMessage());
         try (Engine otherEngine = engine(new RecordingComposition())) {
             assertEquals("handle belongs to another engine",
                     assertThrows(IllegalArgumentException.class,
-                            () -> otherEngine.session(compiled)).getMessage());
+                            () -> otherEngine.prepare(compiled)).getMessage());
         }
-        InferenceSession session = engine.session(compiled);
+        io.github.pho001.synaptik.engine.PreparedExecution session = engine.prepare(compiled);
 
         assertAll(
                 () -> assertThrows(IllegalArgumentException.class,
-                        () -> session.run(List.of())),
+                        () -> engine.run(session, List.of())),
                 () -> assertThrows(IllegalArgumentException.class,
-                        () -> session.run(List.of(input, input))),
+                        () -> engine.run(session, List.of(input, input))),
                 () -> assertThrows(IllegalArgumentException.class,
-                        () -> session.run(List.of(leaf(false, true)))));
+                        () -> engine.run(session, List.of(leaf(false, true)))));
         assertEquals(0, composition.borrowCount.get());
 
-        RunResult result = session.run(List.of(input));
+        RunResult result = engine.run(session, List.of(input));
         int borrowCountBeforeClose = composition.borrowCount.get();
         assertEquals(1, borrowCountBeforeClose);
         session.close();
@@ -910,25 +1278,20 @@ final class EngineTypedLifecycleTest {
         assertEquals(8, result.materialize(result.publications().getFirst(), 8).byteSize());
         Tensor foreign = leaf(false, true);
         assertAll(
-                () -> assertSessionRunRejected(session, null, "prepared execution is closed"),
-                () -> assertSessionRunRejected(
-                        session, Collections.singletonList(null), "prepared execution is closed"),
-                () -> assertSessionRunRejected(session, List.of(), "prepared execution is closed"),
-                () -> assertSessionRunRejected(
-                        session, List.of(input, input), "prepared execution is closed"),
-                () -> assertSessionRunRejected(
-                        session, List.of(foreign), "prepared execution is closed"),
-                () -> assertSessionRunRejected(
-                        session, List.of(input), "prepared execution is closed"));
+                () -> assertPreparedRunRejected(engine, session, null, "prepared execution is closed"),
+                () -> assertPreparedRunRejected(engine, session, Collections.singletonList(null), "prepared execution is closed"),
+                () -> assertPreparedRunRejected(engine, session, List.of(), "prepared execution is closed"),
+                () -> assertPreparedRunRejected(engine, session, List.of(input, input), "prepared execution is closed"),
+                () -> assertPreparedRunRejected(engine, session, List.of(foreign), "prepared execution is closed"),
+                () -> assertPreparedRunRejected(engine, session, List.of(input), "prepared execution is closed"));
         assertEquals(borrowCountBeforeClose, composition.borrowCount.get());
         result.close();
 
         Tensor absentInput = leaf(false, false);
-        InferenceSession absentSession =
-                engine.session(engine.compile(List.of(absentInput.contiguous())));
+        io.github.pho001.synaptik.engine.PreparedExecution absentSession =
+                engine.prepare(engine.compile(List.of(absentInput.contiguous())));
         absentSession.close();
-        assertSessionRunRejected(
-                absentSession, List.of(absentInput), "prepared execution is closed");
+        assertPreparedRunRejected(engine, absentSession, List.of(absentInput), "prepared execution is closed");
         assertEquals(borrowCountBeforeClose, composition.borrowCount.get());
 
         Shape shape = Shape.of(2);
@@ -943,34 +1306,31 @@ final class EngineTypedLifecycleTest {
                 Optional.empty(),
                 Optional.of(new MemorySegmentStorage(
                         DataType.FLOAT32, 2, arena.allocate(8, Float.BYTES))));
-        InferenceSession deadSession =
-                engine.session(engine.compile(List.of(deadInput.contiguous())));
+        io.github.pho001.synaptik.engine.PreparedExecution deadSession =
+                engine.prepare(engine.compile(List.of(deadInput.contiguous())));
         arena.close();
         assertEquals("input storage is not alive: " + deadInput.id(),
                 assertThrows(IllegalStateException.class,
-                        () -> deadSession.run(List.of(deadInput))).getMessage());
+                        () -> engine.run(deadSession, List.of(deadInput))).getMessage());
         deadSession.close();
-        assertSessionRunRejected(
-                deadSession, List.of(deadInput), "prepared execution is closed");
+        assertPreparedRunRejected(engine, deadSession, List.of(deadInput), "prepared execution is closed");
         assertEquals(borrowCountBeforeClose, composition.borrowCount.get());
 
-        InferenceSession retainedSession =
-                engine.session(engine.compile(List.of(input.contiguous())));
+        io.github.pho001.synaptik.engine.PreparedExecution retainedSession =
+                engine.prepare(engine.compile(List.of(input.contiguous())));
         engine.close();
         assertTrue(retainedSession.isClosed());
         assertAll(
-                () -> assertSessionRunRejected(
-                        retainedSession, null, "advanced engine is closed"),
-                () -> assertSessionRunRejected(
-                        retainedSession, List.of(input), "advanced engine is closed"),
+                () -> assertPreparedRunRejected(engine, retainedSession, null, "advanced engine is closed"),
+                () -> assertPreparedRunRejected(engine, retainedSession, List.of(input), "advanced engine is closed"),
                 () -> assertEquals("advanced engine is closed",
                         assertThrows(IllegalStateException.class,
-                                () -> engine.session(null)).getMessage()));
+                                () -> engine.prepare(null)).getMessage()));
         assertEquals(borrowCountBeforeClose, composition.borrowCount.get());
     }
 
     @Test
-    void concurrentSessionRunsAreIsolatedAndSessionCloseDoesNotWaitForThem()
+    void concurrentPreparedRunsAreIsolatedAndCloseDoesNotWaitForThem()
             throws Exception {
         RecordingComposition composition = new RecordingComposition();
         composition.copyBytes = new byte[8];
@@ -978,14 +1338,16 @@ final class EngineTypedLifecycleTest {
         composition.executionRelease = new CountDownLatch(1);
         Engine engine = engine(composition);
         Tensor input = leaf(false, true);
-        InferenceSession session =
-                engine.session(engine.compile(List.of(input.contiguous())));
+        io.github.pho001.synaptik.engine.PreparedExecution session =
+                engine.prepare(engine.compile(List.of(input.contiguous())));
 
+        Tensor firstInput = leaf(false, true);
+        Tensor secondInput = leaf(false, true);
         RunResult first;
         RunResult second;
         try (var executor = Executors.newFixedThreadPool(3)) {
-            var firstRun = executor.submit(() -> session.run(List.of(input)));
-            var secondRun = executor.submit(() -> session.run(List.of(input)));
+            var firstRun = executor.submit(() -> engine.runValues(session, List.of(firstInput)));
+            var secondRun = executor.submit(() -> engine.runValues(session, List.of(secondInput)));
             try {
                 assertTrue(composition.executionEntered.await(10, TimeUnit.SECONDS));
                 var close = executor.submit(() -> {
@@ -1003,6 +1365,9 @@ final class EngineTypedLifecycleTest {
         }
 
         assertEquals(2, composition.executionCount.get());
+        assertEquals(2, composition.borrowedStorages.size());
+        assertTrue(composition.borrowedStorages.contains(firstInput.hostStorage().orElseThrow()));
+        assertTrue(composition.borrowedStorages.contains(secondInput.hostStorage().orElseThrow()));
         assertEquals(1, composition.prepareCount.get());
         assertEquals(1, composition.preparedResources.getFirst().closeCount.get());
         first.materialize(first.publications().getFirst(), 8);
@@ -1360,10 +1725,10 @@ final class EngineTypedLifecycleTest {
                 RunResult.Role.FORWARD, 0, -1)));
     }
 
-    private static void assertSessionRunRejected(
-            InferenceSession session, List<Tensor> inputs, String expectedMessage) {
+    private static void assertPreparedRunRejected(
+            Engine engine, io.github.pho001.synaptik.engine.PreparedExecution session, List<Tensor> inputs, String expectedMessage) {
         assertEquals(expectedMessage,
-                assertThrows(IllegalStateException.class, () -> session.run(inputs)).getMessage());
+                assertThrows(IllegalStateException.class, () -> engine.run(session, inputs)).getMessage());
     }
 
     private static Tensor leaf(boolean requiresGrad, boolean storage) {
@@ -1389,6 +1754,7 @@ final class EngineTypedLifecycleTest {
         private final List<HostTensorStorage> borrowedStorages =
                 Collections.synchronizedList(new ArrayList<>());
         private List<String> closeOrder;
+        private Runnable beforeBorrow;
         private int borrowFailureIndex = -1;
         private Throwable borrowFailure;
         private int borrowCloseFailureIndex = -1;
@@ -1507,6 +1873,7 @@ final class EngineTypedLifecycleTest {
 
         @Override
         public BufferRepresentation borrow(HostTensorStorage storage) {
+            if (beforeBorrow != null) beforeBorrow.run();
             int index = borrowCount.getAndIncrement();
             if (index == borrowFailureIndex) {
                 rethrow(borrowFailure);

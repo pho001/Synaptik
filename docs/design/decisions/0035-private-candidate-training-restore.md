@@ -7,6 +7,12 @@ Accepted — 2026-10-14. This refines the future joint-restore sequence in
 exact-continuation exclusions remain in force. The [Training lifecycle contract](../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle)
 is authoritative. This decision does not claim that Training 0004 is implemented.
 
+Training0007 reconciliation (2026-10-16): the existing private-candidate fixture now passes
+`privateTree.trainingParameters()` to generic Training copy/open APIs. Its execution, native
+storage admission, next-input handoff and publication guarantees are unchanged. NN's narrow live
+adapter dependency grants no restore coordination or optimizer ownership. Training's physical
+source is now `modules/training`; the original decision and recovery exclusions below are retained.
+
 ## Context
 
 An exact continuation spans NN bindings and modes, Training parameters and optimizer state,
@@ -98,5 +104,5 @@ no build edge. Persistence and its codec remain a separate adapter gate.
 - [Architecture root ownership route](../../../ARCHITECTURE.md#module-ownership-routing)
 - [Training lifecycle contract](../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle)
 - [Training graph recovery scenario](../../architecture/training-graph.md#continuing-at-the-next-training-input)
-- [Training restore implementation](../../../extensions/training/src/main/java/io/github/pho001/synaptik/training/TrainingSession.java)
+- [Training restore implementation](../../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingSession.java)
 - [Model checkpoint load implementation](../../../extensions/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/model/ModelCheckpoint.java)

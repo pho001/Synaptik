@@ -7,6 +7,10 @@ architecture contract. [ARCHITECTURE.md](../../ARCHITECTURE.md) and its incorpor
 contracts govern implementation. Read the owning master plan and compact Ready brief for scope;
 completed evidence belongs in linked task records and Git history.
 
+Engine0020 relocates backend sources without relocating their planning directories or completed
+reports. Use the [current path migration table](../developer-guide/repository-layout.md#backend-path-migration-and-historical-navigation)
+for source/build navigation; historical commands and hashes remain original-revision evidence.
+
 ## Execution policy
 
 - Each independent workstream may expose one authorized Ready frontier when dependencies are met.
@@ -55,15 +59,32 @@ API review passed. [Checkpoint 0005A](extensions/checkpoint/tasks/0005a-model-en
 is Complete after envelope implementation, independent Class C API/documentation approval, and
 configured coordinator gates. CP0005B is Complete (2026-10-15): final independent code/docs APPROVE,
 57 module tests, final Javadoc, architecture evidence and 3 new integration tests passed.
-Authorized Checkpoint frontier: None; no successor is Ready.
+Authorized Checkpoint implementation frontier: None; Engine0020's completed layout cutover is below.
 The user revised the primary product to automatic usable-model load and a choice of inference or
 Training-owned resume, without routine callbacks/manual construction/digests/Arena.
 [ADR 0038](../design/decisions/0038-declarative-model-and-training-resume.md#accepted-nn-decision) replaces
 the withdrawn Proposed direction of ADR0037. Its NN and CP-only whole-model decisions are accepted;
 NN0026 and CP0005B are Complete after final reviews/validation.
-NN0027/CP0005C/Training0006/adapter0006 remain Draft with future decisions Proposed.
-Current published explicit APIs remain implemented and compatible; NN adds only its accepted
-declarative boundary, with no dependency/build change.
+NN0027/CP0005C/Training0006/adapter0006 remain Draft as optional older proposals, not prerequisites of the new
+[ADR0039 graph path](../design/decisions/0039-portable-graph-model-persistence.md).
+[CP0005D planning/review](extensions/checkpoint/tasks/0005d-portable-graph-persistence-decision.md)
+is Complete after independent review, the sole P2 correction and bounded coordinator acceptance.
+The user approved the direction and physical layout on 2026-10-16. The
+[model execution/refactor program](model-execution-refactor.md) records phased ownership, exact
+target paths/edges and the independently approved P2 packet. Generic Model APIs, old v1 and flexible
+declarative models stay supported; Engine0021 intentionally removed the thin session API with an
+explicit source migration. P1 layout and Engine0021 prepared-owner contracts are current; later
+semantic cutovers remain planned.
+[Engine0020 backend/native relocation](modules/engine/tasks/0020-backend-native-layout-relocation.md)
+is Complete: separate :backends:* identities, packages, kernels and ABI preserved; independent
+review, native build/package/device checks and the combined test/Javadoc checkpoint passed.
+All five product choices and the prior P2 packet are approved. The user additionally approved
+removing InferenceSession/Engine.session, keeping Engine PreparedExecution and adding Engine.runValues.
+Engine0021 is Complete after independent Class C approval and the coordinator's native-enabled
+test/Javadoc gate. Its brief owns evidence. Authorized Engine frontier: None.
+[Training0007](extensions/training/tasks/0007-generic-live-parameter-admission.md) is Complete after
+final independent APPROVE and the coordinator gate. Authorized Training frontier: None.
+Next planning candidate: Compiler0008, still Draft with no brief or launch; later tasks stay Draft.
 
 | Area | Delivered baseline / remaining gate |
 |---|---|
@@ -77,7 +98,7 @@ declarative boundary, with no dependency/build change.
 | [Prepare](modules/prepare/master-plan.md) | Complete through 0009; opaque backend collaboration and complete resource transaction. |
 | [OpenBLAS provider](backends/openblas-provider/master-plan.md) | 0001–0003 Complete. Optional direct BF16 0004 Blocked on ABI and one-final-narrowing evidence; F32/F64 unaffected. |
 | [CPU](backends/cpu/master-plan.md) | Complete through 0022 plus [0024](backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md), including heap binding and mixed-carrier overlap repair; vector ERF shape follow-up 0023 Draft. 0010M retained scalar/1/1/1 defaults; vendor peers remain use-case/ABI gated. |
-| [Engine](modules/engine/master-plan.md) | Public composition, sessions, compute/backward, host materialization and bounded tuning delivered; profile spine is historical after Model 0032. |
+| [Engine](modules/engine/master-plan.md) | Complete through [0021 prepared-owner/fresh-value binding](modules/engine/tasks/0021-prepared-execution-fresh-value-binding.md), including thin-session removal and mechanical consumers; independent approval and native-enabled test/Javadoc gate passed. Authorized Engine frontier: None. |
 | [Metal](backends/metal/master-plan.md) | Complete through 0079. Current occurrence support is independently typed; hosted GPU CI 0047 remains blocked. |
 | [CUDA](backends/cuda/master-plan.md) | Marker/native scaffold only; no executable CUDA backend. 0001 Draft. |
 | [ONNX](extensions/onnx/master-plan.md) | Marker only; no importer/exporter. Area Draft; first mapping task not yet defined. |
@@ -85,8 +106,8 @@ declarative boundary, with no dependency/build change.
 | [NN](extensions/nn/master-plan.md) | State/layers/static recurrence/convolution and [0026 declarative reconstruction](extensions/nn/tasks/0026-declarative-model-specification.md) Complete; final independent reviews and coordinator gates passed. Authorized NN frontier: None. Runtime scan/Data 0021B–0024 separate Draft stream. |
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
-| [Training](extensions/training/master-plan.md) | Sessions/optimizers/state and private-candidate proof delivered. [0006 recipe/owned run](extensions/training/tasks/0006-supported-recipe-and-owned-run.md) Draft prerequisite for adapter; no persistence or Ready frontier. Broader 0005 separate Draft. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through [0005B whole-model load](extensions/checkpoint/tasks/0005b-whole-model-save-load.md), with independent code/docs approval, final Javadoc and recorded gates. Authorized frontier: None. CP0005C and revised [0006 save/loadModel/resume](extensions/checkpoint/tasks/0006-training-checkpoint-adapter.md) remain Draft/Proposed; 0007 later Draft. |
+| [Training](extensions/training/master-plan.md) | Sessions/optimizers/state and [0007 generic live-admission/native-copy cutover](extensions/training/tasks/0007-generic-live-parameter-admission.md) Complete after final independent APPROVE and coordinator gate. Authorized Training frontier: None; 0008 Draft, 0006/adapter held. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through 0005B; [0005D program decision](extensions/checkpoint/tasks/0005d-portable-graph-persistence-decision.md) Complete for planning/review only. Target modules/checkpoint is generic; NN-specific glue moves to NN after reverse-edge removal. No Checkpoint implementation Ready; semantic successors held. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
@@ -135,16 +156,51 @@ The completed Training/Checkpoint chain remains:
 Training 0003 is Superseded. [ADR 0036](../design/decisions/0036-model-envelope-composition.md)
 and published model.v1 envelope APIs remain implemented, not durable training recovery.
 
-The selected serial program DAG (NN0026/CP0005B Complete; later successors Draft) is:
-`NN0026 → CP0005B → NN0027 → CP0005C → Training0006 → optional CP0006`,
-with completed 0005A also feeding the adapter. NN owns Model-only semantic specification/forward
-reconstruction; Checkpoint owns whole-model bytes/file APIs; Training owns recipe/run/batch/lifetime;
-the adapter has exactly Training + Checkpoint api edges and consumes these public owner capabilities.
-NN0027 owns only Model-only recurrent description/reconstruction; CP0005C owns explicit versioned
-recurrent definition wire/whole-save/load adoption. Both are minimal Draft rows without detailed
-briefs. No optimized RecurrentScan/backend BPTT/Data/Text or broader Training checkpoint is required.
-Each is a cohesive capability with separate clean implementation and independent targeted review.
-No mechanical type/facade/test split or speculative detailed successor cascade.
+The earlier proposed serial DAG is held after its completed prefix:
+`NN0026 Complete → CP0005B Complete | HOLD: NN0027 → CP0005C → Training0006 → optional CP0006`.
+Completed 0005A still feeds any later adapter. NN0027/CP0005C are not silently cancelled or Ready.
+The revised [program](model-execution-refactor.md) replaces outputs(actualInputs)-first execution
+with the same proposed model.compute/train/save/load for application-built and file-restored tensors.
+Load reconstructs ordinary expressions/weights before compile with no Engine or future batch;
+same-static-signature calls reuse preparations with per-run borrowed storage and no shared-placeholder
+mutation. Existing Tensor DAG/autograd/Prepare/Runtime/backend execution is reused.
+
+Phases: planning review → backend/native-only relocation; separately reviewed P2 API/ownership/compatibility
+packet → generic Training + fresh-input Engine binding and generic Checkpoint + Compiler cold
+persistence → common model workflow. Backend targets are modules/backend/{cpu,metal,cuda,
+openblas-provider}; Metal native target is modules/backend/metal/macos-arm64, without native nesting.
+Backend projects remain separate with unchanged :backends:* identities. Generic Training/Checkpoint
+target modules/training and modules/checkpoint; NN stays extensions/nn, ONNX a marker.
+The program owns the exact symbol/edge map; existing area plans stay in their historical directories.
+
+CP0005D is Complete for bounded planning/review; Engine0020 is Complete after its reviewed path-only
+cutover and combined validation. The user's subsequent approval accepts all five product choices.
+P2 selects ordinary Model.defineTensor(signature, definition)/Model.load with single-Tensor compute,
+configured train and save; generic Model.define/forward remain. New tensor construction discards
+its prototype callback and uses owned source leaves, including for explicit cold symbolic forward.
+Target `Model.load(path[, limits]).withEngine(engine)` returns the same Model and borrows the
+Engine for compute/train; binding freezes before first preparation setup, including failed setup.
+Engine.standard is lazy/model-owned (CPU-only, no discovery/global); explicit overloads remain.
+compute(batch) stays terminal/detached; this is planned NN0028 API only. One owned weight set serves
+compute/train/save; loaded values need no ownership-only copy. First graph signatures are fixed.
+Old flexible declarative/v1 behavior and readers remain. Source migration is explicit in ADR0039.
+
+Implementation DAG: Engine0021 → Training0007 → Compiler0008 → Checkpoint0008 → Training0008 →
+NN0028 is the serial shared-document integration order; code dependencies are recorded in the
+[program DAG](model-execution-refactor.md#phases-and-owner-dag). Training0007 does not need fresh
+Engine binding; Training0008 does. Compiler0008 provides Checkpoint0008 cold reconstruction.
+[Engine0021](modules/engine/tasks/0021-prepared-execution-fresh-value-binding.md) is Complete:
+InferenceSession and Engine.session were removed, and Training/benchmark/test consumers migrated
+atomically to public Engine.prepare/run. TrainingSession's optimizer/transaction state remains.
+Engine.run keeps exact-ID/arbitrary-order binding; runValues accepts fresh positional values.
+Both use prepared-before-input close admission, an explicit direct-run precedence change.
+Engine/Runtime prepared boundaries, advanced lifecycle and detached results remain.
+Training0007 is Complete after final independent approval and coordinator acceptance; its brief owns evidence.
+Compiler0008 is the next planning candidate, still Draft with no brief or launch.
+Checkpoint0008/Training0008/NN0028 remain Draft; Model.withEngine remains TARGET, not implemented.
+Direct cold Checkpoint→Compiler access, the narrow reconstruction-map exception and generic reversed
+edges still require coordinated authority in their implementing capabilities. Current contracts win.
+No optimized scan/backend BPTT/Data/Text or broad performance prerequisite is added.
 
 NN 0026's matrix/API is accepted and coordinated with root NN ownership, the owning scoped contract,
 architecture explanations and ADR 0038's NN decision. It includes nested Sequential,
@@ -159,8 +215,9 @@ Its brief records final independent code/docs APPROVE, worker module tests, fina
 coordinator architecture/integration evidence. Execution used accepted packet base
 `7d65f660051becc9bc6adc6f08af155b08096b59`. Defaults: 256 MiB file/aggregate, 4 MiB
 manifest, 16384 entries, 64-byte keys, 64 MiB payload; fixed 1 MiB definition/4096 nodes/depth64.
-NN0027/CP0005C recurrent initial-state/output selection/format version and Training gradient admission
-remain future decisions. Training0006/adapter0006 loss/recipe and owner-transfer/capture/restore
+NN0027/CP0005C recurrent initial-state/output selection/format version and their Training admission
+remain optional held proposals, not prerequisites of the new ordinary graph path.
+Training0006/adapter0006 loss/recipe and owner-transfer/capture/restore
 bridges remain Proposed, each requiring its own coordinated contract before Ready.
 Inference constraints remain separate from static Training signatures. Existing ArtifactFile v1
 and model.v1 stay unchanged; whole-model.v1 is implemented for the closed NN0026 matrix, not recurrent-file

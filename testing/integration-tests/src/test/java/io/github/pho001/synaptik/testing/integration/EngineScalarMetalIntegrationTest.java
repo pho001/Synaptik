@@ -68,7 +68,7 @@ final class EngineScalarMetalIntegrationTest {
                     });
                     var compiled = engine.compile(outputs);
                     assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                    try (var session = engine.session(compiled)) {
+                    try (var session = engine.prepare(compiled)) {
                         for (float sample : samples(type)) {
                             write(storage, type, sample);
                             float inputValue = represented(type, sample);
@@ -77,7 +77,7 @@ final class EngineScalarMetalIntegrationTest {
                                     inputValue * 1.5f} : new float[] {Math.max(inputValue, 0.0f),
                                     clamp(inputValue, -1.0f, 1.0f), clamp(inputValue, -0.0f, 0.0f),
                                     clamp(inputValue, 0.0f, -0.0f), Float.NaN};
-                            try (var result = session.run(List.of(input))) {
+                            try (var result = engine.run(session, List.of(input))) {
                                 assertEquals(expected.length, result.publications().size());
                                 for (int index = 0; index < expected.length; index++) {
                                     // MUL alone permits same-sign input DAZ/result FTZ. Exact
@@ -113,13 +113,13 @@ final class EngineScalarMetalIntegrationTest {
                             .clamp(scalar(type, 0.0f), scalar(type, 3.0f));
                     var compiled = engine.compile(List.of(output));
                     assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                    try (var session = engine.session(compiled)) {
+                    try (var session = engine.prepare(compiled)) {
                         for (float sample : new float[] {-2.0f, -0.5f, -0.0f, 0.0f, 0.5f, 2.0f,
                                 Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY, Float.NaN}) {
                             write(storage, type, sample);
                             float multiplied = represented(type, sample * -2.0f);
                             float expected = clamp(Math.max(multiplied, 0.0f), 0.0f, 3.0f);
-                            try (var result = session.run(List.of(input))) {
+                            try (var result = engine.run(session, List.of(input))) {
                                 assertValue(type, expected, read(result, 0, type), false,
                                         type + " composed input=" + sample);
                             }
@@ -140,11 +140,11 @@ final class EngineScalarMetalIntegrationTest {
                 Tensor input = tensor(DataType.FLOAT32, false, storage);
                 var compiled = engine.compile(List.of(input.exp().relu()));
                 assertEquals(List.of("cpu", "metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                try (var session = engine.session(compiled)) {
+                try (var session = engine.prepare(compiled)) {
                     for (float sample : new float[] {-2.0f, -0.0f, 0.0f, 2.0f,
                             Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY, Float.NaN}) {
                         write(storage, DataType.FLOAT32, sample);
-                        try (var result = session.run(List.of(input))) {
+                        try (var result = engine.run(session, List.of(input))) {
                             float actual = Float.intBitsToFloat(read(result, 0, DataType.FLOAT32));
                             float expected = (float) StrictMath.exp(sample);
                             if (Float.isFinite(expected) && expected != 0.0f) {

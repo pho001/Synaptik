@@ -17,7 +17,9 @@ tasks.named<Test>("test") {
     // Tests read repository files outside their classpath; declare them to avoid false UP-TO-DATE results.
     inputs.files(rootProject.fileTree(rootProject.projectDir) {
         include("settings.gradle.kts", "**/build.gradle.kts")
-        include("modules/runtime/src/main/java/**/*.java", "backends/cpu/src/main/**")
+        include("modules/runtime/src/main/java/**/*.java", "modules/backend/**/src/main/**")
+        include("modules/training/src/**/*.java", "extensions/nn/src/main/java/**/*.java")
+        include("modules/backend/metal/macos-arm64/**", "modules/backend/cuda/README.md")
         exclude("**/build/**", "**/.gradle/**", "**/.git/**")
     }).withPropertyName("architectureSourceFiles")
         .withPathSensitivity(PathSensitivity.RELATIVE)

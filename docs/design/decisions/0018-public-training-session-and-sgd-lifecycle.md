@@ -2,12 +2,22 @@
 
 ## Status
 
-Accepted — 2026-09-24
+Accepted — 2026-09-24. Engine owner references reconciled on 2026-10-16 with
+[ADR 0039](0039-portable-graph-model-persistence.md#engine-result-and-exclusion-lifecycle):
+Training owns Engine PreparedExecution through prepare/run; optimizer decisions are unchanged.
+
+Training0007 reconciliation (2026-10-16): the
+[generic live boundary](0039-portable-graph-model-persistence.md#necessary-boundary-types-not-a-new-model-hierarchy)
+replaces Module-taking open signatures with `TrainingParameters`. Physical `modules/training`
+retains `:extensions:training` and its packages, with exactly public Model/Engine edges and no NN
+dependency. NN's live adapter owns wrapper/Tensor membership checks; Training owns storage checks.
+The original NN edge/capture wording below is historical. Prepared ownership, native admission,
+SGD arithmetic, error precedence, rollback and cleanup remain unchanged.
 
 ## Context
 
 Synaptik already has compiler-owned functional autograd, ordered gradient publication roles, one
-public Engine compile/Prepare/Runtime path, and a reusable `InferenceSession`. The NN extension
+public Engine compile/Prepare/Runtime path, and a reusable Engine `PreparedExecution`. The NN extension
 owns deterministic recursive parameter paths and stable `Parameter` wrappers, but replacing a
 wrapper's Tensor would not change a graph that was already compiled from the earlier Tensor
 identity. The Training extension had no executable optimizer or session lifecycle.
@@ -21,7 +31,7 @@ is authoritative; this record explains the selected decision.
 ## Decision drivers
 
 - Compile and prepare the combined forward/backward graph exactly once per training session.
-- Reuse `CompiledGraph.inputs()`, gradient `targetIndex`, `InferenceSession`, and `RunResult`
+- Reuse `CompiledGraph.inputs()`, gradient `targetIndex`, Engine `PreparedExecution`, and `RunResult`
   rather than create a second scheduler, runner, or publication model.
 - Preserve stable NN parameter paths, wrappers, Tensor identities, and host-storage occurrences.
 - Provide a real built-in optimizer with persistent per-parameter state and exact update order.
@@ -50,7 +60,7 @@ forbidden dependency behind another abstraction and duplicate Engine authority.
 
 ### Depend on the public Engine facade and update stable host parameter storage
 
-Training can create one ordinary gradient `CompiledGraph`, own one `InferenceSession`, detach its
+Training can create one ordinary gradient `CompiledGraph`, own one Engine `PreparedExecution`, detach its
 ordered publications, and perform backend-neutral optimizer arithmetic over supported Model host
 storage. Stable parameter Tensors remain the graph inputs while their values change in place.
 
@@ -63,7 +73,7 @@ published Gradle `api` edges. Training may use only the public Engine facade and
 from depending on Runtime, Prepare, tuning, or concrete backends. `TrainingSession.open` borrows a
 caller-owned Engine and Module, snapshots all recursive parameter paths and stable
 wrapper/Tensor/storage identities, performs one scalar-objective first-order compile, and opens
-one reusable `InferenceSession`. The session owns that inference session and all optimizer state;
+one reusable Engine `PreparedExecution`. The session owns that prepared execution and all optimizer state;
 it does not own the Engine or Module.
 
 The initial update domain is fully static, non-empty, dense-contiguous, offset-zero, non-view

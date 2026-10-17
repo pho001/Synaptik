@@ -19,10 +19,14 @@ Concrete backend modules own concrete backend implementation.
 Examples:
 
 ```text
-backends/cpu
-backends/metal
-backends/cuda
+modules/backend/cpu
+modules/backend/metal
+modules/backend/cuda
 ```
+
+These physical directories retain the separate `:backends:*` Gradle project identities through
+explicit `projectDir` mappings, including `:backends` at `modules/backend`. The physical parent is
+not the backend-neutral `modules/backend-contract` module and grants no new dependency edge.
 
 Allowed:
 
@@ -286,6 +290,10 @@ unless this document is updated first.
 
 ## Metal backend
 
+The Java project lives in `modules/backend/metal`; its macOS arm64 native bridge is colocated at
+`modules/backend/metal/macos-arm64`, without a nested `native/` directory. This placement changes
+no Java package, native ABI, kernel, numerical identity, ownership, or lifecycle contract.
+
 Metal backend owns:
 
 - the immutable public `MetalBackendConfiguration`, including the required caller-selected
@@ -374,7 +382,7 @@ Do not add `MetalOptimizerBridge` to `extensions/training`.
 
 ## OpenBLAS provider
 
-`backends/openblas-provider` is a low-level leaf provider.
+`modules/backend/openblas-provider` is a low-level leaf provider.
 
 Allowed:
 
@@ -396,7 +404,7 @@ Forbidden:
 The dependency direction is:
 
 ```text
-backends/cpu -> backends/openblas-provider
+modules/backend/cpu -> modules/backend/openblas-provider
 ```
 
 Never the reverse.

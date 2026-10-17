@@ -12,8 +12,9 @@ import java.util.Objects;
  * mutable training state to {@code Tensor}. A generic downstream consumer can discover the exact
  * wrapper through a {@link Module} tree and install a schema-compatible Tensor through
  * {@link #replace(Tensor)} without knowing the concrete module or layer type. The downstream
- * public {@code TrainingSession} instead captures the exact wrapper, Tensor, and storage
- * association and updates supported storage in place so one compiled graph keeps its Tensor
+ * public {@code TrainingSession} uses {@link Module#trainingParameters()} to retain and validate
+ * the exact wrapper and Tensor against the live tree, separately captures the storage
+ * association, and updates supported storage in place so one compiled graph keeps its Tensor
  * identity. The wrapper, local name, declaration-time data type, and declaration-time Shape
  * remain stable; {@link #value()} returns the exact Tensor bound when it is called.</p>
  *

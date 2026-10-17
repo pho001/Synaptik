@@ -121,6 +121,33 @@ algebra builder, planning adapter, backend lowering layer, or execution owner.
 | 0006C | Conv3d adjoint expressibility and gradient closure | Draft | 0006B; current public Tensor algebra; any separately selected Model prerequisite | Prove exact grouped NCDHW input/weight/bias adjoints; implement only if current public algebra closes every required case, otherwise select the smallest Model prerequisite. |
 | 0006D | [Autograd audit correctness repairs](tasks/0006d-autograd-audit-correctness-repairs.md) | Complete | 0006/0006B11; project review | Repair batched matrix/vector gradients and reject required fail-closed sibling paths; no new derivative capability. |
 | 0007 | Exact constant identities under profile-free semantics | Draft | 0006; explicit legality proof under current Model semantics | Reassess exact identities without broadening constant evidence or using test tolerances as rewrite permission. |
+| 0008 | Cold validated source capture and reconstruction | Draft | Reviewed P2; completed capture/inference boundaries | Extend GraphCompilationPort over existing CompiledGraphModel and exact leaf association; narrow reconstruction-map authority required. |
+
+## P2 source reconstruction dependency
+
+The [program](../../model-execution-refactor.md#phases-and-owner-dag) needs a real Compiler owner
+before Checkpoint0008; this row fills that missing dependency, not a new detailed cascade.
+GraphCompilationPort.captureSource returns graph plus graph-input-aligned Tensor leaves;
+reconstructSource validates the supported closed slice and uses ordinary family constructors.
+A nested SourceCapture is an integration sidecar, not another graph or execution type.
+First slice: ADD/MUL/NEG/MATMUL/PERMUTE with exact [1,0] attributes for ordinary Linear;
+preserve canonical output identity and reject unsupported attributes/families. No all-family gate.
+
+Current root prohibits ValueId-to-Tensor maps. The implementation must first coordinate the narrow
+cold reconstruction exception in root Explicit non-goals and compiler-autograd modules/compiler/
+Compile lifecycle; no gradient-map exception, generic Tensor injection or Engine proxy.
+Checkpoint obtains an implementation edge to Compiler in its own cutover; Compiler gains no edge.
+Existing autograd and planning remain unchanged.
+
+No Compiler implementation is Ready or launched. Parallel group None; serialize shared authority
+after Training0007, before Checkpoint0008 (not an algorithm dependency on Training).
+Common base: current main including Engine0021 at HEAD 9e7e8aa15e0833a1bc91263a7add99a80d88cd92,
+reverify at launch. Conflicts: shared root/compiler authority and graph source identity.
+Model-execution coordinator owns shared documents and integrated validation; future worker runs
+focused Compiler test/Javadoc once, coordinator one boundary-changing repository checkpoint.
+No detailed Compiler brief is created in P2. Engine0021 is Complete: existing Engine prepared owner
+plus runValues, thin-session removal and mechanical consumers. It changes no Compiler capability
+or dependency; 0008 remains Draft without an authorized implementation.
 
 ## Milestones and current frontier
 

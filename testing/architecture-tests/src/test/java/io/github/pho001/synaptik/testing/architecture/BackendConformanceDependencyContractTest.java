@@ -37,7 +37,7 @@ final class BackendConformanceDependencyContractTest {
         assertFalse(buildScript.contains(":backends:openblas-provider"));
         assertFalse(buildScript.contains(":modules:engine"));
 
-        String metalBuild = Files.readString(repositoryRoot().resolve("backends/metal/build.gradle.kts"));
+        String metalBuild = Files.readString(repositoryRoot().resolve("modules/backend/metal/build.gradle.kts"));
         assertEquals(1, metalBuild.lines().map(String::strip)
                 .filter(line -> line.equals(
                         "testImplementation(project(\":modules:compiler\"))"))

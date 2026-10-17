@@ -132,14 +132,16 @@ until BPTT is designed. See
 
 `extensions/nn` owns the model-module side of a training step: modules declare their trainable
 `Parameter` values, persistent `Buffer` values, and train/eval forward behavior.
-`extensions/training` is downstream of that declaration and owns the implemented `Sgd`, `Adam`,
-and `AdamW` mathematical updates and `TrainingSession` orchestration. This lets a module remain
-usable for inference without importing an optimizer.
+`modules/training` owns generic live admission, the implemented `Sgd`, `Adam`, and `AdamW`
+mathematical updates and `TrainingSession` orchestration without importing NN. NN's narrow
+`Module.trainingParameters()` adapter exposes exact ordered live membership, not optimizer state.
+This lets non-NN Tensor owners train through the same boundary.
 
 An initialized layer can begin with heap-backed parameters, but a session can update only
 shareable native parameter storage. The caller may explicitly call
-`TrainingParameterStorage.copyToSharedNative(module, arena)` before opening a session. Training
-traverses NN's recursive parameter paths, validates the complete source set, copies exact
+`TrainingParameterStorage.copyToSharedNative(parameters, arena)` before opening a session, with
+`parameters = module.trainingParameters()` for NN. Training validates the complete source set,
+revalidates live membership before installation, copies exact
 represented bytes into fresh aligned native segments, and rebinds only Model's borrowed
 host-storage associations. The same Parameter and Tensor objects remain in previously constructed
 expressions, so the normal Engine compile and prepare path can use them without a second graph
@@ -149,7 +151,7 @@ defines the validation and lifetime boundary, and [ADR 0028](../design/decisions
 records why the transition is explicit.
 
 ```text
-NN initialization (possibly heap) -> Training explicit native copy -> Engine session open -> runs -> session close -> caller Arena close
+live source (NN adapter or generic owner) -> explicit native copy -> TrainingSession open (Engine.prepare) -> Engine.run -> prepared close -> caller Arena close
 ```
 
 Read this left to right: storage association changes only before open, while the parameter
@@ -308,9 +310,9 @@ A `MetalOptimizerBridge` would make the training extension depend on a concrete 
 The correct ownership is:
 
 ```text
-extensions/training  -> optimizer algorithm and mathematical intent
+modules/training     -> optimizer algorithm and mathematical intent
 compiler/model       -> graph operations or backend-neutral step representation
-backends/metal       -> MPSGraph or custom fused Metal implementation
+modules/backend/metal       -> MPSGraph or custom fused Metal implementation
 runtime              -> execution of the prepared executable
 ```
 

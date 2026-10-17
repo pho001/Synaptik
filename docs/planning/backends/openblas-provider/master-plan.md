@@ -1,5 +1,9 @@
 # OpenBLAS Provider Master Plan
 
+Current source: `modules/backend/openblas-provider`; Gradle identity remains
+`:backends:openblas-provider`. Historical planning/report locations remain unchanged; see the
+[path migration table](../../../developer-guide/repository-layout.md#backend-path-migration-and-historical-navigation).
+
 ## Goal
 
 Provide a low-level OpenBLAS leaf for library loading, required and optional symbol binding,

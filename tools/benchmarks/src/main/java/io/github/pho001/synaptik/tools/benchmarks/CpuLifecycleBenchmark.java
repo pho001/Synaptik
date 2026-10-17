@@ -2,7 +2,7 @@ package io.github.pho001.synaptik.tools.benchmarks;
 
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
-import io.github.pho001.synaptik.engine.InferenceSession;
+import io.github.pho001.synaptik.engine.PreparedExecution;
 import io.github.pho001.synaptik.engine.RunResult;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
@@ -36,7 +36,7 @@ import jdk.incubator.vector.LongVector;
 
 /**
  * Runnable, report-only CPU Engine lifecycle benchmark using fixed public Tensor, Engine, and
- * InferenceSession APIs.
+ * PreparedExecution APIs.
  *
  * <p>The evidence profile records immutable run/source/configuration identities and makes every
  * retained repeated-run batch span its declared minimum duration. Public Engine does not expose
@@ -132,22 +132,22 @@ public final class CpuLifecycleBenchmark {
             var graph = engine.compile(List.of(workload.output()));
             compileNanos = System.nanoTime() - begin;
             begin = System.nanoTime();
-            try (InferenceSession session = engine.session(graph)) {
+            try (PreparedExecution session = engine.prepare(graph)) {
                 prepareNanos = System.nanoTime() - begin;
-                checksum = checksumRun(session, workload);
+                checksum = checksumRun(engine, session, workload);
                 for (int i = 0; i < profile.warmups(); i++) {
-                    runBatch(session, workload.inputs(), 1);
-                    requireChecksum(workload, checksum, checksumRun(session, workload));
+                    runBatch(engine, session, workload.inputs(), 1);
+                    requireChecksum(workload, checksum, checksumRun(engine, session, workload));
                 }
                 int suggestedIterations = 1;
                 for (int i = 0; i < profile.measurements(); i++) {
-                    TimedSample sample = timedSample(session, workload.inputs(),
+                    TimedSample sample = timedSample(engine, session, workload.inputs(),
                             suggestedIterations, profile.minimumSampleNanos());
                     suggestedIterations = sample.iterations();
                     sampleIterations.add(sample.iterations());
                     repeatedBatch.add(sample.elapsedNanos());
                     repeated.add(sample.elapsedNanos() / sample.iterations());
-                    requireChecksum(workload, checksum, checksumRun(session, workload));
+                    requireChecksum(workload, checksum, checksumRun(engine, session, workload));
                 }
             }
             for (int i = 0; i < profile.oneShotMeasurements(); i++) {
@@ -175,7 +175,18 @@ public final class CpuLifecycleBenchmark {
                 + ",\"checksum\":" + checksum + "}";
     }
 
-    private static TimedSample timedSample(InferenceSession session, List<Tensor> inputs,
+    /**
+     * Measures only repeated execution/cleanup on one existing preparation, excluding export.
+     *
+     * @param engine open borrowed Engine owning the preparation
+     * @param session open borrowed prepared owner retained across every sample
+     * @param inputs exact compiled identities with caller-owned stable storage
+     * @param suggestedIterations positive initial batch suggestion, bounded by the sample ceiling
+     * @param minimumSampleNanos non-negative elapsed-time floor in nanoseconds
+     * @return elapsed batch time and iteration count, not a production tuning decision
+     * @throws IllegalStateException if the sample ceiling prevents reaching the declared floor
+     */
+    private static TimedSample timedSample(Engine engine, PreparedExecution session, List<Tensor> inputs,
             int suggestedIterations, long minimumSampleNanos) {
         int iterations = 0;
         int chunk = Math.max(1, suggestedIterations);
@@ -185,7 +196,7 @@ public final class CpuLifecycleBenchmark {
             if (chunk > MAX_SAMPLE_ITERATIONS - iterations) {
                 throw new IllegalStateException("retained sample iteration ceiling exceeded");
             }
-            runBatch(session, inputs, chunk);
+            runBatch(engine, session, inputs, chunk);
             iterations += chunk;
             elapsed = System.nanoTime() - begin;
             if (elapsed < minimumSampleNanos) {
@@ -203,16 +214,32 @@ public final class CpuLifecycleBenchmark {
         return new TimedSample(iterations, elapsed);
     }
 
-    private static void runBatch(InferenceSession session, List<Tensor> inputs, int batchSize) {
+    /**
+     * Executes a batch through the public identity-binding path, closing every result.
+     *
+     * @param engine open borrowed Engine owning the preparation
+     * @param session open borrowed reusable prepared owner
+     * @param inputs exact compiled Tensor identities and live compatible storage
+     * @param batchSize number of executions; callers supply a positive count
+     */
+    private static void runBatch(Engine engine, PreparedExecution session, List<Tensor> inputs, int batchSize) {
         for (int i = 0; i < batchSize; i++) {
-            try (RunResult ignored = session.run(inputs)) {
+            try (RunResult ignored = engine.run(session, inputs)) {
                 // Closing the result keeps the timed boundary on repeated execution, not export.
             }
         }
     }
 
-    private static long checksumRun(InferenceSession session, Workload workload) {
-        try (RunResult result = session.run(workload.inputs())) {
+    /**
+     * Exports one separate run for checksum validation outside the measured execution boundary.
+     *
+     * @param engine open borrowed Engine owning the preparation
+     * @param session open borrowed prepared owner for the workload
+     * @param workload fixed workload whose input identities match the preparation
+     * @return checksum of the detached first publication after result cleanup
+     */
+    private static long checksumRun(Engine engine, PreparedExecution session, Workload workload) {
+        try (RunResult result = engine.run(session, workload.inputs())) {
             HostTensorValue value = result.materialize(
                     result.publications().getFirst(), Long.MAX_VALUE);
             return checksum(value);

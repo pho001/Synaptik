@@ -6,7 +6,7 @@ This guide records the intended CUDA boundary. No CUDA Java or native implementa
 
 ## Planned scope
 
-`backends/cuda` will own capability reporting, CUDA-specific lowering, specialization and fusion, kernel selection, executable construction, device storage, transfers, workspaces, native integration, and typed traces.
+`modules/backend/cuda` will own capability reporting, CUDA-specific lowering, specialization and fusion, kernel selection, executable construction, device storage, transfers, workspaces, native integration, and typed traces.
 
 ```text
 planning chooses CUDA ownership

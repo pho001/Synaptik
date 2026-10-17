@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted — 2026-09-23
+Accepted — 2026-09-23. The thin session facade is superseded on 2026-10-16 by
+[ADR 0039's prepared-owner cutover](0039-portable-graph-model-persistence.md#engine-result-and-exclusion-lifecycle).
+The rationale below is historical; Engine0021 removes InferenceSession/Engine.session while
+preserving the prepared recipe, Runtime lease and result lifetimes.
 
 ## Context
 

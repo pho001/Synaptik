@@ -8,7 +8,6 @@ import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
 import io.github.pho001.synaptik.engine.CompiledGraph;
 import io.github.pho001.synaptik.engine.Engine;
-import io.github.pho001.synaptik.engine.InferenceSession;
 import io.github.pho001.synaptik.engine.HostTensorValue;
 import io.github.pho001.synaptik.engine.ModelAutotuningPreparation;
 import io.github.pho001.synaptik.engine.ModelAutotuningRequest;
@@ -29,7 +28,7 @@ final class EngineTypedPublicShapeTest {
     @Test
     void exposesOnlyTheSpecifiedOrdinaryLifecycleAndMetadata() throws Exception {
         for (Class<?> type : List.of(Engine.class, CompiledGraph.class, PreparedExecution.class,
-                InferenceSession.class, RunResult.class, HostTensorValue.class,
+                RunResult.class, HostTensorValue.class,
                 ScalarObjectiveBackwardResult.class, RunResult.Publication.class)) {
             assertTrue(Modifier.isPublic(type.getModifiers()));
             assertTrue(Modifier.isFinal(type.getModifiers()));
@@ -40,7 +39,6 @@ final class EngineTypedPublicShapeTest {
         assertTrue(AutoCloseable.class.isAssignableFrom(Engine.Builder.class));
         assertTrue(CompiledGraph.Input.class.isRecord());
         assertTrue(AutoCloseable.class.isAssignableFrom(PreparedExecution.class));
-        assertTrue(AutoCloseable.class.isAssignableFrom(InferenceSession.class));
         assertTrue(Modifier.isPublic(CompiledGraph.Input.class.getModifiers()));
         assertTrue(Modifier.isStatic(CompiledGraph.Input.class.getModifiers()));
         assertEquals(List.of(TensorId.class, TensorDescriptor.class), Arrays.stream(
@@ -49,7 +47,7 @@ final class EngineTypedPublicShapeTest {
 
         assertEquals(List.of("backward", "builder", "close", "compile", "compile", "compute",
                 "compute", "compute", "compute", "isClosed", "prepare", "prepareTuned", "run",
-                "session", "standard"), methodNames(Engine.class));
+                "runValues", "standard"), methodNames(Engine.class));
         assertEquals(List.of("build", "close", "takeOwnership", "takeOwnership"),
                 methodNames(Engine.Builder.class));
         assertFalse(Arrays.stream(Engine.Builder.class.getDeclaredMethods())
@@ -57,8 +55,6 @@ final class EngineTypedPublicShapeTest {
         assertEquals(List.of("inputs"), methodNames(CompiledGraph.class));
         assertEquals(List.of("close", "compiledGraph", "isClosed"),
                 methodNames(PreparedExecution.class));
-        assertEquals(List.of("close", "compiledGraph", "isClosed", "run"),
-                methodNames(InferenceSession.class));
         assertEquals(List.of("close", "isClosed", "materialize", "publications", "resultCount"),
                 methodNames(RunResult.class));
         assertEquals(List.of("byteSize", "bytes", "dataType", "elementCount", "shape"),
@@ -84,8 +80,13 @@ final class EngineTypedPublicShapeTest {
                 Engine.class.getMethod("compile", List.class, List.class, List.class).getReturnType());
         assertEquals(PreparedExecution.class,
                 Engine.class.getMethod("prepare", CompiledGraph.class).getReturnType());
-        assertEquals(InferenceSession.class,
-                Engine.class.getMethod("session", CompiledGraph.class).getReturnType());
+        org.junit.jupiter.api.Assertions.assertThrows(NoSuchMethodException.class,
+                () -> Engine.class.getMethod("session", CompiledGraph.class));
+        org.junit.jupiter.api.Assertions.assertThrows(ClassNotFoundException.class,
+                () -> Class.forName("io.github.pho001.synaptik.engine.InferenceSession"));
+        assertEquals(RunResult.class,
+                Engine.class.getMethod("runValues", PreparedExecution.class, List.class)
+                        .getReturnType());
         assertEquals(ModelAutotuningPreparation.class,
                 Engine.class.getMethod("prepareTuned", CompiledGraph.class,
                         ModelAutotuningRequest.class).getReturnType());
@@ -119,14 +120,14 @@ final class EngineTypedPublicShapeTest {
                 RunResult.Publication.class.getMethod("targetIndex").getReturnType());
 
         for (Class<?> type : List.of(CompiledGraph.class, PreparedExecution.class,
-                InferenceSession.class, RunResult.class, HostTensorValue.class,
+                RunResult.class, HostTensorValue.class,
                 ScalarObjectiveBackwardResult.class, RunResult.Publication.class)) {
             assertEquals(0, Arrays.stream(type.getDeclaredConstructors())
                     .filter(constructor -> Modifier.isPublic(constructor.getModifiers())
                             || Modifier.isProtected(constructor.getModifiers())).count());
         }
         for (Class<?> type : List.of(Engine.class, CompiledGraph.class, PreparedExecution.class,
-                InferenceSession.class, RunResult.class, HostTensorValue.class,
+                RunResult.class, HostTensorValue.class,
                 ScalarObjectiveBackwardResult.class, RunResult.Publication.class,
                 ModelAutotuningRequest.class,
                 ModelAutotuningRequest.ModelIdentity.class,
@@ -150,7 +151,6 @@ final class EngineTypedPublicShapeTest {
         }
         assertFalse(AutoCloseable.class.isAssignableFrom(CompiledGraph.class));
         assertTrue(AutoCloseable.class.isAssignableFrom(PreparedExecution.class));
-        assertTrue(AutoCloseable.class.isAssignableFrom(InferenceSession.class));
         assertFalse(AutoCloseable.class.isAssignableFrom(HostTensorValue.class));
         assertFalse(AutoCloseable.class.isAssignableFrom(ScalarObjectiveBackwardResult.class));
         assertEquals(List.of("config", "modelIdentity", "representativeInputs"),

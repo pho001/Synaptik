@@ -37,8 +37,14 @@ Forbidden:
 - backend kernel selection
 - concrete backend dependencies
 
-`extensions/nn` depends on `modules/model` for tensor and operation semantics. It must not make
-the model depend on neural-network layers or stateful module ownership.
+`extensions/nn` has exactly public Model and Training project dependencies. Model supplies tensor
+and operation semantics; Training supplies the generic `TrainingParameters` admission boundary.
+`Module.trainingParameters()` returns a private live adapter retaining the root and exact ordered
+paths, Parameter wrappers and Tensors. Creation rejects unbound reservations. Its immutable entries
+snapshot is not validation: `validateUnchanged()` re-traverses the live root and rejects any count,
+order, path, wrapper or Tensor change. It deliberately does not freeze storage associations or
+bytes, so an explicit native copy does not invalidate its own source. NN still owns no optimizer
+algorithm, update orchestration, or direct Engine/Checkpoint dependency. Model must not depend on NN.
 
 ### Closed declarative models
 
@@ -127,10 +133,12 @@ fresh value Tensor per target identity group without changing its existing targe
 NN reconstruction validates before returning; failure exposes no partial candidate and never mutates
 the described source. Caller quiescence still owns consistency; NN adds no lock or transaction.
 
-## `extensions/training`
+<a id="extensionstraining"></a>
 
-`extensions/training` owns optimizer algorithms and training orchestration over parameters
-declared by `extensions/nn` modules.
+## `modules/training`
+
+`modules/training` (unchanged Gradle project `:extensions:training` and Java packages) owns generic
+live parameter admission, optimizer algorithms and training orchestration independently of NN.
 
 Allowed:
 
@@ -140,6 +148,8 @@ Allowed:
 - `AdamW`
 - `ParameterGroup`
 - `TrainingSession`
+- `TrainingParameters` with immutable ordered `Entry(path, tensor)` membership and live-owner
+  `validateUnchanged()`; Training snapshots and validates admission before seed/compile/prepare
 - `TrainingStep`
 - `TrainingParameterStorage` for an explicit pre-session copy into caller-owned shareable native host memory
 - immutable in-memory optimizer/session state snapshots
@@ -157,10 +167,11 @@ Forbidden:
 - backend-specific optimizer execution
 - backend kernel selection
 
-Training depends on `extensions/nn`, `modules/model`, and `modules/engine`, not the reverse. Because
-its public signatures name `Module`, `Tensor`, `DataType`, `Shape`, Engine, and Engine metadata,
-all three project edges are published Gradle `api` dependencies rather than hidden implementation
-dependencies. The public Engine edge is the explicit Class C composition edge needed to reuse one
+Training has exactly `api` project dependencies on `modules/model` and `modules/engine`, with no
+NN dependency, import, NN-taking compatibility overload, or test-only back-edge. Its public
+signatures name `TrainingParameters`, `Tensor`, `DataType`, `Shape`, Engine and Engine metadata.
+NN depends on Training only for its live admission adapter. The public Engine edge is the explicit
+Class C composition edge needed to reuse one
 compile/Prepare/Runtime path; it does not transfer optimizer ownership into Engine or authorize
 Training to inspect backend selection or representations. `train()` and `eval()` mode are module
 forward-behavior concerns owned by `extensions/nn`; an optimizer neither selects nor changes that
@@ -496,13 +507,13 @@ The initial public lifecycle is:
 
 ```text
 open:
-  deterministic Module parameter path/wrapper/Tensor/storage snapshot
+  ordered generic live parameter path/Tensor/storage snapshot
   -> one scalar-objective first-order Engine compile
-  -> one Engine inference-session preparation
+  -> one Engine PreparedExecution preparation
   -> TrainingSession
 
 run:
-  validate the complete module/input/storage view before execution
+  validate the complete live source/input/storage view before execution
   -> reuse the prepared forward/backward execution
   -> validate and detach the objective and every target-indexed gradient occurrence
   -> stage gradient accumulation, parameter values, and optimizer slots
@@ -584,25 +595,36 @@ Rules:
   or simultaneous visibility to readers outside the exclusion is promised. If a participant
   cannot be staged and handed off safely, do not claim exact recovery. Training 0004 must test
   both rejection before publication and the successful next-input handoff. A later Checkpoint
-  adapter may persist only supported, validated participant schemas and must not invent an
-  NN-to-Training dependency.
-- Before opening a session, a caller may explicitly ask Training to copy a fully initialized
-  Module tree's current parameters into a caller-owned shareable Arena. Training validates the
-  complete recursive parameter set and source storage before replacing any Tensor association,
+  adapter may persist only supported, validated participant schemas. NN's live-parameter adapter
+  edge grants no recovery coordination or optimizer ownership.
+- Before opening a session, a caller may explicitly ask Training to copy a generic live source's
+  current parameters into a caller-owned shareable Arena. A zero-byte Arena shareability probe
+  retains its existing failure precedence. Training validates the complete ordered parameter set
+  and source storage before destination parameter allocation or replacing any Tensor association,
   copies exact represented bytes into fresh, aligned, exact-capacity writable native segments,
   and installs the associations in path order without replacing Parameter or Tensor identities.
   Source storage may be heap or native and read-only; duplicate Tensor identities and overlapping
   source parameter regions are rejected. Ordinary installation failure restores earlier exact
   associations. The caller owns both source and destination lifetimes, must keep the destination
-  Arena alive through any session, and must give the copy exclusive Module/storage use. Copying
+  Arena alive through any session, and must give the copy exclusive source/storage use. Membership
+  is revalidated before installation; successful copy preserves the same live source's membership.
+  Copying
   while a session is open is forbidden. This does not change the native-only capture domain of
   `TrainingSession.open` or introduce a backend transfer.
-- A `TrainingSession` borrows exactly one caller-owned Engine and one caller-owned Module tree. It
-  owns exactly one Engine `InferenceSession`, one optimizer-state set, and its counters.
-- Session construction snapshots recursive parameter paths in Module traversal order. Every
-  wrapper, Tensor identity, and non-overlapping storage occurrence remains fixed until close;
-  callers grant exclusive module/parameter-storage use and must not replace bindings or storage
-  associations while the session is open.
+- A `TrainingSession` borrows exactly one caller-owned Engine and one caller-owned live
+  `TrainingParameters` source. It
+  owns exactly one Engine `PreparedExecution`, one optimizer-state set, and its counters. It opens
+  that owner with `Engine.prepare` and executes exact-ID inputs with `Engine.run`; fresh positional
+  Training input admission is not part of this lifecycle. Close releases the prepared owner before
+  the private cotangent-seed arena, preserving failed-open rollback and update transactions.
+- Session construction snapshots nonempty, unique, nonblank paths and exact Tensors in caller
+  encounter order, never sorted; null sources, lists, entries, paths or Tensors reject. The source
+  validates live membership at capture and every complete-view validation site, including before
+  run/state/restore and precommit for accumulation, update and restore. NN adapters additionally
+  retain wrappers. Training owns descriptor, exact storage identity/schema/liveness/accessibility/
+  capacity and finiteness checks. Every Tensor identity and non-overlapping storage occurrence
+  remains fixed until close; callers grant exclusive source/parameter-storage use and must not
+  replace membership, bindings or storage associations while the session is open.
 - The public session supports a scalar `FLOAT32` or `FLOAT64` objective and connected, non-empty
   `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` parameters with fully static, dense-contiguous,
   offset-zero, non-view descriptors and exact-capacity writable native host storage accessible to

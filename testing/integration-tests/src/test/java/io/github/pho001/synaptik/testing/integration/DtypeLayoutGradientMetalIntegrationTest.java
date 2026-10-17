@@ -87,9 +87,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
         }
         var compiled = engine.compile(outputs);
         assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled));
-        try (var session = engine.session(compiled)) {
-          assertResults(session.run(inputs), expected);
-          assertResults(session.run(inputs), expected);
+        try (var session = engine.prepare(compiled)) {
+          assertResults(engine.run(session, inputs), expected);
+          assertResults(engine.run(session, inputs), expected);
         }
       }
     }
@@ -137,12 +137,12 @@ final class DtypeLayoutGradientMetalIntegrationTest {
 
         var compiled = engine.compile(outputs);
         assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled));
-        try (var session = engine.session(compiled)) {
+        try (var session = engine.prepare(compiled)) {
           var runInputs = new ArrayList<>(inputs);
           runInputs.add(falseScalar);
           runInputs.add(falseFloat);
           runInputs.add(selectedBool);
-          assertResults(session.run(runInputs), expected);
+          assertResults(engine.run(session, runInputs), expected);
         }
       }
     }
@@ -171,22 +171,22 @@ final class DtypeLayoutGradientMetalIntegrationTest {
                 canonical(DataType.FLOAT32, new long[] {1, 2, 3}),
                 canonical(DataType.FLOAT32, new long[] {1, 2, 3}),
                 canonical(DataType.FLOAT32, new long[] {1, 2, 4, 5}));
-        try (var reused = engine.session(compiled);
-            var independent = engine.session(compiled)) {
-          assertResults(reused.run(inputs), expected);
-          assertResults(reused.run(inputs), expected);
-          assertResults(independent.run(inputs), expected);
+        try (var reused = engine.prepare(compiled);
+            var independent = engine.prepare(compiled)) {
+          assertResults(engine.run(reused, inputs), expected);
+          assertResults(engine.run(reused, inputs), expected);
+          assertResults(engine.run(independent, inputs), expected);
           try (var executor = Executors.newFixedThreadPool(2)) {
             var first =
                 executor.submit(
                     () -> {
-                      assertResults(reused.run(inputs), expected);
+                      assertResults(engine.run(reused, inputs), expected);
                       return null;
                     });
             var second =
                 executor.submit(
                     () -> {
-                      assertResults(independent.run(inputs), expected);
+                      assertResults(engine.run(independent, inputs), expected);
                       return null;
                     });
             first.get();
@@ -217,9 +217,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
                 List.of("metal"),
                 EngineMixedOwnerTestAccess.partitionOwners(compiled),
                 source + " -> " + target);
-            try (var session = engine.session(compiled)) {
+            try (var session = engine.prepare(compiled)) {
               assertResults(
-                  session.run(List.of(input, seed)),
+                  engine.run(session, List.of(input, seed)),
                   List.of(
                       canonical(target, new long[] {-1, 2}), canonical(source, new long[] {1, 3})));
             }
@@ -245,9 +245,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
               engine.compile(List.of(objective), List.of(seed), List.of(left, right));
           assertEquals(
               List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled), type.name());
-          try (var session = engine.session(compiled)) {
+          try (var session = engine.prepare(compiled)) {
             assertResults(
-                session.run(List.of(left, right, seed)),
+                engine.run(session, List.of(left, right, seed)),
                 List.of(
                     canonical(type, new long[] {75}),
                     canonical(type, new long[] {15, 15}),
@@ -274,9 +274,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
               engine.compile(List.of(loss), List.of(seed), List.of(prediction, target));
           assertEquals(
               List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled), type.name());
-          try (var session = engine.session(compiled)) {
+          try (var session = engine.prepare(compiled)) {
             assertResults(
-                session.run(List.of(prediction, target, seed)),
+                engine.run(session, List.of(prediction, target, seed)),
                 List.of(
                     canonical(type, new long[] {10}),
                     canonical(type, new long[] {2, 4}),
@@ -302,9 +302,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
           var compiled = engine.compile(List.of(maximum), List.of(seed), List.of(input));
           assertEquals(
               List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled), type.name());
-          try (var session = engine.session(compiled)) {
+          try (var session = engine.prepare(compiled)) {
             assertResults(
-                session.run(List.of(input, seed)),
+                engine.run(session, List.of(input, seed)),
                 List.of(
                     canonical(type, new long[] {4}),
                     canonical(type, new long[] {0, 0, 0, 1})));
@@ -331,9 +331,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
         var compiled =
             engine.compile(List.of(objective), List.of(seed), List.of(bfloat16, float16));
         assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled));
-        try (var session = engine.session(compiled)) {
+        try (var session = engine.prepare(compiled)) {
           assertResults(
-              session.run(List.of(bfloat16, float16, seed)),
+              engine.run(session, List.of(bfloat16, float16, seed)),
               List.of(
                   canonical(DataType.FLOAT32, new long[] {23}),
                   canonical(DataType.BFLOAT16, new long[] {4, 5}),
@@ -418,9 +418,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
           var compiled = engine.compile(List.of(objective), List.of(seed), List.of(input));
           assertEquals(
               List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled), type.name());
-          try (var session = engine.session(compiled)) {
+          try (var session = engine.prepare(compiled)) {
             assertResults(
-                session.run(List.of(input, seed)),
+                engine.run(session, List.of(input, seed)),
                 List.of(
                     canonical(type, new long[] {32}),
                     canonical(type, new long[] {16, 10, 6})));
@@ -446,9 +446,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
         var whereCompiled =
             engine.compile(List.of(selected), List.of(whereSeed), List.of(whenTrue));
         assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(whereCompiled));
-        try (var session = engine.session(whereCompiled)) {
+        try (var session = engine.prepare(whereCompiled)) {
           assertResults(
-              session.run(List.of(whereSeed, conditionInput, whenTrue, whenFalse)),
+              engine.run(session, List.of(whereSeed, conditionInput, whenTrue, whenFalse)),
               List.of(
                   canonical(DataType.FLOAT32, new long[] {10, 40}),
                   canonical(DataType.FLOAT32, new long[] {2, 0})));
@@ -466,9 +466,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
         var scatterCompiled =
             engine.compile(List.of(scattered), List.of(scatterSeed), List.of(updates));
         assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(scatterCompiled));
-        try (var session = engine.session(scatterCompiled)) {
+        try (var session = engine.prepare(scatterCompiled)) {
           assertResults(
-              session.run(List.of(scatterSeedInput, dataInput, indicesInput, updatesInput)),
+              engine.run(session, List.of(scatterSeedInput, dataInput, indicesInput, updatesInput)),
               List.of(
                   canonical(DataType.FLOAT32, new long[] {11, 2, 10, 4, 12, 13}),
                   canonical(DataType.FLOAT32, new long[] {3, 1, 5, 6})));
@@ -503,9 +503,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
                 data.scatterNd(permuted, updates));
         var compiled = engine.compile(publications);
         assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled));
-        try (var session = engine.session(compiled)) {
+        try (var session = engine.prepare(compiled)) {
           assertResults(
-              session.run(List.of(data, permuteSource, sliceSource, expandSource, updates)),
+              engine.run(session, List.of(data, permuteSource, sliceSource, expandSource, updates)),
               List.of(
                   canonical(DataType.FLOAT32, new long[] {10, 20}),
                   canonical(DataType.FLOAT32, new long[] {10, 20}),
@@ -528,9 +528,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
             engine.compile(List.of(scattered), List.of(scatterSeed), List.of(updateTarget));
         assertEquals(
             List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(gradientCompiled));
-        try (var session = engine.session(gradientCompiled)) {
+        try (var session = engine.prepare(gradientCompiled)) {
           assertResults(
-              session.run(List.of(scatterData, savedIndexSource, updateTarget, scatterSeed)),
+              engine.run(session, List.of(scatterData, savedIndexSource, updateTarget, scatterSeed)),
               List.of(
                   canonical(DataType.FLOAT32, new long[] {10, 2, 20}),
                   canonical(DataType.FLOAT32, new long[] {1, 3})));
@@ -770,9 +770,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
         Tensor scattered = data.scatterAdd(indices, updates, 0);
         var direct = engine.compile(List.of(scattered));
         assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(direct));
-        try (var session = engine.session(direct)) {
+        try (var session = engine.prepare(direct)) {
           assertResults(
-              session.run(List.of(data, indices, updates)),
+              engine.run(session, List.of(data, indices, updates)),
               List.of(canonical(DataType.FLOAT32, new long[] {31, 2, 33, 4})));
         }
 
@@ -862,7 +862,7 @@ final class DtypeLayoutGradientMetalIntegrationTest {
             List.of(multiPathTarget));
         assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(multiPath));
         IllegalArgumentException multiPathFailure = assertThrows(
-            IllegalArgumentException.class, () -> engine.session(multiPath));
+            IllegalArgumentException.class, () -> engine.prepare(multiPath));
         assertTrue(multiPathFailure.getMessage().contains(
             "Metal node ADD input value state is unavailable or incompatible"));
 
@@ -914,7 +914,7 @@ final class DtypeLayoutGradientMetalIntegrationTest {
             List.of("metal"),
             EngineMixedOwnerTestAccess.partitionOwners(externalBroadcastCompiled));
         RuntimeException externalBroadcastFailure =
-            assertThrows(RuntimeException.class, () -> engine.session(externalBroadcastCompiled));
+            assertThrows(RuntimeException.class, () -> engine.prepare(externalBroadcastCompiled));
         assertTrue(
             externalBroadcastFailure
                 .getMessage()
@@ -950,9 +950,9 @@ final class DtypeLayoutGradientMetalIntegrationTest {
       long[] expectedGradient) {
     var compiled = engine.compile(List.of(output), List.of(seed), List.of(target));
     assertEquals(List.of("metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled));
-    try (var session = engine.session(compiled)) {
+    try (var session = engine.prepare(compiled)) {
       assertResults(
-          session.run(inputs),
+          engine.run(session, inputs),
           List.of(
               canonical(DataType.FLOAT32, expectedForward),
               canonical(DataType.FLOAT32, expectedGradient)));

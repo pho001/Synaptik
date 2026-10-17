@@ -4,6 +4,15 @@
 
 Accepted — 2026-10-11. This record explains the [authoritative Training contract](../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle); it does not replace it.
 
+2026-10-16 signature reconciliation: Training0007 replaces the original Module-taking API below
+with `copyToSharedNative(TrainingParameters, Arena)` under
+[ADR0039](0039-portable-graph-model-persistence.md#necessary-boundary-types-not-a-new-model-hierarchy).
+NN callers pass `module.trainingParameters()`; the same adapter remains valid after copying and
+can open a session because membership does not freeze storage associations. Training now lives
+at `modules/training` without an NN edge. The zero-byte Arena probe, failure precedence, complete
+source validation, represented-bit preservation, association rollback and caller lifetimes below
+remain unchanged; live membership is rechecked before installation.
+
 ## Context
 
 NN's initialized `Linear` creates ordinary heap-backed parameter Tensors. The public

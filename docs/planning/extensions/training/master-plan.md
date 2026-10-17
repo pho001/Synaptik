@@ -2,8 +2,10 @@
 
 ## Goal
 
-Define backend-agnostic optimizer algorithms, sessions, and training-step orchestration over
-parameters declared by `extensions/nn`.
+Maintain backend-agnostic optimizers/session state and generalize parameter admission independently
+of NN. Training0007 implements physical `modules/training` with a small live named-parameter
+boundary consumed by NN; final independent approval and the coordinator gate passed.
+The [cross-area program](../../model-execution-refactor.md) owns cutover phases and gates.
 
 ## Architecture references
 
@@ -31,16 +33,19 @@ parameters declared by `extensions/nn`.
 
 ## Module invariants
 
+Current ownership follows the root/scoped contract enacted by Training0007.
+
 - Training owns algorithms and orchestration, not an execution pipeline.
-- NN owns `Parameter` and `Buffer`; Training consumes declared parameters for optimization.
+- NN owns `Parameter` and `Buffer`; Training consumes generic live `TrainingParameters`.
 - Training intentionally depends on the public Engine facade for one compile/prepared session; it
   never imports Engine internals, Runtime, Prepare, tuning, or concrete backend modules.
-- NN never depends on Training.
+- NN depends on Training only for its live Module admission adapter, not optimizer ownership.
 
 ## Allowed dependencies
 
+Current direct public project edges (later targets remain in the program):
+
 - modules/model
-- extensions/nn
 - the public modules/engine facade
 
 ## Forbidden dependencies
@@ -62,39 +67,74 @@ are Complete; they do not authorize new execution.
 Revised proposed product in [ADR 0038](../../../design/decisions/0038-declarative-model-and-training-resume.md):
 automatic usable-model load and optional owned resume, not snapshot-only Model + TrainingState.
 [ADR 0037](../../../design/decisions/0037-stored-training-checkpoint-adapter.md) is withdrawn Proposed;
-raw state codecs/comparison remain useful. New DAG:
+raw state codecs/comparison remain useful. Earlier proposed DAG (now held):
 `NN0026 Complete → CP0005B → NN0027 semantics → CP0005C persistence → Training0006 → optional CP0006`;
 completed Checkpoint 0005A also precedes the adapter. No cycle or unrelated 0005 prerequisite.
 
-Authorized Training frontier: None. NN0026 and CP0005B are Complete, including final independent
-reviews and coordinator gates. NN0027/CP0005C are Draft rows with no detailed briefs;
-NN owns recurrent semantics, Checkpoint owns versioned persistence. Initial-state/output selection,
-format version and Training gradient admission remain future decisions. Training0006 and adapter
-remain Draft/Proposed until their separate owner bridges and contract cutovers. No optimized
-RecurrentScan/backend BPTT/Data hard dependency is added by this ordering.
-Current scoped lifecycle wins until Training cutover; no Training code/build changes are authorized.
+[ADR0039](../../../design/decisions/0039-portable-graph-model-persistence.md) now records the five
+accepted product choices and approved P2 core/API packet. [CP0005D](../checkpoint/tasks/0005d-portable-graph-persistence-decision.md)
+and Engine0020 remain Complete. Engine0021 is now Complete after independent Class C approval
+and the native-enabled integrated test/Javadoc gate; its brief owns evidence.
+[Training0007](tasks/0007-generic-live-parameter-admission.md) is Complete after Pascal's final
+independent APPROVE and the coordinator's native-enabled test/Javadoc gate. Authorized Training
+frontier: None. Next planning candidate: Compiler0008, still Draft with no brief or launch.
+Later tasks remain Draft. The [program DAG](../../model-execution-refactor.md#phases-and-owner-dag)
+replaces recurrent-first ordering for the new graph path, not the existing flexible declarative API.
 
-Proposed package map: TrainingRecipe and TrainingRun in existing
-`io.github.pho001.synaptik.training`, including a narrow nested checkpoint capture borrow.
-Training owns recipe loss/signature/mode meaning, stable batch placeholders and run resource
-admission/cleanup; the optional adapter owns only persistence composition.
-Recipe excludes duplicate optimizer/groups encoding: saved TrainingState is sole wire authority.
-Initial scalar MSE uses SUM/MEAN; objective FLOAT32/FLOAT64, low predictions explicitly cast as needed.
-Static dense offset-zero signatures reuse one prepared session; no per-batch recompile or RNG advance.
-Inference NN constraints may admit variable leading dimensions separately.
+CURRENT TrainingSession owns Engine PreparedExecution after Engine0021 mechanically changed its
+field/constructor, open to engine.prepare(graph), execution to
+engine.run(prepared, inputs), and closed/admission/cleanup checks to prepared.isClosed/close.
+Keep public TrainingSession: optimizer/accumulation state, counters, busy admission and atomic
+transactions justify it. Preserve live/native/precommit checks, result-before-prepared-before-seed
+cleanup and failed-open rollback. No new Training API or project edge in 0021; Training fixture
+session() accessors remain. Training0007/0008 below are not pulled into this migration.
 
-TrainingRun owns private model/session/shared parameter Arena/placeholders, borrows Engine and
-batch storage, closes session before arenas and attempts all cleanup with retained failures.
-Batch binding uses fixed prototype IDs and borrowed replaceHostStorage/clearHostStorage in finally,
-not fresh IDs/list positions; roles resolve once from compiled metadata. Capture admission spans
-session.state and downstream model capture. No unrestricted model can outlive dead native storage.
-Repeated parameter Tensor identities across recursive paths/overlap reject; repeated forward use
-of one uniquely owned parameter path is distinct.
+Training0007 implementation: modules/training, retaining :extensions:training via projectDir and
+the training Java package, api(Model, Engine) only. This complete generic admission/native-copy
+capability removes NN imports in TrainingSession/TrainingParameter/TrainingParameterStorage,
+adds TrainingParameters and migrates callers. NN's Module.trainingParameters() adapter is included
+in that atomic boundary cutover, removing Training→NN with NN→Training. No retained NN-taking
+overloads inside generic Training and no compatibility project.
 
-Parallel group None, planning base `52733fcfd32d278b651302e308487e0b6c6afa81` reverified before Ready.
-Clean owner implementation and independent targeted Class C review; coordinator owns shared
-documents and once-only source-matched combined test/Javadoc validation. Exact metadata live in
-the brief. No duplicate pure validator, transaction framework, reverse edge or new runner.
+TrainingParameters has ordered Entry(path, Tensor) values and live validateUnchanged().
+The NN adapter rechecks current path/order/wrapper/Tensor membership, not a detached map.
+Training retains native descriptor/storage/finiteness and precommit checks, optimizer algorithms,
+slots/counters, rollback and failure atomicity. copyToSharedNative accepts this live source.
+It is still an explicit pre-session copy into a caller-owned shared Arena; the high-level Model
+must first acquire its own weight leaves, never rebind external borrowed Tensors.
+
+Training0008 then adds fresh non-parameter runValues in precomputed compiled order, using
+Engine0021. Existing run remains exact-identity. No per-batch graph build/copy/compile/prepare.
+At NN0028, configured train(inputs,targets) delegates RESET_AND_STEP over the same owned weights
+used by compute/save. Module.train() remains only a mode toggle. Heap-to-native admission may
+copy once and invalidate old inference preparations before creating the training objective/session.
+Loaded/owned values need no ownership-only duplicate; no automatic optimizer/RNG/cursor resume.
+
+Training0007 depends on reviewed P2 and completed session/native-copy/state capabilities, not
+Engine fresh binding or a codec; it builds on 0021's migrated consumer in serial integration.
+Training0008 depends on 0007 and Engine0021 and uses Engine.runValues, not a removed session API. Serial integration:
+Engine0021 → Training0007 → Compiler0008 → Checkpoint0008 → Training0008 → NN0028.
+The shared-document order is not an invented code dependency. Parallel group None; conflicts are
+shared root/scoped NN/Training lifecycle and consumers. Common base is the coordinator-seeded
+HEAD 9e7e8aa15e0833a1bc91263a7add99a80d88cd92 plus integrated P1/P2/Engine0021 snapshot, reverify
+before launch. Model-execution coordinator owns shared documents and combined validation.
+
+Hold NN0027/CP0005C/Training0006/adapter expansion as optional older proposals, not prerequisites.
+TrainingRecipe/TrainingRun and nested capture borrow remain held, not accepted additions.
+The first new configured graph training API uses a scalar objective builder once; arbitrary Java
+callbacks are not persisted. Existing native/gradient/backend admission remains fail-closed.
+No RecurrentScan BPTT, Data, changing dropout stream or broad Training0005 gate is added.
+
+The 0007 package map moves all existing production types unchanged in package to
+`modules/training/src/main/java/io/github/pho001/synaptik/training`; adds public
+`TrainingParameters` and nested `Entry` there; adds only `Module.trainingParameters()` and its
+private live implementation in `io.github.pho001.synaptik.nn.module`. The brief enumerates types,
+consumers, tests, coordinated authority and documentation scope. No Compiler consumer was found.
+
+Worker validation covers affected modules once; independent targeted Class C review
+reuses successful evidence. Coordinator runs one combined repository checkpoint per integrated
+boundary-changing capability with the existing configured Metal dylib. The 0007 brief records
+approved readiness, implementation and evidence; only its bounded root/scoped cutover is enacted.
 
 ## Task list
 
@@ -114,7 +154,8 @@ the brief. No duplicate pure validator, transaction framework, reverse edge or n
 | [0004](tasks/0004-joint-restore-preflight-and-candidate-commit.md) | Joint restore on an unpublished candidate | Complete | 0003A; Checkpoint 0001 and 0004; CPU 0024 | Bounded same-route in-memory private-candidate restore proved in integration tests; independent Class C review and repository gate passed. No production facade or durable artifact. |
 | 0005 | Broader training capability checkpoint | Draft | 0002A–0004 | Validate broader optimizers, state-path stability, exact-resume claims, documentation, architecture boundaries, and a representative peak-memory measurement of parameter, slot, candidate, rollback, and snapshot storage before claiming large-model support. |
 | [0006](tasks/0006-supported-recipe-and-owned-run.md) | Supported recipe and owned reusable run | Draft | NN0026/0027; CP0005B/0005C; completed Training0004/Checkpoint0005; future owner contract | Proposed Training loss/signature/batch/resource lifecycle; no file I/O. |
-
+| [0007](tasks/0007-generic-live-parameter-admission.md) | Generic live parameter admission and native-copy cutover | Complete | Approved P2; completed 0001C/0002C/0004 and Training-owned CP0005; Engine0021 serial base | Generic admission/native copy, relocation and NN adapter delivered; final independent APPROVE and coordinator gate passed. |
+| 0008 | Fresh-value TrainingSession runs | Draft | 0007; Engine0021 | Bind fresh non-parameter values without changing native/precommit/optimizer atomicity. |
 
 ## Milestones
 
@@ -127,8 +168,8 @@ the brief. No duplicate pure validator, transaction framework, reverse edge or n
 Sessions, SGD/Adam/AdamW groups, detached state, defensive reconstruction and bounded same-route
 private-candidate restore are implemented. Completed evidence lives in linked briefs.
 ModelCheckpoint direct leaf save/re-save and public envelope composition are also Complete.
-NN0026's whole-model semantic specification is implemented; no whole-model persistence, durable
-adapter or supported recipe/run convenience is implemented.
+NN0026's whole-model semantic specification and CP0005B whole-model persistence are implemented;
+no durable adapter or supported recipe/run convenience is implemented.
 
 The user revised checkpoint direction (2026-10-14): normal load returns a usable supported model,
 with inference or automatic Training-owned resume. [ADR 0038](../../../design/decisions/0038-declarative-model-and-training-resume.md)
@@ -140,12 +181,10 @@ Ordinary static unrolling depends on constituent-operation adjoints, not a blank
 
 ## Open questions
 
-- NN matrix/aliases/descriptor skeleton are accepted and implemented; after CP0005B, NN0027
-  decides semantic recurrent reconstruction and CP0005C decides persistence before Training0006. Loss/signature/mode
-  and Training run contracts remain Proposed.
-- Freeze Training-owned model transfer, coherent capture/restore bridge, batch admission and
-  failure cleanup; these are bounded contract decisions before Ready, not a new prerequisite waterfall.
-- Coordinate Proposed Training contract scope under ADR 0038; broader Training0005 is separate.
+- Training0007's plan review and coordinator Ready verification are complete;
+  P2 and the five product choices are accepted. Fresh inputs stay in Draft 0008.
+  Durable recipe/restore/capture remains a
+  separate held proposal; broader Training0005 is not a prerequisite.
 - Preserve existing native-only update domain and duplicate-path/overlap rejection; do not quietly
   split shared parameters or widen backend/gradient capability.
 - Rollback storage remains provisioned; optional rollback policy requires a separate contract
@@ -160,7 +199,7 @@ Ordinary static unrolling depends on constituent-operation adjoints, not a blank
 ## Decisions made
 
 - [ADR 0018](../../../design/decisions/0018-public-training-session-and-sgd-lifecycle.md) selects
-  one borrowed public Engine and one owned reusable inference session rather than a second
+  one borrowed public Engine and, after Engine0021's owner reconciliation, one owned prepared execution rather than a second
   execution pipeline.
 - `Parameter` ownership and train/eval behavior belong to `extensions/nn`.
 - [ADR 0030](../../../design/decisions/0030-exact-training-resume-state-ownership.md) keeps

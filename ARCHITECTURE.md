@@ -48,9 +48,9 @@ Examples:
 ```text
 modules/compiler
 modules/runtime
-backends/cpu
-backends/metal
-extensions/training
+modules/backend/cpu
+modules/backend/metal
+modules/training
 extensions/nn
 ```
 
@@ -96,16 +96,16 @@ ComputationalGraph/
     runtime/
     prepare/
     engine/
-
-  backends/
-    openblas-provider/
-    cpu/
-    metal/
-    cuda/
+    training/
+    backend/
+      openblas-provider/
+      cpu/
+      metal/
+        macos-arm64/
+      cuda/
 
   extensions/
     nn/
-    training/
     checkpoint/
     onnx/
 
@@ -114,15 +114,19 @@ ComputationalGraph/
     benchmarks/
     cli/
 
-  native/
-    metal-macos-arm64/
-    cuda/
-
   testing/
     architecture-tests/
     backend-conformance/
     integration-tests/
 ```
+
+The physical backend group retains separate `:backends:*` Gradle projects through explicit
+settings mappings, including the `:backends` parent at `modules/backend`. The backend-neutral
+`modules/backend-contract` remains separate. CUDA has only its existing marker and merged native
+README scaffold; no executable native CUDA project or platform tree is implied by this layout.
+Training is physically `modules/training`, retaining Gradle project `:extensions:training` through
+an explicit settings mapping and retaining its Java packages. Its owning contract remains in
+the incorporated extensions/training contract below.
 
 ## Core lifecycle
 
@@ -152,19 +156,21 @@ ordinary public API shape is:
 ```java
 try (Engine engine = Engine.standard()) {
     CompiledGraph graph = engine.compile(List.of(output));
-    try (InferenceSession session = engine.session(graph);
-            RunResult result = session.run(List.of(input))) {
+    try (PreparedExecution prepared = engine.prepare(graph);
+            RunResult result = engine.run(prepared, List.of(input))) {
         // Inspect publication metadata or explicitly materialize an occurrence while open.
     }
 }
 ```
 
-The Engine owns compile, prepare, and run orchestration. An inference session owns one prepared
-execution and borrows its Engine's composition lifetime; each run result is a distinct closeable
-owner. Caller input storage remains borrowed for the result lifetime. The lower-level explicit
-`prepare` and `run` methods remain available when a caller needs direct prepared-handle ownership.
-The Training extension's public `TrainingSession` deliberately depends on this public Engine
-lifecycle: it borrows an Engine, owns one inference session, and adds optimizer state and
+The Engine owns compile, prepare, and run orchestration. Its `PreparedExecution` is the sole
+ordinary public prepared owner and borrows its Engine's composition lifetime; each run result is
+a distinct closeable owner. `run` binds exact compiled Tensor identities in arbitrary order;
+`runValues` binds fresh fully static, exact-descriptor values in final compiled input order.
+Caller input storage remains borrowed for the result lifetime. Runtime retains unique authority
+over persistent prepared resources and run leases; the Engine handle adds no second lease protocol.
+The Training module's public `TrainingSession` deliberately depends on this public Engine
+lifecycle: it borrows an Engine, owns one Engine prepared execution, and adds optimizer state and
 parameter-update orchestration without introducing another compiler, preparer, scheduler, runner,
 or backend adapter.
 
@@ -407,7 +413,7 @@ briefs and maintained navigation adopt the exact scoped destinations:
 | Metal | [Backend execution — Metal backend](docs/architecture/contracts/backend-execution.md#metal-backend) |
 | OpenBLAS provider | [Backend execution — OpenBLAS provider](docs/architecture/contracts/backend-execution.md#openblas-provider) |
 | NN stateful composition, semantic description and descriptor-only reconstruction | [Extensions/training — `extensions/nn`](docs/architecture/contracts/extensions-training.md#extensionsnn) |
-| Training | [Extensions/training — `extensions/training`](docs/architecture/contracts/extensions-training.md#extensionstraining) |
+| Training | [Extensions/training — `modules/training`](docs/architecture/contracts/extensions-training.md#modulestraining) |
 | Opaque artifact envelope, values-only APIs, bounded whole-model definition/composition, and optional Training Checkpoint adapter | [Extensions/training — `extensions/checkpoint`](docs/architecture/contracts/extensions-training.md#extensionscheckpoint) |
 | ONNX | [Extensions/training — `extensions/onnx`](docs/architecture/contracts/extensions-training.md#extensionsonnx) |
 | Optimizer/training lifecycle | [Extensions/training — optimizer/training lifecycle](docs/architecture/contracts/extensions-training.md#optimizertraining-lifecycle) |
@@ -430,7 +436,7 @@ This compact routing summary does not replace the linked details:
 | Explicit composition and public lifecycle | Engine |
 | Typed diagnostics | Trace |
 | Stateful modules, parameters, buffers, train/eval behavior, and closed declarative model description/reconstruction | NN; semantic data and state installation only, not persistent encoding or execution |
-| Optimizer algorithms, explicit pre-session native parameter copies, and training orchestration | Training |
+| Generic live parameter admission, optimizer algorithms, explicit pre-session native parameter copies, and training orchestration | Training (`modules/training`, Gradle `:extensions:training`); NN owns its live Module adapter |
 | Model-only checkpoint boundary, bounded opaque artifact envelope, values-only APIs, and canonical whole-model definition/file/envelope composition | Checkpoint; NN retains semantic description, descriptor-only reconstruction and whole-tree state installation; Training resume remains separately proposed |
 | Optional stored Model + TrainingState restoration; broader exact continuation requires all affecting state | Future Training Checkpoint adapter, after its separate gate; each state owner retains validation and restore authority |
 | Exact training continuation claim and cross-owner restore coordination | Each state owner retains its state; the caller stages an unpublished replacement and controls exclusion and publication under the [Training lifecycle contract](docs/architecture/contracts/extensions-training.md#optimizertraining-lifecycle) |
@@ -470,25 +476,26 @@ Composition:
 compiler
 runtime
 prepare
-backends/cpu
-backends/metal
-backends/cuda
+modules/backend/cpu
+modules/backend/metal
+modules/backend/cuda
   -> engine
 ```
 
-Neural-network composition and training use this extension direction:
+Neural-network composition and training use this direction (Training retains Gradle identity
+`:extensions:training` at physical `modules/training`):
 
 ```text
-modules/model
-  -> extensions/nn
+modules/model + public modules/engine facade
+  -> modules/training
 
-modules/model + extensions/nn + public modules/engine facade
-  -> extensions/training
+modules/model + modules/training
+  -> extensions/nn
 
 extensions/nn + public modules/engine facade + modules/model
   -> extensions/checkpoint
 
-extensions/training + extensions/checkpoint
+modules/training + extensions/checkpoint
   -> optional future extensions/training-checkpoint
 ```
 
@@ -502,13 +509,15 @@ Concrete rules:
 - `modules/runtime` must not depend on concrete backends or engine.
 - `modules/prepare` must not depend on concrete backend implementations.
 - Concrete backends must not depend on `modules/engine`.
-- `backends/openblas-provider` must not depend on compiler, planning, runtime, prepare, engine, or Tensor API.
-- `extensions/nn` may depend on `modules/model` but must not depend on `extensions/training`, compiler, runtime, prepare, engine, or concrete backends.
-- `extensions/training` may depend on `extensions/nn`, Model, Compiler/configuration contracts,
-  and the public Engine facade required for its session lifecycle. This explicit Class C edge does
-  not permit a dependency on Runtime, Prepare, tuning, or a concrete backend, use of Engine
-  internals, or a second execution pipeline. Training must not make `extensions/nn` depend on it.
-- `extensions/training` must not depend directly on concrete backend modules.
+- `modules/backend/openblas-provider` must not depend on compiler, planning, runtime, prepare, engine, or Tensor API.
+- `extensions/nn` has exactly the public Model and Training project edges. Its Training edge
+  exposes only live Module parameter admission, not optimizer algorithms or update orchestration;
+  NN has no direct Compiler, Runtime, Prepare, Engine, Checkpoint, or concrete-backend edge.
+- `modules/training` has exactly the public Model and Engine project edges and must not depend
+  on NN. The explicit public Engine composition edge does not permit a dependency on Compiler,
+  Runtime, Prepare, tuning, or a concrete backend, use of Engine internals, or a second execution
+  pipeline.
+- `modules/training` must not depend directly on concrete backend modules.
 - `extensions/checkpoint` is model-only and has exactly three direct public project dependencies:
   `extensions/nn`, `modules/engine`, and `modules/model`. Its typed inspection API and public
   save/load signatures justify the direct Model edge. It uses only Engine's public facade for host
@@ -610,10 +619,11 @@ Architecture tests should enforce:
 - `Operation` does not expose `supportedBackends()`
 - runtime hot path does not use `Operation` or `CompiledNode`
 - planning scoring does not reference concrete kernel classes
-- `extensions/nn` does not depend on training or execution/backend layers
-- `extensions/training` depends on `extensions/nn` and may depend on the public Engine facade, but
-  never directly on Runtime, Prepare, tuning, or concrete backends and never in the reverse
-  direction
+- `extensions/nn` has exactly public Model/Training edges and no direct execution/backend or
+  Checkpoint edge; its live adapter preserves ordered path/wrapper/Tensor membership
+- physical `modules/training` maps to `:extensions:training`, has exactly public Model/Engine
+  edges, and has no NN imports, NN-taking overloads, or test-only NN dependency; the public Engine
+  exception is role-specific and never exempts other inward modules
 - the included `extensions/checkpoint` project has exactly the public NN, Engine, and Model direct
   project edges, no reverse NN/Training/lower-layer edges, and no included Training Checkpoint
   adapter before its separate gate

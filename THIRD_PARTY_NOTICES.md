@@ -8,8 +8,8 @@ or describe a project-wide license.
 The Cephes notice below applies only to the error-function (ERF) coefficient tables and
 piecewise rational approximation in:
 
-- `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuScalarEmitter.java`
-- `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/reference/CpuScalarReferenceKernel.java`
+- `modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuScalarEmitter.java`
+- `modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/reference/CpuScalarReferenceKernel.java`
 
 Synaptik's Java implementations are adapted realizations of that approximation. No Cephes source
 file or third-party dependency is included.

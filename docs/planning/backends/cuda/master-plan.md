@@ -1,5 +1,9 @@
 # CUDA Backend Master Plan
 
+Current source: `modules/backend/cuda`; Gradle identity remains `:backends:cuda`. The
+[merged README](../../../../modules/backend/cuda/README.md) retains the native scaffold only;
+no executable CUDA capability or platform tree is added. Historical tasks remain here.
+
 ## Goal
 
 Implement CUDA capability, backend-owned lowering, kernels, storage, native integration, and prepared execution.

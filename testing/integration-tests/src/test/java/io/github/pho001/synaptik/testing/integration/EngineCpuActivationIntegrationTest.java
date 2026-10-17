@@ -62,8 +62,8 @@ final class EngineCpuActivationIntegrationTest {
     }
 
     private static ByteBuffer run(Engine engine, Tensor input, Tensor output, long size) {
-        try (var session = engine.session(engine.compile(List.of(output)));
-                var result = session.run(List.of(input))) {
+        try (var session = engine.prepare(engine.compile(List.of(output)));
+                var result = engine.run(session, List.of(input))) {
             assertEquals(1, result.resultCount());
             return result.materialize(result.publications().getFirst(), size).bytes();
         }

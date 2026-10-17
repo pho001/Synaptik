@@ -268,7 +268,8 @@ a generic parameter map.
 compile and prepare timings, per-sample iteration counts, raw batch and normalized repeated-run
 samples, minimum/median/maximum summaries, raw one-shot totals, stable FNV-1a checksums, preferred
 species bits/lanes, loaded-class hash, and evidence metadata. Execution uses public
-`Engine.standard()`, compilation, and a reusable `InferenceSession`; timed repeated samples exclude
+`Engine.standard()`, compilation, one reusable `PreparedExecution`, and explicit
+`engine.run(prepared, inputs)` calls; timed repeated samples exclude
 host export and checksum work. The checksum is materialized separately and any variation fails the
 run.
 
@@ -286,7 +287,7 @@ Evidence also requires explicit `benchmarkBaseRevision`, executable-source tree,
 and source-hash properties, fork/order/seed properties, CPU identity/features, and exact portable
 worker, materialization, and OpenBLAS policy values. It refuses to run when any is absent. CPU
 0010M's manifest retains the exact structured commands:
-`backends/cpu/evidence/cpu-0010m-defaults/manifest.json`.
+`modules/backend/cpu/evidence/cpu-0010m-defaults/manifest.json`.
 
 Public Engine intentionally hides backend-private selected-plan facts. Schema 3 records that
 limitation and sets `eligibleForProductionDecision=false`; its current reports can validate the
@@ -332,8 +333,8 @@ oracle. Schema 2 reports the complete sentinel list and every formula/conversion
 Build the native bridge, then run the bounded smoke profile:
 
 ```bash
-./native/metal-macos-arm64/build.sh
-SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" \
+./modules/backend/metal/macos-arm64/build.sh
+SYNAPTIK_METAL_TEST_LIBRARY="$PWD/modules/backend/metal/macos-arm64/build/libsynaptik_metal_foundation.dylib" \
   ./gradlew -q :tools:benchmarks:metalBenchmark -Pprofile=smoke
 ```
 
@@ -366,7 +367,7 @@ Baseline uses and validates
 required fact explicitly:
 
 ```bash
-SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" \
+SYNAPTIK_METAL_TEST_LIBRARY="$PWD/modules/backend/metal/macos-arm64/build/libsynaptik_metal_foundation.dylib" \
   ./gradlew -q :tools:benchmarks:metalBenchmark -Pprofile=baseline \
   -PbenchmarkBaseRevision=<revision> \
   -PbenchmarkSourceIdentity=<identity> \

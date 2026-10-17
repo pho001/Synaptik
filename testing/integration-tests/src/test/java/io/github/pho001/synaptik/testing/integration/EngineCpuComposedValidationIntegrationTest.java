@@ -26,14 +26,14 @@ final class EngineCpuComposedValidationIntegrationTest {
             var input = tensor(DataType.FLOAT32, Shape.of(2), storage);
             for (boolean composed : List.of(false, true)) {
                 Tensor output = (composed ? input.exp() : input).softmax(0);
-                try (var session = engine.session(engine.compile(List.of(output)))) {
+                try (var session = engine.prepare(engine.compile(List.of(output)))) {
                     for (int iteration = 0; iteration < 2; iteration++) {
                         storage.setAtIndex(ValueLayout.JAVA_FLOAT, 0, composed ? 0 : 1);
                         storage.setAtIndex(ValueLayout.JAVA_FLOAT, 1,
                                 composed ? 1000 : Float.POSITIVE_INFINITY);
-                        assertThrows(IllegalArgumentException.class, () -> session.run(List.of(input)));
+                        assertThrows(IllegalArgumentException.class, () -> engine.run(session, List.of(input)));
                         storage.setAtIndex(ValueLayout.JAVA_FLOAT, 1, composed ? 0 : 1);
-                        try (var result = session.run(List.of(input))) {
+                        try (var result = engine.run(session, List.of(input))) {
                             var bytes = result.materialize(result.publications().getFirst(), 8).bytes();
                             assertEquals(.5f, bytes.getFloat());
                             assertEquals(.5f, bytes.getFloat());
@@ -68,14 +68,14 @@ final class EngineCpuComposedValidationIntegrationTest {
             for (DataType type : List.of(DataType.INT32, DataType.INT64)) {
                 Tensor output = logits.categoricalCrossEntropyWithLogits(source.cast(type),
                         1, LossReduction.NONE);
-                try (var session = engine.session(engine.compile(List.of(output)))) {
+                try (var session = engine.prepare(engine.compile(List.of(output)))) {
                     for (int iteration = 0; iteration < 2; iteration++) {
                         targetStorage.setAtIndex(ValueLayout.JAVA_FLOAT, 0, 1);
                         targetStorage.setAtIndex(ValueLayout.JAVA_FLOAT, 1, 3);
                         assertThrows(IndexOutOfBoundsException.class,
-                                () -> session.run(List.of(logits, source)));
+                                () -> engine.run(session, List.of(logits, source)));
                         targetStorage.setAtIndex(ValueLayout.JAVA_FLOAT, 1, 2);
-                        try (var result = session.run(List.of(logits, source))) {
+                        try (var result = engine.run(session, List.of(logits, source))) {
                             var bytes = result.materialize(result.publications().getFirst(), 8).bytes();
                             assertEquals((float) Math.log(3), bytes.getFloat(), 1e-6f);
                             assertEquals((float) Math.log(3), bytes.getFloat(), 1e-6f);
@@ -98,8 +98,8 @@ final class EngineCpuComposedValidationIntegrationTest {
     }
 
     private static float[] run(Engine engine, Tensor output, List<Tensor> inputs, int count) {
-        try (var session = engine.session(engine.compile(List.of(output)));
-                var result = session.run(inputs)) {
+        try (var session = engine.prepare(engine.compile(List.of(output)));
+                var result = engine.run(session, inputs)) {
             var bytes = result.materialize(result.publications().getFirst(),
                     count * (long) Float.BYTES).bytes();
             float[] values = new float[count];

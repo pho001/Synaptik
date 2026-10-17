@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.engine;
 
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import java.util.List;
 import java.util.Objects;
 
@@ -11,7 +12,11 @@ import java.util.Objects;
  * lifetime to Runtime's non-waiting lease protocol. Each admitted run still receives isolated
  * Runtime state. Closing the handle does not close a completed run result or detached host value;
  * those values retain their own documented lifetimes. Originating compile metadata remains
- * readable after closure.</p>
+ * readable after closure. {@link Engine#run} binds exact IDs in arbitrary order, while
+ * {@link Engine#runValues} binds fresh fully static exact-descriptor values in compiled order.
+ * Both retrieve/check this exact inward delegate before inspecting inputs; Runtime alone admits
+ * the later run lease. Positional geometry is precomputed without rejecting preparations that
+ * remain usable by identity-based run.</p>
  */
 public final class PreparedExecution implements AutoCloseable {
     private final Engine owner;
@@ -19,6 +24,7 @@ public final class PreparedExecution implements AutoCloseable {
     private final io.github.pho001.synaptik.runtime.execution.PreparedExecution execution;
     private final List<EngineBackendComposition> inputAdapters;
     private final List<EngineBackendComposition> publicationAdapters;
+    private final long[] valueElementSpans;
     private boolean closed;
     private boolean cleanupComplete;
     private Throwable closeFailure;
@@ -46,6 +52,23 @@ public final class PreparedExecution implements AutoCloseable {
         this.execution = Objects.requireNonNull(execution, "execution");
         this.inputAdapters = List.copyOf(inputAdapters);
         this.publicationAdapters = List.copyOf(publicationAdapters);
+        valueElementSpans = new long[compiledGraph.inputs().size()];
+        for (int index = 0; index < valueElementSpans.length; index++) {
+            var descriptor = compiledGraph.inputs().get(index).descriptor();
+            long span = -1;
+            if (descriptor.shape().isFullyStatic()) {
+                try {
+                    // Canonical strides as well as element/byte spans must be representable.
+                    var layout = descriptor.layout().orElseGet(
+                            () -> LayoutDescriptor.contiguous(descriptor.shape()));
+                    span = layout.referencedElementSpan();
+                    Math.multiplyExact(span, descriptor.dataType().byteWidth());
+                } catch (ArithmeticException invalidGeometry) {
+                    span = -1;
+                }
+            }
+            valueElementSpans[index] = span;
+        }
         if (compiledGraph.owner() != owner) {
             throw new IllegalArgumentException("compiled graph belongs to another engine");
         }
@@ -58,6 +81,23 @@ public final class PreparedExecution implements AutoCloseable {
      */
     public CompiledGraph compiledGraph() {
         return compiledGraph;
+    }
+
+    /**
+     * Returns precomputed positional geometry without restricting identity-run preparation.
+     *
+     * @param index zero-based final compiled input position
+     * @return non-negative minimum physical element capacity for a fresh value
+     * @throws IllegalArgumentException if static canonical/referenced element or byte geometry
+     *     could not be proved during preparation
+     */
+    long valueElementSpan(int index) {
+        long span = valueElementSpans[index];
+        if (span < 0) {
+            throw new IllegalArgumentException(
+                    "input requires fully static checked element/byte geometry at position " + index);
+        }
+        return span;
     }
 
     Engine owner() {

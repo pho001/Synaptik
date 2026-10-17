@@ -18,19 +18,18 @@ import java.util.Objects;
  * adapters. {@link #standard()} constructs one fresh CPU integration through that same
  * composition path.</p>
  *
- * <p>The ordinary surface compiles Tensor expressions and can open a public
- * {@link InferenceSession} that owns one immutable prepared recipe for repeated or concurrent
- * runs. Sessions borrow this Engine's composition lifetime, accept current logical input Tensors
- * by identity in arbitrary order, and return publication leases whose exact occurrences can be
- * materialized explicitly as detached immutable host values. The lower-level public
- * compile/prepare/run lifecycle remains available for direct prepared-handle ownership. A
+ * <p>The ordinary surface compiles Tensor expressions and prepares one explicit
+ * {@link PreparedExecution} owner for repeated or concurrent runs. {@link #run} accepts exact
+ * compiled input identities in arbitrary order; {@link #runValues} accepts fresh exact-descriptor
+ * values in final compiled order. Each run returns independent publication leases whose exact
+ * occurrences can be materialized as detached immutable host values. A
  * one-shot compute convenience discovers reachable expression leaves, then performs fresh
  * compilation, preparation, execution, complete publication and aggregate-byte preflight,
  * ordered host materialization, and cleanup in one synchronous call. Forward publications retain
  * requested-output identity; gradient publications retain explicit target identity and position
  * even when roles alias inwardly. A one-shot scalar-objective backward convenience accepts an
  * explicit target list and returns detached objective and target-aligned gradient values without
- * mutating any Tensor. Implicit targets remain outside the current surface. Sessions and prepared
+ * mutating any Tensor. Implicit targets remain outside the current surface. Prepared
  * handles are explicit closeable outward owners; Engine closure is the final safety boundary for
  * owners a caller leaves open. Lifecycle observation and closure are thread-safe and inherit the
  * owned lifecycle's idempotent, failure-retaining semantics.</p>
@@ -348,35 +347,6 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
-     * Opens one reusable inference session for an already compiled graph.
-     *
-     * <p>Construction validates exact Engine ownership, prepares the graph once, and publishes a
-     * session that owns that one prepared execution. The Engine is borrowed rather than
-     * transferred and remains the composition and final lifecycle owner. The graph fixes input
-     * membership and Compiler occurrence order plus all forward and gradient publication
-     * occurrences. Each session run supplies current matching Tensor storage associations and
-     * receives the existing independently closeable {@link RunResult}.</p>
-     *
-     * <p>Closing the session rejects later runs and closes its preparation without waiting for an
-     * already leased Runtime run. Engine closure waits for admitted Engine operations, closes
-     * retained results first, then sessions and standalone prepared handles in their shared
-     * reverse preparation-publication order, and finally backend composition. Construction, not
-     * run, performs Compiler-independent preparation, backend analysis, schedule construction,
-     * adapter capture, and registry lookup.</p>
-     *
-     * @param compiledGraph non-null compile handle created by this exact Engine
-     * @return a fresh non-null closeable session owning one reusable preparation
-     * @throws NullPointerException if {@code compiledGraph} is {@code null}
-     * @throws IllegalArgumentException if ownership or inward preparation is invalid
-     * @throws IllegalStateException if Engine closure has begun
-     * @throws RuntimeException if inward preparation reports another unchecked failure
-     * @throws Error if inward preparation reports a fatal failure
-     */
-    public InferenceSession session(CompiledGraph compiledGraph) {
-        return delegate.openInferenceSession(this, compiledGraph);
-    }
-
-    /**
      * Performs one bounded two-phase autotuning transaction for an eligible single-partition
      * CPU or Metal plan and returns a fresh production preparation, or an explicitly permitted
      * same-owner safe heuristic fallback.
@@ -422,6 +392,10 @@ public final class Engine implements AutoCloseable {
      *
      * <p>The input list may use any order. Associations are snapshotted once after complete
      * logical validation; caller storage must remain usable until the returned result closes.
+     * Engine admission precedes prepared nullness/exact ownership and exact inward delegate
+     * retrieval/close checking, which precede input inspection. This intentionally changes former
+     * direct-run precedence: closed preparation wins null/malformed/dead inputs with
+     * {@code prepared execution is closed} and zero borrows; closed Engine still wins all arguments.
      * A handle whose close has begun rejects the run. A run already admitted by Runtime may
      * complete while handle close returns without waiting; its lease performs any deferred
      * persistent-resource cleanup.</p>
@@ -443,14 +417,37 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
-     * Runs one session-owned preparation after checking its close gate before caller input state.
+     * Runs fresh Tensor values in {@link CompiledGraph#inputs()} order on one preparation.
      *
-     * @param preparedExecution non-null exact hidden preparation owned by the session
-     * @param inputs caller inputs inspected only after Engine and prepared admission
-     * @return a fresh non-null publication lease
+     * <p>Unlike {@link #run}, Tensor identities need not match. The count and full descriptors
+     * must match exactly, including fully static shape, data type, layout presence/geometry and
+     * requiresGrad. One value may fill multiple matching slots. All storage associations are
+     * snapshotted once and validated before any borrow. Resolved layouts use checked referenced
+     * spans; absent layouts use checked canonical static element/byte geometry. Unknown or
+     * overflowing geometry rejects without restricting the identity-based run path.</p>
+     *
+     * <p>Admission checks Engine closure, prepared nullness/exact ownership and the exact inward
+     * delegate's close gate before inspecting values. Closed preparation therefore wins invalid
+     * inputs with {@code prepared execution is closed} and no borrowing. Runtime alone arbitrates
+     * a later close/run race. Runs reuse direct prepared adapters without compilation, preparation,
+     * provider lookup, prototype mutation or per-element binding work; concurrent calls have
+     * isolated state. Caller storage must remain usable and free from conflicting mutation until
+     * result close. Results survive prepared close while this Engine is open; detached values
+     * outlive every owner.</p>
+     *
+     * @param preparedExecution non-null prepared handle created by this exact Engine
+     * @param values non-null exact-count list of non-null values in final compiled input order
+     * @return a fresh non-null independently closeable publication lease
+     * @throws NullPointerException if a handle, list or indexed value is null after admission
+     * @throws IllegalArgumentException if ownership, count, descriptor, static geometry, storage
+     *     type/capacity or inward binding is invalid
+     * @throws IllegalStateException if Engine/prepared closure has begun, storage is absent, dead
+     *     or inaccessible, or inward execution state is invalid
+     * @throws RuntimeException if execution, publication or cleanup reports another unchecked failure
+     * @throws Error if execution, publication or cleanup reports a fatal failure
      */
-    RunResult runSession(PreparedExecution preparedExecution, List<Tensor> inputs) {
-        return delegate.runSessionOrdinary(this, preparedExecution, inputs);
+    public RunResult runValues(PreparedExecution preparedExecution, List<Tensor> values) {
+        return delegate.runValuesOrdinary(this, preparedExecution, values);
     }
 
     /**
@@ -491,7 +488,7 @@ public final class Engine implements AutoCloseable {
      * leaves are bound and in what order. No Tensor or provenance state is retained after the
      * synchronous call. The call does not cache or reuse a compiled or prepared recipe; callers
      * performing ordinary repeated runs or selective materialization should use {@link
-     * #compile(List)}, {@link #session(CompiledGraph)}, {@link InferenceSession#run(List)}, and
+     * #compile(List)}, {@link #prepare(CompiledGraph)}, {@link #run(PreparedExecution, List)}, and
      * {@link RunResult#materialize}. Direct {@link #prepare(CompiledGraph)} ownership remains
      * available when the lower-level prepared handle itself is required.</p>
      *
@@ -608,7 +605,7 @@ public final class Engine implements AutoCloseable {
      * {@link io.github.pho001.synaptik.compiler.FunctionalGradientRequest.DisconnectedPolicy#ERROR};
      * it alone validates scalar, floating, gradient, connectivity, and derivative semantics.
      * Callers needing explicit seeds, multiple outputs, another policy, or reuse should use the
-     * ordinary compile overload followed by {@link #session(CompiledGraph)}; the full request
+     * ordinary compile overload followed by {@link #prepare(CompiledGraph)}; the full request
      * surface remains on {@link AdvancedEngine}.</p>
      *
      * <p>The limit covers the canonical bytes of the objective and every gradient, not inputs,
@@ -665,8 +662,8 @@ public final class Engine implements AutoCloseable {
     /**
      * Closes the owned composition through its concurrent, idempotent lifecycle protocol.
      * The first close rejects new work, waits for admitted Engine operations, then attempts all
-     * retained results in reverse run-publication order, all retained inference sessions and
-     * standalone prepared handles in reverse preparation-publication order, and the backend
+     * retained results in reverse run-publication order, all retained ordinary and
+     * advanced prepared handles in reverse preparation-publication order, and the backend
      * composition. Repeated and concurrent callers wait for that attempt and observe its exact
      * retained first failure, if any.
      *

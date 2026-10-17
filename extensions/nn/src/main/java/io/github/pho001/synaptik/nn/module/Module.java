@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.nn.module;
 
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.training.TrainingParameters;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -448,10 +449,9 @@ public abstract class Module {
      * Java call stack and has no arbitrary depth limit. Defensive identity tracking rejects a
      * malformed cycle or shared child before any snapshot is returned.</p>
      *
-     * <p>The downstream public {@code TrainingSession} uses one complete snapshot's path and
-     * wrapper order as its parameter-to-gradient and optimizer-state namespace. The snapshot
-     * itself grants no locking or stable-binding lifetime; the Training owner separately requires
-     * exclusive access until close.</p>
+     * <p>{@link #trainingParameters()} adapts this order to Training's live admission boundary.
+     * This structural snapshot alone grants no stable-binding validation or locking; the live
+     * adapter re-traverses the owner, and the caller excludes mutation until session close.</p>
      *
      * @return an unmodifiable insertion-ordered snapshot from relative parameter path to exact
      *     parameter; never {@code null}
@@ -462,6 +462,80 @@ public abstract class Module {
         Map<String, Parameter> result = new LinkedHashMap<>();
         collectParameters(result);
         return immutableSnapshot(result);
+    }
+
+    /**
+     * Captures live ordered parameter membership for explicit native copy or a training session.
+     *
+     * <p>The private adapter retains this root, paths, exact wrappers and exact current Tensors.
+     * Every validation re-traverses the root and rejects count, order, path, wrapper or Tensor
+     * changes. It does not freeze storage associations or values: a successful explicit native
+     * copy preserves this adapter and the same adapter can subsequently open a session. Training
+     * owns storage, descriptor and finiteness checks. Buffers and modes are not membership.</p>
+     *
+     * <p>Creation and validation require caller exclusion from conflicting declaration, loading,
+     * replacement and traversal. No locking, optimizer state or execution owner is added.</p>
+     *
+     * @return a fresh non-null live source with immutable entries in recursive traversal order;
+     *     an empty module yields an empty source, which Training rejects at admission
+     * @throws IllegalStateException if any reachable reservation is unbound or traversal finds
+     *     a repeated module identity
+     */
+    public final TrainingParameters trainingParameters() {
+        return new LiveTrainingParameters(this);
+    }
+
+    /** Live membership only; storage associations and bytes remain Training's responsibility. */
+    private static final class LiveTrainingParameters implements TrainingParameters {
+        private final Module root;
+        private final List<Parameter> wrappers;
+        private final List<Entry> entries;
+
+        /**
+         * Captures exact ordered membership under caller exclusion.
+         *
+         * @param root non-null owned tree root retained for every later validation
+         * @throws IllegalStateException if complete traversal is unavailable
+         */
+        private LiveTrainingParameters(Module root) {
+            this.root = root;
+            Map<String, Parameter> discovered = root.parametersRecursively();
+            this.wrappers = List.copyOf(discovered.values());
+            List<Entry> snapshot = new ArrayList<>(discovered.size());
+            discovered.forEach((path, wrapper) -> snapshot.add(new Entry(path, wrapper.value())));
+            this.entries = List.copyOf(snapshot);
+        }
+
+        /** @return the immutable exact ordered path/Tensor membership captured at creation */
+        @Override
+        public List<Entry> entries() {
+            return entries;
+        }
+
+        /**
+         * Re-traverses the live owner without inspecting storage associations or values.
+         *
+         * @throws IllegalStateException if live membership differs or traversal is unavailable
+         */
+        @Override
+        public void validateUnchanged() {
+            Map<String, Parameter> current = root.parametersRecursively();
+            if (current.size() != entries.size()) {
+                throw new IllegalStateException("module parameter structure changed");
+            }
+            int index = 0;
+            for (Map.Entry<String, Parameter> actual : current.entrySet()) {
+                Entry expected = entries.get(index);
+                if (!expected.path().equals(actual.getKey())
+                        || wrappers.get(index) != actual.getValue()) {
+                    throw new IllegalStateException("module parameter structure changed");
+                }
+                if (expected.tensor() != actual.getValue().value()) {
+                    throw new IllegalStateException("parameter Tensor binding changed: " + expected.path());
+                }
+                index++;
+            }
+        }
     }
 
     /**

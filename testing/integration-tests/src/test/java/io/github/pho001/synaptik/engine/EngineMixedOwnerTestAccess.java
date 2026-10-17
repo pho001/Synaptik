@@ -137,14 +137,13 @@ public final class EngineMixedOwnerTestAccess {
      * Snapshots actual CPU/Metal transfer recipes in schedule order, not inferred graph edges.
      * Reflection remains test-local and only reads the recipe's retained direction and descriptor.
      *
-     * @param session non-null open session whose immutable recipe is inspected without running it
+     * @param session non-null open prepared owner whose immutable recipe is inspected without running it
      * @return immutable ordered facts, empty for a schedule with no transfers
      * @throws AssertionError if a transfer is not the expected CPU/Metal recipe
-     * @throws IllegalStateException if the session's prepared owner is closed
+     * @throws IllegalStateException if the prepared owner is closed
      */
-    public static List<TransferFact> preparedTransfers(InferenceSession session) {
-        PreparedExecution prepared = (PreparedExecution) field(
-                Objects.requireNonNull(session, "session"), "preparedExecution");
+    public static List<TransferFact> preparedTransfers(PreparedExecution session) {
+        PreparedExecution prepared = Objects.requireNonNull(session, "session");
         var facts = new ArrayList<TransferFact>();
         int partitionIndex = 0;
         for (var step : prepared.execution().schedule().steps()) {

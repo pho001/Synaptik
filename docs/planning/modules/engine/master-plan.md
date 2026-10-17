@@ -21,23 +21,28 @@ Focused explanations and decisions:
 
 ## Lifecycle position
 
+Current API after Engine0021:
+
 ```text
-Tensor outputs -> Engine compile handle -> InferenceSession with one prepared execution
-caller inputs  -> synchronous session run -> leased RunResult
+Tensor outputs -> Engine compile handle -> Engine PreparedExecution
+caller inputs  -> Engine.run or Engine.runValues -> leased RunResult
 publication    -> explicit materialization -> detached HostTensorValue
 ```
 
-Engine owns composition and outward handles. An inference session borrows its Engine and owns one
-existing ordinary prepared handle. Prepare constructs the accepted recipe; Runtime owns the inward
-`PreparedExecution`, its run lease, and physical prepared-resource lifetime. Direct standalone
-prepared ownership, one-shot compute/backward, and representative tuning use the same boundaries.
+Engine owns composition and outward handles. Its PreparedExecution owns one inward preparation.
+Prepare constructs the recipe; Runtime owns the inward PreparedExecution, its unique run lease,
+and physical prepared-resource lifetime. One-shot compute/backward and tuning use the same boundary.
 
 ## Scope and non-goals
 
 Engine owns standard and advanced composition, compilation/preparation orchestration, owner-bound
-handles and reusable inference sessions, typed input binding and publication metadata, explicit
+prepared handles, typed input binding and publication metadata, explicit
 host materialization, one-shot compute/backward workflows, and bounded optional model-autotuning
 composition.
+
+Engine0021 delivered existing Engine PreparedExecution as the sole ordinary public prepared owner;
+Engine.prepare/run/runValues replaced the thin session factory/type. Runtime's prepared owner,
+advanced lifecycle, TrainingSession and detached results remain. No replacement facade.
 
 Engine does not implement kernels, lowering, backend storage, graph optimizer passes, Runtime
 state, a service locator, reflective discovery, Tensor-owned execution/backward state, or hidden
@@ -51,11 +56,10 @@ backend selection during a run.
   ownership of opened CPU and/or Metal integrations and prepares CPU-only, Metal-only, or supported
   mixed-owner schedules through the same shared Prepare transaction. `AdvancedEngine` remains a
   supported CPU-only lower-level integration boundary.
-- Ordinary compile/session/run and direct compile/prepare/run signatures expose Engine/Model
+- Ordinary compile/prepare/run/runValues signatures expose Engine/Model
   values, not Compiler, Prepare, Runtime, or backend SPI identities. Builder exposes CPU/Metal
   integration identities only at the explicit construction boundary.
-- An inference session is the explicit closeable outward owner of one hidden ordinary prepared
-  handle. Standalone ordinary and advanced prepared handles expose the same direct ownership. Each
+- Ordinary and advanced prepared handles expose direct closeable ownership. Each
   prepared owner controls exactly one inward Runtime execution; closing it unregisters and closes
   that execution once without closing an already returned result.
 - Runtime remains the unique run-lease authority. Engine synchronizes outward admission and
@@ -66,7 +70,7 @@ backend selection during a run.
   preparation is closed exactly once. A selected standalone preparation has one published Engine
   owner.
 - Engine shutdown waits for admitted operations, closes retained results in reverse
-  run-publication order, then sessions and standalone prepared handles in their shared reverse
+  run-publication order, then ordinary and advanced prepared handles in their shared reverse
   preparation-publication order, and finally integrations in reverse registration order.
 - Materialization borrows one authenticated publication only while its result is open and returns
   a detached immutable value. Engine never exposes a physical representation or backend handle.
@@ -74,9 +78,12 @@ backend selection during a run.
 ## Dependencies
 
 Current allowed direct dependencies are `modules/model`, `modules/planning`, `modules/compiler`,
-`modules/runtime`, `modules/prepare`, `modules/config`, `modules/trace`, `backends/cpu`,
-`backends/metal`, `backends/cuda`, and `tools/tuning`. Each edge exists only for a contract named
-by composition. No inward module or concrete backend may depend on `modules/engine`.
+`modules/runtime`, `modules/prepare`, `modules/config`, `modules/trace`, `modules/backend/cpu`,
+`modules/backend/metal`, `modules/backend/cuda`, and `tools/tuning`. Each edge exists only for a contract named
+by composition. No inward semantic role or concrete backend may depend on `modules/engine`.
+A future physical modules/training or modules/checkpoint directory would not make that outward
+owner an inward role; its separately approved dependency contract, not a path prefix, must govern.
+Current edges remain until coordinated cutover.
 
 ## Package map
 
@@ -85,7 +92,7 @@ not a catch-all service registry.
 
 | Surface | Types and role |
 |---|---|
-| Ordinary public lifecycle | `Engine`, nested single-use `Engine.Builder`, `CompiledGraph`, closeable `InferenceSession`, closeable standalone `PreparedExecution`, closeable `RunResult`, detached `HostTensorValue`, and `ScalarObjectiveBackwardResult`. |
+| Ordinary public lifecycle | `Engine`, nested single-use `Engine.Builder`, `CompiledGraph`, closeable `PreparedExecution`, closeable `RunResult`, detached `HostTensorValue`, and `ScalarObjectiveBackwardResult`. |
 | Public autotuning | `ModelAutotuningRequest` and `ModelAutotuningPreparation`, which publish one retained ordinary prepared handle plus outcome/evidence. |
 | Advanced public lifecycle | `AdvancedEngine`, `AdvancedCompiledGraph`, closeable `AdvancedPreparedExecution`, and closeable `AdvancedRunResult`. |
 | Package-private composition | `EngineBackendComposition`, CPU and Metal realizations, the ordered backend registry, selected-adapter preparation result, representative execution/correctness machinery, lifecycle registries, and cleanup arbitration. |
@@ -116,6 +123,32 @@ not a catch-all service registry.
 | [0017](tasks/0017-reusable-inference-session-api.md) | Reusable inference session API | Complete | 0016 | Added the independently reviewed thin public session that prepares one owner-bound graph once and delegates repeated/concurrent input binding, run, result, materialization, and close behavior to the existing lifecycle without another compiler, scheduler, runner, or result. |
 | [0018](tasks/0018-explicit-numerical-profile-propagation-spine.md) | Explicit numerical-profile propagation spine | Complete | Model 0027; Config 0006; current Planning/Compiler/Prepare/Engine contracts; CPU and Metal fail-closed migration points | Delivered the independently approved atomic cutover across profile-qualified Planning queries, Compiler artifacts, Prepare projection, Engine/AdvancedEngine capture, every caller, and profile-keyed backend plans/caches while keeping Runtime/Trace profile-free and relaxed capability disabled. |
 | [0019](tasks/0019-lifecycle-and-mixed-owner-test-repair.md) | Lifecycle and mixed-owner regression repair | Complete | 0016–0018; Metal 0077; project review | Make copy/close tests deterministic, restore real heterogeneous transfer fixtures, and correct public tuning Javadoc. |
+| [0020](tasks/0020-backend-native-layout-relocation.md) | Mechanical backend/native layout cutover | Complete | CP0005D Complete; user-approved layout | Delivered parent/child mappings, coordinated layout/consumers and native package/device checks; independent review and combined test/Javadoc passed, identities/packages/kernels/ABI preserved. |
+| [0021](tasks/0021-prepared-execution-fresh-value-binding.md) | Sole ordinary prepared owner and fresh-value binding | Complete | Complete 0017/0019/0020; reviewed P2 and approved simplification | Removed session API/delegates, migrated consumers, added Engine.runValues; independent approval and native-enabled test/Javadoc gate passed. |
+
+## Model-execution program and immediate frontier
+
+The [P2 program](../../model-execution-refactor.md) incorporates the five accepted product choices.
+Engine0021 removed InferenceSession/Engine.session and delivered
+Engine.runValues(prepared, values) in compiled order without mutating prototypes. Existing
+Engine.run retains exact-ID/arbitrary-order matching. Both adopt former session-strength admission:
+Engine first, prepared null/owner/closed gate, then inputs; direct run's error precedence changes.
+No new public type; Engine prepared wrapper versus Runtime unique lease boundary stays intentional.
+
+Authorized Engine frontier: None. Engine0021 is Complete after independent Class C approval and
+the coordinator's native-enabled integrated test/Javadoc gate. Its brief owns evidence. Training,
+benchmark, reflective hooks and integration consumers use direct prepared ownership. No generic
+Training/Checkpoint relocation or cold codec was added by Engine0021. Training0007 is Complete
+after final independent APPROVE and the coordinator gate. Authorized Training frontier: None.
+Next planning candidate: Compiler0008, still Draft with no brief or launch; later tasks remain Draft.
+Shared-document owner:
+model-execution coordinator; parallel group None.
+
+Engine0020 is Complete on 2026-10-16: backend/native layout integrated with parent-and-child
+projectDir mappings, independent review, native package/device checks and combined test/Javadoc.
+The :backends:* identities, packages, kernels, ABI and dependency direction remain unchanged;
+Training0007 now relocates Training only; Checkpoint has not moved. Generic modules require exact role-aware architecture
+checks, not blanket directory exemptions. Completed evidence is not rerun for P2 planning.
 
 ## Milestones and current frontier
 
@@ -132,19 +165,20 @@ not a catch-all service registry.
   required Class C and narrow documentation review sequence.
 - Historical numerical-profile spine 0018 is Complete; Model 0032 removed its profile API and
   propagation. Current lifecycle is profile-free. Audit repair 0019 is Complete.
+- Engine0021 is Complete: prepared-only ordinary ownership, positional fresh inputs and migrated consumers.
 
 ## Live risks and gates
 
 - Preserve 0016's exact owner-indexed representation assignment, explicit transfer preflight,
   shared Prepare transaction, and immutable direct-reference schedule. Registration of CPU and
   Metal must not imply fallback, discovery, conversion, or an unsupported transfer path.
-- Preserve one outward owner for every prepared execution: session-hidden or standalone. Close all
+- Preserve one outward registered prepared handle for every prepared execution. Close all
   temporary, losing, and rollback preparations exactly once. Engine shutdown must retain the
-  results-first, sessions-plus-standalone-prepared-handles second, integrations-last order above.
+  results-first, preparations-second, integrations-last order above.
   Never duplicate Runtime's lease protocol.
-- Keep `InferenceSession` a thin owner of one existing prepared handle. It must not acquire another
-  Runtime lease, add another input/output ordering convention, hide Engine composition, or perform
-  compile/prepare/provider/registry work per run.
+- Preserve Engine0021's removal of the thin InferenceSession without replacing it. Reuse prepared metadata/adapters;
+  no second Runtime lease or compile/prepare/provider/registry work per run. TrainingSession stays
+  for optimizer/transaction state; mechanical migration preserves prepared-before-seed cleanup.
 - Keep public materialization detached and explicit; do not expose Runtime representations,
   backend storage, or inward SPI types through ordinary signatures.
 - Metal 0004's route candidates and cache compatibility remain backend-private; explicit

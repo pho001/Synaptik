@@ -8,12 +8,12 @@ import java.util.Objects;
 import java.util.OptionalInt;
 
 /**
- * Owns one ordinary publication lease returned by an {@link Engine} or
- * {@link InferenceSession} run.
+ * Owns one ordinary publication lease returned by {@link Engine#run} or
+ * {@link Engine#runValues}.
  *
  * <p>Every publication occurrence remains distinct even when occurrences select the same inward
  * representation. Closing the result releases the Runtime lease and Engine-created non-owning
- * input wrappers but never caller storage. Session or standalone prepared-handle close does not
+ * input wrappers but never caller storage. Prepared-handle close does not
  * close an already returned result. Immutable metadata remains readable after closure. While both
  * result and Engine are open, an exact occurrence may be copied explicitly into a detached
  * {@link HostTensorValue}; host storage, physical alias identity, and backend representations are
