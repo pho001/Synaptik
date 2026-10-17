@@ -582,7 +582,11 @@ Do not add these unless this document is updated first:
   gradient/compilation scope
 - model-owned derivative rules
 - placeholder Tensors that stand in for already-captured `ValueId` values
-- a `ValueId`-to-Tensor conversion map or a second low-level gradient algebra language
+- a `ValueId`-to-Tensor conversion map except the call-local table used only after complete cold
+  source preflight for bounded family-constructor reconstruction under the
+  [Compiler contract](docs/architecture/contracts/compiler-autograd.md#compile-lifecycle);
+  discard that table on return or failure, never use it for autograd or runtime
+- a second low-level gradient algebra language
 - a public compiler gradient-rule registry or facade
 
 ## Future extensions allowed only with architecture update

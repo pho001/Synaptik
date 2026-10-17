@@ -31,11 +31,14 @@ import java.util.Set;
  * uses original producer object identity to classify each occurrence as {@code FORWARD} or
  * {@link GraphPhase#BACKWARD} while assigning every {@link NodeId} and {@link ValueId} once.</p>
  *
- * <p>Capture performs no semantic inference, optimization, derivative-rule selection, numerical
- * evaluation, planning, storage access, preparation, backend work, or execution. Its internal
- * source sidecar projects only immutable caller {@code TensorId} values for non-constant leaves;
+ * <p>The structural traversal and ordinary capture entries perform no semantic inference,
+ * optimization, derivative-rule selection, numerical evaluation, planning, storage access,
+ * preparation, backend work, or execution. The ordinary internal source sidecar projects only
+ * immutable caller {@code TensorId} values for non-constant leaves;
  * returned graph state retains operations and descriptors but no Tensor, producer, or provenance
- * reference.</p>
+ * reference. Only the opt-in cold source entry also collects borrowed exact leaves at input-ID
+ * assignment and validates the bounded raw source through {@code SourceCapture} construction,
+ * including semantic inference, without adding a Tensor sidecar to ordinary compilation.</p>
  */
 final class GraphCapture {
     private GraphCapture() {
@@ -67,6 +70,23 @@ final class GraphCapture {
     }
 
     /**
+     * Captures raw structure and aligned leaves in one traversal, then verifies source admission.
+     *
+     * @param outputs non-null, non-empty unique ordered outputs without null elements
+     * @return non-null verified raw graph and exact first-encounter leaf snapshot
+     * @throws NullPointerException if the list or an element is null
+     * @throws IllegalArgumentException if output validation or bounded source admission fails
+     */
+    static GraphCompilationPort.SourceCapture captureSource(List<Tensor> outputs) {
+        validateForwardOutputs(outputs);
+        var leaves = new ArrayList<Tensor>();
+        var captured = captureInternal(
+                outputs, List.of(), null, null, null,
+                CompileTimeConstantGraph.Ingress.empty(), leaves);
+        return new GraphCompilationPort.SourceCapture(captured.constantGraph().graph(), leaves);
+    }
+
+    /**
      * Captures one ordered Tensor selection and maps only explicitly supplied leaf splats.
      *
      * <p>Output validation and traversal are identical to {@link #capture(List)}. Ingress matches
@@ -88,7 +108,7 @@ final class GraphCapture {
             List<Tensor> outputs, CompileTimeConstantGraph.Ingress ingress) {
         validateForwardOutputs(outputs);
         Objects.requireNonNull(ingress, "ingress");
-        return captureInternal(outputs, List.of(), null, null, null, ingress).constantGraph();
+        return captureInternal(outputs, List.of(), null, null, null, ingress, null).constantGraph();
     }
 
     /**
@@ -140,7 +160,8 @@ final class GraphCapture {
                 originalProducers,
                 stageOneProducers,
                 stageTwoProducers,
-                ingress);
+                ingress,
+                null);
     }
 
     private static void validateForwardOutputs(List<Tensor> outputs) {
@@ -167,7 +188,8 @@ final class GraphCapture {
             Set<TensorProducer> originalProducers,
             Set<TensorProducer> stageOneProducers,
             Set<TensorProducer> stageTwoProducers,
-            CompileTimeConstantGraph.Ingress ingress) {
+            CompileTimeConstantGraph.Ingress ingress,
+            List<Tensor> sourceLeaves) {
         List<Tensor> traversalRoots =
                 new ArrayList<>(forwardOutputs.size() + targetGradients.size());
         traversalRoots.addAll(forwardOutputs);
@@ -202,6 +224,7 @@ final class GraphCapture {
                     ValueId valueId = new ValueId(nextValueId++);
                     leafValues.put(requested, valueId);
                     graphInputs.add(valueId);
+                    if (sourceLeaves != null) sourceLeaves.add(requested);
                     values.add(new GraphValue(valueId, requested.descriptor()));
                     addSourceRole(
                             requested,
@@ -235,6 +258,7 @@ final class GraphCapture {
                             ValueId valueId = new ValueId(nextValueId++);
                             leafValues.put(input, valueId);
                             graphInputs.add(valueId);
+                            if (sourceLeaves != null) sourceLeaves.add(input);
                             values.add(new GraphValue(valueId, input.descriptor()));
                             addSourceRole(
                                     input,

@@ -2271,6 +2271,12 @@ single-owner or mixed CPU/Metal preparation, execution, transfers, and publicati
 representation-level lifecycle. Those later lifecycle responsibilities do not belong to Compiler
 or this port.
 
+The port also has a separate [cold source boundary](api/compile-api.md#current-cold-source-capture-and-reconstruction).
+Its `SourceCapture` pairs a verified raw graph with a borrowed immutable snapshot of exact
+provenance-free leaves in graph-input order. Cold reconstruction accepts positional,
+full-descriptor-compatible Tensors, including ordinary expressions, and returns ordinary symbolic
+outputs for later compilation. It neither executes nor changes the ordinary compile lifecycle.
+
 ### Compile artifacts
 
 The current public immutable eight-component `CompileArtifacts` record constructed by the
@@ -2287,6 +2293,7 @@ work, not executable state. They contain no provider, availability snapshot, sel
 physical buffer, concrete route or kernel, transfer, schedule, executable, runtime residency, or
 mutable run state. The public integration port produces this artifact without exposing explicit
 constant ingress; it does not prepare or execute the artifact and is not an Engine user facade.
+Neither artifacts nor their graph retain Tensors or the separate borrowed `SourceCapture` sidecar.
 
 ### Compile constant plan
 
@@ -2394,6 +2401,10 @@ The implemented immutable compile-time graph representation. `CompiledGraphModel
 validates structural closure, producer rules, topology, and phase coverage and then stores
 immutable collection snapshots without derived indexes. It performs no graph capture, compiler
 transformation, planning, preparation, or execution.
+
+Raw source capture preserves constructor descriptors, including unresolved result layouts; final
+compile artifacts may instead contain optimized topology and closed logical layouts. These are
+different stages of the same graph model, not interchangeable reconstruction inputs.
 
 The current ordinary Engine facade named
 `io.github.pho001.synaptik.engine.CompiledGraph` is a different final type. It is an immutable

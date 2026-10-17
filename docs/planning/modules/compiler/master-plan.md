@@ -86,6 +86,10 @@ io.github.pho001.synaptik.compiler/
 The root package must not become a catch-all public facade, pass or gradient registry, generic
 algebra builder, planning adapter, backend lowering layer, or execution owner.
 
+Implemented 0008 additions stay in that package: nested public `GraphCompilationPort.SourceCapture`
+and package-private `SourceGraphReconstruction`; existing `GraphCapture` owns aligned leaf capture.
+No new graph representation, module, dependency, generic validator or execution type.
+
 ## Task list
 
 | ID | Task | Status | Depends on | One-line result or intent |
@@ -121,33 +125,31 @@ algebra builder, planning adapter, backend lowering layer, or execution owner.
 | 0006C | Conv3d adjoint expressibility and gradient closure | Draft | 0006B; current public Tensor algebra; any separately selected Model prerequisite | Prove exact grouped NCDHW input/weight/bias adjoints; implement only if current public algebra closes every required case, otherwise select the smallest Model prerequisite. |
 | 0006D | [Autograd audit correctness repairs](tasks/0006d-autograd-audit-correctness-repairs.md) | Complete | 0006/0006B11; project review | Repair batched matrix/vector gradients and reject required fail-closed sibling paths; no new derivative capability. |
 | 0007 | Exact constant identities under profile-free semantics | Draft | 0006; explicit legality proof under current Model semantics | Reassess exact identities without broadening constant evidence or using test tolerances as rewrite permission. |
-| 0008 | Cold validated source capture and reconstruction | Draft | Reviewed P2; completed capture/inference boundaries | Extend GraphCompilationPort over existing CompiledGraphModel and exact leaf association; narrow reconstruction-map authority required. |
+| 0008 | [Cold source capture and reconstruction](tasks/0008-cold-source-capture-and-reconstruction.md) | Complete | Approved P2/ADR0039; completed capture/inference/integration boundaries; Training0007 serial base only | Bounded raw-source API and authority cutover implemented; final independent code/docs APPROVE and coordinator Class C checkpoint passed. |
 
 ## P2 source reconstruction dependency
 
-The [program](../../model-execution-refactor.md#phases-and-owner-dag) needs a real Compiler owner
-before Checkpoint0008; this row fills that missing dependency, not a new detailed cascade.
-GraphCompilationPort.captureSource returns graph plus graph-input-aligned Tensor leaves;
-reconstructSource validates the supported closed slice and uses ordinary family constructors.
-A nested SourceCapture is an integration sidecar, not another graph or execution type.
-First slice: ADD/MUL/NEG/MATMUL/PERMUTE with exact [1,0] attributes for ordinary Linear;
-preserve canonical output identity and reject unsupported attributes/families. No all-family gate.
+The [source-verified brief](tasks/0008-cold-source-capture-and-reconstruction.md) supplies the
+[program](../../model-execution-refactor.md#phases-and-owner-dag)'s Compiler prerequisite to
+Checkpoint0008. GraphCompilationPort.captureSource returns the validated **raw** source graph and
+exact input-aligned leaves from the same capture traversal, without optimization/layout closure.
+reconstructSource preflights the bounded static FORWARD slice and calls ordinary Tensor constructors.
+Descriptor-compatible replacement expressions support cold symbolic composition; captured leaves
+remain provenance-free. SourceCapture is a short-lived integration sidecar, not another DAG/runner.
+First slice: ADD/MUL/NEG/MATMUL/PERMUTE with exact [1,0] attributes for ordinary Linear; no all-family gate.
 
-Current root prohibits ValueId-to-Tensor maps. The implementation must first coordinate the narrow
-cold reconstruction exception in root Explicit non-goals and compiler-autograd modules/compiler/
-Compile lifecycle; no gradient-map exception, generic Tensor injection or Engine proxy.
-Checkpoint obtains an implementation edge to Compiler in its own cutover; Compiler gains no edge.
+Root Explicit non-goals and compiler-autograd modules/compiler/Compile lifecycle/Compile artifacts
+now enact only the call-local, post-preflight cold reconstruction table exception, discarded on
+return/failure; no gradient-map exception, generic Tensor injection or Engine proxy.
+Checkpoint still requires its separate Compiler-edge cutover; Compiler gained no dependency edge.
 Existing autograd and planning remain unchanged.
 
-No Compiler implementation is Ready or launched. Parallel group None; serialize shared authority
-after Training0007, before Checkpoint0008 (not an algorithm dependency on Training).
-Common base: current main including Engine0021 at HEAD 9e7e8aa15e0833a1bc91263a7add99a80d88cd92,
-reverify at launch. Conflicts: shared root/compiler authority and graph source identity.
-Model-execution coordinator owns shared documents and integrated validation; future worker runs
-focused Compiler test/Javadoc once, coordinator one boundary-changing repository checkpoint.
-No detailed Compiler brief is created in P2. Engine0021 is Complete: existing Engine prepared owner
-plus runValues, thin-session removal and mechanical consumers. It changes no Compiler capability
-or dependency; 0008 remains Draft without an authorized implementation.
+Compiler0008 is Complete after Einstein's final independent code/docs APPROVE and the coordinator's
+Class C checkpoint (2026-10-17); its brief owns evidence. Authorized Compiler frontier: None.
+Next planning candidate Checkpoint0008 remains Draft, as do Training0008/NN0028; high-level
+Model/withEngine remains TARGET. Engine0021/Training0007 remain Complete; no downstream
+implementation is authorized here. Launch base remains main/origin/main
+`3d4d3bf5a95f6ea6e65ebd4687735adc0f092fe0`; parallel group None, shared-document owner coordinator.
 
 ## Milestones and current frontier
 
@@ -159,6 +161,8 @@ or dependency; 0008 remains Draft without an authorized implementation.
   contract reconciliation, and compile-integration status reconciliation work are Complete through
   0006B11.
 - Project-review repair 0006D is Complete after independent review and the combined checkpoint.
+- Bounded raw source capture/reconstruction 0008 and its authority cutover are Complete after
+  independent review and the coordinator checkpoint. Authorized Compiler frontier: None.
 - 0006C and 0007 remain `Draft`, have no detailed task brief, and are independent side branches;
   0006B11 grants neither implementation authorization.
 
@@ -188,7 +192,7 @@ or dependency; 0008 remains Draft without an authorized implementation.
 ## Status normalization
 
 The task table and linked task `Status`/completion summaries take precedence over historical prose.
-Current completion extends through 0006B11 plus the independently reviewed audit repair 0006D;
+Current completion extends through 0006B11 plus independently reviewed 0006D and 0008;
 the historical coverage checkpoint is not proof of every value-level higher-order derivative.
 
 ## History and update policy

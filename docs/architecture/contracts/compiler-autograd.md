@@ -67,6 +67,8 @@ tile, route, kernel, or other backend implementation vocabulary.
 Allowed:
 
 - graph capture
+- bounded cold raw source capture with a borrowed, short-lived ordered Tensor-leaf sidecar, and
+  reconstruction through existing public Tensor family constructors; see Compile lifecycle below
 - fail-closed autograd preflight over Tensor expression occurrences
 - compiler-owned gradient-rule dispatch expressed through public Tensor operations
 - per-compile identity-based gradient-contribution accumulation
@@ -131,6 +133,8 @@ runtime state.
 - runtime workspaces
 - runtime residency state
 - mutable run state
+- Tensor, producer, provenance, or source-capture sidecars; `CompiledGraphModel` also remains
+  Tensor-free
 
 ## Training graph model
 
@@ -268,6 +272,33 @@ bounded request surface is available through the advanced compile boundary.
 
 
 ## Compile lifecycle
+
+The supported `GraphCompilationPort` also owns a cold source boundary independent of ordinary
+compilation: `captureSource` captures once with empty constant ingress and collects exact leaves
+at first input-ID assignment; `reconstructSource` substitutes descriptor-compatible Tensors by
+graph-input position. The source is the raw graph, not optimized `CompileArtifacts.graph()`.
+Both operations admit only fully static FORWARD ADD/MUL/NEG/MATMUL with parameterless attributes
+and rank-two PERMUTE with exactly `[1,0]`. All stored nodes, including dead nodes, and all values
+must pass static checked geometry, family inference, exact descriptor validation, and absence of
+deferred obligations before reconstruction creates any producer. Model constructors continue to
+own structural closure, attributes/signatures, and layout geometry.
+
+`SourceCapture` snapshots unique provenance-free exact leaf references in graph-input order,
+with full descriptor equality, even for direct record construction. It borrows those Tensors
+without owning storage, a close lifecycle, or a cache. Reconstruction snapshots its supplied list
+and checks count, nulls, and full descriptor equality, but permits ordinary produced expressions
+and repeated references as explicit substitutions. Their upstream provenance is opaque to source
+admission and remains attached for later ordinary compile/autograd. Position is the association
+contract; same-descriptor swaps cannot be detected.
+
+Only after complete preflight may reconstruction allocate one call-local `ValueId`-to-Tensor
+table. It constructs each stored node once in topological order through its public family
+constructor, retaining canonical output wrappers, sharing, repeated uses and output order, never
+merging occurrences or fabricating intermediate placeholders. The table is discarded on return
+or failure; returned outputs retain only ordinary provenance. Zero-node pass-through and unused
+inputs are valid source structure, not an Engine executability promise. Neither cold operation
+optimizes, closes descriptors, accesses or allocates storage, selects backends, executes, changes
+ordinary compilation/autograd, or permits an autograd conversion map or another gradient algebra.
 
 Compile lifecycle:
 

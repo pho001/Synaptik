@@ -84,7 +84,10 @@ Engine0021 is Complete after independent Class C approval and the coordinator's 
 test/Javadoc gate. Its brief owns evidence. Authorized Engine frontier: None.
 [Training0007](extensions/training/tasks/0007-generic-live-parameter-admission.md) is Complete after
 final independent APPROVE and the coordinator gate. Authorized Training frontier: None.
-Next planning candidate: Compiler0008, still Draft with no brief or launch; later tasks stay Draft.
+[Compiler0008](modules/compiler/tasks/0008-cold-source-capture-and-reconstruction.md) is Complete:
+bounded source API/authority cutover, final independent code/docs APPROVE and coordinator Class C
+checkpoint passed. Authorized Compiler frontier: None. Next planning candidate Checkpoint0008
+remains Draft, as do Training0008/NN0028; high-level Model/withEngine remains TARGET.
 
 | Area | Delivered baseline / remaining gate |
 |---|---|
@@ -94,7 +97,7 @@ Next planning candidate: Compiler0008, still Draft with no brief or launch; late
 | [Config](modules/config/master-plan.md) | Compile leaves and two-phase tuning policy delivered. Cost consumer/aggregate/run configuration Draft; no numerical-profile API. |
 | [Planning](modules/planning/master-plan.md) | Complete through 0007; cost model awaits a concrete consumer and units. Partition size is not fusion size. |
 | [Runtime](modules/runtime/master-plan.md) | Complete through 0016; per-run isolation and prepared-resource leases remain current. |
-| [Compiler](modules/compiler/master-plan.md) | Complete through 0006B11 plus repair 0006D. Conv3d adjoints 0006C and exact rewrites 0007 Draft; BPTT unsupported. |
+| [Compiler](modules/compiler/master-plan.md) | Complete through 0006B11 plus repair 0006D and [0008 bounded cold source API/authority cutover](modules/compiler/tasks/0008-cold-source-capture-and-reconstruction.md), after final independent APPROVE and coordinator checkpoint. Authorized Compiler frontier: None. Conv3d adjoints 0006C and exact rewrites 0007 Draft; BPTT unsupported. |
 | [Prepare](modules/prepare/master-plan.md) | Complete through 0009; opaque backend collaboration and complete resource transaction. |
 | [OpenBLAS provider](backends/openblas-provider/master-plan.md) | 0001–0003 Complete. Optional direct BF16 0004 Blocked on ABI and one-final-narrowing evidence; F32/F64 unaffected. |
 | [CPU](backends/cpu/master-plan.md) | Complete through 0022 plus [0024](backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md), including heap binding and mixed-carrier overlap repair; vector ERF shape follow-up 0023 Draft. 0010M retained scalar/1/1/1 defaults; vendor peers remain use-case/ABI gated. |
@@ -196,10 +199,12 @@ Engine.run keeps exact-ID/arbitrary-order binding; runValues accepts fresh posit
 Both use prepared-before-input close admission, an explicit direct-run precedence change.
 Engine/Runtime prepared boundaries, advanced lifecycle and detached results remain.
 Training0007 is Complete after final independent approval and coordinator acceptance; its brief owns evidence.
-Compiler0008 is the next planning candidate, still Draft with no brief or launch.
-Checkpoint0008/Training0008/NN0028 remain Draft; Model.withEngine remains TARGET, not implemented.
-Direct cold Checkpoint→Compiler access, the narrow reconstruction-map exception and generic reversed
-edges still require coordinated authority in their implementing capabilities. Current contracts win.
+Compiler0008 is Complete at main/origin/main base `3d4d3bf5a95f6ea6e65ebd4687735adc0f092fe0`:
+bounded API/root/compiler authority implemented, independently approved and coordinator-gated.
+Authorized Compiler frontier: None. Next planning candidate Checkpoint0008 and Training0008/NN0028
+remain Draft; high-level Model/withEngine remains TARGET, not implemented. The narrow post-preflight
+call-local reconstruction exception is enacted; direct cold Checkpoint→Compiler access and generic
+reversed edges still require their own coordinated authority. Current contracts win.
 No optimized scan/backend BPTT/Data/Text or broad performance prerequisite is added.
 
 NN 0026's matrix/API is accepted and coordinated with root NN ownership, the owning scoped contract,

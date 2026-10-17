@@ -28,6 +28,32 @@ The compiler does not create physical buffers or executable units. Runtime does 
 
 ## Compile lifecycle
 
+Before ordinary compilation, integration callers may use the bounded cold source path defined by
+the [Compiler lifecycle contract](contracts/compiler-autograd.md#compile-lifecycle):
+
+```text
+ordinary forward Tensor expressions
+  -> one raw capture + exact input-aligned borrowed leaves
+  -> complete static source verification
+  -> optional cold reconstruction with positional descriptor-compatible substitutions
+  -> ordinary Tensor expressions -> ordinary compile below
+```
+
+For example, capture `x.matmul(w.permute(1,0)).add(b)`, then reconstruct it with a fresh input and
+the same weight and bias. Reconstruction builds each stored occurrence once through its public
+Tensor constructor, so shared operands remain shared and later autograd sees ordinary provenance.
+A replacement can itself be a produced expression; its upstream computation remains attached and
+is checked by later ordinary compile/autograd, not widened source admission. Position associates
+inputs, so exchanging same-descriptor weights cannot be detected.
+
+This source path admits only static FORWARD ADD/MUL/NEG/MATMUL and rank-two PERMUTE `[1,0]`.
+It neither optimizes nor closes raw layouts. An optimized, layout-closed artifact graph is not a
+reconstructible source merely because it has the same operations. The borrowed source sidecar
+owns no storage or close lifecycle; it is not retained in graph/artifact state. Only after complete
+preflight does reconstruction use a call-local identity table, discarded on return or failure.
+No storage read/allocation, backend discovery, preparation, execution or runtime graph is added.
+See the [cold source API example](../api/compile-api.md#current-cold-source-capture-and-reconstruction).
+
 ```text
 forward Tensor outputs
   -> if backward is requested:

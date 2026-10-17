@@ -2,15 +2,19 @@
 
 ## Status
 
-2026-10-16: **accepted product choices; Engine0021 and Training0007 Complete**.
+2026-10-17: **accepted product choices; Engine0021, Training0007 and Compiler0008 Complete**.
 The user explicitly authorized the prepared-owner cutover after independent Astra/xhigh packet
 approval. Root and owning Engine/Training contracts enact that bounded cutover. Independent final
 Class C approval and the coordinator's native-enabled integrated test/Javadoc gate passed.
 The user also approved fluent Engine binding on the future ordinary Model; its precise target
 lifecycle is recorded below. Training0007 enacts generic live admission and the physical Training/
 NN dependency cutover, accepted after Pascal's definitive APPROVE and the coordinator gate.
-Its brief owns evidence. Authorized Training frontier: None; next planning candidate Compiler0008
-is still Draft with no brief or launch. Other downstream tasks remain Draft.
+Its brief owns evidence. Authorized Training frontier: None. On 2026-10-17,
+[Compiler0008](../../planning/modules/compiler/tasks/0008-cold-source-capture-and-reconstruction.md)
+is Complete: bounded source API and coordinated root/compiler authority implemented, Einstein final
+code/docs APPROVE and coordinator Class C checkpoint passed. Its brief owns evidence.
+Authorized Compiler frontier: None; next planning candidate Checkpoint0008 remains Draft, as do
+Training0008/NN0028. High-level Model/withEngine remains TARGET, not implemented.
 This record does not override [root architecture](../../../ARCHITECTURE.md) or its scoped
 contracts, and does not authorize the remaining cutovers.
 
@@ -162,8 +166,8 @@ or unchecked-cast assumption is needed. Compile-only API consumers must witness 
   nested `Entry(String path, Tensor tensor)`. Membership is immutable for a borrow, but validation
   reads the live owner. NN's new `Module.trainingParameters()` returns a private adapter retaining
   exact ordered paths/wrappers/Tensors. Training owns storage/descriptor/finiteness validation.
-  This boundary and the NN adapter are implemented by Training0007; other new boundaries below
-  remain design targets. Training has exactly public Model/Engine edges, NN public Model/Training.
+  This boundary and the NN adapter are implemented by Training0007. Training has exactly public
+  Model/Engine edges, NN public Model/Training. GraphCheckpoint below remains a design target.
 - `checkpoint.graph.GraphCheckpoint`: NN-free cold persistence owner with nested
   `Source(List<Tensor> inputs, List<Tensor> outputs, List<Leaf> leaves)`,
   `Leaf(String name, Role role, Tensor tensor)` and enum PARAMETER/BUFFER/CONSTANT.
@@ -172,11 +176,22 @@ or unchecked-cast assumption is needed. Compile-only API consumers must witness 
   `load(Path, ArtifactLimits)` and `rebind(Source, List<Tensor>)` respectively acquire detached
   host state, persist it, restore it, or construct symbolic outputs. Save/load declare IOException.
   Copy/rebind are cold, never a batch loop.
-- Compiler's existing GraphCompilationPort gains `captureSource(List<Tensor>)` returning nested
+- Compiler0008 implements on existing GraphCompilationPort `captureSource(List<Tensor>)` returning nested
   `SourceCapture(CompiledGraphModel graph, List<Tensor> leaves)`, with leaves aligned to graph.inputs,
   and `reconstructSource(CompiledGraphModel, List<Tensor>) -> List<Tensor>`.
   This integration-only sidecar supplies exact source identity; compiled artifacts still retain no
   Tensor. GraphCheckpoint hides Compiler types from NN. No Compiler registry or second DAG.
+
+Compiler0008 source reconciliation (2026-10-17): capture returns the **raw** graph, validated by
+existing inference without optimization or logical-layout closure, and exact leaves collected when
+that same traversal assigns graph inputs. Reconstruction accepts full-descriptor-compatible
+ordinary Tensor expressions as positional replacements, not only provenance-free leaves: this is
+required for cold symbolic forward/composition. Their upstream provenance remains ordinary input
+to later compile/autograd, not added source-codec coverage. Captured sidecar leaves remain unique
+provenance-free identities. Repeated replacement references are explicit substitution; output
+positions remain ordered and ordinary compile still rejects duplicate resolved outputs. Preserve
+resolved/unresolved descriptors exactly; do not strip final compiled layouts to force reconstruction.
+Compiler checks logical metadata only; Checkpoint's host-value admission below remains separate.
 
 These are the minimum two cross-module data/admission boundaries plus a Compiler capture sidecar;
 no public execution result, signature builder, transfer token or generic adapter framework is added.
@@ -451,8 +466,13 @@ explanations, ADR and affected architecture tests together **before code relies 
    now enacts only this bounded generic admission/dependency/layout cutover.
 3. Compiler0008: root Explicit non-goals permits only a temporary graph-local ValueId→Tensor table
    inside cold validated source reconstruction; compiler-autograd modules/compiler and Compile
-   lifecycle own family-constructor reconstruction. No gradient map exception, fabricated
+   lifecycle own family-constructor reconstruction, and Compile artifacts excludes source sidecars
+   and Tensor retention. No gradient map exception, fabricated
    intermediate placeholders, Model execution or public generic derived-output constructor.
+   The 2026-10-17 implementation enacts this bounded cold boundary only, with complete preflight
+   before family construction and table disposal on return/failure. Ordinary compile/autograd
+   stays unchanged; no dependency edge or downstream Model/Checkpoint capability is enacted.
+   Final independent code/docs APPROVE and coordinator Class C checkpoint complete this cutover.
 4. Checkpoint0008: root layout/ownership/dependencies/testing and extensions-training Checkpoint/
    Whole-model definition and composition move NN glue and authorize Checkpoint→Compiler cold
    implementation access; no reverse Compiler edge. First codecs: ADD/MUL/NEG plus MATMUL/PERMUTE with exact permutation [1,0] for ordinary Linear, multiple distinct
@@ -473,7 +493,9 @@ The [program](../../planning/model-execution-refactor.md#phases-and-owner-dag) o
 and final coordinator signoff. The [Engine0021 brief](../../planning/modules/engine/tasks/0021-prepared-execution-fresh-value-binding.md)
 records implementation, independent approval and the coordinator's successful cross-module gate.
 Training0007 is Complete: generic live admission/native copy and its NN adapter passed final
-independent review and the coordinator boundary gate. Compiler0008/
-Checkpoint0008/Training0008/NN0028 stay Draft. Glossary/Javadocs now also describe this bounded
-Training cutover. Model.withEngine, Model compute/configured train/save/load and other APIs in
+independent review and the coordinator boundary gate. Compiler0008's bounded API/authority cutover
+is Complete after final independent code/docs APPROVE and the coordinator checkpoint; authorized
+Compiler frontier: None. Next planning candidate Checkpoint0008 and Training0008/NN0028 stay Draft.
+Glossary/Javadocs describe the bounded Training and Compiler cutovers. Model.withEngine,
+Model compute/configured train/save/load and other APIs in
 this ADR remain planned; no Model lifecycle is enacted here.

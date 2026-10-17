@@ -21,7 +21,8 @@ selection per final graph node, maximal same-owner partitioning, logical-memory 
 immutable artifact assembly. Public
 `GraphCompilationPort` now exposes the complete constant-free pipeline as a narrow cross-module
 service-provider interface (SPI). It is not the recommended application API and does not provide
-the still-planned `CompileConfig` aggregate. `AdvancedEngine` uses
+the still-planned `CompileConfig` aggregate. The same port also provides bounded cold raw source
+capture and reconstruction, separate from complete artifact compilation. `AdvancedEngine` uses
 this port and returns an opaque owner-bound `AdvancedCompiledGraph`, but does not expose the
 underlying `CompileArtifacts`. The compiler also provides the public immutable
 `FunctionalGradientRequest` input value used by this integration boundary. Ordinary Engine
@@ -205,8 +206,76 @@ validation. Neither entry prepares backends, allocates physical memory, or execu
 surfaces are ordinary `Engine.compile(...)`, which returns an owner-bound `CompiledGraph`, and
 `AdvancedEngine.compile(...)`, which returns an owner-bound `AdvancedCompiledGraph`.
 `GraphCompilationPort` remains the narrow constant-free integration SPI rather than the sole
-public lifecycle facade. No public capture, validation, optimizer, or general compile-
-configuration aggregate method exists.
+public lifecycle facade. Only the bounded cold source capture below is public; no general
+validation, optimizer, or compile-configuration aggregate method exists.
+
+### Current cold source capture and reconstruction
+
+`GraphCompilationPort.captureSource(List<Tensor>)` returns `SourceCapture(graph, leaves)`: a
+validated **raw** `CompiledGraphModel` and an immutable snapshot of exact provenance-free leaves.
+The existing traversal collects each leaf when it assigns that input's ID, so leaf position and
+`graph.inputs()` position agree even with sharing or equal-looking distinct Tensors. Requested
+output order and distinct producer occurrences survive. Empty, null or duplicate output requests
+retain ordinary capture rejection. Direct record construction also checks source admission,
+input count/order, full descriptors, provenance absence and unique exact leaf references.
+
+`reconstructSource(graph, leaves)` snapshots positional substitutions and checks the complete
+source before creating a producer. Every value must have a fully static Shape and checked logical
+element count; scalar and empty shapes remain valid. Every stored node, including dead work, must
+be FORWARD and use ADD/MUL/NEG/MATMUL with `NoOperationAttrs.INSTANCE`, or rank-two PERMUTE with
+exact axes `[1,0]`. Existing family inference verifies promotion, broadcasting, MATMUL rank/batch
+semantics, attributes and exact output descriptors, with no deferred obligations. Model owns
+structural closure, signature/attribute checks and layout geometry. Unsupported families fail
+closed; there is no generic constructor or registry.
+
+The supplied list must have the graph-input count and full `TensorDescriptor.equals` agreement,
+including resolved/unresolved layout and `requiresGrad`. Tensor IDs need not match the originals.
+Replacements may be ordinary produced expressions: their upstream provenance is an opaque
+substitution, retained for later ordinary compile/autograd, not newly admitted source families.
+Repeated supplied references are explicit substitution and may yield repeated output references;
+ordinary compile still rejects duplicate resolved outputs. Position is the association contract,
+so same-descriptor swaps are undetectable.
+
+After complete preflight, a call-local `ValueId`-to-Tensor table rebuilds each stored occurrence
+once through `add`, `mul`, `neg`, `matmul` or `permute(1,0)`, retaining canonical output wrappers.
+The table is discarded on return/failure; immutable outputs retain only ordinary provenance.
+Zero-node pass-through, arbitrary graph IDs and unused inputs are valid source structure, not
+an Engine executability promise. No storage is read, allocated, rebound or owned, even when a
+borrowed leaf's storage is absent or dead. There is no close lifecycle or cache. Null arguments
+or elements throw `NullPointerException`; unsupported/invalid source and association throw
+contextual `IllegalArgumentException`, wrapping checked geometry overflow. Failures publish no
+partial outputs and do not roll back consumed Tensor IDs.
+
+For a storage-free symbolic example, start with a FLOAT32 scalar `x` and source `x * x`:
+
+```java
+import io.github.pho001.synaptik.compiler.GraphCompilationPort;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.List;
+import java.util.Optional;
+
+Tensor x = TensorFactory.create(new TensorDescriptor(
+        DataType.FLOAT32, Shape.scalar(), Optional.empty(), true));
+GraphCompilationPort.SourceCapture source = GraphCompilationPort.captureSource(List.of(x.mul(x)));
+Tensor upstream = TensorFactory.create(x.descriptor());
+Tensor replacement = upstream.neg();
+List<Tensor> outputs = GraphCompilationPort.reconstructSource(source.graph(), List.of(replacement));
+```
+
+The raw source has one input and one MUL node. Both reconstructed MUL inputs are the exact
+`replacement`; later ordinary differentiation can reach `upstream` through its NEG provenance.
+This constructs symbolic metadata only, not numeric values. Replacing the scalar by Shape `[1]`
+fails descriptor association even though ordinary arithmetic could broadcast it.
+
+This boundary deliberately skips canonicalization, folding, dead-code/common-subexpression
+elimination, publication, planning and final logical-layout closure. ADD/MUL/NEG/MATMUL results
+remain layout-unresolved; PERMUTE keeps its constructor's resolved-view or unresolved descriptor.
+`CompileArtifacts.graph()` is not source: a closed output descriptor is rejected rather than
+stripped or forced into a fabricated Tensor. Ordinary `compile()` and autograd are unchanged.
 
 ### Current package-private verification inference
 
@@ -880,7 +949,7 @@ BackendAvailabilitySnapshot values
 Public `GraphCompilationPort.compile(...)` is the cross-module SPI for the same complete pipeline.
 It accepts the same inputs except explicit logical-splat ingress, supplies
 `CompileTimeConstantGraph.Ingress.empty()` internally, and returns the resulting
-`CompileArtifacts` directly. The port performs no graph or planning work of its own. Its public
+`CompileArtifacts` directly. This compile method performs no graph or planning work of its own. Its public
 visibility lets current Engine composition cross the Java package boundary; it is not an
 ordinary-user facade, and both `GraphCompiler` entries remain package-private.
 

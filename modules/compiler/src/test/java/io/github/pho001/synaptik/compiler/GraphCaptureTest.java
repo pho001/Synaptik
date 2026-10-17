@@ -61,7 +61,9 @@ final class GraphCaptureTest {
                         CompileTimeConstantGraph.class, captureConstants.getReturnType()),
                 () -> assertSame(
                         GraphCapture.CombinedCapture.class, captureCombined.getReturnType()),
-                () -> assertEquals(3, Arrays.stream(GraphCapture.class.getDeclaredMethods())
+                () -> assertSame(GraphCompilationPort.SourceCapture.class,
+                        GraphCapture.class.getDeclaredMethod("captureSource", List.class).getReturnType()),
+                () -> assertEquals(4, Arrays.stream(GraphCapture.class.getDeclaredMethods())
                         .filter(method -> !method.isSynthetic())
                         .filter(method -> !Modifier.isPrivate(method.getModifiers()))
                         .count()));
