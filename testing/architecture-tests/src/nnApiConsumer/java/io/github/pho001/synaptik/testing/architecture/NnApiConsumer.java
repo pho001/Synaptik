@@ -18,6 +18,26 @@ final class NnApiConsumer {
     private NnApiConsumer() { }
 
     /**
+     * Compiles old public NN persistence signatures using only NN's exported dependencies.
+     * @param module fully bound caller-owned NN tree
+     * @param engine borrowed public materialization facade
+     * @param limits explicit artifact bounds
+     * @param fingerprint application-verified input identity
+     * @return detached typed inspection
+     * @throws java.io.IOException if capture validation fails
+     */
+    static io.github.pho001.synaptik.nn.checkpoint.ModelCheckpointInspection inspect(
+            io.github.pho001.synaptik.nn.module.Module module,
+            io.github.pho001.synaptik.engine.Engine engine,
+            io.github.pho001.synaptik.checkpoint.artifact.ArtifactLimits limits,
+            io.github.pho001.synaptik.nn.checkpoint.InputArtifactFingerprint fingerprint)
+            throws java.io.IOException {
+        var envelope = io.github.pho001.synaptik.nn.checkpoint.ModelCheckpoint.capture(
+                module, engine, fingerprint.bytes(), null, limits);
+        return io.github.pho001.synaptik.nn.checkpoint.ModelCheckpoint.inspect(envelope, limits);
+    }
+
+    /**
      * Obtains live admission through NN's exported Training edge without a direct dependency.
      * @param module caller-owned initialized Module
      * @return immutable membership with live owner validation

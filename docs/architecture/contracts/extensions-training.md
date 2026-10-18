@@ -8,7 +8,7 @@
 
 ## Scope
 
-This contract owns NN, Training, model-only Checkpoint, the optional future Training Checkpoint
+This contract owns NN, Training, generic graph/value Checkpoint, the optional future Training Checkpoint
 adapter, and ONNX responsibilities plus the optimizer/training lifecycle. It does not own Model
 semantics, Compiler autograd, concrete backend optimizer routes, or Engine materialization.
 
@@ -33,18 +33,19 @@ Forbidden:
 - optimizer algorithms
 - optimizer update orchestration
 - autograd construction
-- backend storage access
+- backend storage access (Model host storage used by retained checkpoint restoration is permitted)
 - backend kernel selection
 - concrete backend dependencies
 
-`extensions/nn` has exactly public Model and Training project dependencies. Model supplies tensor
+`extensions/nn` has exactly public Model, Training, Checkpoint and Engine project dependencies. Model supplies tensor
 and operation semantics; Training supplies the generic `TrainingParameters` admission boundary.
 `Module.trainingParameters()` returns a private live adapter retaining the root and exact ordered
 paths, Parameter wrappers and Tensors. Creation rejects unbound reservations. Its immutable entries
 snapshot is not validation: `validateUnchanged()` re-traverses the live root and rejects any count,
 order, path, wrapper or Tensor change. It deliberately does not freeze storage associations or
 bytes, so an explicit native copy does not invalidate its own source. NN still owns no optimizer
-algorithm, update orchestration, or direct Engine/Checkpoint dependency. Model must not depend on NN.
+algorithm or update orchestration. Engine and Checkpoint are used for the retained NN persistence
+signatures below, not a second execution pipeline. Model must not depend on NN.
 
 ### Closed declarative models
 
@@ -133,69 +134,12 @@ fresh value Tensor per target identity group without changing its existing targe
 NN reconstruction validates before returning; failure exposes no partial candidate and never mutates
 the described source. Caller quiescence still owns consistency; NN adds no lock or transaction.
 
-<a id="extensionstraining"></a>
+### Retained NN checkpoint APIs
 
-## `modules/training`
-
-`modules/training` (unchanged Gradle project `:extensions:training` and Java packages) owns generic
-live parameter admission, optimizer algorithms and training orchestration independently of NN.
-
-Allowed:
-
-- `Optimizer`
-- `Sgd`
-- `Adam`
-- `AdamW`
-- `ParameterGroup`
-- `TrainingSession`
-- `TrainingParameters` with immutable ordered `Entry(path, tensor)` membership and live-owner
-  `validateUnchanged()`; Training snapshots and validates admission before seed/compile/prepare
-- `TrainingStep`
-- `TrainingParameterStorage` for an explicit pre-session copy into caller-owned shareable native host memory
-- immutable in-memory optimizer/session state snapshots
-- an explicit dependency on the public Engine facade for the session lifecycle
-- backend-neutral access to caller-owned Model host storage within the supported optimizer domain
-
-Forbidden:
-
-- dependency on Runtime, Prepare, tuning, or concrete backends
-- use of non-public Engine implementation state
-- a second compiler, preparer, scheduler, runner, publication model, or backend adapter
-- `MetalOptimizerBridge`
-- `CudaOptimizerBridge`
-- `CpuOptimizerBridge`
-- backend-specific optimizer execution
-- backend kernel selection
-
-Training has exactly `api` project dependencies on `modules/model` and `modules/engine`, with no
-NN dependency, import, NN-taking compatibility overload, or test-only back-edge. Its public
-signatures name `TrainingParameters`, `Tensor`, `DataType`, `Shape`, Engine and Engine metadata.
-NN depends on Training only for its live admission adapter. The public Engine edge is the explicit
-Class C composition edge needed to reuse one
-compile/Prepare/Runtime path; it does not transfer optimizer ownership into Engine or authorize
-Training to inspect backend selection or representations. `train()` and `eval()` mode are module
-forward-behavior concerns owned by `extensions/nn`; an optimizer neither selects nor changes that
-mode.
-
-Training owns backend-neutral optimizer mathematics over supported caller-owned host parameter
-storage, not backend-specific optimizer execution. A later fused optimizer route belongs to
-backend prepare and kernels and requires a separate architecture decision.
-
-## `extensions/checkpoint`
-
-`extensions/checkpoint` is the model-only recovery owner downstream of NN and the public
-Engine facade. Its artifact package owns a version-one, single-regular-file envelope for opaque
-bytes only; that package assigns no model meaning to a payload. The
-canonical big-endian file has a fixed magic/version header, SHA-256 manifest digest, sorted strict
-ASCII names, explicit bounded lengths, and SHA-256 per-payload digests. Readers reject malformed,
-noncanonical, unsupported, over-limit, truncated, or trailing data before returning a detached
-immutable image. Callers supply bounds for file and manifest bytes, entry count, name bytes,
-individual payload bytes, and aggregate payload bytes. Readers bound the manifest length before
-allocating its array, then check aggregate length arithmetic before allocating payloads. Its direct
-public project dependencies are exactly `extensions/nn`, `modules/engine`, and `modules/model`.
-NN retains module-state meaning and installation; Engine retains public host materialization.
-Checkpoint must not inspect backend representations or reach through Engine into Compiler,
-Runtime, Prepare, tuning, or concrete backends.
+The nine old model persistence classes now live in `nn.checkpoint`, without compatibility
+forwarders. The three public types remain ModelCheckpoint, ModelCheckpointInspection and
+InputArtifactFingerprint. The following old-v1 rules belong to NN; they do not restrict the new
+generic graph format or transfer NN semantics into Checkpoint.
 
 Its model package owns a separate version-one metadata codec, a detached candidate, and a public
 `ModelCheckpoint` file and model-envelope facade; it is not a state installer. For the existing
@@ -302,24 +246,25 @@ unsupported-atomic-move result permits attempted temporary cleanup; other failed
 temporary path untouched because their outcome is uncertain. No filesystem operation follows a
 successful move. The envelope is not encryption or adversarial authentication.
 
-Checkpoint must not depend on Training or Text. Model, NN, Training, Engine, and other inward
-modules must not depend on Checkpoint. The direct public Model edge is limited to checkpoint
-Tensor descriptors and restoration; it does not authorize backend storage access or a second
-execution pipeline.
+These relocated NN APIs retain their existing semantics, readers, bounds and failures. They use
+Checkpoint's opaque artifact package and public Engine materialization, never Compiler or backend
+internals. Their package is `nn.checkpoint`; no old-package forwarders remain.
 
 ### Whole-model definition and composition
 
 This is the accepted CP0005B contract (2026-10-14), independently approved and coordinator-verified
 for implementation. CP0005B is Complete (2026-10-15): implementation, independent code and
 documentation reviews, module/Javadoc and coordinator gates passed. NN's closed declarative
-contract above owns meaning; Checkpoint owns the
-following persistent representation and public composition. Training and recurrent extensions
+contract above owns meaning; NN's relocated `nn.checkpoint` package owns the
+following old persistent representation and public composition. Generic Checkpoint owns only the
+opaque envelope and the separate graph-model.v1 boundary below. Training and recurrent extensions
 remain Proposed. Existing values-only methods, `model.v1`, ArtifactFile v1, and ArtifactEnvelope's
-defensive-copy boundary remain unchanged. No dependency edge or Java-object serialization is added.
+defensive-copy boundary remain unchanged. The relocation adds only the root-declared NN public Checkpoint/Engine edges; no Java-object
+serialization or second execution pipeline is added.
 
 #### Whole-model public API and failures
 
-Add only these static overloads to existing `checkpoint.model.ModelCheckpoint` (types use their
+Add only these static overloads to existing `nn.checkpoint.ModelCheckpoint` (types use their
 existing owning packages). File methods declare `IOException`; envelope methods declare
 `ArtifactFormatException`, the checked IOException subtype. These signatures are accepted:
 
@@ -343,7 +288,7 @@ before calling ArtifactFile.save; no temporary component files. Entire-call call
 spans description and public values capture. Each may read state: values capture's existing
 stateDictionary-once rule is not a combined whole-model snapshot, lock or transaction promise.
 
-The only new public type is final `io.github.pho001.synaptik.checkpoint.model.InputArtifactFingerprint`:
+The only new public type is final `io.github.pho001.synaptik.nn.checkpoint.InputArtifactFingerprint`:
 public constructor `InputArtifactFingerprint(byte[] bytes)`, public `byte[] bytes()`, and value
 `boolean equals(Object)`/`int hashCode()`. Constructor and accessor copy exactly 32 SHA-256 bytes; null rejects
 with NullPointerException, wrong length with IllegalArgumentException. Equality uses all 32 bytes.
@@ -479,6 +424,152 @@ authority under the optimizer/training lifecycle below. Neither Training nor Che
 reverse dependency or a generic persistence or state-installation API from this reservation.
 Model-envelope implementation does not select a training wire format or open the Checkpoint 0006
 adapter build gate; 0006 remains Draft.
+
+
+<a id="extensionstraining"></a>
+
+## `modules/training`
+
+`modules/training` (unchanged Gradle project `:extensions:training` and Java packages) owns generic
+live parameter admission, optimizer algorithms and training orchestration independently of NN.
+
+Allowed:
+
+- `Optimizer`
+- `Sgd`
+- `Adam`
+- `AdamW`
+- `ParameterGroup`
+- `TrainingSession`
+- `TrainingParameters` with immutable ordered `Entry(path, tensor)` membership and live-owner
+  `validateUnchanged()`; Training snapshots and validates admission before seed/compile/prepare
+- `TrainingStep`
+- `TrainingParameterStorage` for an explicit pre-session copy into caller-owned shareable native host memory
+- immutable in-memory optimizer/session state snapshots
+- an explicit dependency on the public Engine facade for the session lifecycle
+- backend-neutral access to caller-owned Model host storage within the supported optimizer domain
+
+Forbidden:
+
+- dependency on Runtime, Prepare, tuning, or concrete backends
+- use of non-public Engine implementation state
+- a second compiler, preparer, scheduler, runner, publication model, or backend adapter
+- `MetalOptimizerBridge`
+- `CudaOptimizerBridge`
+- `CpuOptimizerBridge`
+- backend-specific optimizer execution
+- backend kernel selection
+
+Training has exactly `api` project dependencies on `modules/model` and `modules/engine`, with no
+NN dependency, import, NN-taking compatibility overload, or test-only back-edge. Its public
+signatures name `TrainingParameters`, `Tensor`, `DataType`, `Shape`, Engine and Engine metadata.
+NN depends on Training only for its live admission adapter. The public Engine edge is the explicit
+Class C composition edge needed to reuse one
+compile/Prepare/Runtime path; it does not transfer optimizer ownership into Engine or authorize
+Training to inspect backend selection or representations. `train()` and `eval()` mode are module
+forward-behavior concerns owned by `extensions/nn`; an optimizer neither selects nor changes that
+mode.
+
+Training owns backend-neutral optimizer mathematics over supported caller-owned host parameter
+storage, not backend-specific optimizer execution. A later fused optimizer route belongs to
+backend prepare and kernels and requires a separate architecture decision.
+
+## `extensions/checkpoint`
+
+`modules/checkpoint` retains Gradle identity `:extensions:checkpoint` via settings mapping.
+Its artifact package owns a version-one, single-regular-file envelope for opaque
+bytes only; that package assigns no model meaning to a payload. The
+canonical big-endian file has a fixed magic/version header, SHA-256 manifest digest, sorted strict
+ASCII names, explicit bounded lengths, and SHA-256 per-payload digests. Readers reject malformed,
+noncanonical, unsupported, over-limit, truncated, or trailing data before returning a detached
+immutable image. Callers supply bounds for file and manifest bytes, entry count, name bytes,
+individual payload bytes, and aggregate payload bytes. Readers bound the manifest length before
+allocating its array, then check aggregate length arithmetic before allocating payloads.
+It has exactly `api(Model)` and `implementation(Compiler)` project dependencies. Compiler access
+uses only GraphCompilationPort's cold capture/reconstruction boundary. No Compiler type appears
+in public GraphCheckpoint signatures. No NN, Training, Engine, Runtime, Prepare, tuning or backend
+dependency is permitted, including tests. NN alone consumes both generic Checkpoint and Engine
+for the relocated old persistence APIs; other inward modules do not depend on Checkpoint.
+
+### Generic graph source and values
+
+GraphCheckpoint is a final cold facade with only nested Source(inputs, outputs, leaves),
+Leaf(name, role, tensor), Role { PARAMETER, BUFFER, CONSTANT }, and copy(Source),
+save(Path, Source, ArtifactLimits), load(Path, ArtifactLimits), rebind(Source, List<Tensor>).
+Save/load declare IOException. Records snapshot lists and null-check in declaration/list order;
+Tensors are borrowed ordinary model objects, not another graph, executor or closeable owner.
+Operations revalidate. Inputs are ordered unique provenance-free prototypes, possibly unused or
+empty. Outputs are nonempty and distinct. Named provenance-free state is disjoint from inputs;
+every reachable non-input leaf is named and every named identity is reachable. Names use strict
+UTF-8, nonblank dot segments without normalization, duplicates or prefix collisions; registration
+order is retained. Aliases mean exact Tensor identity and identical role, not equal bytes or
+physical overlap. PARAMETER requires floating gradient eligibility. BUFFER and CONSTANT preserve
+requiresGrad without inferring roles.
+
+Capture uses Compiler captureSource exactly once and associates its first-encounter inputs by
+exact Tensor identity, never by declared position. Existing immutable Model graph records normalize
+file-local IDs and retain unused signature slots; no second graph representation or Tensor
+reconstruction table belongs here. Compiler retains source admission and call-local reconstruction
+ownership, unchanged: static FORWARD ADD/MUL/NEG/MATMUL with NoOperationAttrs and rank-two
+PERMUTE[1,0], no optimization or layout closure. Preserve full descriptors, occurrences, sharing
+and ordered roots; all seven dtypes where Model permits (no integral/BOOL NEG). Zero-node data
+is not new Engine capability. Rebind checks metadata then replacement count/full descriptors,
+retains named state and permits produced/repeated substitutions with opaque upstream provenance;
+its immutable ordinary outputs may repeat, which ordinary compilation still rejects.
+
+Copy/save read named identities only. Check static canonical geometry even for unresolved layouts;
+present leaf layouts must equal zero-offset non-view contiguous geometry. Intermediate views are
+metadata. Snapshot each hostStorage association once; admit every state's type, capacity, liveness
+and thread access, including empty state, before BOOL checks or bulk copying. Read-only heap/native
+segments are allowed; absent/device-only/dead/inaccessible/short state rejects. Caller excludes
+mutation, rebinding and closure; no lock, hidden execution or ownership transfer. Read native-order
+unaligned integer lanes at widths 8 (FLOAT64/INT64), 4 (FLOAT32/INT32), 2 (BFLOAT16/FLOAT16), 1
+(BOOL). Preserve all raw bits including signed zero and NaN payload/sign; BOOL must be 0/1. Ignore
+excess capacity and copy distinct overlapping Tensors independently. Use matching primitive heap
+carriers and MemorySegmentStorage with TensorFactory.create retaining the original descriptor,
+not layout-closing allocate. Copy creates storage-free prototypes and copies each state identity
+once, then delegates reconstruction. Load adopts final heap state without a second ownership copy,
+original graph/state or saved input storage. Labels/native owners are not persisted.
+
+Copy/save order: metadata, checked geometry and (save) encoded bounds, all storage admission,
+BOOL/raw copy, complete result/image, then ArtifactFile.save. Source/unsupported/bounds failures are
+IllegalArgumentException; sizing overflow is ArithmeticException (retain Compiler wrapping),
+absent/dead/inaccessible state is IllegalStateException. Rebind has no value gate. Load performs
+ArtifactFile.read, complete wire/keys/descriptors/aliases/lengths/BOOL validation, descriptor-only
+candidate leaves and Compiler SourceCapture preflight, host import, reconstructSource, publication.
+Stored semantic/overflow errors become ArtifactFormatException with cause; I/O, identifier
+exhaustion and VM failures propagate. Never publish partial candidates or mutate source bindings.
+
+### Canonical graph-model version 1
+
+ArtifactFile v1 kind is graph-model.v1: exactly schema plus state/00000000… per unique named
+identity. Big-endian signed i32/i64 and unsigned u8, nonnegative counts, flags exactly 0/1,
+no padding, extensions or trailing bytes. Fixed IDs never use enum ordinals or class names.
+
+| Schema order | Exact fields |
+|---|---|
+| Header | Eight ASCII bytes SYNGRF01, i32 version 1. |
+| Inputs | i32 I, I descriptors in declared order, including unused slots; ValueIds 0… I−1, no payload. |
+| State | i32 S, then descriptor, u8 role (1 PARAMETER, 2 BUFFER, 3 CONSTANT), i64 byte length per first named identity; ValueIds I… I+S−1, payload ordinal is state index. |
+| Registrations | i32 A, then positive i32 strict UTF-8 name length, exact bytes, i32 state index in registration order; all states referenced and first new indices are 0,1,…; repeats are aliases. |
+| Nodes | i32 N, then u8 phase=1, u8 op (1 ADD, 2 MUL, 3 NEG, 4 MATMUL, 5 PERMUTE), fixed-arity i32 preceding input ValueIds (two for ADD/MUL/MATMUL, one otherwise); PERMUTE adds i32 2, i32 1, i32 0; output descriptor. NodeId n, output ValueId I+S+n. |
+| Outputs | Positive i32 O and O distinct ordered i32 ValueIds. |
+| Descriptor | u8 dtype (1 FLOAT64, 2 FLOAT32, 3 BFLOAT16, 4 INT32, 5 INT64, 6 BOOL, 7 FLOAT16), u8 requiresGrad, i32 rank, rank nonnegative i64 extents, u8 layout-present; when present, i64 element offset, u8 view, rank nonnegative i64 strides; derive kind/span via LayoutDescriptor.of. |
+
+Reject forward/dangling/cyclic references, dead nodes, unreachable state, noncanonical aliases,
+unknown IDs/phases/attrs, keys, lengths and BOOL. Compiler owns family/descriptor validation;
+normalized recapture must match stored topology in capture order, retaining unused inputs.
+Payloads are exact row-major bits, shape-count × width; no TensorIds, batches or runtime state.
+Save/load require explicit ArtifactLimits, with no new defaults or restriction of old NN trees.
+Bound schema by maxPayloadBytes (≤Integer.MAX_VALUE−8), all counts/ranks/strings by remaining bytes
+before allocation, S≤100000000, S+1≤maxEntries and checked I+S+N≤Integer.MAX_VALUE. Traversal is
+iterative with no backend rank-16 bound. For schema D and unique state bytes B: manifest
+M=72+58*S, aggregate=D+B, file=48+M+D+B, entries=1+S, kind/key ceiling≥14. Check all six limits
+and individual payloads with checked sums before encoding or bulk copies. These bound encoded
+size, not peak heap. Copy/rebind have no implicit file ceiling; checked collection/geometry/JVM
+limits apply and copy preflights each unique payload≤Integer.MAX_VALUE−8. Complete save image
+validation precedes unchanged ArtifactFile force/revalidate/one-atomic-move publication and its
+cleanup/failure semantics; this is not authentication or portable power-loss durability.
 
 ## `extensions/onnx`
 

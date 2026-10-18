@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.checkpoint.artifact.ArtifactLimits;
-import io.github.pho001.synaptik.checkpoint.model.ModelCheckpoint;
+import io.github.pho001.synaptik.nn.checkpoint.ModelCheckpoint;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.model.tensor.GraphRngState;
 import io.github.pho001.synaptik.model.tensor.Tensor;

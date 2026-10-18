@@ -105,4 +105,4 @@ no build edge. Persistence and its codec remain a separate adapter gate.
 - [Training lifecycle contract](../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle)
 - [Training graph recovery scenario](../../architecture/training-graph.md#continuing-at-the-next-training-input)
 - [Training restore implementation](../../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingSession.java)
-- [Model checkpoint load implementation](../../../extensions/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/model/ModelCheckpoint.java)
+- [Model checkpoint load implementation](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/checkpoint/ModelCheckpoint.java)

@@ -29,6 +29,9 @@ include(
 // Preserve Training's project and package identities after its NN-independent relocation.
 project(":extensions:training").projectDir = file("modules/training")
 
+// Preserve Checkpoint's public project identity after the generic/NN ownership split.
+project(":extensions:checkpoint").projectDir = file("modules/checkpoint")
+
 // Preserve backend project identities independently of their physical source directories.
 project(":backends").projectDir = file("modules/backend")
 project(":backends:cpu").projectDir = file("modules/backend/cpu")

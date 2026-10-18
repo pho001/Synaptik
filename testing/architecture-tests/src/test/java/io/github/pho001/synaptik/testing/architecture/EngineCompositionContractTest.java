@@ -50,6 +50,7 @@ final class EngineCompositionContractTest {
                 .filter(path -> path.getFileName().toString().equals("build.gradle.kts"))
                 .toList()) {
             Path relative = root.relativize(build);
+            // Generic Checkpoint remains inward and receives no Engine exemption.
             boolean inwardProduction = relative.startsWith("modules");
             if (relative.equals(Path.of("modules/training/build.gradle.kts"))) {
                 assertEquals(List.of("api(project(\":modules:model\"))",

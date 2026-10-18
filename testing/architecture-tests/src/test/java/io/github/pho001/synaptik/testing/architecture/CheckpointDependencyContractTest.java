@@ -12,13 +12,12 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
- * Protects the model-only Checkpoint project's three public dependencies and the deferred
+ * Protects generic Checkpoint's public Model/private Compiler boundary and the deferred
  * Training Checkpoint adapter gate.
  */
 final class CheckpointDependencyContractTest {
     /**
-     * Checks that Checkpoint is included alone, has exactly its three public project edges,
-     * and remains downstream of all inward modules, concrete backends, tuning, NN, and Training.
+     * Checks physical mapping, exact cold edges and the absence of reverse inward dependencies.
      *
      * @throws IOException if settings or a required project build file cannot be read
      */
@@ -26,7 +25,7 @@ final class CheckpointDependencyContractTest {
     void checkpointHasOnlyCurrentModelBoundaryEdges() throws IOException {
         Path root = repositoryRoot();
         String settings = Files.readString(root.resolve("settings.gradle.kts"));
-        Path checkpoint = root.resolve("extensions/checkpoint");
+        Path checkpoint = root.resolve("modules/checkpoint");
         Path checkpointBuild = checkpoint.resolve("build.gradle.kts");
 
         assertTrue(settings.lines().map(String::strip).anyMatch("\":extensions:checkpoint\","::equals),
@@ -34,31 +33,47 @@ final class CheckpointDependencyContractTest {
         assertFalse(settings.contains(":extensions:training-checkpoint"),
                 "the optional Training Checkpoint adapter must await its separate gate");
         assertTrue(Files.isRegularFile(checkpointBuild), "Checkpoint must declare its own build");
+        assertTrue(settings.contains("project(\":extensions:checkpoint\").projectDir = file(\"modules/checkpoint\")"));
+        assertFalse(Files.exists(root.resolve("extensions/checkpoint/src")));
+        assertFalse(Files.exists(root.resolve("extensions/checkpoint/build.gradle.kts")));
 
         List<String> projectEdges = Files.readString(checkpointBuild).lines()
                 .map(String::strip)
                 .filter(line -> line.contains("project("))
                 .toList();
         assertEquals(List.of(
-                "api(project(\":extensions:nn\"))",
-                "api(project(\":modules:engine\"))",
-                "api(project(\":modules:model\"))"), projectEdges,
-                "the public model checkpoint must expose exactly NN, Engine, and Model edges");
+                "api(project(\":modules:model\"))",
+                "implementation(project(\":modules:compiler\"))"), projectEdges,
+                "generic Checkpoint exposes Model and privately consumes cold Compiler");
 
         for (String area : List.of("modules")) {
             try (Stream<Path> builds = Files.walk(root.resolve(area))) {
                 for (Path build : builds.filter(path -> path.getFileName().toString()
                         .equals("build.gradle.kts")).toList()) {
+                    if (build.equals(checkpointBuild)) continue;
                     assertFalse(Files.readString(build).contains(":extensions:checkpoint"),
                             () -> "inward project must not depend on Checkpoint: " + build);
                 }
             }
         }
-        for (String project : List.of("extensions/nn", "modules/training", "tools/tuning")) {
+        for (String project : List.of("modules/training", "tools/tuning")) {
             Path build = root.resolve(project + "/build.gradle.kts");
             assertFalse(Files.readString(build).contains(":extensions:checkpoint"),
                     () -> project + " must not depend on Checkpoint");
         }
+        try (Stream<Path> sources = Files.walk(checkpoint.resolve("src"))) {
+            for (Path source : sources.filter(path -> path.toString().endsWith(".java")).toList()) {
+                String text = Files.readString(source);
+                for (String forbidden : List.of("nn", "engine", "training")) {
+                    assertFalse(text.contains("io.github.pho001.synaptik." + forbidden + "."),
+                            () -> "generic source/test must not import " + forbidden + ": " + source);
+                }
+                assertFalse(text.contains("package io.github.pho001.synaptik.nn.checkpoint"));
+            }
+        }
+        String facade = Files.readString(checkpoint.resolve(
+                "src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java"));
+        assertFalse(facade.contains("import io.github.pho001.synaptik.compiler"));
     }
 
     /**

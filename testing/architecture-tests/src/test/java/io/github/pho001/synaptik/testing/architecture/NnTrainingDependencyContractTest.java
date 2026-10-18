@@ -30,7 +30,9 @@ final class NnTrainingDependencyContractTest {
                 "api(project(\":modules:engine\"))"),
                 projectEdges(root.resolve("modules/training/build.gradle.kts")));
         assertEquals(List.of("api(project(\":modules:model\"))",
-                "api(project(\":extensions:training\"))"),
+                "api(project(\":extensions:training\"))",
+                "api(project(\":extensions:checkpoint\"))",
+                "api(project(\":modules:engine\"))"),
                 projectEdges(root.resolve("extensions/nn/build.gradle.kts")));
     }
 

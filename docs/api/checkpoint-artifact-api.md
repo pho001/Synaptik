@@ -8,10 +8,10 @@ version-one file form. The [extensions contract](../architecture/contracts/exten
 owns the boundary, and [ADR 0032](../design/decisions/0032-checkpoint-artifact-envelope.md)
 explains the format and publication choice.
 
-Checkpoint also has a public [model checkpoint API](model-checkpoint-api.md) that maps NN state to
+NN retains a public [model checkpoint API](model-checkpoint-api.md), now in `nn.checkpoint`, that maps state to
 opaque entries via public Engine materialization. It is separate from this opaque artifact API:
-the artifact package still assigns no meaning to payloads. Its schema is described by the
-[owning contract](../architecture/contracts/extensions-training.md#extensionscheckpoint) and
+the artifact package still assigns no meaning to payloads. Its old model schema is described by the
+[owning NN contract](../architecture/contracts/extensions-training.md#retained-nn-checkpoint-apis) and
 [ADR 0033](../design/decisions/0033-model-candidate-schema.md).
 
 ## Core contracts
@@ -94,3 +94,7 @@ resume. There is no cross-process no-replace or concurrent-target-mutation promi
 - [Checkpoint module boundary](../architecture/module-boundaries.md#extensionscheckpoint)
 - [Public model checkpoint API](model-checkpoint-api.md)
 - [Checkpoint lifecycle explanation](../architecture/lifecycle.md#public-training-lifecycle)
+
+The artifact package and `:extensions:checkpoint` project ID are unchanged; sources now live in
+`modules/checkpoint`. Its separate [generic graph API](graph-checkpoint-api.md) stores cold Tensor
+sources and host values without NN or Engine. Existing opaque file bytes/publication are unchanged.

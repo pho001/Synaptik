@@ -70,9 +70,9 @@ The repository groups responsibilities by architectural role:
 
 ```text
 modules/       shared model, configuration, planning, compiler, prepare,
-               runtime, engine, generic training, backend contracts, and tracing
+               runtime, engine, generic training/checkpoint, backend contracts, and tracing
 modules/backend/ concrete CPU, Metal, and CUDA backends, plus leaf providers
-extensions/    NN composition, Checkpoint, and ONNX functionality
+extensions/    NN composition (including retained old checkpoint readers) and ONNX
 tools/         tuning, benchmarks, and CLI tooling
 modules/backend/metal/macos-arm64/ platform-specific Metal native integration
 testing/       architecture, backend-conformance, and integration tests
@@ -83,3 +83,7 @@ Production Java packages use the `io.github.pho001.synaptik.*` namespace. Module
 concise, such as `modules/compiler`, `modules/backend/cpu`, and `modules/training`. Training retains
 Gradle identity `:extensions:training` and its Java packages through an explicit settings mapping.
 Its generic live admission depends only on public Model/Engine; NN supplies a live Module adapter.
+
+Generic Checkpoint uses Model publicly and Compiler's cold source boundary privately; NN consumes
+Checkpoint and public Engine for its retained old readers. A graph load creates heap state and
+symbolic expressions, not a prepared executable or a new Model workflow.

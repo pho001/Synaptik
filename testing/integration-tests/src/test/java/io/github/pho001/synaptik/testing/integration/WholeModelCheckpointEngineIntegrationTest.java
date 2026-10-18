@@ -2,7 +2,7 @@ package io.github.pho001.synaptik.testing.integration;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.pho001.synaptik.checkpoint.model.ModelCheckpoint;
+import io.github.pho001.synaptik.nn.checkpoint.ModelCheckpoint;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
 import io.github.pho001.synaptik.model.datatype.DataType;

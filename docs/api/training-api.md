@@ -389,7 +389,8 @@ checks these byte, ownership, lifetime, and late-rejection properties through pu
 
 ## Caller-coordinated in-memory recovery
 
-An exact next-input handoff is a caller-owned workflow across NN, the model-only Checkpoint API,
+An exact next-input handoff is a caller-owned workflow across NN (including the relocated
+`nn.checkpoint.ModelCheckpoint` model-only API),
 Training, and any external input or random-state owners. At a quiescent successful-run boundary,
 the caller keeps a detached `TrainingState`, a complete model artifact containing parameter and
 persistent-buffer values, every relevant module's local mode, the effective `ForwardContext`
@@ -1125,6 +1126,10 @@ optimizer update belongs to Metal prepare; a `MetalOptimizerBridge` inside Train
 reverse the required dependency direction.
 
 ## Related contracts
+
+Old model recovery examples use an explicit `:extensions:nn` dependency; generic Checkpoint
+alone no longer exports NN. The [generic graph API](graph-checkpoint-api.md) stores source/value
+state only, not optimizer/session state, and adds no fresh-value TrainingSession support.
 
 - [Training graph](../architecture/training-graph.md)
 - [Autograd guide](../user-guide/autograd.md)

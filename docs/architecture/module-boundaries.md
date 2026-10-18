@@ -297,7 +297,7 @@ algorithms to parameters within one session and one global optimizer step. Train
 `Parameter`, `Buffer`, layer behavior, or train/eval mode.
 
 Training has exactly public Model/Engine edges and no NN dependency; NN has exactly public
-Model/Training edges. A Training-only caller can supply an ordinary Tensor owner without a Module.
+Model/Training/Checkpoint/Engine edges. A Training-only caller can supply an ordinary Tensor owner without a Module.
 Training uses one Engine compile and one Engine prepared execution; it
 must not depend on Runtime, Prepare, tuning, or concrete backend modules or implement another
 execution path. A fused optimizer route on Metal, for example, remains a Metal backend
@@ -308,9 +308,21 @@ Training does not own fixed recurrent execution, valid-length handling, or backp
 time. Compiler owns the later BPTT decision and gradient construction; Training remains the
 consumer of published gradients and owner of optimizer orchestration.
 
-### `extensions/checkpoint`
+<a id="extensionscheckpoint"></a>
 
-Checkpoint is the model-only recovery boundary downstream of NN, public Engine, and Model.
+### `modules/checkpoint` (Gradle `:extensions:checkpoint`)
+
+Generic Checkpoint owns cold graph/value copy/save/load/rebind through GraphCheckpoint and the
+opaque artifact package. Its public Model edge and implementation-only Compiler edge expose no
+NN/Training/Engine dependency. A static input prototype contributes only its descriptor; named
+host leaves contribute raw values by exact identity. Load returns ordinary symbolic Tensors,
+without execution or a second ownership copy. See the [graph API](../api/graph-checkpoint-api.md).
+
+### Retained NN checkpoint glue
+
+The old nine model persistence classes now belong to `extensions/nn`, package `nn.checkpoint`.
+External old-model users need an explicit NN dependency and migrated imports; no compatibility
+forwarders exist. The following old-format behavior is unchanged.
 Its artifact API saves and reads one bounded file of opaque named byte payloads.
 The file is forced and fully validated before one atomic move; success gives atomic live
 visibility, not portable power-loss persistence of the rename. It does not interpret a payload
@@ -329,7 +341,7 @@ explains typed inspection, the direct Model dependency, and target-defined alias
 
 The model-envelope API extends this same facade to capture, inspect,
 read canonical state bytes, and load the existing `ArtifactEnvelope` without file I/O. The
-[owning Checkpoint contract](contracts/extensions-training.md#extensionscheckpoint) and
+[owning NN contract](contracts/extensions-training.md#retained-nn-checkpoint-apis) and
 [ADR 0036](../design/decisions/0036-model-envelope-composition.md) define that boundary.
 The internal candidate and codec remain package-private; file calls keep their reread and publication
 policies. Reusing the decoder prevents a standalone envelope from bypassing limits or BOOL
@@ -341,7 +353,8 @@ is implemented and reviewed (Complete, 2026-10-15). It keeps existing ModelCheck
 ordinary supported Sequential or DeclarativeModel roots, and reconstructs only NN's closed matrix. Values-only APIs remain the
 advanced foundation; they do not acquire automatic reconstruction of arbitrary Model callbacks.
 The separate whole-model kind binds canonical definition bytes, complete values and exact aliases.
-Checkpoint owns bytes/versions/preflight; NN owns meaning and strict installation. Reusing public
+NN now owns old model bytes/versions/preflight as well as meaning and strict installation;
+Checkpoint retains only opaque artifacts and the separate generic graph format. Reusing public
 component validation avoids inventing a trusted-image credential or private parsing interface.
 
 Whole-model scenario: a quiescent Sequential contains two FLOAT32 Linear layers whose
@@ -408,7 +421,7 @@ engine     = explicit composition and public lifecycle
 trace      = typed diagnostic leaf
 nn         = module composition, parameters, buffers, and forward mode
 training   = optimizer algorithms and training orchestration
-checkpoint = model-only recovery boundary (opaque artifact and public model-state APIs)
+checkpoint = generic cold graph/value persistence and opaque artifacts; old model glue is NN
 ```
 
 The dependency implications of these responsibilities are detailed in [Dependency Rules](dependency-rules.md).

@@ -150,3 +150,8 @@ See the [NN declarative contract](../architecture/contracts/extensions-training.
 for the owning boundary, the [specification/skeleton glossary](../glossary.md#declarative-model-specification-and-descriptor-only-skeleton)
 and the [module topology glossary](../glossary.md#functional-model-and-model-topology)
 for the distinction between module ownership and a Tensor computation graph.
+
+The retained old file facade is now `io.github.pho001.synaptik.nn.checkpoint.ModelCheckpoint`;
+use an explicit NN dependency. `model.v1` and `whole-model.v1` keep their flexible declarative
+behavior and readers. The [generic graph API](../api/graph-checkpoint-api.md) is a separate cold
+static-signature capability, not an automatic conversion of these models or new Model methods.

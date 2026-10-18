@@ -80,5 +80,5 @@ cross-owner restore protocol remain future work for exact training continuation.
 
 - [Checkpoint 0004 task](../../planning/extensions/checkpoint/tasks/0004-public-model-checkpoint-save-inspect-load.md)
 - [Model checkpoint API guide](../../api/model-checkpoint-api.md)
-- [Focused model checkpoint test](../../../extensions/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/model/ModelCheckpointTest.java)
+- [Focused model checkpoint test](../../../extensions/nn/src/test/java/io/github/pho001/synaptik/nn/checkpoint/ModelCheckpointTest.java)
 - [Internal schema decision](0033-model-candidate-schema.md)

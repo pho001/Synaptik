@@ -2945,12 +2945,14 @@ match. Omitting `encoder.runningMean` fails before any target changes. The examp
 path/order and validate-before-install behavior; it does not read, serialize, or execute Tensor
 values.
 
-A **checkpoint** is a semantic recovery artifact. The included model-only Checkpoint
-project is downstream of NN, public Engine, and Model and offers a public opaque artifact envelope:
+A **checkpoint** is a semantic recovery artifact. Generic Checkpoint (`modules/checkpoint`,
+Gradle `:extensions:checkpoint`) depends publicly on Model and privately on Compiler's cold source
+boundary, not NN, Training or Engine. It offers a public opaque artifact envelope:
 a versioned, bounded single-file container with strict names, lengths, and SHA-256 integrity
 checks. It does not assign meaning to payload bytes. Saving this envelope forces its temporary
 file and uses one atomic move for live visibility; Java NIO does not portably guarantee that the
 rename survives power loss. A failed move can leave the target in a provider-dependent state.
+NN's retained `nn.checkpoint` package, not generic Checkpoint, owns the old model readers.
 A package-private values-only **model artifact candidate** adds canonical version-one metadata and
 detached per-path payload bytes from one complete NN state snapshot through public Engine compute.
 Its schema fingerprint is SHA-256 over exact metadata, including caller-supplied configuration and
@@ -3402,9 +3404,11 @@ same exact Tensor, not merely equal values or overlapping storage. Members follo
 order; groups follow first-member order, have matching schema and disjoint memberships. Both
 description entry points read current bindings under caller quiescence, including joins/splits
 after legal replacement or strict loading. Training's duplicate/overlap rejection is unchanged.
-See the [reconstruction guide](user-guide/declarative-models.md). NN owns semantic reconstruction,
-not file I/O; downstream [whole-model Checkpoint](api/model-checkpoint-api.md#whole-model-save-and-automatic-load)
-stores this closed configuration and detached values, then returns a value-loaded model.
+See the [reconstruction guide](user-guide/declarative-models.md). ModelSpecification description and
+descriptor-only reconstruction perform no file I/O. NN also owns the separate `nn.checkpoint`
+facade/codecs: [whole-model persistence](api/model-checkpoint-api.md#whole-model-save-and-automatic-load)
+stores this closed configuration and detached values, delegates generic file I/O to ArtifactFile,
+then returns a value-loaded model.
 Neither capability supplies training resume or arbitrary Java model capture.
 
 ### Standard module factory
@@ -6905,3 +6909,14 @@ referenced spans apply to resolved layouts and checked canonical static element/
 to absent layouts; unknown/overflow geometry rejects. Identity-based Engine.run retains its
 exact-ID/arbitrary-order meaning and does not gain the additional absent-layout restriction.
 Neither method mutates prototypes or compiles/prepares again.
+
+### Generic graph checkpoint source
+
+A **generic graph checkpoint source** is GraphCheckpoint.Source: borrowed ordered input prototypes,
+ordinary Tensor output expressions and named PARAMETER/BUFFER/CONSTANT leaves, not another graph
+intermediate representation or executable owner. Input descriptors are fully static; unused slots
+remain signature entries with no saved batches. Exact Tensor identity defines state aliases;
+equal bytes or overlapping physical storage do not. Copy/load return private mutable heap state
+and rebuilt ordinary provenance, without retaining original state or owning an Engine. Rebind is
+cold symbolic substitution, not execution. This graph-model.v1 format is distinct from NN's old
+flexible model.v1/whole-model.v1 readers. See the [graph API](api/graph-checkpoint-api.md).

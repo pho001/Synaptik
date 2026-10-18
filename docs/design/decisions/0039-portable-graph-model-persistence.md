@@ -2,7 +2,7 @@
 
 ## Status
 
-2026-10-17: **accepted product choices; Engine0021, Training0007 and Compiler0008 Complete**.
+2026-10-17: **accepted product choices; Engine0021, Training0007, Compiler0008 and Checkpoint0008 Complete**.
 The user explicitly authorized the prepared-owner cutover after independent Astra/xhigh packet
 approval. Root and owning Engine/Training contracts enact that bounded cutover. Independent final
 Class C approval and the coordinator's native-enabled integrated test/Javadoc gate passed.
@@ -13,8 +13,13 @@ Its brief owns evidence. Authorized Training frontier: None. On 2026-10-17,
 [Compiler0008](../../planning/modules/compiler/tasks/0008-cold-source-capture-and-reconstruction.md)
 is Complete: bounded source API and coordinated root/compiler authority implemented, Einstein final
 code/docs APPROVE and coordinator Class C checkpoint passed. Its brief owns evidence.
-Authorized Compiler frontier: None; next planning candidate Checkpoint0008 remains Draft, as do
-Training0008/NN0028. High-level Model/withEngine remains TARGET, not implemented.
+Authorized Compiler frontier: None; [Checkpoint0008](../../planning/extensions/checkpoint/tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md)
+is Complete after Halley's definitive final APPROVE and the coordinator's source-matched test/Javadoc
+gate on 2026-10-17. Authorized Checkpoint frontier: None; Training0008 is the next planning candidate,
+still Draft; NN0028 remains Draft. Checkpoint0008 enacts the bounded root/owning-contract,
+physical split and role-specific architecture-test cutover in the same change, before relying on
+reversed edges. Final independent code/docs review and coordinator validation passed; its brief owns evidence.
+High-level Model/withEngine remains TARGET, not implemented.
 This record does not override [root architecture](../../../ARCHITECTURE.md) or its scoped
 contracts, and does not authorize the remaining cutovers.
 
@@ -167,7 +172,8 @@ or unchecked-cast assumption is needed. Compile-only API consumers must witness 
   reads the live owner. NN's new `Module.trainingParameters()` returns a private adapter retaining
   exact ordered paths/wrappers/Tensors. Training owns storage/descriptor/finiteness validation.
   This boundary and the NN adapter are implemented by Training0007. Training has exactly public
-  Model/Engine edges, NN public Model/Training. GraphCheckpoint below remains a design target.
+  Model/Engine edges; NN now also exports Checkpoint/Engine for the moved persistence signatures.
+  GraphCheckpoint below is Complete in Checkpoint0008 after final review/coordinator gate.
 - `checkpoint.graph.GraphCheckpoint`: NN-free cold persistence owner with nested
   `Source(List<Tensor> inputs, List<Tensor> outputs, List<Leaf> leaves)`,
   `Leaf(String name, Role role, Tensor tensor)` and enum PARAMETER/BUFFER/CONSTANT.
@@ -192,6 +198,13 @@ provenance-free identities. Repeated replacement references are explicit substit
 positions remain ordered and ordinary compile still rejects duplicate resolved outputs. Preserve
 resolved/unresolved descriptors exactly; do not strip final compiled layouts to force reconstruction.
 Compiler checks logical metadata only; Checkpoint's host-value admission below remains separate.
+
+Checkpoint0008 source reconciliation (2026-10-17): declared input order is not capture's first-encounter
+order, which also includes named state. Associate by exact Tensor identity; retain unused declared
+prototype slots using existing graph constructors and Compiler's unused-input support, without saved
+batch values. Unreachable named registrations still reject. Host reconstruction retains the original
+descriptor through TensorFactory.create and compatible storage, never resolves an absent layout merely
+to call allocate. These are consumer consequences of current source APIs, not additional Compiler scope.
 
 These are the minimum two cross-module data/admission boundaries plus a Compiler capture sidecar;
 no public execution result, signature builder, transfer token or generic adapter framework is added.
@@ -376,7 +389,7 @@ Engine.runSession, AdvancedEngine.openInferenceSession/runSessionOrdinary/unregi
 and session-only branches atomically with all consumers. External session users must migrate and
 recompile; this is a deliberate source/binary break, not an additive-only API claim. Training fixture
 session() accessors returning TrainingSession remain. Training0007 retires old NN-taking
-Training declarations/imports in its coordinated migration; Checkpoint0008 later retires moved locations.
+Training declarations/imports in its coordinated migration; Checkpoint0008 retires moved locations.
 Do not delete algorithms,
 readers, generic Model, declarative types or completed history. The superseded outputs(actualInputs)-
 first proposal was never implemented and has no production code to delete.
@@ -495,7 +508,9 @@ records implementation, independent approval and the coordinator's successful cr
 Training0007 is Complete: generic live admission/native copy and its NN adapter passed final
 independent review and the coordinator boundary gate. Compiler0008's bounded API/authority cutover
 is Complete after final independent code/docs APPROVE and the coordinator checkpoint; authorized
-Compiler frontier: None. Next planning candidate Checkpoint0008 and Training0008/NN0028 stay Draft.
+Compiler and Checkpoint frontiers: None. Checkpoint0008 is Complete after Halley's final APPROVE
+and the coordinator root gate; its brief owns evidence. Training0008 is next planning candidate,
+still Draft; NN0028 stays Draft.
 Glossary/Javadocs describe the bounded Training and Compiler cutovers. Model.withEngine,
 Model compute/configured train/save/load and other APIs in
 this ADR remain planned; no Model lifecycle is enacted here.

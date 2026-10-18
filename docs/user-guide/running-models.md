@@ -30,14 +30,17 @@ value-loaded `DeclarativeModel`, not a descriptor-only skeleton. It needs no Eng
 ordinary forward construction and execution still use the caller's Engine. No backend or prepared
 execution is stored in the file.
 
-This complete Java 26 example needs Checkpoint, NN, Model and Engine on the classpath and
+Use an explicit `:extensions:nn` dependency and import `nn.checkpoint.ModelCheckpoint`;
+the generic Checkpoint project no longer exports NN. The old flexible readers/defaults are
+unchanged, distinct from [static generic graph persistence](../api/graph-checkpoint-api.md).
+This complete Java 26 example needs NN and its public dependencies on the classpath and
 `jdk.incubator.vector` enabled. Its trusted local directory is created before save. The source has
 FLOAT32 diagonal weights `[1, 0; 0, 2]` followed by RELU. Both source owners close before load;
 the saved file is then deleted before fresh-CPU inference. The input `[-3, 4]` should produce
 `[0, 8]`.
 
 ```java
-import io.github.pho001.synaptik.checkpoint.model.ModelCheckpoint;
+import io.github.pho001.synaptik.nn.checkpoint.ModelCheckpoint;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;

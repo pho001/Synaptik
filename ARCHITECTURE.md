@@ -97,6 +97,7 @@ ComputationalGraph/
     prepare/
     engine/
     training/
+    checkpoint/
     backend/
       openblas-provider/
       cpu/
@@ -106,7 +107,6 @@ ComputationalGraph/
 
   extensions/
     nn/
-    checkpoint/
     onnx/
 
   tools/
@@ -126,7 +126,8 @@ settings mappings, including the `:backends` parent at `modules/backend`. The ba
 README scaffold; no executable native CUDA project or platform tree is implied by this layout.
 Training is physically `modules/training`, retaining Gradle project `:extensions:training` through
 an explicit settings mapping and retaining its Java packages. Its owning contract remains in
-the incorporated extensions/training contract below.
+the incorporated extensions/training contract below. Checkpoint is physically `modules/checkpoint`,
+retaining `:extensions:checkpoint` through an explicit settings mapping.
 
 ## Core lifecycle
 
@@ -412,9 +413,10 @@ briefs and maintained navigation adopt the exact scoped destinations:
 | CPU routes and generated JVM bytecode | [Backend execution — CPU backend routes](docs/architecture/contracts/backend-execution.md#cpu-backend-routes) |
 | Metal | [Backend execution — Metal backend](docs/architecture/contracts/backend-execution.md#metal-backend) |
 | OpenBLAS provider | [Backend execution — OpenBLAS provider](docs/architecture/contracts/backend-execution.md#openblas-provider) |
-| NN stateful composition, semantic description and descriptor-only reconstruction | [Extensions/training — `extensions/nn`](docs/architecture/contracts/extensions-training.md#extensionsnn) |
+| NN stateful composition, declarative reconstruction and retained old model persistence | [Extensions/training — `extensions/nn`](docs/architecture/contracts/extensions-training.md#extensionsnn) |
 | Training | [Extensions/training — `modules/training`](docs/architecture/contracts/extensions-training.md#modulestraining) |
-| Opaque artifact envelope, values-only APIs, bounded whole-model definition/composition, and optional Training Checkpoint adapter | [Extensions/training — `extensions/checkpoint`](docs/architecture/contracts/extensions-training.md#extensionscheckpoint) |
+| Generic graph/value persistence and opaque artifact envelope | [Extensions/training — `extensions/checkpoint`](docs/architecture/contracts/extensions-training.md#extensionscheckpoint) |
+| Retained NN model persistence and optional Training Checkpoint adapter reservation | [Extensions/training — retained NN checkpoint APIs](docs/architecture/contracts/extensions-training.md#retained-nn-checkpoint-apis) |
 | ONNX | [Extensions/training — `extensions/onnx`](docs/architecture/contracts/extensions-training.md#extensionsonnx) |
 | Optimizer/training lifecycle | [Extensions/training — optimizer/training lifecycle](docs/architecture/contracts/extensions-training.md#optimizertraining-lifecycle) |
 | CLI | [Backend execution — other tool scopes](docs/architecture/contracts/backend-execution.md#other-tool-scopes) |
@@ -435,9 +437,9 @@ This compact routing summary does not replace the linked details:
 | Prepared schedules, residency, publication, and per-run mutable state | Runtime |
 | Explicit composition and public lifecycle | Engine |
 | Typed diagnostics | Trace |
-| Stateful modules, parameters, buffers, train/eval behavior, and closed declarative model description/reconstruction | NN; semantic data and state installation only, not persistent encoding or execution |
+| Stateful modules, parameters, buffers, train/eval behavior, closed declarative models and old model.v1/whole-model.v1 persistence | NN; old Engine-materializing glue and strict state installation, not another execution pipeline |
 | Generic live parameter admission, optimizer algorithms, explicit pre-session native parameter copies, and training orchestration | Training (`modules/training`, Gradle `:extensions:training`); NN owns its live Module adapter |
-| Model-only checkpoint boundary, bounded opaque artifact envelope, values-only APIs, and canonical whole-model definition/file/envelope composition | Checkpoint; NN retains semantic description, descriptor-only reconstruction and whole-tree state installation; Training resume remains separately proposed |
+| Generic cold graph/value copy/save/load/rebind and bounded opaque artifact envelope | Checkpoint (`modules/checkpoint`, Gradle `:extensions:checkpoint`); Compiler owns raw capture/reconstruction; no NN, Training or Engine dependency |
 | Optional stored Model + TrainingState restoration; broader exact continuation requires all affecting state | Future Training Checkpoint adapter, after its separate gate; each state owner retains validation and restore authority |
 | Exact training continuation claim and cross-owner restore coordination | Each state owner retains its state; the caller stages an unpublished replacement and controls exclusion and publication under the [Training lifecycle contract](docs/architecture/contracts/extensions-training.md#optimizertraining-lifecycle) |
 | Fixed benchmark evidence | `tools/benchmarks` |
@@ -489,11 +491,11 @@ Neural-network composition and training use this direction (Training retains Gra
 modules/model + public modules/engine facade
   -> modules/training
 
-modules/model + modules/training
-  -> extensions/nn
+modules/model + modules/compiler (cold implementation only)
+  -> modules/checkpoint
 
-extensions/nn + public modules/engine facade + modules/model
-  -> extensions/checkpoint
+modules/model + modules/training + modules/checkpoint + public modules/engine facade
+  -> extensions/nn
 
 modules/training + extensions/checkpoint
   -> optional future extensions/training-checkpoint
@@ -510,19 +512,20 @@ Concrete rules:
 - `modules/prepare` must not depend on concrete backend implementations.
 - Concrete backends must not depend on `modules/engine`.
 - `modules/backend/openblas-provider` must not depend on compiler, planning, runtime, prepare, engine, or Tensor API.
-- `extensions/nn` has exactly the public Model and Training project edges. Its Training edge
-  exposes only live Module parameter admission, not optimizer algorithms or update orchestration;
-  NN has no direct Compiler, Runtime, Prepare, Engine, Checkpoint, or concrete-backend edge.
+- `extensions/nn` has exactly public Model, Training, Checkpoint and Engine project edges.
+  Training supplies live Module admission; Checkpoint supplies generic artifacts/graph persistence;
+  Engine supplies public materialization for relocated old NN persistence signatures. NN has no
+  direct Compiler, Runtime, Prepare or concrete-backend edge, and owns no second execution pipeline.
 - `modules/training` has exactly the public Model and Engine project edges and must not depend
   on NN. The explicit public Engine composition edge does not permit a dependency on Compiler,
   Runtime, Prepare, tuning, or a concrete backend, use of Engine internals, or a second execution
   pipeline.
 - `modules/training` must not depend directly on concrete backend modules.
-- `extensions/checkpoint` is model-only and has exactly three direct public project dependencies:
-  `extensions/nn`, `modules/engine`, and `modules/model`. Its typed inspection API and public
-  save/load signatures justify the direct Model edge. It uses only Engine's public facade for host
-  materialization; it must not depend on Training, Text, Compiler, Runtime, Prepare, tuning, or
-  concrete backends. No inward module or NN or Training may depend on Checkpoint.
+- `modules/checkpoint` (Gradle `:extensions:checkpoint`) has exactly `api(Model)` and
+  `implementation(Compiler)` project edges. Compiler access is only the cold source boundary;
+  public Checkpoint signatures expose no Compiler types. Checkpoint has no NN, Training, Engine,
+  Runtime, Prepare, tuning or concrete-backend edge, including tests. NN may depend on Checkpoint;
+  other inward modules and Training may not. It reads Model host storage, never executes.
 - The optional `extensions/training-checkpoint` adapter may depend on Training and Checkpoint to
   coordinate durable training continuation, but is not included or implemented before its later
   adapter gate. It must not move model-only persistence into Training or make Checkpoint depend on
@@ -623,14 +626,14 @@ Architecture tests should enforce:
 - `Operation` does not expose `supportedBackends()`
 - runtime hot path does not use `Operation` or `CompiledNode`
 - planning scoring does not reference concrete kernel classes
-- `extensions/nn` has exactly public Model/Training edges and no direct execution/backend or
-  Checkpoint edge; its live adapter preserves ordered path/wrapper/Tensor membership
+- `extensions/nn` has exactly public Model/Training/Checkpoint/Engine edges, with no direct
+  Compiler/Runtime/Prepare/backend edge; its live adapter preserves ordered path/wrapper/Tensor membership
 - physical `modules/training` maps to `:extensions:training`, has exactly public Model/Engine
   edges, and has no NN imports, NN-taking overloads, or test-only NN dependency; the public Engine
   exception is role-specific and never exempts other inward modules
-- the included `extensions/checkpoint` project has exactly the public NN, Engine, and Model direct
-  project edges, no reverse NN/Training/lower-layer edges, and no included Training Checkpoint
-  adapter before its separate gate
+- the included `:extensions:checkpoint` project maps to `modules/checkpoint`, has exactly public
+  Model and private cold Compiler edges, NN-free sources/tests and public signatures, no old source
+  location or forwarding packages, and no included Training Checkpoint adapter before its separate gate
 
 Backend behavior changes should include or update backend conformance tests under:
 

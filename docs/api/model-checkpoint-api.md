@@ -6,8 +6,13 @@
 load a `DeclarativeModel`, or capture values and restore them into a caller-recreated fully bound
 neural-network (NN) module. An envelope is an immutable in-memory collection
 of named byte payloads; canonical bytes encode logical elements in row-major order, big-endian.
-The [architecture contract](../architecture/contracts/extensions-training.md#extensionscheckpoint)
-owns this model-only boundary. It does not persist a Java module class, optimizer, or training
+The [architecture contract](../architecture/contracts/extensions-training.md#retained-nn-checkpoint-apis)
+owns this NN model-only boundary. Import the three public types from
+`io.github.pho001.synaptik.nn.checkpoint` and declare an explicit `:extensions:nn` dependency;
+Checkpoint alone no longer exports them. Artifact imports and the `:extensions:checkpoint`
+project identity are unchanged. This API retains `model.v1`/`whole-model.v1` readers and flexible
+batch/rank semantics; the separate [generic graph API](graph-checkpoint-api.md) has static signatures.
+It does not persist a Java module class, optimizer, or training
 continuation.
 
 | Workflow | Stored kind | What load requires and returns |
@@ -56,7 +61,7 @@ inspection/byte-access methods still accept `model.v1`, not the outer whole-mode
 
 ### Expected input identity
 
-The sole new public type, `checkpoint.model.InputArtifactFingerprint`, represents an input
+The retained public type, `nn.checkpoint.InputArtifactFingerprint`, represents an input
 artifact's SHA-256 identity already verified by the application. Its constructor requires exactly
 32 non-null bytes; construction and `bytes()` defensively copy, and equality/hash code use all bytes.
 Checkpoint neither reads nor verifies that external artifact.
@@ -113,8 +118,8 @@ envelope --independent validation per call--> descriptors / canonical path bytes
 model.v1 file --ArtifactFile integrity checks + model validation--> descriptors / NN load
 ```
 
-The arrows show who owns each stage: NN exports and installs state, Checkpoint validates model
-metadata and bytes, and Engine materializes capture/save-time values. Loading does not use an Engine.
+The arrows show who owns each stage: NN exports/installs state and its `nn.checkpoint` package
+validates old model metadata and bytes; Engine materializes capture/save-time values. Loading does not use an Engine.
 
 ## Core contracts
 
@@ -226,7 +231,7 @@ No Training API, reflection, model-internal type, or filesystem operation is use
 ```java
 import io.github.pho001.synaptik.checkpoint.artifact.ArtifactEnvelope;
 import io.github.pho001.synaptik.checkpoint.artifact.ArtifactLimits;
-import io.github.pho001.synaptik.checkpoint.model.ModelCheckpoint;
+import io.github.pho001.synaptik.nn.checkpoint.ModelCheckpoint;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -325,7 +330,7 @@ materialization through an explicit contiguous expression.
 
 ```java
 import io.github.pho001.synaptik.checkpoint.artifact.ArtifactLimits;
-import io.github.pho001.synaptik.checkpoint.model.ModelCheckpoint;
+import io.github.pho001.synaptik.nn.checkpoint.ModelCheckpoint;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -432,6 +437,6 @@ movement and existing expression occurrences. No Engine/Prepare zero-node suppor
 ## Related API and architecture
 
 - [Opaque artifact file API](checkpoint-artifact-api.md)
-- [Checkpoint boundary explanation](../architecture/module-boundaries.md#extensionscheckpoint)
+- [Checkpoint boundary explanation](../architecture/module-boundaries.md#retained-nn-checkpoint-glue)
 - [Public model checkpoint decision](../design/decisions/0034-public-model-checkpoint.md)
 - [Model-envelope composition decision](../design/decisions/0036-model-envelope-composition.md)

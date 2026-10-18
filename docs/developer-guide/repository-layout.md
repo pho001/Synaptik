@@ -4,7 +4,7 @@ The repository is organized around the module boundaries defined by [`ARCHITECTU
 
 - `modules/` contains model, compiler, planning, prepare, runtime, engine, generic training, configuration, backend contracts, tracing, and concrete backend projects;
 - `modules/backend/` groups the separate CPU, Metal, CUDA scaffold, and OpenBLAS provider projects;
-- `extensions/` contains NN composition, Checkpoint, and ONNX integration;
+- `extensions/` contains NN composition (including old NN checkpoint readers) and ONNX integration;
 - `tools/` contains tuning, benchmark, and command-line tooling;
 - `modules/backend/metal/macos-arm64/` contains Metal's platform-specific native integration;
 - `testing/` contains architecture, backend-conformance, and integration test modules; and
@@ -55,3 +55,10 @@ Engine exception, not permission for other inward modules to depend on Engine.
 Training plans remain under [the existing planning directory](../planning/extensions/training/master-plan.md).
 Completed task evidence retains its original paths and commands; use `modules/training` for
 current source navigation, without rewriting historical completion records.
+
+Generic Checkpoint is physically `modules/checkpoint`, with unchanged Gradle project identity
+`:extensions:checkpoint` through `settings.gradle.kts`. Its six opaque artifact files keep their
+packages; the nine old NN model files now belong to `extensions/nn` under `nn.checkpoint`.
+For example, a generic artifact user keeps its dependency/import, while a ModelCheckpoint user
+adds an explicit NN dependency and changes `checkpoint.model` imports to `nn.checkpoint`; no
+compatibility forwarding package is retained. See the [graph API](../api/graph-checkpoint-api.md).
