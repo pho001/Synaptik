@@ -85,6 +85,35 @@ final class NnTrainingDependencyContractTest {
     }
 
     /**
+     * Allows NN's bounded public-owner composition without granting an inward implementation edge.
+     * @throws IOException if a required source cannot be read
+     */
+    @Test
+    void ownedModelsComposeOnlyExistingPublicOwnersInTheirBoundedPackage() throws IOException {
+        Path nn = repositoryRoot().resolve("extensions/nn/src/main/java/io/github/pho001/synaptik/nn");
+        try (Stream<Path> sources = Files.walk(nn)) {
+            for (Path path : sources.filter(p -> p.toString().endsWith(".java")).toList()) {
+                String text = Files.readString(path);
+                for (String forbidden : List.of("compiler.", "runtime.", "prepare.", "backend.", "tuning.",
+                        "engine.internal.", "training.internal.", "checkpoint.graph.GraphSource")) {
+                    assertFalse(text.contains("import io.github.pho001.synaptik." + forbidden),
+                            () -> "NN must compose public owners only: " + path);
+                }
+                if (text.contains("TrainingSession.open(") || text.contains("TrainingParameterStorage.copyToSharedNative(")) {
+                    assertEquals("ModelExecutionState.java", path.getFileName().toString());
+                }
+            }
+        }
+        String execution = Files.readString(nn.resolve("module/ModelExecutionState.java"));
+        assertTrue(execution.contains("selected.runValues(inference,"));
+        assertTrue(execution.contains("session.runValues("));
+        assertTrue(execution.contains("GradientMode.RESET_AND_STEP"));
+        assertFalse(execution.contains("GraphCheckpoint.rebind(owned.source, stable)"));
+        assertTrue(Files.readString(nn.resolve("module/OwnedModelSource.java"))
+                .contains("private static final class StateNamespace extends Module"));
+    }
+
+    /**
      * Locates settings independently of the test working directory.
      * @return repository root containing settings, never null
      * @throws IllegalStateException if no ancestor contains settings

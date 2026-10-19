@@ -1213,7 +1213,7 @@ try (Engine engine = Engine.standard()) {
 Here `output` already retains the Model expression provenance leading to its leaves. The returned
 value is detached; closing the Engine does not invalidate it.
 
-An NN `Model` follows the same boundary. This conceptual example intentionally assumes only the
+An old generic/custom/declarative NN `Model` follows the same boundary. This conceptual example intentionally assumes only the
 existing `model`, `input`, and `Tensor` contracts and invents no construction or initialization
 API:
 
@@ -1229,6 +1229,30 @@ execute it. `engine.compute(output)` performs execution and host materialization
 execution should retain the expression and use
 `compile -> prepare -> engine.run(explicit inputs)` rather than paying the one-shot compile and
 prepare cost on every call.
+
+### Owned tensor Model capability
+
+`Model<I,O>` remains generic and now implements `AutoCloseable`. Its fixed tensor methods are
+independent of I/O: compute returns `HostTensorValue` or `List<HostTensorValue>`, and train returns
+`TrainingStep`, never generic O. `defineTensor(signature, definition)` and `load(path[, limits])`
+return `Model<Tensor,Tensor>`; `graph(inputs, outputs, namedLeaves)` and `loadGraph(path[, limits])`
+return `Model<List<Tensor>,List<Tensor>>`. Each has an explicit borrowed-Engine overload
+(load forms take path, limits, Engine). Old generic factories and flexible v1 readers remain separate.
+
+`withEngine(engine)` returns the same receiver and must precede the first valid compute/configure
+setup attempt, including failed setup. Without a selection, execution lazily opens a model-owned
+CPU-only standard Engine. Construction/load/save/cold forward open none. List compute additionally
+accepts `maximumTotalBytes`; all publications are checked before materialization, and RunResult
+closes before detached values return. Configuration takes a target descriptor and scalar objective
+builder, or target prototypes and a list builder, plus an Optimizer. It succeeds once; train delegates
+`RESET_AND_STEP`. Every declared input/target requires the exact static descriptor even if unused.
+
+Unsupported generic/custom/declarative tensor methods throw `UnsupportedOperationException` before
+file/Engine work; their close is a no-op. Owned operations reject busy before inspecting arguments.
+Source mutation invalidates the capability without recapture; close waits and attempts all owner
+cleanup with retained failure replay, never closing a borrowed Engine. See the complete
+[owned model example](../user-guide/running-models.md#owned-static-model-workflow) and
+[owning contract](../architecture/contracts/extensions-training.md#owned-tensor-models).
 
 `AdvancedEngine` is the current low-level composition root. Construction accepts the exact
 `CpuBackendIntegration` returned by `CpuBackendIntegration.open()` and takes ownership of it.

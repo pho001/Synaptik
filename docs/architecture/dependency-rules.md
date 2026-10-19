@@ -80,7 +80,8 @@ Training + Checkpoint -> optional future training-checkpoint (not included)
 
 Training retains exactly public Model/Engine dependencies and generic live admission. NN has
 exactly public Model/Training/Checkpoint/Engine edges: its live tree adapter owns membership,
-and its relocated `nn.checkpoint` APIs retain old Engine-materializing model.v1/whole-model.v1
+and owned Models compose public Engine preparations, Training sessions and cold GraphCheckpoint values;
+its relocated `nn.checkpoint` APIs retain old Engine-materializing model.v1/whole-model.v1
 readers and flexible declarative semantics. They are not a second execution pipeline.
 
 Generic Checkpoint exposes only Model publicly and uses Compiler's existing cold capture and
@@ -146,8 +147,8 @@ backend-to-Engine edge or exposes backend types through execution handles.
 ### Generic Training admission is independent of neural-network composition
 
 Layers declare their own Parameter/Buffer state and choose train/eval forward behavior without
-selecting an optimizer. NN's narrow Training edge exposes a live membership adapter, not state
-declaration or optimizer orchestration. A non-NN owner can supply the same `TrainingParameters`
+selecting an optimizer. NN's Training edge exposes live membership and delegates configured owned
+Model training to TrainingSession, never implementing optimizer algorithms. A non-NN owner can supply the same `TrainingParameters`
 boundary without importing layers. Frozen lists cannot detect later binding replacement, so the
 NN adapter retains the root and re-traverses exact ordered paths/wrappers/Tensors. Training checks
 storage separately; copying into native memory therefore preserves that same membership adapter.

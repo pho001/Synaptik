@@ -154,4 +154,9 @@ for the distinction between module ownership and a Tensor computation graph.
 The retained old file facade is now `io.github.pho001.synaptik.nn.checkpoint.ModelCheckpoint`;
 use an explicit NN dependency. `model.v1` and `whole-model.v1` keep their flexible declarative
 behavior and readers. The [generic graph API](../api/graph-checkpoint-api.md) is a separate cold
-static-signature capability, not an automatic conversion of these models or new Model methods.
+static-signature capability, not an automatic conversion of these models. The separate
+[owned Model workflow](running-models.md#owned-static-model-workflow) adds defineTensor/graph and
+load/loadGraph for the five-operation source subset. Generic and DeclarativeModel forward remain
+flexible; their new tensor methods are unsupported and close is a no-op. To opt in explicitly,
+construct prototype outputs and name their reachable leaves for Model.graph. Do not reinterpret
+an old whole-model.v1 file as a new static graph artifact.

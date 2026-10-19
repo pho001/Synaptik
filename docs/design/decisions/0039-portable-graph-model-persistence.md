@@ -6,7 +6,7 @@
 The user explicitly authorized the prepared-owner cutover after independent Astra/xhigh packet
 approval. Root and owning Engine/Training contracts enact that bounded cutover. Independent final
 Class C approval and the coordinator's native-enabled integrated test/Javadoc gate passed.
-The user also approved fluent Engine binding on the future ordinary Model; its precise target
+The user also approved fluent Engine binding on the ordinary Model; its implemented
 lifecycle is recorded below. Training0007 enacts generic live admission and the physical Training/
 NN dependency cutover, accepted after Pascal's definitive APPROVE and the coordinator gate.
 Its brief owns evidence. Authorized Training frontier: None. On 2026-10-17,
@@ -18,11 +18,13 @@ is Complete after Halley's definitive final APPROVE and the coordinator's source
 gate on 2026-10-17. Authorized Checkpoint frontier: None. On 2026-10-19,
 [Training0008](../../planning/extensions/training/tasks/0008-fresh-value-training-session-runs.md)
 is Complete after Euclid's definitive code/docs APPROVE, no findings, and main's source-matched
-root gate; its brief owns evidence. NN0028 is the next planning candidate, still Draft.
+root gate; its brief owns evidence. [NN0028](../../planning/extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md)
+is Complete, accepted 2026-10-19 after definitive independent approval and the coordinator's
+source-matched native-enabled root gate; evidence is in its brief. Authorized NN frontier: None.
 Checkpoint0008 enacts the bounded root/owning-contract,
 physical split and role-specific architecture-test cutover in the same change, before relying on
 reversed edges. Final independent code/docs review and coordinator validation passed; its brief owns evidence.
-High-level Model/withEngine remains TARGET, not implemented.
+High-level owned Model/withEngine and all selected program phases are Complete.
 This record does not override [root architecture](../../../ARCHITECTURE.md) or its scoped
 contracts, and does not authorize the remaining cutovers.
 
@@ -101,7 +103,7 @@ attempts; callers cannot switch engines to retry after that boundary.
 
 ## Selected API and type feasibility
 
-**Design declarations only; not implemented or runnable current APIs.**
+**Implemented and accepted in NN0028, Complete on 2026-10-19.**
 Model remains abstract, extends Module and gains AutoCloseable. Existing Model factories and forward
 signatures are unchanged. Types below use their existing owning packages unless stated otherwise.
 
@@ -282,9 +284,11 @@ Core lifecycle and owning Training contract enact this admission; this ADR is no
 
 ## Engine, result and exclusion lifecycle
 
-### Target Model Engine binding
+<a id="target-model-engine-binding"></a>
 
-This subsection is a TARGET for NN0028, not current Model API or a change to Engine0021.
+### Model Engine binding
+
+NN0028 implements this binding under the owning NN contract; it does not change Engine0021.
 `withEngine(Engine)` returns `this` by reference, with the same generic Model type, graph, wrappers,
 state and ownership. It only selects the borrowed Engine used by both compute and configured
 training. It does not copy state, move memory, create an executor/request, compile, prepare or run.
@@ -326,7 +330,7 @@ only before any setup. One successful training configuration is final; failed co
 retry on the frozen choice with already-admitted storage. Model.close closes its lazily created
 Engine only; a borrowed Engine remains caller-owned. Load never inspects backend availability.
 
-### Implemented Engine boundary and target Model results
+### Implemented Engine boundary and Model results
 
 Engine0021 removed the former `InferenceSession`/`Engine.session` and session-only Engine/AdvancedEngine
 delegation/registration branches. The implemented Engine surface uses existing `Engine.prepare(graph)` and adds
@@ -401,13 +405,13 @@ Do not delete algorithms,
 readers, generic Model, declarative types or completed history. The superseded outputs(actualInputs)-
 first proposal was never implemented and has no production code to delete.
 
-## Planned usage — not current runnable code
+## Owned Model usage
 
 Goal: ordinary NN construction, save before compute, fresh batches, training and load without
 manual forward, leaf enumeration or a second Model. Imports are Model/Linear from nn.module/
 nn.layers, Tensor/TensorDescriptor/TensorFactory from model.tensor, Shape/LayoutDescriptor/DataType
-from their Model packages, Sgd from training, and ordinary Java Path/Optional. Proposed Model calls
-are marked by this heading; existing Tensor factories and operations supply the values.
+from their Model packages, Sgd/TrainingStep from training, HostTensorValue/Engine from engine, and
+ordinary Java Path/Optional. The implemented Model calls compose those existing public owners.
 
 ```java
 var inputShape = Shape.of(32, 784);
@@ -442,7 +446,7 @@ try (Model<Tensor, Tensor> model = Model.defineTensor(inputSignature, topology -
 try (Model<Tensor, Tensor> restored = Model.load(path)) {
     HostTensorValue value = restored.compute(secondBatch); // zero [32,1]
 }
-// Optional explicit binding: proposed API; caller owns the Engine.
+// Optional explicit binding: caller owns the Engine.
 try (Engine engine = Engine.standard()) {
     try (Model<Tensor, Tensor> restored = Model.load(path).withEngine(engine)) {
         HostTensorValue value = restored.compute(secondBatch); // same ordinary Model, zero [32,1]
@@ -502,7 +506,7 @@ explanations, ADR and affected architecture tests together **before code relies 
    authority cutover is Complete after Euclid's final independent APPROVE and main's source-matched
    root gate (2026-10-19). Engine rules and dependency edges remain unchanged. NN0028 separately
    coordinates Model convenience/ownership, retaining old declarative behavior and Engine composition authority.
-   NN0028 must test borrowed Engine closed first, followed by complete model-owned resource cleanup
+   Completed NN0028 tests cover borrowed Engine closed first, complete model-owned resource cleanup
    and repeated/concurrent Model.close failure replay.
 
 Keep ArtifactFile v1 and old model.v1/whole-model.v1 readers. New graph-model.v1 uses explicit input
@@ -521,7 +525,5 @@ is Complete after final independent code/docs APPROVE and the coordinator checkp
 Compiler and Checkpoint frontiers: None. Checkpoint0008 is Complete after Halley's final APPROVE
 and the coordinator root gate; its brief owns evidence. Training0008 is Complete after Euclid's
 definitive APPROVE and main's root gate (2026-10-19); authorized Training frontier: None.
-NN0028 is the next planning candidate, still Draft.
-Glossary/Javadocs describe the bounded Training and Compiler cutovers. Model.withEngine,
-Model compute/configured train/save/load and other APIs in
-this ADR remain planned; no Model lifecycle is enacted here.
+NN0028 is Complete; its brief owns final approval and coordinator acceptance evidence.
+The bounded root/owning NN contract enacts its lifecycle; this ADR itself never supplies authority.

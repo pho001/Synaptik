@@ -5,8 +5,8 @@
 Coordinate one model-facing compute/configured-train/save/load workflow for manually constructed
 and file-restored Tensor graphs. A directed acyclic graph (DAG) records ordinary Tensor operations,
 not Java callbacks. This plan and [ADR0039](../design/decisions/0039-portable-graph-model-persistence.md)
-are non-authoritative. Engine0021, Training0007/0008, Compiler0008 and Checkpoint0008 enacted their bounded root/scoped cutovers; remaining module
-and Model changes below are still planned and require their own coordinated authority.
+are non-authoritative. All selected phases are Complete, including NN0028 accepted 2026-10-19;
+their bounded root/scoped cutovers are enacted. No new task is launched by this completed program.
 
 P2 incorporates all five product choices accepted on 2026-10-16: common Model-facing tensor
 operations with generic Java forward retained; lazy model-owned Engine.standard or explicit borrowed
@@ -22,9 +22,8 @@ Authorized Compiler frontier: None; [Checkpoint0008](extensions/checkpoint/tasks
 is Complete after Halley's final APPROVE and coordinator acceptance on 2026-10-17. Authorized Checkpoint
 frontier: None; [Training0008](extensions/training/tasks/0008-fresh-value-training-session-runs.md) is
 Complete after Euclid's definitive code/docs APPROVE and main's source-matched root gate (2026-10-19);
-[NN0028](extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md) is Ready and the sole NN frontier;
-its accepted plan awaits a separate user request and fresh checks before implementation launch. The user approved fluent
-same-instance Model.withEngine binding; it is a target for NN0028, not current Model API.
+[NN0028](extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md) is Complete, accepted 2026-10-19;
+its brief owns definitive review and coordinator-gate evidence. Authorized NN frontier: None.
 
 Launch verification: CP0005D and P1/Engine0020 are Complete, including their recorded independent
 reviews and validation. The coordinator seeded the current-main planning packet into HEAD
@@ -33,7 +32,7 @@ Those inherited changes are not this amendment's diff. The pinned snapshot inclu
 all nine allowed documents matched at launch. Coordinator verified main HEAD/base unchanged,
 dependencies Complete and no active conflicts. The user then authorized Engine0021 implementation
 in a clean context. Its brief records final review and integrated validation. Training0007 is now
-Complete, as are Compiler0008, Checkpoint0008 and Training0008; NN0028 is now Ready, not launched.
+Complete, as are Compiler0008, Checkpoint0008, Training0008 and NN0028.
 Completed task histories and evidence remain intact.
 
 ## Phases and owner DAG
@@ -43,7 +42,7 @@ Training0007/0008 and Compiler0008 are Complete; authorized Training frontier is
 and Compiler frontier is None.
 Checkpoint0008 is Complete after final independent approval and the coordinator gate; Checkpoint
 frontier: None. Training0008's brief owns Euclid's final APPROVE and main's accepted root-gate evidence;
-NN0028 is the sole authorized NN Ready frontier; implementation has not started.
+NN0028 is Complete. All selected program phases are Complete; authorized NN frontier: None.
 
 | Owner/task | Capability | Depends on / integration order |
 |---|---|---|
@@ -53,11 +52,11 @@ NN0028 is the sole authorized NN Ready frontier; implementation has not started.
 | [Compiler0008](modules/compiler/tasks/0008-cold-source-capture-and-reconstruction.md) — Complete | Bounded cold raw-source API and root/compiler authority cutover | Final independent code/docs APPROVE and coordinator Class C checkpoint passed; evidence in brief. |
 | [Checkpoint0008](extensions/checkpoint/tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md) — Complete | Generic graph/value persistence, physical split and retained old-v1 NN readers | Engine0021 + Training0007 + Compiler0008 + CP0005B + accepted P2 Complete; Halley final APPROVE and coordinator source-matched test/Javadoc gate passed; evidence in brief. |
 | [Training0008](extensions/training/tasks/0008-fresh-value-training-session-runs.md) — Complete | Fresh stored values in existing TrainingSession.inputs() order, excluding parameters/private seed | Engine0021 + Training0007; Checkpoint0008 serial join Complete; Euclid final APPROVE and main source-matched root gate passed; evidence in brief. |
-| [NN0028](extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md) — Ready | Accepted plan for owned ordinary Model and manual/file integration | Engine0021 + Training0007 + Compiler0008 + Checkpoint0008 + Training0008 Complete; sole NN frontier, implementation not started. |
+| [NN0028](extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md) — Complete | Owned ordinary Model and manual/file integration | Accepted 2026-10-19 after definitive independent approval and coordinator native-enabled root gate; evidence in brief. |
 
 Training0007 and Compiler0008 could be independent code branches, but this packet authorizes no
 parallel writers. Parallel group: None. Current common base: main
-`7671bd4bebc8723fa4864c6423f78219bf63851b`, including all five completed NN0028 prerequisites.
+`97c3bbe7a0ee893a2ba76b5d8e90449c033cadd4`, including all five completed NN0028 prerequisites.
 The NN0028 brief records coordinator-supplied predecessor verification and protected user files;
 reverify if the base changes. Serial order remains Engine0021 -> Training0007 -> Compiler0008
 -> Checkpoint0008 -> Training0008 -> NN0028; it does not add an algorithm dependency on Training.
@@ -69,8 +68,8 @@ Checkpoint0008's brief records all seven integration fields, Pauli's approval an
 2026-10-17 (source/base/dependencies/conflicts/frontier); main retains exclusive shared-document writer delegation.
 Training0008's bounded root/owning Training lifecycle cutover, implementation, independent review
 and source-matched coordinator gate are Complete. The accepted ADR does not override current
-authority. NN0028 must enact its bounded root/owning NN lifecycle cutover before code relies on it;
-Ready status grants no execution permission; a separate user request is required. Model/Training autotuning remains excluded.
+authority. NN0028 established its bounded root/owning NN lifecycle cutover before dependent Java.
+Independent review and coordinator acceptance are complete. Model/Training autotuning stays excluded.
 
 Engine0021 delivered prepared ownership and fresh binding with mechanical Training/benchmark/test
 migration. Training0007 completed generic live admission, native copy and the atomic reverse-edge/
@@ -79,7 +78,7 @@ fixed-scan backpropagation through time (BPTT), Data or all operation codecs.
 
 ## Selected public surface
 
-Model declarations remain design targets, **not implemented APIs**; Checkpoint0008 implements the
+Model declarations are implemented in completed NN0028; Checkpoint0008 implements the
 bounded GraphCheckpoint boundary and physical/NN split, now Complete after final review/coordinator gate. Engine0021 delivered
 prepared execution, and Training0007 implements only generic live admission/native copy plus NN's
 adapter. Exact responsibilities, failures,
@@ -100,7 +99,7 @@ ownership and examples are in [ADR0039's API decision](../design/decisions/0039-
   once over owned outputs and target prototypes; `train(inputs, targets)` means RESET_AND_STEP.
   Existing zero-argument `Module.train()` remains only a mode toggle.
 - `Model.load(path[, limits]).withEngine(engine)` and application-built models use the same
-  target `Model<I,O>.withEngine(Engine) -> Model<I,O>`, returning the exact receiver, not a copied
+  `Model<I,O>.withEngine(Engine) -> Model<I,O>`, returning the exact receiver, not a copied
   model/request/executor. It borrows that Engine for compute and training; existing explicit
   borrowed-Engine factory/load overloads remain. `compute(batch)` is terminal and detached.
 - Engine0021 removed `InferenceSession`/`Engine.session` and their session-only delegates, retaining
@@ -154,7 +153,7 @@ Binding freezes at the first compute/configureTraining preparation setup after a
 checks and before Engine creation/native admission/compile/prepare; failed setup remains frozen.
 Before freeze an idle open model can change its borrowed selection; after freeze even the same
 Engine rejects. Lifecycle admission precedes arguments; null and closed candidates reject without
-changing selection. The [exact target error order and retry policy](../design/decisions/0039-portable-graph-model-persistence.md#target-model-engine-binding)
+changing selection. The [exact error order and retry policy](../design/decisions/0039-portable-graph-model-persistence.md#target-model-engine-binding)
 also covers configureTraining after inference: its explicit storage transition uses the same Engine,
 never rebinding or automatic reprepare after rebinding. Load/save alone create no Engine.
 Model.close rejects new operations, waits
@@ -174,8 +173,8 @@ This is not a promise to make inherited Module mutators thread-safe.
 ## Current-to-target map
 
 P1 locations, Training0007's physical/admission migration and Checkpoint0008's generic/NN split
-below are Complete, including Checkpoint0008's independent approval/coordinator validation. Model
-semantic moves remain future. Historical planning
+below are Complete, including Checkpoint0008's independent approval/coordinator validation. NN0028's
+selected Model lifecycle is also Complete. Historical planning
 directories and completed evidence stay where they are.
 
 | Source/symbols | Selected target and migration |
@@ -206,8 +205,8 @@ wrapper and Runtime's inward unique lease boundary remain intentionally separate
 An arrow means “depends on”; public signature types require API visibility.
 Training0007 enacts only Training `api(Model, Engine)` and NN `api(Model, Training)` now.
 Checkpoint0008 now enacts the table's generic Checkpoint and NN Engine/Checkpoint edges in the root
-and owning scoped contract. Its final review/coordinator gate passed; Model/Training
-workflow extensions remain future and gain no permission from this cutover.
+and owning scoped contract. Its final review/coordinator gate passed; NN0028's bounded owned Model
+workflow is Complete. Unselected workflow extensions remain future and require their own authority.
 
 | Owner | Selected direct project edges |
 |---|---|
@@ -250,12 +249,12 @@ No broad performance, profile, certificate, proof, five-fork or numerical campai
 validated bounded malformed source and forward/autograd round trips; Checkpoint0008 persistence/alias
 validation is Complete. NN0028
 joins manual/file fresh compute, configured train, save-before-compute, trained re-save, ownership/
-close failures and old-v1 flexible behavior. Those downstream implementation tests remain planned.
+close failures and old-v1 flexible behavior. Those implementation tests and the coordinator gate passed.
 
 Original P2 planning used source/API reasoning, Markdown validation and an allowed-write inventory,
 without implementation. Engine0021's subsequent implementation, independent review and native-enabled
 test/Javadoc gate are recorded in its brief. Compiler0008's brief records its final independent
 approval and successful coordinator checkpoint, including the bounded root/compiler exception.
 Checkpoint0008's bounded Compiler edge and generic persistence are Complete after Halley's final
-APPROVE and the coordinator source-matched root gate. Training0008 is also Complete; remaining Model capabilities still require their own cutovers;
+APPROVE and the coordinator source-matched root gate. Training0008 and NN0028 are Complete; unselected Model capabilities still require their own cutovers;
 no broad benchmark or native-build campaign is implied.

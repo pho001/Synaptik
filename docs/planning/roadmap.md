@@ -63,7 +63,7 @@ Authorized Checkpoint implementation frontier: None; Checkpoint0008 is Complete.
 [Training0008](extensions/training/tasks/0008-fresh-value-training-session-runs.md) is Complete after
 Euclid's definitive code/docs APPROVE and main's source-matched root gate (2026-10-19).
 Authorized Training frontier: None; [NN0028](extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md)
-is Ready and the sole NN frontier; implementation needs a separate user request and fresh launch checks.
+is Complete, accepted 2026-10-19; authorized NN frontier: None.
 Engine0020's completed layout cutover is below.
 The user revised the primary product to automatic usable-model load and a choice of inference or
 Training-owned resume, without routine callbacks/manual construction/digests/Arena.
@@ -78,8 +78,8 @@ The user approved the direction and physical layout on 2026-10-16. The
 [model execution/refactor program](model-execution-refactor.md) records phased ownership, exact
 target paths/edges and the independently approved P2 packet. Generic Model APIs, old v1 and flexible
 declarative models stay supported; Engine0021 intentionally removed the thin session API with an
-explicit source migration. P1 layout and Engine0021 prepared-owner contracts are current; later
-semantic cutovers remain planned.
+explicit source migration. All selected program phases and their bounded semantic cutovers are
+Complete; unselected extensions remain separate future work.
 [Engine0020 backend/native relocation](modules/engine/tasks/0020-backend-native-layout-relocation.md)
 is Complete: separate :backends:* identities, packages, kernels and ABI preserved; independent
 review, native build/package/device checks and the combined test/Javadoc checkpoint passed.
@@ -94,8 +94,7 @@ bounded source API/authority cutover, final independent code/docs APPROVE and co
 checkpoint passed. Authorized Compiler frontier: None. [Checkpoint0008](extensions/checkpoint/tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md)
 is Complete after Halley's definitive APPROVE and the coordinator's source-matched test/Javadoc
 gate on 2026-10-17. Its brief owns evidence. Checkpoint frontier: None; Training0008 is Complete
-after Euclid's final APPROVE and main's root gate; NN0028 is Ready, not launched, and high-level
-Model/withEngine remains TARGET.
+after Euclid's final APPROVE and main's root gate; NN0028 is Complete under the bounded NN authority.
 
 | Area | Delivered baseline / remaining gate |
 |---|---|
@@ -114,10 +113,10 @@ Model/withEngine remains TARGET.
 | [CUDA](backends/cuda/master-plan.md) | Marker/native scaffold only; no executable CUDA backend. 0001 Draft. |
 | [ONNX](extensions/onnx/master-plan.md) | Marker only; no importer/exporter. Area Draft; first mapping task not yet defined. |
 | [Data](extensions/data/master-plan.md) | No module. 0001 architecture decision precedes batching; current plan excludes sampler/epoch lifecycle. |
-| [NN](extensions/nn/master-plan.md) | Through [0026 declarative reconstruction](extensions/nn/tasks/0026-declarative-model-specification.md) Complete. [0028 owned Model workflow](extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md) Ready, sole NN frontier; accepted plan and five prerequisites Complete, implementation not started. Runtime scan/Data 0021B–0024 separate Draft stream. |
+| [NN](extensions/nn/master-plan.md) | [0028 owned Model workflow](extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md) Complete, accepted 2026-10-19; evidence in brief. Authorized NN frontier: None. Runtime scan/Data 0021B–0024 remain a separate Draft stream. |
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
-| [Training](extensions/training/master-plan.md) | Sessions/optimizers/state, [0007 generic live admission](extensions/training/tasks/0007-generic-live-parameter-admission.md) and [0008 fresh-value runs](extensions/training/tasks/0008-fresh-value-training-session-runs.md) Complete; final independent reviews and coordinator gates passed. Authorized Training frontier: None; NN0028 Ready; 0006/adapter held. |
+| [Training](extensions/training/master-plan.md) | Sessions/optimizers/state, [0007 generic live admission](extensions/training/tasks/0007-generic-live-parameter-admission.md) and [0008 fresh-value runs](extensions/training/tasks/0008-fresh-value-training-session-runs.md) Complete; final independent reviews and coordinator gates passed. Authorized Training frontier: None; NN0028 Complete; 0006/adapter held. |
 | [Checkpoint](extensions/checkpoint/master-plan.md) | [0008](extensions/checkpoint/tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md) Complete: bounded graph/value persistence and NN-glue cutover, final Halley APPROVE and coordinator test/Javadoc gate passed. Authorized Checkpoint frontier: None; Training0008 also Complete. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
@@ -189,10 +188,10 @@ cutover and combined validation. The user's subsequent approval accepts all five
 P2 selects ordinary Model.defineTensor(signature, definition)/Model.load with single-Tensor compute,
 configured train and save; generic Model.define/forward remain. New tensor construction discards
 its prototype callback and uses owned source leaves, including for explicit cold symbolic forward.
-Target `Model.load(path[, limits]).withEngine(engine)` returns the same Model and borrows the
+`Model.load(path[, limits]).withEngine(engine)` returns the same Model and borrows the
 Engine for compute/train; binding freezes before first preparation setup, including failed setup.
 Engine.standard is lazy/model-owned (CPU-only, no discovery/global); explicit overloads remain.
-compute(batch) stays terminal/detached; this is planned NN0028 API only. One owned weight set serves
+compute(batch) stays terminal/detached; NN0028 delivers this API. One owned weight set serves
 compute/train/save; loaded values need no ownership-only copy. First graph signatures are fixed.
 Old flexible declarative/v1 behavior and readers remain. Source migration is explicit in ADR0039.
 
@@ -213,8 +212,8 @@ Authorized Compiler and Checkpoint frontiers: None. Checkpoint0008 is Complete; 
 approval and coordinator gate are recorded in its brief. Training0008 is Complete and integrated at main
 `7671bd4bebc8723fa4864c6423f78219bf63851b`; its brief records Euclid's definitive APPROVE
 and main's source-matched root gate (2026-10-19). Its bounded root/owning Training lifecycle cutover
-is enacted; no authority is changed by planning. NN0028 is Ready, with no implementation launch; high-level
-Model/withEngine remains TARGET, not implemented. The narrow post-preflight
+is enacted; no authority is changed by planning. NN0028 and high-level Model/withEngine are Complete.
+The narrow post-preflight
 call-local reconstruction exception is enacted; Checkpoint0008 now implements direct cold
 Checkpoint→Compiler access and generic reversed edges in coordinated authority, with final
 independent review/coordinator gate passed. Current contracts win.
@@ -226,7 +225,7 @@ Linear/LayerNorm/Embedding/Conv1d/2d/3d and RELU/TANH/SIGMOID, source-faithful i
 Tensor-identity aliases, not arbitrary Model.define capture. Final independent approval and coordinator
 verification of dependencies, accepted contract base `4472320ceb5498c46a661af549d6de74aa27ab6a`,
 inactive conflicts and launch frontier are recorded. NN0026 implementation, final independent reviews
-and coordinator validation are complete. Evidence is in its brief; the sole NN Ready frontier is now NN0028.
+and coordinator validation are complete. Evidence is in its brief; NN0028 is also Complete and authorized NN frontier is None.
 
 CP0005B is Complete with the accepted CP-only whole-model contract/API/wire/default packet.
 Its brief records final independent code/docs APPROVE, worker module tests, final Javadoc and

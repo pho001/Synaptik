@@ -10,6 +10,27 @@ the ordinary Engine path rather than a training-specific executor. Supported Met
 preparation follows the same lifecycle, but the low-parameter CPU qualification described here is
 not a claim of BFLOAT16/FLOAT16 Metal training support.
 
+## Train an owned static Model
+
+For a supported static graph, `Model.defineTensor` or `Model.load` can own the working weights,
+native Arena and cached TrainingSession for you. Follow the complete
+[owned Model example](running-models.md#owned-static-model-workflow): compute predicts 6 from
+weight 2 and input 3, squared-error training against target 1 reports loss 25, SGD(0.1) changes
+the private weight to -1, and restored compute on input 2 yields -2. External weight bytes remain 2.
+
+Supply a pure scalar FLOAT32/FLOAT64 objective builder once with `configureTraining`; the builder
+is invoked once per explicit attempt and is never retained for runtime. Do not capture arbitrary
+external state leaves. Configuration leaves eval mode unchanged and succeeds once. Subsequent
+`train(batch, target)` calls use fresh exact-signature values and `RESET_AND_STEP`; list forms
+also support explicit target prototypes. Training retains overlap, nonfinite and precommit checks.
+
+Engine selection freezes before the first valid setup attempt, even on failure. A failed setup
+may be retried explicitly on that selection without recopying successfully admitted native state.
+Model close releases the session before parameter memory; detached TrainingStep remains readable.
+Save records the current source/weights, not objective, optimizer history, RNG or input progress.
+For accumulation, parameter groups and detached optimizer-state restore, use the explicit session
+workflow below rather than assuming that model-only load is exact training continuation.
+
 ## Copy an initialized Linear
 
 An eager `Linear` initializes its weight and bias in Java heap storage. To train it without

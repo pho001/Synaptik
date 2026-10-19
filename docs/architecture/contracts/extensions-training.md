@@ -33,7 +33,7 @@ Forbidden:
 - optimizer algorithms
 - optimizer update orchestration
 - autograd construction
-- backend storage access (Model host storage used by retained checkpoint restoration is permitted)
+- backend storage access (public Model host storage for owned Models and checkpoint restoration is permitted)
 - backend kernel selection
 - concrete backend dependencies
 
@@ -44,8 +44,68 @@ paths, Parameter wrappers and Tensors. Creation rejects unbound reservations. It
 snapshot is not validation: `validateUnchanged()` re-traverses the live root and rejects any count,
 order, path, wrapper or Tensor change. It deliberately does not freeze storage associations or
 bytes, so an explicit native copy does not invalidate its own source. NN still owns no optimizer
-algorithm or update orchestration. Engine and Checkpoint are used for the retained NN persistence
-signatures below, not a second execution pipeline. Model must not depend on NN.
+algorithm or update orchestration. Owned Models delegate updates to TrainingSession and execution
+to public Engine preparations; Checkpoint supplies cold graph/value persistence. The retained NN
+persistence signatures below remain supported. Model must not depend on NN.
+
+### Owned tensor Models
+
+Model remains abstract and generic and implements AutoCloseable. Generic/custom/declarative
+forward behavior is unchanged; unsupported tensor operations throw UnsupportedOperationException
+before Engine or file work, and default close is a no-op. defineTensor returns `Model<Tensor,Tensor>`;
+graph/loadGraph return `Model<List<Tensor>,List<Tensor>>`. Single load rejects multiple boundaries.
+Only private concrete specializations and package-private source/execution state belong in nn.module.
+
+defineTensor seals its definition once, selects eval before one prototype forward (including
+deferred initialization), then discards callbacks. Registered wrappers establish PARAMETER/BUFFER
+roles, never requiresGrad alone; remaining reachable stored leaves receive deterministic collision-free
+CONSTANT names. Every registered state must be reachable. Graph/load state paths must follow canonical
+Module traversal order. Dotted namespaces contain no forward recipe. Constants are outside stateDictionary.
+GraphCheckpoint.copy acquires each external identity once and reconstructs against private leaves;
+strict state installation preserves wrappers, paths and aliases without mutating caller Tensors or stores.
+Load adopts final heap state without another copy. Callback side effects are not rolled back.
+Source admission remains static ADD/MUL/NEG/MATMUL/PERMUTE[1,0]; raw persistence supports seven dtypes,
+independently of execution. Old model.v1/whole-model.v1 readers and flexible forward remain separate.
+
+All declared static slots, including unused ones, require exact descriptors (layout presence and
+requiresGrad included). Compile/session input order determines a cached positional binding plan;
+surviving batch/target slots and owned leaves fill it. Unmapped objective inputs reject. Compute/train
+reuse public runValues: no per-batch source rebuild, rebind, prototype mutation, copy or provider lookup.
+Compute checks every publication and aggregate byte bound before materializing any ordered occurrence,
+closes RunResult on every path, and returns detached HostTensorValue values (default Long.MAX_VALUE).
+Batch storage is borrowed for the whole synchronous call. TrainingStep is detached too.
+
+withEngine returns the same receiver and only selects a borrowed Engine, never closing it. Admission
+checks selected-Engine closure, Model closing/closure, busy, then capability. withEngine then checks
+freeze before null/closed candidate validation. Selection remains unchanged on failure. Valid compute
+or configure arguments and live-source checks freeze binding before Engine creation, callback, native
+copy, compile or prepare, even on failure; same-Engine rebinding then rejects. Without explicit selection,
+setup lazily creates a model-owned CPU-only Engine.standard, with no discovery/global Engine.
+Construction/load/save/cold forward never create an Engine.
+
+configureTraining succeeds once, keeps mode unchanged, and calls a pure objective builder once per
+explicit attempt, retaining no callback. The scalar FLOAT32/FLOAT64 objective uses current Compiler
+support but is not persisted. TrainingSession receives Module.trainingParameters. Close inference
+preparations before TrainingParameterStorage.copyToSharedNative installs parameter storage in a
+model-owned shared Arena without changing Tensor identity. Copy failure preserves old associations;
+successful native admission is not repeated on setup retry. Failed session setup cleans unpublished
+owners and permits explicit frozen-Engine retry. Training retains unresolved-layout, empty, nonfinite,
+alias/overlap rejection and RESET_AND_STEP transaction semantics; NN never converts or splits state.
+
+Before compute/train/configure/cold forward/save, guard every module mode and ordered
+path/wrapper/Tensor/storage association. Mutation invalidates the capability and closes cached
+owners, without recapture, adopting replacement state or resetting optimizer history. Same-store
+trained bytes stay valid. Inherited Module mutators remain caller-coordinated.
+Only one high-level operation is admitted; busy rejects before arguments. Close bypasses admission,
+rejects new work, waits for active work, then closes session/preparation, native owners and owned
+Engine, attempting all cleanup, suppressing distinct failures and replaying the retained result
+on repeated/concurrent close, even when a borrowed Engine closed first.
+
+Save uses the fixed GraphCheckpoint source and current owned leaves only, including before compute
+and after training. Explicit ArtifactLimits remain. Short forms use 256 MiB file/aggregate,
+4 MiB manifest, 16384 entries, 64-byte keys and 64 MiB payload ceilings. No optimizer/RNG/cursor
+resume or Model/Training autotuning is implied. Zero-node source can persist; Engine's empty-plan
+rejection remains unchanged.
 
 ### Closed declarative models
 
@@ -464,7 +524,7 @@ Forbidden:
 Training has exactly `api` project dependencies on `modules/model` and `modules/engine`, with no
 NN dependency, import, NN-taking compatibility overload, or test-only back-edge. Its public
 signatures name `TrainingParameters`, `Tensor`, `DataType`, `Shape`, Engine and Engine metadata.
-NN depends on Training only for its live admission adapter. The public Engine edge is the explicit
+NN consumes Training's live admission, explicit native copy and TrainingSession APIs. The public Engine edge is the explicit
 Class C composition edge needed to reuse one
 compile/Prepare/Runtime path; it does not transfer optimizer ownership into Engine or authorize
 Training to inspect backend selection or representations. `train()` and `eval()` mode are module
@@ -490,7 +550,7 @@ It has exactly `api(Model)` and `implementation(Compiler)` project dependencies.
 uses only GraphCompilationPort's cold capture/reconstruction boundary. No Compiler type appears
 in public GraphCheckpoint signatures. No NN, Training, Engine, Runtime, Prepare, tuning or backend
 dependency is permitted, including tests. NN alone consumes both generic Checkpoint and Engine
-for the relocated old persistence APIs; other inward modules do not depend on Checkpoint.
+for owned Model composition and the relocated old persistence APIs; other inward modules do not depend on Checkpoint.
 
 ### Generic graph source and values
 

@@ -36,7 +36,7 @@ storage/lowering/kernel selection, tokenization, or raw-data padding.
 
 ## Module invariants and dependencies
 
-The following describes CURRENT ownership; the target cutover is distinguished below.
+The following describes current ownership, including the completed NN0028 cutover.
 
 - A module declares and owns its `Parameter` and `Buffer` wrappers, child modules, stable names,
   and local forward mode. A parameter replacement must preserve its declaration schema.
@@ -49,7 +49,7 @@ The following describes CURRENT ownership; the target cutover is distinguished b
   remain explicit schema choices.
 - NN composes ordinary Model expressions and retained persistence uses public Engine materialization.
   It owns no compiler graph, backward construction, backend route or second execution pipeline.
-  High-level Model ownership of existing prepared/session handles remains TARGET for NN0028.
+  NN0028 composes existing prepared/session owners under the bounded NN contract.
 - Random initialization uses explicit caller sources or an exactly selected per-layer algorithm
   and seed. NN owns no global, retained, or mutable random generator.
 - Current recurrent sequence APIs use static Java `long[]` valid lengths, explicit carried state,
@@ -63,9 +63,9 @@ The following describes CURRENT ownership; the target cutover is distinguished b
 
 Allowed direct public production dependencies are exactly Model, Training, Checkpoint and Engine,
 as enacted by Training0007/Checkpoint0008 and the current NN build. Training supplies live parameter
-admission; Checkpoint/Engine support the relocated NN persistence signatures. Forbidden direct edges:
-Compiler, Runtime, Prepare and every concrete backend. The existing edges do not yet authorize
-owned high-level Model execution; NN0028 requires its bounded root/owning NN contract update first.
+admission/sessions; Checkpoint/Engine support owned Models and relocated NN persistence. Forbidden
+direct edges: Compiler, Runtime, Prepare and every concrete backend. NN0028 established the bounded
+root/owning NN contract before implementing high-level ownership; no dependency edge changed.
 
 ## Package map
 
@@ -77,7 +77,7 @@ owned high-level Model execution; NN0028 requires its bounded root/owning NN con
 | `io.github.pho001.synaptik.nn.checkpoint` | Current retained old model.v1/whole-model.v1 APIs and private NN persistence glue, moved by Checkpoint0008. |
 | `io.github.pho001.synaptik.nn.functional` | Reserved planning direction only; no current production package or public API. |
 
-Training0007 delivered Module.trainingParameters and its private live adapter. The immediate NN0028
+Training0007 delivered Module.trainingParameters and its private live adapter. The completed NN0028
 package additions are private Model.SingleTensorModel/Model.TensorListModel, package-private
 OwnedModelSource (with private StateNamespace) and ModelExecutionState, all in existing nn.module.
 They separate typed entry points, source/state ownership and delegated execution lifetime; no public
@@ -124,17 +124,17 @@ Draft rows without links have no detailed task brief.
 | [0025B](tasks/0025b-public-model-dependency-export.md) | Export public Model dependency | Complete | Existing NN facade; project review | Correct Gradle API visibility and validate an isolated NN-only consumer. |
 | [0026](tasks/0026-declarative-model-specification.md) | Declarative model specification and reconstruction | Complete | Verified Complete 0025/0025A/0025B; accepted NN matrix/contract | Describe/reconstruct/strict-load delivered with final reviews and coordinator gates; no persistent codec or new dependency. |
 | 0027 | Semantic recurrent description and reconstruction | Draft | NN0026/CP0005B Complete; P2 review and any separately selected recurrent scope | Held despite CP0005D planning completion; no bytes/versions or detailed brief. |
-| [0028](tasks/0028-owned-model-compute-training-and-persistence.md) | Owned ordinary tensor Model workflow | Ready | Engine0021; Training0007; Compiler0008; Checkpoint0008; Training0008 — Complete | Accepted plan for defineTensor/load, withEngine, compute/configured train/save and owned lifecycle; implementation not started. |
+| [0028](tasks/0028-owned-model-compute-training-and-persistence.md) | Owned ordinary tensor Model workflow | Complete | Engine0021; Training0007; Compiler0008; Checkpoint0008; Training0008 — Complete | Accepted 2026-10-19 after definitive independent approval and coordinator native-enabled root gate; evidence in brief. |
 
 ## Dependency DAG and authorized frontiers
 
 Engine0021 + Training0007 + Compiler0008 + Checkpoint0008 + Training0008 → NN0028.
-Sole authorized NN Ready frontier: NN0028. Implementation requires a separate user request and fresh launch checks.
+Authorized NN frontier: None. NN0028 is Complete; no successor is launched.
 Conflicts: shared NN API/lifecycle, root/scoped authority, persistence glue and planning indexes;
-none active. Parallel group: None. Common base: main `7671bd4bebc8723fa4864c6423f78219bf63851b`.
+none active. Parallel group: None. Common base: main `97c3bbe7a0ee893a2ba76b5d8e90449c033cadd4`.
 Integration order: predecessor completion → NN authority update → capability/tests/docs → independent
-review → coordinator checkpoint. Integration validation: one source-matched `./gradlew test javadoc`
-plus Markdown/diff checks. Shared-document integration owner: model-execution coordinator, with
+review → coordinator checkpoint. Integration validation: the accepted source-matched native-enabled
+root command in the NN0028 brief plus Markdown/diff checks. Shared-document integration owner: model-execution coordinator, with
 exclusive serial delegation. The brief records dependency verification and pre-launch requirements.
 
 ## Proposed whole-model checkpoint program
@@ -147,7 +147,7 @@ Earlier proposed serial DAG (held):
 `NN0026 Complete → CP0005B Complete | HOLD: NN0027 → CP0005C → Training0006 → optional CP0006`.
 [CP0005D](../checkpoint/tasks/0005d-portable-graph-persistence-decision.md) is Complete for bounded
 planning/review after independent review, the sole P2 correction and coordinator acceptance;
-[ADR0039](../../../design/decisions/0039-portable-graph-model-persistence.md) records the accepted target, not enacted contracts.
+[ADR0039](../../../design/decisions/0039-portable-graph-model-persistence.md) records the accepted decision; root/scoped contracts enact it.
 The user approved one model.compute/train/save/load direction for manual/file tensors and generic
 Training/Checkpoint modules. The [cross-area program](../../model-execution-refactor.md) owns the
 phases, exact edges and independently approved P2 planning packet. NN stays extensions/nn, supplies the
@@ -170,26 +170,26 @@ Keep ModelSpecification/DeclarativeModel and flexible v1 rank/batch behavior unt
 Source restoration creates ordinary Tensor expressions/weights before compile without Engine/batch.
 No loaded-model hierarchy, second execution pipeline or per-RNN recipe prerequisite.
 
-Approved target amendment: `Model.load(path[, limits]).withEngine(engine)` returns the exact same
+Implemented binding: `Model.load(path[, limits]).withEngine(engine)` returns the exact same
 ordinary Model, as does application-built Model binding. It borrows one Engine for compute/train;
 existing explicit borrowed-Engine overloads remain. Otherwise Engine.standard() is lazy/model-owned,
 currently CPU-only, without discovery/global state. Binding freezes at first inference/training
 preparation setup, including failed setup, before Engine/native/compile/prepare work. No later
 rebinding or automatic reprepare after rebinding; null/closed candidates reject without mutation.
 The [exact admission, errors and configureTraining timing](../../../design/decisions/0039-portable-graph-model-persistence.md#target-model-engine-binding)
-are NN0028 targets. compute(batch) still returns detached HostTensorValue, not a request/wrapper;
+are implemented in completed NN0028. compute(batch) returns detached HostTensorValue, not a request/wrapper;
 no Model methods or lifecycle are implemented by Training0007.
 
-NN0028 is the sole NN Ready frontier, not launched. Engine0020's backend/native-only cutover is Complete after
+NN0028 is Complete; authorized NN frontier: None. Engine0020's backend/native-only cutover is Complete after
 integration, independent review and combined validation. The user's later five choices are now
 accepted. Engine0021 delivered the thin-session removal, authority cutover and mechanical Training
 migration; independent Class C approval and the native-enabled test/Javadoc gate passed. Its brief
 owns evidence. Training0007, including its atomic NN adapter, is Complete after final independent
 APPROVE and the coordinator gate. Compiler0008, Checkpoint0008 and Training0008 are also Complete
 after final independent reviews and coordinator gates; their implementation frontiers are None.
-NN0028's plan is accepted and Ready. Training0007 removed its reverse edge and added
+NN0028's implementation is accepted. Training0007 removed its reverse edge and added
 Module.trainingParameters; Checkpoint0008 moved the nine NN glue classes into nn.checkpoint and
-removed Checkpoint→NN. Current dependencies are acyclic; high-level Model ownership is not yet enacted.
+removed Checkpoint→NN. Current dependencies are acyclic; bounded high-level NN ownership is now enacted.
 NN0028 privately acquires external weights once, keeps one working set for compute/train/save,
 creates Engine.standard lazily (or borrows explicit Engine), and rejects stale mode/binding changes.
 One high-level operation at a time; detached compute/TrainingStep values outlive close.
@@ -199,10 +199,10 @@ public TensorModel or execution adapter. The generic boundary types belong to Tr
 Shared documents integrate serially under the model-execution coordinator; parallel group None,
 common base is the revision recorded above, reverified before launch. Exact DAG and
 migration map live in the program; the [Training0007 brief](../training/tasks/0007-generic-live-parameter-admission.md)
-records final independent approval and successful coordinator validation; no successor is launched.
+records final independent approval and successful coordinator validation; NN0028 is its completed successor.
 NN0027 owns only semantic description/reconstruction using existing static Rnn/Gru/Lstm capabilities;
 CP0005C owns explicit versioned recurrent definition wire/whole-save/load adoption. This is an owner split,
-not a hard dependency on optimized RecurrentScan/backend BPTT/Data. Sole NN Ready frontier: NN0028.
+not a hard dependency on optimized RecurrentScan/backend BPTT/Data. Authorized NN frontier: None.
 NN0026's API/matrix and NN-only root/contract/explanation/ADR packet are accepted after final
 independent review; coordinator Ready verification is recorded in the brief. Downstream
 CP0005B's whole-model contract/API/wire/default packet is accepted after final independent approval
@@ -251,8 +251,7 @@ Exact metadata and 2026-10-14 dependency/base/contracts/review/conflict verifica
 - Complete: NN0026 with final independent reviews and coordinator validation.
   NN0027 remains Draft; CP0005B is Complete. Engine0020's completed layout cutover does not
   authorize NN execution.
-- Ready: NN0028, the sole NN frontier after all five completed prerequisites and accepted planning
-  review. Implementation is not started; a separate user request and fresh launch checks are required.
+- Complete: NN0028, accepted 2026-10-19; evidence in its brief. Authorized NN frontier: None.
 - NN0027 is the earlier Draft recurrent follow-up, held with CP0005C/Training0006 held as an optional older proposal,
   not a prerequisite of NN0028; no scan/backend BPTT/Data gate.
 - 0021B remains a separate Draft execution candidate only after a planner revalidates its cross-area
@@ -296,7 +295,7 @@ dependency plans, and roadmap above.
   arbitrary mask only when a concrete consumer proves the contract; likewise defer public state-
   schema inspection or model-wide deferred-binding lifecycle until a consumer requires it.
 - **Primary risks:** reverse dependencies or access to Compiler/Runtime/Prepare/backend internals;
-  confusing the current public Training/Checkpoint/Engine edges with target Model ownership; hidden runtime or random
+  bypassing the bounded owned Model lifecycle through public Training/Checkpoint/Engine edges; hidden runtime or random
   state; partially published inferred parameters; confusing static unrolling with runtime scan;
   specializing graphs to host lengths; erasing LSTM cell state in a shared abstraction; or moving
   tokenization/padding/checkpoint transport into NN.

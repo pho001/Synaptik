@@ -25,7 +25,9 @@ import java.util.Optional;
  * <p>Root children are owned directly under numeric names: there is no wrapper path prefix.
  * Reconstruction starts in evaluation mode and creates no parameter values or storage. Load
  * values separately through inherited strict state loading before execution through a caller's
- * Engine. NN does not own execution, persistence, native resources or a training lifecycle.</p>
+ * Engine. This skeleton does not own execution, native resources or a training lifecycle;
+ * its inherited tensor capability is unsupported and close is a no-op. To acquire a supported
+ * static source explicitly, use {@link Model#graph} with ordinary prototype outputs and named state.</p>
  *
  * <p>Aliases retain exact Tensor identity. Callers coordinate description, forward construction
  * and replacement; in particular bindings must not change during an open Training session.

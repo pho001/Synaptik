@@ -3350,6 +3350,24 @@ training lifecycle, but it does not own modules, buffers, train/eval behavior, a
 Runtime/Prepare, kernel selection, backend storage representations, or a concrete backend
 dependency. See [Module boundaries](architecture/module-boundaries.md#extensions).
 
+### Owned Model source
+
+The ordinary static Tensor provenance reconstructed against privately acquired leaves for NN's
+`Model.defineTensor`/`graph` and `load`/`loadGraph` capability. One working parameter/buffer set feeds
+cached public Engine preparations, configured TrainingSession updates and GraphCheckpoint save.
+Registered wrappers determine roles; constants are not Module state. Acquisition copies each
+external identity once; load adopts final heap values directly. This is not another IR or executor.
+Full signatures are fixed, mode/binding/storage changes invalidate the capability, and close owns
+sessions/preparations and native memory but never a borrowed Engine. See the
+[owned workflow](user-guide/running-models.md#owned-static-model-workflow).
+
+### Detached Model results
+
+`HostTensorValue` compute outputs and `TrainingStep` training results contain detached values and
+metadata that remain readable after batch storage, Model and Engine close. Owned Model compute
+closes its low-level RunResult before returning; callers never inherit its borrowed storage lifetime.
+This differs from low-level RunResult, which remains a closeable owner.
+
 ### Functional Model and Model topology
 
 The implemented NN **functional Model** is `Model<I,O>`, a typed root `Module` whose generic
@@ -3372,7 +3390,8 @@ once, and returns its exact non-null result. A thrown failure or null result pre
 created prefix expressions and module-local effects without rollback. Recursive state discovery,
 strict state loading, parameter replacement, and train/eval propagation are inherited from
 `Module`; the structure is sealed while bindings and mode retain their caller-coordinated mutable
-lifecycle. A Model is not thread-safe.
+lifecycle. Generic functional Model forward is not thread-safe. The separate owned-source capability
+admits one high-level operation at a time, but inherited Module mutation remains caller-coordinated.
 
 `Model.define` itself performs no parameter binding, input-descriptor tracing, tokenizer or batch
 preparation, checkpoint persistence, backward definition, automatic differentiation, optimizer

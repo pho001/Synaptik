@@ -267,7 +267,7 @@ kernel selection, or concrete backend dependencies.
 
 The implemented [closed declarative boundary](contracts/extensions-training.md#closed-declarative-models)
 also places semantic description and reconstruction in NN. Model supplies semantics; the separate
-public Training edge now supplies only generic live admission. NN0026 is independently reviewed
+public Training edge supplies generic live admission and sessions. NN0026 is independently reviewed
 and coordinator-validated. For an ordinary nested Sequential MLP, description records
 typed configuration, ordered numeric paths and current Tensor-identity groups; reconstruction
 returns the same paths and shared descriptor-only references, then existing strict state load supplies
@@ -283,6 +283,27 @@ The existing static RNN, GRU, LSTM, and bidirectional containers retain their sn
 fixed scan operation or its prepared loop, and no existing container is silently redirected to
 it. Runtime-length API and compatibility migration remain a later NN decision after the complete
 Model, Compiler, Engine, and concrete-backend path is executable.
+
+### Owned tensor Model composition
+
+The [owning NN contract](contracts/extensions-training.md#owned-tensor-models) places high-level
+owned state and exclusion in NN, without moving execution or optimizer algorithms there.
+`Model.defineTensor` acquires a source after one eval prototype forward; `Model.graph` acquires an
+explicit boundary. Both copy each external state identity once through GraphCheckpoint and keep
+one working set for compute, configured train and save. Load adopts final heap values directly.
+
+```text
+NN owned source -> Engine compile/prepare/runValues -> detached values
+               -> TrainingSession.runValues       -> same weights + detached step
+               -> GraphCheckpoint.save            -> source + current raw values
+```
+
+Each arrow delegates to the existing public owner. For example, configuring training after compute
+closes inference preparation before one native parameter admission, preserving Tensor identity.
+Rebuilding a source or replacing a weight per batch would invalidate this lifecycle, not refresh it.
+Mode, wrappers, paths and storage associations are guarded; inherited mutators remain caller-excluded.
+Close waits for active work, then releases sessions/preparations, native memory and only a lazily
+owned Engine. A selected Engine is borrowed. See the [owned workflow](../user-guide/running-models.md#owned-static-model-workflow).
 
 ### `modules/training` (Gradle `:extensions:training`)
 

@@ -25,6 +25,24 @@ The public surface is:
 | `TrainingStep` | Detached objective and successful execution/update numbering for one run. |
 | `TrainingState` | Detached immutable parameter/optimizer/accumulation snapshot for strict in-memory restore. |
 
+## Owned Model training convenience
+
+NN's `Model.defineTensor`/`graph` and `load`/`loadGraph` own one private static source.
+`configureTraining(targetSignature, objectiveBuilder, optimizer)` invokes the pure builder once
+per explicit attempt on owned outputs and a target prototype. The list form takes explicit ordered
+target prototypes and a list builder. The scalar objective must be gradient-eligible FLOAT32/FLOAT64;
+arbitrary external objective leaves reject. Configuration preserves eval mode and succeeds once.
+Failed setup permits explicit retry but Engine selection freezes before callback/native/preparation
+work, even on failure. Successful native admission is not repeated on retry.
+
+`train(batch, target)` and the list form delegate `RESET_AND_STEP` to one TrainingSession.runValues.
+NN maps declared batch/target slots and owned buffers/constants to final session input order;
+Training retains parameters, seed, overlap checks and complete transaction validation. Inference
+preparations close before the one native parameter copy; parameter Tensor identity stays fixed.
+Compute and graph save observe updated bytes, but a model file contains no objective or optimizer
+continuation. The advanced TrainingSession API below is unchanged. See the
+[owned training example](../user-guide/training.md#train-an-owned-static-model).
+
 ## Session construction and input mapping
 
 `TrainingSession.open(engine, parameters, objective, optimizer)` borrows the Engine and live source.
@@ -539,9 +557,11 @@ differentiate, compile, prepare, execute, update parameters, persist checkpoints
 or pad a batch. `Model.define` itself performs no parameter initialization. The existing final
 `Linear` has one constructor that automatically initializes input-dependent state while that
 layer is first reached by forward traversal; this is not a general Model build, bind, initialize,
-or status lifecycle. Models inherit Module's mutable state/mode lifecycle and are not thread-safe;
+or status lifecycle. Generic Models inherit Module's mutable state/mode lifecycle and are not thread-safe;
 callers coordinate forward construction with replacement, loading, and mode changes when one
-consistent view matters.
+consistent view matters. The separate owned capability described above acquires a static source
+after one eval prototype forward and serializes high-level operations; it does not synchronize
+inherited Module mutators or change Model.define semantics.
 
 ## Current NN automatic parameter initialization contract
 

@@ -19,6 +19,17 @@ Use only `:extensions:checkpoint` (physically `modules/checkpoint`); it exports 
 NN or Engine. Old `nn.checkpoint.ModelCheckpoint` lives in NN and retains flexible declarative
 `model.v1`/`whole-model.v1` readers, defaults and failures. Those files are not silently converted.
 
+## Owned NN Model consumer
+
+NN's `Model.defineTensor` and `Model.graph` use `copy` for one-time private acquisition, then
+reuse that ordinary source for cached Engine execution, configured Training and save. `Model.load`
+and `loadGraph` adopt `load`'s final heap leaves without another copy; constants stay outside the
+Module state dictionary. Graph/load state paths must be in canonical Module traversal order.
+Short Model save/load overloads use NN's six ceilings (256 MiB file/aggregate, 4 MiB manifest,
+16384 entries, 64-byte keys, 64 MiB payload), not the old whole-model definition codec limits.
+The generic facade remains cold and NN-free. See the
+[owned workflow](../user-guide/running-models.md#owned-static-model-workflow).
+
 ## Inputs, outputs and identity
 
 `Source(inputs, outputs, leaves)` snapshots non-null lists in declaration order, borrowing Tensors.

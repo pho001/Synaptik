@@ -2,9 +2,8 @@
 
 ## Status
 
-Ready — independent Anscombe Astra/xhigh planning APPROVE; coordinator accepted 2026-10-19.
-Sole NN Ready frontier. Implementation not started; a separate user request is required to launch.
-Model ownership remains TARGET until the bounded authority cutover; no commit/push authorization.
+Complete — coordinator accepted 2026-10-19 after definitive independent approval and source-matched native-enabled root gate.
+Authorized NN frontier: None. No successor is launched.
 
 ## Change class
 
@@ -62,17 +61,12 @@ additional boundary changes, missing capabilities or ambiguity.
 - Conflicts with: shared root/NN authority, Model API/lifecycle, NN persistence glue and three planning
   indexes; no active writer. NN0027 and older resume proposals stay held.
 - Parallel group: None; serial implementation and independent review.
-- Common base revision: main `7671bd4bebc8723fa4864c6423f78219bf63851b`.
+- Common base revision: main `97c3bbe7a0ee893a2ba76b5d8e90449c033cadd4`.
 - Integration order: completed predecessors → NN authority update → capability/tests/docs →
   independent Class C review → coordinator checkpoint/status integration.
-- Integration validation: coordinator `./gradlew test javadoc` once on final source, retaining the
-  established environment/native-test configuration; Markdown checks and `git diff --check`.
+- Integration validation: accepted coordinator native-enabled root command and evidence in Result;
+  Markdown checks and `git diff --check`.
 - Shared-document integration owner: model-execution coordinator, with explicit serial delegation.
-
-Coordinator verified 2026-10-19: base/contracts/dependencies/conflicts and sole NN Ready frontier;
-main equals origin/main at this base; all five predecessors Complete with approvals/root gates.
-Before executor launch, require a separate user request and fresh base/contract/dependency/conflict checks.
-Preserve dirty THIRD_PARTY_NOTICES.md and CpuOrdinaryPointwiseCastCleanJavaOracle.java byte-for-byte.
 
 ## Files and symbols
 
@@ -86,6 +80,7 @@ Java prefix: `io/github/pho001/synaptik/`; NN roots: `extensions/nn/src/{main,te
 - New package-private `nn/module/ModelExecutionState.java`: admission, Engine choice, cached owners,
   bindings and cleanup. These five types are the complete production additions, all in nn.module.
 - Reuse `nn/module/{Module,Topology,StateDictionary,DeclarativeModel}.java`; Javadoc review only.
+- Javadoc only: `nn/module/{ModelDefinition,ModelForward}.java` (authorized review correction).
 - Read-only dependencies: `modules/checkpoint/src/main/java/` + prefix +
   `checkpoint/graph/GraphCheckpoint.java` (Source/Leaf/Role, copy/load/save/rebind);
   `modules/training/src/main/java/` + prefix + `training/{TrainingSession,TrainingParameterStorage}.java`
@@ -129,7 +124,7 @@ readers/algorithms. The discarded per-batch proposal has no code to delete. No b
 5. Compute checks every publication size and aggregate byte bound before any materialization
    (default Long.MAX_VALUE), uses exact ordered RunResult occurrences and closes results on every path.
    No partial list escapes. Batch storage is borrowed for the whole call; detached values outlive it.
-6. Apply [Target Model Engine binding](../../../../design/decisions/0039-portable-graph-model-persistence.md#target-model-engine-binding)
+6. Apply [Model Engine binding](../../../../design/decisions/0039-portable-graph-model-persistence.md#target-model-engine-binding)
    exactly: same receiver, borrowed Engine never closed; selected Engine closed → Model closed/closing →
    busy → capability → freeze → argument checks for withEngine. Null/closed candidates preserve selection.
    Freeze after valid compute/configure arguments/source checks but before Engine creation, callback,
@@ -164,24 +159,14 @@ readers/algorithms. The discarded per-batch proposal has no code to delete. No b
 
 ## Validation
 
-Inspect TrainingSessionValuesTest/ValueAdmissionTest/ValueFailureTest, GraphCheckpointTest and
-EngineTypedLifecycleTest; no duplicate upstream suites. Test cold composition, multiple outputs,
-reordered/unused inputs, aliases and old flexible batches. Run focused new tests during implementation.
+Completed worker validation covered cold composition, multiple outputs, reordered/unused inputs,
+aliases and old flexible batches without duplicate upstream suites:
 
-```bash
-./gradlew :extensions:nn:test
-./gradlew :extensions:nn:javadoc
-git diff --check
-```
+Worker `./gradlew :extensions:nn:test :extensions:nn:javadoc` and post-correction
+`./gradlew :extensions:nn:javadoc` passed; their executable evidence is retained.
 
-Coordinator checkpoint, then root gate after independent review; final Javadoc follows review edits:
-
-```bash
-./gradlew :testing:architecture-tests:test
-./gradlew :testing:integration-tests:test --tests '*OwnedModelWorkflowIntegrationTest' --tests '*GraphCheckpointEngineIntegrationTest' --tests '*NnDeclarativeModelEngineIntegrationTest' --tests '*WholeModelCheckpointEngineIntegrationTest'
-```
-
-Reuse current evidence; check Markdown links/anchors, examples and glossary. No Gradle for planning.
+Accepted coordinator validation is the exact native-enabled root command in Result below.
+Metadata closeout checks links/anchors and `git diff --check`, without Gradle execution.
 
 ## Documentation and review impact
 
@@ -190,11 +175,26 @@ ADR0039's Model target/status; `docs/api/{public-api,training-api,graph-checkpoi
 `docs/user-guide/{running-models,training,declarative-models}.md`; targeted glossary entries for
 functional Model, owned source, prepared execution and detached results. Explain both workflows,
 static signatures, old readers and lifecycle. Review affected Javadoc with full input/result/failure
-tags. Use general and matching architecture/API/user-guide/ADR profiles. Independent clean Class C
-code/docs review remains mandatory after implementation, separate from planning review. Coordinator
+tags. General and matching architecture/API/user-guide/ADR profiles were applied. Independent
+Class C code/docs/Javadoc/glossary review and coordinator acceptance are complete. Coordinator
 synchronizes this brief, NN master, program and roadmap.
 
 ## Result
 
-Empty until implementation. Record changes/files, validation, docs/Javadoc/glossary impact, issues/
-follow-up and `Status: Complete` or `Status: Incomplete`. Planning approval does not complete NN0028.
+Status: Complete
+Coordinator accepted 2026-10-19; Ramanujan definitive code/docs/Javadoc/glossary APPROVE, zero outstanding (3 doc findings fixed).
+30 task files implemented/documented; exact accepted root gate:
+
+```bash
+SYNAPTIK_METAL_TEST_LIBRARY=/private/tmp/synaptik-checkpoint-leaf.oCW897/modules/backend/metal/macos-arm64/build/libsynaptik_metal_foundation.dylib ./gradlew test javadoc :testing:architecture-tests:test --rerun :testing:integration-tests:test --rerun --no-build-cache --no-configuration-cache --max-workers=2 --console=plain
+```
+
+EXIT 0, BUILD SUCCESSFUL in 5s; 107 tasks: 2 executed, 105 up-to-date.
+Fresh architecture: 13; full integration: 134, 1 skipped CPU tuning fixture; actual Metal training passed.
+19 current project reports: 4227 tests, 0 failures, 0 errors, 41 skips; mixed-age evidence, not all fresh.
+NN 401 tests/53 suites and final Javadoc reused UP-TO-DATE; no failures/errors; prior worker selected integrations 7/4 passed.
+Coordinator verified all 2279 source files unchanged through gate; both protected user files unchanged.
+Source/authority manifest /private/tmp/nn0028-source-freeze.sha256 SHA256:
+f46633c12787c053ecd287b163fdbb30ba5b79408a884244c263b2132e698d6f.
+Docs/Javadocs/glossary complete; metadata links/diff checks passed. No unresolved issue or implementation follow-up.
+Authorized NN frontier: None. Coordinator owns final commit/push; executor made no Git writes.

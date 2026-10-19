@@ -70,7 +70,9 @@ class ModelTest {
                 () -> assertTrue(Modifier.isAbstract(modelForward.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(define.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(define.getModifiers())),
-                () -> assertEquals(Set.of("forward", "define"), Arrays.stream(Model.class.getDeclaredMethods())
+                () -> assertEquals(Set.of("forward", "define", "defineTensor", "graph", "load",
+                        "loadGraph", "withEngine", "compute", "configureTraining", "train", "save", "close"),
+                        Arrays.stream(Model.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .map(Method::getName)
                         .collect(Collectors.toSet())),
@@ -104,8 +106,45 @@ class ModelTest {
                 import io.github.pho001.synaptik.nn.module.Model;
                 import io.github.pho001.synaptik.nn.module.UnaryTensorModule;
                 import java.util.Objects;
+                import java.util.List;
+                import java.nio.file.Path;
+                import java.io.IOException;
+                import io.github.pho001.synaptik.engine.Engine;
+                import io.github.pho001.synaptik.engine.HostTensorValue;
+                import io.github.pho001.synaptik.checkpoint.artifact.ArtifactLimits;
+                import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+                import io.github.pho001.synaptik.training.Sgd;
+                import io.github.pho001.synaptik.training.TrainingStep;
 
                 public final class ModelInferenceProbe {
+                    static void owned(TensorDescriptor signature, Tensor batch,
+                            Engine engine, Path file, ArtifactLimits limits) throws IOException {
+                        try (Model<Tensor,Tensor> model = Model.defineTensor(signature,
+                                topology -> Tensor::neg, engine).withEngine(engine)) {
+                            Tensor symbolic = model.forward(batch);
+                            HostTensorValue value = model.compute(batch);
+                            model.configureTraining(signature, (p,t) -> p.mul(t), new Sgd(0.1));
+                            TrainingStep step = model.train(batch, batch);
+                            model.save(file); model.save(file, limits);
+                        }
+                        try (Model<Tensor,Tensor> one = Model.load(file);
+                                Model<Tensor,Tensor> two = Model.load(file, limits);
+                                Model<Tensor,Tensor> three = Model.load(file, limits, engine);
+                                Model<Tensor,Tensor> four = Model.defineTensor(signature, t -> Tensor::neg);
+                                Model<List<Tensor>,List<Tensor>> graph = Model.graph(
+                                        List.of(batch), List.of(batch.neg()), List.of());
+                                Model<List<Tensor>,List<Tensor>> borrowed = Model.graph(
+                                        List.of(batch), List.of(batch.neg()), List.of(), engine);
+                                Model<List<Tensor>,List<Tensor>> loaded = Model.loadGraph(file);
+                                Model<List<Tensor>,List<Tensor>> bounded = Model.loadGraph(file, limits);
+                                Model<List<Tensor>,List<Tensor>> selected = Model.loadGraph(file, limits, engine)) {
+                            List<Tensor> symbolic = graph.forward(List.of(batch));
+                            List<HostTensorValue> values = graph.compute(List.of(batch), 1024);
+                            values = graph.compute(List.of(batch));
+                            graph.configureTraining(List.of(batch), (p,t) -> p.getFirst().mul(t.getFirst()), new Sgd(0.1));
+                            TrainingStep step = graph.train(List.of(batch), List.of(batch));
+                        }
+                    }
                     record Input(Tensor value) {}
                     record Output(Tensor value) {}
 

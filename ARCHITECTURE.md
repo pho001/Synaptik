@@ -180,6 +180,12 @@ same captured parameters and private cotangent seed and share one optimizer tran
 external storage is borrowed only through the synchronous call and internal result closure;
 Training retains its stronger rejection of nonempty input overlap.
 
+Owned tensor Models in NN compose this same lifecycle: cold GraphCheckpoint acquisition establishes
+one private working state, then cached public Engine preparations and an optional TrainingSession
+consume fresh values. NN owns exclusion and its native Arena, not execution or optimizer algorithms.
+Construction, cold forward and save create no Engine. The owning rules are in
+[extensions/nn](docs/architecture/contracts/extensions-training.md#owned-tensor-models).
+
 ## Core invariants
 
 The following invariants must remain true:
@@ -442,7 +448,7 @@ This compact routing summary does not replace the linked details:
 | Prepared schedules, residency, publication, and per-run mutable state | Runtime |
 | Explicit composition and public lifecycle | Engine |
 | Typed diagnostics | Trace |
-| Stateful modules, parameters, buffers, train/eval behavior, closed declarative models and old model.v1/whole-model.v1 persistence | NN; old Engine-materializing glue and strict state installation, not another execution pipeline |
+| Stateful modules, parameters, buffers, train/eval behavior, declarative and owned tensor Models, model persistence | NN; composes public Engine/Training/Checkpoint owners, never another execution pipeline |
 | Generic live parameter admission, optimizer algorithms, explicit pre-session native parameter copies, and training orchestration | Training (`modules/training`, Gradle `:extensions:training`); NN owns its live Module adapter |
 | Generic cold graph/value copy/save/load/rebind and bounded opaque artifact envelope | Checkpoint (`modules/checkpoint`, Gradle `:extensions:checkpoint`); Compiler owns raw capture/reconstruction; no NN, Training or Engine dependency |
 | Optional stored Model + TrainingState restoration; broader exact continuation requires all affecting state | Future Training Checkpoint adapter, after its separate gate; each state owner retains validation and restore authority |
@@ -518,8 +524,8 @@ Concrete rules:
 - Concrete backends must not depend on `modules/engine`.
 - `modules/backend/openblas-provider` must not depend on compiler, planning, runtime, prepare, engine, or Tensor API.
 - `extensions/nn` has exactly public Model, Training, Checkpoint and Engine project edges.
-  Training supplies live Module admission; Checkpoint supplies generic artifacts/graph persistence;
-  Engine supplies public materialization for relocated old NN persistence signatures. NN has no
+  Training supplies live Module admission and sessions; Checkpoint supplies generic artifacts/graph persistence;
+  Engine supplies cached public execution and old persistence materialization. NN has no
   direct Compiler, Runtime, Prepare or concrete-backend edge, and owns no second execution pipeline.
 - `modules/training` has exactly the public Model and Engine project edges and must not depend
   on NN. The explicit public Engine composition edge does not permit a dependency on Compiler,
@@ -632,7 +638,8 @@ Architecture tests should enforce:
 - runtime hot path does not use `Operation` or `CompiledNode`
 - planning scoring does not reference concrete kernel classes
 - `extensions/nn` has exactly public Model/Training/Checkpoint/Engine edges, with no direct
-  Compiler/Runtime/Prepare/backend edge; its live adapter preserves ordered path/wrapper/Tensor membership
+  Compiler/Runtime/Prepare/backend edge; its live adapter preserves ordered path/wrapper/Tensor membership,
+  and owned Models delegate execution, training and persistence to their existing public owners
 - physical `modules/training` maps to `:extensions:training`, has exactly public Model/Engine
   edges, and has no NN imports, NN-taking overloads, or test-only NN dependency; the public Engine
   exception is role-specific and never exempts other inward modules

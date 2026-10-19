@@ -9,6 +9,17 @@ public Training extension now consumes the ordinary Engine's one-stage first-gra
 its reusable session; it does not own or alter the combined compile-time graph described here.
 This page is subordinate to the Compiler-owned contract.
 
+## Owned Model consumer
+
+An owned NN `Model` configures one pure scalar objective on its fixed output expressions and
+explicit target prototypes. It delegates to the same public TrainingSession described here, with
+no new backward pipeline. `train(batch, targets)` uses `RESET_AND_STEP` through fresh positional
+values; it neither rebuilds forward nor toggles Module mode. Parameters keep their identities
+through one explicit native admission, and inference and save observe subsequent same-store updates.
+Objective callbacks, optimizer history and random/input progress are not model-file contents.
+See the [NN ownership contract](contracts/extensions-training.md#owned-tensor-models) and
+[training workflow](../user-guide/training.md#train-an-owned-static-model).
+
 ## Compile modes
 
 Synaptik distinguishes three compile modes:

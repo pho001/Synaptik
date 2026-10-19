@@ -9,6 +9,111 @@ prepared execution repeatedly with current caller-owned input storage. Each run 
 ordered publication metadata and supports explicit copying into detached immutable
 `HostTensorValue` objects.
 
+## Owned static Model workflow
+
+For an application-built and file-restored model with the same compute/train/save API, opt into
+an **owned source**: an ordinary static Tensor graph reconstructed against private weight values.
+Use Java 26, an explicit `:extensions:nn` dependency, and the CPU Engine's incubator vector module
+(`--add-modules jdk.incubator.vector`). No caller Arena is required for this workflow. The source
+admits ADD, MUL, NEG, MATMUL and rank-two PERMUTE[1,0]; this is not all NN layers or all codecs.
+Execution and training support remain narrower than raw graph persistence's seven data types.
+
+This complete example learns one FLOAT32 weight, starting at 2. Both batch and target are [1,1].
+It saves before compute, trains on input 3 and target 1, then restores the trained source.
+
+```java
+import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.engine.HostTensorValue;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.layers.Linear;
+import io.github.pho001.synaptik.nn.module.Model;
+import io.github.pho001.synaptik.training.Sgd;
+import java.lang.foreign.ValueLayout;
+import java.nio.file.Path;
+import java.util.Optional;
+
+public final class OwnedModelExample {
+    static Tensor matrix(float value, boolean gradient) {
+        Shape shape = Shape.of(1, 1);
+        Tensor tensor = TensorFactory.allocate(new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), gradient));
+        tensor.hostStorage().orElseThrow().segment()
+                .set(ValueLayout.JAVA_FLOAT_UNALIGNED, 0, value);
+        return tensor;
+    }
+
+    public static void main(String[] args) throws Exception {
+        Tensor externalWeight = matrix(2, true);
+        TensorDescriptor signature = matrix(0, false).descriptor();
+        Path file = Path.of("owned.graph");
+        HostTensorValue retained;
+        try (Model<Tensor, Tensor> model = Model.defineTensor(signature, topology -> {
+            Linear linear = topology.addModule("linear", new Linear(externalWeight));
+            return linear::forward;
+        })) {
+            model.save(file); // no Engine yet; source and signature are already fixed
+            retained = model.compute(matrix(3, false)); // prediction 6, lazy CPU Engine
+            model.configureTraining(signature, (prediction, target) -> {
+                Tensor error = prediction.sub(target);
+                return error.mul(error).sum();
+            }, new Sgd(0.1));
+            var step = model.train(matrix(3, false), matrix(1, false));
+            System.out.println(step.objective().bytes().getFloat()); // 25
+            model.save(file); // working weight is now -1; externalWeight remains 2
+        }
+        try (Engine borrowed = Engine.standard();
+                Model<Tensor, Tensor> restored = Model.load(file).withEngine(borrowed)) {
+            System.out.println(restored.compute(matrix(2, false)).bytes().getFloat()); // -2
+        }
+        System.out.println(retained.bytes().getFloat()); // 6 after all owners close
+    }
+}
+```
+
+The squared error is `(2*3-1)^2 = 25`; SGD applies gradient 30, so weight becomes `2-0.1*30 = -1`.
+Acquisition copied external values once and installed final private leaves into the adopted wrappers.
+Definition and prototype forward each ran once in eval mode; their callbacks are discarded. Explicit
+`forward` is cold symbolic composition, not a batch execution path. Construction failure cannot
+undo arbitrary callback effects. Do not mutate adopted child modules after construction.
+
+The signature includes dtype, static Shape, layout presence/geometry and requiresGrad. Even unused
+declared slots must match and have usable storage. A [2,1] batch rejects rather than recompiling.
+`configureTraining` preserves mode, creates one native parameter working set when needed, and
+succeeds once; compute can prepare again after this explicit transition, not after each update.
+Configure training anew after load: objectives, optimizer history, RNG and data cursors are not saved.
+
+For multiple Tensor inputs/outputs, use `Model.graph(inputs, outputs, namedLeaves)` and list
+compute/train methods; name every reachable state leaf with its explicit PARAMETER, BUFFER or
+CONSTANT role in canonical Module traversal order. `loadGraph` restores that list boundary;
+single `load` rejects it with a hint. List compute accepts an aggregate `maximumTotalBytes`, checks
+all output sizes first, closes its result and returns only a complete detached list.
+
+Select a borrowed Engine before the first valid compute/configure setup; `withEngine` returns the
+same model. That selection freezes even if setup fails, and a closed selected Engine cannot be
+replaced. Without a selection, only execution opens a fresh model-owned CPU Engine. Close never
+closes a borrowed Engine; it waits for active work and closes session/preparation before native
+storage and an owned Engine, attempting all cleanup and replaying retained failures.
+
+| Symptom | Cause and correction |
+|---|---|
+| Unsupported tensor capability | Generic `Model.define`, custom subclasses and DeclarativeModel retain old forward behavior. Explicitly acquire a supported graph boundary. |
+| Busy or closed/closing | Another high-level operation or close owns admission. Serialize calls; keep borrowed Engine open through Model use. |
+| Source changed | Mode, paths/wrappers, Tensor or storage associations changed. Construct a replacement Model; restoring a binding does not revive an invalid capability. |
+| Native training admission rejects | Current Training rejects unresolved/empty/nonfinite/aliased parameters. Supply supported state before acquisition; there is no implicit conversion or alias splitting. |
+| Unsupported source operation | The five-operation static persistence boundary is narrower than ordinary Compiler/NN support. Keep the old flexible/declarative workflow below where appropriate. |
+
+Short save/load forms use 256 MiB file/aggregate, 4 MiB manifest, 16384 entries, 64-byte keys and
+64 MiB payload ceilings; explicit `ArtifactLimits` overloads remain. Old `model.v1` and
+`whole-model.v1` files still use `nn.checkpoint.ModelCheckpoint`, not `Model.load`.
+Zero-node source may save/load but retains Engine's empty-plan rejection. Model/Training autotuning
+is not integrated; advanced `Engine.prepareTuned` remains separate. See the
+[API contracts](../api/public-api.md#owned-tensor-model-capability).
+
 ## Prerequisites
 
 - One open `Engine.standard()`, or one explicitly composed CPU/Metal Engine.
