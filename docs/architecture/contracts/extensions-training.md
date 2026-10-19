@@ -447,6 +447,7 @@ Allowed:
 - `TrainingParameterStorage` for an explicit pre-session copy into caller-owned shareable native host memory
 - immutable in-memory optimizer/session state snapshots
 - an explicit dependency on the public Engine facade for the session lifecycle
+- fresh stored external values through `TrainingSession.runValues`, reusing public `Engine.runValues`
 - backend-neutral access to caller-owned Model host storage within the supported optimizer domain
 
 Forbidden:
@@ -705,17 +706,19 @@ Rules:
 - A `TrainingSession` borrows exactly one caller-owned Engine and one caller-owned live
   `TrainingParameters` source. It
   owns exactly one Engine `PreparedExecution`, one optimizer-state set, and its counters. It opens
-  that owner with `Engine.prepare` and executes exact-ID inputs with `Engine.run`; fresh positional
-  Training input admission is not part of this lifecycle. Close releases the prepared owner before
-  the private cotangent-seed arena, preserving failed-open rollback and update transactions.
+  that owner with `Engine.prepare` and executes exact-ID inputs with `Engine.run`, or fresh stored
+  values with `Engine.runValues`. Both share one private optimizer transaction. Close releases
+  the prepared owner before the private cotangent-seed arena, preserving failed-open rollback and
+  update transactions.
 - Session construction snapshots nonempty, unique, nonblank paths and exact Tensors in caller
   encounter order, never sorted; null sources, lists, entries, paths or Tensors reject. The source
   validates live membership at capture and every complete-view validation site, including before
   run/state/restore and precommit for accumulation, update and restore. NN adapters additionally
   retain wrappers. Training owns descriptor, exact storage identity/schema/liveness/accessibility/
   capacity and finiteness checks. Every Tensor identity and non-overlapping storage occurrence
-  remains fixed until close; callers grant exclusive source/parameter-storage use and must not
-  replace membership, bindings or storage associations while the session is open.
+  of the captured parameters remains fixed until close; callers grant exclusive source/parameter
+  storage use and must not replace membership, bindings or storage associations while the session
+  is open.
 - The public session supports a scalar `FLOAT32` or `FLOAT64` objective and connected, non-empty
   `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` parameters with fully static, dense-contiguous,
   offset-zero, non-view descriptors and exact-capacity writable native host storage accessible to
@@ -727,9 +730,23 @@ Rules:
   confined-to-another-thread, device-only, empty, integral, BOOL, and non-finite parameter storage
   are outside the update domain and fail before compile or mutation.
 - Compiler input occurrence order and publication target indices are the only mapping authorities.
-  Parameters bind internally by captured Tensor identity; each other bindable input is supplied
-  exactly once per run. A missing, duplicate, foreign, descriptor-incompatible, absent, dead,
-  inaccessible, overlapping, or parameter-aliasing storage fails before optimizer mutation.
+  Parameters and the private seed bind internally by captured Tensor identity; callers fill every
+  external bindable position according to the selected admission mode below. Incompatible
+  descriptors or absent, dead, inaccessible, insufficient, nonempty overlapping or parameter-aliasing
+  storage fail before optimizer mutation.
+- `run` requires exact external TensorIds in arbitrary list order, retaining its existing checks
+  and diagnostics. `runValues` requires exactly the external positions returned by `inputs()` in
+  relative final compiled order, excluding parameters and the private seed, including targets and
+  every other external bindable leaf. Fresh IDs are accepted only with exact full static
+  descriptors (dtype, shape, layout presence/geometry and requiresGrad). Values are stored values,
+  not expressions to execute. Training inserts fixed parameters/seed using its captured binding
+  plan and delegates checked static storage geometry to public Engine positional admission; it
+  does not recapture, recompile, prepare, copy or rebind prototypes. Old `run` retains its
+  layout-span-or-zero capacity checks. Caller external storage remains borrowed and exclusively
+  usable through the synchronous call and internal result closure, never retained for a later run.
+  Both paths reject nonempty external/external, external/parameter and seed overlap in compiled
+  order, including the same nonempty value in two positions. Engine's repeated-value permission
+  does not relax Training's rule; zero-byte storage remains exempt from overlap checks.
 - `Sgd`, `Adam`, and `AdamW` are immutable built-in optimizer configurations. The exact default
   and ordered parameter groups resolve one algorithm per path at open. All parameters update on
   every successful global step through one atomic commit, with no backend or per-element

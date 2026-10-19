@@ -44,6 +44,54 @@ import org.junit.jupiter.api.Test;
 
 /** Exercises the public training lifecycle through the real CPU Engine composition. */
 final class TrainingSessionCpuIntegrationTest {
+    /** Trains fresh scalar batches and targets using the same native parameter and graph. */
+    @Test
+    void freshValuesTrainOnCpu() {
+        TrainingStep first;
+        TrainingStep second;
+        try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+            Tensor weight = scalar(arena, 2, true);
+            ScalarModule module = new ScalarModule(weight);
+            Tensor batchPrototype = scalar(arena, 1, false);
+            Tensor targetPrototype = scalar(arena, 0, false);
+            Tensor error = weight.mul(batchPrototype).sub(targetPrototype);
+            Tensor objective = error.mul(error);
+            var storage = weight.hostStorage().orElseThrow();
+            try (TrainingSession session = TrainingSession.open(
+                    engine, module.trainingParameters(), objective, new Sgd(0.1))) {
+                var graph = session.compiledGraph();
+                try (Arena batchArena = Arena.ofShared()) {
+                    Tensor batch = scalar(batchArena, 3, false);
+                    Tensor target = scalar(batchArena, 1, false);
+                    var values = session.inputs().stream().map(input ->
+                            input.tensorId().equals(batchPrototype.id()) ? batch : target).toList();
+                    first = session.runValues(values, GradientMode.RESET_AND_STEP);
+                }
+                assertEquals(25, first.objective().bytes().getFloat());
+                assertEquals(-1, storage.segment().get(ValueLayout.JAVA_FLOAT, 0), 1e-6f);
+                try (Arena batchArena = Arena.ofShared()) {
+                    Tensor batch = scalar(batchArena, 2, false);
+                    Tensor target = scalar(batchArena, -3, false);
+                    var values = session.inputs().stream().map(input ->
+                            input.tensorId().equals(batchPrototype.id()) ? batch : target).toList();
+                    second = session.runValues(values, GradientMode.RESET_AND_STEP);
+                }
+                assertEquals(1, second.objective().bytes().getFloat(), 1e-6f);
+                assertEquals(-1.4f, storage.segment().get(ValueLayout.JAVA_FLOAT, 0), 1e-6f);
+                assertSame(weight, module.value().value());
+                assertSame(storage, weight.hostStorage().orElseThrow());
+                assertSame(graph, session.compiledGraph());
+                assertEquals(2, session.optimizerSteps());
+                assertEquals(1, batchPrototype.hostStorage().orElseThrow().segment()
+                        .get(ValueLayout.JAVA_FLOAT, 0));
+                assertEquals(0, targetPrototype.hostStorage().orElseThrow().segment()
+                        .get(ValueLayout.JAVA_FLOAT, 0));
+            }
+        }
+        assertEquals(25, first.objective().bytes().getFloat());
+        assertEquals(1, second.objective().bytes().getFloat(), 1e-6f);
+    }
+
     @Test
     void mixedAdaptiveAndSgdGroupsRestoreAndContinueOnCpu() {
         class Three extends Module {

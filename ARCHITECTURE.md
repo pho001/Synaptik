@@ -174,6 +174,11 @@ The Training module's public `TrainingSession` deliberately depends on this publ
 lifecycle: it borrows an Engine, owns one Engine prepared execution, and adds optimizer state and
 parameter-update orchestration without introducing another compiler, preparer, scheduler, runner,
 or backend adapter.
+Training's `run` preserves exact-ID, arbitrary-order external binding; `runValues` accepts stored
+values in `TrainingSession.inputs()` order with exact full static descriptors. Both insert the
+same captured parameters and private cotangent seed and share one optimizer transaction. Fresh
+external storage is borrowed only through the synchronous call and internal result closure;
+Training retains its stronger rejection of nonempty input overlap.
 
 ## Core invariants
 

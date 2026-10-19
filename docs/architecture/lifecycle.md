@@ -224,7 +224,7 @@ buffers, counters, and persistent optimizer slots.
 
 ```text
 open: snapshot parameters -> Engine.compile once -> Engine.prepare once
-run:  bind captured parameters + caller inputs -> Engine.run(prepared, inputs)
+run:  bind captured parameters + seed + caller inputs -> Engine.run or Engine.runValues
       -> validate/materialize objective and target-indexed gradients
       -> stage and validate every update -> atomically publish parameters/state/counters
 ```
@@ -236,6 +236,14 @@ parameter position. Only one Training operation is admitted at a time. Close rej
 waits for admitted Training work, closes the prepared execution and private seed arena once, and
 never closes the borrowed Engine, source, or parameter storage. Detached `TrainingStep` and
 `TrainingState` values outlive all of those owners.
+
+`run` accepts exact external TensorIds in arbitrary order. `runValues` instead takes stored values
+in `session.inputs()` order, including targets but excluding captured parameters and the private
+seed. Exact full static descriptors must match; expressions are not executed or rebound. Fresh
+storage is borrowed through the synchronous call and internal result closure only. Both paths
+use the same optimizer transaction and reject nonempty overlapping inputs, even repeated values
+that generic Engine positional binding would allow. For example, a fresh batch and target can
+replace yesterday's input values without replacing the graph, parameters or optimizer history.
 
 Checkpoint does not add a step to this execution lifecycle. Its model API can save one complete
 quiescent NN state through public Engine materialization, inspect the bounded file, then load it

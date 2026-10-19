@@ -185,6 +185,12 @@ decays the master parameter separately. Their moments and low-precision master c
 staged before any parameter write. The session supports reset-and-step, accumulate-only,
 accumulate-and-step, zeroing, immutable state snapshots,
 strict restore, and fail-before-commit rejection of non-finite optimizer state or arithmetic.
+Exact-ID `run` and positional `runValues` share that transaction and the same prepared owner.
+The latter accepts fresh stored batches and targets in `session.inputs()` order with exact full
+static descriptors; it inserts the fixed parameters and private seed before public Engine
+positional execution. No prototype storage is copied or rebound. Caller external storage is
+borrowed only through the synchronous run and result closure. Repeating one nonempty value in two
+slots, overlapping external slices, or aliasing a parameter still rejects before execution.
 Training owns none of `Parameter`, `Buffer`, layer behavior, train/eval mode, backend ownership,
 or a fused update route.
 
@@ -203,7 +209,7 @@ Tensors and storage.
 | Per-module forward mode, NN | Caller reads `mode()` on every relevant module when saving; no mode is in `StateDictionary`. | Caller restores the intended tree state before constructing the objective; recursive `train()`/`eval()` set a uniform tree or reconstruct mixed modes with parent-first child overrides under exclusive access. | A single root mode cannot reconstruct mixed local modes; local mode also does not prove which context a forward used. |
 | Effective forward contexts, NN and caller | Caller records the immutable `ForwardContext` choice actually supplied to each mode-sensitive forward when constructing the fixed objective, with enough construction-site association to reproduce it. This is a separate caller-owned value, not a `StateDictionary` field. | Caller validates and rebuilds the same context choices and objective before `TrainingSession.open`. | `Dropout.forward` and `BatchNorm.forward` accept an explicit context that may differ from `Module.mode()`; if the effective choices cannot be reconstructed, refuse exact continuation. |
 | Fixed objective and graph random state, Model/Engine and caller | Caller records graph construction and the key/counter supplied to `GraphRngState.initial`; the expression is storage-free and the session compiles it once. | Rebuild the same intended objective before `TrainingSession.open`; compile/prepare and Training capture check their respective domains. | No current per-run RNG input/output or automatic dropout stream advancement. |
-| Next input and program progress, caller | At a quiescent successful-run boundary, record next batch identity/order, sampler cursor, epoch, and any external random generator state in the caller's own detached representation. | Caller validates and restores its own source before giving the next input to `run`. | Training counters do not identify a batch or restore a sampler; durable exact encoding requires a supported versioned schema, bounded codec, and owner validator/restorer. |
+| Next input and program progress, caller | At a quiescent successful-run boundary, record next batch identity/order, sampler cursor, epoch, and any external random generator state in the caller's own detached representation. | Caller validates and restores its own source before giving exact-ID inputs to `run` or fresh stored values in `session.inputs()` order to `runValues`. | Training counters do not identify a batch or restore a sampler; positional admission does not advance graph RNG. Durable exact encoding requires a supported versioned schema, bounded codec, and owner validator/restorer. |
 | Scheduler, scaler, or other program state, caller if present | Capture each concrete external participant at the same boundary. | Its owner validates and restores it. | No built-in scheduler/scaler contract or generic state registry exists; arbitrary caller objects cannot be encoded as exact state by Checkpoint. |
 
 For the fixed-session route, no new Training public value is needed: the existing

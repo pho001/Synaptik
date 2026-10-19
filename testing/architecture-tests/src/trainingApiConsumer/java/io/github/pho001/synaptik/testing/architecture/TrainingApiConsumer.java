@@ -8,7 +8,10 @@ import io.github.pho001.synaptik.training.TrainingParameters;
 import io.github.pho001.synaptik.training.Sgd;
 import io.github.pho001.synaptik.training.TrainingSession;
 import io.github.pho001.synaptik.training.TrainingState;
+import io.github.pho001.synaptik.training.GradientMode;
+import io.github.pho001.synaptik.training.TrainingStep;
 import java.nio.ByteBuffer;
+import java.util.List;
 
 /** Compile-only witness whose sole declared dependency is extensions:training. */
 final class TrainingApiConsumer {
@@ -23,6 +26,17 @@ final class TrainingApiConsumer {
      */
     static TrainingSession open(Engine engine, TrainingParameters parameters, Tensor objective) {
         return TrainingSession.open(engine, parameters, objective, new Sgd(0.1d));
+    }
+
+    /**
+     * Proves positional Training execution is usable without an NN or inward project edge.
+     * @param session borrowed open Training owner
+     * @param values stored values in session.inputs order, excluding parameters and seed
+     * @return detached step after a successful atomic update
+     * @throws RuntimeException if lifecycle, input admission or execution rejects the call
+     */
+    static TrainingStep runValues(TrainingSession session, List<Tensor> values) {
+        return session.runValues(values, GradientMode.RESET_AND_STEP);
     }
 
     static DataType dataType(TrainingState.ParameterState state) {

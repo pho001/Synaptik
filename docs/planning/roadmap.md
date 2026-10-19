@@ -59,8 +59,10 @@ API review passed. [Checkpoint 0005A](extensions/checkpoint/tasks/0005a-model-en
 is Complete after envelope implementation, independent Class C API/documentation approval, and
 configured coordinator gates. CP0005B is Complete (2026-10-15): final independent code/docs APPROVE,
 57 module tests, final Javadoc, architecture evidence and 3 new integration tests passed.
-Authorized Checkpoint implementation frontier: None; Checkpoint0008 is Complete. Training0008 is
-the next planning candidate, still Draft; NN0028 remains Draft. Engine0020's completed layout cutover is below.
+Authorized Checkpoint implementation frontier: None; Checkpoint0008 is Complete.
+[Training0008](extensions/training/tasks/0008-fresh-value-training-session-runs.md) is Complete after
+Euclid's definitive code/docs APPROVE and main's source-matched root gate (2026-10-19).
+Authorized Training frontier: None; NN0028 is the next planning candidate, still Draft. Engine0020's completed layout cutover is below.
 The user revised the primary product to automatic usable-model load and a choice of inference or
 Training-owned resume, without routine callbacks/manual construction/digests/Arena.
 [ADR 0038](../design/decisions/0038-declarative-model-and-training-resume.md#accepted-nn-decision) replaces
@@ -89,8 +91,9 @@ final independent APPROVE and the coordinator gate. Authorized Training frontier
 bounded source API/authority cutover, final independent code/docs APPROVE and coordinator Class C
 checkpoint passed. Authorized Compiler frontier: None. [Checkpoint0008](extensions/checkpoint/tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md)
 is Complete after Halley's definitive APPROVE and the coordinator's source-matched test/Javadoc
-gate on 2026-10-17. Its brief owns evidence. Checkpoint frontier: None; Training0008 is next planning
-candidate, still Draft; NN0028 stays Draft and high-level Model/withEngine remains TARGET.
+gate on 2026-10-17. Its brief owns evidence. Checkpoint frontier: None; Training0008 is Complete
+after Euclid's final APPROVE and main's root gate; NN0028 stays Draft and high-level
+Model/withEngine remains TARGET.
 
 | Area | Delivered baseline / remaining gate |
 |---|---|
@@ -112,8 +115,8 @@ candidate, still Draft; NN0028 stays Draft and high-level Model/withEngine remai
 | [NN](extensions/nn/master-plan.md) | State/layers/static recurrence/convolution and [0026 declarative reconstruction](extensions/nn/tasks/0026-declarative-model-specification.md) Complete; final independent reviews and coordinator gates passed. Authorized NN frontier: None. Runtime scan/Data 0021B–0024 separate Draft stream. |
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
-| [Training](extensions/training/master-plan.md) | Sessions/optimizers/state and [0007 generic live-admission/native-copy cutover](extensions/training/tasks/0007-generic-live-parameter-admission.md) Complete after final independent APPROVE and coordinator gate. Authorized Training frontier: None; 0008 Draft, 0006/adapter held. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | [0008](extensions/checkpoint/tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md) Complete: bounded graph/value persistence and NN-glue cutover, final Halley APPROVE and coordinator test/Javadoc gate passed. Authorized Checkpoint frontier: None; Training0008 next planning candidate, still Draft. |
+| [Training](extensions/training/master-plan.md) | Sessions/optimizers/state, [0007 generic live admission](extensions/training/tasks/0007-generic-live-parameter-admission.md) and [0008 fresh-value runs](extensions/training/tasks/0008-fresh-value-training-session-runs.md) Complete; final independent reviews and coordinator gates passed. Authorized Training frontier: None; NN0028 next planning candidate, still Draft; 0006/adapter held. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | [0008](extensions/checkpoint/tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md) Complete: bounded graph/value persistence and NN-glue cutover, final Halley APPROVE and coordinator test/Javadoc gate passed. Authorized Checkpoint frontier: None; Training0008 also Complete. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
@@ -205,8 +208,10 @@ Training0007 is Complete after final independent approval and coordinator accept
 Compiler0008 is Complete and pushed at main/origin/main base `d235c0d3b89d6f2eaad4c80a59fd1c5091ea2851`:
 bounded API/root/compiler authority implemented, independently approved and coordinator-gated.
 Authorized Compiler and Checkpoint frontiers: None. Checkpoint0008 is Complete; final independent
-approval and coordinator gate are recorded in its brief. Training0008 is the next planning candidate,
-still Draft; NN0028 remains Draft; high-level
+approval and coordinator gate are recorded in its brief. Training0008 is Complete at unchanged main
+base `7386249479ccda991b96a7e27bd5ed0279ca1ae3`; its brief records Euclid's definitive APPROVE
+and main's source-matched root gate (2026-10-19). Its bounded root/owning Training lifecycle cutover
+is enacted; no authority is changed by planning. NN0028 is the next planning candidate, still Draft; high-level
 Model/withEngine remains TARGET, not implemented. The narrow post-preflight
 call-local reconstruction exception is enacted; Checkpoint0008 now implements direct cold
 Checkpoint→Compiler access and generic reversed edges in coordinated authority, with final

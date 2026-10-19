@@ -32,7 +32,9 @@ import java.util.OptionalLong;
  * <p>{@link #open} borrows one caller-owned {@link Engine} and live {@link TrainingParameters}, snapshots every
  * ordered parameter path, Tensor, and host-storage identity, compiles one scalar
  * objective with those exact parameter targets, and opens one {@link PreparedExecution}. Each
- * {@link #run} supplies only the remaining bindable inputs. The session inserts its stable
+ * {@link #run} or {@link #runValues} supplies only the remaining bindable inputs. The former uses
+ * exact compiled identities in arbitrary order; the latter accepts fresh stored values in
+ * {@link #inputs()} order with exact full static descriptors. The session inserts its stable
  * parameters and private scalar cotangent seed in {@link CompiledGraph#inputs()} occurrence order,
  * reuses the one prepared execution, authenticates the objective-then-gradient publications by
  * target index, and applies backend-neutral optimizer arithmetic after detaching all values.</p>
@@ -78,6 +80,12 @@ import java.util.OptionalLong;
  * closes the borrowed Engine, parameter source, Tensor, or caller storage. Engine close remains the final
  * composition boundary. Detached {@link TrainingStep} and {@link TrainingState} values outlive
  * both owners.</p>
+ *
+ * <p>External storage is borrowed only through each synchronous run and its internal result
+ * closure, never retained for the next call. Keep that storage alive, accessible and free of
+ * conflicting mutation until the call returns. No run copies or rebinds prototype storage or
+ * executes a supplied expression in place of its stored value. Training rejects nonempty input
+ * overlap even where generic Engine positional execution permits repeated values.</p>
  */
 public final class TrainingSession implements AutoCloseable {
     private static final String CLOSED_MESSAGE = "training session is closed";
@@ -132,7 +140,7 @@ public final class TrainingSession implements AutoCloseable {
      * The caller retains rollback responsibility until construction returns; cleanup closes
      * prepared execution before seed memory. Parameter stores and the Engine remain borrowed.
      *
-     * @param engine exact borrowed Engine used for compilation and every identity-based run
+     * @param engine exact borrowed Engine used for compilation and every run
      * @param parameterSource borrowed live source requiring exclusive stable membership until close
      * @param objective exact scalar expression compiled for this session
      * @param optimizer immutable default optimizer configuration
@@ -208,9 +216,9 @@ public final class TrainingSession implements AutoCloseable {
      * prepared execution and private seed arena. Failed opening closes an acquired prepared owner
      * before seed memory, and every run closes its result before either owner.</p>
      *
-     * <p>Admission accepts a generic live source, not an NN Module. The exact-ID input transaction
-     * is unchanged; this class uses
-     * {@link Engine#prepare} and {@link Engine#run}, not positional fresh-value admission.</p>
+     * <p>Admission accepts a generic live source, not an NN Module. Both {@link #run} and
+     * {@link #runValues} reuse this preparation and the same optimizer transaction, with fixed
+     * parameters and seed and call-local borrowed external storage.</p>
      *
      * @param engine non-null open Engine borrowed for the complete session lifetime
      * @param parameterSource non-null caller-owned live source whose complete ordered membership is targeted
@@ -447,8 +455,10 @@ public final class TrainingSession implements AutoCloseable {
      * cotangent seed from Compiler input order.
      *
      * <p>Each {@link #run} must supply one matching Tensor for every listed identity, in any list
-     * order. The immutable result preserves relative Compiler occurrence order and carries no
-     * storage or execution authority.</p>
+     * order. Each {@link #runValues} instead supplies one stored value in each listed position,
+     * with an exact full static descriptor but no identity constraint. Targets and every other
+     * external bindable leaf are included. The immutable result preserves relative final Compiler
+     * occurrence order and carries no storage or execution authority.</p>
      *
      * @return the same non-null immutable ordered metadata list on every call; possibly empty
      */
@@ -487,6 +497,10 @@ public final class TrainingSession implements AutoCloseable {
      * or the cotangent seed is checked on every run. The complete parameter view is validated
      * again immediately before update commit.</p>
      *
+     * <p>External storage is borrowed only through this synchronous call and internal result
+     * closure; callers keep it usable and exclude conflicting mutation until return. Fresh IDs
+     * are not accepted here; use {@link #runValues} for positional stored values.</p>
+     *
      * <p>The returned objective describes values before an optional parameter update. A reset or
      * accumulate-and-step success advances the optimizer step once; accumulate-only success does
      * not. Lifecycle admission happens before either argument is inspected. Any ordinary failure,
@@ -510,10 +524,67 @@ public final class TrainingSession implements AutoCloseable {
      * @throws Error if inward work or allocation reports a fatal failure
      */
     public TrainingStep run(List<Tensor> inputs, GradientMode gradientMode) {
+        return runInternal(inputs, gradientMode, false);
+    }
+
+    /**
+     * Runs fresh stored external values through the existing preparation and optimizer transaction.
+     *
+     * <p>Positions are exactly {@link #inputs()} order, excluding captured parameters and the
+     * private cotangent seed. TensorIds may be fresh; dtype, fully static shape, layout presence
+     * and geometry, and requiresGrad must match each position exactly. No identity remapping,
+     * expression execution, prototype mutation, copy, recompilation or preparation occurs.
+     * The fixed parameters and seed are inserted into final compiled order for
+     * {@link Engine#runValues}. Engine validates checked referenced spans for resolved layouts
+     * and checked canonical static geometry for absent layouts. This does not strengthen
+     * {@link #run}'s existing unresolved-layout checks.</p>
+     *
+     * <p>Each stored value needs present, correctly typed, live, current-thread-accessible host
+     * storage of sufficient capacity. Nonempty external/external, external/parameter and seed
+     * overlap rejects, including one value repeated across positions; zero-byte overlap remains
+     * exempt. Caller storage is borrowed through this synchronous call and internal result
+     * closure only, never retained for a later run. The caller keeps it usable and excludes
+     * conflicting mutation until return. The returned objective precedes any parameter update.</p>
+     *
+     * <p>Admission checks Engine closure, session closure and busy state before arguments. All
+     * decoding, result closure, candidate staging and complete precommit validation precede
+     * mutation. Ordinary failure preserves parameter/master bytes, slots, pending gradients and
+     * counters, with the same rollback and cleanup behavior as {@link #run}.</p>
+     *
+     * @param values non-null stored values, one per external input position; elements non-null
+     * @param gradientMode non-null reset, accumulate-only, or accumulate-and-step behavior
+     * @return a fresh non-null detached step that outlives caller storage, this session and Engine
+     * @throws NullPointerException if an argument or element is null after lifecycle admission
+     * @throws IllegalArgumentException if count, descriptor, static geometry, storage dtype or
+     *     capacity, nonempty overlap, or publication metadata is invalid
+     * @throws IllegalStateException if Engine is closed, session close has begun, another operation
+     *     is active, preparation is closed, storage is absent/dead/inaccessible, a captured live
+     *     binding changed, or publication state is inconsistent
+     * @throws ArithmeticException if checked arithmetic overflows or required optimizer values
+     *     or intermediates are non-finite
+     * @throws RuntimeException if Engine work, materialization or update otherwise fails
+     * @throws Error if inward work or allocation fails fatally
+     */
+    public TrainingStep runValues(List<Tensor> values, GradientMode gradientMode) {
+        return runInternal(values, gradientMode, true);
+    }
+
+    /**
+     * Owns one admitted run and the shared decode, stage, precommit and rollback transaction.
+     *
+     * @param inputs non-null external inputs after admission, interpreted by the selected mode
+     * @param gradientMode non-null gradient lifecycle after admission
+     * @param positional whether to bind stored values by position rather than exact TensorId
+     * @return detached pre-update objective and successfully committed progress
+     * @throws RuntimeException if admission, validation, execution or optimizer work fails
+     * @throws Error if allocation or inward work fails fatally
+     */
+    private TrainingStep runInternal(
+            List<Tensor> inputs, GradientMode gradientMode, boolean positional) {
         beginOperation();
         try {
             hooks.afterAdmission(Operation.RUN);
-            Objects.requireNonNull(inputs, "inputs");
+            Objects.requireNonNull(inputs, positional ? "values" : "inputs");
             GradientMode mode = Objects.requireNonNull(gradientMode, "gradientMode");
             long nextExecution = Math.incrementExact(executions);
             boolean updates = mode != GradientMode.ACCUMULATE;
@@ -523,8 +594,8 @@ public final class TrainingSession implements AutoCloseable {
                     ? 0L : Math.incrementExact(accumulatedGradientRuns);
 
             validateModuleAndParameters();
-            List<Tensor> compiledInputs = bindInputs(inputs);
-            HostTensorValue objectiveValue = executeAndDecode(compiledInputs);
+            List<Tensor> compiledInputs = positional ? bindValues(inputs) : bindInputs(inputs);
+            HostTensorValue objectiveValue = executeAndDecode(compiledInputs, positional);
             hooks.afterExecution();
 
             if (mode != GradientMode.RESET_AND_STEP) {
@@ -829,11 +900,22 @@ public final class TrainingSession implements AutoCloseable {
         rethrow(failure);
     }
 
-    private HostTensorValue executeAndDecode(List<Tensor> inputs) {
+    /**
+     * Executes one complete compiled-order binding, detaches publications and closes the result.
+     * Cleanup failure suppresses onto a primary failure; no caller input is retained here.
+     *
+     * @param inputs non-null complete compiled-order values including fixed parameters and seed
+     * @param positional whether to use public Engine fresh-value admission
+     * @return detached pre-update scalar objective, never null
+     * @throws RuntimeException if execution, publication validation, decoding or cleanup fails
+     * @throws Error if inward execution or allocation fails fatally
+     */
+    private HostTensorValue executeAndDecode(List<Tensor> inputs, boolean positional) {
         RunResult result = null;
         Throwable primary = null;
         try {
-            result = engine.run(preparedExecution, inputs);
+            result = positional ? engine.runValues(preparedExecution, inputs)
+                    : engine.run(preparedExecution, inputs);
             validatePublications(result);
             List<RunResult.Publication> publications = result.publications();
             HostTensorValue objectiveValue = result.materialize(
@@ -901,6 +983,13 @@ public final class TrainingSession implements AutoCloseable {
         }
     }
 
+    /**
+     * Preserves exact-ID arbitrary-order admission and its diagnostics for the original run API.
+     *
+     * @param suppliedInputs non-null external inputs with exact compiled identities
+     * @return complete immutable binding with validated storage and nonempty non-overlap
+     * @throws RuntimeException if count, identity, descriptor or storage validation fails
+     */
     private List<Tensor> bindInputs(List<Tensor> suppliedInputs) {
         if (suppliedInputs.size() != externalInputs.size()) {
             throw new IllegalArgumentException(
@@ -935,12 +1024,50 @@ public final class TrainingSession implements AutoCloseable {
             }
         }
 
+        return assembleInputs(Arrays.asList(external));
+    }
+
+    /**
+     * Snapshots positional stored values with exact descriptors, leaving static capacity geometry
+     * to Engine's checked positional admission rather than changing the original identity path.
+     *
+     * @param values non-null values in external compiled encounter order
+     * @return immutable complete compiled-order binding with Training overlap checks applied
+     * @throws RuntimeException if count, null element, descriptor or storage admission fails
+     */
+    private List<Tensor> bindValues(List<Tensor> values) {
+        if (values.size() != externalInputs.size()) {
+            throw new IllegalArgumentException(
+                    "training input count mismatch: expected=" + externalInputs.size()
+                            + ", actual=" + values.size());
+        }
+        List<Tensor> external = List.copyOf(values);
+        for (int index = 0; index < external.size(); index++) {
+            if (!external.get(index).descriptor().equals(externalInputs.get(index).descriptor())) {
+                throw new IllegalArgumentException(
+                        "training input descriptor does not match "
+                                + externalInputs.get(index).tensorId());
+            }
+        }
+        return assembleInputs(external);
+    }
+
+    /**
+     * Inserts fixed parameters/seed and validates borrowed storage in final compiled order.
+     * Fixed parameter pairs need no dynamic rescan; every pair involving external storage or
+     * the seed keeps the existing ordered nonempty overlap diagnostic.
+     *
+     * @param external non-null fully admitted external values in relative compiled order
+     * @return non-null immutable complete binding retained only through the synchronous run
+     * @throws RuntimeException if storage presence, schema, capacity, access or overlap is invalid
+     */
+    private List<Tensor> assembleInputs(List<Tensor> external) {
         var compiled = new ArrayList<Tensor>(fixedCompiledInputs.length);
         HostTensorStorage[] storages = new HostTensorStorage[fixedCompiledInputs.length];
         for (int compiledIndex = 0; compiledIndex < fixedCompiledInputs.length; compiledIndex++) {
             Tensor tensor = fixedCompiledInputs[compiledIndex];
             if (tensor == null) {
-                tensor = external[externalIndexByCompiledInput[compiledIndex]];
+                tensor = external.get(externalIndexByCompiledInput[compiledIndex]);
             }
             HostTensorStorage storage = tensor.hostStorage().orElse(null);
             if (storage == null) {

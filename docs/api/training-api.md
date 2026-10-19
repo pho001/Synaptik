@@ -32,9 +32,9 @@ The objective must be one gradient-eligible scalar `FLOAT32` or `FLOAT64` expres
 must expose at least one parameter, and every parameter is an identity-unique connected gradient
 target. Construction snapshots each path, exact Tensor and host-storage identity in caller
 encounter order, never sorted, before calling `Engine.compile(...)` exactly once and
-`Engine.prepare(...)` exactly once. It owns that prepared handle and executes through
-`Engine.run(prepared, inputs)`, preserving exact-ID binding and transaction algorithms.
-Engine.runValues is not a fresh-input Training API.
+`Engine.prepare(...)` exactly once. It owns that prepared handle. Identity-based `run` executes
+through `Engine.run(prepared, inputs)`; positional `runValues` executes through
+`Engine.runValues(prepared, values)`. Both share the same optimizer transaction and fixed captures.
 
 `TrainingSession.open(engine, parameters, objective, defaultOptimizer, groups)` additionally assigns
 an optimizer configuration to each path named by a `ParameterGroup`. Paths are the stable
@@ -85,11 +85,28 @@ expression connected to all three; the caller closes `session` after use. The
 constructs and runs that complete scenario.
 
 `session.inputs()` contains only the compiled inputs not supplied internally as captured
-parameters or the private cotangent seed. Every `run(inputs, mode)` must provide each listed Tensor
+parameters or the private cotangent seed, preserving relative final compiled order and including
+targets and every other external bindable leaf. Every `run(inputs, mode)` must provide each listed Tensor
 identity exactly once; list order is irrelevant. Missing, duplicate, foreign, descriptor-
 incompatible, absent, dead, inaccessible, overlapping, or parameter-aliasing storage is rejected.
 Gradient publications must contain the scalar objective followed by one derivative-order-one
 occurrence for each parameter, with the exact matching `targetIndex`.
+
+`runValues(values, mode)` instead takes exactly one stored value per `session.inputs()` position,
+with fresh TensorIds allowed. Full static descriptors must match exactly: dtype, shape, layout
+presence/geometry, and requiresGrad. Values are not expressions to execute or recapture. The
+session inserts its captured parameters and private seed into final compiled positions without
+copying or rebinding prototype storage. Engine checks referenced spans for resolved layouts and
+canonical static geometry for absent layouts; unknown/overflowing geometry rejects. The extra
+absent-layout capacity check does not change old `run` diagnostics or checks.
+
+Training rejects nonempty external/external, external/parameter and seed overlap, including one
+value repeated across matching positions; zero-byte overlap remains exempt. This is deliberately
+stronger than generic Engine positional binding. Both methods borrow caller external storage only
+through the synchronous call and internal result closure, never for the next run. Keep it alive,
+accessible and free of conflicting mutation until return. See the
+[fresh-batch scalar example](../user-guide/training.md#train-fresh-batches-and-targets) for compiled-order mapping
+and independently calculated losses and updates.
 
 ## Initial parameter domain
 
@@ -258,7 +275,8 @@ updates from one.
 
 ## Atomicity, state, concurrency, and close
 
-Engine execution, publication validation, detached materialization, gradient decoding, candidate
+Both `run` and `runValues` use one private transaction. Engine execution, result closure,
+publication validation, detached materialization, gradient decoding, candidate
 arithmetic, and a second complete binding/storage validation all precede mutation. Current
 parameters, decoded gradients, accumulation, momentum, every optimizer intermediate, and
 parameter candidates must be finite; NaN, infinity, and represented overflow fail before commit,
@@ -307,7 +325,7 @@ Its source and binary signature changed from `Sgd`; callers requiring SGD-specif
 check and cast. There is no replacement `defaultOptimizer()` accessor. Group configurations
 retain exact kind, coefficients, and ordered paths.
 
-Every `run` or state operation performs lifecycle admission before argument validation. Engine
+Every `run`, `runValues` or state operation performs lifecycle admission before argument validation. Engine
 closure wins first, then session closing/closure, then busy admission; only an admitted operation
 inspects its arguments. A racing operation fails. Close first rejects later admission, waits for
 an already-admitted Training operation to finish, then attempts all owned cleanup once. Repeated
@@ -1116,7 +1134,7 @@ Engine compile/prepare/run/materialization authority.
 TrainingSession.open
   -> compile forward + first gradients once
   -> prepare one Engine PreparedExecution once
-  -> repeated run/materialize/stage/commit
+  -> repeated run or runValues / materialize / stage / commit
 ```
 
 Schedulers, mixed precision beyond the stated parameter domain, persistence for exact training

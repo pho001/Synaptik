@@ -6553,8 +6553,11 @@ The implemented public Training owner for one scalar objective, one stable gener
 set, one immutable default optimizer configuration and optional ordered parameter groups, one
 compiled graph, and one Engine PreparedExecution. Opening snapshots exact parameter
 paths/Tensors/storages (NN adapters also retain wrappers), then compiles and
-prepares once. Each run reuses that preparation through Engine.run, authenticates target-indexed gradients, stages all
-assigned optimizer/accumulation work, and commits only after complete precommit validation. Its update
+prepares once. `run` binds exact external identities in arbitrary order through Engine.run;
+`runValues` binds fresh stored values in `session.inputs()` order through Engine.runValues,
+excluding captured parameters and the private seed. Both reuse that preparation and one optimizer
+transaction, authenticate target-indexed gradients, stage all
+assigned optimizer/accumulation work, and commit only after complete precommit validation. Its update
 domain is non-empty, finite `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` parameters with fully
 static dense offset-zero non-view layouts and exact-capacity writable, shareable native host
 storage. Each parameter's snapshot payload at its declared (logical) width and each optimizer
@@ -6909,6 +6912,12 @@ referenced spans apply to resolved layouts and checked canonical static element/
 to absent layouts; unknown/overflow geometry rejects. Identity-based Engine.run retains its
 exact-ID/arbitrary-order meaning and does not gain the additional absent-layout restriction.
 Neither method mutates prototypes or compiles/prepares again.
+
+TrainingSession.runValues uses the same Engine positional boundary after inserting captured
+parameters and its private seed. Its public positions are `session.inputs()`, including targets,
+not all compiled inputs. Training additionally rejects nonempty input overlap, including repeated
+values; zero-byte overlap remains exempt. External storage is borrowed only through the synchronous
+Training call and internal result closure, never retained for the next run.
 
 ### Generic graph checkpoint source
 

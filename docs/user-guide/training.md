@@ -156,9 +156,66 @@ float finalLoss = last.objective().bytes().getFloat();
 
 `TrainingSession.open` performs the only gradient compile and the only preparation. Every `run`
 reuses that Engine `PreparedExecution` through `engine.run(prepared, inputs)`.
-Generic live-source admission changes open/copy signatures but not atomic update algorithms;
-fresh-value Training input admission remains outside the current API. Inputs may be supplied in any list order, but every identity listed
-by `training.inputs()` must occur exactly once with a compatible live storage association.
+Inputs to `run` may be supplied in any list order, but every identity listed by `training.inputs()`
+must occur exactly once with a compatible live storage association. For a new stored batch or
+target Tensor, use positional `runValues` instead, as shown below.
+
+## Train fresh batches and targets
+
+Use the `ScalarModel` and `nativeScalar` definitions above with CPU `Engine.standard()`. Start
+with weight `2`, and build the squared-error objective `(weight * batch - target)^2` once. The
+batch and target prototypes fix descriptors, not the values of future runs. Fresh values must
+match dtype, fully static shape, layout presence/geometry and requiresGrad exactly.
+
+```java
+TrainingStep first;
+TrainingStep second;
+try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+    Tensor weight = nativeScalar(arena, 2.0f, true);
+    ScalarModel model = new ScalarModel(weight);
+    Tensor batchPrototype = nativeScalar(arena, 1.0f, false);
+    Tensor targetPrototype = nativeScalar(arena, 0.0f, false);
+    Tensor error = weight.mul(batchPrototype).sub(targetPrototype);
+    Tensor objective = error.mul(error);
+    try (TrainingSession session = TrainingSession.open(
+            engine, model.trainingParameters(), objective, new Sgd(0.1))) {
+        try (Arena batchArena = Arena.ofShared()) {
+            Tensor batch = nativeScalar(batchArena, 3.0f, false);
+            Tensor target = nativeScalar(batchArena, 1.0f, false);
+            var values = session.inputs().stream().map(input ->
+                    input.tensorId().equals(batchPrototype.id()) ? batch : target).toList();
+            first = session.runValues(values, GradientMode.RESET_AND_STEP);
+        } // Fresh storage may close as soon as the synchronous call has returned.
+        assert first.objective().bytes().getFloat() == 25.0f;
+        assert Math.abs(weight.hostStorage().orElseThrow().segment()
+                .get(ValueLayout.JAVA_FLOAT, 0) + 1.0f) < 1e-6f;
+        try (Arena batchArena = Arena.ofShared()) {
+            Tensor batch = nativeScalar(batchArena, 2.0f, false);
+            Tensor target = nativeScalar(batchArena, -3.0f, false);
+            var values = session.inputs().stream().map(input ->
+                    input.tensorId().equals(batchPrototype.id()) ? batch : target).toList();
+            second = session.runValues(values, GradientMode.RESET_AND_STEP);
+        }
+        assert Math.abs(second.objective().bytes().getFloat() - 1.0f) < 1e-6f;
+        assert Math.abs(weight.hostStorage().orElseThrow().segment()
+                .get(ValueLayout.JAVA_FLOAT, 0) + 1.4f) < 1e-6f;
+        assert session.optimizerSteps() == 2;
+    }
+}
+assert first.objective().bytes().getFloat() == 25.0f;
+```
+
+The first prediction is `2 * 3 = 6`, loss is `(6 - 1)^2 = 25`, and the gradient is
+`2 * (6 - 1) * 3 = 30`; SGD updates the same weight to `2 - 0.1 * 30 = -1`.
+The second fresh batch/target produce prediction `-1 * 2 = -2`, loss `(-2 + 3)^2 = 1`,
+gradient `2 * 1 * 2 = 4`, and weight `-1 - 0.1 * 4 = -1.4` (within FLOAT32 rounding).
+The mapping uses `session.inputs()` metadata, excluding parameters and the private seed; do not
+assume expression construction order is final compiled order. Same-descriptor positions remain
+positional: swapping batch and target changes the computation, not their identities' mapping.
+The [CPU regression](../../testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/TrainingSessionCpuIntegrationTest.java)
+executes this workflow and checks unchanged prototype values, parameter storage identity, graph
+reuse and detached results. Repeating one nonempty Tensor in both positions rejects for overlap,
+even when descriptors match. No prototype value is copied or rebound, and no new graph is built.
 
 ## Configure an optimizer
 
@@ -277,8 +334,12 @@ or checkpoint format.
 
 ## Lifetimes and concurrency
 
-The caller owns the Engine, Module, parameter storage, and external inputs; all must outlive the
-session and any admitted operation. The session owns one Engine `PreparedExecution`, its private
+The caller owns the Engine, live parameter source (including its Module when applicable), and
+parameter storage; these must outlive the session and any admitted operation. Fresh batch/target
+storage is borrowed only through its synchronous `runValues` call and internal result closure,
+not until session close. Exact-ID `run` likewise borrows its supplied external storage only for
+the call; keep every association used by that call usable and free from conflicting mutation.
+The session owns one Engine `PreparedExecution`, its private
 cotangent seed memory, optimizer slots, accumulation, and counters. It admits one operation at a
 time. Admission happens before argument validation: Engine closure wins first, then session
 closing/closure, then a busy operation. Close rejects later admission, waits for already-admitted
@@ -305,7 +366,9 @@ Tensor storage associations, or parameter bytes while the session is open.
 | Open rejects a parameter group | A path is blank, unknown, or repeated, or assigned optimizer coefficients cannot narrow for that parameter type. | Use the exact keys from `module.parametersRecursively()`, keep memberships disjoint, and choose dtype-compatible values. |
 | Run rejects non-finite optimizer arithmetic | A gradient, accumulation, momentum term, or candidate is NaN/infinite or overflowed. | Correct the objective/input scale; the failed run committed no parameter, optimizer state, or counter. |
 | Open rejects a target as disconnected | A discovered Module parameter does not contribute to the scalar objective. | Build the objective from the Module's complete intended trainable parameter set or use a Module containing only this session's parameters. |
-| Run reports a missing or foreign input | The list does not contain every identity from `training.inputs()` exactly once. | Bind those exact Tensors; order does not matter. |
+| `run` reports a missing or foreign input | The list does not contain every identity from `training.inputs()` exactly once. | Bind those exact Tensors in any order, or use `runValues` for fresh stored values. |
+| `runValues` reports a count or descriptor mismatch | Values do not match all `inputs()` positions exactly. | Include targets and other external leaves in compiled order with exact full static descriptors; omit parameters and seed. |
+| `runValues` reports overlapping storage | A nonempty value is repeated, external slices overlap, or an external aliases a parameter or seed. | Use distinct non-overlapping external stores; generic Engine's repeated-value permission does not apply to Training. |
 | Run reports a changed binding/storage | A `Parameter` or Tensor storage association changed after open. | Close the session, finish the Module change, rebuild the expression, and open a new session. |
 | A Metal/mixed run is unsupported | Current backend capability, transfer, preparation, or materialization does not cover the graph. | Use a supported Engine composition; Training never falls back or mutates before that failure. |
 | Another operation reports the session is busy | A run, state operation, restore, zero, or close race is active. | Serialize operations on that session or use independent sessions with independent Module/storage state. |

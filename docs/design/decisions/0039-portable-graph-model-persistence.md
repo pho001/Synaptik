@@ -15,8 +15,11 @@ is Complete: bounded source API and coordinated root/compiler authority implemen
 code/docs APPROVE and coordinator Class C checkpoint passed. Its brief owns evidence.
 Authorized Compiler frontier: None; [Checkpoint0008](../../planning/extensions/checkpoint/tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md)
 is Complete after Halley's definitive final APPROVE and the coordinator's source-matched test/Javadoc
-gate on 2026-10-17. Authorized Checkpoint frontier: None; Training0008 is the next planning candidate,
-still Draft; NN0028 remains Draft. Checkpoint0008 enacts the bounded root/owning-contract,
+gate on 2026-10-17. Authorized Checkpoint frontier: None. On 2026-10-19,
+[Training0008](../../planning/extensions/training/tasks/0008-fresh-value-training-session-runs.md)
+is Complete after Euclid's definitive code/docs APPROVE, no findings, and main's source-matched
+root gate; its brief owns evidence. NN0028 is the next planning candidate, still Draft.
+Checkpoint0008 enacts the bounded root/owning-contract,
 physical split and role-specific architecture-test cutover in the same change, before relying on
 reversed edges. Final independent code/docs review and coordinator validation passed; its brief owns evidence.
 High-level Model/withEngine remains TARGET, not implemented.
@@ -269,9 +272,13 @@ not after every batch/update.
 Training's native-only domain, duplicate registered Tensor/overlapping-store rejection, complete
 live pre-run/precommit validation, optimizer algorithms, slots/counters and failure atomicity remain.
 Repeated DAG use of one uniquely registered weight is not duplicate registration; aliased parameter
-paths that current Training rejects still reject, never split to evade checks. Training0008 adds
-`runValues(List<Tensor>, GradientMode)` for non-parameter values in fixed non-parameter compiled
-order; existing run keeps its exact-identity meaning. Both share the same transaction.
+paths that current Training rejects still reject, never split to evade checks. The bounded
+Training0008 cutover admits
+`TrainingStep runValues(List<Tensor> values, GradientMode mode)` for fresh stored values in exactly
+`TrainingSession.inputs()` order, excluding captured parameters and the private seed. Existing run
+keeps exact-identity/arbitrary-order binding and its diagnostics. Both share the same transaction;
+Training's nonempty overlap rejection still applies, including repeated supplied values. The root
+Core lifecycle and owning Training contract enact this admission; this ADR is not its authority.
 
 ## Engine, result and exclusion lifecycle
 
@@ -490,8 +497,11 @@ explanations, ADR and affected architecture tests together **before code relies 
    Whole-model definition and composition move NN glue and authorize Checkpoint→Compiler cold
    implementation access; no reverse Compiler edge. First codecs: ADD/MUL/NEG plus MATMUL/PERMUTE with exact permutation [1,0] for ordinary Linear, multiple distinct
    roots, all seven raw value types, strict bounds/roles/aliases; unknown families reject.
-5. Training0008/NN0028: their owning lifecycle contracts authorize fresh Training values and Model
-   convenience/ownership, retaining old declarative behavior and Engine composition authority.
+5. Training0008: coordinate root Core lifecycle and the owning modules/training and Optimizer/training
+   lifecycle, focused explanations and this ADR before code relies on fresh admission. This bounded
+   authority cutover is Complete after Euclid's final independent APPROVE and main's source-matched
+   root gate (2026-10-19). Engine rules and dependency edges remain unchanged. NN0028 separately
+   coordinates Model convenience/ownership, retaining old declarative behavior and Engine composition authority.
    NN0028 must test borrowed Engine closed first, followed by complete model-owned resource cleanup
    and repeated/concurrent Model.close failure replay.
 
@@ -509,8 +519,9 @@ Training0007 is Complete: generic live admission/native copy and its NN adapter 
 independent review and the coordinator boundary gate. Compiler0008's bounded API/authority cutover
 is Complete after final independent code/docs APPROVE and the coordinator checkpoint; authorized
 Compiler and Checkpoint frontiers: None. Checkpoint0008 is Complete after Halley's final APPROVE
-and the coordinator root gate; its brief owns evidence. Training0008 is next planning candidate,
-still Draft; NN0028 stays Draft.
+and the coordinator root gate; its brief owns evidence. Training0008 is Complete after Euclid's
+definitive APPROVE and main's root gate (2026-10-19); authorized Training frontier: None.
+NN0028 is the next planning candidate, still Draft.
 Glossary/Javadocs describe the bounded Training and Compiler cutovers. Model.withEngine,
 Model compute/configured train/save/load and other APIs in
 this ADR remain planned; no Model lifecycle is enacted here.

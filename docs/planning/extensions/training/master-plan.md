@@ -76,9 +76,12 @@ accepted product choices and approved P2 core/API packet. [CP0005D](../checkpoin
 and Engine0020 remain Complete. Engine0021 is now Complete after independent Class C approval
 and the native-enabled integrated test/Javadoc gate; its brief owns evidence.
 [Training0007](tasks/0007-generic-live-parameter-admission.md) is Complete after Pascal's final
-independent APPROVE and the coordinator's native-enabled test/Javadoc gate. Authorized Training
-frontier: None. Next planning candidate: Compiler0008, still Draft with no brief or launch.
-Later tasks remain Draft. The [program DAG](../../model-execution-refactor.md#phases-and-owner-dag)
+independent APPROVE and the coordinator's native-enabled test/Javadoc gate. Compiler0008 and
+Checkpoint0008 are also Complete after final independent reviews and coordinator gates.
+Authorized Training implementation frontier: None. [Training0008](tasks/0008-fresh-value-training-session-runs.md)
+is Complete after Euclid's definitive code/docs APPROVE and main's source-matched root gate
+(2026-10-19); its brief owns evidence. NN0028 is the next planning candidate, still Draft.
+The [program DAG](../../model-execution-refactor.md#phases-and-owner-dag)
 replaces recurrent-first ordering for the new graph path, not the existing flexible declarative API.
 
 CURRENT TrainingSession owns Engine PreparedExecution after Engine0021 mechanically changed its
@@ -103,9 +106,11 @@ slots/counters, rollback and failure atomicity. copyToSharedNative accepts this 
 It is still an explicit pre-session copy into a caller-owned shared Arena; the high-level Model
 must first acquire its own weight leaves, never rebind external borrowed Tensors.
 
-Training0008 then adds fresh non-parameter runValues in precomputed compiled order, using
-Engine0021. Existing run remains exact-identity. No per-batch graph build/copy/compile/prepare.
-At NN0028, configured train(inputs,targets) delegates RESET_AND_STEP over the same owned weights
+Training0008 delivered fresh stored values in `inputs()` order, excluding parameters and private seed,
+using Engine0021. Existing run remains exact-identity/arbitrary-order. The bounded root/owning
+Training lifecycle cutover, implementation, independent review and coordinator gate are Complete.
+No per-batch graph build/copy/compile/prepare or autotuning integration was added.
+At the still-TARGET NN0028, configured train(inputs,targets) delegates RESET_AND_STEP over the same owned weights
 used by compute/save. Module.train() remains only a mode toggle. Heap-to-native admission may
 copy once and invalidate old inference preparations before creating the training objective/session.
 Loaded/owned values need no ownership-only duplicate; no automatic optimizer/RNG/cursor resume.
@@ -115,9 +120,11 @@ Engine fresh binding or a codec; it builds on 0021's migrated consumer in serial
 Training0008 depends on 0007 and Engine0021 and uses Engine.runValues, not a removed session API. Serial integration:
 Engine0021 → Training0007 → Compiler0008 → Checkpoint0008 → Training0008 → NN0028.
 The shared-document order is not an invented code dependency. Parallel group None; conflicts are
-shared root/scoped NN/Training lifecycle and consumers. Common base is the coordinator-seeded
-HEAD 9e7e8aa15e0833a1bc91263a7add99a80d88cd92 plus integrated P1/P2/Engine0021 snapshot, reverify
-before launch. Model-execution coordinator owns shared documents and combined validation.
+NN0028 and shared root/scoped Training lifecycle and documentation writers. Current common base:
+main `7386249479ccda991b96a7e27bd5ed0279ca1ae3`, including the completed Checkpoint0008 serial join.
+The Training0008 brief records integration metadata, launch verification, Euclid's final APPROVE
+and main's accepted source-matched root gate (2026-10-19). Model-execution coordinator owns shared
+documents and combined validation; implementation is complete, with no authorized Training frontier.
 
 Hold NN0027/CP0005C/Training0006/adapter expansion as optional older proposals, not prerequisites.
 TrainingRecipe/TrainingRun and nested capture borrow remain held, not accepted additions.
@@ -155,7 +162,7 @@ approved readiness, implementation and evidence; only its bounded root/scoped cu
 | 0005 | Broader training capability checkpoint | Draft | 0002A–0004 | Validate broader optimizers, state-path stability, exact-resume claims, documentation, architecture boundaries, and a representative peak-memory measurement of parameter, slot, candidate, rollback, and snapshot storage before claiming large-model support. |
 | [0006](tasks/0006-supported-recipe-and-owned-run.md) | Supported recipe and owned reusable run | Draft | NN0026/0027; CP0005B/0005C; completed Training0004/Checkpoint0005; future owner contract | Proposed Training loss/signature/batch/resource lifecycle; no file I/O. |
 | [0007](tasks/0007-generic-live-parameter-admission.md) | Generic live parameter admission and native-copy cutover | Complete | Approved P2; completed 0001C/0002C/0004 and Training-owned CP0005; Engine0021 serial base | Generic admission/native copy, relocation and NN adapter delivered; final independent APPROVE and coordinator gate passed. |
-| 0008 | Fresh-value TrainingSession runs | Draft | 0007; Engine0021 | Bind fresh non-parameter values without changing native/precommit/optimizer atomicity. |
+| [0008](tasks/0008-fresh-value-training-session-runs.md) | Fresh-value TrainingSession runs | Complete | 0007; Engine0021; Checkpoint0008 serial join | Fresh positional runs delivered; Euclid final APPROVE and main source-matched root gate passed; evidence in brief. |
 
 ## Milestones
 
@@ -181,8 +188,8 @@ Ordinary static unrolling depends on constituent-operation adjoints, not a blank
 
 ## Open questions
 
-- Training0007's plan review and coordinator Ready verification are complete;
-  P2 and the five product choices are accepted. Fresh inputs stay in Draft 0008.
+- Training0007/0008 are Complete; P2 and the five product choices are accepted. Authorized Training
+  frontier: None. NN0028 is the next planning candidate, still Draft; Model/withEngine remains TARGET.
   Durable recipe/restore/capture remains a
   separate held proposal; broader Training0005 is not a prerequisite.
 - Preserve existing native-only update domain and duplicate-path/overlap rejection; do not quietly
