@@ -111,7 +111,7 @@ class LstmSequenceTest {
                         List.of(LstmCell.class),
                         List.of(long.class, boolean.class, DataType.class,
                                 ParameterInitialization.class, long.class)), constructors),
-                () -> assertEquals(Set.of("cell", "forward"), methods),
+                () -> assertEquals(Set.of("cell", "forward", "forwardScan"), methods),
                 () -> assertSame(
                         LstmCell.class, LstmSequence.class.getDeclaredMethod("cell").getReturnType()),
                 () -> assertSame(

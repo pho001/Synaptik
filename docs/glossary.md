@@ -3128,18 +3128,22 @@ An **automatic recurrent cell** is an RNN, GRU, or LSTM cell constructed from ex
 width, bias choice, floating parameter type, a `ParameterInitialization` policy, and a seed but
 without input width. Construction reserves `inputWeight`, `hiddenWeight`,
 and optional `bias` in that order and creates no generator, Tensor, Parameter, or recurrent state.
-The first compatible represented step infers only a positive static final input extent. A sampling
+The first compatible represented step or descriptor-valid owning Sequence `forwardScan` infers
+only a positive static final input extent. Unlike static unrolling with no represented step,
+a scan binds even with zero time/batch or runtime all-zero lengths, because it needs parameter
+inputs. It validates descriptors without reading length values or creating a dummy step. A sampling
 policy creates one fresh standard `L64X128MixRandom` stream per attempt and initializes the
 complete input matrix before the complete hidden matrix; each packed or unpacked Shape derives
 its own fan values. Zero/one create no generator. Optional bias is always a complete layer-owned
 typed-zero Tensor and consumes no draw. Gate packing/order remains owned by the concrete cell.
 
-Complete parameter publication precedes that step's formula, while strict state loading can bind
-the reservations without initializing. A failure before publication leaves every reservation
-unbound and retryable from the retained seed; a formula failure afterward retains the published
-group. Compatible simultaneous first calls serialize only cell-local initialization. Accessors,
-recursive discovery, and state export fail closed until either forward or strict load publishes
-the entire group. This is a layer-local lifecycle, not a general module build API.
+Complete parameter publication precedes that step's formula or scan construction, while strict
+state loading can bind the reservations without initializing. A failure before publication leaves
+every reservation unbound and retryable from the retained seed; a formula or scan-construction
+failure afterward retains the published group. Compatible simultaneous first calls serialize only
+cell-local initialization. Accessors, recursive discovery, and state export fail closed until
+forward, scan initialization or strict load publishes the entire group. This is a layer-local
+lifecycle, not a general module build API.
 
 A **vanilla recurrent neural-network (RNN) cell** is the current final `RnnCell`, which constructs
 one explicit state-transition step. It owns floating, gradient-eligible parameters named
@@ -3242,9 +3246,10 @@ coordinate. Each direction invokes its owned concrete cell once on the compact b
 values do not participate in this decision: zero is ordinary active data whenever its row's
 length exceeds the step.
 
-A **static packed recurrent sequence** is one of the current final one-directional `RnnSequence`,
-`GruSequence`, or `LstmSequence` containers. Each owns one exact matching cell, accepts fully static time-major
-input `[time, batch, inputSize]`, explicit initial state shaped `[batch, hiddenSize]`, and
+A **static packed recurrent sequence** is the existing `forward` path of one of the current final
+one-directional `RnnSequence`, `GruSequence`, or `LstmSequence` containers. Each owns one exact
+matching cell, accepts fully static time-major input `[time, batch, inputSize]`, explicit initial
+state shaped `[batch, hiddenSize]`, and
 construction-time lengths, then statically unrolls through ordinary Model SELECT, eager INT64
 index, GATHER, cell, and STACK expressions. RNN and GRU expose one exact compact next-hidden
 output per non-empty time step plus final hidden rows restored to original batch order. LSTM
@@ -3343,15 +3348,21 @@ recurrence-blind while invoking the CPU-owned direct Java loop.
 This differs from a [`cumulative scan`](#cumulative-scan), whose fixed associative addition or
 multiplication combines prefixes of one input and carries no recurrent state or parameters. It
 also differs from current NN static recurrent containers: they accept construction-time Java
-`long[]` lengths, specialize expression topology, and return compact per-step outputs. Those
-containers expose no Tensor `validLengths`, arbitrary mask with holes, stacked or
-multidimensional recurrent facade, arbitrary direction collection, configurable merge, or
-runtime execution. Bidirectional composition fixes exactly forward-then-backward final-axis
+`long[]` lengths, specialize expression topology, and return compact per-step outputs.
+The additive one-directional `forwardScan` methods instead accept a runtime valid-length Tensor,
+explicit states and one `RecurrentDirection`, delegating to the matching Model constructor with
+the same cell parameters and returning the unchanged Model carrier. They preserve produced
+provenance and gradient flags in both modes; they do not execute values or retain recurrent state.
+The existing static paths and bidirectional containers are unchanged. Neither path adds arbitrary
+masks with holes, a stacked or multidimensional recurrent facade, arbitrary direction collections,
+or configurable merge. Bidirectional composition fixes exactly forward-then-backward final-axis
 CONCAT; it is not a generic multidirectional abstraction. The standard module factory constructs
 only the one-directional containers and adds no bidirectional recipe or runtime capability.
-Ordinary NN callers use `RnnSequence`, `GruSequence`, or `LstmSequence`; a later runtime-length
-NN API may delegate to `RecurrentScan` only after backend adoption and the complete executable
-path are available. Current initialized `Embedding` remains eager.
+NN callers use `RnnSequence`, `GruSequence`, or `LstmSequence` for explicit-state expressions, or
+the additive scan builder for inference-only owned Models. Owned compute delegates to the same
+public Engine path; scan train/configure reject before setup effects. Neither workflow adds BPTT.
+Data integration and bidirectional migration remain future work. Current initialized `Embedding`
+remains eager.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-session--trainingsession) consumes nn-declared
@@ -3374,7 +3385,9 @@ definition/graph/load use the narrow
 [Compiler source slice](architecture/contracts/compiler-autograd.md#compile-lifecycle), including
 selected default CNN/static recurrent graphs and cold fixed scans. Added kinds select graph-model.v3;
 sources wholly within the original eight kinds retain byte-identical v1/v2. Unsupported builder
-saves touch no file and do not disable execution. Scan persistence grants no compute/train support.
+saves touch no file and do not disable execution. Scan inference uses the same cached public Engine
+path, including after load, independently of cold persistence. Scan training remains unsupported;
+rejection preserves a valid source's state, caches and existing Engine freeze status.
 Full signatures are fixed, mode/binding/storage changes invalidate the capability, and close owns
 sessions/preparations and native memory but never a borrowed Engine. See the
 [owned workflow](user-guide/running-models.md#owned-static-model-workflow).
@@ -3384,8 +3397,16 @@ sessions/preparations and native memory but never a borrowed Engine. See the
 `ModelBuilder`, obtained from `Model.builder()`, records closed layer recipes for a fixed floating
 input signature. Each build creates an independent eval-mode owned Model; subsequent builder edits
 cannot change its structure or state. Automatic initialization uses existing Glorot-uniform algorithms
-and step-derived seeds, not a shared random stream. Recurrent outputs use TBF (time/batch/features)
-and include every hidden step; `lastTimeStep` explicitly removes time. Flatten always preserves axis
+and step-derived seeds, not a shared random stream. Static `rnn/gru/lstm` remain all-valid unrolling;
+explicit `rnnScan/gruScan/lstmScan` instead use shared runtime `INT64[B]` lengths with positive fixed
+TBF (time/batch/features), FORWARD direction, bias and independent zero states. `buildWithLengths`
+returns the existing list-boundary Model with `[values, validLengths]` and one chain output.
+`compute(first,second)` is a positional convenience for any owned two-input/one-output Model, not
+length-role inference, and needs no prior forward. `finalHidden` immediately after a scan selects
+its existing semantic `[B,H]` final-state port, including initial zero for a zero-length row.
+`lastTimeStep` instead selects dense time `T-1`. Ordinary steps do not inherit a padding mask;
+only each scan skips its own suffix. Every appended selector counts in step-seed derivation.
+There is no hidden carry, and scan Models are inference-only. Flatten always preserves axis
 zero, which is time rather than batch in TBF. These are composition conventions, not new Tensor
 semantics, scan BPTT, a graph registry, or another execution lifecycle. See the
 [fluent construction guide](user-guide/running-models.md#build-a-fluent-model).

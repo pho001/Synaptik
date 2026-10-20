@@ -4,10 +4,12 @@ import io.github.pho001.synaptik.checkpoint.graph.GraphCheckpoint;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.layers.Activation;
 import io.github.pho001.synaptik.nn.layers.Conv1d;
@@ -35,15 +37,25 @@ import java.util.random.RandomGeneratorFactory;
  * Builder mutation/build are caller-coordinated, not thread-safe.</p>
  *
  * <p>Automatic weights use existing Glorot-uniform algorithms and zero bias. Default seed is zero;
- * the last selected seed applies to the whole build. Appended step i, including transforms and
- * activations, uses {@code seed + 0x9E3779B97F4A7C15L * i} with long wraparound and a fresh
- * L64X128MixRandom generator per initialized layer. Input is canonical contiguous, non-view,
- * offset zero and not gradient-eligible. Forward/compute require its exact full descriptor.</p>
+ * the last selected seed applies to the whole build. Appended step i, including transforms,
+ * activations and finalHidden selection, uses {@code seed + 0x9E3779B97F4A7C15L * i} with long
+ * wraparound and a fresh L64X128MixRandom generator per initialized layer. Input is canonical
+ * contiguous, non-view, offset zero and not gradient-eligible. Forward/compute require its exact
+ * full descriptor.</p>
  *
  * <p>Construction and cold forward create no Engine. Compute/train reuse existing Model execution
  * owners and fixed expressions, not recipes. Execution support is occurrence-specific and independent
  * of checkpoint admission: the selected default CNN and static recurrent compositions persist
  * as their ordinary Tensor DAG, not recipes. Unsupported save leaves the Model usable.</p>
+ *
+ * <p>Explicit rnnScan/gruScan/lstmScan recipes share a canonical runtime lengths input and produce
+ * dense time-major outputs while skipping only each scan's padded transitions. Finish with
+ * {@link #buildWithLengths()}; {@link #build()} remains single-input and static. Scan Models are
+ * inference-only; current scan execution qualification is canonical FLOAT32 on CPU, not every
+ * valid floating expression or ordinary-step composition. {@link #finalHidden()} selects the
+ * immediately preceding scan's existing final state, whereas {@link #lastTimeStep()} selects a
+ * dense time index. Ordinary bias and activations remain dense and do not acquire automatic
+ * padding masks.</p>
  */
 public final class ModelBuilder {
     private static final long STEP_SEED = 0x9E3779B97F4A7C15L;
@@ -51,6 +63,7 @@ public final class ModelBuilder {
             RandomGeneratorFactory.of("L64X128MixRandom");
     private final List<LayerRecipe> recipes = new ArrayList<>();
     private final List<Tensor> suppliedLeaves = new ArrayList<>();
+    private final List<Integer> scanSteps = new ArrayList<>();
     private TensorDescriptor input;
     private long seed;
 
@@ -58,7 +71,8 @@ public final class ModelBuilder {
     ModelBuilder() { }
 
     /**
-     * Declares the single exact input signature before any steps, snapshotting the shape array.
+     * Declares the exact values-input signature before any steps, snapshotting the shape array.
+     * A scan terminal adds its separate shared lengths input; it does not change this descriptor.
      * @param type non-null floating element type
      * @param shape non-null rank-at-least-one array of strictly positive static extents
      * @return this same mutable builder
@@ -241,7 +255,8 @@ public final class ModelBuilder {
 
     /**
      * Appends rank-at-least-two flatten preserving axis zero and multiplying remaining extents.
-     * CNN batch stays separate; TBF [T,B,H] becomes [T,B*H]. Use lastTimeStep first for batch rows.
+     * CNN batch stays separate; TBF [T,B,H] becomes [T,B*H]. Select lastTimeStep, or a scan's
+     * finalHidden, first when batch rows must remain separate. No padding mask is propagated.
      * @return this same builder
      * @throws IllegalStateException if input has not been declared
      */
@@ -287,7 +302,82 @@ public final class ModelBuilder {
     }
 
     /**
+     * Appends a biased FORWARD tanh scan with independent zero hidden state and dense [T,B,H] output.
+     * The first scan establishes positive static time/batch geometry and one shared INT64[B]
+     * runtime lengths input; later scans must preserve T/B. Ordinary steps do not inherit masking.
+     * Each row consumes its valid prefix, zero-pads the dense suffix, and returns zero final hidden
+     * state for length zero. Geometry is checked at build; length values in [0,T] are checked at run.
+     * @param hiddenSize positive hidden width; input at this step must be positive static TBF
+     * @return this same builder; use buildWithLengths, not build, to finish a scan chain
+     * @throws IllegalArgumentException if hiddenSize is not positive
+     * @throws IllegalStateException if input has not been declared
+     */
+    public ModelBuilder rnnScan(long hiddenSize) {
+        positive(hiddenSize, "hiddenSize");
+        append((type, stepSeed, copies) -> new RnnStep(new RnnSequence(hiddenSize, true,
+                type, ParameterInitialization.glorotUniform(), stepSeed), hiddenSize));
+        scanSteps.add(recipes.size() - 1);
+        return this;
+    }
+
+    /**
+     * Appends a biased FORWARD reset-after GRU scan, starting each batch from independent zero state.
+     * Shares runtime lengths and exact T/B with every scan, returning dense [T,B,H]; padded
+     * transitions are skipped only within each scan. Scan-containing Models are inference-only.
+     * Length zero leaves that row's dense output and final hidden state zero. Geometry is checked
+     * at build; runtime lengths must lie in [0,T]. Existing initialization and step seeds apply.
+     * @param hiddenSize positive hidden width; input at this step must be positive static TBF
+     * @return this same builder; finish with buildWithLengths
+     * @throws IllegalArgumentException if hiddenSize is not positive
+     * @throws IllegalStateException if input has not been declared
+     */
+    public ModelBuilder gruScan(long hiddenSize) {
+        positive(hiddenSize, "hiddenSize");
+        append((type, stepSeed, copies) -> new GruStep(new GruSequence(hiddenSize, true,
+                type, ParameterInitialization.glorotUniform(), stepSeed), hiddenSize));
+        scanSteps.add(recipes.size() - 1);
+        return this;
+    }
+
+    /**
+     * Appends a biased FORWARD LSTM scan with independent zero hidden/cell state and dense [T,B,H].
+     * All scans share runtime lengths with exact T/B. No state carries between batches; explicit
+     * states or finalCell require the advanced graph/list boundary. The Model is inference-only.
+     * Length zero leaves the row's output and final states zero. Geometry is checked at build;
+     * runtime lengths must lie in [0,T]. Existing initialization and step seeds apply.
+     * @param hiddenSize positive hidden width; input at this step must be positive static TBF
+     * @return this same builder; finish with buildWithLengths
+     * @throws IllegalArgumentException if hiddenSize is not positive
+     * @throws IllegalStateException if input has not been declared
+     */
+    public ModelBuilder lstmScan(long hiddenSize) {
+        positive(hiddenSize, "hiddenSize");
+        append((type, stepSeed, copies) -> new LstmStep(new LstmSequence(hiddenSize, true,
+                type, ParameterInitialization.glorotUniform(), stepSeed), hiddenSize));
+        scanSteps.add(recipes.size() - 1);
+        return this;
+    }
+
+    /**
+     * Selects the immediately preceding scan's existing finalHidden [B,H] port, not a time index.
+     * A zero-length row returns its initial zero hidden state. Append classifier layers afterwards;
+     * their ordinary bias/activation may make zero-length rows nonzero. Counts as one seed step.
+     * @return this same builder
+     * @throws IllegalStateException if input is absent or the immediately preceding recipe is not
+     *     a new scan, including repeated selection or selection after an ordinary transform
+     */
+    public ModelBuilder finalHidden() {
+        requireInput();
+        if (!scanSteps.contains(recipes.size() - 1)) {
+            throw new IllegalStateException("finalHidden must immediately follow a scan recipe");
+        }
+        return append((type, stepSeed, copies) -> new LastTimeStepStep(true));
+    }
+
+    /**
      * Explicitly selects the last time step of rank-three TBF to [B,H] using select(0,T-1).
+     * Ignores runtime lengths, even after a scan; this is not {@link #finalHidden()}. Ordinary
+     * intervening steps may change a scan's padded zeros before this dense-time selection.
      * @return this same builder
      * @throws IllegalStateException if input has not been declared
      */
@@ -299,22 +389,103 @@ public final class ModelBuilder {
      * Builds a fresh private eval Model and its prototype expression without creating an Engine.
      * All shape compatibility checks occur through existing layers/Tensor operations. A failed
      * build publishes nothing and changes no caller descriptors, storage associations or bytes.
+     * Scan recipes reject before supplied-state copying or layer construction; use buildWithLengths.
      * @return a new owned single-Tensor Model; caller must close it
-     * @throws IllegalStateException if input/steps are absent or supplied host storage is unavailable
+     * @throws IllegalStateException if input/steps are absent, a scan requires buildWithLengths,
+     *     or supplied host storage is unavailable
      * @throws IllegalArgumentException if composition, supplied raw state or layer schema rejects
      * @throws ArithmeticException if checked shape, fan, layout or allocation sizing overflows
      */
     public Model<Tensor, Tensor> build() {
         requireInput();
+        if (!scanSteps.isEmpty()) throw new IllegalStateException("scan recipes require buildWithLengths");
         List<LayerRecipe> snapshot = List.copyOf(recipes);
         if (snapshot.isEmpty()) throw new IllegalStateException("at least one step is required");
+        return Model.fromComposition(input, instantiate(snapshot));
+    }
+
+    /**
+     * Builds a fresh private inference-only list Model declaring [values, validLengths] and one output.
+     * Lengths have canonical non-gradient INT64[B] metadata, with runtime values in [0,T], including
+     * zero. T/B are established at the first scan after any ordinary prefix; later scans must match.
+     * No Engine, length-value read, dummy transition, caller callback retention or implicit mask is involved.
+     * Cold forward accepts exact-descriptor symbolic lists; compute(values,lengths) needs no forward.
+     * Without a scan, rejection precedes supplied-state copying or layer construction. Each build
+     * owns fresh private state. Exact descriptors include layout and gradient eligibility; the
+     * lengths prototype is canonical contiguous, offset-zero and non-view. Saved Models use
+     * Model.loadGraph and the same compute path, without new input-role metadata or a new format.
+     * @return a non-null fresh owned eval Model with two ordered inputs and one chain result;
+     *     caller closes it; compute returns detached values, while forward remains list-typed
+     * @throws IllegalStateException if input or scan recipes are absent, or supplied storage is unavailable
+     * @throws IllegalArgumentException if step geometry, T/B alignment or supplied state admission rejects
+     * @throws ArithmeticException if checked geometry, initialization or allocation sizing overflows
+     */
+    public Model<List<Tensor>, List<Tensor>> buildWithLengths() {
+        requireInput();
+        if (scanSteps.isEmpty()) throw new IllegalStateException("buildWithLengths requires a scan recipe");
+        Sequential layers = instantiate(List.copyOf(recipes));
+        layers.eval();
+        Tensor values = TensorFactory.create(input);
+        List<Tensor> boundary = composeWithLengths(layers, List.of(values));
+        return Model.fromComposition(List.of(values, boundary.getLast()), List.of(boundary.getFirst()),
+                layers, inputs -> List.of(composeWithLengths(layers, inputs).getFirst()));
+    }
+
+    /**
+     * Instantiates each snapshotted recipe once, copying supplied identities before any expression.
+     * @param snapshot nonempty stable recipe list, retained only during this build
+     * @return fresh exclusive chain; automatic parameters remain deferred until prototype composition
+     */
+    private Sequential instantiate(List<LayerRecipe> snapshot) {
         IdentityHashMap<Tensor, Tensor> copies = copySupplied();
         List<UnaryTensorModule> layers = new ArrayList<>(snapshot.size());
         long baseSeed = seed;
         for (int i = 0; i < snapshot.size(); i++) {
             layers.add(snapshot.get(i).create(input.dataType(), baseSeed + STEP_SEED * i, copies));
         }
-        return Model.fromComposition(input, new Sequential(layers));
+        return new Sequential(layers);
+    }
+
+    /**
+     * Applies instantiated steps with a call-local shared lengths value, never rebuilding recipes.
+     * @param layers frozen owned chain in eval mode
+     * @param inputs [values,lengths], or [values] only for the single prototype composition
+     * @return [chain result,lengths]; a missing prototype length input is created at the first scan
+     * @throws IllegalArgumentException if a scan lacks positive TBF geometry or changes established T/B
+     */
+    private static List<Tensor> composeWithLengths(Sequential layers, List<Tensor> inputs) {
+        Tensor current = inputs.getFirst();
+        Tensor lengths = inputs.size() == 2 ? inputs.get(1) : null;
+        long time = -1, batch = -1;
+        for (Module module : layers.children().values()) {
+            boolean scan = module instanceof RnnStep r && r.hiddenSize > 0
+                    || module instanceof GruStep g && g.hiddenSize > 0
+                    || module instanceof LstmStep l && l.hiddenSize > 0;
+            if (scan) {
+                if (current.descriptor().shape().rank() != 3) {
+                    throw new IllegalArgumentException("scan requires rank-three TBF");
+                }
+                long nextTime = extent(current, 0), nextBatch = extent(current, 1);
+                positive(nextTime, "scan time"); positive(nextBatch, "scan batch");
+                positive(extent(current, 2), "scan features");
+                if (time < 0) {
+                    time = nextTime; batch = nextBatch;
+                    if (lengths == null) {
+                        Shape shape = Shape.of(batch);
+                        lengths = TensorFactory.create(new TensorDescriptor(DataType.INT64, shape,
+                                Optional.of(LayoutDescriptor.contiguous(shape)), false));
+                    }
+                } else if (time != nextTime || batch != nextBatch) {
+                    throw new IllegalArgumentException("later scans must preserve exact time and batch extents");
+                }
+                if (module instanceof RnnStep r) current = r.forwardScan(current, lengths);
+                else if (module instanceof GruStep g) current = g.forwardScan(current, lengths);
+                else current = ((LstmStep) module).forwardScan(current, lengths);
+            } else {
+                current = ((UnaryTensorModule) module).forward(current);
+            }
+        }
+        return List.of(current, Objects.requireNonNull(lengths, "scan lengths"));
     }
 
     /**
@@ -442,15 +613,25 @@ public final class ModelBuilder {
         }
     }
 
-    /** Explicit time selection; no recurrent step silently reduces its output boundary. */
+    /** Explicit dense-time or scan-port selection; recurrent recipes never silently reduce outputs. */
     private static final class LastTimeStepStep extends UnaryTensorModule {
+        private final boolean finalHidden;
+        /** Creates the unchanged dense last-time selector. */
+        private LastTimeStepStep() { this(false); }
         /**
-         * Constructs one scalar-coordinate selection, preserving ordinary view metadata.
-         * @param input positive static rank-three TBF expression
-         * @return ordinary last-time selection [B,H]
+         * Selects the existing scan port instead of creating a time-selection operation.
+         * @param finalHidden true only for the recipe immediately following a scan
+         */
+        private LastTimeStepStep(boolean finalHidden) { this.finalHidden = finalHidden; }
+        /**
+         * Returns an existing scan sibling or constructs a dense-time selection with ordinary view metadata.
+         * @param input positive static rank-three TBF expression; the exact scan outputs port when
+         *     configured for final hidden selection
+         * @return existing finalHidden port or ordinary last-time selection [B,H], as configured
          * @throws IllegalArgumentException if rank is not three
          */
         @Override public Tensor forward(Tensor input) {
+            if (finalHidden) return input.provenance().orElseThrow().producer().output(1);
             if (input.descriptor().shape().rank() != 3) {
                 throw new IllegalArgumentException("lastTimeStep requires rank-three TBF");
             }
@@ -461,11 +642,31 @@ public final class ModelBuilder {
     /** Typed all-output RNN adapter owning its existing sequence under a stable state path. */
     private static final class RnnStep extends UnaryTensorModule {
         private final RnnSequence sequence;
+        private final long hiddenSize;
         /**
          * Takes exclusive child ownership without constructing a recurrent expression yet.
          * @param sequence fresh unowned sequence, initialized by prototype forward
          */
-        private RnnStep(RnnSequence sequence) { this.sequence = child("sequence", sequence); }
+        private RnnStep(RnnSequence sequence) { this(sequence, 0); }
+        /**
+         * Owns an existing sequence with a fixed scan width, without running a dummy transition.
+         * @param sequence fresh sequence exclusively owned under sequence.cell
+         * @param hiddenSize positive scan width, or zero for unchanged static unrolling
+         */
+        private RnnStep(RnnSequence sequence, long hiddenSize) {
+            this.sequence = child("sequence", sequence); this.hiddenSize = hiddenSize;
+        }
+        /**
+         * Composes one fixed scan with explicit zero initial state; reads no length values.
+         * @param input positive TBF expression
+         * @param lengths shared canonical INT64[B] expression
+         * @return dense canonical scan outputs, retaining the finalHidden sibling
+         */
+        private Tensor forwardScan(Tensor input, Tensor lengths) {
+            Tensor zero = TensorFactory.zeros(Shape.of(extent(input, 1), hiddenSize),
+                    input.descriptor().dataType(), Optional.empty(), false);
+            return sequence.forwardScan(input, lengths, zero, RecurrentDirection.FORWARD).outputs();
+        }
         /**
          * Composes the existing all-valid sequence with fresh zero state and packs every output.
          * @param input positive static TBF expression
@@ -477,11 +678,31 @@ public final class ModelBuilder {
     /** Typed all-output reset-after GRU adapter, with no streaming state. */
     private static final class GruStep extends UnaryTensorModule {
         private final GruSequence sequence;
+        private final long hiddenSize;
         /**
          * Takes exclusive child ownership; state paths remain under sequence.cell.
          * @param sequence fresh unowned sequence, initialized by prototype forward
          */
-        private GruStep(GruSequence sequence) { this.sequence = child("sequence", sequence); }
+        private GruStep(GruSequence sequence) { this(sequence, 0); }
+        /**
+         * Owns a fresh sequence without initialization expressions or caller input retention.
+         * @param sequence exclusively owned sequence under sequence.cell
+         * @param hiddenSize positive scan width, or zero for static unrolling
+         */
+        private GruStep(GruSequence sequence, long hiddenSize) {
+            this.sequence = child("sequence", sequence); this.hiddenSize = hiddenSize;
+        }
+        /**
+         * Composes a FORWARD reset-after scan, never carrying state from an earlier call.
+         * @param input positive TBF expression
+         * @param lengths shared non-gradient INT64[B] expression, never read
+         * @return canonical dense output with finalHidden on the same producer
+         */
+        private Tensor forwardScan(Tensor input, Tensor lengths) {
+            Tensor zero = TensorFactory.zeros(Shape.of(extent(input, 1), hiddenSize),
+                    input.descriptor().dataType(), Optional.empty(), false);
+            return sequence.forwardScan(input, lengths, zero, RecurrentDirection.FORWARD).outputs();
+        }
         /**
          * Composes reset-after gates through the existing sequence, without cross-call state.
          * @param input positive static TBF expression
@@ -493,11 +714,32 @@ public final class ModelBuilder {
     /** Typed all-output LSTM adapter; final cell/hidden states are never retained as future input. */
     private static final class LstmStep extends UnaryTensorModule {
         private final LstmSequence sequence;
+        private final long hiddenSize;
         /**
          * Takes exclusive child ownership without retaining hidden/cell values between calls.
          * @param sequence fresh unowned sequence, initialized by prototype forward
          */
-        private LstmStep(LstmSequence sequence) { this.sequence = child("sequence", sequence); }
+        private LstmStep(LstmSequence sequence) { this(sequence, 0); }
+        /**
+         * Owns one independent LSTM without dummy transitions or carried state.
+         * @param sequence fresh sequence exclusively owned under sequence.cell
+         * @param hiddenSize positive scan width, or zero for static unrolling
+         */
+        private LstmStep(LstmSequence sequence, long hiddenSize) {
+            this.sequence = child("sequence", sequence); this.hiddenSize = hiddenSize;
+        }
+        /**
+         * Composes a FORWARD scan with distinct zero hidden and cell leaves.
+         * @param input positive TBF expression
+         * @param lengths shared non-gradient INT64[B] expression, never read
+         * @return dense canonical hidden outputs, with finalHidden/finalCell sibling ports
+         */
+        private Tensor forwardScan(Tensor input, Tensor lengths) {
+            Shape shape = Shape.of(extent(input, 1), hiddenSize);
+            Tensor hidden = TensorFactory.zeros(shape, input.descriptor().dataType(), Optional.empty(), false);
+            Tensor cell = TensorFactory.zeros(shape, input.descriptor().dataType(), Optional.empty(), false);
+            return sequence.forwardScan(input, lengths, hidden, cell, RecurrentDirection.FORWARD).outputs();
+        }
         /**
          * Composes the existing LSTM sequence and publishes hidden outputs, not final cell state.
          * @param input positive static TBF expression

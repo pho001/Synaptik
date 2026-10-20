@@ -55,7 +55,8 @@ final class ModelBuilderTest {
         assertTrue(Modifier.isFinal(ModelBuilder.class.getModifiers()));
         assertEquals(0, ModelBuilder.class.getConstructors().length);
         assertEquals(Set.of("input", "seed", "linear", "relu", "tanh", "sigmoid", "conv1d", "conv2d",
-                "conv3d", "maxPool2d", "flatten", "rnn", "gru", "lstm", "lastTimeStep", "build"),
+                "conv3d", "maxPool2d", "flatten", "rnn", "gru", "lstm", "lastTimeStep", "build",
+                "rnnScan", "gruScan", "lstmScan", "finalHidden", "buildWithLengths"),
                 Arrays.stream(ModelBuilder.class.getDeclaredMethods())
                         .filter(m -> Modifier.isPublic(m.getModifiers())).map(m -> m.getName())
                         .collect(Collectors.toSet()));

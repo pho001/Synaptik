@@ -110,7 +110,7 @@ class RnnSequenceTest {
                         List.of(RnnCell.class),
                         List.of(long.class, boolean.class, DataType.class,
                                 ParameterInitialization.class, long.class)), constructors),
-                () -> assertEquals(Set.of("cell", "forward"), methods),
+                () -> assertEquals(Set.of("cell", "forward", "forwardScan"), methods),
                 () -> assertSame(RnnCell.class, RnnSequence.class.getDeclaredMethod("cell").getReturnType()),
                 () -> assertSame(
                         RnnSequenceForwardResult.class,

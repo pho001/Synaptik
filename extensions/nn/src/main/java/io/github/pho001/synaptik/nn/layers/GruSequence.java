@@ -3,10 +3,13 @@ package io.github.pho001.synaptik.nn.layers;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
 import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
+import io.github.pho001.synaptik.model.tensor.RecurrentScan;
+import io.github.pho001.synaptik.model.tensor.RecurrentScanResult;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
@@ -20,7 +23,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Statically unrolls one time-major gated recurrent unit (GRU) sequence over explicit lengths.
+ * Composes time-major gated recurrent unit (GRU) sequences by static unrolling or fixed scans.
  *
  * <p>The container permanently owns one {@link GruCell}. For input Shape
  * {@code [time, batch, inputSize]}, initial-hidden Shape {@code [batch, hiddenSize]}, and one
@@ -38,8 +41,8 @@ import java.util.Optional;
  * <p>Lengths are validated from the caller array and, when at least one step is represented,
  * cloned immediately before traversal; no array is retained. They are Java construction metadata,
  * not Tensor values. Callers must coordinate writes throughout validation and any snapshot.
- * Runtime-dependent lengths or masks require a genuine Model recurrent scan/control-flow
- * contract and are not simulated with dense masking. Forward is mode-insensitive and retains no
+ * Runtime-dependent lengths use {@link #forwardScan}, not static unrolling or dense masking.
+ * Both paths are mode-insensitive and retain no
  * input, state, index, length, or result. Parameter replacement and multi-step construction are
  * not one atomic snapshot; callers must coordinate them when a consistent binding set is
  * required.</p>
@@ -177,6 +180,62 @@ public final class GruSequence extends Module {
         long[] lengths = allValidLengths(schema);
         Tensor initialHidden = zeroState(schema);
         return forward(input, initialHidden, lengths);
+    }
+
+    /**
+     * Constructs one fixed reset-after GRU scan with runtime lengths and explicit carried state.
+     *
+     * <p>Unlike {@code forward}'s Java {@code long[]} static unrolling and compact output list,
+     * this method returns dense original-time-aligned {@code [time,batch,hiddenSize]} outputs.
+     * Direction traverses only each valid prefix; padding is positive zero and zero-length rows
+     * preserve initial state values semantically, not by Tensor-reference identity. Length values
+     * are checked in {@code [0,time]} during execution, never read during construction.</p>
+     *
+     * <p>Complete caller descriptor validation precedes automatic initialization, including at
+     * empty time/batch extents. The same owned cell initializes input weight, hidden weight and
+     * optional zero bias atomically through its existing first-forward gate. Failure before
+     * publication leaves reservations retryable; later construction failure keeps published state
+     * and does not roll back identifiers or allocations. Already bound or strict-loaded cells
+     * never reinitialize. Current parameter bindings are read once in declaration order;
+     * replacement affects only later occurrences and remains caller-coordinated.</p>
+     *
+     * <p>The Model result is returned unchanged from one producer, independent of time extent.
+     * Produced inputs and states are accepted without copying or detaching. This module retains
+     * no input, lengths, state or result; the producer retains its ordered inputs. Construction
+     * has identical meaning in training and evaluation modes and preserves gradient eligibility
+     * (including trainable parameters in eval), but does not authorize scan backpropagation through
+     * time. Execute separately through the public Engine forward-only compile/prepare/run lifecycle;
+     * this method grants no {@code Model.compute/train} support or backend capability.</p>
+     *
+     * @param input non-null fully static {@code [time,batch,inputSize]} Tensor; time and batch
+     *     may be zero and inputSize must be positive, with the exact configured floating type
+     * @param validLengths non-null non-gradient INT64 Tensor shaped {@code [batch]}; neither
+     *     mutated nor read here, with runtime values in {@code [0,time]}
+     * @param initialHidden non-null exact configured-type Tensor shaped {@code [batch,hiddenSize]};
+     *     neither mutated nor retained by the module
+     * @param direction non-null forward or reverse valid-prefix traversal
+     * @return the non-null unchanged Model carrier with canonical dense outputs and final
+     *     hidden state from one fresh producer; layouts remain unresolved
+     * @throws NullPointerException if an argument is null, checked in signature order
+     * @throws IllegalArgumentException if any exact type, rank, static extent, state, length flag,
+     *     current parameter schema or automatic initialization array limit is invalid
+     * @throws ArithmeticException if checked initialization element-count arithmetic overflows
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     * @throws RuntimeException if automatic initialization sampling fails before publication
+     * @throws OutOfMemoryError if parameter or expression allocation fails
+     */
+    public RecurrentScanResult forwardScan(
+            Tensor input, Tensor validLengths, Tensor initialHidden,
+            RecurrentDirection direction) {
+        cell.initializeForScanIfNeeded(input, validLengths, initialHidden, direction);
+        Tensor inputWeight = cell.inputWeight().value();
+        Tensor hiddenWeight = cell.hiddenWeight().value();
+        Optional<Tensor> bias = cell.bias().map(Parameter::value);
+        return bias.isPresent()
+                ? RecurrentScan.gru(input, validLengths, initialHidden,
+                        inputWeight, hiddenWeight, bias.orElseThrow(), direction)
+                : RecurrentScan.gru(input, validLengths, initialHidden,
+                        inputWeight, hiddenWeight, direction);
     }
 
     private SequenceSchema validateInputForDefaults(Tensor input) {

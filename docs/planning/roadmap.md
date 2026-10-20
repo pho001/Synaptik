@@ -64,7 +64,7 @@ Authorized Checkpoint frontier: None; Checkpoint0008/0009 are Complete.
 Euclid's definitive code/docs APPROVE and main's source-matched root gate (2026-10-19).
 Authorized Training frontier: None; [NN0028](extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md)
 is Complete, accepted 2026-10-19. [NN0029](extensions/nn/tasks/0029-fluent-model-builder-and-checkpoint-independent-execution.md)
-is Complete after Planck final APPROVE, zero findings, and main's source-matched native root gate (2026-10-19), including independently reviewed [Compiler0009](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md) and [CPU0025](backends/cpu/tasks/0025-scatter-validation-coordinate-rank.md). [CPU0026 diagnostic](backends/cpu/tasks/0026-stacked-lstm-cold-preparation-diagnostic.md), [CPU0027 unit topology fix](backends/cpu/tasks/0027-unit-topology-adjacency-ordering.md) and CPU0028/NN0021B bounded scan execution are also Complete. Authorized CPU/NN/Compiler frontiers: None.
+is Complete after Planck final APPROVE, zero findings, and main's source-matched native root gate (2026-10-19), including independently reviewed [Compiler0009](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md) and [CPU0025](backends/cpu/tasks/0025-scatter-validation-coordinate-rank.md). [CPU0026 diagnostic](backends/cpu/tasks/0026-stacked-lstm-cold-preparation-diagnostic.md), [CPU0027 unit topology fix](backends/cpu/tasks/0027-unit-topology-adjacency-ordering.md) and CPU0028/NN0021B bounded scan execution are also Complete. Authorized CPU/Compiler/NN frontiers: None; NN0022B is Complete.
 Engine0020's completed layout cutover is below.
 The user revised the primary product to automatic usable-model load and a choice of inference or
 Training-owned resume, without routine callbacks/manual construction/digests/Arena.
@@ -113,8 +113,8 @@ after Euclid's final APPROVE and main's root gate; NN0028 is Complete under the 
 | [Metal](backends/metal/master-plan.md) | Complete through 0079. Current occurrence support is independently typed; hosted GPU CI 0047 remains blocked. |
 | [CUDA](backends/cuda/master-plan.md) | Marker/native scaffold only; no executable CUDA backend. 0001 Draft. |
 | [ONNX](extensions/onnx/master-plan.md) | Marker only; no importer/exporter. Area Draft; first mapping task not yet defined. |
-| [Data](extensions/data/master-plan.md) | No module. 0001 architecture decision precedes batching; current plan excludes sampler/epoch lifecycle. |
-| [NN](extensions/nn/master-plan.md) | 0028/0029 and [0021B CPU scan program](extensions/nn/tasks/0021b-fixed-recurrent-scan-implementation-program.md) Complete. Bounded CPU0028 forward baseline accepted 2026-10-20. Frontier None; 0022–0024 Draft, no Data/NN migration/BPTT selected. |
+| [Data](extensions/data/master-plan.md) | No module. 0001 architecture decision precedes batching; excludes sampler/epoch lifecycle. Draft NN0022A depends on Data0001/0002 and Complete NN0022B, which needs no Data. Data frontier None. |
+| [NN](extensions/nn/master-plan.md) | 0028/0029, [0021B CPU scan program](extensions/nn/tasks/0021b-fixed-recurrent-scan-implementation-program.md), [0022 NN-only expressions](extensions/nn/tasks/0022-runtime-length-recurrent-nn-api.md) and [0022B Model/builder inference](extensions/nn/tasks/0022b-runtime-length-scan-model-workflow.md) Complete. NN0022B accepted 2026-10-20 after final independent code/docs approval and the coordinator root gate. NN/CPU/Data frontiers None; 0022A/0023/0024 Draft; no scan training/BPTT or automatic successor launch. |
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions/optimizers/state, [0007 generic live admission](extensions/training/tasks/0007-generic-live-parameter-admission.md) and [0008 fresh-value runs](extensions/training/tasks/0008-fresh-value-training-session-runs.md) Complete; final independent reviews and coordinator gates passed. Authorized Training frontier: None; NN0028 Complete; 0006/adapter held. |
@@ -149,7 +149,7 @@ and [Compiler0009](modules/compiler/tasks/0009-static-select-and-slice-logical-l
 CPU0025 is locally accepted after independent APPROVE, zero
 findings (2026-10-19), with no NN dependency; CPU0023 remains Draft.
 DAG: Compiler0006B11 + Compiler0008 + CPU0025 → Compiler0009 (all Complete) →
-NN0029 → main's single shared native root checkpoint: all Complete; NN/Compiler frontiers None.
+NN0029 → main's single shared native root checkpoint: all Complete; at that checkpoint NN/Compiler frontiers None.
 User approved bounded exact logical-view inference after MATMUL/CONCAT: SELECT uses IndexingInference,
 coordinate SLICE uses LayoutInference. No forced NN contiguous copies or scope reduction; existing
 contracts suffice, with negative-step/empty/unproved layouts unchanged. No extra plan-review cycle.
@@ -193,7 +193,7 @@ persistence accepted after independent APPROVE and main's focused/native root ga
 [CP0010 Result](extensions/checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md#result) owns evidence.
 Completed Compiler0008/0009 + Checkpoint0008/0009 + Training0008 + NN0028/0029 and
 Model0025E/0025F/Compiler0006A remain the predecessor DAG, on base
-`8d5357e9a8698721a2252cb2ca3cb94150e705e8`. Authorized Checkpoint/Compiler/NN frontiers: None;
+`8d5357e9a8698721a2252cb2ca3cb94150e705e8`. At that checkpoint, Checkpoint/Compiler/NN frontiers: None;
 no successor authorized by that persistence checkpoint. It grants no execution/BPTT or optimizer
 resume; the subsequently completed CPU0028 route is recorded below.
 Parallel group None; main owns serialized integration and shared documents.
@@ -208,9 +208,33 @@ flags with exact output OR, runtime INT64 lengths and all outputs on heap/native
 Full length preflight follows producers and precedes any scan write; scratch is run-isolated.
 DAG: NN0021A + Model0025E/0025F + Compiler0006A + CPU0027 + Engine0021 + CP0010/CP0011
 → CPU0028 → NN0021B, all Complete. Parallel group None; main owns shared-document integration.
-Task Results own exact evidence and base metadata. Authorized CPU/NN frontiers: None; no successor
-is authorized. Data/NN migration, BPTT, FLOAT64/low types, noncontiguous layouts, vector/parallel/native
+Task Results own exact evidence and base metadata. At that checkpoint CPU/NN frontiers: None. Data/NN migration, BPTT, FLOAT64/low types, noncontiguous layouts, vector/parallel/native
 scan routes, tuning and performance claims remain outside scope; no public API, wire or authority change.
+
+The completed NN-only chain is NN0022 (runtime-Tensor-length forward expressions) →
+[NN0022B](extensions/nn/tasks/0022b-runtime-length-scan-model-workflow.md) (Model/builder inference),
+then Draft NN0022A (Data integration, also gated by Data0001/0002). The
+[completed brief](extensions/nn/tasks/0022-runtime-length-recurrent-nn-api.md) accepts existing
+Sequence/cell ownership and Model result carriers with descriptor-only atomic initialization;
+no new production type/package, runner/session, dependency or authority change. Existing list Model
+inputs already represent sequence/lengths/states; direct public Engine is the execution boundary,
+with Model.compute/train widening outside NN0022's scope. Main owns serial review/integration/shared documents
+at base `2d1c1d6d0867a0bebda34e9177ad52ba9f13071a`, parallel group None. NN0023/0024 retain later
+Data scope. NN0022 is Complete on 2026-10-20 after clean implementation, Mencius final code/docs
+APPROVE with zero findings, and coordinator validation; its brief owns exact evidence and limitations.
+Current authorized NN/CPU/Data frontiers: None. NN0022A/0023/0024 remain Draft; no automatic successor launch.
+NN0022 reused existing backend/root evidence; its completion added no root/conformance/performance campaign.
+
+NN0022B is Complete: scan recipes/finalHidden, typed buildWithLengths and generic
+two-input/one-output compute convenience, including after loadGraph, reusing Engine.prepare/runValues. No new
+production type or execution owner. The user approved the exact API and limited inference-only
+root/owning-NN cutover on 2026-10-20; root, scoped contract, explanation and ADR0041 preceded
+implementation. Final independent contract/code/docs approvals and main's source-matched root
+test/Javadoc gate passed. Parallel group None; main owns serial integration/shared documents. Base is HEAD/origin/main
+`2d1c1d6d0867a0bebda34e9177ad52ba9f13071a` plus accepted uncommitted NN0022, not a merged predecessor;
+the brief owns exact commands/counts, reviews and hashes, including cached root tasks and the unrelated
+integration assumption skip. Execution remains inference-only/canonical FLOAT32 CPU; no BPTT, Data,
+dtype, backend or format widening. No capability follow-up or automatic successor launch.
 
 ## Proposed next decisions
 
@@ -240,13 +264,15 @@ scan routes, tuning and performance claims remain outside scope; no public API, 
    coordinator gate passed; generic zero-node Engine/Prepare support and the durable adapter
    remain outside scope.
 4. In a separately selected stream, Data 0001 authorizes Data/Text/Vision architecture before
-   batching or text/image APIs. CPU0028 supplies the bounded runtime scan route; NN runtime-length
-   convenience and Data integration remain separately unselected.
+   batching or text/image APIs. CPU0028 supplies the bounded runtime scan route; the approved
+   NN0022 expressions and NN0022B Model/builder inference are Complete independently of Data.
+   Draft NN0022A retains Data integration and Data0001/0002 gates. Current NN/CPU/Data frontiers: None;
+   NN0022A/0023/0024 stay Draft without automatic launch or BPTT cancellation.
 
 Step 2 records the completed decision and Training 0004 proof, not a durable artifact. Step 3 records
 completed Checkpoint 0003/0004/0004A and CPU 0024. The subsequently authorized Training-owned
 Checkpoint 0005 prerequisite is Complete, not authorization for the Draft durable adapter.
-Step 4 is a proposal, not a Ready implementation task.
+Step 4's Data work remains a separate Draft proposal; the approved NN-only NN0022B capability is Complete.
 An independent performance/shape follow-up, [CPU 0023](backends/cpu/tasks/0023-vector-erf-direct-java-shape.md),
 is also Draft: the bounded vector ERF diagnostic did not demonstrate parity with direct Java.
 It is not a prerequisite for unrelated Training/Checkpoint decisions or a new broad campaign.
@@ -299,7 +325,7 @@ Engine/Runtime prepared boundaries, advanced lifecycle and detached results rema
 Training0007 is Complete after final independent approval and coordinator acceptance; its brief owns evidence.
 Compiler0008 is Complete and pushed at main/origin/main base `d235c0d3b89d6f2eaad4c80a59fd1c5091ea2851`:
 bounded API/root/compiler authority implemented, independently approved and coordinator-gated.
-Current Compiler/Checkpoint/NN frontiers are None; NN0029 is Complete. Checkpoint0009 is Complete. Checkpoint0008 is Complete; final independent
+Current Compiler/Checkpoint/NN frontiers are None. NN0029 is Complete. Checkpoint0009 is Complete. Checkpoint0008 is Complete; final independent
 approval and coordinator gate are recorded in its brief. Training0008 is Complete and integrated at main
 `7671bd4bebc8723fa4864c6423f78219bf63851b`; its brief records Euclid's definitive APPROVE
 and main's source-matched root gate (2026-10-19). Its bounded root/owning Training lifecycle cutover
@@ -316,7 +342,7 @@ Linear/LayerNorm/Embedding/Conv1d/2d/3d and RELU/TANH/SIGMOID, source-faithful i
 Tensor-identity aliases, not arbitrary Model.define capture. Final independent approval and coordinator
 verification of dependencies, accepted contract base `4472320ceb5498c46a661af549d6de74aa27ab6a`,
 inactive conflicts and launch frontier are recorded. NN0026 implementation, final independent reviews
-and coordinator validation are complete. Evidence is in its brief; NN0028 is also Complete and authorized NN frontier is None.
+and coordinator validation are complete. Evidence is in its brief; NN0028 is also Complete and current authorized NN frontier is None.
 
 CP0005B is Complete with the accepted CP-only whole-model contract/API/wire/default packet.
 Its brief records final independent code/docs APPROVE, worker module tests, final Javadoc and

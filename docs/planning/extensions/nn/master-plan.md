@@ -87,6 +87,15 @@ NN0029 plans one public `ModelBuilder` in existing nn.module, with private const
 adapters, reusing Model.SingleTensorModel, OwnedModelSource and ModelExecutionState. No new layer
 registry, model hierarchy, graph representation or dependency. Exact types and cutover are in its brief.
 
+NN0022 Complete delivers additive runtime-length methods on existing concrete Sequences, reusing Model
+scan carriers, current cell Parameter wrappers and atomic initialization. New production types/packages:
+None. Exact API/initialization choices accepted 2026-10-20; no Model runner/session or Data dependency.
+
+Complete [NN0022B](tasks/0022b-runtime-length-scan-model-workflow.md) delivers explicit scan recipes,
+finalHidden and list-typed buildWithLengths, plus generic two-input/one-output Model.compute convenience.
+New production types/packages: None. The user approved the exact API and Class C inference-only
+contract cutover on 2026-10-20; independent reviews and the coordinator root gate passed. No Data prerequisite.
+
 ## Task list
 
 The table is the complete ordered NN queue. Completed rows link to their evidence-owning task;
@@ -120,9 +129,11 @@ Draft rows without links have no detailed task brief.
 | [0020C](tasks/0020c-bidirectional-static-recurrent-composition.md) | Type-safe bidirectional static recurrent composition | Complete | 0020–0020B; stable static sequence/result and Model gather/composition contracts | Added concrete bidirectional RNN/GRU/LSTM containers with independent state, valid-prefix reversal, aligned forward-first concat, and typed final states. |
 | [0021A](tasks/0021a-fixed-recurrent-scan-architecture-decision.md) | Fixed recurrent-scan architecture decision | Complete | 0020C; current flat Model/Compiler graph, Prepare, Runtime, and Engine contracts | Accepted fixed flat multi-output RNN/GRU/LSTM scan semantics, lifecycle ownership, fail-closed backpropagation-through-time boundary, and migration constraints. |
 | [0021B](tasks/0021b-fixed-recurrent-scan-implementation-program.md) | Fixed recurrent-scan forward execution program | Complete | 0021A; Model0025E/0025F; Compiler0006A; CPU0027; Engine0021; CP0010/CP0011 Complete | CPU0028 scalar FLOAT32 forward baseline accepted 2026-10-20 after independent APPROVE and main's root gate; no NN migration/Data/BPTT. |
-| 0022 | Valid-length recurrent API and Data integration | Draft | 0021B; Data 0001–0002 architecture and valid-length contracts | Add the Data-owned runtime-length NN API only after executable scan coverage; deliberately decide the static `long[]` compatibility path. |
-| 0023 | Arbitrary dense validity-mask semantics | Draft | 0022; concrete attention/loss/recurrent consumer | Add a Boolean mask only for a proven holes-capable consumer, never as duplicate right-padding metadata or a skipped-work claim. |
-| 0024 | Typed model/recurrent/data integration checkpoint | Draft | 0020–0022; 0023 only if selected; Checkpoint model-state and Training publication readiness | Validate state, binding/checkpoint compatibility, variable batches, continuation, autograd/training handoff, documentation, and integration boundaries. |
+| [0022](tasks/0022-runtime-length-recurrent-nn-api.md) | NN runtime-Tensor-length recurrent forward expressions | Complete | NN0020/0020C; NN0021B/CPU0028; Model0025E/0025F; Compiler0006A; Engine0021 — Complete | Accepted 2026-10-20 after Mencius final APPROVE and focused/module/Javadoc/Engine integration validation; additive forwardScan, no Data or compute/train/BPTT widening. |
+| [0022B](tasks/0022b-runtime-length-scan-model-workflow.md) | Runtime-length scan Model/builder inference workflow | Complete | 0022; 0028/0029; scan/Engine/persistence prerequisites Complete; approved inference-only contract enacted | Accepted 2026-10-20 after final independent code/docs approval and coordinator root gate: scan recipes/finalHidden, typed buildWithLengths and compute(first,second), including after loadGraph. |
+| 0022A | Data integration with NN runtime lengths | Draft | 0022B; Data0001/0002 architecture and valid-length contracts | Later decide host metadata/runtime-Tensor materialization and schema integration, without inventing a Data API here. |
+| 0023 | Arbitrary dense validity-mask semantics | Draft | 0022/0022B; 0022A for Data integration; concrete attention/loss/recurrent consumer | Add a Boolean mask only for a proven holes-capable consumer, never as duplicate right-padding metadata or a skipped-work claim. |
+| 0024 | Typed model/recurrent/data integration checkpoint | Draft | 0020–0022; 0022B; 0022A; 0023 only if selected; Checkpoint model-state and Training publication readiness | Retain later Data integration, state/binding/checkpoint compatibility, variable batches, continuation and supported training handoff; no scan BPTT implied. |
 | [0025](tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) | Channels-first Conv1d, Conv2d, and Conv3d layers | Complete | 0020B; Model 0025G–0025H; Compiler 0006B and 0006B6; CPU 0008–0008A; Engine 0008 | Added rank-specific unary convolution layers/factory recipes with group-aware initialization, atomic inferred-channel binding, strict loading, and forward-only Conv3d boundary. |
 | [0025A](tasks/0025a-dimensional-convolution-user-capability-checkpoint.md) | Dimensional-convolution user-capability checkpoint | Complete | 0025; Engine 0004; CPU 0008A | Validated strict-loaded and factory convolution through public one-shot/reusable Engine workflows, numerical oracles, lifecycle ownership, and Conv3d backward rejection. |
 | [0025B](tasks/0025b-public-model-dependency-export.md) | Export public Model dependency | Complete | Existing NN facade; project review | Correct Gradle API visibility and validate an isolated NN-only consumer. |
@@ -138,13 +149,35 @@ Completed NN0021A + Model0025E/0025F + Compiler0006A + CPU0027 + Engine0021 + CP
 → [NN0021B](tasks/0021b-fixed-recurrent-scan-implementation-program.md), all Complete.
 Main accepted independent approval and the final root gate on 2026-10-20; task briefs own evidence
 and base metadata. Parallel group None; main owns integration/shared documents.
-Authorized CPU/NN frontiers: None. No successor, NN production type, Data/NN migration or BPTT
-is authorized; CPU0028 records the delivered canonical scalar FLOAT32 baseline and exclusions.
+Current authorized NN/CPU/Data frontiers: None. No new NN production type,
+Data/static-API migration or BPTT is authorized; CPU0028 records the delivered baseline and exclusions.
+
+Completed 2026-10-20: completed scan/cell/Engine prerequisites →
+[NN0022 Complete](tasks/0022-runtime-length-recurrent-nn-api.md) (NN-only) →
+[NN0022B Complete](tasks/0022b-runtime-length-scan-model-workflow.md) (Model/builder inference) → NN0022A Draft
+(Data integration, also requires Data0001/0002) → later NN0024 checkpoint. NN0023 retains its
+concrete-consumer gate and NN0022A when Data is involved. NN0022A/0023/0024 remain Draft; no automatic launch.
+NN0022 records all seven integration fields at base `2d1c1d6d0867a0bebda34e9177ad52ba9f13071a`;
+parallel group None, serial implementation/review/integration, main owns shared documents. Exact
+signatures and descriptor-only atomic first-scan initialization (including T/B=0) are accepted;
+launch verification and completion evidence are in the brief. Execution uses direct Engine;
+Model.compute/train widening was outside NN0022's scope. Focused NN
+test/Javadoc, Engine integration and final independent review passed; prior backend/root evidence reused.
+
+NN0022B is Complete under the user-approved Class C inference-only cutover (2026-10-20).
+Root/owning-NN contract, targeted explanation and ADR0041 were enacted before implementation.
+The brief records all seven integration fields and pre-launch dependency/base/conflict checks;
+HEAD=origin/main `2d1c1d6d0867a0bebda34e9177ad52ba9f13071a` plus accepted dirty NN0022 is the base,
+not a merged predecessor. Independent contract/code/docs reviews and the coordinator's source-matched
+root test/Javadoc gate passed; the brief owns exact evidence, including cached tasks and the unrelated
+integration assumption skip. Main owns shared-document integration; parallel group None.
+Current NN/CPU/Data frontiers: None; NN0022A/0023/0024 remain Draft. No capability follow-up remains;
+no Data/type/format/backend or BPTT widening, automatic successor launch or new execution pipeline.
 
 Engine0021 + Training0007 + Compiler0008 + Checkpoint0008 + Training0008 → NN0028.
 Compiler0006B11 + Compiler0008 + CPU0025 → Compiler0009 (all Complete).
 NN0028 + Checkpoint0009 + CPU0025 + Compiler0009 → NN0029 → main's shared native root gate: Complete.
-Authorized NN frontier: None. Neither prerequisite repair depends on NN0029; the shared gate passed
+At NN0029 and NN0022 completion checkpoints, NN frontier was None. Neither prerequisite repair depends on NN0029; the shared gate passed
 on the unchanged reviewed snapshot (2026-10-19), including UP-TO-DATE report evidence.
 Main accepted the final independent review and verified launch on 2026-10-19; user authorized implementation.
 The separate [Checkpoint0009 activation-source packet](../checkpoint/tasks/0009-owned-model-activation-source-and-persistence.md)
@@ -152,8 +185,8 @@ is Complete, accepted 2026-10-19 after Archimedes final APPROVE and main's integ
 NN remains the unchanged owned-source consumer with
 targeted Javadoc/tests and one direct-oracle MLP integration regression. Compiler/Checkpoint jointly
 own the completed eight-kind/selective-v2 capability; NN0028 and the selected program stay Complete.
-CP0009 introduced no NN implementation task, lifecycle change or new public type. Its final authorized
-Checkpoint/Compiler/NN frontiers: None. Checkpoint0009's brief owns final evidence; no follow-up remains.
+CP0009 introduced no NN implementation task, lifecycle change or new public type.
+At Checkpoint0009 completion, Checkpoint/Compiler/NN frontiers: None. Its brief owns final evidence; no follow-up remains.
 NN0029 conflicts: NN API/lifecycle, root/NN authority and shared documents; none active, main verified.
 Parallel group: None. Common base: `7e880fb1044168043e45b10419a570d64c5283ae` plus the full dirty
 snapshot: accepted CP0009, frozen NN partial and completed CPU0025/Compiler0009. Integration order:
@@ -171,7 +204,7 @@ The user-approved [CP0010 packet](../checkpoint/tasks/0010-fluent-cnn-and-static
 and [CP0011 companion](../checkpoint/tasks/0011-flat-recurrent-scan-persistence.md) are jointly Complete
 on 2026-10-20: builder CNN/static recurrence and cold flat-scan persistence accepted after independent
 APPROVE and main's focused/native root gates; [CP0010 Result](../checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md#result)
-owns evidence. Authorized NN/Compiler/Checkpoint source frontiers: None; NN0021B/CPU0028 subsequently
+owns evidence. At that checkpoint, NN/Compiler/Checkpoint source frontiers: None; NN0021B/CPU0028 subsequently
 completed bounded forward execution, not BPTT. Existing predecessor DAG and held NN0027/CP0005C scope unchanged; no new
 API/types/lifecycle/adjoints. Base `8d5357e9a8698721a2252cb2ca3cb94150e705e8`, Parallel group None;
 main owns serialized integration and shared documents.
@@ -217,7 +250,7 @@ The [exact admission, errors and configureTraining timing](../../../design/decis
 are implemented in completed NN0028. compute(batch) returns detached HostTensorValue, not a request/wrapper;
 no Model methods or lifecycle are implemented by Training0007.
 
-NN0028 is Complete; authorized NN frontier: None. Engine0020's backend/native-only cutover is Complete after
+NN0028 is Complete; current NN frontier: None. Engine0020's backend/native-only cutover is Complete after
 integration, independent review and combined validation. The user's later five choices are now
 accepted. Engine0021 delivered the thin-session removal, authority cutover and mechanical Training
 migration; independent Class C approval and the native-enabled test/Javadoc gate passed. Its brief
@@ -239,7 +272,7 @@ migration map live in the program; the [Training0007 brief](../training/tasks/00
 records final independent approval and successful coordinator validation; NN0028 is its completed successor.
 NN0027 owns only semantic description/reconstruction using existing static Rnn/Gru/Lstm capabilities;
 CP0005C owns explicit versioned recurrent definition wire/whole-save/load adoption. This is an owner split,
-not a hard dependency on optimized RecurrentScan/backend BPTT/Data. Authorized NN frontier: None.
+not a hard dependency on optimized RecurrentScan/backend BPTT/Data. Current NN frontier: None.
 NN0026's API/matrix and NN-only root/contract/explanation/ADR packet are accepted after final
 independent review; coordinator Ready verification is recorded in the brief. Downstream
 CP0005B's whole-model contract/API/wire/default packet is accepted after final independent approval
@@ -285,17 +318,19 @@ Exact metadata and 2026-10-14 dependency/base/contracts/review/conflict verifica
   topology (0012–0020C), the fixed-scan architecture decision (0021A), and dimensional
   convolution plus its user checkpoint (0025–0025A).
 - Complete: NN0021B/CPU0028 canonical FLOAT32 scalar forward execution; evidence in the briefs.
-  Draft: 0022–0024, without detailed briefs or execution authorization. Audit repair 0025B is Complete.
+  Complete: NN0022 additive runtime-length expressions after final review and validation;
+  Complete: NN0022B Model/builder inference after independent reviews and the coordinator root gate (2026-10-20).
+  0022A/0023/0024 remain Draft, with no automatic launch. Audit repair 0025B is Complete.
 - Complete: NN0026 with final independent reviews and coordinator validation.
   NN0027 remains Draft; CP0005B is Complete. Engine0020's completed layout cutover does not
   authorize NN execution.
 - Complete: NN0028, accepted 2026-10-19; evidence in its brief.
 - Complete: NN0029 after Planck final APPROVE, zero findings, 22 focused/424 NN/3 Fluent integration
-  tests and main's native root gate (2026-10-19). Authorized NN frontier: None.
+  tests and main's native root gate (2026-10-19). At that checkpoint, NN frontier: None.
 - NN0027 is the earlier Draft recurrent follow-up, held with CP0005C/Training0006 held as an optional older proposal,
   not a prerequisite of NN0028; no scan/backend BPTT/Data gate.
 - NN0021B is accepted after CPU0028's independent approval and main's root gate (2026-10-20).
-  Authorized CPU/NN frontiers: None. Model 0032 is Complete; the [roadmap](../../roadmap.md)
+  Current authorized NN/CPU/Data frontiers: None. Model 0032 is Complete; the [roadmap](../../roadmap.md)
   owns current cross-area frontiers.
 - Completed NN work used recorded roadmap interleaves. NN 0016/0017 were a bounded parallel pair,
   and 0025/0025A were an explicit out-of-order convolution branch ahead of unrelated Draft
@@ -323,14 +358,16 @@ dependency plans, and roadmap above.
   directions and bias forms, with runtime INT64 lengths and all outputs through existing lifecycles.
   FLOAT64/low types, noncontiguous layouts, vector/parallel/native scan routes and tuning remain
   outside that capability; no Data/NN migration or BPTT is implied.
-- **0022 Data gate:** [Data 0001–0002](../data/master-plan.md) remain Draft; Data/Text/Vision are
+- **0022A Data gate:** [Data 0001–0002](../data/master-plan.md) remain Draft; Data/Text/Vision are
   not authorized modules until their coordinated architecture decision. Ordinary right padding
   has one canonical valid length per batch row; padding lengths and dense masks are derived, not
-  stored second sources of truth.
+  stored second sources of truth. NN0022 needs no Data module and retains existing static APIs;
+  NN0022B is Complete for approved Model/builder inference before Draft NN0022A; neither NN-only task depends on Data.
+  NN0022A retains later integration rather than blocking them.
 - **Scan boundary:** specific runtime length values must not change Model topology or compiled
   graph structure. Invalid lengths fail before published-result mutation, padded coordinates are
   not recurrent inputs, and dense masking must not be described as skipped recurrent work. Static
-  sequence APIs remain unchanged until 0022 makes an explicit compatibility/migration decision.
+  sequence APIs remain unchanged; completed NN0022 adds a dense API, not migration or deprecation.
 - **Differentiation gate:** fixed RecurrentScan backpropagation through time remains fail-closed and
   belongs to Compiler. Ordinary static unrolled recurrence depends on normal constituent-operation
   adjoints; it is not covered by a blanket recurrent-autograd prohibition. Conv3d gradients remain

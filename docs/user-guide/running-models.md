@@ -11,9 +11,10 @@ ordered publication metadata and supports explicit copying into detached immutab
 
 ## Build a fluent Model
 
-Use `Model.builder()` when a fixed Tensor input should flow through dense, convolutional or
-statically unrolled recurrent layers without a definition callback. A build creates a private
-evaluation-mode Model with one working weight set for compute, training and supported saves.
+Use `Model.builder()` when fixed-shape inputs should flow through dense, convolutional or
+recurrent layers without a definition callback. Static `rnn/gru/lstm` and explicit runtime-length
+`rnnScan/gruScan/lstmScan` are separate recipes. A build creates a private evaluation-mode Model
+with one working weight set for compute and supported saves; scan-free sources may also train.
 It creates no Engine. Use Java 26, `:extensions:nn`, and `--add-modules jdk.incubator.vector`
 for the default CPU Engine. Close the Model when finished; compute results are detached values.
 
@@ -118,7 +119,7 @@ try (var recurrent = Model.builder().input(DataType.FLOAT32, 20, 32, 8).seed(42)
 ```
 
 `conv1d` uses NCW (batch/channels/width), `conv2d` NCHW and `conv3d` NCDHW.
-RNN, reset-after GRU and LSTM use TBF (time/batch/features), positive fixed time, and all-valid rows.
+Static `rnn/gru/lstm` steps use TBF (time/batch/features), positive fixed time, and all-valid rows.
 They return **every hidden step**, including LSTM; there is no implicit final-step selection.
 Each composition starts with zero hidden state (and zero cell state for LSTM). Cached compute/train
 reuse fixed zero constants, never carry state across batches, and do not rebuild the graph per call.
@@ -151,17 +152,166 @@ compute/training. Persistence does not make
 every builder occurrence executable: the selected Engine's dtype/layout/gradient capabilities apply.
 See [builder API and lifecycle](../api/public-api.md#fluent-model-builder).
 
-Fixed scans are a separate advanced cold workflow, not a replacement for the builder's static
-sequences. Use the existing list `Model.graph`/`Model.loadGraph` boundary with INT64 runtime lengths
+### Run a runtime-length scan Model
+
+Use `buildWithLengths()` to build an inference-only Model with two ordered inputs: values and
+valid lengths. The list-typed `Model<List<Tensor>,List<Tensor>>` keeps both inputs explicit, while
+`compute(values, validLengths)` returns the sole detached result without list indexing. No prior
+`forward` call is required, before or after load. This workflow has no Data dependency.
+
+The example below uses the same Java 26/NN/vector-module prerequisites as the fluent examples
+above. It supplies canonical FLOAT32 `[4,3,2]` values and non-gradient INT64 `[3]` lengths
+`[4,2,0]`: four valid time steps for row 0, two for row 1, none for row 2. Use an existing parent
+directory; save atomically replaces an existing destination. It saves before the first compute,
+closes the original Model, then loads and calls the same compute overload:
+
+```java
+import io.github.pho001.synaptik.engine.HostTensorValue;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.module.Model;
+import java.nio.file.Path;
+import java.util.Optional;
+
+public final class RuntimeLengthScanModelExample {
+    static TensorDescriptor descriptor(DataType type, long... axes) {
+        Shape shape = Shape.of(axes);
+        return new TensorDescriptor(type, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+    }
+
+    public static void main(String[] args) throws Exception {
+        Path file = Path.of(args.length == 0 ? "scan.graph" : args[0]);
+        Tensor values = TensorFactory.fromFlatArray(descriptor(DataType.FLOAT32, 4, 3, 2),
+                Optional.empty(), new float[]{
+                    .1f, .2f, .3f, .4f, .5f, .6f,
+                    .7f, .8f, .9f, 1f, 1.1f, 1.2f,
+                    1.3f, 1.4f, 1.5f, 1.6f, 1.7f, 1.8f,
+                    1.9f, 2f, 2.1f, 2.2f, 2.3f, 2.4f});
+        Tensor validLengths = TensorFactory.fromFlatArray(descriptor(DataType.INT64, 3),
+                Optional.empty(), new long[]{4, 2, 0});
+        HostTensorValue scores;
+        try (var model = Model.builder().input(DataType.FLOAT32, 4, 3, 2).seed(42)
+                .gruScan(8).lstmScan(6).finalHidden().linear(5).buildWithLengths()) {
+            model.save(file); // No compute or forward has occurred.
+            scores = model.compute(values, validLengths);
+            System.out.println("shape [3,5]: " + scores.shape().equals(Shape.of(3, 5)));
+        }
+        try (var loaded = Model.loadGraph(file)) {
+            HostTensorValue restored = loaded.compute(values, validLengths);
+            System.out.println("same scores: " + scores.bytes().equals(restored.bytes()));
+        }
+    }
+}
+```
+
+Expected output is `shape [3,5]: true` followed by `same scores: true`. The GRU produces
+`[4,3,8]`, the LSTM `[4,3,6]`, and `finalHidden()` selects the existing `[3,6]` final hidden port
+before the ordinary Linear head produces `[3,5]`. It selects states after four, two and zero
+transitions, not dense time index 3. The zero-length hidden row is zero. This example's fresh head
+also has zero bias, but an ordinary supplied nonzero head bias can make that row's scores nonzero.
+The detached original scores remain readable after the original Model closes. The file contains
+the graph and private state, not input batches or a prepared executable; input positions survive
+without inferred length-role metadata or a new format. Use `loadGraph`, not single-boundary `load`.
+
+Each scan starts from independent zero hidden state (and cell state for LSTM), uses biased FORWARD
+transitions and existing step seeds, and shares one canonical INT64 `[B]` lengths input. No state
+carries between calls. The first scan requires positive static time/batch/features (TBF); an ordinary
+prefix establishes that interpretation. Later scans require the same T/B and infer only features.
+`finalHidden()` must immediately follow a scan, not static recurrence, a transform or another
+selection, and counts as an appended seed step. Append a classifier after it. Advanced graph/list
+boundaries remain available for explicit states, finalCell, reverse/bias-free scans and zero T/B.
+
+Only scans skip their own padded transitions. Read these ordinary steps with their existing dense
+meaning; there is no model-wide mask or original-padding-independence guarantee:
+
+| Step | Meaning alongside scans |
+|---|---|
+| Linear, RELU/TANH/SIGMOID | Operate at every coordinate; bias can change padded zeros and sigmoid(0) is 0.5. |
+| Convolution/pooling | Keep channels-first geometry and may mix axes interpreted elsewhere as time/batch; they are not sequence-aware. |
+| Flatten | Preserves axis zero: `[T,B,H]` becomes `[T,B*H]`, not `[B,T*H]`. A subsequent scan requires rank three again. |
+| Static rnn/gru/lstm | Ignore runtime lengths and unroll every time step, unchanged. |
+| lastTimeStep | Still selects `T-1`, not each row's final hidden state; ordinary intervening steps may change padded zeros. |
+| Another scan | Shares lengths and ignores its own input suffix, including suffix values changed by ordinary intervening steps. |
+
+Current scan execution qualification is canonical FLOAT32 CPU. Valid floating construction/save
+does not promise execution of every dtype, layout or composition. For example, a bare Conv1d prefix
+can leave a noncanonical view that CPU scan execution does not admit. Engine diagnoses unsupported
+occurrences; this workflow neither converts dtype nor widens backend support.
+
+| Symptom | Cause and correction |
+|---|---|
+| `build()` rejects a scan chain | Finish with `buildWithLengths()`; that terminal rejects chains with no scan before state acquisition. |
+| `finalHidden()` rejects | Place it immediately after a new scan recipe, before any classifier or transform. |
+| Later scan rejects geometry | Preserve exact time/batch axes; do not reshape lengths or guess a different batch axis. |
+| Compute rejects length input | Match canonical non-gradient INT64 `[B]` and all declared descriptor fields. Values must lie in `[0,T]`; repair out-of-range values and reuse the Model. |
+| Configure/train throws `UnsupportedOperationException` | Scan Models are inference-only. Both overload families reject after lifecycle/live-source checks, before arity/arguments, freeze, callbacks, Engine creation, cache closure or native copy. Valid-source state, caches and existing freeze status stay unchanged. Static unrolled training remains supported. |
+
+See [builder API details](../api/public-api.md#fluent-model-builder) and
+[training rejection](../api/training-api.md#owned-model-training-convenience).
+
+### Compose explicit-state scans
+
+Fixed scans remain separate from static sequences. For advanced cold persistence, use the
+existing list `Model.graph`/`Model.loadGraph` boundary with INT64 runtime lengths
 as an input, alongside sequence and any external initial states. The cold roundtrip
 recreates storage-free prototypes and rebinds fresh exact-descriptor inputs without reading length
 values. It retains all canonical ports of one scan even when only finalCell is returned.
-This adds no NN runtime-length convenience or scan training API. Advanced callers can separately
-use ordinary Engine compile/prepare/run or runValues for canonical fully static FLOAT32 scans on
-CPU, with INT64 lengths, explicit states and packed parameters. Prepare reads no length values;
+The three one-directional NN Sequences also offer additive `forwardScan` methods using the same
+owned cell parameters. For example, this complete composition fragment creates a reverse LSTM
+scan with explicit lengths and states (imports shown); it does not execute values:
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
+import io.github.pho001.synaptik.nn.layers.LstmSequence;
+import java.util.Optional;
+
+var lstm = new LstmSequence(4, true, DataType.FLOAT32,
+        ParameterInitialization.glorotUniform(), 42L);
+var x = TensorFactory.zeros(Shape.of(3, 2, 2), DataType.FLOAT32, Optional.empty(), false);
+var lengthShape = Shape.of(2);
+var lengths = TensorFactory.fromFlatArray(new TensorDescriptor(DataType.INT64, lengthShape,
+        Optional.of(LayoutDescriptor.contiguous(lengthShape)), false),
+        Optional.empty(), new long[] {3, 1});
+var h0 = TensorFactory.zeros(Shape.of(2, 4), DataType.FLOAT32, Optional.empty(), false);
+var c0 = TensorFactory.zeros(Shape.of(2, 4), DataType.FLOAT32, Optional.empty(), false);
+var scan = lstm.forwardScan(x, lengths, h0, c0, RecurrentDirection.REVERSE);
+```
+
+`scan.outputs()` is dense `[3,2,4]`, and both final states are `[2,4]`. Reverse traversal visits
+row 0 at times 2, 1, 0 and row 1 only at time 0, retaining original output coordinates. With these
+zero inputs/states and zero bias, every computed output is zero; padding at row 1 times 1 and 2
+is specifically positive zero. Static `forward(..., long[])` instead returns a compact output
+list and keeps its existing provenance/training behavior. `forwardScan` creates one producer and
+binds an automatic cell even for empty time/batch or all-zero runtime lengths; static unrolling
+with no represented step leaves it unbound. All floating descriptors must match the configured
+type exactly; a mismatch fails before initialization. Neither path infers lengths from padding.
+
+Advanced callers separately use ordinary Engine compile/prepare/run or runValues for canonical
+fully static FLOAT32 scans on CPU, with INT64 lengths, explicit states and packed parameters.
+Prepare reads no length values;
 each run checks all lengths in `[0,T]` before writing scan results. Repair invalid lengths and
 reuse the preparation with the same descriptors. Backpropagation through time and serialized
-prepared loops remain unsupported. This does not migrate the builder or current sequence APIs.
+prepared loops remain unsupported. Scan gradient flags remain intact even in eval. Owned Model
+compute uses the same Engine path, while scan training and BPTT remain unsupported. Compile selected `outputs()`,
+`finalHidden()` and `finalCell()` Tensors and bind every compiled input slot, including weights
+and states. Follow [fresh-value binding](#run-fresh-values-in-compiled-order), replacing lengths
+with `[0,2]` under the same descriptors to reuse the preparation; row 0 then preserves its initial
+states semantically, not by Java Tensor identity. Lengths `[4,1]` fail for `T=3`; repair and reuse.
+For symbolic continuation, pass both final-state Tensors to another LSTM `forwardScan`; across
+separate runs, explicitly supply materialized states matching the next graph's descriptors.
+Existing builder `rnn/gru/lstm` and bidirectional containers remain static; explicit builder scan
+recipes opt into runtime lengths. Data integration is not part of this API.
 See the [cold scan scenario](../api/graph-checkpoint-api.md#selected-cnn-and-recurrent-persistence)
 and [CPU execution scope](../backend-guide/cpu-backend.md#fixed-recurrent-forward-execution).
 
@@ -257,6 +407,8 @@ same model. That selection freezes even if setup fails, and a closed selected En
 replaced. Without a selection, only execution opens a fresh model-owned CPU Engine. Close never
 closes a borrowed Engine; it waits for active work and closes session/preparation before native
 storage and an owned Engine, attempting all cleanup and replaying retained failures.
+Rejected scan-training requests are not setup attempts: after lifecycle/live-source checks they
+leave a valid source's Engine freeze status and cached inference unchanged.
 
 | Symptom | Cause and correction |
 |---|---|

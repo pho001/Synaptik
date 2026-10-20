@@ -106,7 +106,7 @@ class GruSequenceTest {
                         List.of(GruCell.class),
                         List.of(long.class, boolean.class, DataType.class,
                                 ParameterInitialization.class, long.class)), constructors),
-                () -> assertEquals(Set.of("cell", "forward"), methods),
+                () -> assertEquals(Set.of("cell", "forward", "forwardScan"), methods),
                 () -> assertSame(GruCell.class, GruSequence.class.getDeclaredMethod("cell").getReturnType()),
                 () -> assertSame(
                         GruSequenceForwardResult.class,

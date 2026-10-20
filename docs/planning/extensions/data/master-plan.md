@@ -166,15 +166,19 @@ The plan distinguishes four non-equivalent stages or execution models:
 | Data batch metadata | Immutable host `ValidSequenceLengths`-style value | By itself constructs no recurrent expression and promises no graph reuse. | By itself performs no recurrent work. |
 | Current NN static containers | Direct snapshotted Java `long[]` compatibility API | A different length pattern may build and compile a different expression graph. | Current expression construction can omit padded logical rows, but no runtime kernel-skipping claim follows. |
 | Derived dense mask | Boolean Tensor or dense validity expression created for a concrete consumer | A fixed-shape graph may accept different mask values only after the relevant runtime input lifecycle exists. | Recurrent cell expressions still cover the full dense batch/time rectangle; masking alone does not skip cell work. |
-| Future recurrent scan/control flow | Runtime rank-one `INT64` valid lengths consumed by one fixed Model-owned recurrent operation/node, not a user-defined body or region | Specific length values must not change Model topology or compiled graph structure; compatible prepared programs consume them as runtime data. | May genuinely skip inactive rows/steps only after Model, Compiler, Prepare, Runtime, Engine, and backend contracts implement it. |
+| Fixed recurrent scan; future Data integration | Runtime rank-one `INT64` valid lengths consumed by one fixed Model-owned recurrent operation/node, not a user-defined body or region | CPU0028/NN0021B deliver compatible static-descriptor Engine reuse across length values; Data binding remains future. | Canonical FLOAT32 CPU forward skips inactive recurrent transitions; this does not authorize Data or broaden backend/BPTT support. |
 
-The current repository has only the static NN construction technique, exposed through direct Java
-length arrays in sequence methods. Those methods remain an explicit current compatibility/legacy
-contract until a deliberate migration after the genuine recurrent scan exists. Data task 0002
-will define only the batch metadata boundary; it will not add a host adapter that presents static
-specialization as the target new API. A runtime-length recurrent overload is meaningful only after
-the scan and runtime input-binding prerequisites exist. Arbitrary masks with holes remain a
-separate future capability.
+NN containers retain static construction through direct Java length arrays. The completed
+CPU0028/NN0021B baseline executes fixed Model scans through existing Engine reuse.
+[NN0022](../nn/tasks/0022-runtime-length-recurrent-nn-api.md) is Complete after final independent
+approval and validation (2026-10-20), adding NN-only runtime-Tensor-length convenience;
+it preserves compact static APIs and needs no Data module.
+[NN0022B](../nn/tasks/0022b-runtime-length-scan-model-workflow.md) is Complete for Model/builder
+inference, independent of Data, after final independent reviews and the coordinator root gate
+(2026-10-20). Draft NN0022A follows it for Data integration and still requires Data0001/0002.
+Materialization/schema/API choices remain future; no detailed Data API is selected.
+Data0002 still defines only host batch metadata, not implicit runtime binding or static specialization
+presented as dynamic execution. Arbitrary masks with holes remain a separate future capability.
 
 ## Task list
 
@@ -187,7 +191,12 @@ separate future capability.
 
 No detailed Data task exists. Promote Data 0001 only after the architecture/module decision is
 accepted and its compact brief is Ready. There is no implicit dependency on an old global CPU
-frontier. NN's static containers already exist; runtime-length integration remains separate.
+frontier. Complete NN0022/NN0022B are NN-only, independent of Data0001/0002; NN0022A retains their gate.
+Dependency map: Data0001 → Data0002 → Data0003 → Data0004; NN0022 → NN0022B;
+Data0002 + NN0022B → NN0022A
+in the NN plan. Current authorized NN/CPU/Data frontiers: None.
+NN0022A/0023/0024 remain Draft; no automatic successor launch. The scope split and NN-only completion
+do not authorize a Data module, edge or implementation, or cancel the later Data integration checkpoint.
 
 ## Milestones
 

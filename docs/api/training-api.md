@@ -35,6 +35,15 @@ arbitrary external objective leaves reject. Configuration preserves eval mode an
 Failed setup permits explicit retry but Engine selection freezes before callback/native/preparation
 work, even on failure. Successful native admission is not repeated on retry.
 
+Scan-containing owned Models are inference-only, including builder, definition, graph and loaded
+sources with a scan behind an ordinary head or only a final-state root. Both configureTraining and
+both train overload families throw `UnsupportedOperationException` after existing lifecycle and
+live-source admission, before arity/arguments, binding freeze, objective callbacks, Engine creation,
+inference-preparation closure or native parameter copy. For a valid source, rejection preserves
+state bytes, stores, inference caches, gradient flags and any preexisting freeze status, before or
+after compute/load. It does not rely on a late Compiler BPTT error. Live-source invalidation and
+closed/busy diagnostics still take precedence; configured static-unroll training is unchanged.
+
 `train(batch, target)` and the list form delegate `RESET_AND_STEP` to one TrainingSession.runValues.
 NN maps declared batch/target slots and owned buffers/constants to final session input order;
 Training retains parameters, seed, overlap checks and complete transaction validation. Inference
@@ -625,8 +634,10 @@ export fail closed.
 
 The automatic recurrent-cell constructors similarly retain explicit hidden width, bias choice,
 floating parameter type, policy, and seed while reserving `inputWeight`, `hiddenWeight`, and
-optional `bias`. The first compatible represented cell call infers only a positive static input
-width. Sampling policies create one fresh standard `L64X128MixRandom` stream per attempt and draw
+optional `bias`. The first compatible represented cell call, or descriptor-valid `forwardScan`
+call on its owning Sequence, infers only a positive static input width. A scan binds even when
+time or batch is zero; static unrolling with no represented step still leaves the cell unbound.
+Sampling policies create one fresh standard `L64X128MixRandom` stream per attempt and draw
 the complete packed input matrix before the complete packed hidden matrix; each Shape derives its
 own fan values. Zero/one policies create no generator. Optional bias is layer-owned typed zero and
 never draws. RNN uses unpacked matrices, GRU owns reset/update/candidate packing, and LSTM owns
@@ -916,9 +927,9 @@ state and returns both next states. None retains caller-threaded recurrent state
 one-input contract of `UnaryTensorModule` or `Sequential`.
 
 `RnnSequence`, `GruSequence`, and `LstmSequence` are intentionally cell-specific one-directional
-containers. Each permanently owns one exact matching cell and shares the same static packing
-policy without claiming that the different cell-state signatures are interchangeable. Their
-calls are:
+containers. Each permanently owns one exact matching cell. Their existing `forward` overloads
+share the same static packing policy without claiming that the different cell-state signatures
+are interchangeable. Static calls are:
 
 ```java
 RnnSequenceForwardResult rnnResult =
@@ -1031,26 +1042,74 @@ constructed provenance only. They do not prove backend lowering, physical kernel
 fusion, kernel count, execution cost, or a public training workflow, and different Java length
 values specialize different Tensor-expression topology.
 
-Current Model now provides fixed RNN-tanh, reset-after GRU, and LSTM recurrent-scan expression
+The same three one-directional Sequences additionally expose `forwardScan`, which constructs one
+fixed scan using that cell's current parameters. All arguments are explicit:
+
+```java
+RecurrentScanResult r = rnnSequence.forwardScan(input, validLengths, initialHidden, direction);
+RecurrentScanResult g = gruSequence.forwardScan(input, validLengths, initialHidden, direction);
+LstmRecurrentScanResult l = lstmSequence.forwardScan(
+        input, validLengths, initialHidden, initialCell, direction);
+```
+
+Here `validLengths` is a non-gradient `INT64[batch]` Tensor, not a Java array. Input is fully static
+`[time,batch,inputSize]`; states are `[batch,hiddenSize]`. All floating inputs and cell parameters
+must have the exact configured floating type, without promotion or broadcast. `direction` is
+`RecurrentDirection.FORWARD` or `REVERSE`. Nulls are checked in signature order, then descriptor
+and prospective initialization-count checks precede draws, Tensor identifiers and publication.
+Construction reads no length values or host storage and creates no dummy cell expression.
+
+The returned Model carrier has dense `outputs()` shaped `[time,batch,hiddenSize]` and
+`finalHidden()` shaped `[batch,hiddenSize]`; LSTM also has `finalCell()` of that state Shape.
+Reverse traversal consumes only each row's valid prefix and stores outputs at original time
+coordinates. For `[time,batch,hiddenSize] = [3,2,4]` and lengths `[3,1]`, row 1 has positive-zero
+padding at times 1 and 2 in either direction. A zero-length row preserves its initial state
+values semantically, not the initial Java Tensor reference. These are not `packedOutputs()`.
+
+A descriptor-valid first scan initializes an automatic cell even for empty time/batch or future
+all-zero lengths, because the producer still needs parameter inputs. It reuses the ordinary
+cell monitor and atomic group-publication gate. Pre-publication failure leaves reservations
+retryable from the seed; later scan-construction failure retains published parameters and does
+not roll back identifiers or allocations. Bound and strict-loaded cells never reinitialize.
+Each scan reads current bindings once in declaration order and rechecks their exact schema;
+replacement affects later occurrences and remains caller-coordinated.
+
+One call returns the canonical ports of one producer regardless of time extent. Produced inputs,
+states, lengths and parameter bindings retain their provenance without copies or detach. Both
+train/eval modes preserve gradient eligibility, including trainable parameters in eval; this is
+not permission to differentiate the scan. The module retains no caller state or result. Pass
+LSTM `finalHidden()` and `finalCell()` explicitly to a later scan for symbolic carry; across
+separate runs, supply materialized state values with the next graph's exact descriptors.
+
+Model provides fixed RNN-tanh, reset-after GRU, and LSTM recurrent-scan expression
 construction with an ordinary `INT64[batch]` `validLengths` Tensor. The advanced low-level static
 `RecurrentScan.rnn`, `gru`, and `lstm` namespace has exactly six biased or bias-free methods with
 explicit time-major input first. Each creates one flat multi-output producer with dense time-major
 output and explicit final states. The namespace is not an NN layer or module and does not read
 length values, statically unroll a cell, own parameters, or execute. Current package-private
 Compiler forward-only inference adopts the family, while both backward-capable modes reject it
-before derivative Tensor allocation. No Engine or backend route exists; runtime length binding,
-capability advertisement, execution, and backpropagation through time (BPTT) are therefore not
-current training capabilities.
+before derivative Tensor allocation. The current CPU route separately qualifies canonical fully
+static FLOAT32 forward scans, both directions and bias modes, with ordinary trainable NN parameter
+flags. Compile selected result Tensors through public Engine, prepare once, then use `runValues`
+with fresh full-descriptor values in `compiled.inputs()` order, including parameters and states.
+Each run validates every length in `[0,time]` before writing scan results; invalid values may be
+repaired and the preparation reused. Expression validity for other floating types is not CPU
+execution coverage. Owned scan Models also compute through that existing cached Engine path;
+backpropagation through time (BPTT) and scan training remain unsupported. Training requests reject
+early as described under [owned Model training](#owned-model-training-convenience).
 
-The Model scan does not silently replace these NN containers. Current `RnnSequence`,
-`GruSequence`, `LstmSequence`, and their bidirectional counterparts still accept Java `long[]`
-construction-time lengths, specialize expression topology, and return compact per-step outputs.
-They expose no Tensor-length overload, arbitrary mask with holes, stacked or multidimensional
-recurrent facade, arbitrary direction collection, or configurable merge. The current
-`ModuleFactory` constructs only the existing one-directional RNN, GRU, and LSTM Sequences; the
+The additive scan method does not redirect any existing `forward` overload or bidirectional
+container. Their Java `long[]` construction-time lengths, compact per-step outputs, provenance
+and supported static training remain unchanged. No arbitrary mask with holes, stacked or
+multidimensional recurrent facade, arbitrary direction collection, or configurable merge is added.
+The current `ModuleFactory` constructs only the existing one-directional RNN, GRU, and LSTM Sequences; the
 concrete bidirectional constructors already expose their two seeds and no factory recipe is
-current. Later NN work must choose any runtime-length convenience or migration only after the
-complete Model-to-execution path exists. The initialized `Embedding` remains eager.
+current. Existing builder `rnn/gru/lstm` steps remain statically unrolled and retain supported training.
+Explicit `rnnScan/gruScan/lstmScan` steps instead build inference-only two-input Models with shared
+runtime lengths, FORWARD biased transitions and independent zero states; `finalHidden` selects the
+immediately preceding scan's existing port. See the [runtime-length Model workflow](../user-guide/running-models.md#run-a-runtime-length-scan-model).
+No global padding mask, hidden state carry or Data dependency is introduced. Data integration and
+bidirectional scan migration are separate future work. The initialized `Embedding` remains eager.
 
 ## Current NN parameter update contract
 

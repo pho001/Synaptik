@@ -292,8 +292,17 @@ or runner is introduced by this NN capability.
 The existing static RNN, GRU, LSTM, and bidirectional containers retain their snapshotted Java
 `long[]`, static unroll, compact per-step output, and final-state contracts. NN does not own the
 fixed scan operation or its prepared loop, and no existing container is silently redirected to
-it. Runtime-length API and compatibility migration remain a later NN decision after the complete
-Model, Compiler, Engine, and concrete-backend path is executable.
+it. The additive one-directional `forwardScan` methods delegate to Model's matching fixed scan
+constructor using that same owned cell's current parameters, explicit runtime-length Tensor,
+states and direction. For example, LSTM returns dense outputs and explicit final hidden/cell
+Tensors; NN retains none as implicit next-call state. Automatic cells validate descriptors and
+bind even for empty scans through their existing cell-local publication gate, not a dummy
+forward. This keeps parameter initialization in NN and fixed transition meaning in Model.
+The public Engine owns separate compile/prepare/runValues execution; CPU qualification remains
+canonical fully static FLOAT32 forward scans, independent of broader floating expression validity.
+These expressions add no runner or BPTT. The approved NN0022B cutover below permits owned scan
+inference; existing static builder recipes and bidirectional containers remain unchanged.
+Data integration is separate future work.
 
 ### Owned tensor Model composition
 
@@ -309,7 +318,7 @@ NN owned source -> Engine compile/prepare/runValues -> detached values
                -> GraphCheckpoint.save            -> source + current raw values
 ```
 
-Each arrow delegates to the existing public owner. For example, configuring training after compute
+Each arrow delegates to the existing public owner. For a supported scan-free source, configuring training after compute
 closes inference preparation before one native parameter admission, preserving Tensor identity.
 Rebuilding a source or replacing a weight per batch would invalidate this lifecycle, not refresh it.
 Mode, wrappers, paths and storage associations are guarded; inherited mutators remain caller-excluded.
@@ -319,8 +328,34 @@ owned Engine. A selected Engine is borrowed. See the [owned workflow](../user-gu
 Selected default CNNs and static recurrent builders use the same source save path, not per-network
 serializers. Their zero-state and row-index constants remain named CONSTANT leaves outside the
 Module state dictionary. Advanced list Models may instead declare runtime INT64 lengths as inputs
-for cold scan copy/save/load/rebind. This neither changes the builder's static unrolling nor makes
-scan compute/train executable.
+for cold scan copy/save/load/rebind. The inference-only scan builder uses that same boundary
+and execution path, not a new runner.
+
+For example, the builder workflow takes FLOAT32 `[4,3,2]` values
+and INT64 `[3]` lengths `[4,2,0]`, composes `gruScan(8).lstmScan(6).finalHidden().linear(5)`,
+and ends with `buildWithLengths()`. Each scan starts from its own zero state and consumes the
+shared lengths. The final hidden port has shape `[3,6]`; the head produces `[3,5]` detached scores
+through `compute(values, validLengths)`, also after save/loadGraph. The zero-length hidden row is
+zero, but the ordinary head's bias may make its scores nonzero. `lastTimeStep()` would instead
+select dense time index 3, not the semantic final hidden state for short rows.
+Only scans skip padded recurrent transitions; ordinary layers retain dense semantics, without a
+global mask. Shape-valid composition/persistence is separate from backend execution admission:
+canonical FLOAT32 CPU scans are qualified, not every prefix layout or floating dtype. See the
+[complete runtime-length example](../user-guide/running-models.md#run-a-runtime-length-scan-model).
+
+Cold list forward recomposes instantiated owned steps only when explicitly requested. Inference
+uses fixed outputs and cached Engine preparations; it never reconstructs recipes per batch or
+requires a prior forward call. The two-input compute convenience applies equally to an ordinary
+two-input/one-output graph and follows declared positions, not inferred length roles. Existing
+graph-model v3 stores those ordered input descriptors, without new role metadata or format changes.
+
+Scan-containing Models must reject configure/train before the training-transition arrow above:
+after lifecycle/live-source checks, but before freezing binding, invoking an objective callback,
+creating an Engine, closing inference preparation or copying parameters to native storage. Waiting
+for Compiler's BPTT error would perform those side effects first. Static unrolled Models still
+train normally; scans remain inference-only. The [owning contract](contracts/extensions-training.md#owned-tensor-models)
+and [ADR 0041](../design/decisions/0041-runtime-length-scan-model-inference.md) define and explain
+this limited cutover; backend support, recurrence numerics and execution ownership do not change.
 
 ### `modules/training` (Gradle `:extensions:training`)
 

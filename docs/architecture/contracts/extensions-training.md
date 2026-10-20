@@ -69,9 +69,10 @@ or reconstructed through GraphCheckpoint during construction or cold forward.
 
 The frozen Sequential is owned under `layers`; existing layers and private typed Tensor adapters
 compose its prototype once in eval mode. Registered wrappers determine roles and canonical paths;
-ordinary provenance inventories reachable fresh constants and verifies registered-state reachability.
+ordinary provenance inventories reachable fresh constants, excludes every declared input from
+constants, and verifies registered-state reachability.
 The source retains exact final leaves/outputs and the chain, using GraphCheckpoint.Source only as
-a borrowed Tensor-list carrier. Cold forward validates the full input descriptor, then applies
+a borrowed Tensor-list carrier. Cold forward validates every full input descriptor, then applies
 the same owned chain, accepting produced substitutions with arbitrary upstream provenance.
 Compute/configure/train use fixed outputs and existing cached bindings, never recipes, forward
 composition or reconstruction per batch. All live guards, exclusion, native admission and cleanup
@@ -92,6 +93,48 @@ Recurrent steps statically unroll existing all-valid sequence.forward, reshape p
 Stacks retain TBF; lastTimeStep requires rank three and explicitly selects `select(0,T-1)` to `[B,H]`.
 Cold composition starts zero h (and c for LSTM); cached execution reuses immutable zero constants,
 never prior final state. This is not scan BPTT and adds no adjoints or execution hierarchy.
+
+The additive runtime-length builder API is exactly:
+
+```java
+ModelBuilder rnnScan(long hiddenSize);
+ModelBuilder gruScan(long hiddenSize);
+ModelBuilder lstmScan(long hiddenSize);
+ModelBuilder finalHidden();
+Model<List<Tensor>, List<Tensor>> buildWithLengths();
+```
+
+Each scan recipe delegates to the existing matching Sequence.forwardScan, with FORWARD direction,
+bias enabled, positive hidden width and existing initialization/seed rules. The first scan requires
+positive static TBF `[T,B,F]` and establishes one storage-free canonical non-gradient INT64 `[B]`
+length prototype. All scans share that input; later scans require exact T/B alignment and infer
+only F. Each owns independent parameters and zero initial h (and c for LSTM), never hidden carry.
+Runtime lengths include zero. Advanced graph/list boundaries retain explicit initial/final states,
+both directions, bias forms and the scan contract's zero T/B extents.
+
+`buildWithLengths()` requires at least one scan and declares `[values, validLengths]` in that order,
+with one chain output. Existing `build()` retains `Model<Tensor,Tensor>` and rejects scan recipes;
+the new terminal rejects no-scan chains. Incompatible terminals reject before acquisition/build
+side effects. Both snapshot recipes and build fresh private state. `finalHidden()` selects the
+immediately preceding scan occurrence's existing `[B,H]` port; intervening transforms, static
+recurrence and repeated selection reject. It counts as an appended seed step. A zero-length row
+returns semantic initial h, not a time-index selection. LSTM finalCell is not a builder result.
+
+Ordinary steps remain legal wherever their existing shape contracts hold, without model-wide
+masking. Bias/activations may change padded zeros; convolution/pooling retain channels-first dense
+meaning, not sequence-aware axes. Flatten preserves axis zero (`[T,B,H]` to `[T,B*H]`). Static
+recurrence ignores runtime lengths and still unrolls all-valid inputs. `lastTimeStep` remains
+`select(0,T-1)`, not finalHidden. A prefix establishes the first scan's TBF interpretation; lengths
+describe that boundary. Direct scan stacks share lengths; each scan ignores its own padded suffix
+and zero-pads its own output, not intervening ordinary results. Never guess/redefine T/B or reshape
+lengths to fit a later scan. After finalHidden removes time, another scan needs a rank-three boundary.
+
+Cold list composition retains only instantiated owned steps through existing adapters, Sequential
+ownership and ModelForward, not caller callbacks, builder recipes or per-run reconstruction.
+It accepts exact-descriptor symbolic substitutions, including produced inputs, without Engine or
+retained input storage. Compute uses the existing fixed source/cached execution path. No new
+production type (including nested types), hierarchy, graph representation or execution path is
+authorized; stop and replan if existing owners/adapters cannot express the composition.
 
 Builder construction/cold forward/compute/train are independent of the closed serialization
 domain below. Only save applies that admission: unsupported chains reject before file work,
@@ -116,9 +159,17 @@ Definition/graph/load source admission is the same closed static FORWARD
 The list boundary may declare sequence, non-gradient INT64 runtime lengths and initial states as
 unique provenance-free inputs, disjoint from named state. Their prototype storage is never copied
 or saved; copy/load recreate storage-free prototypes and cold forward accepts fresh exact full
-descriptors. This does not redirect the fluent builder or existing static sequence containers to
-scans, or grant scan compute/train support. Raw persistence supports seven dtypes,
+descriptors. Explicit scan recipes and graph/load scan sources may compute through existing cached
+public Engine execution; static recipes and sequence containers are not redirected. Scan-containing
+Models remain inference-only. Raw persistence supports seven dtypes,
 independently of execution. Old model.v1/whole-model.v1 readers and flexible forward remain separate.
+
+`HostTensorValue Model.compute(Tensor firstInput, Tensor secondInput)` is a generic convenience for
+any owned Model with exactly two declared inputs and one output, including graph/loaded sources,
+not a scan-only API. It binds declared positions, never inferred dtype, length role or artifact
+metadata. After existing capability/lifecycle admission, check arity before arguments and use one
+begin/end admission, `Long.MAX_VALUE` and existing computeOpen; do not nest public compute calls.
+List/bounded compute and optional cold forward remain supported; forward is not a compute prerequisite.
 
 All declared static slots, including unused ones, require exact descriptors (layout presence and
 requiresGrad included). Compile/session input order determines a cached positional binding plan;
@@ -130,11 +181,21 @@ Batch storage is borrowed for the whole synchronous call. TrainingStep is detach
 
 withEngine returns the same receiver and only selects a borrowed Engine, never closing it. Admission
 checks selected-Engine closure, Model closing/closure, busy, then capability. withEngine then checks
-freeze before null/closed candidate validation. Selection remains unchanged on failure. Valid compute
-or configure arguments and live-source checks freeze binding before Engine creation, callback, native
+freeze before null/closed candidate validation. Selection remains unchanged on failure. Except for
+rejected scan-training requests below, valid compute/configure arguments and live-source checks freeze
+binding before Engine creation, callback, native
 copy, compile or prepare, even on failure; same-Engine rebinding then rejects. Without explicit selection,
 setup lazily creates a model-owned CPU-only Engine.standard, with no discovery/global Engine.
 Construction/load/save/cold forward never create an Engine.
+
+Scan presence is cached from ordinary source provenance at acquisition for builder, definition,
+graph and load, including scans behind ordinary heads or rooted only at a final-state port.
+Both configureTraining and both train overload families reject scan-containing sources with
+UnsupportedOperationException after existing lifecycle/live-source admission and before binding
+freeze, objective callbacks, Engine creation, inference-owner closure or native parameter copy.
+This rejection preserves state bytes, stores, caches and any preexisting freeze status, including
+after compute/load; it must not clear requiresGrad or rely on late Compiler BPTT rejection.
+The ordinary valid-setup freeze rule above and configured static-unroll training remain unchanged.
 
 configureTraining succeeds once, keeps mode unchanged, and calls a pure objective builder once per
 explicit attempt, retaining no callback. The scalar FLOAT32/FLOAT64 objective uses current Compiler

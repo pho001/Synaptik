@@ -90,6 +90,8 @@ final class OwnedModelLifecycleTest {
             assertTrue(assertThrows(IllegalStateException.class,
                     () -> model.compute((Tensor) null)).getMessage().contains("busy"));
             assertTrue(assertThrows(IllegalStateException.class,
+                    () -> model.compute((Tensor) null, (Tensor) null)).getMessage().contains("busy"));
+            assertTrue(assertThrows(IllegalStateException.class,
                     () -> model.save(null)).getMessage().contains("busy"));
             assertTrue(assertThrows(IllegalStateException.class,
                     () -> model.withEngine(null)).getMessage().contains("busy"));

@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.nn.layers;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
 import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
@@ -51,6 +52,14 @@ import java.util.random.RandomGeneratorFactory;
  * zero/one policies create no generator. Optional packed bias is always typed zero. The complete
  * group is published before the step formula is built, or strict state loading may bind it
  * without initialization. Failed attempts publish no partial group and are retryable.</p>
+ *
+ * <p>The owning {@link GruSequence#forwardScan} also initializes an unbound automatic cell
+ * from a complete scan descriptor, without a dummy step or reading length values. Unlike static
+ * unrolling, even empty time/batch extents require parameter inputs and bind the complete group.
+ * It reuses the same monitor and publication gate as ordinary forward; strict-loaded or bound
+ * cells never reinitialize. Scan construction requires exact homogeneous configured floating
+ * types rather than ordinary forward's numeric promotion. It preserves provenance and gradient
+ * flags in either mode and adds no execution, backward or replacement-concurrency guarantee.</p>
  */
 public final class GruCell extends Module {
 
@@ -412,6 +421,77 @@ public final class GruCell extends Module {
         Tensor update = inputUpdate.add(hiddenUpdate).sigmoid();
         Tensor candidate = inputCandidate.add(reset.mul(hiddenCandidate)).tanh();
         return candidate.add(update.mul(suppliedHidden.sub(candidate)));
+    }
+
+    /**
+     * Validates a complete fixed-scan descriptor and binds an automatic parameter group if needed.
+     *
+     * <p>No Tensor or expression is created during validation. A valid descriptor binds even
+     * for empty time/batch extents; runtime length values are never read. Initialization uses
+     * the same cell monitor, seed-per-attempt policy and atomic publication gate as ordinary
+     * forward. Pre-publication failure leaves reservations retryable; later scan failure keeps
+     * published parameters. Replacement and strict loading remain caller-coordinated.</p>
+     *
+     * @param input non-null fully static time-major input with the configured floating type
+     * @param validLengths non-null non-gradient INT64 vector with one entry per batch row
+     * @param initialHidden non-null configured-type state shaped {@code [batch, hiddenSize]}
+     * @param direction non-null valid-prefix traversal direction
+     * @throws NullPointerException if an argument is null, checked in signature order
+     * @throws IllegalArgumentException if a descriptor or initialization array limit is invalid
+     * @throws ArithmeticException if initialization element-count arithmetic overflows
+     * @throws IllegalStateException if Tensor identifier space is exhausted during initialization
+     * @throws RuntimeException if initialization sampling fails before publication
+     * @throws OutOfMemoryError if parameter allocation fails; completed effects are not rolled back
+     */
+    void initializeForScanIfNeeded(
+            Tensor input, Tensor validLengths, Tensor initialHidden,
+            RecurrentDirection direction) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(validLengths, "validLengths");
+        Objects.requireNonNull(initialHidden, "initialHidden");
+        Objects.requireNonNull(direction, "direction");
+        AutomaticInput prospective = validateScanInput(input, validLengths, initialHidden);
+        if (automaticConfiguration != null && !parameterReservationsBound()) {
+            validateJavaArrayLimit(prospective.inputWeightShape);
+            synchronized (this) {
+                if (!parameterReservationsBound()) {
+                    prospective = validateScanInput(input, validLengths, initialHidden);
+                    validateJavaArrayLimit(prospective.inputWeightShape);
+                    initializeAutomatically(prospective);
+                }
+            }
+        }
+    }
+
+    private AutomaticInput validateScanInput(
+            Tensor input, Tensor validLengths, Tensor initialHidden) {
+        Shape inputShape = input.descriptor().shape();
+        if (input.descriptor().dataType() != parameterType
+                || inputShape.rank() != 3 || !inputShape.isFullyStatic()) {
+            throw new IllegalArgumentException(
+                    "scan input must be fully static [time,batch,inputSize] with configured floating type");
+        }
+        long batch = extent(inputShape, 1);
+        long inputSize = extent(inputShape, 2);
+        if (inputSize <= 0) {
+            throw new IllegalArgumentException("scan inputSize must be positive");
+        }
+        requireScanTensor(validLengths, DataType.INT64, Shape.of(batch), "validLengths");
+        if (validLengths.descriptor().requiresGrad()) {
+            throw new IllegalArgumentException("scan validLengths must not require gradients");
+        }
+        Shape stateShape = Shape.of(batch, hiddenSize);
+        requireScanTensor(initialHidden, parameterType, stateShape, "initialHidden");
+        return new AutomaticInput(Shape.of(packedHiddenSize, inputSize));
+    }
+
+    private static void requireScanTensor(
+            Tensor tensor, DataType type, Shape shape, String role) {
+        if (tensor.descriptor().dataType() != type
+                || !tensor.descriptor().shape().equals(shape)) {
+            throw new IllegalArgumentException(
+                    "scan " + role + " must have exact type " + type + " and shape " + shape);
+        }
     }
 
     long configuredHiddenSize() {

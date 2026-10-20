@@ -187,6 +187,17 @@ consume fresh values. NN owns exclusion and its native Arena, not execution or o
 Construction, cold forward and save create no Engine. The owning rules are in
 [extensions/nn](docs/architecture/contracts/extensions-training.md#owned-tensor-models).
 
+Owned Models may compose fixed recurrent scans for inference through that same public Engine
+lifecycle. Explicit `ModelBuilder` scan recipes use a shared runtime-length input and zero initial
+states; `buildWithLengths()` returns the existing list-boundary Model. The generic two-input,
+one-output compute convenience uses the same cached execution path, including after load.
+Scan-containing Models reject configure/train after lifecycle and live-source admission but before
+binding freeze, callbacks, Engine creation, inference-cache closure or native parameter copy.
+Static builder recurrence and training remain unchanged. This limited inference cutover adds no
+execution owner, dependency edge, backend capability, BPTT or persistence-format permission;
+the [owning NN contract](docs/architecture/contracts/extensions-training.md#owned-tensor-models)
+defines the exact API, cold composition and rejection boundary.
+
 ## Core invariants
 
 The following invariants must remain true:
@@ -427,6 +438,7 @@ briefs and maintained navigation adopt the exact scoped destinations:
 | Metal | [Backend execution — Metal backend](docs/architecture/contracts/backend-execution.md#metal-backend) |
 | OpenBLAS provider | [Backend execution — OpenBLAS provider](docs/architecture/contracts/backend-execution.md#openblas-provider) |
 | NN stateful composition, declarative reconstruction and retained old model persistence | [Extensions/training — `extensions/nn`](docs/architecture/contracts/extensions-training.md#extensionsnn) |
+| Owned Models, including inference-only runtime-length scan construction and compute | [Extensions/training — owned tensor Models](docs/architecture/contracts/extensions-training.md#owned-tensor-models) |
 | Training | [Extensions/training — `modules/training`](docs/architecture/contracts/extensions-training.md#modulestraining) |
 | Generic graph/value persistence and opaque artifact envelope | [Extensions/training — `extensions/checkpoint`](docs/architecture/contracts/extensions-training.md#extensionscheckpoint) |
 | Selective graph-model v1/v2 wire compatibility | [Extensions/training — canonical graph-model version 2](docs/architecture/contracts/extensions-training.md#canonical-graph-model-version-2) |

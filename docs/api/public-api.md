@@ -1237,7 +1237,7 @@ prepare cost on every call.
 independent of I/O: compute returns `HostTensorValue` or `List<HostTensorValue>`, and train returns
 `TrainingStep`, never generic O. The fluent builder's nonempty-chain `build()`,
 `defineTensor(signature, definition)` and `load(path[, limits])`
-return `Model<Tensor,Tensor>`; `graph(inputs, outputs, namedLeaves)` and `loadGraph(path[, limits])`
+return `Model<Tensor,Tensor>`; builder `buildWithLengths()`, `graph(inputs, outputs, namedLeaves)` and `loadGraph(path[, limits])`
 return `Model<List<Tensor>,List<Tensor>>`. Definition/graph/load factories have explicit borrowed-Engine
 overloads (load forms take path, limits, Engine); built Models select it through `withEngine`.
 Old generic factories and flexible v1 readers remain separate.
@@ -1249,6 +1249,16 @@ accepts `maximumTotalBytes`; all publications are checked before materialization
 closes before detached values return. Configuration takes a target descriptor and scalar objective
 builder, or target prototypes and a list builder, plus an Optimizer. It succeeds once; train delegates
 `RESET_AND_STEP`. Every declared input/target requires the exact static descriptor even if unused.
+
+`compute(firstInput, secondInput)` returns the sole detached output of any owned Model with exactly
+two declared inputs and one output, including ordinary graphs and loaded Models. It binds positions,
+not inferred dtype or length roles, and uses the same cached execution as list compute with
+`Long.MAX_VALUE`. Capability/lifecycle admission precedes arity, then arguments. Cold `forward`
+is optional, never a prerequisite. Scan-containing sources reject both configureTraining and both
+train overload families with `UnsupportedOperationException` after lifecycle/live-source checks,
+before arity/arguments, binding freeze, callbacks, Engine creation, inference-cache closure or
+native parameter copy. Valid rejected sources retain state, caches and their previous freeze status;
+ordinary static training is unchanged.
 
 Unsupported generic/custom/declarative tensor methods throw `UnsupportedOperationException` before
 file/Engine work; their close is a no-op. Owned operations reject busy before inspecting arguments.
@@ -1264,9 +1274,41 @@ RNN_TANH/GRU_RESET_AFTER/LSTM scans. It is not all-family serialization. Advance
 may declare sequence, non-gradient INT64 runtime lengths and initial states as ordered external
 inputs for cold persistence/rebind. Prototypes are descriptor-only; their bytes are neither read
 nor saved. A scan remains one multi-output producer with canonical sibling identities, even when
-only a final-state port is a root. No backend executes that persisted scan and BPTT remains
-fail-closed. Persistence adds no Conv3d gradients or optimizer resume. Single `load` still rejects
-multiple boundaries.
+only a final-state port is a root. Cold persistence executes nothing; owned scan compute separately
+uses public Engine's qualified canonical FLOAT32 CPU forward route. Scan training and
+backpropagation through time (BPTT) remain unsupported. Persistence adds no Conv3d gradients or optimizer
+resume. Single `load` still rejects multiple boundaries.
+
+### NN runtime-length recurrent composition
+
+`RnnSequence` and `GruSequence` add
+`forwardScan(input, validLengths, initialHidden, direction)` returning Model's
+`RecurrentScanResult`. `LstmSequence` adds
+`forwardScan(input, validLengths, initialHidden, initialCell, direction)` returning
+`LstmRecurrentScanResult`. These are expression constructors using the same owned cell and
+`cell.*` parameter paths, not execution methods or replacement static APIs.
+
+Input is fully static `[T,B,I]`, lengths are non-gradient `INT64[B]`, states are `[B,H]`, and
+all floating roles match the configured cell type exactly. `I/H` are positive; `T/B` may be zero.
+Direction selects forward or reverse traversal of each valid prefix. The one canonical producer
+returns dense original-time-aligned `[T,B,H]` outputs, final hidden and, for LSTM, final cell.
+Padding is positive zero; zero-length rows preserve initial state values semantically. No length
+values are read during construction, and no state is retained by the module.
+
+Complete descriptor checks precede automatic initialization. Even empty scans bind the existing
+reserved parameter group through the same cell-local gate; already-bound/strict-loaded cells do
+not reinitialize. Provenance and gradient flags remain intact in train and eval. Callers coordinate
+replacement; old occurrences keep old bindings. Existing Java `long[]` `forward` overloads,
+compact result carriers, static training and builder recurrence remain unchanged.
+
+Execute selected scan outputs separately through public Engine compile/prepare/runValues with
+fresh exact descriptors in compiled input order. Current CPU forward qualification is canonical
+FLOAT32, both directions and bias modes, including trainable NN parameters; other Model floating
+types do not gain execution support. Owned Models can instead acquire these expressions through
+`graph` or the explicit scan builder below and compute through the same Engine path. No scan BPTT,
+Data adapter, bidirectional migration or implicit state/default-length Sequence overload is added. See the
+[NN recurrent contract](training-api.md#current-nn-recurrent-composition-contract) and
+[scan construction example](../user-guide/running-models.md#build-a-fluent-model).
 
 ### Fluent Model builder
 
@@ -1280,7 +1322,8 @@ The input prototype is storage-free, canonical contiguous, offset-zero, non-view
 compute/cold forward match its complete descriptor, with no implicit dtype or batch-shape conversion.
 
 Supported steps are `linear(outFeatures[,bias])`, `linear(weight[,bias])`, `relu/tanh/sigmoid`,
-`conv1d/conv2d/conv3d`, `maxPool2d`, `flatten`, `rnn/gru/lstm` and `lastTimeStep`.
+`conv1d/conv2d/conv3d`, `maxPool2d`, `flatten`, static `rnn/gru/lstm`, `lastTimeStep`,
+runtime-length `rnnScan/gruScan/lstmScan(long hiddenSize)` and `finalHidden()`.
 Automatic layers infer input widths, use Glorot uniform, and enable exact zero bias by default.
 Default seed is 0; the last `seed(long)` applies to the whole build. Appended step i, including
 stateless steps, derives `seed + 0x9E3779B97F4A7C15L * i` with Java long wraparound and a fresh
@@ -1291,9 +1334,10 @@ Build reads but never mutates caller state; unavailable or produced supplied sta
 Convolutions use NCW/NCHW/NCDHW, stride/dilation/groups 1, padding 0 and bias true. Pool stride
 equals kernel, padding 0, dilation 1, floor geometry. Flatten preserves axis zero and checks the
 remaining product: CNN `[B,C,H,W]` becomes `[B,C*H*W]`, TBF `[T,B,H]` becomes `[T,B*H]`.
-Recurrent steps use fixed all-valid TBF, start from zero h (and c for LSTM), and return every hidden
-time step. Stacks preserve TBF. Only explicit `lastTimeStep()` selects `[B,H]`; use it before
-flatten when batch rows must remain separate. Cached runs carry no previous final state.
+Existing static `rnn/gru/lstm` steps use fixed all-valid TBF, start from zero h (and c for LSTM),
+and return every hidden time step. Static stacks preserve TBF. Explicit `lastTimeStep()` selects
+`[B,H]`; use it before flatten when batch rows must remain separate. Cached runs carry no previous
+final state.
 
 This compilable example constructs an MLP, CNN and recurrent stack; inputs/results are noted inline:
 
@@ -1333,6 +1377,30 @@ byte-identical graph-model.v1/v2 saves; any selected added kind chooses v3, incl
 See the [single owning wire contract](../architecture/contracts/extensions-training.md#canonical-graph-model-version-3).
 Execution still requires actual Engine capability;
 static unrolling adds no scan BPTT, runtime lengths, streaming state or Conv3d adjoint.
+
+For runtime lengths, append `rnnScan`, `gruScan` or `lstmScan` with a positive hidden width and end
+with `buildWithLengths()`, returning `Model<List<Tensor>,List<Tensor>>`. The two inputs are
+`[values, validLengths]`, with one chain result. Each recipe uses a biased FORWARD scan, existing
+initialization/seeds, independent parameters and zero hidden state (also zero cell for LSTM).
+There is no hidden carry across batches. The first scan requires positive static TBF `[T,B,F]`
+and establishes shared canonical, non-gradient `INT64[B]` lengths; later scans preserve exact T/B
+and infer F. An ordinary prefix establishes this interpretation, not necessarily the original input
+axes. Runtime length values must lie in `[0,T]`, including zero. Advanced graph/list workflows retain
+explicit states, finalCell, reverse/bias-free variants and zero T/B; the builder remains positive-only.
+
+`finalHidden()` must immediately follow a new scan recipe, with no intervening transform, static
+recurrence or repeated selection. It selects the existing `[B,H]` port after each row's actual last
+transition; length zero returns initial hidden state (zero here), not `select(length-1)`. It counts
+as an appended seed step. Append an ordinary classifier head afterwards.
+`build()` rejects scans and `buildWithLengths()` rejects no-scan chains before acquisition effects;
+both snapshot recipes and create fresh private state.
+
+There is no model-wide mask: bias and sigmoid may change padded zeros; convolution/pooling keep
+dense channels-first semantics, flatten preserves axis zero, static recurrence ignores lengths, and
+`lastTimeStep()` still selects `T-1`, not final hidden. Each scan ignores its own suffix, not arbitrary
+ordinary results. Shape-valid construction or save does not guarantee backend execution; current
+scan qualification is canonical FLOAT32 CPU, and a noncanonical prefix result may be unsupported.
+See the complete [runtime-length build/save/load/compute example](../user-guide/running-models.md#run-a-runtime-length-scan-model).
 
 ### Advanced Engine lifecycle
 

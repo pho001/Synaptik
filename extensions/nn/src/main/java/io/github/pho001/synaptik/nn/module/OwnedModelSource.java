@@ -5,6 +5,7 @@ import io.github.pho001.synaptik.checkpoint.graph.GraphCheckpoint.Leaf;
 import io.github.pho001.synaptik.checkpoint.graph.GraphCheckpoint.Role;
 import io.github.pho001.synaptik.checkpoint.graph.GraphCheckpoint.Source;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -17,12 +18,15 @@ import java.util.Objects;
 /**
  * Cold acquisition and live identity guards for one privately owned ordinary Tensor source.
  * Constants belong only to the source; Module wrappers remain the sole parameter/buffer registry.
+ * Scan presence is cached from immutable ordinary provenance for every acquisition route, not
+ * inferred from input types or saved role metadata. It adds no per-run traversal or execution path.
  * Callers serialize all access through ModelExecutionState and exclude inherited Module mutation.
  */
 final class OwnedModelSource {
     final Source source;
+    final boolean containsScan;
     private final Module root;
-    private final Sequential composition;
+    private final ModelForward<List<Tensor>, List<Tensor>> composition;
     private final StateDictionary dictionary;
     private final Map<String, Parameter> parameters;
     private final Map<String, Buffer> buffers;
@@ -44,12 +48,14 @@ final class OwnedModelSource {
      * Captures the same guards for final private composition state, without source admission.
      * @param root final eval owner
      * @param source borrowed final ordinary Tensor boundaries and leaves
-     * @param composition frozen builder chain, or null for existing reconstruction paths
+     * @param composition internal adapter retaining only instantiated owned steps, or null for reconstruction
      */
-    private OwnedModelSource(Module root, Source source, Sequential composition) {
+    private OwnedModelSource(Module root, Source source,
+            ModelForward<List<Tensor>, List<Tensor>> composition) {
         this.root = root;
         this.source = source;
         this.composition = composition;
+        containsScan = containsScan(source.outputs());
         dictionary = root.stateDictionary();
         parameters = root.parametersRecursively();
         buffers = root.buffersRecursively();
@@ -77,7 +83,7 @@ final class OwnedModelSource {
      * @throws IllegalArgumentException if source/state cannot be represented by GraphCheckpoint
      */
     static OwnedModelSource acquireDefinition(Module root, Tensor input, Tensor output) {
-        List<Leaf> leaves = inventory(root, input, output, false);
+        List<Leaf> leaves = inventory(root, List.of(input), List.of(output), false);
         Source owned = GraphCheckpoint.copy(new Source(List.of(input), List.of(output), leaves));
         root.loadStateDictionary(dictionary(owned));
         return new OwnedModelSource(root, owned);
@@ -86,29 +92,30 @@ final class OwnedModelSource {
     /**
      * Retains a builder's final private state and output without capture, copy or reconstruction.
      * @param root final eval Model owning the chain
-     * @param input storage-free prototype
-     * @param output exact result of the single prototype composition
-     * @param composition frozen owned chain used only by explicit cold forward
+     * @param inputs ordered storage-free prototypes, including unused declared slots
+     * @param outputs exact ordered results of the single prototype composition
+     * @param composition internal adapter over instantiated owned steps used only by cold forward
      * @return guarded source borrowing only private final leaves
      * @throws IllegalArgumentException if any registered state is unreachable
      */
-    static OwnedModelSource acquireComposition(Module root, Tensor input, Tensor output,
-            Sequential composition) {
-        List<Leaf> leaves = inventory(root, input, output, true);
+    static OwnedModelSource acquireComposition(Module root, List<Tensor> inputs, List<Tensor> outputs,
+            ModelForward<List<Tensor>, List<Tensor>> composition) {
+        List<Leaf> leaves = inventory(root, inputs, outputs, true);
         return new OwnedModelSource(root,
-                new Source(List.of(input), List.of(output), leaves), composition);
+                new Source(inputs, outputs, leaves), composition);
     }
 
     /**
      * Inventories wrapper roles and fresh constants through ordinary Tensor provenance.
      * @param root final state owner
-     * @param input sole declared prototype, excluded from constants
-     * @param output exact reachable expression root
+     * @param inputs every declared prototype, excluded from constants even when unused
+     * @param outputs exact reachable ordered expression roots
      * @param verifyReachability whether to check state here rather than at existing Checkpoint admission
      * @return canonical state followed by deterministic collision-free constants
      * @throws IllegalArgumentException if a registered leaf is not reachable
      */
-    private static List<Leaf> inventory(Module root, Tensor input, Tensor output, boolean verifyReachability) {
+    private static List<Leaf> inventory(Module root, List<Tensor> inputs, List<Tensor> outputs,
+            boolean verifyReachability) {
         List<Leaf> leaves = new ArrayList<>();
         IdentityHashMap<Tensor, Boolean> registered = new IdentityHashMap<>();
         for (StateEntry entry : root.stateDictionary().entries()) {
@@ -118,15 +125,15 @@ final class OwnedModelSource {
         }
         var visited = new IdentityHashMap<Tensor, Boolean>();
         var pending = new ArrayDeque<Tensor>();
-        pending.push(output);
+        for (int i = outputs.size() - 1; i >= 0; i--) pending.push(outputs.get(i));
         int constant = 0;
         while (!pending.isEmpty()) {
             Tensor tensor = pending.pop();
             if (visited.put(tensor, true) != null) continue;
             if (tensor.provenance().isPresent()) {
-                var inputs = tensor.provenance().orElseThrow().inputs();
-                for (int i = inputs.size() - 1; i >= 0; i--) pending.push(inputs.get(i));
-            } else if (tensor != input && !registered.containsKey(tensor)) {
+                var operands = tensor.provenance().orElseThrow().inputs();
+                for (int i = operands.size() - 1; i >= 0; i--) pending.push(operands.get(i));
+            } else if (!inputs.contains(tensor) && !registered.containsKey(tensor)) {
                 String name;
                 do {
                     name = "__constant" + constant++;
@@ -144,8 +151,30 @@ final class OwnedModelSource {
     }
 
     /**
+     * Detects fixed scans once from ordinary provenance, including final-state-only roots and heads.
+     * @param outputs acquired ordered roots; their upstream provenance is immutable
+     * @return whether any reachable producer has a fixed recurrent-scan kind
+     */
+    private static boolean containsScan(List<Tensor> outputs) {
+        var visited = new IdentityHashMap<Tensor, Boolean>();
+        var pending = new ArrayDeque<Tensor>(outputs);
+        while (!pending.isEmpty()) {
+            Tensor tensor = pending.pop();
+            if (visited.put(tensor, true) != null || tensor.provenance().isEmpty()) continue;
+            var provenance = tensor.provenance().orElseThrow();
+            if (provenance.operation().kind() instanceof RecurrentScanKind) return true;
+            pending.addAll(provenance.inputs());
+        }
+        return false;
+    }
+
+    /**
      * Composes builder chains cold or delegates unchanged source paths to Checkpoint reconstruction.
-     * @param values non-null exact full-descriptor expressions in declared order
+     * Validates every declared descriptor before invoking an internal composition adapter; produced
+     * substitutions keep their upstream provenance. Only explicitly requested cold forward composes
+     * again: compute uses the fixed acquired outputs, not this adapter.
+     * @param values non-null exact full-descriptor expressions in declared order, including unused
+     *     slots; borrowed for composition without retaining caller input storage
      * @return immutable ordinary outputs retaining the same owned parameters
      * @throws NullPointerException if values or an element is null
      * @throws IllegalArgumentException if arity or full descriptors differ
@@ -153,11 +182,15 @@ final class OwnedModelSource {
     List<Tensor> forward(List<Tensor> values) {
         if (composition == null) return GraphCheckpoint.rebind(source, values);
         List<Tensor> stable = List.copyOf(Objects.requireNonNull(values, "inputs"));
-        if (stable.size() != 1 || !source.inputs().getFirst().descriptor()
-                .equals(stable.getFirst().descriptor())) {
-            throw new IllegalArgumentException("input must match the full builder signature");
+        if (stable.size() != source.inputs().size()) {
+            throw new IllegalArgumentException("inputs must match the full builder signature");
         }
-        return List.of(composition.forward(stable.getFirst()));
+        for (int i = 0; i < stable.size(); i++) {
+            if (!source.inputs().get(i).descriptor().equals(stable.get(i).descriptor())) {
+                throw new IllegalArgumentException("input must match the full builder signature at " + i);
+            }
+        }
+        return composition.forward(stable);
     }
 
     /**

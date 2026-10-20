@@ -34,9 +34,12 @@ import java.util.function.BiFunction;
  * <p>Generic Models are not thread-safe. Callers must coordinate forward construction with mode changes,
  * binding replacement, state loading, and other mutable Module operations when one consistent
  * view matters. {@link #builder()}, {@link #defineTensor} and {@link #graph} establish a private
- * static source for compute and configured training; save additionally requires checkpoint admission.
+ * static source for compute and, for supported scan-free sources, configured training;
+ * save additionally requires checkpoint admission.
  * Builder composition reuses existing layers; selected default CNN/static recurrent DAGs persist
- * through Checkpoint v3 without layer recipes. Fixed scans persist cold, not as executable state.
+ * through Checkpoint v3 without layer recipes. Explicit runtime-length scan Models support inference
+ * through the same cached execution owners, but reject training before setup effects. Persistence
+ * stores their cold semantic source, not executable state.
  * Those Models serialize high-level operations
  * (competing calls fail busy), guard inherited mutable state, and close cached public Engine and
  * Training owners before their native storage. Inherited Module mutators still require caller
@@ -94,7 +97,28 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
         Tensor output = layers.forward(input);
         Model<Tensor, Tensor> result = model;
         result.execution = new ModelExecutionState(model,
-                OwnedModelSource.acquireComposition(model, input, output, layers));
+                OwnedModelSource.acquireComposition(model, List.of(input), List.of(output),
+                        values -> List.of(layers.forward(values.getFirst()))));
+        return result;
+    }
+
+    /**
+     * Installs final private list boundaries and an internal cold adapter over owned instantiated layers.
+     * @param inputs ordered storage-free prototypes
+     * @param outputs exact prototype results
+     * @param layers fresh exclusive chain already composed in eval mode
+     * @param forward internal adapter retaining only that chain, never caller callbacks or recipes
+     * @return owned eval list Model with no Engine, copy or reconstruction
+     * @throws IllegalArgumentException if registered state is unreachable
+     */
+    static Model<List<Tensor>, List<Tensor>> fromComposition(List<Tensor> inputs, List<Tensor> outputs,
+            Sequential layers, ModelForward<List<Tensor>, List<Tensor>> forward) {
+        TensorListModel model = new TensorListModel();
+        model.registerNamedChildren(Map.of("layers", layers));
+        model.eval();
+        Model<List<Tensor>, List<Tensor>> result = model;
+        result.execution = new ModelExecutionState(model,
+                OwnedModelSource.acquireComposition(model, inputs, outputs, forward));
         return result;
     }
 
@@ -148,7 +172,7 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * callback effects themselves are not rollbackable. No Engine is created.
      * The static source uses {@link GraphCheckpoint}'s closed admission, including selected
      * CNN/static recurrent compositions and cold fixed scans. Execution support remains
-     * occurrence-specific, with no Conv3d gradients or scan execution.
+     * occurrence-specific, with no Conv3d gradients or scan backpropagation through time.
      * @param inputSignature non-null fully static exact input descriptor
      * @param definition non-null one-shot definition; its adopted modules must not be mutated later
      * @return owned eval Model with private state and cold symbolic forward
@@ -284,7 +308,7 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Loads list boundaries under explicit artifact ceilings without creating an Engine.
-     * Both closed graph-model.v1 and graph-model.v2 sources are accepted without numerical conversion.
+     * Closed graph-model.v1/v2/v3 sources are accepted without numerical conversion.
      * @param path non-null graph artifact
      * @param limits non-null artifact bounds
      * @return owned eval Model adopting the final loaded leaves without another copy
@@ -317,7 +341,8 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
     /**
      * Selects an Engine on the same receiver before the first valid setup attempt.
      * Selected-Engine closure precedes Model closure/busy admission; freeze precedes candidate checks.
-     * Invalid compute/configure arguments do not freeze; any setup attempt does, including failure.
+     * Invalid compute/configure arguments do not freeze; valid setup attempts do, including failure.
+     * Rejected scan training preserves the previous freeze status without attempting setup.
      * @param engine non-null open borrowed Engine; neither previous nor new selection is closed
      * @return this exact Model, with unchanged generic type, wrappers and working state
      * @throws UnsupportedOperationException if this Model has no owned tensor capability
@@ -339,6 +364,29 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * @throws NullPointerException if admitted input is null
      */
     public HostTensorValue compute(Tensor input) { return capability().compute(input); }
+
+    /**
+     * Computes the sole output of any owned two-input Model in declared positional order.
+     * Applies equally to builder, graph and loaded sources, not only scans. No input role is
+     * inferred, and cold forward is not a prerequisite. Uses one admission and
+     * the same cached preparation as list compute with an aggregate ceiling of Long.MAX_VALUE.
+     * Capability and lifecycle admission precede arity; arity precedes null/input validation.
+     * Both values must remain live and free of conflicting mutation throughout this synchronous
+     * call; no caller storage is retained after its internal result closes.
+     * @param firstInput non-null stored value matching the first full descriptor, including layout
+     *     and gradient eligibility; borrowed, never rebound or mutated by this method
+     * @param secondInput non-null stored value matching the second full descriptor, even if unused;
+     *     borrowed for this call, never rebound or mutated by this method
+     * @return non-null detached sole output, readable after Model, Engine and input storage close
+     * @throws UnsupportedOperationException if owned tensor capability is absent
+     * @throws IllegalStateException if selected Engine/Model is closed, busy, invalidated or storage unusable
+     * @throws IllegalArgumentException if not exactly two inputs and one output, or descriptors/capacity reject
+     * @throws NullPointerException if an admitted input is null; arity is checked first
+     * @throws ArithmeticException if checked publication sizing overflows
+     */
+    public HostTensorValue compute(Tensor firstInput, Tensor secondInput) {
+        return capability().compute(firstInput, secondInput);
+    }
 
     /**
      * Computes all outputs using an unbounded aggregate ceiling (Long.MAX_VALUE).
@@ -373,10 +421,12 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * Configures one scalar objective and TrainingSession on the owned working weights.
      * Does not toggle Module mode. The pure builder runs once per explicit attempt and is discarded.
      * A successful configuration is final; failed setup may retry on the frozen Engine choice.
+     * Scan-containing sources reject after lifecycle/live-source admission, before arity, arguments,
+     * freeze, callback, Engine creation, inference-cache closure or native storage admission.
      * @param targetSignature non-null fully static target descriptor
      * @param objectiveBuilder non-null pure builder returning a scalar gradient-eligible FLOAT32/FLOAT64 expression
      * @param optimizer non-null immutable Training optimizer configuration
-     * @throws UnsupportedOperationException if tensor capability is absent
+     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a scan
      * @throws IllegalStateException if closed, busy, invalid, already configured or storage unusable
      * @throws IllegalArgumentException if boundaries, objective, native parameter or source admission rejects
      * @throws NullPointerException if an argument or objective result is null
@@ -390,10 +440,12 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * Configures a list-boundary objective against owned outputs and explicit target prototypes.
      * Heap parameters are admitted to a Model-owned shared Arena once, preserving Tensor identity;
      * inference preparations close before replacement. Training owns optimizer mathematics/atomicity.
+     * Scan-containing sources instead reject before argument checks or any setup effect, preserving
+     * state bytes, storage associations, inference caches and the existing Engine freeze status.
      * @param targetPrototypes non-null unique static provenance-free targets disjoint from source leaves
      * @param objectiveBuilder non-null pure one-attempt builder; arbitrary external leaves reject
      * @param optimizer non-null Training-owned immutable configuration
-     * @throws UnsupportedOperationException if tensor capability is absent
+     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a scan
      * @throws IllegalStateException if lifecycle, source, storage or repeated configuration rejects
      * @throws IllegalArgumentException if targets, objective or Training parameter admission rejects
      * @throws NullPointerException if an argument/element/objective is null
@@ -405,10 +457,11 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Performs RESET_AND_STEP on one configured batch and target without changing Module mode.
+     * Scan-containing sources reject after lifecycle/live-source admission and before arity or arguments.
      * @param input non-null fresh stored exact-signature input borrowed through synchronous execution
      * @param target non-null fresh stored exact-signature target with no forbidden storage overlap
      * @return detached objective and committed step metadata, readable after all owners close
-     * @throws UnsupportedOperationException if tensor capability is absent
+     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a scan
      * @throws IllegalStateException if unconfigured, closed, busy, invalid or storage unusable
      * @throws IllegalArgumentException if boundary, descriptor or Training overlap admission rejects
      * @throws ArithmeticException if Training rejects nonfinite gradients, staged updates or optimizer arithmetic
@@ -418,10 +471,11 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Performs the same Training transaction for explicit ordered batch and target slots.
+     * Scan-containing sources reject after lifecycle/live-source admission without setup or mutation.
      * @param inputs non-null fresh stored inputs in declared order, including eliminated slots
      * @param targets non-null fresh stored targets in declared order
      * @return detached TrainingStep after internal result closure
-     * @throws UnsupportedOperationException if tensor capability is absent
+     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a scan
      * @throws IllegalStateException if lifecycle/configuration/source/storage rejects
      * @throws IllegalArgumentException if arity, descriptors or overlap reject
      * @throws ArithmeticException if Training rejects nonfinite transaction values
@@ -523,6 +577,8 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /** Concrete list specialization for advanced graph boundaries and loadGraph. */
     private static final class TensorListModel extends Model<List<Tensor>, List<Tensor>> {
+        /** Creates an unpublished list root for already-private builder composition. */
+        private TensorListModel() { }
         /**
          * Installs final acquired/load state without copying again.
          * @param source private validated source with canonical Module state order
