@@ -28,6 +28,9 @@ High-level owned Model/withEngine and all selected program phases are Complete.
 This record does not override [root architecture](../../../ARCHITECTURE.md) or its scoped
 contracts, and does not authorize the remaining cutovers.
 
+Amended — 2026-10-20: selected CNN/static recurrent persistence and cold fixed scans share one
+closed v3 format. Joint acceptance and validation evidence belong to the CP0010/CP0011 task briefs.
+
 ## Context and decision drivers
 
 Manually built and file-restored models need the same ordinary compute/configured-train/save/load
@@ -467,6 +470,55 @@ Model-only save does not resume optimizer slots, RNG, cursor, scheduler or scale
 is supplied anew after load. No automatic exact-continuation claim.
 
 ## Coordinated authority cutovers and validation
+
+### CNN and recurrent source successor
+
+Accepted 2026-10-20: [CP0010](../../planning/extensions/checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md)
+and [CP0011](../../planning/extensions/checkpoint/tasks/0011-flat-recurrent-scan-persistence.md)
+form one Class C packet and completion gate. The root routes source admission to
+[Compiler lifecycle](../../architecture/contracts/compiler-autograd.md#compile-lifecycle) and the
+wire and normalization to one owning
+[graph-model v3 heading](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-3).
+The [recurrent purity amendment](0012-fixed-recurrent-scan-without-regions.md#purity-state-and-serialization)
+permits cold semantic persistence without serializing prepared/native/runtime state.
+
+Before this amendment, the builder constructed ordinary convolution, pooling, flatten and static
+recurrent DAGs that eight-kind save admission rejected. Fixed scans exposed a separate cold-source
+gap: capture retained canonical sibling ports, but reconstruction, normalization and topology
+assumed one output. These gaps belonged to the existing Compiler/Checkpoint boundary, not to
+new NN recipes, APIs, types, modules or a generic serializer registry.
+
+The selected source slice uses the exact Compiler contract, biased default convolutions and
+the six fixed scan overloads. All-family admission and per-network serialization were rejected: both
+would widen scope without solving canonical source reconstruction. An intermediate single-output
+v3 followed by another scan format was also rejected. One v3 instead carries ordered
+result descriptors and implicit prefix-sum values for every producer. Producer-aware iterative
+topology retains unused sibling ports without accepting dead producers or recursive traversal.
+Cold inference remains raw; layout closure and optimized artifacts are not substitutes.
+
+Smallest-version selection preserves byte-identical saves for old five-kind/eight-kind sources.
+Appending new operations under v1/v2 would change published formats; writing every source as v3
+would unnecessarily exclude old readers. New readers retain exact old tuples, and old readers
+reject v3. The wire fields live only in the owning contract, not in this ADR. ArtifactFile framing
+and old `model.v1`/`whole-model.v1` readers are unchanged.
+
+The cost is a finite supported slice plus explicit multi-output bookkeeping and malformed-wire
+coverage. Compiler preflight remains descriptor-only, including GATHER indices and runtime length
+inputs; named host state is imported only after complete wire/source validation. Reconstruction
+calls a scan constructor once, retaining every canonical wrapper even when only finalCell is a
+root. Neither a length prototype's bytes nor a scan result-carrier object is persistent state.
+
+The selected user workflow saves a default CNN or static recurrent Model before compute, closes
+it, cold-loads it and uses fresh exact-descriptor batches. Training is freshly configured where
+current adjoints permit; Conv3d remains inference-only. Advanced list Models may cold-persist
+scans with external INT64 lengths and rebind them, but cannot execute or train scans. There is no
+backend scan adoption, BPTT, optimizer resume or automatic continuation claim.
+
+The coordinated contract/ADR cutover preceded dependent Java work. Validation covers golden wire
+and malformed data, old byte compatibility, canonical multi-output identity, CNN/static recurrent
+forward and independent SGD oracles, and cold scan roundtrips. The joint task briefs retain the
+independent review evidence and coordinator's source-matched acceptance gate; this ADR does not
+mark those tasks complete.
 
 ### Activation source successor
 

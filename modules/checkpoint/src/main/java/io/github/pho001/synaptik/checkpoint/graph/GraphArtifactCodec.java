@@ -19,6 +19,11 @@ import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementw
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.convolution.*;
+import io.github.pho001.synaptik.model.operation.index.*;
+import io.github.pho001.synaptik.model.operation.layout.*;
+import io.github.pho001.synaptik.model.operation.pooling.*;
+import io.github.pho001.synaptik.model.operation.recurrent.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -37,7 +42,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Selective closed graph-model.v1/v2 wire on the existing opaque envelope. IDs, flags and field order are
+ * Selective closed graph-model.v1/v2/v3 wire on the existing opaque envelope. IDs, flags and field order are
  * explicit and independent of Java enum ordinals. All parsing uses bounded views; only final
  * candidate leaves and Compiler reconstruction create Tensors, after complete stored validation.
  */
@@ -46,6 +51,8 @@ final class GraphArtifactCodec {
     private static final String KIND = "graph-model.v1";
     private static final long MAGIC_V2 = 0x53594e4752463032L;
     private static final String KIND_V2 = "graph-model.v2";
+    private static final long MAGIC_V3 = 0x53594e4752463033L;
+    private static final String KIND_V3 = "graph-model.v3";
 
     private GraphArtifactCodec() { }
 
@@ -60,8 +67,10 @@ final class GraphArtifactCodec {
      */
     static ArtifactEnvelope encode(GraphSource source, ArtifactLimits limits) {
         int version = 1;
-        for (CompiledNode node : source.graph.nodes())
-            if (opcode(node) >= 6) version = 2;
+        for (CompiledNode node : source.graph.nodes()) {
+            int op = opcode(node);
+            version = Math.max(version, op >= 9 ? 3 : op >= 6 ? 2 : 1);
+        }
         Sink dry = new Sink(null);
         write(dry, source, version);
         long stateBytes = 0;
@@ -80,7 +89,7 @@ final class GraphArtifactCodec {
         for (int i = 0; i < source.states.size(); i++)
             entries.add(new ArtifactEnvelope.Entry(ordinal(i),
                     GraphValueStorage.encode(source.states.get(i).descriptor(), segments.get(i))));
-        return new ArtifactEnvelope(version == 1 ? KIND : KIND_V2, entries);
+        return new ArtifactEnvelope(version == 1 ? KIND : version == 2 ? KIND_V2 : KIND_V3, entries);
     }
 
     /**
@@ -114,10 +123,11 @@ final class GraphArtifactCodec {
     static GraphCheckpoint.Source decode(ArtifactEnvelope envelope, ArtifactLimits limits)
             throws ArtifactFormatException {
         try {
-            int version = KIND.equals(envelope.kind()) ? 1 : KIND_V2.equals(envelope.kind()) ? 2 : 0;
+            int version = KIND.equals(envelope.kind()) ? 1 : KIND_V2.equals(envelope.kind()) ? 2
+                    : KIND_V3.equals(envelope.kind()) ? 3 : 0;
             if (version == 0 || envelope.entries().isEmpty()
                     || !envelope.entries().getFirst().key().equals("schema"))
-                throw invalid("Expected graph-model.v1/v2 schema");
+                throw invalid("Expected graph-model.v1/v2/v3 schema");
             long stateBytes = 0;
             for (int i = 1; i < envelope.entries().size(); i++) {
                 var entry = envelope.entries().get(i);
@@ -128,7 +138,7 @@ final class GraphArtifactCodec {
             preflight(envelope.entries().size() - 1, envelope.entries().getFirst().size(), stateBytes, limits);
             Reader reader = new Reader(envelope.entries().getFirst().payload());
             ByteBuffer in = reader.bytes;
-            if (in.getLong() != (version == 1 ? MAGIC : MAGIC_V2) || in.getInt() != version)
+            if (in.getLong() != (version == 1 ? MAGIC : version == 2 ? MAGIC_V2 : MAGIC_V3) || in.getInt() != version)
                 throw invalid("Mismatched graph kind/magic/version");
             int inputCount = reader.count(7);
             var values = new ArrayList<GraphValue>();
@@ -198,14 +208,19 @@ final class GraphArtifactCodec {
             for (int i = 0; i < nodeCount; i++) {
                 if (reader.u8() != 1) throw invalid("Unknown source phase");
                 int op = reader.u8();
-                if (version == 1 && op > 5) throw invalid("Operation requires graph-model.v2");
+                if (op > (version == 1 ? 5 : version == 2 ? 8 : 22))
+                    throw invalid("Operation exceeds graph version");
                 int arity = switch (op) {
-                    case 1, 2, 4 -> 2;
-                    case 3, 5, 6, 7, 8 -> 1;
+                    case 1, 2, 4, 9, 14 -> 2;
+                    case 3, 5, 6, 7, 8, 10, 11, 12, 13, 15, 19 -> 1;
+                    case 17, 18 -> 3;
+                    case 16, 20, 21, 22 -> reader.count(4);
                     default -> throw invalid("Unknown source operation");
                 };
+                if (arity == 0 || (op >= 20 && (arity < (op == 22 ? 6 : 5)
+                        || arity > (op == 22 ? 7 : 6)))) throw invalid("Invalid source input count");
                 var args = new ArrayList<ValueId>(arity);
-                int result = Math.addExact(boundary, i);
+                int result = values.size();
                 for (int j = 0; j < arity; j++) args.add(reader.reference(result));
                 Operation operation = switch (op) {
                     case 1 -> new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE);
@@ -220,12 +235,53 @@ final class GraphArtifactCodec {
                     case 6 -> new Operation(UnaryElementwiseKind.RELU, NoOperationAttrs.INSTANCE);
                     case 7 -> new Operation(UnaryElementwiseKind.TANH, NoOperationAttrs.INSTANCE);
                     case 8 -> new Operation(UnaryElementwiseKind.SIGMOID, NoOperationAttrs.INSTANCE);
+                    case 9 -> new Operation(BinaryArithmeticKind.SUB, NoOperationAttrs.INSTANCE);
+                    case 10 -> {
+                        int rank = reader.count(8);
+                        long[] extents = new long[rank];
+                        for (int j = 0; j < rank; j++) extents[j] = in.getLong();
+                        yield new Operation(ShapeTransformKind.RESHAPE, new TargetShapeAttrs(Shape.of(extents)));
+                    }
+                    case 11, 12 -> new Operation(op == 11 ? AxisTransformKind.EXPAND_DIMS : AxisTransformKind.SQUEEZE,
+                            new AxisTransformAttrs(in.getInt()));
+                    case 13 -> new Operation(SelectKind.SELECT, new SelectAttrs(in.getInt(), in.getLong()));
+                    case 14 -> new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(in.getInt()));
+                    case 15 -> {
+                        if (reader.count(28) != 1) throw invalid("Only one slice entry is supported");
+                        yield new Operation(SliceKind.SLICE, new SliceAttrs(List.of(in.getLong()),
+                                List.of(in.getLong()), List.of(in.getInt()), List.of(in.getLong())));
+                    }
+                    case 16 -> new Operation(TensorCompositionKind.CONCAT, new CompositionAxisAttrs(in.getInt()));
+                    case 17 -> new Operation(Conv2dKind.CONV2D, new Conv2dAttrs(in.getLong(), in.getLong(),
+                            in.getLong(), in.getLong(), in.getLong(), in.getLong(), in.getLong()));
+                    case 18 -> new Operation(Conv3dKind.CONV3D, new Conv3dAttrs(in.getLong(), in.getLong(),
+                            in.getLong(), in.getLong(), in.getLong(), in.getLong(), in.getLong(),
+                            in.getLong(), in.getLong(), in.getLong()));
+                    case 19 -> new Operation(Pool2dKind.MAX_POOL2D, new MaxPool2dAttrs(in.getLong(), in.getLong(),
+                            in.getLong(), in.getLong(), in.getLong(), in.getLong(), in.getLong(),
+                            in.getLong(), reader.flag()));
+                    case 20, 21, 22 -> new Operation(op == 20 ? RecurrentScanKind.RNN_TANH
+                            : op == 21 ? RecurrentScanKind.GRU_RESET_AFTER : RecurrentScanKind.LSTM,
+                            switch (reader.u8()) {
+                                case 1 -> RecurrentDirection.FORWARD;
+                                case 2 -> RecurrentDirection.REVERSE;
+                                default -> throw invalid("Unknown recurrent direction");
+                            });
                     default -> throw new AssertionError();
                 };
-                ValueId id = new ValueId(result);
-                values.add(new GraphValue(id, reader.descriptor()));
+                int count = version == 3 ? reader.count(7) : 1;
+                if (count != (op == 22 ? 3 : op >= 20 ? 2 : 1)) throw invalid("Invalid output count");
+                Math.addExact(result, count);
+                var results = new ArrayList<ValueId>(count);
+                for (int j = 0; j < count; j++) {
+                    ValueId id = new ValueId(Math.addExact(result, j));
+                    values.add(new GraphValue(id, reader.descriptor()));
+                    results.add(id);
+                }
                 NodeId nodeId = new NodeId(i);
-                nodes.add(new CompiledNode(nodeId, operation, args, List.of(id)));
+                var node = new CompiledNode(nodeId, operation, args, results);
+                opcode(node); // independently admit narrow attributes before any candidate/host import
+                nodes.add(node);
                 phases.put(nodeId, GraphPhase.FORWARD);
             }
             int outputCount = reader.count(4);
@@ -266,6 +322,11 @@ final class GraphArtifactCodec {
      */
     private static void canonicalTopology(CompiledGraphModel graph, int declaredInputs) {
         boolean[] seen = new boolean[graph.values().size()];
+        int[] producers = new int[seen.length];
+        java.util.Arrays.fill(producers, -1);
+        for (int n = 0; n < graph.nodes().size(); n++)
+            for (ValueId id : graph.nodes().get(n).outputs()) producers[Math.toIntExact(id.value())] = n;
+        boolean[] visited = new boolean[graph.nodes().size()];
         var stack = new ArrayDeque<Integer>();
         int boundary = graph.inputs().size();
         int nextNode = 0;
@@ -280,7 +341,10 @@ final class GraphArtifactCodec {
                 if (seen[value]) continue;
                 seen[value] = true;
                 if (value < boundary) continue;
-                int node = value - boundary;
+                int node = producers[value];
+                if (visited[node]) continue;
+                visited[node] = true;
+                for (ValueId sibling : graph.nodes().get(node).outputs()) seen[Math.toIntExact(sibling.value())] = true;
                 stack.push(~node);
                 var args = graph.nodes().get(node).inputs();
                 for (int i = args.size() - 1; i >= 0; i--) stack.push(Math.toIntExact(args.get(i).value()));
@@ -298,7 +362,7 @@ final class GraphArtifactCodec {
      * @throws IllegalArgumentException if an operation's kind, attributes, phase or arity is unsupported
      */
     private static void write(Sink out, GraphSource source, int version) {
-        out.i64(version == 1 ? MAGIC : MAGIC_V2); out.i32(version);
+        out.i64(version == 1 ? MAGIC : version == 2 ? MAGIC_V2 : MAGIC_V3); out.i32(version);
         out.i32(source.source.inputs().size());
         for (Tensor input : source.source.inputs()) out.descriptor(input.descriptor());
         out.i32(source.states.size());
@@ -320,9 +384,12 @@ final class GraphArtifactCodec {
             out.u8(1);
             int op = opcode(node);
             out.u8(op);
+            if (op == 16 || op >= 20) out.i32(node.inputs().size());
             for (ValueId id : node.inputs()) out.i32(Math.toIntExact(id.value()));
-            if (op == 5) { out.i32(2); out.i32(1); out.i32(0); }
-            out.descriptor(source.graph.values().get(Math.toIntExact(node.outputs().getFirst().value())).descriptor());
+            attributes(out, node, op);
+            if (version == 3) out.i32(node.outputs().size());
+            for (ValueId id : node.outputs())
+                out.descriptor(source.graph.values().get(Math.toIntExact(id.value())).descriptor());
         }
         out.i32(source.graph.outputs().size());
         for (ValueId id : source.graph.outputs()) out.i32(Math.toIntExact(id.value()));
@@ -330,8 +397,8 @@ final class GraphArtifactCodec {
 
     /**
      * Admits the closed wire independently of Compiler admission, including during dry sizing.
-     * @param node stored occurrence with exact Model attributes and fixed inputs/output
-     * @return explicit stable opcode 1..8, never an enum ordinal or fallback opcode
+     * @param node stored occurrence with exact Model attributes and admitted input/output counts
+     * @return explicit stable opcode 1..22, never an enum ordinal or fallback opcode
      * @throws IllegalArgumentException if kind, attributes or arity cannot be represented exactly
      */
     private static int opcode(CompiledNode node) {
@@ -345,15 +412,101 @@ final class GraphArtifactCodec {
         else if (kind == UnaryElementwiseKind.RELU) op = 6;
         else if (kind == UnaryElementwiseKind.TANH) op = 7;
         else if (kind == UnaryElementwiseKind.SIGMOID) op = 8;
+        else if (kind == BinaryArithmeticKind.SUB) op = 9;
+        else if (kind == ShapeTransformKind.RESHAPE) op = 10;
+        else if (kind == AxisTransformKind.EXPAND_DIMS) op = 11;
+        else if (kind == AxisTransformKind.SQUEEZE) op = 12;
+        else if (kind == SelectKind.SELECT) op = 13;
+        else if (kind == AxisGatherKind.GATHER) op = 14;
+        else if (kind == SliceKind.SLICE) op = 15;
+        else if (kind == TensorCompositionKind.CONCAT) op = 16;
+        else if (kind == Conv2dKind.CONV2D) op = 17;
+        else if (kind == Conv3dKind.CONV3D) op = 18;
+        else if (kind == Pool2dKind.MAX_POOL2D) op = 19;
+        else if (kind == RecurrentScanKind.RNN_TANH) op = 20;
+        else if (kind == RecurrentScanKind.GRU_RESET_AFTER) op = 21;
+        else if (kind == RecurrentScanKind.LSTM) op = 22;
         else throw invalid("Unknown source operation: " + kind);
-        boolean attrs = op == 5
-                ? node.operation().attrs() instanceof PermutationAttrs permutation
-                    && permutation.axes().equals(List.of(1, 0))
-                : node.operation().attrs() == NoOperationAttrs.INSTANCE;
-        int arity = op == 1 || op == 2 || op == 4 ? 2 : 1;
-        if (!attrs || node.inputs().size() != arity || node.outputs().size() != 1)
+        var a = node.operation().attrs();
+        boolean attrs = switch (op) {
+            case 5 -> a instanceof PermutationAttrs p && p.axes().equals(List.of(1, 0));
+            case 10 -> a instanceof TargetShapeAttrs t && t.targetShape().isFullyStatic()
+                    && java.util.Arrays.stream(t.targetShape().toLongArray()).allMatch(n -> n > 0);
+            case 11, 12 -> a instanceof AxisTransformAttrs axis && axis.axis() == 2;
+            case 13 -> a instanceof SelectAttrs select && select.axis() == 0;
+            case 14 -> a instanceof IndexAxisAttrs axis && axis.axis() == 0;
+            case 15 -> a instanceof SliceAttrs s && s.axes().equals(List.of(1))
+                    && s.lengths().getFirst() > 0 && s.steps().equals(List.of(1L));
+            case 16 -> a instanceof CompositionAxisAttrs axis && axis.axis() == 0;
+            case 17 -> a.equals(Conv2dAttrs.defaults());
+            case 18 -> a.equals(Conv3dAttrs.defaults());
+            case 19 -> a instanceof MaxPool2dAttrs p && p.strideHeight() == p.kernelHeight()
+                    && p.strideWidth() == p.kernelWidth() && p.paddingHeight() == 0 && p.paddingWidth() == 0
+                    && p.dilationHeight() == 1 && p.dilationWidth() == 1 && !p.ceilMode();
+            case 20, 21, 22 -> a instanceof RecurrentDirection;
+            default -> a == NoOperationAttrs.INSTANCE;
+        };
+        int arity = switch (op) {
+            case 1, 2, 4, 9, 14 -> 2;
+            case 17, 18 -> 3;
+            case 16, 20, 21, 22 -> node.inputs().size();
+            default -> 1;
+        };
+        boolean variable = op == 16 ? arity > 0 : op >= 20
+                ? arity >= (op == 22 ? 6 : 5) && arity <= (op == 22 ? 7 : 6) : true;
+        if (!attrs || !variable || node.inputs().size() != arity
+                || node.outputs().size() != (op == 22 ? 3 : op >= 20 ? 2 : 1))
             throw invalid("Unsupported source attributes/arity");
         return op;
+    }
+
+    /**
+     * Traverses exact attributes identically for dry sizing and bounded writing.
+     * @param out dry or bounded destination
+     * @param node independently admitted operation occurrence
+     * @param op explicit stable opcode matching the node
+     */
+    private static void attributes(Sink out, CompiledNode node, int op) {
+        var attrs = node.operation().attrs();
+        switch (op) {
+            case 5 -> { out.i32(2); out.i32(1); out.i32(0); }
+            case 10 -> {
+                var shape = ((TargetShapeAttrs) attrs).targetShape();
+                out.i32(shape.rank());
+                for (long extent : shape.toLongArray()) out.i64(extent);
+            }
+            case 11, 12 -> out.i32(((AxisTransformAttrs) attrs).axis());
+            case 13 -> { var a = (SelectAttrs) attrs; out.i32(a.axis()); out.i64(a.index()); }
+            case 14 -> out.i32(((IndexAxisAttrs) attrs).axis());
+            case 15 -> {
+                var a = (SliceAttrs) attrs;
+                out.i32(a.axes().size());
+                for (int j = 0; j < a.axes().size(); j++) {
+                    out.i64(a.starts().get(j)); out.i64(a.lengths().get(j));
+                    out.i32(a.axes().get(j)); out.i64(a.steps().get(j));
+                }
+            }
+            case 16 -> out.i32(((CompositionAxisAttrs) attrs).axis());
+            case 17 -> {
+                var a = (Conv2dAttrs) attrs;
+                out.i64(a.strideHeight()); out.i64(a.strideWidth()); out.i64(a.paddingHeight());
+                out.i64(a.paddingWidth()); out.i64(a.dilationHeight()); out.i64(a.dilationWidth()); out.i64(a.groups());
+            }
+            case 18 -> {
+                var a = (Conv3dAttrs) attrs;
+                out.i64(a.strideDepth()); out.i64(a.strideHeight()); out.i64(a.strideWidth());
+                out.i64(a.paddingDepth()); out.i64(a.paddingHeight()); out.i64(a.paddingWidth());
+                out.i64(a.dilationDepth()); out.i64(a.dilationHeight()); out.i64(a.dilationWidth()); out.i64(a.groups());
+            }
+            case 19 -> {
+                var a = (MaxPool2dAttrs) attrs;
+                out.i64(a.kernelHeight()); out.i64(a.kernelWidth()); out.i64(a.strideHeight()); out.i64(a.strideWidth());
+                out.i64(a.paddingHeight()); out.i64(a.paddingWidth()); out.i64(a.dilationHeight()); out.i64(a.dilationWidth());
+                out.u8(a.ceilMode() ? 1 : 0);
+            }
+            case 20, 21, 22 -> out.u8(attrs == RecurrentDirection.FORWARD ? 1 : 2);
+            default -> { /* parameterless admitted kind */ }
+        }
     }
 
     /**

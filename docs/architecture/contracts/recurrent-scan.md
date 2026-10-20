@@ -213,10 +213,14 @@ parameter wrappers and state paths, while the operation consumes their current T
 ordinary inputs. Different executions use isolated `RunState` instances under the existing
 Runtime contract.
 
-NN state dictionaries contain only parameter and persistent-buffer Tensor bindings. Future model
-checkpoints may persist the materialized values of those entries. The scan operation, compiler
-graph, prepared executable, runtime state, and backend artifacts are rebuilt and are not
-serialized by this decision.
+NN state dictionaries contain only parameter and persistent-buffer Tensor bindings. Cold semantic
+scan graphs and named host values may be copied, saved, loaded and rebound under Checkpoint's
+[generic source contract](extensions-training.md#generic-graph-source-and-values) and its owning
+[graph-model v3 contract](extensions-training.md#canonical-graph-model-version-3). This persists
+fixed operation meaning, descriptors and ordered ports, not the result-carrier Java objects or an
+executable graph. Prepared executables, native/backend artifacts and runtime state are rebuilt,
+never serialized. Cold preflight does not read valid-length values; runtime bounds remain an
+execution responsibility. Persistence grants neither backend execution nor BPTT.
 
 Owner boundaries are exact:
 

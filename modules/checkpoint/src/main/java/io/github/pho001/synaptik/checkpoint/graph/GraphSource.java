@@ -20,7 +20,8 @@ import java.util.Objects;
 /**
  * Call-local exact identity association around Compiler's raw source, not another graph model.
  * Normalized Model IDs put declared inputs first, unique named state second and captured nodes
- * last. Only Compiler ever maps ValueIds back to Tensors or constructs stored operations.
+ * last, retaining every canonical output port in order, including unused siblings. Only Compiler
+ * ever maps ValueIds back to Tensors or constructs stored operations.
  */
 final class GraphSource {
     final GraphCheckpoint.Source source;
@@ -113,12 +114,17 @@ final class GraphSource {
         var nodes = new ArrayList<CompiledNode>();
         var phases = new HashMap<NodeId, GraphPhase>();
         for (CompiledNode node : captured.graph().nodes()) {
-            ValueId id = new ValueId(values.size());
-            remap.put(node.outputs().getFirst(), id);
-            values.add(new GraphValue(id, descriptors.get(node.outputs().getFirst()).descriptor()));
+            var outputs = new ArrayList<ValueId>(node.outputs().size());
+            Math.addExact(values.size(), node.outputs().size());
+            for (ValueId old : node.outputs()) {
+                ValueId id = new ValueId(values.size());
+                remap.put(old, id);
+                values.add(new GraphValue(id, descriptors.get(old).descriptor()));
+                outputs.add(id);
+            }
             NodeId nodeId = new NodeId(nodes.size());
             nodes.add(new CompiledNode(nodeId, node.operation(),
-                    node.inputs().stream().map(remap::get).toList(), List.of(id)));
+                    node.inputs().stream().map(remap::get).toList(), outputs));
             phases.put(nodeId, GraphPhase.FORWARD);
         }
         var graph = new CompiledGraphModel(values, nodes, inputs,

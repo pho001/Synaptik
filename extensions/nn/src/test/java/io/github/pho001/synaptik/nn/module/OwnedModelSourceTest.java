@@ -11,6 +11,8 @@ import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.RecurrentScan;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.layers.Linear;
 import java.lang.foreign.MemorySegment;
@@ -217,5 +219,81 @@ final class OwnedModelSourceTest {
         assertThrows(UnsupportedOperationException.class, () -> model.save(null));
         model.close(); model.close();
         assertEquals("retained", model.forward("retained"));
+    }
+
+    /**
+     * Checks all fixed signatures through Model.graph/save/loadGraph/cold forward with fresh lengths.
+     * Invalid prototype length values are intentionally ignored, never copied or saved.
+     * @throws Exception if a supported cold workflow or lifecycle-field inspection fails
+     */
+    @Test void fixedScansSaveCloseColdLoadAndRebindFreshRuntimeLengthsWithoutEngine() throws Exception {
+        for (String family : List.of("rnn", "gru", "lstm")) for (boolean bias : List.of(false, true))
+            for (var direction : RecurrentDirection.values()) {
+                int gates = family.equals("lstm") ? 4 : family.equals("gru") ? 3 : 1;
+                Tensor x = TensorFactory.create(scanDescriptor(DataType.FLOAT32, false, 2, 1, 1));
+                Tensor lengths = TensorFactory.fromFlatArray(scanDescriptor(DataType.INT64, false, 1),
+                        Optional.empty(), new long[]{Long.MAX_VALUE}); // intentionally not a valid runtime length
+                Tensor h = TensorFactory.create(scanDescriptor(DataType.FLOAT32, false, 1, 1));
+                Tensor c = TensorFactory.create(h.descriptor());
+                Tensor w = TensorFactory.fromFlatArray(scanDescriptor(DataType.FLOAT32, true, gates, 1),
+                        Optional.empty(), new float[gates]);
+                Tensor u = TensorFactory.fromFlatArray(w.descriptor(), Optional.empty(), new float[gates]);
+                Tensor b = TensorFactory.fromFlatArray(scanDescriptor(DataType.FLOAT32, true, gates),
+                        Optional.empty(), new float[gates]);
+                List<Tensor> inputs = family.equals("lstm") ? List.of(x, lengths, h, c) : List.of(x, lengths, h);
+                var leaves = new java.util.ArrayList<>(List.of(parameter("w", w), parameter("u", u)));
+                if (bias) leaves.add(parameter("bias", b));
+                List<Tensor> outputs;
+                if (family.equals("lstm")) {
+                    var scan = bias ? RecurrentScan.lstm(x, lengths, h, c, w, u, b, direction)
+                            : RecurrentScan.lstm(x, lengths, h, c, w, u, direction);
+                    outputs = List.of(scan.finalCell(), scan.outputs(), h);
+                } else {
+                    var scan = family.equals("rnn")
+                            ? (bias ? RecurrentScan.rnn(x, lengths, h, w, u, b, direction) : RecurrentScan.rnn(x, lengths, h, w, u, direction))
+                            : (bias ? RecurrentScan.gru(x, lengths, h, w, u, b, direction) : RecurrentScan.gru(x, lengths, h, w, u, direction));
+                    outputs = List.of(scan.finalHidden(), scan.outputs(), h);
+                }
+                Path file = directory.resolve("scan"), resaved = directory.resolve("scan-again");
+                try (var model = Model.graph(inputs, outputs, leaves)) {
+                    assertNull(field(field(model, "execution"), "engine"));
+                    model.save(file);
+                    assertNull(field(field(model, "execution"), "engine"));
+                }
+                lengths.clearHostStorage();
+                assertThrows(IllegalArgumentException.class, () -> Model.load(file));
+                try (var loaded = Model.loadGraph(file)) {
+                    var source = (GraphCheckpoint.Source) field(field(field(loaded, "execution"), "owned"), "source");
+                    for (Tensor prototype : source.inputs()) assertTrue(prototype.hostStorage().isEmpty());
+                    Tensor freshX = TensorFactory.create(x.descriptor());
+                    Tensor freshLengths = TensorFactory.fromFlatArray(lengths.descriptor(), Optional.empty(), new long[]{0});
+                    Tensor freshState = TensorFactory.create(h.descriptor());
+                    var fresh = family.equals("lstm") ? List.of(freshX, freshLengths, freshState, freshState)
+                            : List.of(freshX, freshLengths, freshState);
+                    var rebound = loaded.forward(fresh);
+                    var producer = rebound.getFirst().provenance().orElseThrow().producer();
+                    assertSame(rebound.getFirst(), producer.output(family.equals("lstm") ? 2 : 1));
+                    assertSame(rebound.get(1), producer.output(0));
+                    assertSame(freshState, rebound.get(2));
+                    assertSame(freshLengths, producer.inputs().get(1));
+                    assertSame(freshX, producer.inputs().getFirst());
+                    if (family.equals("lstm")) assertSame(producer.inputs().get(2), producer.inputs().get(3));
+                    assertNull(field(field(loaded, "execution"), "engine"));
+                    loaded.save(resaved);
+                    assertArrayEquals(java.nio.file.Files.readAllBytes(file), java.nio.file.Files.readAllBytes(resaved));
+                }
+            }
+    }
+
+    /**
+     * Supplies exact canonical metadata for stored parameters and external scan prototypes.
+     * @param type logical dtype, including INT64 for lengths
+     * @param grad gradient eligibility, false for lengths
+     * @param shape fully static nonnegative extents
+     * @return immutable canonical offset-zero descriptor
+     */
+    private static TensorDescriptor scanDescriptor(DataType type, boolean grad, long... shape) {
+        Shape geometry = Shape.of(shape);
+        return new TensorDescriptor(type, geometry, Optional.of(LayoutDescriptor.contiguous(geometry)), grad);
     }
 }

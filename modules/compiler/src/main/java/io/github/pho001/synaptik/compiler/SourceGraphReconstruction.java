@@ -11,6 +11,13 @@ import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementw
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.convolution.*;
+import io.github.pho001.synaptik.model.operation.index.*;
+import io.github.pho001.synaptik.model.operation.layout.*;
+import io.github.pho001.synaptik.model.operation.pooling.*;
+import io.github.pho001.synaptik.model.operation.recurrent.*;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.tensor.RecurrentScan;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import java.util.ArrayList;
@@ -28,8 +35,9 @@ import java.util.Objects;
  * family admission and existing exact descriptor inference. No Tensor is constructed until all
  * stored facts and positional substitutions pass. The only ValueId-to-Tensor table is local to
  * reconstruction after preflight; nothing caches it or attaches it to returned expressions.</p>
- * <p>The closed slice includes floating RELU, TANH and SIGMOID as ordinary parameterless
- * unary occurrences; reconstruction uses their public Tensor constructors without decomposition.</p>
+ * <p>The closed slice includes the narrow default CNN/static recurrent compositions and fixed
+ * flat scans. Reconstruction invokes each public family constructor once and retains all its
+ * canonical ports. Index and length values are never read; raw unresolved layouts stay unresolved.</p>
  */
 final class SourceGraphReconstruction {
     private SourceGraphReconstruction() {}
@@ -63,7 +71,11 @@ final class SourceGraphReconstruction {
                 throw new IllegalArgumentException(node.id() + ": source phase must be FORWARD");
             }
             var kind = node.operation().kind();
+            if (kind == BinaryArithmeticKind.SUB && node.inputs().stream()
+                    .anyMatch(id -> !descriptors.get(id).dataType().isFloating()))
+                throw new IllegalArgumentException(node.id() + ": source SUB requires floating operands");
             boolean parameterless = kind == BinaryArithmeticKind.ADD
+                    || kind == BinaryArithmeticKind.SUB
                     || kind == BinaryArithmeticKind.MUL
                     || kind == UnaryElementwiseKind.NEG
                     || kind == UnaryElementwiseKind.RELU
@@ -74,7 +86,7 @@ final class SourceGraphReconstruction {
                     && node.operation().attrs() instanceof PermutationAttrs attrs
                     && attrs.axes().equals(List.of(1, 0));
             if (!(parameterless && node.operation().attrs() == NoOperationAttrs.INSTANCE)
-                    && !transpose) {
+                    && !transpose && !additional(node, descriptors)) {
                 throw new IllegalArgumentException(node.id() + ": unsupported source operation "
                         + node.operation());
             }
@@ -84,6 +96,52 @@ final class SourceGraphReconstruction {
             throw new IllegalArgumentException("source has deferred obligations: " + validated.constraints());
         }
         return descriptors;
+    }
+
+    /**
+     * Admits only the selected builder geometry and fixed scan signatures, without storage access.
+     * @param node structurally validated occurrence
+     * @param descriptors complete static descriptor index
+     * @return whether the occurrence belongs to the additional closed source slice
+     * @throws IllegalArgumentException if a target attribute's checked element count overflows
+     */
+    private static boolean additional(CompiledNode node, Map<ValueId, TensorDescriptor> descriptors) {
+        if (node.inputs().isEmpty()) return false;
+        var kind = node.operation().kind();
+        var attrs = node.operation().attrs();
+        var first = descriptors.get(node.inputs().getFirst());
+        if (kind == ShapeTransformKind.RESHAPE && attrs instanceof TargetShapeAttrs target) {
+            try {
+                return target.targetShape().isFullyStatic()
+                    && java.util.Arrays.stream(target.targetShape().toLongArray()).allMatch(n -> n > 0)
+                    && target.targetShape().knownElementCount().orElseThrow()
+                        == first.shape().knownElementCount().orElseThrow();
+            } catch (ArithmeticException failure) {
+                throw new IllegalArgumentException(node.id() + ": source target element count overflow", failure);
+            }
+        }
+        if ((kind == AxisTransformKind.EXPAND_DIMS || kind == AxisTransformKind.SQUEEZE)
+                && attrs instanceof AxisTransformAttrs axis) return axis.axis() == 2;
+        if (kind == SelectKind.SELECT && attrs instanceof SelectAttrs select)
+            return select.axis() == 0 && first.shape().rank() == 3;
+        if (kind == AxisGatherKind.GATHER && attrs instanceof IndexAxisAttrs axis) {
+            var indices = descriptors.get(node.inputs().get(1));
+            return axis.axis() == 0 && first.shape().rank() == 2 && indices.shape().rank() == 1
+                    && indices.dataType() == DataType.INT64 && !indices.requiresGrad();
+        }
+        if (kind == SliceKind.SLICE && attrs instanceof SliceAttrs slice)
+            return first.shape().rank() == 2 && slice.axes().equals(List.of(1))
+                    && slice.lengths().getFirst() > 0 && slice.steps().equals(List.of(1L));
+        if (kind == TensorCompositionKind.CONCAT && attrs instanceof CompositionAxisAttrs axis)
+            return axis.axis() == 0 && node.inputs().stream()
+                    .allMatch(id -> descriptors.get(id).shape().rank() == 3);
+        if (kind == Conv2dKind.CONV2D) return node.inputs().size() == 3 && attrs.equals(Conv2dAttrs.defaults());
+        if (kind == Conv3dKind.CONV3D) return node.inputs().size() == 3 && attrs.equals(Conv3dAttrs.defaults());
+        if (kind == Pool2dKind.MAX_POOL2D && attrs instanceof MaxPool2dAttrs pool)
+            return pool.strideHeight() == pool.kernelHeight() && pool.strideWidth() == pool.kernelWidth()
+                    && pool.paddingHeight() == 0 && pool.paddingWidth() == 0
+                    && pool.dilationHeight() == 1 && pool.dilationWidth() == 1 && !pool.ceilMode();
+        return kind instanceof RecurrentScanKind && attrs instanceof RecurrentDirection;
     }
 
     /**
@@ -147,6 +205,8 @@ final class SourceGraphReconstruction {
             Tensor output;
             if (kind == BinaryArithmeticKind.ADD) {
                 output = first.add(tensors.get(node.inputs().get(1)));
+            } else if (kind == BinaryArithmeticKind.SUB) {
+                output = first.sub(tensors.get(node.inputs().get(1)));
             } else if (kind == BinaryArithmeticKind.MUL) {
                 output = first.mul(tensors.get(node.inputs().get(1)));
             } else if (kind == UnaryElementwiseKind.NEG) {
@@ -161,6 +221,52 @@ final class SourceGraphReconstruction {
                 output = first.sigmoid();
             } else if (kind == AxisTransformKind.PERMUTE) {
                 output = first.permute(1, 0);
+            } else if (kind == ShapeTransformKind.RESHAPE) {
+                output = first.reshape(((TargetShapeAttrs) node.operation().attrs()).targetShape());
+            } else if (kind == AxisTransformKind.EXPAND_DIMS) {
+                output = first.expandDims(2);
+            } else if (kind == AxisTransformKind.SQUEEZE) {
+                output = first.squeeze(2);
+            } else if (kind == SelectKind.SELECT) {
+                var attrs = (SelectAttrs) node.operation().attrs();
+                output = first.select(attrs.axis(), attrs.index());
+            } else if (kind == AxisGatherKind.GATHER) {
+                output = first.gather(tensors.get(node.inputs().get(1)), 0);
+            } else if (kind == SliceKind.SLICE) {
+                var attrs = (SliceAttrs) node.operation().attrs();
+                output = first.sliceByLength(new long[] {attrs.starts().getFirst()},
+                        new long[] {attrs.lengths().getFirst()}, new int[] {1}, new long[] {1});
+            } else if (kind == TensorCompositionKind.CONCAT) {
+                output = Tensor.concat(0, node.inputs().stream().map(tensors::get).toArray(Tensor[]::new));
+            } else if (kind == Conv2dKind.CONV2D) {
+                output = first.conv2d(tensors.get(node.inputs().get(1)), tensors.get(node.inputs().get(2)),
+                        (Conv2dAttrs) node.operation().attrs());
+            } else if (kind == Conv3dKind.CONV3D) {
+                output = first.conv3d(tensors.get(node.inputs().get(1)), tensors.get(node.inputs().get(2)),
+                        (Conv3dAttrs) node.operation().attrs());
+            } else if (kind == Pool2dKind.MAX_POOL2D) {
+                output = first.maxPool2d((MaxPool2dAttrs) node.operation().attrs());
+            } else if (kind instanceof RecurrentScanKind scan) {
+                List<Tensor> args = node.inputs().stream().map(tensors::get).toList();
+                var direction = (RecurrentDirection) node.operation().attrs();
+                List<Tensor> ports;
+                if (scan == RecurrentScanKind.LSTM) {
+                    var result = args.size() == 6
+                            ? RecurrentScan.lstm(first, args.get(1), args.get(2), args.get(3), args.get(4), args.get(5), direction)
+                            : RecurrentScan.lstm(first, args.get(1), args.get(2), args.get(3), args.get(4), args.get(5), args.get(6), direction);
+                    ports = List.of(result.outputs(), result.finalHidden(), result.finalCell());
+                } else {
+                    var result = scan == RecurrentScanKind.RNN_TANH
+                            ? (args.size() == 5
+                                ? RecurrentScan.rnn(first, args.get(1), args.get(2), args.get(3), args.get(4), direction)
+                                : RecurrentScan.rnn(first, args.get(1), args.get(2), args.get(3), args.get(4), args.get(5), direction))
+                            : (args.size() == 5
+                                ? RecurrentScan.gru(first, args.get(1), args.get(2), args.get(3), args.get(4), direction)
+                                : RecurrentScan.gru(first, args.get(1), args.get(2), args.get(3), args.get(4), args.get(5), direction));
+                    ports = List.of(result.outputs(), result.finalHidden());
+                }
+                for (int j = 0; j < ports.size(); j++) tensors.put(node.outputs().get(j), ports.get(j));
+                continue;
             } else {
                 throw new IllegalArgumentException("Unsupported preflighted source operation: " + kind);
             }

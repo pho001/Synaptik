@@ -32,9 +32,9 @@ NN builder construction precedes compilation: copy supplied raw parameter leaves
 fresh automatic layers, then build one ordinary prototype expression through the frozen Sequential.
 Cold Model.forward applies that same chain to an exact-descriptor expression; it creates no Engine
 and does not change cached outputs. Compute/train compile those fixed outputs once per setup and
-reuse positional bindings across batches. For example, Conv2d/pool/flatten can execute although
-GraphCheckpoint cannot save them. A rejected save touches no file and does not freeze or invalidate
-the Model. Definition/graph/load still use the bounded source path below. The
+reuse positional bindings across batches. The selected default Conv2d/pool/flatten and static
+recurrent DAGs persist through the same cold source path below. Unsupported saves touch no file and do not
+freeze or invalidate the Model. Definition/graph/load use the bounded source path below. The
 [owned Model contract](contracts/extensions-training.md#owned-tensor-models) owns this distinction.
 
 Before ordinary compilation, integration callers may use the bounded cold source path defined by
@@ -55,9 +55,13 @@ A replacement can itself be a produced expression; its upstream computation rema
 is checked by later ordinary compile/autograd, not widened source admission. Position associates
 inputs, so exchanging same-descriptor weights cannot be detected.
 
-This source path admits only static FORWARD ADD/MUL/NEG/MATMUL, floating RELU/TANH/SIGMOID and
-rank-two PERMUTE `[1,0]`. Activations reconstruct through their ordinary Tensor constructors;
-Checkpoint selects v2 only when one occurs, leaving five-kind source bytes at v1.
+The exact [Compiler source slice](contracts/compiler-autograd.md#compile-lifecycle) includes the
+original eight kinds, the selected default CNN/static recurrent compositions and fixed flat scans.
+The [owning v3 contract](contracts/extensions-training.md#canonical-graph-model-version-3) preserves
+v1/v2 bytes for old sources and defines multi-output normalization. For example, a static GRU
+remains its SELECT/GATHER/SLICE/CONCAT and arithmetic DAG, whereas an advanced RecurrentScan remains
+one producer. Reconstruction calls each public family constructor once and retains every canonical
+output wrapper, including siblings that are not roots. Cold scan persistence grants no execution.
 It neither optimizes nor closes raw layouts. An optimized, layout-closed artifact graph is not a
 reconstructible source merely because it has the same operations. The borrowed source sidecar
 owns no storage or close lifecycle; it is not retained in graph/artifact state. Only after complete
@@ -406,6 +410,17 @@ One occurrence and one prepared transition remain constant in graph size as `tim
 backend-internal row/time loop does not create nested graph identity. Physical active-row
 compaction and backpropagation through time (BPTT) remain later owner-specific decisions. See
 [ADR 0012](../design/decisions/0012-fixed-recurrent-scan-without-regions.md).
+
+Cold semantic persistence is a separate branch before capability/ownership selection. The
+[v3 contract](contracts/extensions-training.md#canonical-graph-model-version-3) permits capture,
+copy/save/load and rebind as one flat multi-output node. For example, an advanced list Model
+declares `[sequence, validLengths, initialHidden]`
+as external prototypes and weights as named leaves, saves without an Engine, then cold-loads and
+rebinds fresh exact-descriptor inputs. Only descriptors persist for those inputs, not length or
+state prototype bytes. Static time/batch may be zero. Descriptor-only preflight never reads length
+values or tests `[0,T]`; execution must do that later. A root at finalHidden or LSTM finalCell
+retains all canonical sibling ports but never serializes a carrier, prepared loop or runtime state.
+Trying compute/train on that cold scan is not a persistence workflow and remains unsupported.
 
 ## State scenario
 

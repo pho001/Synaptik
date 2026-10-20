@@ -35,7 +35,8 @@ import java.util.function.BiFunction;
  * binding replacement, state loading, and other mutable Module operations when one consistent
  * view matters. {@link #builder()}, {@link #defineTensor} and {@link #graph} establish a private
  * static source for compute and configured training; save additionally requires checkpoint admission.
- * Builder composition reuses existing layers independently of that eight-operation format limit.
+ * Builder composition reuses existing layers; selected default CNN/static recurrent DAGs persist
+ * through Checkpoint v3 without layer recipes. Fixed scans persist cold, not as executable state.
  * Those Models serialize high-level operations
  * (competing calls fail busy), guard inherited mutable state, and close cached public Engine and
  * Training owners before their native storage. Inherited Module mutators still require caller
@@ -145,8 +146,9 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * Registered wrappers determine roles; other reachable stored leaves become constants.
      * Callbacks are discarded after acquisition. Caller Tensors/stores are never rebound or mutated;
      * callback effects themselves are not rollbackable. No Engine is created.
-     * The static source admits ADD/MUL/NEG/MATMUL, rank-two PERMUTE[1,0] and floating
-     * RELU/TANH/SIGMOID through GraphCheckpoint; execution support remains occurrence-specific.
+     * The static source uses {@link GraphCheckpoint}'s closed admission, including selected
+     * CNN/static recurrent compositions and cold fixed scans. Execution support remains
+     * occurrence-specific, with no Conv3d gradients or scan execution.
      * @param inputSignature non-null fully static exact input descriptor
      * @param definition non-null one-shot definition; its adopted modules must not be mutated later
      * @return owned eval Model with private state and cold symbolic forward
@@ -194,7 +196,8 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * Acquires external state exactly once and reconstructs a private ordinary source.
      * @param inputs ordered unique static provenance-free prototypes, possibly unused
      * @param outputs nonempty distinct expressions using ADD/MUL/NEG/MATMUL, rank-two PERMUTE[1,0]
-     *     or floating RELU/TANH/SIGMOID; ordinary family guards remain mandatory
+     *     or another kind in Checkpoint's narrow CNN/static recurrent/fixed-scan source slice;
+     *     ordinary family guards remain mandatory. Runtime-length prototypes are metadata only
      * @param namedLeaves complete reachable named state with explicit roles and canonical Module traversal order
      * @return owned eval list Model; constants remain outside stateDictionary
      * @throws NullPointerException if an argument/element is null
@@ -225,7 +228,7 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Loads a single-boundary graph using the six NN artifact ceilings, without creating an Engine.
-     * @param path non-null graph-model.v1/v2 file, not an old flexible model artifact
+     * @param path non-null graph-model.v1/v2/v3 file, not an old flexible model artifact
      * @return owned eval Model adopting final loaded heap state without another copy
      * @throws IOException if reading or artifact validation fails
      * @throws IllegalArgumentException if boundaries require loadGraph or state order is noncanonical
@@ -430,7 +433,7 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Saves the fixed source and current live owned leaves, even before first compute.
-     * Builder compositions outside the eight-kind graph format reject before file work, without
+     * Builder compositions outside the closed graph source slice reject before file work, without
      * freezing Engine selection or disabling subsequent compute/training.
      * Uses NN ceilings: 256 MiB file/aggregate, 4 MiB manifest, 16384 entries, 64-byte keys,
      * 64 MiB payload. Does not persist objective, optimizer, RNG, cursor or Java callback state.

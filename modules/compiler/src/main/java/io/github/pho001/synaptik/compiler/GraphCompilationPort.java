@@ -42,9 +42,15 @@ public final class GraphCompilationPort {
      * Captures and verifies a bounded raw forward source graph and its exact ordered leaves.
      *
      * <p>One identity-based traversal assigns inputs and collects leaves together. Admission is
-     * limited to fully static ADD, MUL, NEG, MATMUL, RELU, TANH, SIGMOID and rank-two PERMUTE
-     * with axes {@code [1,0]}. Parameterless kinds require {@code NoOperationAttrs.INSTANCE};
-     * activations retain Model's floating-only guards and reconstruct without decomposition.
+     * limited to fully static FORWARD ADD/MUL/NEG/MATMUL, floating SUB/RELU/TANH/SIGMOID, rank-two
+     * PERMUTE {@code [1,0]}, positive-target RESHAPE, axis-two EXPAND_DIMS/SQUEEZE,
+     * rank-three axis-zero SELECT/CONCAT, rank-two axis-zero GATHER with non-gradient INT64
+     * vector indices, one nonempty step-one last-axis rank-two SLICE, biased default
+     * CONV2D/CONV3D, nonoverlapping floor MAX_POOL2D with stride equal to kernel, no padding
+     * and unit dilation,
+     * and the six biased/unbiased fixed scan signatures in either direction.
+     * Index/length values are never read; time/batch may be zero for scans. This grants no scan
+     * execution, BPTT or Conv3d gradients. Public constructors retain ordinary family guards.
      * Existing family inference verifies every raw descriptor without rewriting it. This is not
      * the optimized, layout-closed graph returned by {@link CompileArtifacts#graph()}.</p>
      *
@@ -65,8 +71,9 @@ public final class GraphCompilationPort {
      * Reconstructs a bounded raw graph through ordinary public Tensor family constructors.
      *
      * <p>Complete cold preflight precedes every producer allocation. Each stored node is built
-     * once, preserving occurrence identity and shared uses. A call-local reconstruction table is
-     * discarded on return or failure; returned Tensors retain only ordinary provenance. No
+     * once, preserving every canonical output port, occurrence identity and shared uses, including
+     * unconsumed scan siblings. A call-local reconstruction table is discarded on return or failure;
+     * returned Tensors retain only ordinary provenance. No
      * storage is accessed or allocated, and nothing is compiled, prepared or executed.</p>
      *
      * @param graph non-null raw graph in the same static FORWARD slice as {@link #captureSource};

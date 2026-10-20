@@ -75,6 +75,11 @@ route remains future work. Current NN `RnnSequence`, `GruSequence`, and `LstmSeq
 retain construction-time Java `long[]` lengths and static unrolling; later NN delegation requires
 backend adoption and a complete executable path.
 
+Cold semantic persistence is independent: the
+[Checkpoint v3 contract](contracts/extensions-training.md#canonical-graph-model-version-3) retains
+the same flat occurrence and all canonical ports. Model gains no codec, body, runtime artifact or
+new public type; result carriers are not serialized.
+
 ### `modules/config`
 
 Owns immutable declarative compile, prepare, run, publication, planning-cost, and model-autotuning
@@ -122,6 +127,12 @@ forward-only inference independently revalidates its fully static descriptors. B
 capable modes reject any complete forward inventory containing recurrence before any derivative
 Tensor is allocated. A later explicit backpropagation-through-time (BPTT) decision owns
 derivatives. Compiler must not unroll the recurrence into `time` nodes or create a body graph.
+
+The [cold source lifecycle](contracts/compiler-autograd.md#compile-lifecycle) also owns narrow
+CNN/static recurrent admission and fixed-scan reconstruction. It preflights every stored
+descriptor before constructing a producer, then calls each public family constructor once and
+maps all canonical output slots in a call-local table. It never reads GATHER indices or scan
+length values, closes raw layouts, imports host values or grants backend/gradient capability.
 
 ### `modules/runtime`
 
@@ -305,6 +316,12 @@ Mode, wrappers, paths and storage associations are guarded; inherited mutators r
 Close waits for active work, then releases sessions/preparations, native memory and only a lazily
 owned Engine. A selected Engine is borrowed. See the [owned workflow](../user-guide/running-models.md#owned-static-model-workflow).
 
+Selected default CNNs and static recurrent builders use the same source save path, not per-network
+serializers. Their zero-state and row-index constants remain named CONSTANT leaves outside the
+Module state dictionary. Advanced list Models may instead declare runtime INT64 lengths as inputs
+for cold scan copy/save/load/rebind. This neither changes the builder's static unrolling nor makes
+scan compute/train executable.
+
 ### `modules/training` (Gradle `:extensions:training`)
 
 Owns public backend-neutral optimizer algorithms, reusable training sessions, training steps, and
@@ -338,6 +355,15 @@ opaque artifact package. Its public Model edge and implementation-only Compiler 
 NN/Training/Engine dependency. A static input prototype contributes only its descriptor; named
 host leaves contribute raw values by exact identity. Load returns ordinary symbolic Tensors,
 without execution or a second ownership copy. See the [graph API](../api/graph-checkpoint-api.md).
+
+Checkpoint owns [v3 wire and normalization](contracts/extensions-training.md#canonical-graph-model-version-3),
+not operation semantics or Tensor reconstruction. All ordered producer ports receive distinct
+implicit value positions; iterative producer-aware topology retains unused sibling outputs while
+rejecting dead producers. For example, a finalCell-only LSTM root still retains one three-output
+producer. Descriptor-only source preflight precedes named host-state import, and recapture precedes
+return. No optimized CompileArtifacts, prepared/native/backend/runtime state or input prototype
+bytes are persisted. Published old graph bytes/readers remain compatible; execution and optimizer
+resume are separate owner decisions.
 
 ### Retained NN checkpoint glue
 

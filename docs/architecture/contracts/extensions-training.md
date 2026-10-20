@@ -93,9 +93,15 @@ Stacks retain TBF; lastTimeStep requires rank three and explicitly selects `sele
 Cold composition starts zero h (and c for LSTM); cached execution reuses immutable zero constants,
 never prior final state. This is not scan BPTT and adds no adjoints or execution hierarchy.
 
-Builder construction/cold forward/compute/train are independent of the eight-kind serialization
+Builder construction/cold forward/compute/train are independent of the closed serialization
 domain below. Only save applies that admission: unsupported chains reject before file work,
 without creating an Engine, freezing binding or invalidating/disabling compute or training.
+The selected default CNN and static recurrent compositions fit the
+[Compiler source slice](compiler-autograd.md#compile-lifecycle) and select
+[graph-model v3](#canonical-graph-model-version-3). Static recurrence persists its existing DAG,
+including reachable INT64 row-index and floating zero-state CONSTANTs, not cell result objects or
+layer recipes. Constants remain outside stateDictionary; equal-valued distinct identities remain
+distinct, while shared identities retain their roles and aliases.
 
 defineTensor seals its definition once, selects eval before one prototype forward (including
 deferred initialization), then discards callbacks. Registered wrappers establish PARAMETER/BUFFER
@@ -105,8 +111,13 @@ Module traversal order. Dotted namespaces contain no forward recipe. Constants a
 GraphCheckpoint.copy acquires each external identity once and reconstructs against private leaves;
 strict state installation preserves wrappers, paths and aliases without mutating caller Tensors or stores.
 Load adopts final heap state without another copy. Callback side effects are not rolled back.
-Definition/graph/load source admission is static ADD/MUL/NEG/MATMUL/PERMUTE[1,0]/RELU/TANH/SIGMOID; the three activations
-retain Model's floating guards. Raw persistence supports seven dtypes,
+Definition/graph/load source admission is the same closed static FORWARD
+[Compiler slice](compiler-autograd.md#compile-lifecycle), including the selected fixed flat scans.
+The list boundary may declare sequence, non-gradient INT64 runtime lengths and initial states as
+unique provenance-free inputs, disjoint from named state. Their prototype storage is never copied
+or saved; copy/load recreate storage-free prototypes and cold forward accepts fresh exact full
+descriptors. This does not redirect the fluent builder or existing static sequence containers to
+scans, or grant scan compute/train support. Raw persistence supports seven dtypes,
 independently of execution. Old model.v1/whole-model.v1 readers and flexible forward remain separate.
 
 All declared static slots, including unused ones, require exact descriptors (layout presence and
@@ -613,12 +624,19 @@ Capture uses Compiler captureSource exactly once and associates its first-encoun
 exact Tensor identity, never by declared position. Existing immutable Model graph records normalize
 file-local IDs and retain unused signature slots; no second graph representation or Tensor
 reconstruction table belongs here. Compiler retains source admission and call-local reconstruction
-ownership: static FORWARD ADD/MUL/NEG/MATMUL/RELU/TANH/SIGMOID with NoOperationAttrs and rank-two
-PERMUTE[1,0], no optimization or layout closure. Activations remain floating-only. Preserve full descriptors, occurrences, sharing
+ownership under the exact [closed source slice](compiler-autograd.md#compile-lifecycle), without
+optimization or layout closure. Preserve full descriptors, occurrences, sharing
 and ordered roots; all seven dtypes where Model permits (no integral/BOOL NEG). Zero-node data
 is not new Engine capability. Rebind checks metadata then replacement count/full descriptors,
 retains named state and permits produced/repeated substitutions with opaque upstream provenance;
 its immutable ordinary outputs may repeat, which ordinary compilation still rejects.
+
+Normalization assigns ordered ValueIds to every canonical producer output, including unconsumed
+sibling ports; NodeId and ValueId are not interchangeable. Only Compiler reconstructs Tensors,
+calling each family constructor once and mapping all returned components. GraphCheckpoint retains
+no ValueId-to-Tensor table or result-carrier objects. Capture/preflight/rebind inspect no storage,
+including GATHER indices and scan valid lengths. Runtime lengths may be external signature inputs;
+their prototype bytes never enter the schema or payloads. Copy/save read only named host values.
 
 Copy/save read named identities only. Check static canonical geometry even for unresolved layouts;
 present leaf layouts must equal zero-offset non-view contiguous geometry. Intermediate views are
@@ -676,21 +694,109 @@ cleanup/failure semantics; this is not authentication or portable power-loss dur
 
 ### Canonical graph-model version 2
 
-Save selects the smallest sufficient closed version: sources containing any RELU, TANH or SIGMOID
+Within the original eight-kind slice, save selects the smallest sufficient closed version:
+sources containing any RELU, TANH or SIGMOID
 write ArtifactFile v1 kind `graph-model.v2`, eight ASCII bytes `SYNGRF02` and i32 version 2.
-All other sources, including zero-node sources, write byte-identical version 1. Version 2 retains
+Other sources within that slice, including zero-node sources, write byte-identical version 1.
+The [version-3 policy](#canonical-graph-model-version-3) governs sources using added kinds,
+including when combined with activations. Version 2 retains
 every version-1 field, order, descriptor/role/dtype ID, payload and limit above, appending only
 u8 opcodes 6=RELU, 7=TANH and 8=SIGMOID. Each has one preceding input ValueId and no attribute
 bytes; only `NoOperationAttrs.INSTANCE` is admitted. Encoder dry sizing explicitly validates every
 kind, attributes and fixed arity, rejecting unknown operations rather than defaulting to PERMUTE.
 
-Load accepts only the exact kind/magic/version tuples for versions 1 and 2. Version 1 still admits
+For these two versions, load accepts only their exact kind/magic/version tuples. Version 1 still admits
 only opcodes 1..5; version 2 admits only 1..8. Version 2 may contain only the original five kinds;
 re-saving that source selects version 1. Reject mismatched tuples, unknown versions/opcodes and
 malformed fields before host import, reconstruction or publication. New readers retain every valid
 version-1 file; old graph readers fail closed on version 2. The equal-length kind strings leave
 manifest/file sizing unchanged. ArtifactFile framing and the separate model.v1/whole-model.v1
 readers remain unchanged; no public version selector, registry or enum-ordinal encoding is added.
+
+### Canonical graph-model version 3
+
+Version 3 is one closed successor for the selected CNN/static recurrent source slice and fixed
+flat scans. It uses ArtifactFile v1 kind `graph-model.v3`, eight ASCII bytes `SYNGRF03`, and i32
+version 3. No intermediate one-output v3 or separate scan format is defined. It retains the
+[version-1](#canonical-graph-model-version-1) section order, input/state/registration/output
+fields, descriptor/role/dtype IDs, raw payloads and envelope framing. The node section alone
+changes as specified below; all integers remain big-endian with no padding or trailing fields.
+
+| Node record order | Exact fields |
+|---|---|
+| Prefix | u8 phase=1, u8 opcode. Explicit opcodes 1..8 retain their version-1/2 meanings. |
+| Inputs | For CONCAT and scans only, i32 input count immediately after opcode; then that many i32 input ValueIds. All other kinds use their fixed arity without a count. |
+| Attributes | The exact fields below, after input IDs; existing PERMUTE remains i32 2, i32 1, i32 0. Kinds 1..4 and 6..9 have no attribute bytes. |
+| Results | Positive i32 Q, followed by Q ordered output descriptors in canonical producer-port order. Q=1 for opcodes 1..19, Q=2 for 20/21, Q=3 for 22. No output IDs are serialized here. |
+
+For input count I and unique state count S, NodeId n has first output
+`I+S+sum(Q[k], k<n)` and output port j has ValueId `I+S+sum(Q[k], k<n)+j`, for `0<=j<Q[n]`.
+IDs are i32; every input reference must precede its node's first output. Check cumulative
+`I+S+sum(Q) <= Integer.MAX_VALUE`, not merely `I+S+N`. Inputs, state and implicit output ranges
+define each value once. Repeated input references and repeated port uses are valid; duplicate
+stored roots, self/forward/dangling references and duplicate value definitions are not.
+
+The following table defines the appended wire fields. The
+[Compiler source contract](compiler-autograd.md#compile-lifecycle) owns the exact narrow semantic
+admission and public-constructor reconstruction; encoding independently rejects any kind,
+attributes or input/output count that does not satisfy it.
+
+| Opcode and kind | Input count | Attribute fields after input IDs |
+|---|---|---|
+| 9 SUB | 2 | None. |
+| 10 RESHAPE | 1 | i32 target rank, then rank i64 target extents. |
+| 11 EXPAND_DIMS / 12 SQUEEZE | 1 | i32 axis. |
+| 13 SELECT | 1 | i32 axis, i64 index. |
+| 14 GATHER | 2 | i32 axis. |
+| 15 SLICE | 1 | i32 entry count, then ordered entries `(i64 start, i64 length, i32 axis, i64 step)`. The selected slice has exactly one entry. |
+| 16 CONCAT | Positive variadic count | i32 axis; the count precedes input IDs, not attributes. |
+| 17 CONV2D | 3 | Seven i64 fields: strideHeight, strideWidth, paddingHeight, paddingWidth, dilationHeight, dilationWidth, groups; admitted tuple `(1,1,0,0,1,1,1)`. |
+| 18 CONV3D | 3 | Ten i64 fields: strideDepth, strideHeight, strideWidth, paddingDepth, paddingHeight, paddingWidth, dilationDepth, dilationHeight, dilationWidth, groups; admitted tuple `(1,1,1,0,0,0,1,1,1,1)`. |
+| 19 MAX_POOL2D | 1 | Eight i64 fields: kernelHeight, kernelWidth, strideHeight, strideWidth, paddingHeight, paddingWidth, dilationHeight, dilationWidth; then u8 ceilMode=0. |
+| 20 RNN_TANH | 5 or 6 | u8 direction: 1 FORWARD, 2 REVERSE. |
+| 21 GRU_RESET_AFTER | 5 or 6 | u8 direction: 1 FORWARD, 2 REVERSE. |
+| 22 LSTM | 6 or 7 | u8 direction: 1 FORWARD, 2 REVERSE. |
+
+Scan input order is input, validLengths, initialHidden, then inputWeight and hiddenWeight for
+RNN/GRU; LSTM inserts initialCell before the weights. An optional bias is last. Input count alone
+selects the overload; there is no bias flag, length value, loop count or body attribute. Outputs
+are outputs/finalHidden and, for LSTM, finalCell. The
+[fixed recurrent descriptor semantics](recurrent-scan.md#static-shape-and-runtime-value-boundary)
+remain unchanged, including unresolved layouts, floating-role OR gradient eligibility and permitted
+zero time/batch. Valid-length bounds `[0,T]` are execution checks, not cold preflight checks.
+
+Canonical topology uses a call-local value-to-producer/port index and iterative producer-level
+depth-first postorder, never Java-stack recursion or value-minus-boundary node arithmetic. Walk
+ordered roots and ordered operands in capture order. Visiting any port visits its producer once
+and retains all sibling descriptors, including unused siblings. Reject dead producers and
+unreachable state, not unused sibling ports; retain declared unused signature inputs. Preserve
+distinct occurrences and normalized recapture equality before returning a loaded source. For
+example, a graph rooted only at LSTM finalCell retains one producer and all three output
+descriptors; it neither creates three scans nor treats the other two ports as dead nodes.
+
+Select the smallest sufficient version: zero-node and original five-kind sources retain
+byte-identical v1; sources using only the original eight kinds and at least one activation retain
+byte-identical v2; any opcode 9..22 selects v3. Load accepts only exact kind/magic/version tuples:
+v1 admits 1..5, v2 1..8, v3 1..22 with their own exact records. A v3 containing only older kinds
+is valid and re-saves as v1/v2. Unknown versions, opcodes, directions, attributes or cardinalities
+fail closed. Old readers reject v3. No published v1/v2 field changes, public version selector,
+new API/type/module/registry, enum-ordinal wire or implicit operation decomposition is permitted.
+Separate `model.v1`/`whole-model.v1` readers remain unchanged.
+
+All prior raw-bit, role, alias, geometry, storage and atomic-publication rules apply. Bound every
+count, rank, string and cumulative value count by remaining bytes and checked JVM arithmetic before
+allocation. The dry Sink traverses exactly the fields used by encoding, including Q and every
+descriptor, before schema allocation, host admission or copying. For schema bytes D (including
+all result descriptors), unique state bytes B and state count S, retain `M=72+58*S`,
+`aggregate=D+B`, `file=48+M+D+B`, `entries=1+S` and the 14-byte kind/key ceiling. All six limits
+and individual payload bounds precede state admission/copy. Complete wire and descriptor-only
+source preflight, including late-invalid and dead-producer rejection, precede host import and
+producer reconstruction; normalized recapture precedes publication. Failure returns no partial
+source, mutates no source binding and retains the existing ArtifactFile target/cleanup semantics.
+
+This is cold semantic graph persistence, not serialized CompileArtifacts, prepared execution,
+native/backend/runtime state or saved input batches. It grants no scan execution, BPTT, Conv3d
+gradients, optimizer resume or automatic exact training continuation.
 
 ## `extensions/onnx`
 

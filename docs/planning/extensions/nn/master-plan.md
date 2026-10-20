@@ -159,6 +159,15 @@ No Checkpoint widening or scan/Data/NN0027 prerequisite; earlier held streams re
 
 ## Proposed whole-model checkpoint program
 
+The user-approved [CP0010 packet](../checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md)
+and [CP0011 companion](../checkpoint/tasks/0011-flat-recurrent-scan-persistence.md) are jointly Complete
+on 2026-10-20: builder CNN/static recurrence and cold flat-scan persistence accepted after independent
+APPROVE and main's focused/native root gates; [CP0010 Result](../checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md#result)
+owns evidence. Authorized NN/Compiler/Checkpoint frontiers: None; no successor or scan execution/BPTT
+authorized. Existing predecessor DAG and held NN0027/CP0005C/NN0021B scope unchanged; no new
+API/types/lifecycle/adjoints. Base `8d5357e9a8698721a2252cb2ca3cb94150e705e8`, Parallel group None;
+main owns serialized integration and shared documents.
+
 [ADR 0038](../../../design/decisions/0038-declarative-model-and-training-resume.md#nn-decision-selected-for-review)
 revises the primary product to automatic usable-model load, then inference or owned Training resume.
 0026 is Complete after final independent reviews and coordinator validation.

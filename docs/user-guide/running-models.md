@@ -129,13 +129,35 @@ time (BPTT), streaming state, or runtime-length support. Conv3d backward remains
 For CNNs axis 0 is batch; for TBF `[T,B,H]` it is time, so flatten gives `[T,B*H]`.
 Use `lastTimeStep()` first when recurrent batch rows must remain separate.
 
-Construction, cold forward and execution are independent of serialization. Save still admits only
-ADD/MUL/NEG/MATMUL, rank-two PERMUTE `[1,0]` and floating RELU/TANH/SIGMOID. MLPs in this domain
-round-trip through v1/v2; CNN/pool/reshape/concat/select/gather chains reject before file work,
-leaving absent targets absent and existing targets unchanged. A failed unsupported save does not
-freeze Engine selection, invalidate the Model, or disable compute/training. It does not make
+Default Conv1d/2d/3d, MaxPool2d/flatten and static RNN/GRU/LSTM compositions save as their ordinary
+Tensor graphs, not layer recipes. Save before compute, close the original Model, cold-load through
+`Model.load`, then compute fresh batches with the exact original descriptor. For example, the CNN
+above retains `[32,1,28,28]` input and `[32,10]` output, while the stacked LSTM retains `[20,32,8]`
+input and `[32,10]` output.
+Its zero initial-state and row-index constants are saved as reachable CONSTANT leaves, not layer
+recipes. Configure a fresh objective/optimizer after load to train Conv1d/2d or static recurrence
+where current adjoints permit; Conv3d remains inference-only. Saving trained values still does not
+resume optimizer history, RNG or data progress. Any selected added operation chooses v3 even if
+the graph also contains RELU/TANH/SIGMOID.
+
+Sources containing only ADD/MUL/NEG/MATMUL, rank-two PERMUTE `[1,0]` and floating
+RELU/TANH/SIGMOID retain byte-identical v1/v2 saves. Construction, cold forward and execution
+remain independent of serialization admission. Other source variants still reject: convolution
+without bias or with nondefault geometry, unsupported indexing axes and arbitrary recurrent bodies
+are outside the selected slice. Source
+rejection occurs before file work, leaving absent targets absent and existing targets unchanged.
+A failed unsupported save does not freeze Engine selection, invalidate the Model, or disable
+compute/training. Persistence does not make
 every builder occurrence executable: the selected Engine's dtype/layout/gradient capabilities apply.
 See [builder API and lifecycle](../api/public-api.md#fluent-model-builder).
+
+Fixed scans are a separate advanced cold workflow, not a replacement for the builder's static
+sequences. Use the existing list `Model.graph`/`Model.loadGraph` boundary with INT64 runtime lengths
+as an input, alongside sequence and any external initial states. The cold roundtrip
+recreates storage-free prototypes and rebinds fresh exact-descriptor inputs without reading length
+values. It retains all canonical ports of one scan even when only finalCell is returned. Calling
+compute/train on it remains unsupported; no backend scan execution, BPTT or serialized prepared
+loop is provided. See the [cold scan scenario](../api/graph-checkpoint-api.md#selected-cnn-and-recurrent-persistence).
 
 ## Owned static Model workflow
 
@@ -143,9 +165,10 @@ For an application-built and file-restored model with the same compute/train/sav
 an **owned source**: ordinary static Tensor provenance over private weight values. The builder above
 retains layer composition; the definition/graph/load paths below reconstruct the bounded source.
 Use Java 26, an explicit `:extensions:nn` dependency, and the CPU Engine's incubator vector module
-(`--add-modules jdk.incubator.vector`). No caller Arena is required for this workflow. Definition/graph source admission
-admits ADD, MUL, NEG, MATMUL, rank-two PERMUTE[1,0] and floating RELU, TANH and SIGMOID;
-this is not all NN layers or all codecs.
+(`--add-modules jdk.incubator.vector`). No caller Arena is required for this workflow.
+Definition/graph acquisition uses the same narrow
+[source slice](../api/graph-checkpoint-api.md#selected-cnn-and-recurrent-persistence), not all NN
+layers or all codecs.
 Execution and training support remain narrower than raw graph persistence's seven data types.
 
 This complete example learns one FLOAT32 weight, starting at 2. Both batch and target are [1,1].
@@ -235,7 +258,7 @@ storage and an owned Engine, attempting all cleanup and replaying retained failu
 | Busy or closed/closing | Another high-level operation or close owns admission. Serialize calls; keep borrowed Engine open through Model use. |
 | Source changed | Mode, paths/wrappers, Tensor or storage associations changed. Construct a replacement Model; restoring a binding does not revive an invalid capability. |
 | Native training admission rejects | Current Training rejects unresolved/empty/nonfinite/aliased parameters. Supply supported state before acquisition; there is no implicit conversion or alias splitting. |
-| Unsupported source operation | Definition/graph acquisition and all graph saves use eight-kind admission. Use the fluent builder for supported compute/train compositions outside it; their unsupported saves still reject. |
+| Unsupported source operation | Acquisition/save requires the narrow source slice: selected default CNN/static recurrence and cold fixed scans, not arbitrary attributes or families. Builder execution is independent of save admission. |
 
 Short save/load forms use 256 MiB file/aggregate, 4 MiB manifest, 16384 entries, 64-byte keys and
 64 MiB payload ceilings; explicit `ArtifactLimits` overloads remain. Old `model.v1` and
@@ -297,7 +320,8 @@ static void activationMlp() throws Exception {
 Before training, the hidden values are `[0.2,1.15]` for the first batch and `[-0.3,0.275]` for
 the second. RELU removes the second batch's negative contribution; it is not an identity or
 transpose. Replace `.relu()` with `.tanh()` or `.sigmoid()` for the other supported activations.
-Each keeps its ordinary Tensor semantics and selects graph-model.v2. Graphs with only the original
+Each activation variant in this eight-kind-only example selects graph-model.v2 without changing
+its ordinary Tensor semantics. Graphs with only the original
 five kinds still save byte-identical v1; old graph readers reject v2. The regression compares all
 three activations' forward values, objectives and nonzero updates against an independent ordinary
 Tensor/Engine oracle, including training after load and reloading trained state.

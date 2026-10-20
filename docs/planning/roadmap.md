@@ -118,7 +118,7 @@ after Euclid's final APPROVE and main's root gate; NN0028 is Complete under the 
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions/optimizers/state, [0007 generic live admission](extensions/training/tasks/0007-generic-live-parameter-admission.md) and [0008 fresh-value runs](extensions/training/tasks/0008-fresh-value-training-session-runs.md) Complete; final independent reviews and coordinator gates passed. Authorized Training frontier: None; NN0028 Complete; 0006/adapter held. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | [0008](extensions/checkpoint/tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md) and [0009 eight-kind/selective-v2 source/persistence](extensions/checkpoint/tasks/0009-owned-model-activation-source-and-persistence.md) Complete; 0009 accepted 2026-10-19 after Archimedes final APPROVE and main's integration/native root gates. Authorized Checkpoint frontier: None. Training0008/NN0028 Complete. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | Complete through joint [0010 CNN/static recurrence](extensions/checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md) / [0011 cold flat scans](extensions/checkpoint/tasks/0011-flat-recurrent-scan-persistence.md), accepted 2026-10-20 after independent APPROVE and main's focused/native root gates. CP0010 owns evidence; authorized frontier None. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
@@ -186,7 +186,16 @@ independent code/docs APPROVE, CPU module/Javadoc, focused conformance/Fluent in
 same bounded public probe passed. Main accepted the unchanged reviewed source at base
 `2090e0a6e32485756a3dfd0d545b5dbce523cfe6` (2026-10-20); Parallel group None, no new frontier.
 The brief owns timings and single-probe limits; no root suite or benchmark campaign was added.
-Future graph-persistence extensions remain separate, not Ready or the next implementation.
+The [CP0010 CNN/static-recurrent packet](extensions/checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md)
+and [CP0011 flat-scan supplement](extensions/checkpoint/tasks/0011-flat-recurrent-scan-persistence.md)
+are jointly Complete on 2026-10-20: bounded CNN/static recurrence and multi-output v3 cold scan
+persistence accepted after independent APPROVE and main's focused/native root gates;
+[CP0010 Result](extensions/checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md#result) owns evidence.
+Completed Compiler0008/0009 + Checkpoint0008/0009 + Training0008 + NN0028/0029 and
+Model0025E/0025F/Compiler0006A remain the predecessor DAG, on base
+`8d5357e9a8698721a2252cb2ca3cb94150e705e8`. Authorized Checkpoint/Compiler/NN frontiers: None;
+no successor authorized. Scans remain cold-only, without backend execution/BPTT or optimizer resume.
+Parallel group None; main owns serialized integration and shared documents.
 
 ## Proposed next decisions
 

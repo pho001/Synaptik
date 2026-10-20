@@ -100,7 +100,7 @@ final class SourceGraphCaptureTest {
                 () -> GraphCompilationPort.captureSource(Arrays.asList(x, null)));
         assertThrows(IllegalArgumentException.class, () -> GraphCompilationPort.captureSource(List.of()));
         assertThrows(IllegalArgumentException.class, () -> GraphCompilationPort.captureSource(List.of(x, x)));
-        for (Tensor unsupported : List.of(x.abs(), x.sub(x), x.sum(),
+        for (Tensor unsupported : List.of(x.abs(), x.sum(),
                 leaf(DataType.FLOAT32, Shape.of(2, 3), false).permute(0, 1),
                 leaf(DataType.FLOAT32, Shape.of(2, 3, 4), false).permute(2, 1, 0))) {
             assertDoesNotThrow(() -> GraphCapture.capture(List.of(unsupported)));

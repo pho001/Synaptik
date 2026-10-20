@@ -146,6 +146,17 @@ worker validation and exact metadata. Existing contracts suffice; no authority c
 
 ## P2 source reconstruction dependency
 
+Joint [CP0010](../../extensions/checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md)
+joins completed Compiler0008/0009, Checkpoint0008/0009, Training0008 and NN0028/0029 for bounded
+fluent CNN/static-unroll persistence, with [CP0011 scan supplement](../../extensions/checkpoint/tasks/0011-flat-recurrent-scan-persistence.md)
+using completed Model0025E/0025F/Compiler0006A. Both Complete on 2026-10-20 after independent
+APPROVE and main's focused/native root gates; [CP0010 Result](../../extensions/checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md#result)
+owns evidence. Raw inference stays separate from optimized layout closure; scans remain cold-only,
+without backend execution or BPTT.
+Base `8d5357e9a8698721a2252cb2ca3cb94150e705e8`;
+authorized Compiler/Checkpoint/NN frontiers None, no successor or independent Compiler task;
+Parallel group None, main integration.
+
 The [source-verified brief](tasks/0008-cold-source-capture-and-reconstruction.md) supplies the
 [program](../../model-execution-refactor.md#phases-and-owner-dag)'s Compiler prerequisite to
 Checkpoint0008. GraphCompilationPort.captureSource returns the validated **raw** source graph and

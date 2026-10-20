@@ -277,13 +277,45 @@ The supported `GraphCompilationPort` also owns a cold source boundary independen
 compilation: `captureSource` captures once with empty constant ingress and collects exact leaves
 at first input-ID assignment; `reconstructSource` substitutes descriptor-compatible Tensors by
 graph-input position. The source is the raw graph, not optimized `CompileArtifacts.graph()`.
-Both operations admit only fully static FORWARD ADD/MUL/NEG/MATMUL/RELU/TANH/SIGMOID with
+Both operations admit only fully static FORWARD sources in the following closed slice. The
+original eight kinds remain ADD/MUL/NEG/MATMUL/RELU/TANH/SIGMOID with
 `NoOperationAttrs.INSTANCE` and rank-two PERMUTE with exactly `[1,0]`. Activations retain Model's
 floating-only guards and reconstruct through `Tensor.relu/tanh/sigmoid`, without decomposition.
+
+The additional kinds have these exact source signatures. Model guards and family inference still
+apply; an operation outside these attributes or arities is unsupported, even if executable.
+
+| Kind | Inputs and attributes | Public family reconstruction |
+|---|---|---|
+| SUB | Two floating operands; `NoOperationAttrs.INSTANCE`; one output. | `a.sub(b)` |
+| RESHAPE | One input; `TargetShapeAttrs` with positive fully static target extents and equal checked element count; one output. | `a.reshape(shape)` |
+| EXPAND_DIMS / SQUEEZE | One input; `AxisTransformAttrs`, axis 2 only; SQUEEZE requires that axis to be singleton; one output. | `a.expandDims(2)` / `a.squeeze(2)` |
+| SELECT | One rank-three input; `SelectAttrs`, axis 0 and an in-bounds static index; one output. | `a.select(axis,index)` |
+| GATHER | Rank-two data and rank-one non-gradient INT64 indices; `IndexAxisAttrs`, axis 0; one output. | `data.gather(indices,axis)` |
+| SLICE | One rank-two input; `SliceAttrs` with exactly one nonempty last-axis entry, normalized start/length and step 1; one output. | `a.sliceByLength(starts,lengths,axes,steps)`; never reverse-normalize ends. |
+| CONCAT | Positive input count, rank-three inputs; `CompositionAxisAttrs`, axis 0; one output. | `Tensor.concat(axis,inputs)` |
+| CONV2D / CONV3D | Exactly three inputs in input/weight/bias order; `Conv2dAttrs.defaults()` / `Conv3dAttrs.defaults()` geometry only; one output. | `input.conv2d(weight,bias,attrs)` / `input.conv3d(weight,bias,attrs)` |
+| MAX_POOL2D | One input; `MaxPool2dAttrs` with positive kernels, stride=kernel, padding 0, dilation 1, floor mode; one output, no index port. | `a.maxPool2d(attrs)` |
+| RNN_TANH / GRU_RESET_AFTER / LSTM | Exactly the six biased/unbiased fixed signatures and two directions in the [recurrent contract](recurrent-scan.md#fixed-family-and-current-model-surface); two outputs for RNN/GRU, three for LSTM. | Call `RecurrentScan.rnn/gru/lstm` once, direction last; retain every returned canonical component. |
+
+CONV1D is not a new kind: the selected composition expands input/weight at axis 2, uses biased
+default CONV2D and squeezes axis 2. Unbiased convolutions and other convolution/pooling geometry
+are not admitted by this source slice. Fixed scans remain one flat producer, never static
+unrolling, a body, callback or region. Their static time and batch may be zero; feature/hidden
+sizes remain positive. Cold admission reads no GATHER indices or scan valid-length values;
+execution owns their value bounds. It grants no backend scan execution, BPTT or Conv3d gradients.
+
 All stored nodes, including dead nodes, and all values
 must pass static checked geometry, family inference, exact descriptor validation, and absence of
 deferred obligations before reconstruction creates any producer. Model constructors continue to
 own structural closure, attributes/signatures, and layout geometry.
+
+Use raw `CapturedGraphInference`, not `StaticResultLogicalLayoutClosure` or an optimized graph.
+SELECT and SLICE derive views only from present input layouts; CONCAT and scan outputs remain
+unresolved. RESHAPE derives a view only from present contiguous geometry, otherwise remaining
+unresolved. Raw unresolved MATMUL→SLICE/RESHAPE and CONCAT→SELECT/RESHAPE chains are valid when
+their exact descriptors match raw family inference and no deferred obligation remains. Do not
+force copies, resolve missing layouts or read storage to make a source fit admission.
 
 `SourceCapture` snapshots unique provenance-free exact leaf references in graph-input order,
 with full descriptor equality, even for direct record construction. It borrows those Tensors
@@ -295,7 +327,8 @@ contract; same-descriptor swaps cannot be detected.
 
 Only after complete preflight may reconstruction allocate one call-local `ValueId`-to-Tensor
 table. It constructs each stored node once in topological order through its public family
-constructor, retaining canonical output wrappers, sharing, repeated uses and output order, never
+constructor, mapping every ordered output slot to its canonical wrapper, retaining sharing,
+repeated port uses and output order, never
 merging occurrences or fabricating intermediate placeholders. The table is discarded on return
 or failure; returned outputs retain only ordinary provenance. Zero-node pass-through and unused
 inputs are valid source structure, not an Engine executability promise. Neither cold operation

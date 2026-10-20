@@ -29,7 +29,7 @@ Hold NN0027/CP0005C/Training/adapter expansion; completed closed-NN v1 stays sup
 - Owning [extensions contract](../../../architecture/contracts/extensions-training.md):
   extensions/nn, extensions/training, extensions/checkpoint and Optimizer/training lifecycle.
 - Historical CP0005B execution base/accepted packet remains in its completed brief.
-- Current successor planning base: `7e880fb1044168043e45b10419a570d64c5283ae`; future cutovers
+- Current successor planning base: `8d5357e9a8698721a2252cb2ca3cb94150e705e8`; future cutovers
   require independent review and coordinator verification, not prior-v1 approval.
 - [Whole-model contract](../../../architecture/contracts/extensions-training.md#whole-model-definition-and-composition)
   accepts CP0005B API/wire/defaults/failures/preflight; no dependency changes.
@@ -131,6 +131,15 @@ not in this plan.
 
 ## Task list
 
+Completed joint DAG: Compiler0008/0009 + Checkpoint0008/0009 + Training0008 +
+NN0028/0029 plus Model0025E/0025F/Compiler0006A → [CP0010](tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md)
+with [CP0011 scan supplement](tasks/0011-flat-recurrent-scan-persistence.md), on published CPU0027 base.
+CP0010/CP0011 Complete together on 2026-10-20: bounded CNN/static recurrence and cold scan v3
+persistence accepted after independent APPROVE and main's focused/native root gates;
+[CP0010 Result](tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md#result) owns evidence.
+Authorized Checkpoint/Compiler/NN frontiers: None; no successor authorized. Parallel group None,
+main integration; no scan execution/BPTT capability or independent Compiler/NN task.
+
 Completed rows preserve published API history; unfinished rows describe future capability only.
 
 | ID | Task | Status | Depends on | Summary |
@@ -149,8 +158,11 @@ Completed rows preserve published API history; unfinished rows describe future c
 | 0007 | Broader recovery/text checkpoint | Draft | 0005B/0006; Text 0003 only for text integration | Later broader corruption/recovery/text validation; not an extra implementation prerequisite or duplicate gate. |
 | [0008](tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md) | Generic graph/value persistence and NN glue cutover | Complete | Engine0021; Training0007; Compiler0008; CP0005B; accepted P2 Complete | Bounded graph-model.v1 and six/nine-file split delivered; old readers retained, Halley final APPROVE and coordinator test/Javadoc gate passed. |
 | [0009](tasks/0009-owned-model-activation-source-and-persistence.md) | Owned Model activation source and persistence | Complete | Compiler0008; Checkpoint0008; Training0008; NN0028 Complete | Eight-kind/selective-v2 capability accepted 2026-10-19 after Archimedes final APPROVE and main's integration/native root gates; evidence in brief. |
+| [0010](tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md) | Fluent CNN/static recurrence and joint v3 foundation | Complete | Completed Compiler/Checkpoint/Training/NN predecessors; joint approval accepted | Joint CP0011 acceptance after independent APPROVE and main's focused/native root gates; evidence in brief. |
+| [0011](tasks/0011-flat-recurrent-scan-persistence.md) | Flat scan persistence supplement to CP0010 | Complete | Same packet/predecessors plus completed Model0025E/0025F/Compiler0006A | Cold-only scans accepted jointly with CP0010; shared evidence in CP0010 Result. |
 
-Exact conflict/base/order/validation metadata live in briefs. Checkpoint0008/0009 are Complete; frontier None.
+Exact conflict/base/order/validation metadata live in briefs. Checkpoint0008/0009 are Complete;
+CP0010/CP0011 are jointly Complete; current authorized frontier None.
 0008 had Parallel group None; completed serial order Engine0021 → Training0007 → Compiler0008
 → Checkpoint0008 → Training0008 → NN0028. Shared root/owning-contract/NN-state/Checkpoint-wire writes
 conflict; main model-execution coordinator owns shared documents with exclusive-writer delegation.

@@ -8,10 +8,14 @@ substitutes inputs symbolically. None creates an Engine, prepared execution or n
 The [owning contract](../architecture/contracts/extensions-training.md#generic-graph-source-and-values)
 defines the capability, [original wire](../architecture/contracts/extensions-training.md#canonical-graph-model-version-1)
 and [selective activation wire](../architecture/contracts/extensions-training.md#canonical-graph-model-version-2).
+The [v3 contract](../architecture/contracts/extensions-training.md#canonical-graph-model-version-3)
+extends the same APIs to selected convolutional neural network (CNN), static recurrent and fixed
+flat-scan sources. Persistence adds no scan execution, backpropagation through time (BPTT),
+Conv3d gradients or optimizer resume.
 
 ```text
 borrowed Source -> copy -> private state + reconstructed ordinary provenance
-borrowed Source -> save -> graph-model.v1/v2 -> load -> private heap state + ordinary provenance
+borrowed Source -> save -> graph-model.v1/v2/v3 -> load -> private heap state + ordinary provenance
 Source + replacement inputs -> rebind -> ordinary outputs -> explicit caller Engine
 ```
 
@@ -44,16 +48,19 @@ Equal values or physically overlapping distinct Tensors never establish aliases.
 UTF-8 nonblank dot segments, without normalization, duplicates or prefix collisions. Registration
 order is retained independently of first source encounter and input signature order.
 
-Source admission is static FORWARD ADD/MUL/NEG/MATMUL/RELU/TANH/SIGMOID and rank-two PERMUTE[1,0], with exact full
-descriptors, sharing and occurrences. All seven raw types persist where Model permits them;
-integral/BOOL NEG and activations are not supported. No optimizations, layout closure or implicit family extensions
-occur. Zero-node graphs are valid data, not a new Engine execution promise. No backend rank-16
-ceiling is imposed by persistence.
+Source admission is the closed static FORWARD
+[Compiler slice](../architecture/contracts/compiler-autograd.md#compile-lifecycle): the original
+eight kinds plus the selected CNN/static recurrent transforms and fixed scans described below.
+Full descriptors, sharing and occurrences remain exact. All seven raw types persist where Model
+permits them; SUB, NEG and activations require floating operands. No optimization, layout closure
+or implicit family extension occurs. Zero-node graphs are valid data, not a new Engine execution
+promise. No backend rank-16 ceiling is imposed by persistence.
 
 ## Selective graph format versions
 
-Sources containing RELU, TANH or SIGMOID save as `graph-model.v2` (`SYNGRF02`, i32 version 2).
-Other admitted sources, including zero-node graphs, retain byte-identical `graph-model.v1`
+Within the original eight-kind slice, sources containing RELU, TANH or SIGMOID save as
+`graph-model.v2` (`SYNGRF02`, i32 version 2).
+Other sources in that slice, including zero-node graphs, retain byte-identical `graph-model.v1`
 (`SYNGRF01`, i32 version 1). Version 2 appends opcodes 6, 7 and 8 respectively, each with one
 preceding input ID and no attribute bytes; all other fields, payloads and bounds are unchanged.
 For example, `x.mul(weight).relu()` selects v2, whereas `x.mul(weight)` still selects v1.
@@ -63,6 +70,41 @@ accepts only 1..8 and may contain only the original five kinds, in which case re
 Unknown or malformed data rejects before state import and reconstruction. An old graph reader
 rejects v2 rather than reinterpreting it. ArtifactFile framing and separate old NN readers do not
 change. No caller version selector or implicit operation decomposition is introduced.
+
+### Selected CNN and recurrent persistence
+
+The v3 extension adds only the exact
+[Compiler source slice](../architecture/contracts/compiler-autograd.md#compile-lifecycle): SUB,
+RESHAPE, axis-2 EXPAND_DIMS/SQUEEZE, axis-0 SELECT/GATHER/CONCAT, rank-two last-axis SLICE,
+three-input biased default CONV2D/CONV3D, builder MAX_POOL2D, and the fixed RNN_TANH,
+GRU_RESET_AFTER and LSTM scans. Attribute and signature restrictions are deliberate; this is not
+arbitrary convolution geometry, general recurrent bodies or all-family serialization.
+
+Any selected new operation uses `graph-model.v3`, even alongside RELU/TANH/SIGMOID; old sources
+keep their byte-identical smallest v1/v2 format. Readers use exact tuples, reject unknown
+operations/attributes/cardinalities and retain the separate NN readers. A v3 containing only older
+kinds re-saves in the older sufficient version. The owning contract is the sole wire-field reference.
+
+For CNNs and static recurrence, save retains ordinary expression provenance and reachable named
+constants, not builder recipes or per-layer serializers. Raw unresolved intermediate layouts stay
+unresolved; capture/preflight does not optimize them or force materializing copies. GATHER checks
+index descriptors only; execution retains index-value bounds checks.
+
+For a fixed scan, one constructor produces all canonical sibling wrappers, even if only finalCell
+is a root or downstream operands reuse a port. Copy/load/rebind retain that occurrence once;
+result-carrier objects are not serialized. Static time/batch may be zero, and inference preserves
+the existing unresolved output layouts and gradient eligibility. There is no runnable scan backend
+or BPTT claim.
+
+For a cold scan roundtrip, declare a FLOAT32 sequence `[2,1,3]`,
+non-gradient INT64 lengths `[1]` and FLOAT32 initial hidden `[1,4]` as ordered storage-free inputs;
+register compatible RNN weights `[4,3]` and `[4,4]` as named state. Save a scan's finalHidden,
+load, then rebind fresh inputs with those exact descriptors. The result is an ordinary symbolic
+`[1,4]` Tensor, not an evaluated value. Only named weights contribute payload bytes; prototype
+lengths and initial-state bytes do not. Cold preflight never reads runtime lengths or checks their
+value bounds `[0,2]`. Declaring lengths as frozen state instead would not provide runtime input
+variation. Use NN `Model.graph`/`loadGraph` for the same list boundary; single `Model.load` still
+rejects multiple boundaries. Do not call compute/train to validate this cold workflow.
 
 ## Complete cold example
 

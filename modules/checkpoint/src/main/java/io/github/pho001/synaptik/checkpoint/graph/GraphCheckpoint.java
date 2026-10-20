@@ -12,7 +12,15 @@ import java.util.Objects;
  * Cold persistence and symbolic substitution for a bounded ordinary Tensor source.
  * This facade never executes, selects a backend, owns an arena or retains a cross-call graph.
  * Supported source occurrences are static ADD, MUL, NEG, MATMUL, rank-two PERMUTE[1,0] and
- * floating RELU, TANH and SIGMOID, retaining ordinary Model semantics without decomposition.
+ * floating SUB/RELU/TANH/SIGMOID, plus the selected default CNN/static recurrent composition
+ * (positive-target reshape, singleton axis 2, rank-three axis-zero selection/concatenation,
+ * rank-two axis-zero gather with a non-gradient INT64 vector, nonempty rank-two last-axis
+ * step-one slice, biased default Conv2d/3d and floor MaxPool2d with stride equal to kernel,
+ * zero padding and unit dilation)
+ * and fixed flat RNN/GRU/LSTM scans. All canonical ports are retained, with no scan execution,
+ * backpropagation through time (BPTT) or Conv3d gradients implied. Cold source admission checks
+ * GATHER index and scan length descriptors, never their values. Named index/length state, if any,
+ * is still copied or saved under the ordinary named-leaf rules.
  * Named host values use native-order logical lanes; all represented bits are preserved.
  * Callers exclude mutation, storage rebinding and closure throughout each operation.
  * Old flexible NN model readers are separate APIs, not implicitly converted static graphs.
@@ -90,8 +98,9 @@ public final class GraphCheckpoint {
     }
 
     /**
-     * Saves without executing or persisting prototype input storage. Selects graph-model.v2 only
-     * when RELU, TANH or SIGMOID occurs; every other admitted source retains byte-identical v1.
+     * Saves without executing or persisting prototype input storage. Selects the smallest sufficient
+     * format: original five kinds retain byte-identical v1, original eight kinds with activations
+     * retain byte-identical v2, and additional CNN/recurrent kinds use multi-output v3.
      * Complete metadata/bounds/storage/value/image validation precedes ArtifactFile publication:
      * forced and revalidated sibling file, then one atomic move, with no non-atomic fallback.
      * This is atomic live visibility, not authentication or portable power-loss durability.
@@ -113,7 +122,7 @@ public final class GraphCheckpoint {
 
     /**
      * Rereads and fully validates a graph file before importing state and publishing expressions.
-     * Accepts only exact graph-model.v1/v2 kind, magic and version tuples and their closed opcodes.
+     * Accepts only exact graph-model.v1/v2/v3 kind, magic and version tuples and their closed opcodes.
      * The returned ordinary mutable heap values need no arena or second ownership copy.
      * No Engine, saved batch, labels, compiled artifacts or runtime state is restored.
      * @param source non-null quiescent regular artifact path, not a symlink

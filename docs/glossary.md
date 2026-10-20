@@ -3314,6 +3314,11 @@ carriers in `model.tensor`, while `RecurrentScanKind` and `RecurrentDirection` r
 semantics. The namespace is not a layer, module, execution service, registry, or general scan
 body.
 
+Cold Compiler reconstruction and Checkpoint v3 preserve a scan as one producer with every canonical
+output port, including unused siblings. Runtime-length inputs contribute descriptors, not prototype
+values, to a saved source. This is semantic persistence, not execution or serialized result carriers.
+See the [scan persistence contract](architecture/contracts/extensions-training.md#canonical-graph-model-version-3).
+
 Model construction validates only the length Tensor descriptor and never reads its scalar values.
 Current package-private Compiler forward inference independently revalidates the fully static
 descriptor contract and preserves each producer as one identity-distinct ordinary flat node with
@@ -3360,9 +3365,11 @@ Registered wrappers determine roles; constants are not Module state. Acquisition
 external identity once; builder-supplied state is copied before expressions, automatic recipes
 create fresh private state, and load adopts final heap values directly. This is not another IR or
 executor. Builder construction/compute/train are independent of serialization admission. Save and
-definition/graph/load remain bounded to eight kinds: floating RELU/TANH/SIGMOID select graph-model.v2,
-while sources using only the original five kinds retain byte-identical v1. Unsupported builder saves
-touch no file and do not disable execution.
+definition/graph/load use the narrow
+[Compiler source slice](architecture/contracts/compiler-autograd.md#compile-lifecycle), including
+selected default CNN/static recurrent graphs and cold fixed scans. Added kinds select graph-model.v3;
+sources wholly within the original eight kinds retain byte-identical v1/v2. Unsupported builder
+saves touch no file and do not disable execution. Scan persistence grants no compute/train support.
 Full signatures are fixed, mode/binding/storage changes invalidate the capability, and close owns
 sessions/preparations and native memory but never a borrowed Engine. See the
 [owned workflow](user-guide/running-models.md#owned-static-model-workflow).
@@ -6966,5 +6973,5 @@ intermediate representation or executable owner. Input descriptors are fully sta
 remain signature entries with no saved batches. Exact Tensor identity defines state aliases;
 equal bytes or overlapping physical storage do not. Copy/load return private mutable heap state
 and rebuilt ordinary provenance, without retaining original state or owning an Engine. Rebind is
-cold symbolic substitution, not execution. Selective graph-model.v1/v2 formats are distinct from NN's old
+cold symbolic substitution, not execution. Selective graph-model.v1/v2/v3 formats are distinct from NN's old
 flexible model.v1/whole-model.v1 readers. See the [graph API](api/graph-checkpoint-api.md).

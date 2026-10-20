@@ -415,7 +415,7 @@ briefs and maintained navigation adopt the exact scoped destinations:
 | Compile artifacts | [Compiler/autograd — compile artifacts](docs/architecture/contracts/compiler-autograd.md#compile-artifacts) |
 | Training graph and compiler-owned autograd | [Compiler/autograd — training graph model](docs/architecture/contracts/compiler-autograd.md#training-graph-model) |
 | Compile lifecycle | [Compiler/autograd — compile lifecycle](docs/architecture/contracts/compiler-autograd.md#compile-lifecycle) |
-| Cold source admission and family reconstruction (including RELU/TANH/SIGMOID) | [Compiler/autograd — compile lifecycle](docs/architecture/contracts/compiler-autograd.md#compile-lifecycle) |
+| Cold source admission and family reconstruction, including fluent CNN/static recurrence and fixed flat scans | [Compiler/autograd — compile lifecycle](docs/architecture/contracts/compiler-autograd.md#compile-lifecycle) |
 | Runtime | [Runtime/Prepare/Engine — `modules/runtime`](docs/architecture/contracts/runtime-prepare-engine.md#modulesruntime) |
 | Prepare | [Runtime/Prepare/Engine — `modules/prepare`](docs/architecture/contracts/runtime-prepare-engine.md#modulesprepare) |
 | Engine and explicit composition | [Runtime/Prepare/Engine — `modules/engine`](docs/architecture/contracts/runtime-prepare-engine.md#modulesengine) |
@@ -430,6 +430,7 @@ briefs and maintained navigation adopt the exact scoped destinations:
 | Training | [Extensions/training — `modules/training`](docs/architecture/contracts/extensions-training.md#modulestraining) |
 | Generic graph/value persistence and opaque artifact envelope | [Extensions/training — `extensions/checkpoint`](docs/architecture/contracts/extensions-training.md#extensionscheckpoint) |
 | Selective graph-model v1/v2 wire compatibility | [Extensions/training — canonical graph-model version 2](docs/architecture/contracts/extensions-training.md#canonical-graph-model-version-2) |
+| Graph-model v3 wire, multi-output normalization and selective v1/v2/v3 compatibility | [Extensions/training — canonical graph-model version 3](docs/architecture/contracts/extensions-training.md#canonical-graph-model-version-3) |
 | Retained NN model persistence and optional Training Checkpoint adapter reservation | [Extensions/training — retained NN checkpoint APIs](docs/architecture/contracts/extensions-training.md#retained-nn-checkpoint-apis) |
 | ONNX | [Extensions/training — `extensions/onnx`](docs/architecture/contracts/extensions-training.md#extensionsonnx) |
 | Optimizer/training lifecycle | [Extensions/training — optimizer/training lifecycle](docs/architecture/contracts/extensions-training.md#optimizertraining-lifecycle) |

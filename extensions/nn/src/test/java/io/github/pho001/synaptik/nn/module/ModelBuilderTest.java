@@ -161,26 +161,34 @@ final class ModelBuilderTest {
         }
     }
 
-    @Test void unsupportedSaveDoesNoFileWorkAndDoesNotFreezeOrDisableTraining() throws Exception {
+    /**
+     * Checks that the newly admitted flatten composition saves cold and leaves training usable.
+     * @throws Exception if valid save/load or live-owner inspection fails
+     */
+    @Test void flattenSaveRemainsColdAndDoesNotFreezeOrDisableTraining() throws Exception {
         Tensor w = values(true, new long[]{1, 1}, .75f);
         try (var model = Model.builder().input(DataType.FLOAT32, 1, 1, 1).flatten().linear(w).build();
                 Engine engine = Engine.standard()) {
             Path absent = directory.resolve("absent"), sentinel = directory.resolve("sentinel");
             Files.writeString(sentinel, "unchanged");
             for (Path path : List.of(absent, sentinel)) {
-                assertThrows(IllegalArgumentException.class, () -> model.save(path));
+                model.save(path);
                 assertNull(field(field(model, "execution"), "engine"));
             }
-            assertFalse(Files.exists(absent)); assertEquals("unchanged", Files.readString(sentinel));
-            try (var files = Files.list(directory)) { assertEquals(List.of(sentinel), files.toList()); }
+            assertTrue(Files.exists(absent));
+            try (var loaded = Model.load(sentinel)) {
+                assertEquals(1.5f, loaded.compute(values(false, new long[]{1, 1, 1}, 2)).bytes().getFloat());
+            }
             assertSame(model, model.withEngine(engine));
             Tensor batch = values(false, new long[]{1, 1, 1}, 2);
             assertEquals(1.5f, model.compute(batch).bytes().getFloat());
             model.configureTraining(descriptor(false, 1, 1), ModelBuilderExecutionTest::objective, new Sgd(.01));
             assertTrue(model.train(batch, values(false, new long[]{1, 1}, .3f)).objective().bytes().getFloat() > 0);
             assertTrue(Float.isFinite(model.compute(batch).bytes().getFloat()));
-            assertThrows(IllegalArgumentException.class, () -> model.save(sentinel));
-            assertEquals("unchanged", Files.readString(sentinel));
+            model.save(sentinel);
+            try (var loaded = Model.load(sentinel)) {
+                ModelBuilderExecutionTest.sameValues(model.compute(batch), loaded.compute(batch), 0);
+            }
         }
         assertEquals(.75f, w.hostStorage().orElseThrow().segment().get(ValueLayout.JAVA_FLOAT_UNALIGNED, 0));
     }
@@ -221,7 +229,11 @@ final class ModelBuilderTest {
         }
     }
 
-    @Test void unsupportedConvolutionPoolAndRecurrentSavesPreserveTargetsAndInference() throws Exception {
+    /**
+     * Replaces historical rejection expectations with cold CNN/pool/recurrent roundtrips.
+     * @throws Exception if supported persistence, compute or lifecycle inspection fails
+     */
+    @Test void convolutionPoolAndRecurrentSavesAreColdAndPreserveInference() throws Exception {
         var builders = List.of(Model.builder().input(DataType.FLOAT32, 1, 1, 3, 3).conv2d(1, 2, 2),
                 Model.builder().input(DataType.FLOAT32, 1, 1, 2, 2).maxPool2d(2, 2),
                 Model.builder().input(DataType.FLOAT32, 2, 1, 1).gru(1).lastTimeStep());
@@ -232,18 +244,52 @@ final class ModelBuilderTest {
             try (var model = builders.get(i).build(); Engine engine = Engine.standard()) {
                 Path absent = directory.resolve("absent" + i), sentinel = directory.resolve("sentinel" + i);
                 Files.writeString(sentinel, "unchanged");
-                assertThrows(IllegalArgumentException.class, () -> model.save(absent));
-                assertThrows(IllegalArgumentException.class, () -> model.save(sentinel));
-                assertFalse(Files.exists(absent));
-                assertEquals("unchanged", Files.readString(sentinel));
+                model.save(absent);
+                model.save(sentinel);
+                assertTrue(Files.exists(absent));
                 assertNull(field(field(model, "execution"), "engine"));
                 model.withEngine(engine);
                 var result = model.compute(batches.get(i));
                 assertTrue(Float.isFinite(result.bytes().getFloat()));
-                assertThrows(IllegalArgumentException.class, () -> model.save(sentinel));
+                model.save(sentinel);
+                try (var loaded = Model.load(sentinel)) {
+                    ModelBuilderExecutionTest.sameValues(result, loaded.compute(batches.get(i)), 0);
+                }
                 ModelBuilderExecutionTest.sameValues(result, model.compute(batches.get(i)), 0);
             }
         }
-        try (var files = Files.list(directory)) { assertEquals(3, files.count()); }
+        try (var files = Files.list(directory)) { assertEquals(6, files.count()); }
+    }
+
+    /**
+     * Keeps ABS outside source admission without disabling ordinary composition execution or training.
+     * @throws Exception if fixture I/O or lifecycle inspection fails
+     */
+    @Test void trulyUnsupportedCompositionSavePreservesTargetAndComputeTraining() throws Exception {
+        Tensor w = values(true, new long[]{1, 1}, .75f);
+        // Builder is deliberately closed; a custom composition can still use ordinary ABS.
+        UnaryTensorModule unsupported = new UnaryTensorModule() {
+            final Parameter weight = parameter("weight", w);
+            /**
+             * Composes an executable but deliberately non-persistable ABS projection.
+             * @param input exact current floating batch
+             * @return fresh ordinary expression retaining this module's registered parameter
+             */
+            @Override public Tensor forward(Tensor input) { return input.linear(weight.value()).abs(); }
+        };
+        try (var model = Model.fromComposition(descriptor(false, 1, 1), new Sequential(List.of(unsupported)));
+                Engine engine = Engine.standard()) {
+            Path target = directory.resolve("unsupported"); Files.writeString(target, "unchanged");
+            assertThrows(IllegalArgumentException.class, () -> model.save(target));
+            assertEquals("unchanged", Files.readString(target));
+            assertNull(field(field(model, "execution"), "engine"));
+            model.withEngine(engine);
+            Tensor batch = values(false, new long[]{1, 1}, -2);
+            assertEquals(1.5f, model.compute(batch).bytes().getFloat());
+            model.configureTraining(descriptor(false, 1, 1), ModelBuilderExecutionTest::objective, new Sgd(.01));
+            assertTrue(model.train(batch, values(false, new long[]{1, 1}, .3f)).objective().bytes().getFloat() > 0);
+            assertThrows(IllegalArgumentException.class, () -> model.save(target));
+            assertEquals("unchanged", Files.readString(target));
+        }
     }
 }

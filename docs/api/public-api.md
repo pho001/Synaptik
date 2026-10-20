@@ -1257,6 +1257,17 @@ cleanup with retained failure replay, never closing a borrowed Engine. See the c
 [owned model example](../user-guide/running-models.md#owned-static-model-workflow) and
 [owning contract](../architecture/contracts/extensions-training.md#owned-tensor-models).
 
+Graph-model v3 uses these same methods and no new public type. The
+[exact source slice](../architecture/contracts/compiler-autograd.md#compile-lifecycle) admits
+selected narrow transforms/indexing, biased default convolutions, builder pooling and fixed
+RNN_TANH/GRU_RESET_AFTER/LSTM scans. It is not all-family serialization. Advanced `graph`/`loadGraph`
+may declare sequence, non-gradient INT64 runtime lengths and initial states as ordered external
+inputs for cold persistence/rebind. Prototypes are descriptor-only; their bytes are neither read
+nor saved. A scan remains one multi-output producer with canonical sibling identities, even when
+only a final-state port is a root. No backend executes that persisted scan and BPTT remains
+fail-closed. Persistence adds no Conv3d gradients or optimizer resume. Single `load` still rejects
+multiple boundaries.
+
 ### Fluent Model builder
 
 `Model.builder()` returns a fresh public final `ModelBuilder`, with no public constructor or
@@ -1314,10 +1325,13 @@ Callers close each returned Model. CNN spatial extents are 28→26→13→11→5
 See the complete [compute/train/save example](../user-guide/running-models.md#build-a-fluent-model).
 
 Construction and cold forward create no Engine. Compute/configured training consume fixed outputs
-and cached bindings, never recipes per batch. They are independent of eight-kind serialization
-admission; save of unsupported convolution/pool/reshape/concat/select/gather chains fails before
-file work without freezing Engine selection or invalidating execution. Supported five-kind/activation
-MLPs retain graph-model.v1/v2 compatibility. Execution still requires actual Engine capability;
+and cached bindings, never recipes per batch. They are independent of serialization admission.
+Graph-model v3 enables saves for the selected default CNN/static recurrent DAGs;
+other unsupported saves still fail before file work without freezing Engine selection or
+invalidating execution. Only sources wholly within the original five/eight-kind slices retain
+byte-identical graph-model.v1/v2 saves; any selected added kind chooses v3, including CNN+RELU.
+See the [single owning wire contract](../architecture/contracts/extensions-training.md#canonical-graph-model-version-3).
+Execution still requires actual Engine capability;
 static unrolling adds no scan BPTT, runtime lengths, streaming state or Conv3d adjoint.
 
 ### Advanced Engine lifecycle

@@ -13,6 +13,7 @@ import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.convolution.*;
 import io.github.pho001.synaptik.nn.layers.Linear;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -102,6 +103,77 @@ final class GraphCheckpointEngineIntegrationTest {
                 }
             }
         }
+    }
+
+    /**
+     * Checks raw CNN persistence after native source closure, then ordinary forward/adjoint ownership.
+     * @throws Exception if supported persistence, I/O or execution fails
+     */
+    @Test void cnnRawSourceClosesNativeStateBeforeLoadAndRebindsFreshBatchesForForwardAndAdjoints() throws Exception {
+        var limits = new ArtifactLimits(100_000, 10_000, 10, 32, 10_000, 90_000);
+        for (int dimension : new int[]{1, 2, 3}) {
+            Path file = directory.resolve("cnn" + dimension);
+            long[] axes = new long[dimension + 2], kernelAxes = new long[dimension + 2];
+            java.util.Arrays.fill(axes, 3); java.util.Arrays.fill(kernelAxes, 2);
+            axes[0] = axes[1] = kernelAxes[0] = kernelAxes[1] = 1;
+            float[] weights = new float[1 << dimension];
+            for (int j = 0; j < weights.length; j++) weights[j] = (j + 1) * .1f;
+            try (Arena arena = Arena.ofConfined()) {
+                Tensor x = TensorFactory.create(descriptor(Shape.of(axes)));
+                Tensor w = nativeValue(arena, Shape.of(kernelAxes), weights);
+                Tensor b = nativeValue(arena, Shape.of(1), .2f);
+                Tensor y = convolution(x, w, b, dimension);
+                GraphCheckpoint.save(file, new GraphCheckpoint.Source(List.of(x), List.of(y), List.of(
+                        new GraphCheckpoint.Leaf("weight", GraphCheckpoint.Role.PARAMETER, w),
+                        new GraphCheckpoint.Leaf("bias", GraphCheckpoint.Role.PARAMETER, b))), limits);
+            }
+            var loaded = GraphCheckpoint.load(file, limits);
+            assertTrue(loaded.inputs().getFirst().hostStorage().isEmpty());
+            try (Engine engine = Engine.standard()) {
+                for (float sign : new float[]{1, -1}) {
+                    float[] lanes = new float[(int) Math.pow(3, dimension)];
+                    for (int j = 0; j < lanes.length; j++) lanes[j] = sign * (j - 2) * .07f;
+                    Tensor x = heapValue(Shape.of(axes), lanes);
+                    Tensor output = GraphCheckpoint.rebind(loaded, List.of(x)).getFirst();
+                    double[] expected = FluentModelBuilderIntegrationTest.convolution(lanes,
+                            new double[][]{toDouble(weights), new double[]{.2f}}, dimension);
+                    var actual = engine.compute(output).bytes();
+                    for (int j = 0; j < expected.length; j++) assertEquals(expected[j], actual.getFloat(j * 4), 2e-5);
+                    if (dimension != 3) {
+                        Tensor w = heapValue(Shape.of(kernelAxes), weights), b = heapValue(Shape.of(1), .2f);
+                        var direct = engine.backward(convolution(x, w, b, dimension).sum(), List.of(w, b), 1000);
+                        var restored = engine.backward(output.sum(), loaded.leaves().stream().map(GraphCheckpoint.Leaf::tensor).toList(), 1000);
+                        for (int p = 0; p < 2; p++) assertEquals(direct.gradients().get(p).bytes(), restored.gradients().get(p).bytes());
+                    } else assertThrows(IllegalArgumentException.class,
+                            () -> engine.backward(output.sum(), List.of(loaded.leaves().getFirst().tensor()), 1000));
+                }
+            }
+        }
+    }
+
+    /**
+     * Builds an independent ordinary default convolution, without cold source reconstruction.
+     * @param input compatible canonical floating spatial input
+     * @param weight compatible gradient-eligible kernel
+     * @param bias matching output-channel bias
+     * @param dimension spatial rank one, two or three
+     * @return fresh ordinary convolution expression, including the standard Conv1d composition
+     */
+    private static Tensor convolution(Tensor input, Tensor weight, Tensor bias, int dimension) {
+        return dimension == 1 ? input.conv1d(weight, bias, Conv1dAttrs.defaults())
+                : dimension == 2 ? input.conv2d(weight, bias, Conv2dAttrs.defaults())
+                : input.conv3d(weight, bias, Conv3dAttrs.defaults());
+    }
+
+    /**
+     * Widens represented test parameters exactly for the shared scalar oracle.
+     * @param values finite FLOAT32 parameter lanes, never mutated
+     * @return independent same-length double array
+     */
+    private static double[] toDouble(float[] values) {
+        double[] result = new double[values.length];
+        for (int j = 0; j < values.length; j++) result[j] = values[j];
+        return result;
     }
 
     /**

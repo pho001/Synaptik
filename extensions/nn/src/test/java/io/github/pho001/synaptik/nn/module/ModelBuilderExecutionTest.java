@@ -274,4 +274,83 @@ final class ModelBuilderExecutionTest {
                     ModelBuilderExecutionTest::objective, new Sgd(.01)));
         }
     }
+
+    /**
+     * Checks closed-before-load recurrence against independent full-batch Tensor equations and SGD.
+     * @param kind RNN, GRU or LSTM fixture selector
+     * @throws Exception if supported persistence, reflection or execution fails
+     */
+    @ParameterizedTest @ValueSource(strings = {"rnn", "gru", "lstm"})
+    void coldReloadedAllTimeLastAndStackedRecurrentModelsMatchEveryFreshSgdUpdate(String kind) throws Exception {
+        for (int depth : new int[]{1, 2}) for (boolean last : List.of(false, true)) {
+            var builder = recurrent(Model.builder().input(DataType.FLOAT32, 2, 1, 1).seed(23), kind, 1);
+            if (depth == 2) recurrent(builder, kind, 1);
+            if (last) builder.lastTimeStep();
+            Path file = directory.resolve("recurrent"), trained = directory.resolve("trained-recurrent");
+            List<Tensor> weights;
+            try (var original = builder.build()) {
+                weights = copyWeights(original);
+                original.save(file); // Save before compute, then close the original before cold loading.
+                assertNull(field(field(original, "execution"), "engine"));
+            }
+            try (var model = Model.load(file); Engine engine = Engine.standard()) {
+                assertNull(field(field(model, "execution"), "engine"));
+                Tensor target = last ? values(false, new long[]{1, 1}, .13f)
+                        : values(false, new long[]{2, 1, 1}, .13f, -.07f);
+                model.configureTraining(target.descriptor(), ModelBuilderExecutionTest::objective, new Sgd(.01));
+                Object session = field(field(model, "execution"), "session");
+                for (float[] lanes : List.of(new float[]{.2f, -.3f}, new float[]{-.1f, .4f})) {
+                    Tensor batch = values(false, new long[]{2, 1, 1}, lanes);
+                    Tensor expected = unroll(batch, weights.subList(0, 3), kind, 2, 1, 1);
+                    if (depth == 2) expected = unroll(expected, weights.subList(3, 6), kind, 2, 1, 1);
+                    if (last) expected = expected.select(0, 1);
+                    sameValues(engine.compute(expected), model.compute(batch), 2e-5f);
+                    compareStep(engine, model, expected, batch, target, weights, .01f);
+                    assertSame(session, field(field(model, "execution"), "session"));
+                }
+                model.save(trained);
+                try (var restored = Model.load(trained)) {
+                    var state = model.stateDictionary().entries();
+                    for (int p = 0; p < state.size(); p++) assertArrayEquals(bytes(state.get(p).value()),
+                            bytes(restored.stateDictionary().entries().get(p).value()));
+                    Tensor batch = values(false, new long[]{2, 1, 1}, .4f, -.2f);
+                    sameValues(model.compute(batch), restored.compute(batch), 0);
+                }
+            }
+        }
+    }
+
+    /**
+     * Verifies fresh loaded CNN training, every parameter update and persisted trained raw values.
+     * @throws Exception if supported persistence or execution fails
+     */
+    @Test void coldReloadedConv1dAndPooledConv2dTrainAllParametersAndResaveCurrentValues() throws Exception {
+        for (boolean two : List.of(false, true)) {
+            var builder = two ? Model.builder().input(DataType.FLOAT32, 1, 1, 4, 4).seed(31)
+                    .conv2d(1, 2, 2).maxPool2d(2, 2).flatten().linear(1)
+                    : Model.builder().input(DataType.FLOAT32, 1, 1, 4).seed(31).conv1d(1, 2).flatten().linear(1);
+            Path file = directory.resolve("cnn"); List<Tensor> w;
+            try (var original = builder.build()) { w = copyWeights(original); original.save(file); }
+            try (var model = Model.load(file); Engine engine = Engine.standard()) {
+                Tensor target = values(false, new long[]{1, 1}, .2f);
+                model.configureTraining(target.descriptor(), ModelBuilderExecutionTest::objective, new Sgd(.01));
+                for (float sign : new float[]{1, -1}) {
+                    float[] lanes = new float[two ? 16 : 4];
+                    for (int i = 0; i < lanes.length; i++) lanes[i] = sign * (i + 1) * .07f;
+                    Tensor batch = values(false, two ? new long[]{1, 1, 4, 4} : new long[]{1, 1, 4}, lanes);
+                    Tensor expected = two ? batch.conv2d(w.get(0), w.get(1), Conv2dAttrs.defaults())
+                            .maxPool2d(new MaxPool2dAttrs(2, 2, 2, 2, 0, 0, 1, 1, false)).reshape(1, 1)
+                            : batch.conv1d(w.get(0), w.get(1), Conv1dAttrs.defaults()).reshape(1, 3);
+                    expected = expected.linear(w.get(2), w.get(3));
+                    sameValues(engine.compute(expected), model.compute(batch), 2e-5f);
+                    compareStep(engine, model, expected, batch, target, w, .01f);
+                }
+                model.save(file);
+                try (var restored = Model.load(file)) {
+                    for (int p = 0; p < w.size(); p++) assertArrayEquals(bytes(model.stateDictionary().entries().get(p).value()),
+                            bytes(restored.stateDictionary().entries().get(p).value()));
+                }
+            }
+        }
+    }
 }

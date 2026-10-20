@@ -42,7 +42,8 @@ import java.util.random.RandomGeneratorFactory;
  *
  * <p>Construction and cold forward create no Engine. Compute/train reuse existing Model execution
  * owners and fixed expressions, not recipes. Execution support is occurrence-specific and independent
- * of the eight-operation checkpoint format: an unsupported save leaves the Model usable.</p>
+ * of checkpoint admission: the selected default CNN and static recurrent compositions persist
+ * as their ordinary Tensor DAG, not recipes. Unsupported save leaves the Model usable.</p>
  */
 public final class ModelBuilder {
     private static final long STEP_SEED = 0x9E3779B97F4A7C15L;

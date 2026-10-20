@@ -4,6 +4,9 @@
 
 Accepted — 2026-08-20
 
+Amended — 2026-10-20: permit cold semantic persistence under the owning Checkpoint contract.
+No executable scan or BPTT is accepted by this amendment.
+
 ## Context
 
 Synaptik's current recurrent NN containers accept snapshotted Java `long[]` valid lengths and
@@ -169,9 +172,23 @@ mutation; callback; I/O; or external resource. Each run uses its own `RunState`.
 
 NN retains parameter and persistent-buffer wrappers and state paths and supplies current parameter
 Tensor bindings as ordinary scan inputs. NN state dictionaries contain those parameter and buffer
-bindings, and future model checkpoints may persist their materialized values. Operations,
-compiler graphs, prepared executables, Runtime state, and backend artifacts are rebuilt and are
-not serialized by this decision.
+bindings. The 2026-10-20 amendment permits cold semantic graphs and named host values under the
+owning [generic source](../../architecture/contracts/extensions-training.md#generic-graph-source-and-values)
+and [graph-model v3 contract](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-3).
+The fixed operation and its ordered ports are data, not an executable or serialized result-carrier
+object. Prepared executables, native/backend artifacts and Runtime state remain rebuilt, never
+persisted. Prototype valid-length storage is not saved or read by cold preflight; length bounds
+belong to execution. This does not add a body, callback, unroll, backend route or gradient rule.
+
+Keeping the original serialization exclusion would prevent cold save/load without adding any
+execution safety. Serializing prepared loops instead would cross backend and resource-lifetime
+boundaries. The selected amendment preserves the flat semantic occurrence and canonical sibling
+wrappers through existing Compiler reconstruction and Checkpoint persistence. Its cost is a
+closed multi-output wire and producer-aware validation, implemented jointly with
+[CP0010](../../planning/extensions/checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md)
+and [CP0011](../../planning/extensions/checkpoint/tasks/0011-flat-recurrent-scan-persistence.md).
+Cold roundtrip, descriptor and identity tests are required; runnable scan/BPTT tests are not a
+prerequisite or a claim of this amendment. Existing static NN containers stay unchanged.
 
 ### Layer ownership
 

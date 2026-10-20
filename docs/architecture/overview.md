@@ -87,16 +87,18 @@ Its generic live admission depends only on public Model/Engine; NN supplies a li
 Generic Checkpoint uses Model publicly and Compiler's cold source boundary privately; NN consumes
 Checkpoint and public Engine for its retained old readers. A graph load creates heap state and
 symbolic expressions, not a prepared executable or a new Model workflow.
-Compiler owns the eight-kind cold source admission/reconstruction; Checkpoint owns the selective
-v1/v2 wire. A two-Linear graph with RELU, TANH or SIGMOID acquires private state through the same
+Compiler owns closed cold source admission/reconstruction; Checkpoint owns the selective
+v1/v2/v3 wire. The selected default CNN/static recurrent graphs and fixed flat scans use v3.
+A two-Linear graph with RELU, TANH or SIGMOID acquires private state through the same
 NN path and saves as v2; a graph using only the original five kinds still saves byte-identical v1.
 This adds neither an execution pipeline nor a backend capability. See the
 [graph format compatibility](../api/graph-checkpoint-api.md#selective-graph-format-versions).
 
 NN's fluent `Model.builder()` instead creates private layers and retains their ordinary Tensor
 composition. Only supplied parameter leaves pass through the zero-node raw copier, before any
-expression is built. Thus a CNN or statically unrolled recurrent model can compute with the same
-public Engine preparations even when it cannot be serialized. Save still rejects operations outside
-the eight-kind format before touching a file; that failure leaves execution usable. This distinction
+expression is built. A selected default CNN or statically unrolled recurrent model saves its
+ordinary graph, then computes through the same public Engine preparations after cold loading.
+Save rejects operations outside the narrow source slice before touching a file; that failure leaves
+execution usable. Fixed scans persist cold only, without backend execution or BPTT. This distinction
 prevents persistence limits from becoming execution limits without adding a reconstruction table.
 See [ADR 0040](../design/decisions/0040-fluent-model-builder.md).
