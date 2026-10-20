@@ -259,10 +259,12 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0023 | [Vector ERF direct-Java shape](tasks/0023-vector-erf-direct-java-shape.md) | Draft | 0022 Complete; explicit selection | Follow up the bounded vector ERF timing gap and preexisting coefficient-loop shape; no broad benchmark campaign or parity claim. |
 | 0024 | [Default segment route heap carrier binding](tasks/0024-default-segment-route-heap-carrier-binding.md) | Complete | 0022 Complete; ordinary heap Engine reproduction; explicit user approval | Exact heap segment binding and mixed-carrier overlap repair passed focused, public Engine, independent re-review, and combined validation. |
 | 0025 | [Scatter validation coordinate rank repair](tasks/0025-scatter-validation-coordinate-rank.md) | Complete | 0024; 0006B1/0007A0C/0007A1B Complete | Independent APPROVE, zero findings; main's unchanged-snapshot native root gate passed at NN0029 join (2026-10-19). No NN dependency. |
+| 0026 | [Stacked LSTM cold preparation diagnostic](tasks/0026-stacked-lstm-cold-preparation-diagnostic.md) | Complete | CPU0025; Compiler0009; NN0029 Complete | Repeated finish/topological scans dominate sampled combined CPU analysis; prepare censored at 180-second JVM deadline. Pasteur APPROVE, zero findings; main accepted 2026-10-20. |
+| 0027 | [Unit topology adjacency ordering](tasks/0027-unit-topology-adjacency-ordering.md) | Complete | CPU0026 Complete | Invocation-local adjacency and stable Kahn ordering preserve exact dependencies/order; CPU, conformance, Fluent integration and bounded LSTM probe passed; independent APPROVE, zero findings. |
 
 ## Milestones and current frontier
 
-- Authorized CPU frontier: None. [0025](tasks/0025-scatter-validation-coordinate-rank.md) is Complete; 0023 remains Draft. DAG: completed 0024 + scatter foundation → CPU0025 → Compiler0009 → NN0029 → shared main native gate, all Complete. Main owns shared integration; evidence is in the briefs. CPU0025 has no NN dependency.
+- Authorized CPU frontier: None. DAG: CPU0025 + Compiler0009 + NN0029 → CPU0026 → [CPU0027](tasks/0027-unit-topology-adjacency-ordering.md), all Complete. Main accepted the CPU-only fix after independent APPROVE and focused integration (2026-10-20); CPU0023 remains Draft. Parallel group None; main owns shared-document closure. Evidence and diagnostic limits remain in the brief; no architecture, route, fusion-policy or resource-contract change.
 - Portable coverage and closure are Complete through 0009G1; OpenBLAS and supported lifecycle/
   tuning collaborations are Complete through 0010J.
 - Evidence-backed production-default task 0010M is `Complete`: ordinary production remains
@@ -300,7 +302,7 @@ Historical profile integration evidence remains in its completed task records.
   clean independent re-review, and direct Engine/Checkpoint acceptance. Its combined
   source-matched `test javadoc` checkpoint passed. CPU0025 is Complete after independent APPROVE,
   zero findings; main's final native root gate passed on the unchanged reviewed NN0029 snapshot.
-  No Ready CPU frontier; CPU 0023 remains Draft. No new capability or architecture decision.
+  CPU0026 diagnostic and CPU0027 adjacency/stable-Kahn fix are Complete after independent reviews and configured validation. CPU frontier None; CPU0023 stays Draft. Existing architecture, routes, fusion policy and resource contracts are unchanged.
 - CPU 0023 is a proposed bounded vector ERF shape follow-up, not an authorized successor. The
   audit diagnostic shows a current timing gap, but does not establish its cause or a regression.
 - CPU 0018 closed the virtualized-output/shared-weight recognition validation hole with

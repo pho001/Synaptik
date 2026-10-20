@@ -834,36 +834,46 @@ public final class CpuPartitionDagDecomposer {
     private record Pair(MutableUnit left, MutableUnit right, PairKind kind) { }
     private record Contraction(MutableUnit unit, RejectionReason rejection) { }
 
+    /**
+     * Finalizes current contracted units from one invocation-local unit adjacency snapshot.
+     * Shared node/port topology remains owned by {@code dag}; final dependency indices and
+     * member ordinals reuse the ordering snapshot without rescanning edges or memberships.
+     *
+     * @param units non-null current disjoint units covering the DAG; not mutated
+     * @param ordinals non-null original ordinals keyed by exact compiled-node identity
+     * @param dag non-null immutable shared partition DAG
+     * @return immutable units in minimum-original-ordinal ready order, with ascending unique
+     *     direct producer indices in that final order
+     * @throws IllegalArgumentException if contracted unit topology is cyclic
+     */
     private static List<Unit> finish(List<MutableUnit> units,
             Map<CompiledNode, Integer> ordinals, PartitionDag dag) {
-        List<MutableUnit> ordered = topological(units, ordinals, dag);
-        var indices = new HashMap<MutableUnit, Integer>();
-        for (int i = 0; i < ordered.size(); i++) indices.put(ordered.get(i), i);
+        var topology = new CpuUnitTopology(units.stream().map(unit -> unit.nodes).toList(),
+                ordinals, dag.edges());
         var result = new ArrayList<Unit>();
-        for (MutableUnit unit : ordered) {
-            List<Integer> dependencies = producers(dag, units, unit).stream().map(indices::get)
-                    .sorted().toList();
-            if (dependencies.stream().anyMatch(value -> value >= indices.get(unit)))
-                throw new IllegalArgumentException("CPU unit topology is cyclic");
-            result.add(new Unit(unit.nodes, unit.lowering, dependencies,
-                    unit.nodes.stream().map(ordinals::get).toList()));
+        for (int index = 0; index < topology.order().size(); index++) {
+            MutableUnit unit = units.get(topology.order().get(index));
+            result.add(new Unit(unit.nodes, unit.lowering, topology.dependencies(index),
+                    topology.memberNodeOrdinals(index)));
         }
         return List.copyOf(result);
     }
 
+    /**
+     * Orders the current contraction trial using fresh unit-level adjacency, never cached
+     * across membership changes. Newly ready units compete by minimum original node ordinal.
+     *
+     * @param units non-null current disjoint units covering the DAG; not mutated
+     * @param ordinals non-null original ordinals keyed by exact compiled-node identity
+     * @param dag non-null immutable shared partition DAG
+     * @return immutable identity-preserving units in stable topological order
+     * @throws IllegalArgumentException if contracted unit topology is cyclic
+     */
     private static List<MutableUnit> topological(List<MutableUnit> units,
             Map<CompiledNode, Integer> ordinals, PartitionDag dag) {
-        var remaining = new ArrayList<>(units);
-        var result = new ArrayList<MutableUnit>();
-        while (!remaining.isEmpty()) {
-            MutableUnit ready = remaining.stream().filter(unit ->
-                            result.containsAll(producers(dag, units, unit)))
-                    .min(Comparator.comparingInt(unit -> unit.nodes.stream().mapToInt(ordinals::get).min().orElseThrow()))
-                    .orElseThrow(() -> new IllegalArgumentException("CPU unit topology is cyclic"));
-            result.add(ready);
-            remaining.remove(ready);
-        }
-        return result;
+        var topology = new CpuUnitTopology(units.stream().map(unit -> unit.nodes).toList(),
+                ordinals, dag.edges());
+        return topology.order().stream().map(units::get).toList();
     }
 
     private static LinkedHashSet<MutableUnit> producers(PartitionDag dag,

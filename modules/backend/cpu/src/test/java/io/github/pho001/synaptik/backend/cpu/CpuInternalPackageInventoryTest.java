@@ -67,6 +67,7 @@ class CpuInternalPackageInventoryTest {
                         "internal/prepare/CpuPreparedScheduleAssembler.java",
                         "internal/prepare/package-info.java", "internal/lowering/CpuPartitionLowering.java",
                         "internal/lowering/CpuPartitionDagDecomposer.java",
+                        "internal/lowering/CpuUnitTopology.java",
                         "internal/lowering/CpuFusionProfitabilitySelector.java",
                         "internal/lowering/CpuSpecializedSubgraphRecognizer.java",
                         "internal/lowering/CpuScalarPowerAnalysis.java",

@@ -293,7 +293,14 @@ dependency plans, and roadmap above.
 - **Nonblocking cold-prepare follow-up:** a development 3-step stacked-LSTM train was interrupted
   in active CPU topological preparation; reduced 2-step integration trains, and required 3-step RNN
   training/all-family 3-step stack numerics pass. Review found no acceptance gap, error or proved
-  regression. Characterize larger-case preparation cost later; no Ready task, benchmark campaign or gate.
+  regression. [CPU0026](../../backends/cpu/tasks/0026-stacked-lstm-cold-preparation-diagnostic.md)
+  is Complete after Pasteur's binding APPROVE, zero findings, and main acceptance: repeated
+  finish/topological scans dominate sampled CPU analysis. The separately user-authorized
+  [CPU0027](../../backends/cpu/tasks/0027-unit-topology-adjacency-ordering.md) adjacency-ordering
+  fix is Complete after independent APPROVE and validation; its public cold-preparation probe
+  completed forward and combined preparation, but is not a training benchmark. Actual larger-case
+  cached-training latency and a historical regression remain unmeasured; NN acceptance/frontier
+  are unchanged.
 - **0021B execution gate:** [Model 0025E–0025F](../../modules/model/master-plan.md) and
   [Compiler 0006A](../../modules/compiler/master-plan.md) are Complete, and current
   [Engine](../../modules/engine/master-plan.md) has caller-input/publication lifecycles. No

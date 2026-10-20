@@ -64,7 +64,7 @@ Authorized Checkpoint frontier: None; Checkpoint0008/0009 are Complete.
 Euclid's definitive code/docs APPROVE and main's source-matched root gate (2026-10-19).
 Authorized Training frontier: None; [NN0028](extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md)
 is Complete, accepted 2026-10-19. [NN0029](extensions/nn/tasks/0029-fluent-model-builder-and-checkpoint-independent-execution.md)
-is Complete after Planck final APPROVE, zero findings, and main's source-matched native root gate (2026-10-19), including independently reviewed [Compiler0009](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md) and [CPU0025](backends/cpu/tasks/0025-scatter-validation-coordinate-rank.md). Authorized NN/CPU/Compiler frontiers: None.
+is Complete after Planck final APPROVE, zero findings, and main's source-matched native root gate (2026-10-19), including independently reviewed [Compiler0009](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md) and [CPU0025](backends/cpu/tasks/0025-scatter-validation-coordinate-rank.md). [CPU0026 diagnostic](backends/cpu/tasks/0026-stacked-lstm-cold-preparation-diagnostic.md) and [CPU0027 unit topology fix](backends/cpu/tasks/0027-unit-topology-adjacency-ordering.md) are also Complete; authorized NN/CPU/Compiler frontiers None.
 Engine0020's completed layout cutover is below.
 The user revised the primary product to automatic usable-model load and a choice of inference or
 Training-owned resume, without routine callbacks/manual construction/digests/Arena.
@@ -108,7 +108,7 @@ after Euclid's final APPROVE and main's root gate; NN0028 is Complete under the 
 | [Compiler](modules/compiler/master-plan.md) | Complete through 0006B11 plus 0006D/0008/0009; [0009 exact SELECT/coordinate-SLICE logical closure](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md) locally accepted after final independent APPROVE, zero findings. Compiler frontier None; main's combined native root gate passed. Conv3d adjoints 0006C and exact rewrites 0007 Draft; BPTT unsupported. |
 | [Prepare](modules/prepare/master-plan.md) | Complete through 0009; opaque backend collaboration and complete resource transaction. |
 | [OpenBLAS provider](backends/openblas-provider/master-plan.md) | 0001–0003 Complete. Optional direct BF16 0004 Blocked on ABI and one-final-narrowing evidence; F32/F64 unaffected. |
-| [CPU](backends/cpu/master-plan.md) | Complete through 0022 plus 0024 and [0025 scatter validation coordinate rank repair](backends/cpu/tasks/0025-scatter-validation-coordinate-rank.md), locally accepted after independent APPROVE, zero findings (2026-10-19). Ready frontier: None; 0023 Draft. Main's combined native root gate passed at NN0029 join; defaults/vendor gates unchanged. |
+| [CPU](backends/cpu/master-plan.md) | Complete through 0022 plus 0024–0027; [0027 unit topology adjacency ordering](backends/cpu/tasks/0027-unit-topology-adjacency-ordering.md) passed independent review, CPU/conformance/Fluent integration and the bounded LSTM probe. Authorized frontier None; 0023 Draft, defaults/vendor gates unchanged. |
 | [Engine](modules/engine/master-plan.md) | Complete through [0021 prepared-owner/fresh-value binding](modules/engine/tasks/0021-prepared-execution-fresh-value-binding.md), including thin-session removal and mechanical consumers; independent approval and native-enabled test/Javadoc gate passed. Authorized Engine frontier: None. |
 | [Metal](backends/metal/master-plan.md) | Complete through 0079. Current occurrence support is independently typed; hosted GPU CI 0047 remains blocked. |
 | [CUDA](backends/cuda/master-plan.md) | Marker/native scaffold only; no executable CUDA backend. 0001 Draft. |
@@ -147,9 +147,9 @@ User-approved [NN0029](extensions/nn/tasks/0029-fluent-model-builder-and-checkpo
 depends on completed NN0028 + CP0009 + [CPU0025](backends/cpu/tasks/0025-scatter-validation-coordinate-rank.md)
 and [Compiler0009](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md), also Complete and locally accepted after final independent APPROVE, zero findings.
 CPU0025 is locally accepted after independent APPROVE, zero
-findings (2026-10-19), with no NN dependency; CPU has no Ready frontier and CPU0023 remains Draft.
+findings (2026-10-19), with no NN dependency; CPU0023 remains Draft.
 DAG: Compiler0006B11 + Compiler0008 + CPU0025 → Compiler0009 (all Complete) →
-NN0029 → main's single shared native root checkpoint: all Complete; NN/CPU/Compiler frontiers None.
+NN0029 → main's single shared native root checkpoint: all Complete; NN/Compiler frontiers None.
 User approved bounded exact logical-view inference after MATMUL/CONCAT: SELECT uses IndexingInference,
 coordinate SLICE uses LayoutInference. No forced NN contiguous copies or scope reduction; existing
 contracts suffice, with negative-step/empty/unproved layouts unchanged. No extra plan-review cycle.
@@ -170,6 +170,23 @@ Main accepted the root/owning NN authority cutover before the existing partial i
 Compiler0009 needs no further authority cutover. Parallel group None; main owns serial integration/shared documents and one final
 native root gate, now passed after final implementation/review. Exact evidence lives in the brief.
 Scan BPTT, Conv3d gradients, backend/codec changes, Compiler work beyond 0009 and held recurrent-persistence plans stay outside scope.
+
+## Bounded CPU cold preparation diagnostic
+
+User-authorized [CPU0026](backends/cpu/tasks/0026-stacked-lstm-cold-preparation-diagnostic.md) is Complete
+after Pasteur's binding APPROVE, zero findings, and main acceptance (2026-10-20). CPU0025 +
+Compiler0009 + NN0029 → CPU0026 → CPU0027 are Complete; authorized CPU frontier None, CPU0023 Draft.
+The reconstructed three-step LSTM probe attributes sustained sampled CPU analysis to repeated
+finish/topological scans; combined prepare was censored at the 180-second JVM deadline.
+Two launches yielded one valid measurement; setup failure consumed the sole follow-up.
+The brief owns timings, recording coverage and limits; no cached-training or regression claim.
+The user-authorized CPU-only Class C fix [CPU0027](backends/cpu/tasks/0027-unit-topology-adjacency-ordering.md)
+is Complete after invocation-local adjacency, stable Kahn ordering and reused dependencies;
+independent code/docs APPROVE, CPU module/Javadoc, focused conformance/Fluent integration and the
+same bounded public probe passed. Main accepted the unchanged reviewed source at base
+`2090e0a6e32485756a3dfd0d545b5dbce523cfe6` (2026-10-20); Parallel group None, no new frontier.
+The brief owns timings and single-probe limits; no root suite or benchmark campaign was added.
+Future graph-persistence extensions remain separate, not Ready or the next implementation.
 
 ## Proposed next decisions
 

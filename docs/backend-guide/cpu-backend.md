@@ -867,6 +867,10 @@ counts, representation choices, and boundary-role accounting. Publication and cr
 obligations continue to come from logical-memory facts; the shared DAG does not decide fusion,
 materialization, resources, scheduling, or execution.
 
+CPU derives invocation-local adjacency between the current contracted computation units from
+those shared edges to order units and assign final dependency indices. This unit-level view does
+not duplicate the shared node/port graph and is rebuilt after membership changes.
+
 Vertical fusion crosses an unpublished pointwise value only when it has exactly one in-partition
 consumer. Horizontal fusion combines dependency-independent pointwise units that are ready from
 the same predecessor set and have the same checked iteration domain. The combined IR preserves
