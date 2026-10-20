@@ -11,7 +11,8 @@ import java.util.Objects;
 /**
  * Cold persistence and symbolic substitution for a bounded ordinary Tensor source.
  * This facade never executes, selects a backend, owns an arena or retains a cross-call graph.
- * Supported source occurrences are static ADD, MUL, NEG, MATMUL and rank-two PERMUTE[1,0].
+ * Supported source occurrences are static ADD, MUL, NEG, MATMUL, rank-two PERMUTE[1,0] and
+ * floating RELU, TANH and SIGMOID, retaining ordinary Model semantics without decomposition.
  * Named host values use native-order logical lanes; all represented bits are preserved.
  * Callers exclude mutation, storage rebinding and closure throughout each operation.
  * Old flexible NN model readers are separate APIs, not implicitly converted static graphs.
@@ -89,7 +90,8 @@ public final class GraphCheckpoint {
     }
 
     /**
-     * Saves graph-model.v1 without executing or persisting prototype input storage.
+     * Saves without executing or persisting prototype input storage. Selects graph-model.v2 only
+     * when RELU, TANH or SIGMOID occurs; every other admitted source retains byte-identical v1.
      * Complete metadata/bounds/storage/value/image validation precedes ArtifactFile publication:
      * forced and revalidated sibling file, then one atomic move, with no non-atomic fallback.
      * This is atomic live visibility, not authentication or portable power-loss durability.
@@ -111,6 +113,7 @@ public final class GraphCheckpoint {
 
     /**
      * Rereads and fully validates a graph file before importing state and publishing expressions.
+     * Accepts only exact graph-model.v1/v2 kind, magic and version tuples and their closed opcodes.
      * The returned ordinary mutable heap values need no arena or second ownership copy.
      * No Engine, saved batch, labels, compiled artifacts or runtime state is restored.
      * @param source non-null quiescent regular artifact path, not a symlink

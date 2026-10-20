@@ -468,6 +468,37 @@ is supplied anew after load. No automatic exact-continuation claim.
 
 ## Coordinated authority cutovers and validation
 
+### Activation source successor
+
+Accepted 2026-10-19: the separately authorized
+[Checkpoint0009](../../planning/extensions/checkpoint/tasks/0009-owned-model-activation-source-and-persistence.md)
+adds only RELU/TANH/SIGMOID to the completed first graph slice. This successor does not reopen
+the completed model-execution program or supersede its lifecycle/dependency decisions.
+Compiler owns cold admission/reconstruction; Checkpoint owns the wire, as routed by the root
+and enacted in their existing scoped contracts before dependent Java changes.
+
+The existing five-kind limit prevented owned NN construction because acquisition already calls
+GraphCheckpoint.copy. Compiler-only widening was unsafe: the old encoder defaulted to PERMUTE.
+The atomic change therefore uses explicit fail-closed kind/attributes/arity admission on encoding
+and explicit family reconstruction, without new public APIs, types, kernels or build edges.
+
+The compatibility drivers are preserving existing bytes and keeping each version closed. Appending
+activation IDs under v1 would change its contract; writing v2 for every graph would unnecessarily
+exclude old readers from five-kind sources. Select the smallest sufficient version instead:
+five-kind and zero-node sources retain byte-identical v1, while any added activation selects
+graph-model.v2/SYNGRF02/version 2 with appended opcodes 6/7/8. All other fields, values and bounds
+are unchanged. V2-only overhead is version admission logic, not a second graph representation.
+Old readers reject v2; new readers accept both exact tuples and downgrade five-kind-only v2 on
+re-save. ArtifactFile/model.v1/whole-model.v1 compatibility remains independent and unchanged.
+
+The cost is a deliberately finite eight-kind capability, not general operation serialization.
+Tests preserve v1 golden bytes, add independent v2 opcode/header fixtures and exact-size bounds,
+and compare a three-activation two-Linear MLP against ordinary Tensor/Engine forward and SGD
+oracles. Independent code/documentation review and the coordinator's native-enabled gate remain
+required before acceptance; the task brief records their status and implementation evidence.
+
+### Completed first slice cutovers
+
 Current root and scoped rules win. Each implementation packet updates its exact authority,
 explanations, ADR and affected architecture tests together **before code relies on the new rule**:
 

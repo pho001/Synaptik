@@ -83,6 +83,10 @@ OwnedModelSource (with private StateNamespace) and ModelExecutionState, all in e
 They separate typed entry points, source/state ownership and delegated execution lifetime; no public
 model/session hierarchy. Exact scope is in the [NN0028 brief](tasks/0028-owned-model-compute-training-and-persistence.md).
 
+NN0029 plans one public `ModelBuilder` in existing nn.module, with private construction/typed-step
+adapters, reusing Model.SingleTensorModel, OwnedModelSource and ModelExecutionState. No new layer
+registry, model hierarchy, graph representation or dependency. Exact types and cutover are in its brief.
+
 ## Task list
 
 The table is the complete ordered NN queue. Completed rows link to their evidence-owning task;
@@ -125,17 +129,33 @@ Draft rows without links have no detailed task brief.
 | [0026](tasks/0026-declarative-model-specification.md) | Declarative model specification and reconstruction | Complete | Verified Complete 0025/0025A/0025B; accepted NN matrix/contract | Describe/reconstruct/strict-load delivered with final reviews and coordinator gates; no persistent codec or new dependency. |
 | 0027 | Semantic recurrent description and reconstruction | Draft | NN0026/CP0005B Complete; P2 review and any separately selected recurrent scope | Held despite CP0005D planning completion; no bytes/versions or detailed brief. |
 | [0028](tasks/0028-owned-model-compute-training-and-persistence.md) | Owned ordinary tensor Model workflow | Complete | Engine0021; Training0007; Compiler0008; Checkpoint0008; Training0008 — Complete | Accepted 2026-10-19 after definitive independent approval and coordinator native-enabled root gate; evidence in brief. |
+| [0029](tasks/0029-fluent-model-builder-and-checkpoint-independent-execution.md) | Fluent Model builder and checkpoint-independent execution | Complete | NN0028; Checkpoint0009; CPU0025; Compiler0009 — Complete | Planck final APPROVE, zero findings; worker/integration evidence and main's source-matched native root gate passed (2026-10-19). |
 
 ## Dependency DAG and authorized frontiers
 
 Engine0021 + Training0007 + Compiler0008 + Checkpoint0008 + Training0008 → NN0028.
-Authorized NN frontier: None. NN0028 is Complete; no successor is launched.
-Conflicts: shared NN API/lifecycle, root/scoped authority, persistence glue and planning indexes;
-none active. Parallel group: None. Common base: main `97c3bbe7a0ee893a2ba76b5d8e90449c033cadd4`.
-Integration order: predecessor completion → NN authority update → capability/tests/docs → independent
-review → coordinator checkpoint. Integration validation: the accepted source-matched native-enabled
-root command in the NN0028 brief plus Markdown/diff checks. Shared-document integration owner: model-execution coordinator, with
-exclusive serial delegation. The brief records dependency verification and pre-launch requirements.
+Compiler0006B11 + Compiler0008 + CPU0025 → Compiler0009 (all Complete).
+NN0028 + Checkpoint0009 + CPU0025 + Compiler0009 → NN0029 → main's shared native root gate: Complete.
+Authorized NN frontier: None. Neither prerequisite repair depends on NN0029; the shared gate passed
+on the unchanged reviewed snapshot (2026-10-19), including UP-TO-DATE report evidence.
+Main accepted the final independent review and verified launch on 2026-10-19; user authorized implementation.
+The separate [Checkpoint0009 activation-source packet](../checkpoint/tasks/0009-owned-model-activation-source-and-persistence.md)
+is Complete, accepted 2026-10-19 after Archimedes final APPROVE and main's integration/native root gates.
+NN remains the unchanged owned-source consumer with
+targeted Javadoc/tests and one direct-oracle MLP integration regression. Compiler/Checkpoint jointly
+own the completed eight-kind/selective-v2 capability; NN0028 and the selected program stay Complete.
+CP0009 introduced no NN implementation task, lifecycle change or new public type. Its final authorized
+Checkpoint/Compiler/NN frontiers: None. Checkpoint0009's brief owns final evidence; no follow-up remains.
+NN0029 conflicts: NN API/lifecycle, root/NN authority and shared documents; none active, main verified.
+Parallel group: None. Common base: `7e880fb1044168043e45b10419a570d64c5283ae` plus the full dirty
+snapshot: accepted CP0009, frozen NN partial and completed CPU0025/Compiler0009. Integration order:
+reviewed [Compiler0009](../../modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md)
+→ main's verified NN resume (2026-10-19) → finish NN implementation → independent Class C review → main's single native root gate.
+Main owns shared-document integration; the NN0029 brief owns exact metadata, signatures, acceptance,
+validation, frozen evidence and current resume verification. Main rechecked approval, completed/reviewed
+predecessors, unchanged authority/full dirty base and inactive conflicts with no other writer.
+Compiler frontier: None. NN acceptance/scope unchanged; no forced contiguous copies or new hierarchy.
+No Checkpoint widening or scan/Data/NN0027 prerequisite; earlier held streams remain Draft.
 
 ## Proposed whole-model checkpoint program
 
@@ -186,7 +206,7 @@ accepted. Engine0021 delivered the thin-session removal, authority cutover and m
 migration; independent Class C approval and the native-enabled test/Javadoc gate passed. Its brief
 owns evidence. Training0007, including its atomic NN adapter, is Complete after final independent
 APPROVE and the coordinator gate. Compiler0008, Checkpoint0008 and Training0008 are also Complete
-after final independent reviews and coordinator gates; their implementation frontiers are None.
+after final independent reviews and coordinator gates; the selected program has no remaining frontier.
 NN0028's implementation is accepted. Training0007 removed its reverse edge and added
 Module.trainingParameters; Checkpoint0008 moved the nine NN glue classes into nn.checkpoint and
 removed Checkpoint→NN. Current dependencies are acyclic; bounded high-level NN ownership is now enacted.
@@ -251,7 +271,9 @@ Exact metadata and 2026-10-14 dependency/base/contracts/review/conflict verifica
 - Complete: NN0026 with final independent reviews and coordinator validation.
   NN0027 remains Draft; CP0005B is Complete. Engine0020's completed layout cutover does not
   authorize NN execution.
-- Complete: NN0028, accepted 2026-10-19; evidence in its brief. Authorized NN frontier: None.
+- Complete: NN0028, accepted 2026-10-19; evidence in its brief.
+- Complete: NN0029 after Planck final APPROVE, zero findings, 22 focused/424 NN/3 Fluent integration
+  tests and main's native root gate (2026-10-19). Authorized NN frontier: None.
 - NN0027 is the earlier Draft recurrent follow-up, held with CP0005C/Training0006 held as an optional older proposal,
   not a prerequisite of NN0028; no scan/backend BPTT/Data gate.
 - 0021B remains a separate Draft execution candidate only after a planner revalidates its cross-area
@@ -268,6 +290,10 @@ dependency plans, and roadmap above.
 
 ## Live gates, decisions, and risks
 
+- **Nonblocking cold-prepare follow-up:** a development 3-step stacked-LSTM train was interrupted
+  in active CPU topological preparation; reduced 2-step integration trains, and required 3-step RNN
+  training/all-family 3-step stack numerics pass. Review found no acceptance gap, error or proved
+  regression. Characterize larger-case preparation cost later; no Ready task, benchmark campaign or gate.
 - **0021B execution gate:** [Model 0025E–0025F](../../modules/model/master-plan.md) and
   [Compiler 0006A](../../modules/compiler/master-plan.md) are Complete, and current
   [Engine](../../modules/engine/master-plan.md) has caller-input/publication lifecycles. No

@@ -42,7 +42,9 @@ public final class GraphCompilationPort {
      * Captures and verifies a bounded raw forward source graph and its exact ordered leaves.
      *
      * <p>One identity-based traversal assigns inputs and collects leaves together. Admission is
-     * limited to fully static ADD, MUL, NEG, MATMUL and rank-two PERMUTE with axes {@code [1,0]}.
+     * limited to fully static ADD, MUL, NEG, MATMUL, RELU, TANH, SIGMOID and rank-two PERMUTE
+     * with axes {@code [1,0]}. Parameterless kinds require {@code NoOperationAttrs.INSTANCE};
+     * activations retain Model's floating-only guards and reconstruct without decomposition.
      * Existing family inference verifies every raw descriptor without rewriting it. This is not
      * the optimized, layout-closed graph returned by {@link CompileArtifacts#graph()}.</p>
      *

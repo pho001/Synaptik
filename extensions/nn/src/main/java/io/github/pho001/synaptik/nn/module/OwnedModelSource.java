@@ -12,6 +12,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Cold acquisition and live identity guards for one privately owned ordinary Tensor source.
@@ -21,6 +22,7 @@ import java.util.Map;
 final class OwnedModelSource {
     final Source source;
     private final Module root;
+    private final Sequential composition;
     private final StateDictionary dictionary;
     private final Map<String, Parameter> parameters;
     private final Map<String, Buffer> buffers;
@@ -35,8 +37,19 @@ final class OwnedModelSource {
      * @param source acquired source borrowing only final owned leaves
      */
     private OwnedModelSource(Module root, Source source) {
+        this(root, source, null);
+    }
+
+    /**
+     * Captures the same guards for final private composition state, without source admission.
+     * @param root final eval owner
+     * @param source borrowed final ordinary Tensor boundaries and leaves
+     * @param composition frozen builder chain, or null for existing reconstruction paths
+     */
+    private OwnedModelSource(Module root, Source source, Sequential composition) {
         this.root = root;
         this.source = source;
+        this.composition = composition;
         dictionary = root.stateDictionary();
         parameters = root.parametersRecursively();
         buffers = root.buffersRecursively();
@@ -64,6 +77,38 @@ final class OwnedModelSource {
      * @throws IllegalArgumentException if source/state cannot be represented by GraphCheckpoint
      */
     static OwnedModelSource acquireDefinition(Module root, Tensor input, Tensor output) {
+        List<Leaf> leaves = inventory(root, input, output, false);
+        Source owned = GraphCheckpoint.copy(new Source(List.of(input), List.of(output), leaves));
+        root.loadStateDictionary(dictionary(owned));
+        return new OwnedModelSource(root, owned);
+    }
+
+    /**
+     * Retains a builder's final private state and output without capture, copy or reconstruction.
+     * @param root final eval Model owning the chain
+     * @param input storage-free prototype
+     * @param output exact result of the single prototype composition
+     * @param composition frozen owned chain used only by explicit cold forward
+     * @return guarded source borrowing only private final leaves
+     * @throws IllegalArgumentException if any registered state is unreachable
+     */
+    static OwnedModelSource acquireComposition(Module root, Tensor input, Tensor output,
+            Sequential composition) {
+        List<Leaf> leaves = inventory(root, input, output, true);
+        return new OwnedModelSource(root,
+                new Source(List.of(input), List.of(output), leaves), composition);
+    }
+
+    /**
+     * Inventories wrapper roles and fresh constants through ordinary Tensor provenance.
+     * @param root final state owner
+     * @param input sole declared prototype, excluded from constants
+     * @param output exact reachable expression root
+     * @param verifyReachability whether to check state here rather than at existing Checkpoint admission
+     * @return canonical state followed by deterministic collision-free constants
+     * @throws IllegalArgumentException if a registered leaf is not reachable
+     */
+    private static List<Leaf> inventory(Module root, Tensor input, Tensor output, boolean verifyReachability) {
         List<Leaf> leaves = new ArrayList<>();
         IdentityHashMap<Tensor, Boolean> registered = new IdentityHashMap<>();
         for (StateEntry entry : root.stateDictionary().entries()) {
@@ -90,9 +135,29 @@ final class OwnedModelSource {
                 registered.put(tensor, true);
             }
         }
-        Source owned = GraphCheckpoint.copy(new Source(List.of(input), List.of(output), leaves));
-        root.loadStateDictionary(dictionary(owned));
-        return new OwnedModelSource(root, owned);
+        for (StateEntry entry : verifyReachability ? root.stateDictionary().entries() : List.<StateEntry>of()) {
+            if (!visited.containsKey(entry.value())) {
+                throw new IllegalArgumentException("registered state is unreachable: " + entry.path());
+            }
+        }
+        return leaves;
+    }
+
+    /**
+     * Composes builder chains cold or delegates unchanged source paths to Checkpoint reconstruction.
+     * @param values non-null exact full-descriptor expressions in declared order
+     * @return immutable ordinary outputs retaining the same owned parameters
+     * @throws NullPointerException if values or an element is null
+     * @throws IllegalArgumentException if arity or full descriptors differ
+     */
+    List<Tensor> forward(List<Tensor> values) {
+        if (composition == null) return GraphCheckpoint.rebind(source, values);
+        List<Tensor> stable = List.copyOf(Objects.requireNonNull(values, "inputs"));
+        if (stable.size() != 1 || !source.inputs().getFirst().descriptor()
+                .equals(stable.getFirst().descriptor())) {
+            throw new IllegalArgumentException("input must match the full builder signature");
+        }
+        return List.of(composition.forward(stable.getFirst()));
     }
 
     /**

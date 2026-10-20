@@ -28,6 +28,15 @@ The compiler does not create physical buffers or executable units. Runtime does 
 
 ## Compile lifecycle
 
+NN builder construction precedes compilation: copy supplied raw parameter leaves once, initialize
+fresh automatic layers, then build one ordinary prototype expression through the frozen Sequential.
+Cold Model.forward applies that same chain to an exact-descriptor expression; it creates no Engine
+and does not change cached outputs. Compute/train compile those fixed outputs once per setup and
+reuse positional bindings across batches. For example, Conv2d/pool/flatten can execute although
+GraphCheckpoint cannot save them. A rejected save touches no file and does not freeze or invalidate
+the Model. Definition/graph/load still use the bounded source path below. The
+[owned Model contract](contracts/extensions-training.md#owned-tensor-models) owns this distinction.
+
 Before ordinary compilation, integration callers may use the bounded cold source path defined by
 the [Compiler lifecycle contract](contracts/compiler-autograd.md#compile-lifecycle):
 
@@ -46,7 +55,9 @@ A replacement can itself be a produced expression; its upstream computation rema
 is checked by later ordinary compile/autograd, not widened source admission. Position associates
 inputs, so exchanging same-descriptor weights cannot be detected.
 
-This source path admits only static FORWARD ADD/MUL/NEG/MATMUL and rank-two PERMUTE `[1,0]`.
+This source path admits only static FORWARD ADD/MUL/NEG/MATMUL, floating RELU/TANH/SIGMOID and
+rank-two PERMUTE `[1,0]`. Activations reconstruct through their ordinary Tensor constructors;
+Checkpoint selects v2 only when one occurs, leaving five-kind source bytes at v1.
 It neither optimizes nor closes raw layouts. An optimized, layout-closed artifact graph is not a
 reconstructible source merely because it has the same operations. The borrowed source sidecar
 owns no storage or close lifecycle; it is not retained in graph/artifact state. Only after complete
@@ -83,6 +94,15 @@ forward Tensor outputs
 ```
 
 `CompileArtifacts` packages the immutable graph, planned partitions, logical memory plan, publication plan, and compile diagnostics. Compile does not create prepared schedules, executable units, physical buffers, runtime workspaces, concrete kernel routes, or backend-specific executable graphs.
+
+Before publication and planning, final static-result closure resolves proven materialized logical
+results, then propagates exact input-relative views in topological order. Scalar SELECT uses the
+existing indexing inference; positive-step coordinate SLICE, target-relative crop, and shape/axis
+views use layout inference. For example, a `[2,6]` matrix product followed by a two-column gate
+slice retains row stride `6`, including a nonzero column-start offset, rather than acquiring a
+contiguous copy. Negative-step, empty, dynamic, and otherwise unproved extractions stay unresolved.
+These descriptor facts leave physical storage, lowering, and execution with Prepare and backends;
+they do not widen the separate cold source boundary above.
 
 Autograd preflight checks every backward-reachable producer occurrence and its exact attributes
 before constructing a derivative expression. The compiler then uses exact Tensor identity only

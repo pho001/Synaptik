@@ -1939,9 +1939,24 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         return base + count <= Integer.MAX_VALUE;
     }
 
+    /**
+     * Advances a row-major index cursor using the active geometry rank, not scratch capacity.
+     * The caller owns all arrays; only the active prefix of {@code coordinates} is mutated,
+     * with no allocation. Extra scratch cells are untouched. Advancing the final coordinate
+     * wraps the active cursor and address back to their initial values; rank zero is a no-op.
+     *
+     * @param address current element address, including binding and layout offsets
+     * @param extents non-null borrowed active extents; each is positive for a nonempty scan
+     * @param strides non-null borrowed element strides with the same rank as {@code extents}
+     * @param coordinates non-null caller-owned mutable cursor, distinct from the geometry
+     *                    arrays, with capacity at least the active rank and a valid active prefix
+     * @return the next element address, or the initial address after complete wraparound
+     * @throws ArithmeticException if an address transition overflows {@code long}; cursor
+     *                             mutation is not rolled back on failure
+     */
     private static long advanceAddress(long address, long[] extents, long[] strides,
             long[] coordinates) {
-        for (int axis = coordinates.length - 1; axis >= 0; axis--) {
+        for (int axis = extents.length - 1; axis >= 0; axis--) {
             coordinates[axis]++;
             address = Math.addExact(address, strides[axis]);
             if (coordinates[axis] < extents[axis]) break;

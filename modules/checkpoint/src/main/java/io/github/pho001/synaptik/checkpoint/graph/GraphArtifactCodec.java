@@ -37,13 +37,15 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Closed graph-model.v1 wire on the existing opaque envelope. IDs, flags and field order are
+ * Selective closed graph-model.v1/v2 wire on the existing opaque envelope. IDs, flags and field order are
  * explicit and independent of Java enum ordinals. All parsing uses bounded views; only final
  * candidate leaves and Compiler reconstruction create Tensors, after complete stored validation.
  */
 final class GraphArtifactCodec {
     private static final long MAGIC = 0x53594e4752463031L;
     private static final String KIND = "graph-model.v1";
+    private static final long MAGIC_V2 = 0x53594e4752463032L;
+    private static final String KIND_V2 = "graph-model.v2";
 
     private GraphArtifactCodec() { }
 
@@ -57,8 +59,11 @@ final class GraphArtifactCodec {
      * @throws IllegalStateException if named host state is absent/dead/inaccessible
      */
     static ArtifactEnvelope encode(GraphSource source, ArtifactLimits limits) {
+        int version = 1;
+        for (CompiledNode node : source.graph.nodes())
+            if (opcode(node) >= 6) version = 2;
         Sink dry = new Sink(null);
-        write(dry, source);
+        write(dry, source, version);
         long stateBytes = 0;
         for (Tensor state : source.states) {
             int length = GraphValueStorage.payloadLength(state.descriptor());
@@ -69,13 +74,13 @@ final class GraphArtifactCodec {
         var segments = GraphValueStorage.admit(source.states);
         GraphValueStorage.validateBools(source.states, segments);
         ByteBuffer schema = ByteBuffer.allocate(Math.toIntExact(dry.size)).order(ByteOrder.BIG_ENDIAN);
-        write(new Sink(schema), source);
+        write(new Sink(schema), source, version);
         var entries = new ArrayList<ArtifactEnvelope.Entry>();
         entries.add(new ArtifactEnvelope.Entry("schema", schema.array()));
         for (int i = 0; i < source.states.size(); i++)
             entries.add(new ArtifactEnvelope.Entry(ordinal(i),
                     GraphValueStorage.encode(source.states.get(i).descriptor(), segments.get(i))));
-        return new ArtifactEnvelope(KIND, entries);
+        return new ArtifactEnvelope(version == 1 ? KIND : KIND_V2, entries);
     }
 
     /**
@@ -109,9 +114,10 @@ final class GraphArtifactCodec {
     static GraphCheckpoint.Source decode(ArtifactEnvelope envelope, ArtifactLimits limits)
             throws ArtifactFormatException {
         try {
-            if (!KIND.equals(envelope.kind()) || envelope.entries().isEmpty()
+            int version = KIND.equals(envelope.kind()) ? 1 : KIND_V2.equals(envelope.kind()) ? 2 : 0;
+            if (version == 0 || envelope.entries().isEmpty()
                     || !envelope.entries().getFirst().key().equals("schema"))
-                throw invalid("Expected graph-model.v1 schema");
+                throw invalid("Expected graph-model.v1/v2 schema");
             long stateBytes = 0;
             for (int i = 1; i < envelope.entries().size(); i++) {
                 var entry = envelope.entries().get(i);
@@ -122,7 +128,8 @@ final class GraphArtifactCodec {
             preflight(envelope.entries().size() - 1, envelope.entries().getFirst().size(), stateBytes, limits);
             Reader reader = new Reader(envelope.entries().getFirst().payload());
             ByteBuffer in = reader.bytes;
-            if (in.getLong() != MAGIC || in.getInt() != 1) throw invalid("Unknown graph magic/version");
+            if (in.getLong() != (version == 1 ? MAGIC : MAGIC_V2) || in.getInt() != version)
+                throw invalid("Mismatched graph kind/magic/version");
             int inputCount = reader.count(7);
             var values = new ArrayList<GraphValue>();
             var inputIds = new ArrayList<ValueId>();
@@ -191,9 +198,10 @@ final class GraphArtifactCodec {
             for (int i = 0; i < nodeCount; i++) {
                 if (reader.u8() != 1) throw invalid("Unknown source phase");
                 int op = reader.u8();
+                if (version == 1 && op > 5) throw invalid("Operation requires graph-model.v2");
                 int arity = switch (op) {
                     case 1, 2, 4 -> 2;
-                    case 3, 5 -> 1;
+                    case 3, 5, 6, 7, 8 -> 1;
                     default -> throw invalid("Unknown source operation");
                 };
                 var args = new ArrayList<ValueId>(arity);
@@ -209,6 +217,9 @@ final class GraphArtifactCodec {
                             throw invalid("Only rank-two PERMUTE[1,0] is supported");
                         yield new Operation(AxisTransformKind.PERMUTE, new PermutationAttrs(List.of(1, 0)));
                     }
+                    case 6 -> new Operation(UnaryElementwiseKind.RELU, NoOperationAttrs.INSTANCE);
+                    case 7 -> new Operation(UnaryElementwiseKind.TANH, NoOperationAttrs.INSTANCE);
+                    case 8 -> new Operation(UnaryElementwiseKind.SIGMOID, NoOperationAttrs.INSTANCE);
                     default -> throw new AssertionError();
                 };
                 ValueId id = new ValueId(result);
@@ -283,9 +294,11 @@ final class GraphArtifactCodec {
      * Uses the exact same bounded field traversal for dry sizing and encoding.
      * @param out dry or previously bounded encoding sink
      * @param source normalized metadata-validated association
+     * @param version smallest sufficient closed version, already selected from admitted opcodes
+     * @throws IllegalArgumentException if an operation's kind, attributes, phase or arity is unsupported
      */
-    private static void write(Sink out, GraphSource source) {
-        out.i64(MAGIC); out.i32(1);
+    private static void write(Sink out, GraphSource source, int version) {
+        out.i64(version == 1 ? MAGIC : MAGIC_V2); out.i32(version);
         out.i32(source.source.inputs().size());
         for (Tensor input : source.source.inputs()) out.descriptor(input.descriptor());
         out.i32(source.states.size());
@@ -302,10 +315,10 @@ final class GraphArtifactCodec {
         }
         out.i32(source.graph.nodes().size());
         for (var node : source.graph.nodes()) {
+            if (source.graph.nodePhases().get(node.id()) != GraphPhase.FORWARD)
+                throw invalid("Only FORWARD source phase is supported");
             out.u8(1);
-            var kind = node.operation().kind();
-            int op = kind == BinaryArithmeticKind.ADD ? 1 : kind == BinaryArithmeticKind.MUL ? 2
-                    : kind == UnaryElementwiseKind.NEG ? 3 : kind == MatmulKind.MATMUL ? 4 : 5;
+            int op = opcode(node);
             out.u8(op);
             for (ValueId id : node.inputs()) out.i32(Math.toIntExact(id.value()));
             if (op == 5) { out.i32(2); out.i32(1); out.i32(0); }
@@ -313,6 +326,34 @@ final class GraphArtifactCodec {
         }
         out.i32(source.graph.outputs().size());
         for (ValueId id : source.graph.outputs()) out.i32(Math.toIntExact(id.value()));
+    }
+
+    /**
+     * Admits the closed wire independently of Compiler admission, including during dry sizing.
+     * @param node stored occurrence with exact Model attributes and fixed inputs/output
+     * @return explicit stable opcode 1..8, never an enum ordinal or fallback opcode
+     * @throws IllegalArgumentException if kind, attributes or arity cannot be represented exactly
+     */
+    private static int opcode(CompiledNode node) {
+        var kind = node.operation().kind();
+        int op;
+        if (kind == BinaryArithmeticKind.ADD) op = 1;
+        else if (kind == BinaryArithmeticKind.MUL) op = 2;
+        else if (kind == UnaryElementwiseKind.NEG) op = 3;
+        else if (kind == MatmulKind.MATMUL) op = 4;
+        else if (kind == AxisTransformKind.PERMUTE) op = 5;
+        else if (kind == UnaryElementwiseKind.RELU) op = 6;
+        else if (kind == UnaryElementwiseKind.TANH) op = 7;
+        else if (kind == UnaryElementwiseKind.SIGMOID) op = 8;
+        else throw invalid("Unknown source operation: " + kind);
+        boolean attrs = op == 5
+                ? node.operation().attrs() instanceof PermutationAttrs permutation
+                    && permutation.axes().equals(List.of(1, 0))
+                : node.operation().attrs() == NoOperationAttrs.INSTANCE;
+        int arity = op == 1 || op == 2 || op == 4 ? 2 : 1;
+        if (!attrs || node.inputs().size() != arity || node.outputs().size() != 1)
+            throw invalid("Unsupported source attributes/arity");
+        return op;
     }
 
     /**

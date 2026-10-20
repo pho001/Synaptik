@@ -78,7 +78,7 @@ final class ModelExecutionState {
     }
 
     /**
-     * Performs an explicit cold symbolic substitution without affecting cached execution.
+     * Performs explicit cold composition/reconstruction without affecting cached execution.
      * @param values non-null exact-descriptor symbolic values, possibly produced expressions
      * @return immutable ordinary output expressions retaining owned state
      */
@@ -86,21 +86,21 @@ final class ModelExecutionState {
         begin();
         try {
             validateSource();
-            return GraphCheckpoint.rebind(owned.source, values);
+            return owned.forward(values);
         } finally { end(); }
     }
 
     /**
      * Applies the one-input/output cold boundary under ordinary admission.
      * @param value non-null descriptor-compatible expression
-     * @return the sole reconstructed output expression
+     * @return the sole composed or reconstructed output expression
      */
     Tensor forward(Tensor value) {
         begin();
         try {
             singleBoundary();
             validateSource();
-            return GraphCheckpoint.rebind(owned.source, List.of(Objects.requireNonNull(value, "input")))
+            return owned.forward(List.of(Objects.requireNonNull(value, "input")))
                     .getFirst();
         } finally { end(); }
     }

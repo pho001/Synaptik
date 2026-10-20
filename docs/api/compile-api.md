@@ -222,11 +222,13 @@ input count/order, full descriptors, provenance absence and unique exact leaf re
 `reconstructSource(graph, leaves)` snapshots positional substitutions and checks the complete
 source before creating a producer. Every value must have a fully static Shape and checked logical
 element count; scalar and empty shapes remain valid. Every stored node, including dead work, must
-be FORWARD and use ADD/MUL/NEG/MATMUL with `NoOperationAttrs.INSTANCE`, or rank-two PERMUTE with
+be FORWARD and use ADD/MUL/NEG/MATMUL/RELU/TANH/SIGMOID with `NoOperationAttrs.INSTANCE`, or rank-two PERMUTE with
 exact axes `[1,0]`. Existing family inference verifies promotion, broadcasting, MATMUL rank/batch
 semantics, attributes and exact output descriptors, with no deferred obligations. Model owns
 structural closure, signature/attribute checks and layout geometry. Unsupported families fail
-closed; there is no generic constructor or registry.
+closed; there is no generic constructor or registry. The three activations retain Model's
+floating-only guards across FLOAT64, FLOAT32, BFLOAT16 and FLOAT16; admission is not an execution
+capability claim for every occurrence.
 
 The supplied list must have the graph-input count and full `TensorDescriptor.equals` agreement,
 including resolved/unresolved layout and `requiresGrad`. Tensor IDs need not match the originals.
@@ -237,7 +239,8 @@ ordinary compile still rejects duplicate resolved outputs. Position is the assoc
 so same-descriptor swaps are undetectable.
 
 After complete preflight, a call-local `ValueId`-to-Tensor table rebuilds each stored occurrence
-once through `add`, `mul`, `neg`, `matmul` or `permute(1,0)`, retaining canonical output wrappers.
+once through `add`, `mul`, `neg`, `matmul`, `permute(1,0)`, `relu`, `tanh` or `sigmoid`, retaining
+canonical output wrappers and exact operation kinds rather than decomposing activations.
 The table is discarded on return/failure; immutable outputs retain only ordinary provenance.
 Zero-node pass-through, arbitrary graph IDs and unused inputs are valid source structure, not
 an Engine executability promise. No storage is read, allocated, rebound or owned, even when a
@@ -272,7 +275,7 @@ This constructs symbolic metadata only, not numeric values. Replacing the scalar
 fails descriptor association even though ordinary arithmetic could broadcast it.
 
 This boundary deliberately skips canonicalization, folding, dead-code/common-subexpression
-elimination, publication, planning and final logical-layout closure. ADD/MUL/NEG/MATMUL results
+elimination, publication, planning and final logical-layout closure. Parameterless operation results
 remain layout-unresolved; PERMUTE keeps its constructor's resolved-view or unresolved descriptor.
 `CompileArtifacts.graph()` is not source: a closed output descriptor is rejected rather than
 stripped or forced into a fabricated Tensor. Ordinary `compile()` and autograd are unchanged.
@@ -480,6 +483,16 @@ Affine/view results are deliberately excluded: `RESHAPE`, `EXPAND`, `PERMUTE`, `
 offset and strides or remain unresolved. The earlier specialized convolution closure continues to
 derive the direct Conv1d squeeze view. This prevents canonical completion from changing an affine
 mapping, including offset or zero-stride geometry.
+
+After materialized results close, a topological view pass retries these transforms using the latest
+input descriptors. Scalar `SELECT` reuses indexing-family inference; coordinate `SLICE` and
+target-relative crops reuse layout-family inference. Only exact inferred layouts whose data type
+and Shape match the captured output are accepted. For example, selecting axis 0 at index 2 from a
+newly closed `[3,2,2]` product gives a `[2,2]` view with strides `[2,1]` and element offset `8`.
+A gate slice selecting columns 2 and 3 of a `[2,6]` projection keeps strides `[6,1]` and offset `2`,
+not canonical `[2,1]` geometry. Later views in the same pass consume those exact descriptors.
+Negative-step and empty extraction, unknown input geometry, and other unproved layouts remain
+unresolved; this does not add signed-stride or empty-view support or choose a physical copy.
 
 Explicit compile-time splat graph inputs receive canonical logical geometry because they have no
 caller binding whose descriptor must remain exact. The pass preserves caller-bindable graph

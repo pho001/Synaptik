@@ -8,6 +8,11 @@ not Java callbacks. This plan and [ADR0039](../design/decisions/0039-portable-gr
 are non-authoritative. All selected phases are Complete, including NN0028 accepted 2026-10-19;
 their bounded root/scoped cutovers are enacted. No new task is launched by this completed program.
 
+The separately selected [Checkpoint0009 activation-source successor](extensions/checkpoint/tasks/0009-owned-model-activation-source-and-persistence.md)
+is Complete, accepted 2026-10-19 after Archimedes final APPROVE and main's integration/native root
+gates. It is not another phase of this program. Checkpoint/Compiler/NN frontiers: None.
+The eight-kind/selective-v2 capability is current; the original slice and all phases stay Complete.
+
 P2 incorporates all five product choices accepted on 2026-10-16: common Model-facing tensor
 operations with generic Java forward retained; lazy model-owned Engine.standard or explicit borrowed
 Engine; owned working weights; targeted source migration; and a fixed explicit first graph signature.
@@ -19,7 +24,7 @@ Training0007 is Complete after Pascal's final independent APPROVE and the coordi
 Authorized Training frontier: None. [Compiler0008](modules/compiler/tasks/0008-cold-source-capture-and-reconstruction.md)
 is Complete after final independent code/docs APPROVE and the coordinator Class C checkpoint.
 Authorized Compiler frontier: None; [Checkpoint0008](extensions/checkpoint/tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md)
-is Complete after Halley's final APPROVE and coordinator acceptance on 2026-10-17. Authorized Checkpoint
+is Complete after Halley's final APPROVE and coordinator acceptance on 2026-10-17. Selected-program Checkpoint
 frontier: None; [Training0008](extensions/training/tasks/0008-fresh-value-training-session-runs.md) is
 Complete after Euclid's definitive code/docs APPROVE and main's source-matched root gate (2026-10-19);
 [NN0028](extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md) is Complete, accepted 2026-10-19;
@@ -40,7 +45,7 @@ Completed task histories and evidence remain intact.
 Arrows below are actual capability dependencies, not table-order authorization. Engine0021,
 Training0007/0008 and Compiler0008 are Complete; authorized Training frontier is None,
 and Compiler frontier is None.
-Checkpoint0008 is Complete after final independent approval and the coordinator gate; Checkpoint
+Checkpoint0008 is Complete after final independent approval and the coordinator gate; selected-program Checkpoint
 frontier: None. Training0008's brief owns Euclid's final APPROVE and main's accepted root-gate evidence;
 NN0028 is Complete. All selected program phases are Complete; authorized NN frontier: None.
 

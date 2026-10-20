@@ -38,9 +38,117 @@ final class GraphArtifactCodecTest {
         assertEquals(85, golden.length);
         assertEquals("state/00000000", image.entries().get(1).key());
         assertArrayEquals(new byte[] {0x3f, (byte) 0x80, 0, 0}, payload(image));
-        var source = GraphArtifactCodec.decode(image, LIMITS);
+        var source = GraphArtifactCodec.decode(image(golden, new byte[] {0x3f, (byte) 0x80, 0, 0}), LIMITS);
         assertEquals(GraphCheckpoint.Role.PARAMETER, source.leaves().getFirst().role());
         assertArrayEquals(golden, schema(GraphArtifactCodec.encode(GraphSource.capture(source), LIMITS)));
+    }
+
+    @Test
+    void activationGoldenOpcodesAndExactVersionTuplesAreClosed() throws Exception {
+        Tensor input = prototype(DataType.FLOAT32, Shape.scalar(), true, false);
+        List<Tensor> activations = List.of(input.relu(), input.tanh(), input.sigmoid());
+        for (int i = 0; i < activations.size(); i++) {
+            byte[] golden = java.util.HexFormat.of().parseHex(
+                    "53594e4752463032" + "00000002" + "00000001" + "02010000000000"
+                    + "00000000" + "00000000" + "00000001" + "01" + "0" + (i + 6)
+                    + "00000000" + "02010000000000" + "00000001" + "00000001");
+            var source = new GraphCheckpoint.Source(List.of(input), List.of(activations.get(i)), List.of());
+            var encoded = GraphArtifactCodec.encode(GraphSource.capture(source), LIMITS);
+            assertEquals("graph-model.v2", encoded.kind());
+            assertArrayEquals(golden, schema(encoded));
+            var loaded = GraphArtifactCodec.decode(versioned("graph-model.v2", golden), LIMITS);
+            assertEquals(activations.get(i).provenance().orElseThrow().operation(),
+                    loaded.outputs().getFirst().provenance().orElseThrow().operation());
+            assertArrayEquals(golden, schema(GraphArtifactCodec.encode(GraphSource.capture(loaded), LIMITS)));
+            // New opcodes are never legal v1, even with an otherwise matching v1 header.
+            byte[] v1 = golden.clone(); v1[7] = '1'; ByteBuffer.wrap(v1).putInt(8, 1);
+            assertThrows(ArtifactFormatException.class,
+                    () -> GraphArtifactCodec.decode(versioned("graph-model.v1", v1), LIMITS));
+            assertThrows(ArtifactFormatException.class,
+                    () -> GraphArtifactCodec.decode(versioned("graph-model.v2", v1), LIMITS));
+            for (String kind : List.of("graph-model.v1", "graph-model.v3"))
+                assertThrows(ArtifactFormatException.class,
+                        () -> GraphArtifactCodec.decode(versioned(kind, golden), LIMITS));
+            for (int position : List.of(7, 8, 16, 17, 22, 35, 36, 37, 41, 42, 47, 52)) {
+                byte[] bad = golden.clone(); bad[position] = (byte) 0xff;
+                assertThrows(ArtifactFormatException.class,
+                        () -> GraphArtifactCodec.decode(versioned("graph-model.v2", bad), LIMITS));
+            }
+            for (int length = 0; length < golden.length; length++) {
+                byte[] truncated = Arrays.copyOf(golden, length);
+                assertThrows(ArtifactFormatException.class,
+                        () -> GraphArtifactCodec.decode(versioned("graph-model.v2", truncated), LIMITS));
+            }
+            assertThrows(ArtifactFormatException.class, () -> GraphArtifactCodec.decode(
+                    versioned("graph-model.v2", Arrays.copyOf(golden, golden.length + 1)), LIMITS));
+            for (int type : List.of(4, 5, 6)) {
+                byte[] bad = golden.clone(); bad[16] = (byte) type; bad[41] = (byte) type;
+                bad[17] = 0; bad[42] = 0;
+                assertThrows(ArtifactFormatException.class,
+                        () -> GraphArtifactCodec.decode(versioned("graph-model.v2", bad), LIMITS));
+            }
+            // A five-kind-only v2 is valid input, but saves using the smallest sufficient version.
+            byte[] neg = golden.clone(); neg[36] = 3;
+            var downgraded = GraphArtifactCodec.encode(GraphSource.capture(GraphArtifactCodec.decode(
+                    versioned("graph-model.v2", neg), LIMITS)), LIMITS);
+            assertEquals("graph-model.v1", downgraded.kind());
+            assertEquals('1', schema(downgraded)[7]);
+            assertEquals(1, ByteBuffer.wrap(schema(downgraded)).getInt(8));
+        }
+    }
+
+    @Test
+    void versionTwoAllSixExactLimitsAndOneBelowPreservePriorTarget() throws Exception {
+        var base = scalar();
+        var source = new GraphCheckpoint.Source(base.inputs(), List.of(base.outputs().getFirst().tanh()), base.leaves());
+        var exact = new ArtifactLimits(280, 130, 2, 14, 98, 102);
+        var image = GraphArtifactCodec.encode(GraphSource.capture(source), exact);
+        Path target = directory.resolve("v2-exact");
+        GraphCheckpoint.save(target, source, exact);
+        byte[] before = Files.readAllBytes(target);
+        assertEquals(280, before.length);
+        assertEquals(1, GraphCheckpoint.load(target, exact).leaves().size());
+        for (var below : List.of(new ArtifactLimits(279, 130, 2, 14, 98, 102),
+                new ArtifactLimits(280, 129, 2, 14, 98, 102), new ArtifactLimits(280, 130, 1, 14, 98, 102),
+                new ArtifactLimits(280, 130, 2, 13, 98, 102), new ArtifactLimits(280, 130, 2, 14, 97, 102),
+                new ArtifactLimits(280, 130, 2, 14, 98, 101))) {
+            assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.save(target, source, below));
+            assertThrows(ArtifactFormatException.class, () -> GraphArtifactCodec.decode(image, below));
+            assertThrows(ArtifactFormatException.class, () -> GraphCheckpoint.load(target, below));
+            assertArrayEquals(before, Files.readAllBytes(target));
+        }
+        source.leaves().getFirst().tensor().clearHostStorage();
+        assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.save(target, source,
+                new ArtifactLimits(279, 130, 2, 14, 98, 102)));
+    }
+
+    @Test
+    void encoderIndependentlyRejectsUnknownKindBeforeStorageAdmission() throws Exception {
+        var captured = GraphSource.capture(scalar());
+        var old = captured.graph.nodes().getFirst();
+        var node = new io.github.pho001.synaptik.model.graph.CompiledNode(old.id(),
+                new io.github.pho001.synaptik.model.operation.Operation(
+                        io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind.ABS,
+                        io.github.pho001.synaptik.model.operation.NoOperationAttrs.INSTANCE),
+                List.of(old.inputs().getFirst()), old.outputs());
+        var graph = new io.github.pho001.synaptik.model.graph.CompiledGraphModel(captured.graph.values(),
+                List.of(node), captured.graph.inputs(), captured.graph.outputs(), captured.graph.nodePhases());
+        var constructor = GraphSource.class.getDeclaredConstructors()[0]; constructor.setAccessible(true);
+        var injected = (GraphSource) constructor.newInstance(captured.source, graph, captured.states,
+                captured.roles, captured.registrations);
+        captured.states.getFirst().clearHostStorage();
+        assertTrue(assertThrows(IllegalArgumentException.class,
+                () -> GraphArtifactCodec.encode(injected, LIMITS)).getMessage().contains("Unknown source operation"));
+    }
+
+    /**
+     * Wraps independent zero-state schema bytes without consulting the production encoder.
+     * @param kind exact or deliberately malformed graph artifact kind
+     * @param bytes schema fixture in big-endian wire order
+     * @return immutable envelope owning its schema snapshot
+     */
+    private static ArtifactEnvelope versioned(String kind, byte[] bytes) {
+        return new ArtifactEnvelope(kind, List.of(new ArtifactEnvelope.Entry("schema", bytes)));
     }
 
     @Test

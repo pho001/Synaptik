@@ -9,13 +9,143 @@ prepared execution repeatedly with current caller-owned input storage. Each run 
 ordered publication metadata and supports explicit copying into detached immutable
 `HostTensorValue` objects.
 
+## Build a fluent Model
+
+Use `Model.builder()` when a fixed Tensor input should flow through dense, convolutional or
+statically unrolled recurrent layers without a definition callback. A build creates a private
+evaluation-mode Model with one working weight set for compute, training and supported saves.
+It creates no Engine. Use Java 26, `:extensions:nn`, and `--add-modules jdk.incubator.vector`
+for the default CPU Engine. Close the Model when finished; compute results are detached values.
+
+For example, a multilayer perceptron (MLP) maps FLOAT32 `[32,784]` to `[32,10]`:
+
+```java
+try (var model = Model.builder().input(DataType.FLOAT32, 32, 784)
+        .seed(42).linear(128).relu().linear(10, false).build()) {
+    // compute requires stored FLOAT32 [32,784] batches with the exact input descriptor.
+}
+```
+
+Declare input once before steps: floating dtype, at least one axis, every extent positive and
+static. Its prototype is storage-free, canonical contiguous, offset-zero, non-view and
+`requiresGrad=false`. Both compute and cold `forward` require that full descriptor. The builder
+is caller-coordinated and reusable: every build owns fresh children/state, and later builder edits
+do not alter earlier Models. Build requires at least one step.
+
+Automatic layers infer input feature/channel widths. They use existing Glorot-uniform weights,
+zero bias enabled by default, and a fresh L64X128MixRandom generator per layer. Default seed is 0;
+the last seed set before build applies to the whole recipe. Appended step `i`, starting at zero,
+uses `seed + 0x9E3779B97F4A7C15L * i` with Java long wraparound. Activations and transforms count
+as steps. Identical recipes, seeds and algorithms reproduce initialization bytes; this is not
+optimizer or random-stream checkpoint continuation.
+
+### Train and save private supplied weights
+
+This complete example starts with supplied weight 2, predicts 6 on input 3, and trains toward 1.
+`linear(weight)` disables bias; `linear(weight,bias)` copies both. Supplied state must satisfy
+Linear's floating, positive-static, gradient-eligible schema and match input dtype. It must be
+stored provenance-free state, not an expression to evaluate. Build copies each Tensor identity
+once before constructing expressions, preserving aliases; it never mutates caller state. Training
+retains its separate rejection of parameter aliases. Keep supplied storage live and exclude mutation
+during build; a successful Model does not retain that storage.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.module.Model;
+import io.github.pho001.synaptik.training.Sgd;
+import java.nio.file.Path;
+import java.util.Optional;
+
+public final class FluentModelExample {
+    static Tensor matrix(float value, boolean gradient) {
+        Shape shape = Shape.of(1, 1);
+        return TensorFactory.fromFlatArray(new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), gradient), Optional.empty(),
+                new float[]{value});
+    }
+
+    public static void main(String[] args) throws Exception {
+        Path file = Path.of(args.length == 0 ? "fluent.graph" : args[0]);
+        Tensor externalWeight = matrix(2, true);
+        try (var model = Model.builder().input(DataType.FLOAT32, 1, 1)
+                .linear(externalWeight).build()) {
+            model.save(file); // supported graph-model.v1, before any Engine exists
+            System.out.println(model.compute(matrix(3, false)).bytes().getFloat()); // 6
+            model.configureTraining(matrix(0, false).descriptor(), (prediction, target) -> {
+                Tensor error = prediction.sub(target);
+                return error.mul(error).sum();
+            }, new Sgd(0.1));
+            System.out.println(model.train(matrix(3, false), matrix(1, false))
+                    .objective().bytes().getFloat()); // 25
+            model.save(file); // private weight -1; externalWeight remains 2
+        }
+        try (var restored = Model.load(file)) {
+            System.out.println(restored.compute(matrix(2, false)).bytes().getFloat()); // -2
+        }
+    }
+}
+```
+
+Run with the NN runtime classpath, Java 26 and the vector module enabled. The destination's parent
+must exist. Output is `6.0`, `25.0`, `-2.0`: squared error `(2*3-1)^2` has weight gradient 30,
+so SGD changes only the private weight to `2-0.1*30=-1`. Configure training again after load;
+the file contains neither the objective nor optimizer history.
+
+### Convolution and recurrent axes
+
+These chains use the same imports and Model lifecycle. A convolutional neural network (CNN) takes
+channels-first input; convolution defaults are stride/dilation/groups 1, padding 0 and bias enabled.
+Maximum pooling uses stride equal to kernel, padding 0, dilation 1 and floor geometry:
+
+```java
+try (var cnn = Model.builder().input(DataType.FLOAT32, 32, 1, 28, 28).seed(42)
+        .conv2d(32, 3, 3).relu().maxPool2d(2, 2)
+        .conv2d(64, 3, 3).relu().maxPool2d(2, 2)
+        .flatten().linear(128).relu().linear(10).build()) {
+    // Spatial extents: 28 -> 26 -> 13 -> 11 -> 5.
+    // flatten: [32,64,5,5] -> [32,1600]; final output: [32,10].
+}
+try (var recurrent = Model.builder().input(DataType.FLOAT32, 20, 32, 8).seed(42)
+        .lstm(128).lstm(64).lastTimeStep().linear(10).build()) {
+    // Each LSTM returns all hidden time steps: [20,32,128], then [20,32,64].
+    // lastTimeStep explicitly selects [32,64]; final output: [32,10].
+}
+```
+
+`conv1d` uses NCW (batch/channels/width), `conv2d` NCHW and `conv3d` NCDHW.
+RNN, reset-after GRU and LSTM use TBF (time/batch/features), positive fixed time, and all-valid rows.
+They return **every hidden step**, including LSTM; there is no implicit final-step selection.
+Each composition starts with zero hidden state (and zero cell state for LSTM). Cached compute/train
+reuse fixed zero constants, never carry state across batches, and do not rebuild the graph per call.
+Static unrolling uses existing constituent-operation adjoints; it is not scan backpropagation through
+time (BPTT), streaming state, or runtime-length support. Conv3d backward remains unsupported.
+
+`flatten()` requires rank at least two and preserves axis 0: `[axis0, product of other extents]`.
+For CNNs axis 0 is batch; for TBF `[T,B,H]` it is time, so flatten gives `[T,B*H]`.
+Use `lastTimeStep()` first when recurrent batch rows must remain separate.
+
+Construction, cold forward and execution are independent of serialization. Save still admits only
+ADD/MUL/NEG/MATMUL, rank-two PERMUTE `[1,0]` and floating RELU/TANH/SIGMOID. MLPs in this domain
+round-trip through v1/v2; CNN/pool/reshape/concat/select/gather chains reject before file work,
+leaving absent targets absent and existing targets unchanged. A failed unsupported save does not
+freeze Engine selection, invalidate the Model, or disable compute/training. It does not make
+every builder occurrence executable: the selected Engine's dtype/layout/gradient capabilities apply.
+See [builder API and lifecycle](../api/public-api.md#fluent-model-builder).
+
 ## Owned static Model workflow
 
 For an application-built and file-restored model with the same compute/train/save API, opt into
-an **owned source**: an ordinary static Tensor graph reconstructed against private weight values.
+an **owned source**: ordinary static Tensor provenance over private weight values. The builder above
+retains layer composition; the definition/graph/load paths below reconstruct the bounded source.
 Use Java 26, an explicit `:extensions:nn` dependency, and the CPU Engine's incubator vector module
-(`--add-modules jdk.incubator.vector`). No caller Arena is required for this workflow. The source
-admits ADD, MUL, NEG, MATMUL and rank-two PERMUTE[1,0]; this is not all NN layers or all codecs.
+(`--add-modules jdk.incubator.vector`). No caller Arena is required for this workflow. Definition/graph source admission
+admits ADD, MUL, NEG, MATMUL, rank-two PERMUTE[1,0] and floating RELU, TANH and SIGMOID;
+this is not all NN layers or all codecs.
 Execution and training support remain narrower than raw graph persistence's seven data types.
 
 This complete example learns one FLOAT32 weight, starting at 2. Both batch and target are [1,1].
@@ -105,7 +235,7 @@ storage and an owned Engine, attempting all cleanup and replaying retained failu
 | Busy or closed/closing | Another high-level operation or close owns admission. Serialize calls; keep borrowed Engine open through Model use. |
 | Source changed | Mode, paths/wrappers, Tensor or storage associations changed. Construct a replacement Model; restoring a binding does not revive an invalid capability. |
 | Native training admission rejects | Current Training rejects unresolved/empty/nonfinite/aliased parameters. Supply supported state before acquisition; there is no implicit conversion or alias splitting. |
-| Unsupported source operation | The five-operation static persistence boundary is narrower than ordinary Compiler/NN support. Keep the old flexible/declarative workflow below where appropriate. |
+| Unsupported source operation | Definition/graph acquisition and all graph saves use eight-kind admission. Use the fluent builder for supported compute/train compositions outside it; their unsupported saves still reject. |
 
 Short save/load forms use 256 MiB file/aggregate, 4 MiB manifest, 16384 entries, 64-byte keys and
 64 MiB payload ceilings; explicit `ArtifactLimits` overloads remain. Old `model.v1` and
@@ -113,6 +243,64 @@ Short save/load forms use 256 MiB file/aggregate, 4 MiB manifest, 16384 entries,
 Zero-node source may save/load but retains Engine's empty-plan rejection. Model/Training autotuning
 is not integrated; advanced `Engine.prepareTuned` remains separate. See the
 [API contracts](../api/public-api.md#owned-tensor-model-capability).
+
+### Two Linear layers with an activation
+
+A multilayer perceptron (MLP) uses two Linear layers with an intervening activation. Add these
+methods to `OwnedModelExample` above and call `activationMlp()` from `main`. This FLOAT32 example
+uses the same weights, shapes, batches and squared-error objective as the parameterized
+`OwnedModelWorkflowIntegrationTest`. It saves before compute, trains private weights and loads
+the trained model; the external leaves remain unchanged.
+
+```java
+static Tensor values(Shape shape, boolean gradient, float... lanes) {
+    Tensor tensor = TensorFactory.allocate(new TensorDescriptor(DataType.FLOAT32, shape,
+            Optional.of(LayoutDescriptor.contiguous(shape)), gradient));
+    for (int i = 0; i < lanes.length; i++) {
+        tensor.hostStorage().orElseThrow().segment()
+                .set(ValueLayout.JAVA_FLOAT_UNALIGNED, i * 4L, lanes[i]);
+    }
+    return tensor;
+}
+
+static void activationMlp() throws Exception {
+    Tensor firstWeight = values(Shape.of(2, 2), true, 0.5f, -0.25f, 0.25f, 0.5f);
+    Tensor firstBias = values(Shape.of(2), true, 0.2f, -0.1f);
+    Tensor lastWeight = values(Shape.of(1, 2), true, 0.75f, -0.4f);
+    Tensor lastBias = values(Shape.of(1), true, 0.1f);
+    Tensor firstBatch = values(Shape.of(1, 2), false, 1, 2);
+    Tensor secondBatch = values(Shape.of(1, 2), false, -0.5f, 1);
+    Path file = Path.of("activation.graph");
+    try (var model = Model.defineTensor(firstBatch.descriptor(), topology -> {
+        var first = topology.addModule("first", new Linear(firstWeight, firstBias));
+        var last = topology.addModule("last", new Linear(lastWeight, lastBias));
+        return input -> last.forward(first.forward(input).relu());
+    })) {
+        model.save(file); // graph-model.v2, no saved batch or Engine
+        System.out.println(model.compute(firstBatch).bytes().getFloat());  // approximately -0.21
+        System.out.println(model.compute(secondBatch).bytes().getFloat()); // approximately -0.01
+        model.configureTraining(matrix(0, false).descriptor(), (prediction, target) -> {
+            Tensor error = prediction.sub(target);
+            return error.mul(error).sum();
+        }, new Sgd(0.01));
+        model.train(firstBatch, matrix(0.3f, false)); // positive loss and nonzero parameter updates
+        model.train(secondBatch, matrix(0.3f, false));
+        model.save(file); // current private working weights, not optimizer state
+    }
+    try (var restored = Model.load(file)) {
+        System.out.println(restored.compute(firstBatch).bytes().getFloat()); // trained prediction
+        // Supply configureTraining again to train the restored model.
+    }
+}
+```
+
+Before training, the hidden values are `[0.2,1.15]` for the first batch and `[-0.3,0.275]` for
+the second. RELU removes the second batch's negative contribution; it is not an identity or
+transpose. Replace `.relu()` with `.tanh()` or `.sigmoid()` for the other supported activations.
+Each keeps its ordinary Tensor semantics and selects graph-model.v2. Graphs with only the original
+five kinds still save byte-identical v1; old graph readers reject v2. The regression compares all
+three activations' forward values, objectives and nonzero updates against an independent ordinary
+Tensor/Engine oracle, including training after load and reloading trained state.
 
 ## Prerequisites
 

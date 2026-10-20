@@ -6,11 +6,12 @@
 executing it. Copy/load return ordinary symbolic Tensors and private mutable heap state; rebind
 substitutes inputs symbolically. None creates an Engine, prepared execution or new Model hierarchy.
 The [owning contract](../architecture/contracts/extensions-training.md#generic-graph-source-and-values)
-defines the capability and [fixed wire](../architecture/contracts/extensions-training.md#canonical-graph-model-version-1).
+defines the capability, [original wire](../architecture/contracts/extensions-training.md#canonical-graph-model-version-1)
+and [selective activation wire](../architecture/contracts/extensions-training.md#canonical-graph-model-version-2).
 
 ```text
 borrowed Source -> copy -> private state + reconstructed ordinary provenance
-borrowed Source -> save -> graph-model.v1 -> load -> private heap state + ordinary provenance
+borrowed Source -> save -> graph-model.v1/v2 -> load -> private heap state + ordinary provenance
 Source + replacement inputs -> rebind -> ordinary outputs -> explicit caller Engine
 ```
 
@@ -43,11 +44,25 @@ Equal values or physically overlapping distinct Tensors never establish aliases.
 UTF-8 nonblank dot segments, without normalization, duplicates or prefix collisions. Registration
 order is retained independently of first source encounter and input signature order.
 
-Source admission is static FORWARD ADD/MUL/NEG/MATMUL and rank-two PERMUTE[1,0], with exact full
+Source admission is static FORWARD ADD/MUL/NEG/MATMUL/RELU/TANH/SIGMOID and rank-two PERMUTE[1,0], with exact full
 descriptors, sharing and occurrences. All seven raw types persist where Model permits them;
-integral/BOOL NEG is not supported. No optimizations, layout closure or implicit family extensions
+integral/BOOL NEG and activations are not supported. No optimizations, layout closure or implicit family extensions
 occur. Zero-node graphs are valid data, not a new Engine execution promise. No backend rank-16
 ceiling is imposed by persistence.
+
+## Selective graph format versions
+
+Sources containing RELU, TANH or SIGMOID save as `graph-model.v2` (`SYNGRF02`, i32 version 2).
+Other admitted sources, including zero-node graphs, retain byte-identical `graph-model.v1`
+(`SYNGRF01`, i32 version 1). Version 2 appends opcodes 6, 7 and 8 respectively, each with one
+preceding input ID and no attribute bytes; all other fields, payloads and bounds are unchanged.
+For example, `x.mul(weight).relu()` selects v2, whereas `x.mul(weight)` still selects v1.
+
+Load recognizes only matching kind/header/version tuples. V1 still rejects opcodes 6..8; v2
+accepts only 1..8 and may contain only the original five kinds, in which case re-save selects v1.
+Unknown or malformed data rejects before state import and reconstruction. An old graph reader
+rejects v2 rather than reinterpreting it. ArtifactFile framing and separate old NN readers do not
+change. No caller version selector or implicit operation decomposition is introduced.
 
 ## Complete cold example
 
@@ -95,7 +110,9 @@ storage. Produced and repeated replacements keep their upstream provenance; repe
 references remain possible and ordinary compilation still rejects duplicate outputs.
 
 To evaluate, explicitly use the existing Engine API with its own dependency and lifecycle. The
-integration test covers Linear MATMUL/PERMUTE/ADD, two fresh inputs and ordinary autograd equivalence.
+integration tests cover Linear MATMUL/PERMUTE/ADD and each activation with two fresh inputs and
+ordinary forward/autograd equivalence. Owned MLP training additionally compares updates against
+an independent Tensor/Engine oracle, not just another restored Model.
 Replacing the fresh scalar with a vector, resolved-layout scalar or no-gradient scalar rejects
 because the entire input descriptor must match. No automatic recapture/recompile is promised.
 

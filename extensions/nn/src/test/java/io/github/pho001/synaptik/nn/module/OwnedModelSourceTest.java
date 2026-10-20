@@ -150,7 +150,7 @@ final class OwnedModelSourceTest {
                 List.of(parameter("a", weight), new Leaf("b", Role.CONSTANT, weight))));
         assertThrows(IllegalArgumentException.class, () -> Model.graph(List.of(x), List.of(x.neg()),
                 List.of(parameter("weight", weight))));
-        assertThrows(IllegalArgumentException.class, () -> Model.graph(List.of(x), List.of(x.relu()), List.of()));
+        assertThrows(IllegalArgumentException.class, () -> Model.graph(List.of(x), List.of(x.abs()), List.of()));
         assertThrows(IllegalArgumentException.class, () -> Model.graph(List.of(x), List.of(weight.neg()),
                 List.of(parameter("a", weight), parameter("a.b", weight))));
         assertThrows(IllegalArgumentException.class, () -> Model.defineTensor(x.descriptor(), t -> {
@@ -181,6 +181,28 @@ final class OwnedModelSourceTest {
             }
             assertTrue(assertThrows(IllegalArgumentException.class, () -> Model.load(path))
                     .getMessage().contains("loadGraph"));
+        }
+    }
+
+    @Test void bothConstructionRoutesAndLoadedForwardRemainColdForAllThreeActivations() throws Exception {
+        Tensor x = prototype();
+        for (var activation : List.<java.util.function.UnaryOperator<Tensor>>of(Tensor::relu, Tensor::tanh, Tensor::sigmoid)) {
+            Tensor expected = activation.apply(x);
+            try (var defined = Model.defineTensor(x.descriptor(), topology -> activation::apply);
+                    var graph = Model.graph(List.of(x), List.of(expected), List.of())) {
+                for (var model : List.of(defined, graph)) {
+                    Tensor result = model == defined ? defined.forward(x) : graph.forward(List.of(x)).getFirst();
+                    assertEquals(expected.provenance().orElseThrow().operation(), result.provenance().orElseThrow().operation());
+                    assertSame(x, result.provenance().orElseThrow().inputs().getFirst());
+                    assertNull(field(field(model, "execution"), "engine"));
+                    Path path = directory.resolve("active"); model.save(path);
+                    try (var loaded = Model.load(path)) {
+                        assertEquals(expected.provenance().orElseThrow().operation(),
+                                loaded.forward(x).provenance().orElseThrow().operation());
+                        assertNull(field(field(loaded, "execution"), "engine"));
+                    }
+                }
+            }
         }
     }
 

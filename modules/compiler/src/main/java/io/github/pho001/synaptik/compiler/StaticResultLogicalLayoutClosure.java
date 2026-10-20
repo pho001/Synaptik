@@ -21,9 +21,9 @@ import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
-import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
@@ -61,10 +61,12 @@ import java.util.Optional;
  * materialized values rather than storage views. {@link ContiguousKind#CONTIGUOUS} explicitly
  * requests the same geometry. Affine/view operations such as reshape, expand, permute, and squeeze
  * are excluded from canonical closure; after materialized inputs are closed, a second topological
- * phase derives their exact offset and strides with {@link LayoutInference}. That same phase
- * retries only fully static target-relative crop extraction after its input layout closes.
- * Explicit-coordinate slice extraction and scalar select remain unresolved. Unknown future
- * operation kinds therefore fail closed instead of silently acquiring geometry.
+ * phase derives their exact offset and strides with {@link LayoutInference}. That phase also
+ * retries target-relative crop and positive-step coordinate slice extraction through the same
+ * owner, and scalar select through {@link IndexingInference}, after each input layout closes.
+ * Only matching output data types and Shapes with a family-proved layout are accepted; negative-
+ * step, empty, dynamic, and otherwise unproved extractions remain unresolved. Unknown future
+ * operation kinds fail closed instead of silently acquiring geometry.
  *
  * <p>An explicit compile-time splat graph input may also use canonical geometry because it has no
  * caller binding whose descriptor must remain exact. Caller-bindable inputs, dynamic shapes, and
@@ -79,18 +81,18 @@ final class StaticResultLogicalLayoutClosure {
      * Closes eligible descriptors without changing graph structure or sidecar membership.
      *
      * <p>If no descriptor qualifies, the exact input is returned. Otherwise only changed {@link
-   * GraphValue} objects and graph-owning immutable sidecars are rebuilt. Value and boundary order,
-   * IDs, exact node and operation references, phases, constants, bindable Tensor identities,
-   * constraints, and derivative-order values are preserved.
+     * GraphValue} objects and graph-owning immutable sidecars are rebuilt. Value and boundary order,
+     * IDs, exact node and operation references, phases, constants, bindable Tensor identities,
+     * constraints, and derivative-order values are preserved.
      *
      * @param validatedGraph non-null final optimized, validated graph state after specialized
      *     descriptor closures; it is not mutated
      * @return the exact input when unchanged, otherwise a non-null validated result containing
-     *     canonical logical layouts for every proven eligible value
+     *     canonical materialized-result layouts and exact family-derived views where proved
      * @throws NullPointerException if {@code validatedGraph} is {@code null}
-     * @throws IllegalArgumentException if checked canonical layout arithmetic overflows; the failure
-     * identifies the affected node output or compile-time splat input and retains the arithmetic
-     * failure as its cause
+     * @throws IllegalArgumentException if checked canonical or affine layout arithmetic overflows;
+     *     the failure identifies the affected node output or compile-time splat input and retains
+     *     the arithmetic failure as its cause
      */
     static ValidatedGraph close(ValidatedGraph validatedGraph) {
         java.util.Objects.requireNonNull(validatedGraph, "validatedGraph");
@@ -147,8 +149,11 @@ final class StaticResultLogicalLayoutClosure {
      * value whose unresolved static geometry may be chosen canonical contiguous.
      *
      * <p>The list is intentionally explicit. Structural views are absent; the functional {@link
-   * SliceKind#SLICE_UPDATE} result is included separately from slice extraction. Adding a new Model
-   * operation kind does not broaden this proof automatically.
+     * SliceKind#SLICE_UPDATE} result is included separately from slice extraction. Adding a new Model
+     * operation kind does not broaden this proof automatically.
+     *
+     * @param operation non-null validated operation to classify without mutation
+     * @return whether the family proves newly materialized results eligible for canonical geometry
      */
     private static boolean hasCanonicalContiguousResults(Operation operation) {
         OperationKind kind = operation.kind();
@@ -188,13 +193,26 @@ final class StaticResultLogicalLayoutClosure {
                 || kind instanceof AggregateReductionKind
                 || kind instanceof CumulativeScanKind;
     }
+    /**
+     * Retries one allowlisted view using its latest topologically closed input descriptor.
+     *
+     * <p>Select stays with indexing inference; shape/axis transforms and both slice attribute forms
+     * stay with layout inference. The inferred view is never replaced by canonical geometry. An
+     * absent proof, a captured dtype/Shape mismatch, or an already resolved output leaves the value
+     * unchanged. The captured gradient eligibility is preserved independently of family inference.
+     *
+     * @param selectedValues non-null call-local value table, updated only for a proved output layout
+     * @param node non-null validated node whose exact operation and identities remain unchanged
+     * @return whether the node's single output acquired exact logical view geometry
+     * @throws IllegalArgumentException if checked family layout arithmetic overflows, with node and
+     *     output identity in the message and the arithmetic failure retained as the cause
+     */
     private static boolean closeAffineResult(
             Map<ValueId, GraphValue> selectedValues, CompiledNode node) {
         OperationKind kind = node.operation().kind();
-    boolean affineTransform =kind instanceof ShapeTransformKind || kind instanceof AxisTransformKind;
-    boolean targetRelativeCrop =
-        kind == SliceKind.SLICE && node.operation().attrs() instanceof CropToShapeAttrs;
-    if ((!affineTransform && !targetRelativeCrop)
+        boolean affineTransform = kind instanceof ShapeTransformKind || kind instanceof AxisTransformKind;
+        boolean extraction = kind == SliceKind.SLICE || kind == SelectKind.SELECT;
+        if ((!affineTransform && !extraction)
                 || node.inputs().size() != 1
                 || node.outputs().size() != 1) {
             return false;
@@ -209,9 +227,10 @@ final class StaticResultLogicalLayoutClosure {
         }
         TensorDescriptor inferred;
         try {
-            inferred = LayoutInference.infer(node.operation(), List.of(input))
-                    .outputs()
-                    .getFirst();
+            CapturedGraphInference.InferenceResult result = kind == SelectKind.SELECT
+                    ? IndexingInference.infer(node.operation(), List.of(input))
+                    : LayoutInference.infer(node.operation(), List.of(input));
+            inferred = result.outputs().getFirst();
         } catch (ArithmeticException failure) {
             throw new IllegalArgumentException(
                     "cannot derive static affine result logical layout for "

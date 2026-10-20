@@ -33,8 +33,10 @@ import java.util.function.BiFunction;
  *
  * <p>Generic Models are not thread-safe. Callers must coordinate forward construction with mode changes,
  * binding replacement, state loading, and other mutable Module operations when one consistent
- * view matters. {@link #defineTensor} and {@link #graph} acquire a private static source for
- * compute, configured training and graph persistence. Those Models serialize high-level operations
+ * view matters. {@link #builder()}, {@link #defineTensor} and {@link #graph} establish a private
+ * static source for compute and configured training; save additionally requires checkpoint admission.
+ * Builder composition reuses existing layers independently of that eight-operation format limit.
+ * Those Models serialize high-level operations
  * (competing calls fail busy), guard inherited mutable state, and close cached public Engine and
  * Training owners before their native storage. Inherited Module mutators still require caller
  * exclusion. Generic/custom/declarative Models retain their old forward contract; unsupported
@@ -67,6 +69,33 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      *     side effects
      */
     public abstract O forward(I input);
+
+    /**
+     * Starts closed fluent construction of a privately owned ordinary Tensor Model.
+     * No Engine is created; execution capability is independent of checkpoint operation admission.
+     * @return a fresh caller-coordinated reusable builder with default seed zero
+     */
+    public static ModelBuilder builder() { return new ModelBuilder(); }
+
+    /**
+     * Installs an already-private frozen chain and constructs its prototype expression once.
+     * @param signature canonical static input descriptor, never null
+     * @param layers fresh exclusively owned sequence, never null
+     * @return an eval Model retaining exact final state and ordinary expressions, without copying
+     * @throws NullPointerException if signature or layers is null
+     * @throws IllegalArgumentException if composition or state reachability fails
+     */
+    static Model<Tensor, Tensor> fromComposition(TensorDescriptor signature, Sequential layers) {
+        Tensor input = TensorFactory.create(signature);
+        SingleTensorModel model = new SingleTensorModel();
+        model.registerNamedChildren(Map.of("layers", layers));
+        model.eval();
+        Tensor output = layers.forward(input);
+        Model<Tensor, Tensor> result = model;
+        result.execution = new ModelExecutionState(model,
+                OwnedModelSource.acquireComposition(model, input, output, layers));
+        return result;
+    }
 
     /**
      * Defines one typed functional Model with an immutable named child topology.
@@ -116,6 +145,8 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * Registered wrappers determine roles; other reachable stored leaves become constants.
      * Callbacks are discarded after acquisition. Caller Tensors/stores are never rebound or mutated;
      * callback effects themselves are not rollbackable. No Engine is created.
+     * The static source admits ADD/MUL/NEG/MATMUL, rank-two PERMUTE[1,0] and floating
+     * RELU/TANH/SIGMOID through GraphCheckpoint; execution support remains occurrence-specific.
      * @param inputSignature non-null fully static exact input descriptor
      * @param definition non-null one-shot definition; its adopted modules must not be mutated later
      * @return owned eval Model with private state and cold symbolic forward
@@ -162,7 +193,8 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
     /**
      * Acquires external state exactly once and reconstructs a private ordinary source.
      * @param inputs ordered unique static provenance-free prototypes, possibly unused
-     * @param outputs nonempty distinct ordinary expressions using only the supported five source operations
+     * @param outputs nonempty distinct expressions using ADD/MUL/NEG/MATMUL, rank-two PERMUTE[1,0]
+     *     or floating RELU/TANH/SIGMOID; ordinary family guards remain mandatory
      * @param namedLeaves complete reachable named state with explicit roles and canonical Module traversal order
      * @return owned eval list Model; constants remain outside stateDictionary
      * @throws NullPointerException if an argument/element is null
@@ -193,7 +225,7 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Loads a single-boundary graph using the six NN artifact ceilings, without creating an Engine.
-     * @param path non-null graph-model.v1 file, not an old flexible model artifact
+     * @param path non-null graph-model.v1/v2 file, not an old flexible model artifact
      * @return owned eval Model adopting final loaded heap state without another copy
      * @throws IOException if reading or artifact validation fails
      * @throws IllegalArgumentException if boundaries require loadGraph or state order is noncanonical
@@ -249,6 +281,7 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Loads list boundaries under explicit artifact ceilings without creating an Engine.
+     * Both closed graph-model.v1 and graph-model.v2 sources are accepted without numerical conversion.
      * @param path non-null graph artifact
      * @param limits non-null artifact bounds
      * @return owned eval Model adopting the final loaded leaves without another copy
@@ -397,6 +430,8 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Saves the fixed source and current live owned leaves, even before first compute.
+     * Builder compositions outside the eight-kind graph format reject before file work, without
+     * freezing Engine selection or disabling subsequent compute/training.
      * Uses NN ceilings: 256 MiB file/aggregate, 4 MiB manifest, 16384 entries, 64-byte keys,
      * 64 MiB payload. Does not persist objective, optimizer, RNG, cursor or Java callback state.
      * @param path non-null destination published atomically by GraphCheckpoint
@@ -474,7 +509,7 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
         }
 
         /**
-         * Reconstructs symbolic outputs without invoking the discarded definition callback.
+         * Composes builder layers or reconstructs a definition/load source without a callback.
          * @param input exact-signature expression
          * @return cold reconstructed owned expression
          * @throws IllegalStateException if closed, busy or invalidated

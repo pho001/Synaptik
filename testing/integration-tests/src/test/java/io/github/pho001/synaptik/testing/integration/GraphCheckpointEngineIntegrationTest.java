@@ -12,6 +12,7 @@ import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.nn.layers.Linear;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -20,6 +21,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.api.io.TempDir;
 
 /** Cold graph load joins the existing explicit Engine path, not a new Model or execution facade. */
@@ -62,6 +65,55 @@ final class GraphCheckpointEngineIntegrationTest {
             var second = GraphCheckpoint.load(file, limits);
             assertNotSame(loaded.leaves().getFirst().tensor(), second.leaves().getFirst().tensor());
         }
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = UnaryElementwiseKind.class, names = {"RELU", "TANH", "SIGMOID"})
+    void restoredActivationMatchesIndependentOrdinaryForwardAndBackward(UnaryElementwiseKind kind) throws Exception {
+        ArtifactLimits limits = new ArtifactLimits(100_000, 10_000, 10, 32, 10_000, 90_000);
+        Path file = directory.resolve("activation.graph");
+        try (Arena arena = Arena.ofConfined()) {
+            Tensor weight = nativeValue(arena, Shape.of(2, 2), 0.5f, -0.25f, 0.25f, 0.5f);
+            Tensor prototype = TensorFactory.create(descriptor(Shape.of(1, 2)));
+            Tensor output = activate(new Linear(weight).forward(prototype), kind);
+            GraphCheckpoint.save(file, new GraphCheckpoint.Source(List.of(prototype), List.of(output),
+                    List.of(new GraphCheckpoint.Leaf("weight", GraphCheckpoint.Role.PARAMETER, weight))), limits);
+        }
+        var loaded = GraphCheckpoint.load(file, limits);
+        try (Engine engine = Engine.standard()) {
+            for (float[] batch : List.of(new float[] {1, 2}, new float[] {-0.5f, 1})) {
+                Tensor input = heapValue(Shape.of(1, 2), batch);
+                Tensor weight = heapValue(Shape.of(2, 2), 0.5f, -0.25f, 0.25f, 0.5f);
+                Tensor direct = activate(new Linear(weight).forward(input), kind);
+                Tensor rebuilt = GraphCheckpoint.rebind(loaded, List.of(input)).getFirst();
+                assertEquals(kind, rebuilt.provenance().orElseThrow().operation().kind());
+                var forward = engine.compute(direct).bytes();
+                var actualForward = engine.compute(rebuilt).bytes();
+                for (int lane = 0; lane < 2; lane++)
+                    assertEquals(forward.getFloat(lane * 4), actualForward.getFloat(lane * 4), 1e-5);
+                var expected = engine.backward(direct.sum(), List.of(input, weight), 1000);
+                var actual = engine.backward(rebuilt.sum(), List.of(input, loaded.leaves().getFirst().tensor()), 1000);
+                assertEquals(expected.objective().bytes().getFloat(), actual.objective().bytes().getFloat(), 1e-5);
+                for (int p = 0; p < 2; p++) {
+                    var a = actual.gradients().get(p).bytes();
+                    var e = expected.gradients().get(p).bytes();
+                    for (int lane = 0; lane < e.remaining() / 4; lane++)
+                        assertEquals(e.getFloat(lane * 4), a.getFloat(lane * 4), 1e-5);
+                }
+            }
+        }
+    }
+
+    /**
+     * @param input ordinary floating source expression
+     * @param kind selected activation, independent of cold reconstruction
+     * @return ordinary Model activation expression
+     */
+    private static Tensor activate(Tensor input, UnaryElementwiseKind kind) {
+        return switch (kind) {
+            case RELU -> input.relu(); case TANH -> input.tanh(); case SIGMOID -> input.sigmoid();
+            default -> throw new AssertionError(kind);
+        };
     }
 
     /**

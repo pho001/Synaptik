@@ -258,9 +258,11 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0022 | [Activation extremes and low working precision](tasks/0022-activation-extremes-and-low-working-precision.md) | Complete | Reviewed/integrated 0021; current Model semantics | Fix ERF/GELU large-finite saturation and low activation F32 working sites; serialize generated identity work. |
 | 0023 | [Vector ERF direct-Java shape](tasks/0023-vector-erf-direct-java-shape.md) | Draft | 0022 Complete; explicit selection | Follow up the bounded vector ERF timing gap and preexisting coefficient-loop shape; no broad benchmark campaign or parity claim. |
 | 0024 | [Default segment route heap carrier binding](tasks/0024-default-segment-route-heap-carrier-binding.md) | Complete | 0022 Complete; ordinary heap Engine reproduction; explicit user approval | Exact heap segment binding and mixed-carrier overlap repair passed focused, public Engine, independent re-review, and combined validation. |
+| 0025 | [Scatter validation coordinate rank repair](tasks/0025-scatter-validation-coordinate-rank.md) | Complete | 0024; 0006B1/0007A0C/0007A1B Complete | Independent APPROVE, zero findings; main's unchanged-snapshot native root gate passed at NN0029 join (2026-10-19). No NN dependency. |
 
 ## Milestones and current frontier
 
+- Authorized CPU frontier: None. [0025](tasks/0025-scatter-validation-coordinate-rank.md) is Complete; 0023 remains Draft. DAG: completed 0024 + scatter foundation → CPU0025 → Compiler0009 → NN0029 → shared main native gate, all Complete. Main owns shared integration; evidence is in the briefs. CPU0025 has no NN dependency.
 - Portable coverage and closure are Complete through 0009G1; OpenBLAS and supported lifecycle/
   tuning collaborations are Complete through 0010J.
 - Evidence-backed production-default task 0010M is `Complete`: ordinary production remains
@@ -296,8 +298,9 @@ Historical profile integration evidence remains in its completed task records.
 
 - CPU 0024 is Complete after exact heap-segment binding, the P1 mixed-carrier overlap fix,
   clean independent re-review, and direct Engine/Checkpoint acceptance. Its combined
-  source-matched `test javadoc` checkpoint passed. No new CPU Ready frontier is established;
-  CPU 0023 remains Draft.
+  source-matched `test javadoc` checkpoint passed. CPU0025 is Complete after independent APPROVE,
+  zero findings; main's final native root gate passed on the unchanged reviewed NN0029 snapshot.
+  No Ready CPU frontier; CPU 0023 remains Draft. No new capability or architecture decision.
 - CPU 0023 is a proposed bounded vector ERF shape follow-up, not an authorized successor. The
   audit diagnostic shows a current timing gap, but does not establish its cause or a regression.
 - CPU 0018 closed the virtualized-output/shared-weight recognition validation hole with

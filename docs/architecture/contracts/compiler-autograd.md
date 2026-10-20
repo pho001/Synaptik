@@ -277,8 +277,10 @@ The supported `GraphCompilationPort` also owns a cold source boundary independen
 compilation: `captureSource` captures once with empty constant ingress and collects exact leaves
 at first input-ID assignment; `reconstructSource` substitutes descriptor-compatible Tensors by
 graph-input position. The source is the raw graph, not optimized `CompileArtifacts.graph()`.
-Both operations admit only fully static FORWARD ADD/MUL/NEG/MATMUL with parameterless attributes
-and rank-two PERMUTE with exactly `[1,0]`. All stored nodes, including dead nodes, and all values
+Both operations admit only fully static FORWARD ADD/MUL/NEG/MATMUL/RELU/TANH/SIGMOID with
+`NoOperationAttrs.INSTANCE` and rank-two PERMUTE with exactly `[1,0]`. Activations retain Model's
+floating-only guards and reconstruct through `Tensor.relu/tanh/sigmoid`, without decomposition.
+All stored nodes, including dead nodes, and all values
 must pass static checked geometry, family inference, exact descriptor validation, and absence of
 deferred obligations before reconstruction creates any producer. Model constructors continue to
 own structural closure, attributes/signatures, and layout geometry.

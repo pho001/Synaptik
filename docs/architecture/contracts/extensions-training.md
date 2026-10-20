@@ -54,7 +54,48 @@ Model remains abstract and generic and implements AutoCloseable. Generic/custom/
 forward behavior is unchanged; unsupported tensor operations throw UnsupportedOperationException
 before Engine or file work, and default close is a no-op. defineTensor returns `Model<Tensor,Tensor>`;
 graph/loadGraph return `Model<List<Tensor>,List<Tensor>>`. Single load rejects multiple boundaries.
-Only private concrete specializations and package-private source/execution state belong in nn.module.
+The single public final ModelBuilder and Model.builder() provide closed fluent construction in
+nn.module; concrete Model specializations and source/execution state remain private/package-private.
+
+Builder input is a floating, positive fully static rank-at-least-one shape, declared once before
+steps and snapshotted into a storage-free canonical contiguous offset-zero non-view prototype
+with requiresGrad=false. A build requires input and a nonempty chain. The reusable caller-coordinated
+builder snapshots recipes and creates fresh private children for every build; built Models retain
+neither recipes nor caller state. Supplied Linear weights/biases satisfy existing Linear guards,
+match input dtype and are stored provenance-free leaves. Copy each supplied identity once through
+GraphCheckpoint's zero-node raw leaf copier BEFORE constructing expressions, preserving aliases.
+Automatic recipes initialize fresh private state. No completed builder chain is copied, captured
+or reconstructed through GraphCheckpoint during construction or cold forward.
+
+The frozen Sequential is owned under `layers`; existing layers and private typed Tensor adapters
+compose its prototype once in eval mode. Registered wrappers determine roles and canonical paths;
+ordinary provenance inventories reachable fresh constants and verifies registered-state reachability.
+The source retains exact final leaves/outputs and the chain, using GraphCheckpoint.Source only as
+a borrowed Tensor-list carrier. Cold forward validates the full input descriptor, then applies
+the same owned chain, accepting produced substitutions with arbitrary upstream provenance.
+Compute/configure/train use fixed outputs and existing cached bindings, never recipes, forward
+composition or reconstruction per batch. All live guards, exclusion, native admission and cleanup
+below apply unchanged. Definition/graph/load acquisition and cold reconstruction remain unchanged.
+
+Builder steps are Linear (automatic or supplied weight/optional bias), RELU/TANH/SIGMOID,
+Conv1d/2d/3d, MaxPool2d, flatten, RNN/GRU/LSTM and lastTimeStep. Automatic layers use existing
+L64X128MixRandom algorithms with Glorot uniform and exact zero bias enabled by default. Default seed
+is zero; the last seed selected before build applies to all steps. Zero-based appended step i
+(including activations/transforms) uses `seed + 0x9E3779B97F4A7C15L * i` with Java long wraparound
+and a fresh transient generator; recurrent matrix order/fans remain the existing cell's.
+Linear infers the last feature extent. Convolutions use NCW/NCHW/NCDHW, stride/dilation/groups one,
+padding zero, bias true. Pool stride equals kernel, padding zero, dilation one, floor geometry.
+Flatten requires rank at least two and preserves axis zero with a checked remaining-extent product.
+For TBF (time/batch/features), flatten maps `[T,B,H]` to `[T,B*H]`; lastTimeStep first retains batch rows.
+Recurrent steps statically unroll existing all-valid sequence.forward, reshape packed outputs to
+`[1,B,H]` and concatenate on axis zero, returning every hidden step `[T,B,H]` even for LSTM.
+Stacks retain TBF; lastTimeStep requires rank three and explicitly selects `select(0,T-1)` to `[B,H]`.
+Cold composition starts zero h (and c for LSTM); cached execution reuses immutable zero constants,
+never prior final state. This is not scan BPTT and adds no adjoints or execution hierarchy.
+
+Builder construction/cold forward/compute/train are independent of the eight-kind serialization
+domain below. Only save applies that admission: unsupported chains reject before file work,
+without creating an Engine, freezing binding or invalidating/disabling compute or training.
 
 defineTensor seals its definition once, selects eval before one prototype forward (including
 deferred initialization), then discards callbacks. Registered wrappers establish PARAMETER/BUFFER
@@ -64,7 +105,8 @@ Module traversal order. Dotted namespaces contain no forward recipe. Constants a
 GraphCheckpoint.copy acquires each external identity once and reconstructs against private leaves;
 strict state installation preserves wrappers, paths and aliases without mutating caller Tensors or stores.
 Load adopts final heap state without another copy. Callback side effects are not rolled back.
-Source admission remains static ADD/MUL/NEG/MATMUL/PERMUTE[1,0]; raw persistence supports seven dtypes,
+Definition/graph/load source admission is static ADD/MUL/NEG/MATMUL/PERMUTE[1,0]/RELU/TANH/SIGMOID; the three activations
+retain Model's floating guards. Raw persistence supports seven dtypes,
 independently of execution. Old model.v1/whole-model.v1 readers and flexible forward remain separate.
 
 All declared static slots, including unused ones, require exact descriptors (layout presence and
@@ -571,8 +613,8 @@ Capture uses Compiler captureSource exactly once and associates its first-encoun
 exact Tensor identity, never by declared position. Existing immutable Model graph records normalize
 file-local IDs and retain unused signature slots; no second graph representation or Tensor
 reconstruction table belongs here. Compiler retains source admission and call-local reconstruction
-ownership, unchanged: static FORWARD ADD/MUL/NEG/MATMUL with NoOperationAttrs and rank-two
-PERMUTE[1,0], no optimization or layout closure. Preserve full descriptors, occurrences, sharing
+ownership: static FORWARD ADD/MUL/NEG/MATMUL/RELU/TANH/SIGMOID with NoOperationAttrs and rank-two
+PERMUTE[1,0], no optimization or layout closure. Activations remain floating-only. Preserve full descriptors, occurrences, sharing
 and ordered roots; all seven dtypes where Model permits (no integral/BOOL NEG). Zero-node data
 is not new Engine capability. Rebind checks metadata then replacement count/full descriptors,
 retains named state and permits produced/repeated substitutions with opaque upstream provenance;
@@ -631,6 +673,24 @@ size, not peak heap. Copy/rebind have no implicit file ceiling; checked collecti
 limits apply and copy preflights each unique payload≤Integer.MAX_VALUE−8. Complete save image
 validation precedes unchanged ArtifactFile force/revalidate/one-atomic-move publication and its
 cleanup/failure semantics; this is not authentication or portable power-loss durability.
+
+### Canonical graph-model version 2
+
+Save selects the smallest sufficient closed version: sources containing any RELU, TANH or SIGMOID
+write ArtifactFile v1 kind `graph-model.v2`, eight ASCII bytes `SYNGRF02` and i32 version 2.
+All other sources, including zero-node sources, write byte-identical version 1. Version 2 retains
+every version-1 field, order, descriptor/role/dtype ID, payload and limit above, appending only
+u8 opcodes 6=RELU, 7=TANH and 8=SIGMOID. Each has one preceding input ValueId and no attribute
+bytes; only `NoOperationAttrs.INSTANCE` is admitted. Encoder dry sizing explicitly validates every
+kind, attributes and fixed arity, rejecting unknown operations rather than defaulting to PERMUTE.
+
+Load accepts only the exact kind/magic/version tuples for versions 1 and 2. Version 1 still admits
+only opcodes 1..5; version 2 admits only 1..8. Version 2 may contain only the original five kinds;
+re-saving that source selects version 1. Reject mismatched tuples, unknown versions/opcodes and
+malformed fields before host import, reconstruction or publication. New readers retain every valid
+version-1 file; old graph readers fail closed on version 2. The equal-length kind strings leave
+manifest/file sizing unchanged. ArtifactFile framing and the separate model.v1/whole-model.v1
+readers remain unchanged; no public version selector, registry or enum-ordinal encoding is added.
 
 ## `extensions/onnx`
 

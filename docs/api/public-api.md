@@ -133,11 +133,12 @@ adapter retains and re-traverses the root's exact ordered paths, wrappers and Te
 Training owns storage/value validation. Open/copy callers pass this adapter instead of Module;
 the same source survives explicit native copying. Training is physically `modules/training`
 with unchanged `:extensions:training`/Java identities and exactly public Model/Engine edges;
-NN exports exactly Model/Training. No high-level Model execution or `withEngine` API is added.
+NN exports Model/Training/Checkpoint/Engine. Owned Models provide high-level execution and
+`withEngine`; the fluent builder composes existing layers without changing those owners.
 See the [generic Training example](training-api.md#generic-live-parameter-admission) and
 the [NN composition reference](training-api.md#current-nn-declarative-composition-contract)
-and [complete reconstruction example](../user-guide/declarative-models.md). Whole-model file
-reconstruction and Training-owned resume remain separate unimplemented capabilities.
+and [complete reconstruction example](../user-guide/declarative-models.md). Whole-model files use
+the separate ModelCheckpoint workflow; automatic Training-owned resume is not added by the builder.
 
 The implemented `modules:model` surface contains:
 
@@ -1234,10 +1235,12 @@ prepare cost on every call.
 
 `Model<I,O>` remains generic and now implements `AutoCloseable`. Its fixed tensor methods are
 independent of I/O: compute returns `HostTensorValue` or `List<HostTensorValue>`, and train returns
-`TrainingStep`, never generic O. `defineTensor(signature, definition)` and `load(path[, limits])`
+`TrainingStep`, never generic O. The fluent builder's nonempty-chain `build()`,
+`defineTensor(signature, definition)` and `load(path[, limits])`
 return `Model<Tensor,Tensor>`; `graph(inputs, outputs, namedLeaves)` and `loadGraph(path[, limits])`
-return `Model<List<Tensor>,List<Tensor>>`. Each has an explicit borrowed-Engine overload
-(load forms take path, limits, Engine). Old generic factories and flexible v1 readers remain separate.
+return `Model<List<Tensor>,List<Tensor>>`. Definition/graph/load factories have explicit borrowed-Engine
+overloads (load forms take path, limits, Engine); built Models select it through `withEngine`.
+Old generic factories and flexible v1 readers remain separate.
 
 `withEngine(engine)` returns the same receiver and must precede the first valid compute/configure
 setup attempt, including failed setup. Without a selection, execution lazily opens a model-owned
@@ -1253,6 +1256,71 @@ Source mutation invalidates the capability without recapture; close waits and at
 cleanup with retained failure replay, never closing a borrowed Engine. See the complete
 [owned model example](../user-guide/running-models.md#owned-static-model-workflow) and
 [owning contract](../architecture/contracts/extensions-training.md#owned-tensor-models).
+
+### Fluent Model builder
+
+`Model.builder()` returns a fresh public final `ModelBuilder`, with no public constructor or
+callback/module extension point. Set `input(DataType,long...)` once before steps. Configuration
+returns the same caller-coordinated builder; `build()` returns a new closeable `Model<Tensor,Tensor>`
+owning a frozen Sequential under `layers`. Every build owns fresh automatic state and privately
+copies supplied leaves once by identity before expressions, retaining aliases but no caller storage
+or recipes. Build requires a floating positive-static rank-at-least-one input and a nonempty chain.
+The input prototype is storage-free, canonical contiguous, offset-zero, non-view, requiresGrad=false;
+compute/cold forward match its complete descriptor, with no implicit dtype or batch-shape conversion.
+
+Supported steps are `linear(outFeatures[,bias])`, `linear(weight[,bias])`, `relu/tanh/sigmoid`,
+`conv1d/conv2d/conv3d`, `maxPool2d`, `flatten`, `rnn/gru/lstm` and `lastTimeStep`.
+Automatic layers infer input widths, use Glorot uniform, and enable exact zero bias by default.
+Default seed is 0; the last `seed(long)` applies to the whole build. Appended step i, including
+stateless steps, derives `seed + 0x9E3779B97F4A7C15L * i` with Java long wraparound and a fresh
+L64X128MixRandom generator per initialized layer. Supplied Linear leaves must be stored,
+provenance-free, floating, gradient-eligible and match input dtype and existing Linear shape guards.
+Build reads but never mutates caller state; unavailable or produced supplied state rejects.
+
+Convolutions use NCW/NCHW/NCDHW, stride/dilation/groups 1, padding 0 and bias true. Pool stride
+equals kernel, padding 0, dilation 1, floor geometry. Flatten preserves axis zero and checks the
+remaining product: CNN `[B,C,H,W]` becomes `[B,C*H*W]`, TBF `[T,B,H]` becomes `[T,B*H]`.
+Recurrent steps use fixed all-valid TBF, start from zero h (and c for LSTM), and return every hidden
+time step. Stacks preserve TBF. Only explicit `lastTimeStep()` selects `[B,H]`; use it before
+flatten when batch rows must remain separate. Cached runs carry no previous final state.
+
+This compilable example constructs an MLP, CNN and recurrent stack; inputs/results are noted inline:
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.nn.module.Model;
+
+public final class FluentBuilderShapesExample {
+    public static Model<Tensor, Tensor> mlp() {
+        return Model.builder().input(DataType.FLOAT32, 32, 784).seed(42)
+                .linear(128).relu().linear(10, false).build(); // [32,10]
+    }
+    public static Model<Tensor, Tensor> cnn() {
+        return Model.builder().input(DataType.FLOAT32, 32, 1, 28, 28).seed(42)
+                .conv2d(32, 3, 3).relu().maxPool2d(2, 2)
+                .conv2d(64, 3, 3).relu().maxPool2d(2, 2)
+                .flatten().linear(128).relu().linear(10).build(); // [32,10]
+    }
+    public static Model<Tensor, Tensor> recurrent() {
+        return Model.builder().input(DataType.FLOAT32, 20, 32, 8).seed(42)
+                .lstm(128).lstm(64).lastTimeStep().linear(10).build(); // [32,10]
+    }
+}
+```
+
+Callers close each returned Model. CNN spatial extents are 28→26→13→11→5, so flatten width is
+`64*5*5=1600`; the LSTMs produce `[20,32,128]`, then `[20,32,64]` before explicit selection.
+See the complete [compute/train/save example](../user-guide/running-models.md#build-a-fluent-model).
+
+Construction and cold forward create no Engine. Compute/configured training consume fixed outputs
+and cached bindings, never recipes per batch. They are independent of eight-kind serialization
+admission; save of unsupported convolution/pool/reshape/concat/select/gather chains fails before
+file work without freezing Engine selection or invalidating execution. Supported five-kind/activation
+MLPs retain graph-model.v1/v2 compatibility. Execution still requires actual Engine capability;
+static unrolling adds no scan BPTT, runtime lengths, streaming state or Conv3d adjoint.
+
+### Advanced Engine lifecycle
 
 `AdvancedEngine` is the current low-level composition root. Construction accepts the exact
 `CpuBackendIntegration` returned by `CpuBackendIntegration.open()` and takes ownership of it.

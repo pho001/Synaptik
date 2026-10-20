@@ -3352,14 +3352,31 @@ dependency. See [Module boundaries](architecture/module-boundaries.md#extensions
 
 ### Owned Model source
 
-The ordinary static Tensor provenance reconstructed against privately acquired leaves for NN's
-`Model.defineTensor`/`graph` and `load`/`loadGraph` capability. One working parameter/buffer set feeds
+The ordinary static Tensor provenance over private leaves for NN's owned Model capability.
+`Model.builder()` retains ordinary layer composition over final private state; `Model.defineTensor`/
+`graph` and `load`/`loadGraph` use bounded source reconstruction. One working parameter/buffer set feeds
 cached public Engine preparations, configured TrainingSession updates and GraphCheckpoint save.
 Registered wrappers determine roles; constants are not Module state. Acquisition copies each
-external identity once; load adopts final heap values directly. This is not another IR or executor.
+external identity once; builder-supplied state is copied before expressions, automatic recipes
+create fresh private state, and load adopts final heap values directly. This is not another IR or
+executor. Builder construction/compute/train are independent of serialization admission. Save and
+definition/graph/load remain bounded to eight kinds: floating RELU/TANH/SIGMOID select graph-model.v2,
+while sources using only the original five kinds retain byte-identical v1. Unsupported builder saves
+touch no file and do not disable execution.
 Full signatures are fixed, mode/binding/storage changes invalidate the capability, and close owns
 sessions/preparations and native memory but never a borrowed Engine. See the
 [owned workflow](user-guide/running-models.md#owned-static-model-workflow).
+
+### Fluent Model builder
+
+`ModelBuilder`, obtained from `Model.builder()`, records closed layer recipes for a fixed floating
+input signature. Each build creates an independent eval-mode owned Model; subsequent builder edits
+cannot change its structure or state. Automatic initialization uses existing Glorot-uniform algorithms
+and step-derived seeds, not a shared random stream. Recurrent outputs use TBF (time/batch/features)
+and include every hidden step; `lastTimeStep` explicitly removes time. Flatten always preserves axis
+zero, which is time rather than batch in TBF. These are composition conventions, not new Tensor
+semantics, scan BPTT, a graph registry, or another execution lifecycle. See the
+[fluent construction guide](user-guide/running-models.md#build-a-fluent-model).
 
 ### Detached Model results
 
@@ -5505,8 +5522,11 @@ corresponding positions, and general `SLICE`, which selects half-open intervals 
 an axis. Public unstack composes ordered scalar-select occurrences. Tensor-index gather instead
 uses one or more tensors to supply indices.
 Current package-private compiler autograd scatters a supported floating SELECT cotangent into an
-input-shaped exact typed zero at the restored axis coordinate. Compiler canonicalization,
-materialization, backend lowering, and execution remain planned. See [Scalar select semantic kind and
+input-shaped exact typed zero at the restored axis coordinate. Final Compiler layout closure
+retries scalar select after its input geometry resolves, retaining the exact indexing-family view
+without choosing a physical copy. CPU lowering and execution support the existing fully static,
+resolved-layout, one-input/one-output SELECT domain with exact same-type family geometry;
+unproved or empty result geometry remains unresolved, not newly executable. See [Scalar select semantic kind and
 attributes](api/tensor-api.md#scalar-select-semantic-kind-and-attributes).
 
 ### Sigmoid linear unit / SiLU
@@ -6946,5 +6966,5 @@ intermediate representation or executable owner. Input descriptors are fully sta
 remain signature entries with no saved batches. Exact Tensor identity defines state aliases;
 equal bytes or overlapping physical storage do not. Copy/load return private mutable heap state
 and rebuilt ordinary provenance, without retaining original state or owning an Engine. Rebind is
-cold symbolic substitution, not execution. This graph-model.v1 format is distinct from NN's old
+cold symbolic substitution, not execution. Selective graph-model.v1/v2 formats are distinct from NN's old
 flexible model.v1/whole-model.v1 readers. See the [graph API](api/graph-checkpoint-api.md).

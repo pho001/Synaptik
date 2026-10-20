@@ -70,7 +70,7 @@ class ModelTest {
                 () -> assertTrue(Modifier.isAbstract(modelForward.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(define.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(define.getModifiers())),
-                () -> assertEquals(Set.of("forward", "define", "defineTensor", "graph", "load",
+                () -> assertEquals(Set.of("builder", "forward", "define", "defineTensor", "graph", "load",
                         "loadGraph", "withEngine", "compute", "configureTraining", "train", "save", "close"),
                         Arrays.stream(Model.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))

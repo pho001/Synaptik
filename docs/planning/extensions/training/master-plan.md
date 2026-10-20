@@ -80,7 +80,7 @@ independent APPROVE and the coordinator's native-enabled test/Javadoc gate. Comp
 Checkpoint0008 are also Complete after final independent reviews and coordinator gates.
 Authorized Training implementation frontier: None. [Training0008](tasks/0008-fresh-value-training-session-runs.md)
 is Complete after Euclid's definitive code/docs APPROVE and main's source-matched root gate
-(2026-10-19); its brief owns evidence. NN0028 is the next planning candidate, still Draft.
+(2026-10-19); its brief owns evidence. NN0028 is Complete, accepted 2026-10-19.
 The [program DAG](../../model-execution-refactor.md#phases-and-owner-dag)
 replaces recurrent-first ordering for the new graph path, not the existing flexible declarative API.
 
@@ -110,7 +110,7 @@ Training0008 delivered fresh stored values in `inputs()` order, excluding parame
 using Engine0021. Existing run remains exact-identity/arbitrary-order. The bounded root/owning
 Training lifecycle cutover, implementation, independent review and coordinator gate are Complete.
 No per-batch graph build/copy/compile/prepare or autotuning integration was added.
-At the still-TARGET NN0028, configured train(inputs,targets) delegates RESET_AND_STEP over the same owned weights
+In completed NN0028, configured train(inputs,targets) delegates RESET_AND_STEP over the same owned weights
 used by compute/save. Module.train() remains only a mode toggle. Heap-to-native admission may
 copy once and invalidate old inference preparations before creating the training objective/session.
 Loaded/owned values need no ownership-only duplicate; no automatic optimizer/RNG/cursor resume.
@@ -189,7 +189,7 @@ Ordinary static unrolling depends on constituent-operation adjoints, not a blank
 ## Open questions
 
 - Training0007/0008 are Complete; P2 and the five product choices are accepted. Authorized Training
-  frontier: None. NN0028 is the next planning candidate, still Draft; Model/withEngine remains TARGET.
+  frontier: None. NN0028 and Model/withEngine are Complete, accepted 2026-10-19.
   Durable recipe/restore/capture remains a
   separate held proposal; broader Training0005 is not a prerequisite.
 - Preserve existing native-only update domain and duplicate-path/overlap rejection; do not quietly

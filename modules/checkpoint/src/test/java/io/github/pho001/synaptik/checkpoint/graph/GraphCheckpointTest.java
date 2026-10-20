@@ -140,6 +140,67 @@ final class GraphCheckpointTest {
     }
 
     @Test
+    void activationsCopyLoadResaveAndRebindExactTopologyStateAndDeclaredSlots() throws Exception {
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            Tensor first = prototype(type, Shape.of(3), true, true);
+            Tensor second = prototype(type, Shape.of(3), true, true);
+            Tensor unused = prototype(type, Shape.of(3), true, true);
+            Tensor state = tensor(type, Shape.of(3), true, true, raw(type, 3));
+            var store = state.hostStorage().orElseThrow();
+            for (int activation = 0; activation < 3; activation++) {
+                Tensor base = state.mul(second).add(first);
+                Tensor active = activate(base, activation), separate = activate(base, activation);
+                var source = new GraphCheckpoint.Source(List.of(first, unused, second),
+                        List.of(active.mul(active), separate, active, first),
+                        List.of(leaf("weight", GraphCheckpoint.Role.PARAMETER, state),
+                                leaf("tied", GraphCheckpoint.Role.PARAMETER, state)));
+                var graph = GraphSource.capture(source).graph;
+                Path file = directory.resolve("activation"), resaved = directory.resolve("resaved");
+                GraphCheckpoint.save(file, source, LIMITS);
+                for (var acquired : List.of(GraphCheckpoint.copy(source), GraphCheckpoint.load(file, LIMITS))) {
+                    assertEquals(graph, GraphSource.capture(acquired).graph);
+                    Tensor owned = acquired.leaves().getFirst().tensor();
+                    assertSame(owned, acquired.leaves().getLast().tensor());
+                    assertNotSame(state, owned);
+                    assertArrayEquals(raw(type, 3), GraphValueStorage.encode(owned.descriptor(), owned.hostStorage().orElseThrow().segment()));
+                    assertTrue(acquired.inputs().stream().allMatch(t -> t.hostStorage().isEmpty()));
+                    Tensor shared = acquired.outputs().get(2);
+                    assertSame(shared, acquired.outputs().getFirst().provenance().orElseThrow().inputs().getFirst());
+                    assertSame(shared, acquired.outputs().getFirst().provenance().orElseThrow().inputs().get(1));
+                    assertNotSame(shared, acquired.outputs().get(1));
+                    assertSame(acquired.inputs().getFirst(), acquired.outputs().get(3));
+                    GraphCheckpoint.save(resaved, acquired, LIMITS);
+                    assertArrayEquals(Files.readAllBytes(file), Files.readAllBytes(resaved));
+                    Tensor replacement = first.abs().contiguous(); // Match the full resolved descriptor.
+                    var rebound = GraphCheckpoint.rebind(acquired, List.of(replacement, unused, replacement));
+                    assertSame(replacement, rebound.get(3));
+                    assertEquals(shared.provenance().orElseThrow().operation(), rebound.get(2).provenance().orElseThrow().operation());
+                    Tensor sum = rebound.get(2).provenance().orElseThrow().inputs().getFirst();
+                    assertSame(replacement, sum.provenance().orElseThrow().inputs().get(1));
+                    Tensor product = sum.provenance().orElseThrow().inputs().getFirst();
+                    assertSame(owned, product.provenance().orElseThrow().inputs().getFirst());
+                    assertSame(replacement, product.provenance().orElseThrow().inputs().get(1));
+                }
+                assertSame(store, state.hostStorage().orElseThrow());
+                assertArrayEquals(raw(type, 3), GraphValueStorage.encode(state.descriptor(), store.segment()));
+            }
+        }
+    }
+
+    /**
+     * Builds an ordinary activation without cold copying or wire reconstruction.
+     * @param input floating expression to activate
+     * @param activation test index 0 RELU, 1 TANH, 2 SIGMOID
+     * @return ordinary expression retaining the exact input
+     */
+    private static Tensor activate(Tensor input, int activation) {
+        return switch (activation) {
+            case 0 -> input.relu(); case 1 -> input.tanh(); case 2 -> input.sigmoid();
+            default -> throw new AssertionError(activation);
+        };
+    }
+
+    @Test
     void rebindRetainsProducedAndRepeatedSubstitutionsWithoutStorageAdmission() {
         Tensor first = prototype(DataType.FLOAT32, Shape.of(2), true, false);
         Tensor second = prototype(DataType.FLOAT32, Shape.of(2), true, false);
@@ -198,7 +259,7 @@ final class GraphCheckpointTest {
         assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.rebind(
                 new GraphCheckpoint.Source(List.of(a), List.of(a, a), List.of()), List.of(a)));
         assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.rebind(
-                new GraphCheckpoint.Source(List.of(a), List.of(a.relu()), List.of()), List.of(a)));
+                new GraphCheckpoint.Source(List.of(a), List.of(a.abs()), List.of()), List.of(a)));
         Tensor integer = prototype(DataType.INT32, Shape.of(1), false, false);
         assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.copy(new GraphCheckpoint.Source(
                 List.of(), List.of(integer), List.of(leaf("p", GraphCheckpoint.Role.PARAMETER, integer)))));

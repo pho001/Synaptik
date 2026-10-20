@@ -90,6 +90,9 @@ Implemented 0008 additions stay in that package: nested public `GraphCompilation
 and package-private `SourceGraphReconstruction`; existing `GraphCapture` owns aligned leaf capture.
 No new graph representation, module, dependency, generic validator or execution type.
 
+0009 changes only existing `StaticResultLogicalLayoutClosure` in this package, routing SELECT to
+`IndexingInference` and coordinate SLICE to `LayoutInference`; no new production type or owner.
+
 ## Task list
 
 | ID | Task | Status | Depends on | One-line result or intent |
@@ -126,6 +129,20 @@ No new graph representation, module, dependency, generic validator or execution 
 | 0006D | [Autograd audit correctness repairs](tasks/0006d-autograd-audit-correctness-repairs.md) | Complete | 0006/0006B11; project review | Repair batched matrix/vector gradients and reject required fail-closed sibling paths; no new derivative capability. |
 | 0007 | Exact constant identities under profile-free semantics | Draft | 0006; explicit legality proof under current Model semantics | Reassess exact identities without broadening constant evidence or using test tolerances as rewrite permission. |
 | 0008 | [Cold source capture and reconstruction](tasks/0008-cold-source-capture-and-reconstruction.md) | Complete | Approved P2/ADR0039; completed capture/inference/integration boundaries; Training0007 serial base only | Bounded raw-source API and authority cutover implemented; final independent code/docs APPROVE and coordinator Class C checkpoint passed. |
+| 0009 | [Static SELECT and SLICE logical layout closure](tasks/0009-static-select-and-slice-logical-layout-closure.md) | Complete | Compiler0006B11; Compiler0008; CPU0025 — Complete | Final independent APPROVE, zero findings; exact views support NN0029. Main's unchanged-snapshot native root gate passed (2026-10-19). |
+
+## Dependency DAG and authorized frontiers
+
+Compiler0006B11 + Compiler0008 + CPU0025 → Compiler0009 → NN0029 → shared native root gate: all Complete.
+Authorized Compiler frontier: None. Main verified NN0029 resume on 2026-10-19;
+neither Compiler0009 nor CPU0025 depends on NN0029. No other Compiler task is authorized.
+
+Conflicts: closure/inference, scoped tests/docs, NN0029 and shared planning writers; serialize.
+Parallel group: None. Common base: `7e880fb1044168043e45b10419a570d64c5283ae` plus the full dirty
+snapshot, including accepted CP0009, frozen NN partial and completed CPU0025/Compiler0009; preserve all.
+Integration order: reviewed Compiler repair → completed/reviewed NN0029 → main's one native-enabled
+root gate passed on the unchanged reviewed snapshot (2026-10-19). Main owns integration; the 0009 brief records
+worker validation and exact metadata. Existing contracts suffice; no authority cutover or extra plan review.
 
 ## P2 source reconstruction dependency
 
@@ -141,15 +158,33 @@ First slice: ADD/MUL/NEG/MATMUL/PERMUTE with exact [1,0] attributes for ordinary
 Root Explicit non-goals and compiler-autograd modules/compiler/Compile lifecycle/Compile artifacts
 now enact only the call-local, post-preflight cold reconstruction table exception, discarded on
 return/failure; no gradient-map exception, generic Tensor injection or Engine proxy.
-Checkpoint still requires its separate Compiler-edge cutover; Compiler gained no dependency edge.
+Checkpoint0008 completed its separate Compiler-edge cutover; Compiler gained no dependency edge.
 Existing autograd and planning remain unchanged.
 
 Compiler0008 is Complete after Einstein's final independent code/docs APPROVE and the coordinator's
 Class C checkpoint (2026-10-17); its brief owns evidence. Authorized Compiler frontier: None.
-Next planning candidate Checkpoint0008 remains Draft, as do Training0008/NN0028; high-level
-Model/withEngine remains TARGET. Engine0021/Training0007 remain Complete; no downstream
-implementation is authorized here. Launch base remains main/origin/main
-`3d4d3bf5a95f6ea6e65ebd4687735adc0f092fe0`; parallel group None, shared-document owner coordinator.
+Checkpoint0008, Training0008 and NN0028 are Complete, including high-level Model/withEngine;
+the selected program stays Complete. Engine0021/Training0007 remain Complete. Completed execution
+bases and evidence remain in their briefs, not new launch authorization.
+
+## Atomic activation-source successor
+
+[Checkpoint0009](../../extensions/checkpoint/tasks/0009-owned-model-activation-source-and-persistence.md)
+is the completed cross-module capability adding RELU/TANH/SIGMOID to cold source admission and
+reconstruction together with Checkpoint wire support and owned-Model integration tests/docs.
+Status: Complete, accepted 2026-10-19 after Archimedes final APPROVE and main's integration/native root gates.
+Compiler0008 + Checkpoint0008 + Training0008 + NN0028 (all Complete) → Checkpoint0009.
+No separate source-widening task was needed: the former Checkpoint encoder's
+fallback-to-PERMUTE required an atomic cutover. Compiler retains reconstruction ownership;
+Checkpoint retains wire ownership. Existing compiler-package types suffice; no new production type.
+
+Current policy: keep five-kind graph-model.v1 bytes/readers, use graph-model.v2 only when saving
+added activations, and fail closed on unsupported version/kind pairs. Exact wires and the required
+root/owning-contract cutover before Java are in the brief; no authority changes here.
+Common base: main `7e880fb1044168043e45b10419a570d64c5283ae`; parallel group None. Shared admission,
+wire and contract writes serialize; main owns shared documents and the combined integration gate.
+At CP0009 completion, Checkpoint/Compiler/NN frontiers were None. The eight-kind/selective-v2 cutover is Complete;
+the brief records final review/gate evidence and all seven integration fields. No follow-up remains.
 
 ## Milestones and current frontier
 
@@ -162,7 +197,9 @@ implementation is authorized here. Launch base remains main/origin/main
   0006B11.
 - Project-review repair 0006D is Complete after independent review and the combined checkpoint.
 - Bounded raw source capture/reconstruction 0008 and its authority cutover are Complete after
-  independent review and the coordinator checkpoint. Authorized Compiler frontier: None.
+  independent review and the coordinator checkpoint.
+- Complete: 0009, the SELECT/coordinate-SLICE exact logical-view repair, accepted after final
+  independent APPROVE, zero findings, and main's native root gate (2026-10-19). Compiler/NN frontiers: None.
 - 0006C and 0007 remain `Draft`, have no detailed task brief, and are independent side branches;
   0006B11 grants neither implementation authorization.
 
@@ -192,7 +229,7 @@ implementation is authorized here. Launch base remains main/origin/main
 ## Status normalization
 
 The task table and linked task `Status`/completion summaries take precedence over historical prose.
-Current completion extends through 0006B11 plus independently reviewed 0006D and 0008;
+Current completion extends through 0006B11 plus independently reviewed 0006D, 0008 and 0009;
 the historical coverage checkpoint is not proof of every value-level higher-order derivative.
 
 ## History and update policy

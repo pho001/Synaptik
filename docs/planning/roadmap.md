@@ -59,11 +59,12 @@ API review passed. [Checkpoint 0005A](extensions/checkpoint/tasks/0005a-model-en
 is Complete after envelope implementation, independent Class C API/documentation approval, and
 configured coordinator gates. CP0005B is Complete (2026-10-15): final independent code/docs APPROVE,
 57 module tests, final Javadoc, architecture evidence and 3 new integration tests passed.
-Authorized Checkpoint implementation frontier: None; Checkpoint0008 is Complete.
+Authorized Checkpoint frontier: None; Checkpoint0008/0009 are Complete.
 [Training0008](extensions/training/tasks/0008-fresh-value-training-session-runs.md) is Complete after
 Euclid's definitive code/docs APPROVE and main's source-matched root gate (2026-10-19).
 Authorized Training frontier: None; [NN0028](extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md)
-is Complete, accepted 2026-10-19; authorized NN frontier: None.
+is Complete, accepted 2026-10-19. [NN0029](extensions/nn/tasks/0029-fluent-model-builder-and-checkpoint-independent-execution.md)
+is Complete after Planck final APPROVE, zero findings, and main's source-matched native root gate (2026-10-19), including independently reviewed [Compiler0009](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md) and [CPU0025](backends/cpu/tasks/0025-scatter-validation-coordinate-rank.md). Authorized NN/CPU/Compiler frontiers: None.
 Engine0020's completed layout cutover is below.
 The user revised the primary product to automatic usable-model load and a choice of inference or
 Training-owned resume, without routine callbacks/manual construction/digests/Arena.
@@ -91,9 +92,9 @@ test/Javadoc gate. Its brief owns evidence. Authorized Engine frontier: None.
 final independent APPROVE and the coordinator gate. Authorized Training frontier: None.
 [Compiler0008](modules/compiler/tasks/0008-cold-source-capture-and-reconstruction.md) is Complete:
 bounded source API/authority cutover, final independent code/docs APPROVE and coordinator Class C
-checkpoint passed. Authorized Compiler frontier: None. [Checkpoint0008](extensions/checkpoint/tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md)
+checkpoint passed. Compiler0009 is locally accepted and Complete; authorized Compiler frontier: None. [Checkpoint0008](extensions/checkpoint/tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md)
 is Complete after Halley's definitive APPROVE and the coordinator's source-matched test/Javadoc
-gate on 2026-10-17. Its brief owns evidence. Checkpoint frontier: None; Training0008 is Complete
+gate on 2026-10-17. Its brief owns evidence. Checkpoint0009 is Complete; frontier None. Training0008 is Complete
 after Euclid's final APPROVE and main's root gate; NN0028 is Complete under the bounded NN authority.
 
 | Area | Delivered baseline / remaining gate |
@@ -104,23 +105,71 @@ after Euclid's final APPROVE and main's root gate; NN0028 is Complete under the 
 | [Config](modules/config/master-plan.md) | Compile leaves and two-phase tuning policy delivered. Cost consumer/aggregate/run configuration Draft; no numerical-profile API. |
 | [Planning](modules/planning/master-plan.md) | Complete through 0007; cost model awaits a concrete consumer and units. Partition size is not fusion size. |
 | [Runtime](modules/runtime/master-plan.md) | Complete through 0016; per-run isolation and prepared-resource leases remain current. |
-| [Compiler](modules/compiler/master-plan.md) | Complete through 0006B11 plus repair 0006D and [0008 bounded cold source API/authority cutover](modules/compiler/tasks/0008-cold-source-capture-and-reconstruction.md), after final independent APPROVE and coordinator checkpoint. Authorized Compiler frontier: None. Conv3d adjoints 0006C and exact rewrites 0007 Draft; BPTT unsupported. |
+| [Compiler](modules/compiler/master-plan.md) | Complete through 0006B11 plus 0006D/0008/0009; [0009 exact SELECT/coordinate-SLICE logical closure](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md) locally accepted after final independent APPROVE, zero findings. Compiler frontier None; main's combined native root gate passed. Conv3d adjoints 0006C and exact rewrites 0007 Draft; BPTT unsupported. |
 | [Prepare](modules/prepare/master-plan.md) | Complete through 0009; opaque backend collaboration and complete resource transaction. |
 | [OpenBLAS provider](backends/openblas-provider/master-plan.md) | 0001–0003 Complete. Optional direct BF16 0004 Blocked on ABI and one-final-narrowing evidence; F32/F64 unaffected. |
-| [CPU](backends/cpu/master-plan.md) | Complete through 0022 plus [0024](backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md), including heap binding and mixed-carrier overlap repair; vector ERF shape follow-up 0023 Draft. 0010M retained scalar/1/1/1 defaults; vendor peers remain use-case/ABI gated. |
+| [CPU](backends/cpu/master-plan.md) | Complete through 0022 plus 0024 and [0025 scatter validation coordinate rank repair](backends/cpu/tasks/0025-scatter-validation-coordinate-rank.md), locally accepted after independent APPROVE, zero findings (2026-10-19). Ready frontier: None; 0023 Draft. Main's combined native root gate passed at NN0029 join; defaults/vendor gates unchanged. |
 | [Engine](modules/engine/master-plan.md) | Complete through [0021 prepared-owner/fresh-value binding](modules/engine/tasks/0021-prepared-execution-fresh-value-binding.md), including thin-session removal and mechanical consumers; independent approval and native-enabled test/Javadoc gate passed. Authorized Engine frontier: None. |
 | [Metal](backends/metal/master-plan.md) | Complete through 0079. Current occurrence support is independently typed; hosted GPU CI 0047 remains blocked. |
 | [CUDA](backends/cuda/master-plan.md) | Marker/native scaffold only; no executable CUDA backend. 0001 Draft. |
 | [ONNX](extensions/onnx/master-plan.md) | Marker only; no importer/exporter. Area Draft; first mapping task not yet defined. |
 | [Data](extensions/data/master-plan.md) | No module. 0001 architecture decision precedes batching; current plan excludes sampler/epoch lifecycle. |
-| [NN](extensions/nn/master-plan.md) | [0028 owned Model workflow](extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md) Complete, accepted 2026-10-19; evidence in brief. Authorized NN frontier: None. Runtime scan/Data 0021B–0024 remain a separate Draft stream. |
+| [NN](extensions/nn/master-plan.md) | 0028/0029 Complete; [0029 fluent builder](extensions/nn/tasks/0029-fluent-model-builder-and-checkpoint-independent-execution.md) passed final independent APPROVE, worker/integration validation and main's native root gate (2026-10-19). Frontier None. Runtime scan/Data 0021B–0024 remain Draft. |
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions/optimizers/state, [0007 generic live admission](extensions/training/tasks/0007-generic-live-parameter-admission.md) and [0008 fresh-value runs](extensions/training/tasks/0008-fresh-value-training-session-runs.md) Complete; final independent reviews and coordinator gates passed. Authorized Training frontier: None; NN0028 Complete; 0006/adapter held. |
-| [Checkpoint](extensions/checkpoint/master-plan.md) | [0008](extensions/checkpoint/tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md) Complete: bounded graph/value persistence and NN-glue cutover, final Halley APPROVE and coordinator test/Javadoc gate passed. Authorized Checkpoint frontier: None; Training0008 also Complete. |
+| [Checkpoint](extensions/checkpoint/master-plan.md) | [0008](extensions/checkpoint/tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md) and [0009 eight-kind/selective-v2 source/persistence](extensions/checkpoint/tasks/0009-owned-model-activation-source-and-persistence.md) Complete; 0009 accepted 2026-10-19 after Archimedes final APPROVE and main's integration/native root gates. Authorized Checkpoint frontier: None. Training0008/NN0028 Complete. |
 | [Benchmarks](tools/benchmarks/master-plan.md) | Fixed CPU/Metal report-only harnesses delivered; broader workload suites Draft. No universal performance claim. |
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
+
+## Bounded activation-source successor
+
+The user authorized implementation of [Checkpoint0009](extensions/checkpoint/tasks/0009-owned-model-activation-source-and-persistence.md)
+on 2026-10-19. Compiler0008 + Checkpoint0008 + Training0008 + NN0028 (all Complete) fed this
+completed capability. The selected model-execution program remains Complete; NN's ownership,
+static signatures and prepared execution remain unchanged. Status: Complete, accepted after
+Archimedes final Astra/xhigh APPROVE (zero findings) and main's integration/native root gates.
+
+One atomic Class C packet adds RELU/TANH/SIGMOID to the existing five source kinds, covering owned
+Model construction as well as compute/train/save/load. Compiler-only widening required an atomic
+cutover because the former encoder defaulted unknown kinds to PERMUTE. Accepted format: graph-model.v2 with
+new activation wires, while five-kind saves/readers retain graph-model.v1 and all older formats remain.
+The brief owns exact wires, direct-oracle multilayer-perceptron acceptance, bounded contract cutover
+before Java and validation. The eight-kind/selective-v2 authority and code are current and accepted.
+Common base: main `7e880fb1044168043e45b10419a570d64c5283ae`; Parallel group None, shared contracts
+serialized, main owns shared documents and the completed gates. Checkpoint/Compiler/NN frontiers:
+None at CP0009 completion. No CP0009 follow-up or reopened program; the later Compiler0009 repair below does not widen source admission.
+
+## Completed fluent Model builder and prerequisite join
+
+User-approved [NN0029](extensions/nn/tasks/0029-fluent-model-builder-and-checkpoint-independent-execution.md)
+depends on completed NN0028 + CP0009 + [CPU0025](backends/cpu/tasks/0025-scatter-validation-coordinate-rank.md)
+and [Compiler0009](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md), also Complete and locally accepted after final independent APPROVE, zero findings.
+CPU0025 is locally accepted after independent APPROVE, zero
+findings (2026-10-19), with no NN dependency; CPU has no Ready frontier and CPU0023 remains Draft.
+DAG: Compiler0006B11 + Compiler0008 + CPU0025 → Compiler0009 (all Complete) →
+NN0029 → main's single shared native root checkpoint: all Complete; NN/CPU/Compiler frontiers None.
+User approved bounded exact logical-view inference after MATMUL/CONCAT: SELECT uses IndexingInference,
+coordinate SLICE uses LayoutInference. No forced NN contiguous copies or scope reduction; existing
+contracts suffice, with negative-step/empty/unproved layouts unchanged. No extra plan-review cycle.
+Main verified NN resume on 2026-10-19: actual brief, user approval, unchanged authority, Complete
+predecessors/reviews, inactive conflicts/no other writer and unchanged full dirty base at
+`7e880fb1044168043e45b10419a570d64c5283ae`, including accepted CP0009, frozen NN partial and
+completed CPU0025/Compiler0009. Main owns shared documents and the combined gate.
+Final NN evidence: 22 focused, 424 NN and 3 Fluent integration tests passed with zero skips;
+Planck final APPROVE, zero findings. CPU/Compiler final approvals and local evidence remain valid.
+Main's native root command passed, exit 0/5m14s: 107 tasks, 18 executed/89 UP-TO-DATE.
+Current XML: 4279 tests, zero failures/errors, 41 skips; includes UP-TO-DATE evidence, not all newly run.
+The 2291-file reviewed snapshot/native hash were unchanged; both configured Metal training cases
+executed without failure/skip. Full result and skip breakdown are in the NN0029 brief.
+One public ModelBuilder composes existing layers;
+private leaf acquisition and retained ordinary cold composition remove construction/execution's
+serialization limit without widening graph-model.v1/v2 or adding another graph/execution pipeline.
+Main accepted the root/owning NN authority cutover before the existing partial implementation.
+Compiler0009 needs no further authority cutover. Parallel group None; main owns serial integration/shared documents and one final
+native root gate, now passed after final implementation/review. Exact evidence lives in the brief.
+Scan BPTT, Conv3d gradients, backend/codec changes, Compiler work beyond 0009 and held recurrent-persistence plans stay outside scope.
 
 ## Proposed next decisions
 
@@ -208,7 +257,7 @@ Engine/Runtime prepared boundaries, advanced lifecycle and detached results rema
 Training0007 is Complete after final independent approval and coordinator acceptance; its brief owns evidence.
 Compiler0008 is Complete and pushed at main/origin/main base `d235c0d3b89d6f2eaad4c80a59fd1c5091ea2851`:
 bounded API/root/compiler authority implemented, independently approved and coordinator-gated.
-Authorized Compiler and Checkpoint frontiers: None. Checkpoint0008 is Complete; final independent
+Current Compiler/Checkpoint/NN frontiers are None; NN0029 is Complete. Checkpoint0009 is Complete. Checkpoint0008 is Complete; final independent
 approval and coordinator gate are recorded in its brief. Training0008 is Complete and integrated at main
 `7671bd4bebc8723fa4864c6423f78219bf63851b`; its brief records Euclid's definitive APPROVE
 and main's source-matched root gate (2026-10-19). Its bounded root/owning Training lifecycle cutover

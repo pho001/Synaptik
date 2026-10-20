@@ -45,6 +45,75 @@ import org.junit.jupiter.api.Test;
 
 final class SourceGraphReconstructionTest {
     @Test
+    void activationsPreserveExactKindsSharingDescriptorsAndOrdinaryAutogradAcrossFloatingTypes() {
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            Tensor x = leaf(type, Shape.of(2, 3), true);
+            for (var activation : List.of(UnaryElementwiseKind.RELU, UnaryElementwiseKind.TANH,
+                    UnaryElementwiseKind.SIGMOID)) {
+                Tensor active = activate(x, activation);
+                var outputs = List.of(active.mul(active), activate(x, activation), active, x);
+                var source = GraphCompilationPort.captureSource(outputs);
+                var rebuilt = GraphCompilationPort.reconstructSource(source.graph(), source.leaves());
+                assertEquals(source.graph(), GraphCompilationPort.captureSource(rebuilt).graph());
+                assertEquals(activation, source.graph().nodes().getFirst().operation().kind());
+                assertSame(NoOperationAttrs.INSTANCE, source.graph().nodes().getFirst().operation().attrs());
+                assertEquals(active.descriptor(), rebuilt.get(2).descriptor());
+                assertSame(rebuilt.get(2), rebuilt.getFirst().provenance().orElseThrow().inputs().getFirst());
+                assertSame(rebuilt.get(2), rebuilt.getFirst().provenance().orElseThrow().inputs().get(1));
+                assertNotSame(rebuilt.get(1), rebuilt.get(2));
+                assertSame(x, rebuilt.get(3));
+                assertEquivalentCompile(List.of(active, active.sum()),
+                        List.of(rebuilt.get(2), rebuilt.get(2).sum()), List.of(x), List.of(x));
+            }
+        }
+    }
+
+    @Test
+    void lateDeadIntegralOrBoolActivationsRejectBeforeAnyProducerAllocation() {
+        for (DataType type : List.of(DataType.INT32, DataType.INT64, DataType.BOOL)) {
+            for (var kind : List.of(UnaryElementwiseKind.RELU, UnaryElementwiseKind.TANH,
+                    UnaryElementwiseKind.SIGMOID)) {
+                var d = descriptor(type, Shape.scalar(), false);
+                var invalid = single(operation(kind), List.of(d), d, GraphPhase.FORWARD);
+                Tensor input = TensorFactory.create(d);
+                Tensor good = leaf(DataType.FLOAT32, Shape.scalar(), false);
+                var values = List.of(new GraphValue(id(0), good.descriptor()), new GraphValue(id(1), d),
+                        new GraphValue(id(2), good.descriptor()), new GraphValue(id(3), d));
+                var nodes = List.of(new CompiledNode(new NodeId(0), operation(UnaryElementwiseKind.NEG),
+                        List.of(id(0)), List.of(id(2))), new CompiledNode(new NodeId(1),
+                        invalid.nodes().getFirst().operation(), List.of(id(1)), List.of(id(3))));
+                var dead = new CompiledGraphModel(values, nodes, List.of(id(0), id(1)), List.of(id(2)),
+                        Map.of(new NodeId(0), GraphPhase.FORWARD, new NodeId(1), GraphPhase.FORWARD));
+                Tensor marker = TensorFactory.create(d);
+                assertThrows(IllegalArgumentException.class,
+                        () -> GraphCompilationPort.reconstructSource(dead, List.of(good, input)));
+                assertEquals(marker.id().value() + 1, TensorFactory.create(d).id().value());
+                assertThrows(IllegalArgumentException.class,
+                        () -> new GraphCompilationPort.SourceCapture(dead, List.of(good, input)));
+                assertThrows(IllegalArgumentException.class,
+                        () -> new Operation(kind, new PermutationAttrs(List.of(1, 0))));
+                assertThrows(IllegalArgumentException.class, () -> new CompiledNode(new NodeId(0),
+                        operation(kind), List.of(id(0), id(1)), List.of(id(2))));
+            }
+        }
+    }
+
+    /**
+     * Constructs only the selected ordinary activation, independently of cold reconstruction.
+     * @param input source input with a floating descriptor
+     * @param kind one of the three newly admitted activations
+     * @return ordinary unary expression
+     */
+    private static Tensor activate(Tensor input, UnaryElementwiseKind kind) {
+        return switch (kind) {
+            case RELU -> input.relu();
+            case TANH -> input.tanh();
+            case SIGMOID -> input.sigmoid();
+            default -> throw new AssertionError(kind);
+        };
+    }
+
+    @Test
     void rebuildsEachOccurrenceOnceAndPreservesSharedCanonicalWrappersAndOutputOrder() {
         Tensor x = leaf(DataType.FLOAT32, Shape.of(2), true);
         Tensor y = leaf(DataType.FLOAT32, Shape.of(2), true);

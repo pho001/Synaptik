@@ -28,6 +28,8 @@ import java.util.Objects;
  * family admission and existing exact descriptor inference. No Tensor is constructed until all
  * stored facts and positional substitutions pass. The only ValueId-to-Tensor table is local to
  * reconstruction after preflight; nothing caches it or attaches it to returned expressions.</p>
+ * <p>The closed slice includes floating RELU, TANH and SIGMOID as ordinary parameterless
+ * unary occurrences; reconstruction uses their public Tensor constructors without decomposition.</p>
  */
 final class SourceGraphReconstruction {
     private SourceGraphReconstruction() {}
@@ -64,6 +66,9 @@ final class SourceGraphReconstruction {
             boolean parameterless = kind == BinaryArithmeticKind.ADD
                     || kind == BinaryArithmeticKind.MUL
                     || kind == UnaryElementwiseKind.NEG
+                    || kind == UnaryElementwiseKind.RELU
+                    || kind == UnaryElementwiseKind.TANH
+                    || kind == UnaryElementwiseKind.SIGMOID
                     || kind == MatmulKind.MATMUL;
             boolean transpose = kind == AxisTransformKind.PERMUTE
                     && node.operation().attrs() instanceof PermutationAttrs attrs
@@ -148,8 +153,16 @@ final class SourceGraphReconstruction {
                 output = first.neg();
             } else if (kind == MatmulKind.MATMUL) {
                 output = first.matmul(tensors.get(node.inputs().get(1)));
-            } else {
+            } else if (kind == UnaryElementwiseKind.RELU) {
+                output = first.relu();
+            } else if (kind == UnaryElementwiseKind.TANH) {
+                output = first.tanh();
+            } else if (kind == UnaryElementwiseKind.SIGMOID) {
+                output = first.sigmoid();
+            } else if (kind == AxisTransformKind.PERMUTE) {
                 output = first.permute(1, 0);
+            } else {
+                throw new IllegalArgumentException("Unsupported preflighted source operation: " + kind);
             }
             tensors.put(node.outputs().getFirst(), output);
         }
