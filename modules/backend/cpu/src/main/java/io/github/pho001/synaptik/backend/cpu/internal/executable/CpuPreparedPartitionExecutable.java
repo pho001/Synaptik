@@ -134,13 +134,12 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
     }
 
     /**
-     * Returns the retained portable child recipes for compatibility inspection.
+     * Returns the retained child recipes, including direct recurrent and native children.
      *
-     * @return the non-null immutable, non-empty portable child list
-     * @throws ClassCastException if this is a native-route composite
+     * @return the non-null immutable, non-empty child list in execution order
      */
-    public List<CpuPreparedExecutable> children() {
-        return children.stream().map(CpuPreparedExecutable.class::cast).toList();
+    public List<PreparedExecutable> children() {
+        return children;
     }
 
     /** Returns diagnostic topology facts; hot execution does not schedule from this graph.

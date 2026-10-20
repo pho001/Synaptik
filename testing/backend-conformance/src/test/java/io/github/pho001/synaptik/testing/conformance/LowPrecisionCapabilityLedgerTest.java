@@ -97,6 +97,11 @@ final class LowPrecisionCapabilityLedgerTest {
                     && fields[3].equals("055-EXP/base");
             boolean approvedSigmoidDelta = fields[1].equals("metal")
                     && fields[3].equals("064-SIGMOID/base");
+            boolean approvedRecurrentDelta = fields[1].equals("cpu")
+                    && List.of("103-RNN_TANH/base", "104-GRU_RESET_AFTER/base", "105-LSTM/base").contains(fields[3]);
+            if (approvedRecurrentDelta) {
+                assertEquals("false", fields[11]); assertEquals("false", fields[12]); assertEquals("false", fields[13]);
+            }
             if (approvedExpDelta) {
                 assertEquals("false", fields[11]);
                 assertEquals("false", fields[12]);
@@ -109,7 +114,7 @@ final class LowPrecisionCapabilityLedgerTest {
             }
             projected.add(String.join("\t", "2", fields[1], fields[3], fields[4], fields[5],
                     fields[6], fields[7], fields[8], fields[9], fields[10],
-                    approvedExpDelta || approvedSigmoidDelta ? "true" : fields[11],
+                    approvedExpDelta || approvedSigmoidDelta || approvedRecurrentDelta ? "true" : fields[11],
                     approvedExpDelta || approvedSigmoidDelta ? "true" : fields[12],
                     approvedExpDelta || approvedSigmoidDelta ? "true" : fields[13]));
         }
@@ -143,11 +148,11 @@ final class LowPrecisionCapabilityLedgerTest {
             long notApplicable = backendFacts.stream()
                     .filter(fields -> fields[11].equals("NOT_APPLICABLE")
                             && fields[12].equals("NOT_APPLICABLE")).count();
-            assertEquals(backend.equals("cpu") ? 122 : 100, supported, backend + " F32 true");
+            assertEquals(backend.equals("cpu") ? 125 : 100, supported, backend + " F32 true");
             assertEquals(backend.equals("cpu") ? 114 : 92, bf16, backend + " BF16 true");
             assertEquals(backend.equals("cpu") ? 114 : 92, fp16, backend + " FLOAT16 true");
             assertEquals(8, notApplicable, backend + " controls");
-            assertEquals(backend.equals("cpu") ? 5 : 27,
+            assertEquals(backend.equals("cpu") ? 2 : 27,
                     backendFacts.stream().filter(fields -> fields[10].equals("false")).count(),
                     backend + " F32 false");
             for (int lowColumn : List.of(11, 12)) {
@@ -194,7 +199,7 @@ final class LowPrecisionCapabilityLedgerTest {
         }
     }
     @Test
-    void cpuSupportsFloat16ForEverySupportedFloat32Occurrence() {
+    void cpuQueriesLowTypesIndependentlyIncludingFloat32OnlyRecurrentScans() {
         assertFloat16Closure();
     }
 
@@ -204,6 +209,11 @@ final class LowPrecisionCapabilityLedgerTest {
         for (Seed seed : seeds()) {
             OperationCapabilityQuery query = seed.query();
             if (hasFloat32Role(query) && provider.supports(query)) {
+                if (query.operation().kind() instanceof RecurrentScanKind) {
+                    assertFalse(provider.supports(toBfloat16(query)), seed.id());
+                    assertFalse(provider.supports(toFloat16(query)), seed.id());
+                    continue;
+                }
                 supported++;
                 assertTrue(provider.supports(toFloat16(query)), seed.id());
             }

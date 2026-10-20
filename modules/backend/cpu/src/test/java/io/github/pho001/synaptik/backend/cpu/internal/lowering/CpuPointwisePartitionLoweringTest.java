@@ -120,7 +120,7 @@ class CpuPointwisePartitionLoweringTest {
                 () -> assertEquals(9, executable.bufferSelectionCount()),
                 () -> assertEquals(8, executable.children().size()),
                 () -> assertTrue(executable.children().stream()
-                        .allMatch(child -> child.artifact().hiddenClass() != null)));
+                        .allMatch(child -> assertInstanceOf(io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable.class, child).artifact().hiddenClass() != null)));
     }
 
     @Test void finalizedEightInstructionFallbackRunsThroughTheExistingCompositeForm() {

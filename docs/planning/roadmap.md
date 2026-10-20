@@ -64,7 +64,7 @@ Authorized Checkpoint frontier: None; Checkpoint0008/0009 are Complete.
 Euclid's definitive code/docs APPROVE and main's source-matched root gate (2026-10-19).
 Authorized Training frontier: None; [NN0028](extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md)
 is Complete, accepted 2026-10-19. [NN0029](extensions/nn/tasks/0029-fluent-model-builder-and-checkpoint-independent-execution.md)
-is Complete after Planck final APPROVE, zero findings, and main's source-matched native root gate (2026-10-19), including independently reviewed [Compiler0009](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md) and [CPU0025](backends/cpu/tasks/0025-scatter-validation-coordinate-rank.md). [CPU0026 diagnostic](backends/cpu/tasks/0026-stacked-lstm-cold-preparation-diagnostic.md) and [CPU0027 unit topology fix](backends/cpu/tasks/0027-unit-topology-adjacency-ordering.md) are also Complete; authorized NN/CPU/Compiler frontiers None.
+is Complete after Planck final APPROVE, zero findings, and main's source-matched native root gate (2026-10-19), including independently reviewed [Compiler0009](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md) and [CPU0025](backends/cpu/tasks/0025-scatter-validation-coordinate-rank.md). [CPU0026 diagnostic](backends/cpu/tasks/0026-stacked-lstm-cold-preparation-diagnostic.md), [CPU0027 unit topology fix](backends/cpu/tasks/0027-unit-topology-adjacency-ordering.md) and CPU0028/NN0021B bounded scan execution are also Complete. Authorized CPU/NN/Compiler frontiers: None.
 Engine0020's completed layout cutover is below.
 The user revised the primary product to automatic usable-model load and a choice of inference or
 Training-owned resume, without routine callbacks/manual construction/digests/Arena.
@@ -108,13 +108,13 @@ after Euclid's final APPROVE and main's root gate; NN0028 is Complete under the 
 | [Compiler](modules/compiler/master-plan.md) | Complete through 0006B11 plus 0006D/0008/0009; [0009 exact SELECT/coordinate-SLICE logical closure](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md) locally accepted after final independent APPROVE, zero findings. Compiler frontier None; main's combined native root gate passed. Conv3d adjoints 0006C and exact rewrites 0007 Draft; BPTT unsupported. |
 | [Prepare](modules/prepare/master-plan.md) | Complete through 0009; opaque backend collaboration and complete resource transaction. |
 | [OpenBLAS provider](backends/openblas-provider/master-plan.md) | 0001–0003 Complete. Optional direct BF16 0004 Blocked on ABI and one-final-narrowing evidence; F32/F64 unaffected. |
-| [CPU](backends/cpu/master-plan.md) | Complete through 0022 plus 0024–0027; [0027 unit topology adjacency ordering](backends/cpu/tasks/0027-unit-topology-adjacency-ordering.md) passed independent review, CPU/conformance/Fluent integration and the bounded LSTM probe. Authorized frontier None; 0023 Draft, defaults/vendor gates unchanged. |
+| [CPU](backends/cpu/master-plan.md) | Complete through 0022 plus 0024–0028. [0028 fixed-scan execution](backends/cpu/tasks/0028-fixed-recurrent-scan-forward-execution.md) delivers canonical FLOAT32 scalar Java forward execution, accepted 2026-10-20 after independent approval and main's root gate. Frontier None; 0023 Draft, defaults/vendor gates unchanged. |
 | [Engine](modules/engine/master-plan.md) | Complete through [0021 prepared-owner/fresh-value binding](modules/engine/tasks/0021-prepared-execution-fresh-value-binding.md), including thin-session removal and mechanical consumers; independent approval and native-enabled test/Javadoc gate passed. Authorized Engine frontier: None. |
 | [Metal](backends/metal/master-plan.md) | Complete through 0079. Current occurrence support is independently typed; hosted GPU CI 0047 remains blocked. |
 | [CUDA](backends/cuda/master-plan.md) | Marker/native scaffold only; no executable CUDA backend. 0001 Draft. |
 | [ONNX](extensions/onnx/master-plan.md) | Marker only; no importer/exporter. Area Draft; first mapping task not yet defined. |
 | [Data](extensions/data/master-plan.md) | No module. 0001 architecture decision precedes batching; current plan excludes sampler/epoch lifecycle. |
-| [NN](extensions/nn/master-plan.md) | 0028/0029 Complete; [0029 fluent builder](extensions/nn/tasks/0029-fluent-model-builder-and-checkpoint-independent-execution.md) passed final independent APPROVE, worker/integration validation and main's native root gate (2026-10-19). Frontier None. Runtime scan/Data 0021B–0024 remain Draft. |
+| [NN](extensions/nn/master-plan.md) | 0028/0029 and [0021B CPU scan program](extensions/nn/tasks/0021b-fixed-recurrent-scan-implementation-program.md) Complete. Bounded CPU0028 forward baseline accepted 2026-10-20. Frontier None; 0022–0024 Draft, no Data/NN migration/BPTT selected. |
 | [Text](extensions/text/master-plan.md) | No module. Depends on Data architecture, then selected tokenizer/artifact/batching scope. |
 | [Vision](extensions/vision/master-plan.md) | No module. Shares Data 0001 architecture decision before decoder/preprocessing work. |
 | [Training](extensions/training/master-plan.md) | Sessions/optimizers/state, [0007 generic live admission](extensions/training/tasks/0007-generic-live-parameter-admission.md) and [0008 fresh-value runs](extensions/training/tasks/0008-fresh-value-training-session-runs.md) Complete; final independent reviews and coordinator gates passed. Authorized Training frontier: None; NN0028 Complete; 0006/adapter held. |
@@ -194,8 +194,23 @@ persistence accepted after independent APPROVE and main's focused/native root ga
 Completed Compiler0008/0009 + Checkpoint0008/0009 + Training0008 + NN0028/0029 and
 Model0025E/0025F/Compiler0006A remain the predecessor DAG, on base
 `8d5357e9a8698721a2252cb2ca3cb94150e705e8`. Authorized Checkpoint/Compiler/NN frontiers: None;
-no successor authorized. Scans remain cold-only, without backend execution/BPTT or optimizer resume.
+no successor authorized by that persistence checkpoint. It grants no execution/BPTT or optimizer
+resume; the subsequently completed CPU0028 route is recorded below.
 Parallel group None; main owns serialized integration and shared documents.
+
+## Completed CPU recurrent scan execution
+
+[CPU0028](backends/cpu/tasks/0028-fixed-recurrent-scan-forward-execution.md) and
+[NN0021B](extensions/nn/tasks/0021b-fixed-recurrent-scan-implementation-program.md) are Complete,
+accepted 2026-10-20 after final independent code/docs APPROVE and main's root test/Javadoc gate.
+They deliver canonical FLOAT32 scalar Java RNN/GRU/LSTM, both directions/bias forms, valid gradient
+flags with exact output OR, runtime INT64 lengths and all outputs on heap/native/mixed storage.
+Full length preflight follows producers and precedes any scan write; scratch is run-isolated.
+DAG: NN0021A + Model0025E/0025F + Compiler0006A + CPU0027 + Engine0021 + CP0010/CP0011
+→ CPU0028 → NN0021B, all Complete. Parallel group None; main owns shared-document integration.
+Task Results own exact evidence and base metadata. Authorized CPU/NN frontiers: None; no successor
+is authorized. Data/NN migration, BPTT, FLOAT64/low types, noncontiguous layouts, vector/parallel/native
+scan routes, tuning and performance claims remain outside scope; no public API, wire or authority change.
 
 ## Proposed next decisions
 
@@ -225,7 +240,8 @@ Parallel group None; main owns serialized integration and shared documents.
    coordinator gate passed; generic zero-node Engine/Prepare support and the durable adapter
    remain outside scope.
 4. In a separately selected stream, Data 0001 authorizes Data/Text/Vision architecture before
-   batching or text/image APIs. Runtime recurrent adoption still needs a concrete backend route.
+   batching or text/image APIs. CPU0028 supplies the bounded runtime scan route; NN runtime-length
+   convenience and Data integration remain separately unselected.
 
 Step 2 records the completed decision and Training 0004 proof, not a durable artifact. Step 3 records
 completed Checkpoint 0003/0004/0004A and CPU 0024. The subsequently authorized Training-owned
@@ -336,7 +352,7 @@ Ordinary static unrolling depends on normal constituent-operation adjoints, not 
   save/inspect/load and direct Engine acceptance are Complete; future persistence work remains
   separately gated.
 - GPU CI provisioning, large-model aggregate memory policy, new vendor routes, recurrent execution
-  and missing adjoints retain their explicit decisions and owning plans.
+  beyond CPU0028's baseline and missing adjoints retain their explicit decisions and owning plans.
 
 ## History
 

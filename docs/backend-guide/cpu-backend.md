@@ -20,11 +20,12 @@ capability: the provider and complete-partition lowering still reject unsupporte
 types, Shapes, resolved geometry, topology, carriers, and resource requirements.
 
 Historical generator schema 68 introduced the systematic portable FLOAT16 expansion. Current
-schema 70 retains it: every admitted CPU FLOAT32 occurrence has the descriptor-identical
+schema 70 retains it: every historical admitted CPU FLOAT32 occurrence has the descriptor-identical
 FLOAT16 substitution, with raw `short` storage and the operation's documented
 FLOAT32 computation boundary followed by one direct binary16 narrowing where numerical work is
 performed. The checked capability ledger closes all 114 representative FLOAT16 occurrences in
 the historical provider baseline; unsupported geometry, topology, aliasing, or non-type constraints remain unchanged.
+The later direct recurrent-scan capability is FLOAT32-only; neither low type is inferred from it.
 
 A CPU-owned partition directed acyclic graph (DAG) has no fixed eight-node partition cap. Its
 compiled nodes must be supported and remain in stable producer-before-consumer order; checked
@@ -227,6 +228,49 @@ invocation, close action, and unchanged key exactly once to the internal coordin
 transfer, the session retains only immutable metadata and the coordinator becomes the sole
 restoration and close owner. A separate cold qualifier can then issue one immutable credential
 only after target, binary when available, thread-control, and bounded numerical checks pass.
+
+## Fixed recurrent forward execution
+
+A fixed recurrent scan is one flat RNN_TANH, GRU_RESET_AFTER or LSTM occurrence with runtime
+valid lengths, not a per-time-step graph. CPU executes all six biased/unbiased signatures and
+both directions using direct Java, one sequential scalar range on the invoking thread. Vector
+preferences and parallel budgets do not promote the scan; other computation units keep their
+own strategies. Scan-containing partitions use direct decomposition and report incomplete
+complete-plan discovery, so they remain available for ordinary untuned preparation.
+
+The first support set requires canonical zero-offset layouts, fully static geometry, FLOAT32
+floating roles and non-gradient INT64 lengths `[B]`. Floating gradient flags are accepted and
+outputs retain their exact OR; this enables forward execution, not backward execution. Each
+dimension, packed extent and boundary element count fits `int`, with checked byte and scratch
+arithmetic. Input is `[T,B,I]`, hidden/cell state `[B,H]`, and packed weights/bias follow Model
+gate order. `I/H` are positive; `T/B` may be zero. Heap float[]/long[], native and mixed exact
+aligned segments are accepted, including sliced physical bases and read-only inputs.
+
+Analysis declares every sibling output and `2 * gates * H * 4` bytes of row projection scratch
+before slot assignment, independent of `T` or length values. Empty time/batch needs no scratch.
+Finalization creates one immutable direct kernel per occurrence without generated IR, cache
+artifacts, per-step executable growth or retained prototype storage. Every run owns its writable
+outputs and workspace. Binding rejects inaccessible, undersized, misaligned, read-only writable,
+or overlapping representations. Logical slices prevent output initialization from touching an
+oversized representation's unrelated capacity tail.
+
+For example, FLOAT32 input `[3,2,1]` and INT64 lengths `[0,2]` produce dense hidden output
+`[3,2,H]`. Row 0 has positive-zero output at every time and raw initial final states. Row 1
+visits times `0,1` forward or `1,0` reverse, storing each result at its original time; time 2 is
+positive zero. Padded NaN/Inf never reaches a gate. Dense output allocation remains `O(T*B*H)`.
+Before these writes, execution validates the entire current length vector in `[0,T]`, after any
+ordinary producer such as FLOAT32-to-INT64 CAST. An invalid last row throws
+`IllegalArgumentException` with row/value/T context without changing any scan output. Earlier
+producers need not roll back. A fresh run after repairing lengths reuses the same preparation.
+Engine applies its existing failure cleanup and returns no public result on failure.
+
+Qualification lives in `CpuRecurrentScanExecutionTest`, `CpuRecurrentScanConformanceTest` and
+`EngineCpuRecurrentScanIntegrationTest`. The independent finite oracle uses explicit test-only
+absolute-plus-relative thresholds; padding, raw initial states, result classes and hidden-state
+publication are checked separately. No tuning, speed, low-precision, FLOAT64, SIMD, parallel scan,
+NN migration or backpropagation-through-time claim follows. See the
+[fixed-family contract](../architecture/contracts/recurrent-scan.md) and
+[handoff explanation](../architecture/runtime-prepare-backend-boundary.md#fixed-recurrent-scan-handoff).
 
 ## Prerequisites and terms
 

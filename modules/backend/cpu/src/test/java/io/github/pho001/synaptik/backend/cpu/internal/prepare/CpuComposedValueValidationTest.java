@@ -61,6 +61,35 @@ import org.junit.jupiter.api.Test;
 
 /** Provider-to-invocation regressions for producer-ordered scans and loss occurrence geometry. */
 class CpuComposedValueValidationTest {
+    @Test void producedRecurrentLengthsAreCheckedAfterCastBeforeEverySiblingWrite() {
+        var source = descriptor(DataType.FLOAT32, Shape.of(2));
+        var lengths = descriptor(DataType.INT64, Shape.of(2));
+        var x = descriptor(DataType.FLOAT32, Shape.of(2, 2, 1));
+        var h = descriptor(DataType.FLOAT32, Shape.of(2, 1));
+        var w = descriptor(DataType.FLOAT32, Shape.of(1, 1));
+        var scan = new CompiledNode(new NodeId(1), new Operation(
+                io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind.RNN_TANH,
+                io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection.FORWARD),
+                List.of(new ValueId(2), new ValueId(1), new ValueId(3), new ValueId(4), new ValueId(5)),
+                List.of(new ValueId(6), new ValueId(7)));
+        var c = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRecurrentScanLoweringTest.project(
+                List.of(source, lengths, x, h, w, w, x, h), List.of(
+                    node(0, new Operation(CastKind.CAST, new CastAttrs(DataType.INT64)), 1, 0), scan));
+        var analysis = new CpuPartitionPreparer().analyze(c);
+        try (var f = new io.github.pho001.synaptik.backend.cpu.internal.executable.CpuRecurrentScanExecutionTest.Fixture(
+                analysis, 2, false, false, Map.of())) {
+            f.floats(0, 1, 2); f.lengths(1, Long.MAX_VALUE, Long.MAX_VALUE);
+            f.floats(2, 1, 2, Float.NaN, 3); f.floats(4, 1); f.floats(5, 0);
+            var bound = assertDoesNotThrow(() -> f.executable.bind(f.state)); bound.execute();
+            assertEquals(0, Float.floatToRawIntBits(f.floats(6)[2]));
+            f.floats(0, 1, 3); f.fill(6, 71); f.fill(7, 71);
+            assertThrows(IllegalArgumentException.class, bound::execute);
+            assertArrayEquals(new float[] {71, 71, 71, 71}, f.floats(6));
+            assertArrayEquals(new float[] {71, 71}, f.floats(7));
+            f.floats(0, 0, 1); bound.execute(); assertEquals(0f, f.floats(7)[0]);
+        }
+    }
+
     @Test void producedSoftmaxInfinityRejectsBeforeAnyConsumerWriteOnEveryInvocation() {
         var descriptor = descriptor(DataType.FLOAT32, Shape.of(2, 2));
         for (SoftmaxKind kind : SoftmaxKind.values()) {

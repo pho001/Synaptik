@@ -36,7 +36,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Lowers one bounded supported CPU unit into one route-neutral portable representation.
+ * Lowers one bounded CPU unit into generated portable IR or mutually exclusive direct scan facts.
  *
  * <p>For ordinary pointwise directed acyclic graphs (DAGs), lowering consumes the validated
  * partition-local producer and consumer occurrences carried by {@link PrepareContext}, derives
@@ -151,6 +151,9 @@ public final class CpuPartitionLowering {
         }
         if (nodes.size() == 1) {
             Object kind = nodes.getFirst().operation().kind();
+            if (kind instanceof io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind) {
+                return new CpuRecurrentScanLowering().lower(context);
+            }
             if (kind instanceof io.github.pho001.synaptik.model.operation.loss.LossKind) {
                 return lossLowering.lower(context);
             }
@@ -593,11 +596,11 @@ public final class CpuPartitionLowering {
     /**
      * Immutable lowering result consumed by route-neutral CPU analysis.
      *
-     * @param portableKernelIr non-null route-independent pointwise, affine, movement, indexing,
+     * @param portableKernelIr generated route-independent IR, or null only for a direct scan; pointwise, affine, movement, indexing,
      *     scatter, fold, ordering, random, or cumulative-scan
      *     representation
-     * @param boundaryValues non-null deterministic external-read values followed by the sole
-     *     final materialized output; copied defensively
+     * @param boundaryValues non-null deterministic unique external reads followed by every
+     *     materialized output, including all canonical scan siblings; copied defensively
      * @param accessBindings non-null normalized cold bindings in the same boundary order; copied
      *     defensively
      * @param referencedElementSpans non-null exact per-boundary layout spans used for resource
@@ -636,6 +639,7 @@ public final class CpuPartitionLowering {
      * @param pool2dGeometry compact cold NCHW Pool2d boundary and window geometry
      * @param pool3dGeometry compact cold NCDHW Pool3d boundary and window geometry
      * @param attentionGeometry compact cold scaled-dot-product-attention row geometry
+     * @param recurrentScan non-null optional direct scan facts, present exactly when portableKernelIr is null
      */
     public record LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
             List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
@@ -661,7 +665,103 @@ public final class CpuPartitionLowering {
             Optional<MatmulFacts> matmulFacts,
             Optional<CpuPool2dLowering.Geometry> pool2dGeometry,
             Optional<CpuPool3dLowering.Geometry> pool3dGeometry,
+            Optional<CpuAttentionLowering.Geometry> attentionGeometry,
+            Optional<CpuRecurrentScanLowering.Facts> recurrentScan) {
+
+        /**
+         * Validates and snapshots the generated lowering without direct scan facts.
+         * @param portableKernelIr non-null generated portable IR; this compatibility constructor
+         *     does not accept direct scan facts; pointwise, affine, movement, indexing,
+         *     scatter, fold, ordering, random, or cumulative-scan
+         *     representation
+         * @param boundaryValues non-null unique external reads followed by every materialized
+         *     output in canonical port order; copied defensively
+         * @param accessBindings non-null normalized cold bindings in the same boundary order; copied
+         *     defensively
+         * @param referencedElementSpans non-null exact per-boundary layout spans used for resource
+         *     declarations; copied defensively
+         * @param boundaryDataTypes non-null exact logical types in boundary order; copied defensively
+         * @param virtualValues non-null ordered internal single-use results with no declaration or
+         *     Runtime slot; copied defensively
+         * @param extents non-null final iteration extents; copied defensively
+         * @param elementCount checked non-negative product of {@code extents}
+         * @param fusionReason non-null cold diagnostic explanation
+         * @param affineAddressPairs alternating source/result addresses for affine copying, or an
+         *     empty array for pointwise lowering; copied defensively
+         * @param movementGeometry compact cold movement geometry, present only for data movement
+         * @param indexingGeometry compact cold indexing geometry, present only for gather or one-hot
+         * @param scatterGeometry compact cold functional-scatter geometry, present only for scatter
+         * @param foldGeometry compact cold overlap-fold geometry, present only for fold
+         * @param orderingGeometry compact cold stable-ordering geometry, present only for SORT,
+         *     ARGSORT, or TOP_K
+         * @param randomGeometry compact cold explicit-state geometry, present only for INITIAL_STATE
+         *     or DROPOUT
+         * @param scanGeometry compact cold cumulative-scan geometry, present only for CUM_SUM or
+         *     CUM_PROD
+         * @param aggregateGeometry compact cold ordinary extrema/Boolean output-cell geometry
+         * @param argExtremaGeometry compact cold one-axis logical-index geometry
+         * @param maskedReductionGeometry compact cold directional masked-reduction geometry
+         * @param advancedReductionGeometry compact cold logarithmic/statistical/norm geometry
+         * @param softmaxGeometry compact cold shape-preserving normalization geometry
+         * @param trailingNormalizationGeometry compact cold Layer/RMS trailing-slice geometry
+         * @param batchNormInferenceGeometry compact cold zero-workspace arbitrary-axis inference
+         *     geometry
+         * @param batchNormTrainingGeometry compact cold complete-channel training geometry with one
+         *     exact-state slice per simultaneous non-empty range
+         * @param conv2dGeometry compact cold grouped NCHW Conv2d boundary geometry
+         * @param conv3dGeometry compact cold grouped NCDHW Conv3d boundary geometry
+         * @param matmulFacts typed code identity and compact cold normalized full-K MATMUL geometry
+         * @param pool2dGeometry compact cold NCHW Pool2d boundary and window geometry
+         * @param pool3dGeometry compact cold NCDHW Pool3d boundary and window geometry
+         * @param attentionGeometry compact cold scaled-dot-product-attention row geometry
+         *
+         * @throws NullPointerException if a required component is null
+         * @throws IllegalArgumentException if family, boundary, strategy or resource facts disagree
+         * @throws ArithmeticException if exact geometry arithmetic overflows
+         */
+        public LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
+            List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
+            List<DataType> boundaryDataTypes, List<ValueId> virtualValues, long[] extents,
+            long elementCount, String fusionReason, long[] affineAddressPairs,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry,
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+            Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+            Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+            Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
+            Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+            Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
+            Optional<MatmulFacts> matmulFacts,
+            Optional<CpuPool2dLowering.Geometry> pool2dGeometry,
+            Optional<CpuPool3dLowering.Geometry> pool3dGeometry,
             Optional<CpuAttentionLowering.Geometry> attentionGeometry) {
+            this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans, boundaryDataTypes, virtualValues, extents, elementCount, fusionReason, affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry, argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry, batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulFacts, pool2dGeometry, pool3dGeometry, attentionGeometry, Optional.empty());
+        }
+
+        /**
+         * Creates direct scan lowering, never a dummy generated IR.
+         * @param facts non-null exact scan facts with canonical reads and all sibling outputs
+         */
+        public LoweredPartition(CpuRecurrentScanLowering.Facts facts) {
+            this(null, facts.boundaryValues(), facts.accessBindings(), facts.spans(),
+                    facts.boundaryTypes(), List.of(), new long[] {facts.geometry().batch()},
+                    facts.geometry().batch(), "direct fixed recurrent scan", new long[0],
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                            Optional.of(facts));
+        }
 
         /** Preserves the schema-56 canonical constructor with no attention geometry. */
         public LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
@@ -1391,11 +1491,12 @@ public final class CpuPartitionLowering {
                     Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         }
-        /**
+/**
          * Validates matching boundary facts and snapshots every mutable collection or array.
          *
-         * @param portableKernelIr non-null route-independent portable representation
-         * @param boundaryValues non-null ordered materialized boundaries; copied defensively
+         * @param portableKernelIr generated portable representation, or null exactly when direct
+         *     recurrentScan facts are present; a direct scan has no generated IR
+         * @param boundaryValues unique reads then all materialized outputs; copied defensively
          * @param accessBindings non-null access geometry in boundary order; copied defensively
          * @param referencedElementSpans non-null exact declaration spans; copied defensively
          * @param boundaryDataTypes non-null exact boundary types; copied defensively
@@ -1419,12 +1520,22 @@ public final class CpuPartitionLowering {
          * @param softmaxGeometry non-null optional stable-softmax geometry
          * @param trailingNormalizationGeometry non-null optional trailing-normalization geometry
          * @param batchNormInferenceGeometry non-null optional batch-normalization inference geometry
+         * @param batchNormTrainingGeometry non-null optional training-normalization geometry
+         * @param conv2dGeometry non-null optional grouped NCHW convolution geometry
+         * @param conv3dGeometry non-null optional grouped NCDHW convolution geometry
+         * @param matmulFacts non-null optional normalized matrix-product facts
+         * @param pool2dGeometry non-null optional NCHW pooling geometry
+         * @param pool3dGeometry non-null optional NCDHW pooling geometry
+         * @param attentionGeometry non-null optional attention row geometry
+         * @param recurrentScan non-null optional direct facts, mutually exclusive with generated IR
          * @throws NullPointerException if a required component or element is {@code null}
          * @throws IllegalArgumentException if fewer than one input plus one output are present or
          *     boundary collections have different cardinalities
          */
         public LoweredPartition {
-            Objects.requireNonNull(portableKernelIr, "portableKernelIr");
+            Objects.requireNonNull(recurrentScan, "recurrentScan");
+            if ((portableKernelIr == null) != recurrentScan.isPresent())
+                throw new IllegalArgumentException("exactly one generated or recurrent lowering required");
             boundaryValues = List.copyOf(boundaryValues);
             accessBindings = List.copyOf(accessBindings);
             referencedElementSpans = List.copyOf(referencedElementSpans);
@@ -1460,6 +1571,20 @@ public final class CpuPartitionLowering {
             attentionGeometry = Objects.requireNonNull(attentionGeometry, "attentionGeometry");
             Objects.requireNonNull(fusionReason, "fusionReason");
             int size = boundaryValues.size();
+            if (recurrentScan.isPresent()) {
+                var scan = recurrentScan.orElseThrow();
+                if (!boundaryValues.equals(scan.boundaryValues()) || !accessBindings.equals(scan.accessBindings())
+                        || !referencedElementSpans.equals(scan.spans()) || !boundaryDataTypes.equals(scan.boundaryTypes())
+                        || !virtualValues.isEmpty() || affineAddressPairs.length != 0
+                        || !java.util.Arrays.equals(extents, new long[] {scan.geometry().batch()})
+                        || elementCount != scan.geometry().batch()
+                        || java.util.stream.Stream.of(movementGeometry, indexingGeometry, scatterGeometry, foldGeometry,
+                            orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry, argExtremaGeometry,
+                            maskedReductionGeometry, advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
+                            batchNormInferenceGeometry, batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry,
+                            matmulFacts, pool2dGeometry, pool3dGeometry, attentionGeometry).anyMatch(Optional::isPresent))
+                    throw new IllegalArgumentException("direct recurrent lowering facts disagree");
+            }
             boolean pool2d = portableKernelIr
                     instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool2dIr;
             boolean pool3d = portableKernelIr
@@ -1518,10 +1643,12 @@ public final class CpuPartitionLowering {
         /**
          * Returns the cache-compatible generated form.
          *
+         * @throws IllegalStateException if this is a direct scan with no generated form
          * @return the retained pointwise IR or a newly encoded instruction-free affine IR;
          *     never {@code null}
          */
         public CpuKernelIr kernelIr() {
+            if (recurrentScan.isPresent()) throw new IllegalStateException("direct scan has no generated IR");
             return portableKernelIr instanceof CpuKernelIr pointwise ? pointwise
                     : portableKernelIr instanceof CpuAffineCopyIr affine
                         ? affine.encodedKernelIr()

@@ -151,17 +151,17 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     @Override public BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
-        if (context.nodes().size() > 8) return analyzeLongPartition(context);
+        if (directPartition(context)) return analyzeLongPartition(context);
         return finishOpenBlas(context, selectPlan(context, Optional.empty()).analysis());
     }
 
     /**
-     * Analyzes a long complete partition directly without bounded complete-plan enumeration or
+     * Analyzes a long or scan-containing partition directly without bounded complete-plan enumeration or
      * representation copies. The selected portable units preserve the full partition topology;
      * all distinct buffer and unit-indexed intrinsic-workspace declarations are assembled before
      * shared slot assignment.
      *
-     * @param context non-null CPU partition context containing more than eight compiled nodes
+     * @param context non-null CPU partition context containing a scan or more than eight nodes
      * @return immutable portable analysis with exact distinct buffers and unit-indexed workspaces;
      *     never {@code null}
      * @throws IllegalArgumentException if any node, projection, or declaration is unsupported
@@ -182,7 +182,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      *
      * @param context non-null complete CPU analysis context; inspected but not mutated
      * @return a new immutable candidate-identity snapshot and its exact completeness outcome;
-     *     above eight compiled nodes, the valid direct plan is analyzed but the identity list is
+     *     for scan-containing or over-eight-node partitions, the valid direct plan is analyzed but the identity list is
      *     empty and completeness is false
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if analysis facts are unsupported or inconsistent
@@ -191,7 +191,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     public CompletePlanCandidates completePlanCandidates(
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
-        if (context.nodes().size() > 8) {
+        if (directPartition(context)) {
             analyzeLongPartition(context);
             return new CompletePlanCandidates(List.of(), false);
         }
@@ -225,7 +225,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      *     plan
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if the selected identity is no longer retained or the
-     *     complete partition exceeds the eight-node selection domain
+     *     complete partition contains a direct scan or exceeds the eight-node selection domain
      * @throws ArithmeticException if exact plan or resource arithmetic overflows
      */
     public BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeSelected(
@@ -233,8 +233,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             SelectedCompletePlan selectedPlan) {
         Objects.requireNonNull(selectedPlan, "selectedPlan");
         Objects.requireNonNull(context, "context");
-        if (context.nodes().size() > 8) throw new IllegalArgumentException(
-                "complete CPU plan selection is unavailable above eight nodes");
+        if (directPartition(context)) throw new IllegalArgumentException(
+                "complete CPU plan selection is unavailable for direct scan or over-eight-node partitions");
         return finishOpenBlas(context, selectPlan(Objects.requireNonNull(context, "context"),
                 Optional.of(selectedPlan)).analysis());
     }
@@ -443,7 +443,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeTopology(
             PrepareContext<CpuPartitionAnalysisInputs> context,
             List<CpuPartitionDagDecomposer.Unit> units, List<ValueId> carrierReferenceValues) {
-        if (units.size() != 1) return analyzeDag(context, units, carrierReferenceValues);
+        if (units.size() != 1 || units.getFirst().lowering().recurrentScan().isPresent())
+            return analyzeDag(context, units, carrierReferenceValues);
         var unit = units.getFirst();
         PrepareContext<CpuPartitionAnalysisInputs> unitContext = context;
         if (carrierReferenceValues != null && !context.backendInputs().carrierPattern().isEmpty()) {
@@ -575,6 +576,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             PrepareContext<CpuPartitionAnalysisInputs> context,
             CpuPartitionLowering.LoweredPartition lowered, int workspaceRequirementId,
             boolean allowMaterialization) {
+        if (lowered.recurrentScan().isPresent()) return analyzeRecurrent(context, lowered, workspaceRequirementId);
         var requestedCarriers = context.backendInputs().carrierPattern().isEmpty()
                 ? java.util.Collections.nCopies(lowered.boundaryValues().size(),
                         CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
@@ -996,6 +998,68 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         return new BackendPartitionAnalysis<>(context.partition(), plan, requirements);
     }
 
+    /**
+     * Identifies partitions outside complete generated-plan discovery.
+     * @param context non-null complete CPU projection, inspected without reading storage
+     * @return whether a scan or more than eight nodes requires the direct decomposition path
+     */
+    private static boolean directPartition(PrepareContext<CpuPartitionAnalysisInputs> context) {
+        return context.nodes().size() > 8 || context.nodes().stream().anyMatch(n ->
+                n.operation().kind() instanceof io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind);
+    }
+
+    /**
+     * Declares exact direct scan buffers and row scratch before assignment.
+     * @param context non-null single-occurrence projection; no values are read
+     * @param lowered non-null direct scan lowering
+     * @param workspaceId non-negative final or temporary unit workspace identifier
+     * @return immutable direct analysis, containing no generated plan or artifact
+     */
+    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeRecurrent(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionLowering.LoweredPartition lowered, int workspaceId) {
+        var scan = lowered.recurrentScan().orElseThrow();
+        var carriers = context.backendInputs().carrierPattern().isEmpty()
+                ? java.util.Collections.nCopies(scan.boundaryValues().size(),
+                    CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
+                : context.backendInputs().carrierPattern();
+        var declarations = new ArrayList<PreparationResourceRequirement.Buffer>();
+        for (int p = 0; p < scan.boundaryValues().size(); p++) declarations.add(
+                new PreparationResourceRequirement.Buffer(scan.boundaryValues().get(p),
+                    Math.multiplyExact(scan.spans().get(p), scan.boundaryTypes().get(p).byteWidth()),
+                    scan.boundaryTypes().get(p).byteWidth()));
+        Optional<PreparationResourceRequirement.Workspace> workspace = scan.geometry().scratchBytes() == 0
+                ? Optional.empty() : Optional.of(new PreparationResourceRequirement.Workspace(
+                    workspaceId, scan.geometry().scratchBytes(), Float.BYTES));
+        var use = workspace.isEmpty() ? CpuPartitionPreparationPlan.WorkspaceUse.NONE
+                : CpuPartitionPreparationPlan.WorkspaceUse.RECURRENT_ROW_STATE;
+        var facts = new CpuPartitionPreparationPlan.UnitRuntimeFacts(new long[0],
+                Optional.empty(), workspace, use, Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(),
+                Optional.of(scan));
+        var unit = new CpuPartitionPreparationPlan.ExecutionUnitPlan(null, scan.boundaryValues(),
+                scan.accessBindings(), carriers, carriers, lowered.extents(), lowered.elementCount(),
+                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, 1, 1, 0,
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), scan.boundaryValues().size() - scan.readCount(),
+                lowered.fusionReason(), List.of(), List.of(0), facts);
+        var plan = new CpuPartitionPreparationPlan(List.of(unit),
+                CpuPartitionPreparationPlan.Route.PORTABLE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                declarations, scan.boundaryValues(), scan.accessBindings(), carriers, carriers,
+                lowered.extents(), lowered.elementCount(), new long[0], 1, 1, 0, "direct fixed recurrent scan",
+                Optional.empty(), workspace, use, new CpuSpecializationBudget(4, 1, 0, 0),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), Optional.empty());
+        var requirements = new ArrayList<PreparationResourceRequirement>(declarations);
+        workspace.ifPresent(requirements::add);
+        return new BackendPartitionAnalysis<>(context.partition(), plan, requirements);
+    }
+
     private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeDag(
             PrepareContext<CpuPartitionAnalysisInputs> context,
             List<CpuPartitionDagDecomposer.Unit> topology,
@@ -1022,7 +1086,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                                     .map(PreparationResourceRequirement.Buffer::valueId).toList()
                                 + ", members=" + topology.stream()
                                     .map(unit -> unit.memberNodeOrdinals() + ":"
-                                            + unit.lowering().portableKernelIr().getClass().getSimpleName())
+                                            + (unit.lowering().recurrentScan().isPresent() ? "RecurrentScan"
+                                                : unit.lowering().portableKernelIr().getClass().getSimpleName()))
                                     .toList());
             }
             List<ValueId> reference = carrierReferenceValues == null
@@ -1070,7 +1135,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     selected.argExtremaGeometry(), selected.maskedReductionGeometry(),
                     selected.advancedReductionGeometry(), selected.softmaxGeometry(),
                     selected.trailingNormalizationGeometry(),
-                    selected.batchNormInferenceGeometry(), selected.batchNormTrainingGeometry());
+                    selected.batchNormInferenceGeometry(), selected.batchNormTrainingGeometry(),
+                    selected.units().getFirst().runtimeFacts().recurrentScan());
             CpuPartitionDagDecomposer.Unit topologyUnit = topology.get(index);
             units.add(new CpuPartitionPreparationPlan.ExecutionUnitPlan(unit.portablePlan(),
                     unit.boundaryValues(), unit.accessBindings(), unit.carrierPattern(),

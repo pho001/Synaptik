@@ -155,9 +155,15 @@ Fixed scans are a separate advanced cold workflow, not a replacement for the bui
 sequences. Use the existing list `Model.graph`/`Model.loadGraph` boundary with INT64 runtime lengths
 as an input, alongside sequence and any external initial states. The cold roundtrip
 recreates storage-free prototypes and rebinds fresh exact-descriptor inputs without reading length
-values. It retains all canonical ports of one scan even when only finalCell is returned. Calling
-compute/train on it remains unsupported; no backend scan execution, BPTT or serialized prepared
-loop is provided. See the [cold scan scenario](../api/graph-checkpoint-api.md#selected-cnn-and-recurrent-persistence).
+values. It retains all canonical ports of one scan even when only finalCell is returned.
+This adds no NN runtime-length convenience or scan training API. Advanced callers can separately
+use ordinary Engine compile/prepare/run or runValues for canonical fully static FLOAT32 scans on
+CPU, with INT64 lengths, explicit states and packed parameters. Prepare reads no length values;
+each run checks all lengths in `[0,T]` before writing scan results. Repair invalid lengths and
+reuse the preparation with the same descriptors. Backpropagation through time and serialized
+prepared loops remain unsupported. This does not migrate the builder or current sequence APIs.
+See the [cold scan scenario](../api/graph-checkpoint-api.md#selected-cnn-and-recurrent-persistence)
+and [CPU execution scope](../backend-guide/cpu-backend.md#fixed-recurrent-forward-execution).
 
 ## Owned static Model workflow
 

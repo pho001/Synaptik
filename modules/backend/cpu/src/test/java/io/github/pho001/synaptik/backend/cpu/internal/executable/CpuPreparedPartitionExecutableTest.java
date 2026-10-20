@@ -44,8 +44,8 @@ class CpuPreparedPartitionExecutableTest {
                 () -> assertEquals(analysis.plan().units().get(0).boundaryValues().getLast(),
                         analysis.plan().units().get(1).boundaryValues().getFirst()));
         var executable = finalizeSequence(analysis);
-        assertAll(() -> assertNotSame(executable.children().get(0).artifact().hiddenClass(),
-                        executable.children().get(1).artifact().hiddenClass()),
+        assertAll(() -> assertNotSame(assertInstanceOf(io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable.class, executable.children().get(0)).artifact().hiddenClass(),
+                        assertInstanceOf(io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable.class, executable.children().get(1)).artifact().hiddenClass()),
                 () -> assertEquals(6, executable.bufferSelectionCount()),
                 () -> assertEquals(PreparedExecutable.BufferAccess.WRITE_ONLY,
                         executable.bufferAccess(3)),

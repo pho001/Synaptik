@@ -119,7 +119,7 @@ Draft rows without links have no detailed task brief.
 | [0020B](tasks/0020b-stateless-standard-module-factory.md) | Stateless standard ModuleFactory | Complete | 0020–0020A | Added fresh standard Embedding/Linear/RNN/GRU/LSTM recipes without ownership, registry, or retained configuration. |
 | [0020C](tasks/0020c-bidirectional-static-recurrent-composition.md) | Type-safe bidirectional static recurrent composition | Complete | 0020–0020B; stable static sequence/result and Model gather/composition contracts | Added concrete bidirectional RNN/GRU/LSTM containers with independent state, valid-prefix reversal, aligned forward-first concat, and typed final states. |
 | [0021A](tasks/0021a-fixed-recurrent-scan-architecture-decision.md) | Fixed recurrent-scan architecture decision | Complete | 0020C; current flat Model/Compiler graph, Prepare, Runtime, and Engine contracts | Accepted fixed flat multi-output RNN/GRU/LSTM scan semantics, lifecycle ownership, fail-closed backpropagation-through-time boundary, and migration constraints. |
-| 0021B | Fixed recurrent-scan implementation program | Draft | 0021A; Model 0025E; Compiler 0006A; Engine 0001–0002; truthful concrete-backend coverage | Reconcile completed Model/Compiler adoption with the remaining ordinary lifecycle and concrete-backend execution program; runtime lengths must not specialize graph structure. |
+| [0021B](tasks/0021b-fixed-recurrent-scan-implementation-program.md) | Fixed recurrent-scan forward execution program | Complete | 0021A; Model0025E/0025F; Compiler0006A; CPU0027; Engine0021; CP0010/CP0011 Complete | CPU0028 scalar FLOAT32 forward baseline accepted 2026-10-20 after independent APPROVE and main's root gate; no NN migration/Data/BPTT. |
 | 0022 | Valid-length recurrent API and Data integration | Draft | 0021B; Data 0001–0002 architecture and valid-length contracts | Add the Data-owned runtime-length NN API only after executable scan coverage; deliberately decide the static `long[]` compatibility path. |
 | 0023 | Arbitrary dense validity-mask semantics | Draft | 0022; concrete attention/loss/recurrent consumer | Add a Boolean mask only for a proven holes-capable consumer, never as duplicate right-padding metadata or a skipped-work claim. |
 | 0024 | Typed model/recurrent/data integration checkpoint | Draft | 0020–0022; 0023 only if selected; Checkpoint model-state and Training publication readiness | Validate state, binding/checkpoint compatibility, variable batches, continuation, autograd/training handoff, documentation, and integration boundaries. |
@@ -132,6 +132,14 @@ Draft rows without links have no detailed task brief.
 | [0029](tasks/0029-fluent-model-builder-and-checkpoint-independent-execution.md) | Fluent Model builder and checkpoint-independent execution | Complete | NN0028; Checkpoint0009; CPU0025; Compiler0009 — Complete | Planck final APPROVE, zero findings; worker/integration evidence and main's source-matched native root gate passed (2026-10-19). |
 
 ## Dependency DAG and authorized frontiers
+
+Completed NN0021A + Model0025E/0025F + Compiler0006A + CPU0027 + Engine0021 + CP0010/CP0011
+→ [CPU0028](../../backends/cpu/tasks/0028-fixed-recurrent-scan-forward-execution.md)
+→ [NN0021B](tasks/0021b-fixed-recurrent-scan-implementation-program.md), all Complete.
+Main accepted independent approval and the final root gate on 2026-10-20; task briefs own evidence
+and base metadata. Parallel group None; main owns integration/shared documents.
+Authorized CPU/NN frontiers: None. No successor, NN production type, Data/NN migration or BPTT
+is authorized; CPU0028 records the delivered canonical scalar FLOAT32 baseline and exclusions.
 
 Engine0021 + Training0007 + Compiler0008 + Checkpoint0008 + Training0008 → NN0028.
 Compiler0006B11 + Compiler0008 + CPU0025 → Compiler0009 (all Complete).
@@ -163,8 +171,8 @@ The user-approved [CP0010 packet](../checkpoint/tasks/0010-fluent-cnn-and-static
 and [CP0011 companion](../checkpoint/tasks/0011-flat-recurrent-scan-persistence.md) are jointly Complete
 on 2026-10-20: builder CNN/static recurrence and cold flat-scan persistence accepted after independent
 APPROVE and main's focused/native root gates; [CP0010 Result](../checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md#result)
-owns evidence. Authorized NN/Compiler/Checkpoint frontiers: None; no successor or scan execution/BPTT
-authorized. Existing predecessor DAG and held NN0027/CP0005C/NN0021B scope unchanged; no new
+owns evidence. Authorized NN/Compiler/Checkpoint source frontiers: None; NN0021B/CPU0028 subsequently
+completed bounded forward execution, not BPTT. Existing predecessor DAG and held NN0027/CP0005C scope unchanged; no new
 API/types/lifecycle/adjoints. Base `8d5357e9a8698721a2252cb2ca3cb94150e705e8`, Parallel group None;
 main owns serialized integration and shared documents.
 
@@ -276,7 +284,8 @@ Exact metadata and 2026-10-14 dependency/base/contracts/review/conflict verifica
 - Complete: foundation and state lifecycle (0001–0011), recurrent cells/static sequences and typed
   topology (0012–0020C), the fixed-scan architecture decision (0021A), and dimensional
   convolution plus its user checkpoint (0025–0025A).
-- Draft: 0021B–0024. None has a detailed task brief. Audit repair 0025B is Complete.
+- Complete: NN0021B/CPU0028 canonical FLOAT32 scalar forward execution; evidence in the briefs.
+  Draft: 0022–0024, without detailed briefs or execution authorization. Audit repair 0025B is Complete.
 - Complete: NN0026 with final independent reviews and coordinator validation.
   NN0027 remains Draft; CP0005B is Complete. Engine0020's completed layout cutover does not
   authorize NN execution.
@@ -285,9 +294,9 @@ Exact metadata and 2026-10-14 dependency/base/contracts/review/conflict verifica
   tests and main's native root gate (2026-10-19). Authorized NN frontier: None.
 - NN0027 is the earlier Draft recurrent follow-up, held with CP0005C/Training0006 held as an optional older proposal,
   not a prerequisite of NN0028; no scan/backend BPTT/Data gate.
-- 0021B remains a separate Draft execution candidate only after a planner revalidates its cross-area
-  program and truthful concrete-backend coverage. It is not implementation authorization;
-  Model 0032 is Complete, and the [roadmap](../../roadmap.md) owns current cross-area frontiers.
+- NN0021B is accepted after CPU0028's independent approval and main's root gate (2026-10-20).
+  Authorized CPU/NN frontiers: None. Model 0032 is Complete; the [roadmap](../../roadmap.md)
+  owns current cross-area frontiers.
 - Completed NN work used recorded roadmap interleaves. NN 0016/0017 were a bounded parallel pair,
   and 0025/0025A were an explicit out-of-order convolution branch ahead of unrelated Draft
   0021B–0024. Those historical exceptions authorize no further NN work.
@@ -310,11 +319,10 @@ dependency plans, and roadmap above.
   completed forward and combined preparation, but is not a training benchmark. Actual larger-case
   cached-training latency and a historical regression remain unmeasured; NN acceptance/frontier
   are unchanged.
-- **0021B execution gate:** [Model 0025E–0025F](../../modules/model/master-plan.md) and
-  [Compiler 0006A](../../modules/compiler/master-plan.md) are Complete, and current
-  [Engine](../../modules/engine/master-plan.md) has caller-input/publication lifecycles. No
-  concrete backend currently claims recurrent-scan execution. The future brief must identify an
-  honest backend route and verify whether existing Planning/Prepare/Runtime contracts suffice.
+- **Completed 0021B baseline:** CPU0028 executes canonical scalar FLOAT32 RNN/GRU/LSTM in both
+  directions and bias forms, with runtime INT64 lengths and all outputs through existing lifecycles.
+  FLOAT64/low types, noncontiguous layouts, vector/parallel/native scan routes and tuning remain
+  outside that capability; no Data/NN migration or BPTT is implied.
 - **0022 Data gate:** [Data 0001–0002](../data/master-plan.md) remain Draft; Data/Text/Vision are
   not authorized modules until their coordinated architecture decision. Ordinary right padding
   has one canonical valid length per batch row; padding lengths and dense masks are derived, not

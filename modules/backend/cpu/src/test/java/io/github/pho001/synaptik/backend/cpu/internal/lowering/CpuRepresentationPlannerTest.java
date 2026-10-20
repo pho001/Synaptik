@@ -1282,7 +1282,7 @@ class CpuRepresentationPlannerTest {
         assertEquals(production.representationUnits().size(), partition.children().size());
         for (int index = 0; index < partition.children().size(); index++) {
             int childIndex = index;
-            var child = partition.children().get(childIndex);
+            var child = assertInstanceOf(io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable.class, partition.children().get(childIndex));
             var represented = production.representationUnits().get(childIndex);
             assertEquals(represented.portablePlan().specialization(),
                     child.artifact().specialization());

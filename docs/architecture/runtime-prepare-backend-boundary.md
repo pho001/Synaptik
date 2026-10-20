@@ -316,10 +316,12 @@ availability snapshot, integration, `ServiceLoader`, reflection, or a global reg
 adapter. Metal MPSGraph-only, multiple-partition, and mixed-owner plans fail local eligibility
 before trials. A safe-heuristic fallback never changes the selected adapter.
 
-## Planned fixed recurrent scan handoff
+<a id="planned-fixed-recurrent-scan-handoff"></a>
+
+## Fixed recurrent scan handoff
 
 Model now represents the fixed recurrent scan and its valid-length Tensor as ordinary expression
-metadata. The future executable path is the first planned use of an ordinary caller input whose
+metadata. The CPU FLOAT32 executable path uses an ordinary caller input whose
 values alter bounded backend control flow while its Shape and the complete resource geometry stay
 static. The valid-length Tensor is fully static rank-one `INT64[batch]`; only its per-run values
 vary. Model does not read those values. They do not make `time`, `batch`, feature dimensions,
@@ -355,8 +357,16 @@ coordinate, and explicit final hidden and LSTM cell states. It traverses only va
 Branch-based skipping satisfies the first contract; physical active-row compaction, packed
 batches, and stronger memory-work claims remain deferred.
 
-No current shared contract changes merely to name this operation, and no current capability
-provider advertises or executes it. If implementation later proves
+CPU now admits canonical FLOAT32 RNN, reset-after GRU and LSTM occurrences in either direction,
+with or without bias. Analysis retains direct private facts rather than generated IR. Finalization
+creates one Java scan child per occurrence without consulting the generated-artifact store.
+Two packed projection rows require `2 * gates * hiddenSize * 4` run-owned scratch bytes, independent
+of time and lengths; empty time or batch omits scratch. Dense outputs still require `O(T*B*H)` storage.
+Cold binding reads no lengths. Bound execution checks every length after any length producer,
+before padding, initial-state copies or gate writes; an invalid last row leaves every scan output
+unchanged. Existing Engine cleanup propagates the unchecked failure and returns no result.
+
+No shared executable code or contract changes were needed. If a later route proves
 that a selected backend cannot preserve static route and resource decisions across compatible
 valid-length values, it must expose the exact gap for a new architecture decision instead of
 adding speculative control-flow state to Prepare or Runtime. See

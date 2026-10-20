@@ -225,6 +225,10 @@ public final class CpuRepresentationPlanner {
             Optional<CpuRepresentationDecision.VariantIdentity> explicitSelection) {
         Objects.requireNonNull(context, "context");
         candidates = List.copyOf(candidates);
+        // Scan-containing partitions bypass complete-plan/copy enumeration in the preparer.
+        if (candidates.stream().anyMatch(c -> c.plan().units().stream()
+                .anyMatch(u -> u.runtimeFacts().recurrentScan().isPresent())))
+            throw new IllegalArgumentException("direct recurrent partitions have no representation candidates");
         fusionDecisions = List.copyOf(fusionDecisions);
         var legal = fusionDecisions.stream().filter(CpuFusionDecision.LegalCandidate.class::isInstance)
                 .map(CpuFusionDecision.LegalCandidate.class::cast).toList();

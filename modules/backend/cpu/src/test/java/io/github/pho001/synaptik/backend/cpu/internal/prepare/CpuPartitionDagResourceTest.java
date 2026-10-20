@@ -48,6 +48,42 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class CpuPartitionDagResourceTest {
+    @org.junit.jupiter.api.Test void longPartitionKeepsTwoDirectScanOccurrencesAndDistinctDeclaredScratch() {
+        var c = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRecurrentScanLoweringTest.context(
+                io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind.RNN_TANH, false,
+                io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection.FORWARD, 2, 2, 2, 2, false);
+        var descriptors = new java.util.ArrayList<>(c.values().stream().map(io.github.pho001.synaptik.model.graph.GraphValue::descriptor).toList());
+        var nodes = new java.util.ArrayList<>(c.nodes());
+        int input = 5;
+        for (int ordinal = 1; ordinal <= 9; ordinal++) {
+            int output = descriptors.size(); descriptors.add(descriptors.get(5));
+            nodes.add(new io.github.pho001.synaptik.model.graph.CompiledNode(new io.github.pho001.synaptik.model.graph.NodeId(ordinal),
+                    new io.github.pho001.synaptik.model.operation.Operation(
+                        io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind.NEG,
+                        io.github.pho001.synaptik.model.operation.NoOperationAttrs.INSTANCE),
+                    java.util.List.of(new io.github.pho001.synaptik.model.graph.ValueId(input)),
+                    java.util.List.of(new io.github.pho001.synaptik.model.graph.ValueId(output)))); input = output;
+        }
+        int output = descriptors.size(); descriptors.add(descriptors.get(5)); descriptors.add(descriptors.get(6));
+        nodes.add(new io.github.pho001.synaptik.model.graph.CompiledNode(new io.github.pho001.synaptik.model.graph.NodeId(10),
+                c.nodes().getFirst().operation(), java.util.List.of(new io.github.pho001.synaptik.model.graph.ValueId(input),
+                    new io.github.pho001.synaptik.model.graph.ValueId(1), new io.github.pho001.synaptik.model.graph.ValueId(2),
+                    new io.github.pho001.synaptik.model.graph.ValueId(3), new io.github.pho001.synaptik.model.graph.ValueId(4)),
+                java.util.List.of(new io.github.pho001.synaptik.model.graph.ValueId(output), new io.github.pho001.synaptik.model.graph.ValueId(output + 1))));
+        var context = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRecurrentScanLoweringTest.project(descriptors, nodes);
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var scans = analysis.plan().units().stream().filter(u -> u.runtimeFacts().recurrentScan().isPresent()).toList();
+        assertEquals(2, scans.size());
+        assertNotEquals(scans.get(0).runtimeFacts().workspaceDeclaration().orElseThrow().requirementId(),
+                scans.get(1).runtimeFacts().workspaceDeclaration().orElseThrow().requirementId());
+        assertEquals(2, analysis.requirements().stream().filter(io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement.Workspace.class::isInstance).count());
+        try (var f = new io.github.pho001.synaptik.backend.cpu.internal.executable.CpuRecurrentScanExecutionTest.Fixture(
+                analysis, 2, false, false, java.util.Map.of())) {
+            f.lengths(1, 1, 2); f.fill(0, .2f); f.fill(3, .1f); f.fill(4, .1f);
+            f.executable.bind(f.state).execute();
+            for (float v : f.floats(output + 1)) assertTrue(v < 0);
+        }
+    }
     @TempDir Path root;
 
     @Test void pool3dDeclaresOnlyItsInputAndOutputBuffers() {
@@ -112,10 +148,10 @@ class CpuPartitionDagResourceTest {
                     () -> assertEquals(2, executable.memoryPlan().workspaces().size()),
                     () -> assertEquals(analysis.plan().units().get(0).portablePlan()
                                     .specialization(),
-                            executable.children().get(0).artifact().specialization()),
+                            assertInstanceOf(io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable.class, executable.children().get(0)).artifact().specialization()),
                     () -> assertEquals(analysis.plan().units().get(1).portablePlan()
                                     .specialization(),
-                            executable.children().get(1).artifact().specialization()),
+                            assertInstanceOf(io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable.class, executable.children().get(1)).artifact().specialization()),
                     () -> assertEquals(1,
                             analysis.plan().units().get(0).selectedRangeCount()),
                     () -> assertEquals(2,

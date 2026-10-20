@@ -28,7 +28,10 @@ import java.util.Optional;
  * storage or valid-length values, unrolls a transition, captures a body or region, constructs a
  * gradient, selects a backend, or executes recurrence. The existing NN sequence APIs still use
  * construction-time Java {@code long[]} lengths and static unrolling. Current package-private
- * Compiler forward-only inference adopts the resulting operation family; both backward-capable
+ * Compiler forward-only inference adopts the resulting operation family. The CPU backend executes
+ * canonical fully static FLOAT32 occurrences through ordinary Engine compile/prepare/run, with
+ * runtime INT64 lengths and isolated run-owned outputs and scratch; this namespace itself remains
+ * expression-only. Both backward-capable
  * modes remain allocation-free fail-closed until backpropagation through time is implemented.</p>
  */
 public final class RecurrentScan {

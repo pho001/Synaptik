@@ -398,6 +398,7 @@ public final class CpuFusionProfitabilitySelector {
             case ORDERING_INDICES -> CpuFusionDecision.WorkspaceRole.ORDERING_INDICES;
             case AGGREGATE_EXACT_STATE -> CpuFusionDecision.WorkspaceRole.AGGREGATE_EXACT_STATE;
             case ATTENTION_ROW_STATE -> CpuFusionDecision.WorkspaceRole.ATTENTION_ROW_STATE;
+            case RECURRENT_ROW_STATE -> throw new IllegalArgumentException("direct recurrent units have no generated candidate");
             case NONE -> throw new IllegalArgumentException("workspace has no closed role");
         };
     }

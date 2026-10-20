@@ -116,6 +116,11 @@ Only those four root types are supported; `.internal` contracts are unsupported.
 consume common analysis and never add another backend identity, graph interpreter, registry,
 service locator, or provider-owned lowering.
 
+Completed CPU0028 added internal `CpuRecurrentScanLowering` (nested Facts/Geometry) in lowering,
+`CpuRecurrentScanPreparedExecutable` (private Invocation) in executable, and `CpuRecurrentScanKernel`
+in route.portable. Existing lowered/unit records gain mutually exclusive direct recurrent facts;
+no new public facade, generic hierarchy, shared lifecycle type or package move.
+
 ## Ordered task list
 
 The table owns order and status; linked tasks own detailed evidence.
@@ -261,10 +266,18 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0025 | [Scatter validation coordinate rank repair](tasks/0025-scatter-validation-coordinate-rank.md) | Complete | 0024; 0006B1/0007A0C/0007A1B Complete | Independent APPROVE, zero findings; main's unchanged-snapshot native root gate passed at NN0029 join (2026-10-19). No NN dependency. |
 | 0026 | [Stacked LSTM cold preparation diagnostic](tasks/0026-stacked-lstm-cold-preparation-diagnostic.md) | Complete | CPU0025; Compiler0009; NN0029 Complete | Repeated finish/topological scans dominate sampled combined CPU analysis; prepare censored at 180-second JVM deadline. Pasteur APPROVE, zero findings; main accepted 2026-10-20. |
 | 0027 | [Unit topology adjacency ordering](tasks/0027-unit-topology-adjacency-ordering.md) | Complete | CPU0026 Complete | Invocation-local adjacency and stable Kahn ordering preserve exact dependencies/order; CPU, conformance, Fluent integration and bounded LSTM probe passed; independent APPROVE, zero findings. |
+| 0028 | [Fixed recurrent scan forward execution](tasks/0028-fixed-recurrent-scan-forward-execution.md) | Complete | NN0021A; Model0025E/0025F; Compiler0006A; CPU0027; Engine0021; CP0010/CP0011 Complete | Canonical FLOAT32 scalar Java RNN/GRU/LSTM accepted 2026-10-20 after independent APPROVE and main's root test/Javadoc gate; evidence in brief. |
 
 ## Milestones and current frontier
 
-- Authorized CPU frontier: None. DAG: CPU0025 + Compiler0009 + NN0029 → CPU0026 → [CPU0027](tasks/0027-unit-topology-adjacency-ordering.md), all Complete. Main accepted the CPU-only fix after independent APPROVE and focused integration (2026-10-20); CPU0023 remains Draft. Parallel group None; main owns shared-document closure. Evidence and diagnostic limits remain in the brief; no architecture, route, fusion-policy or resource-contract change.
+- Completed DAG: NN0021A + Model0025E/0025F + Compiler0006A + CPU0027 + Engine0021 + CP0010/CP0011
+  → [CPU0028](tasks/0028-fixed-recurrent-scan-forward-execution.md)
+  → [NN0021B](../../extensions/nn/tasks/0021b-fixed-recurrent-scan-implementation-program.md), all Complete.
+  Authorized CPU frontier: None. Main accepted independent approval and the final root gate
+  on 2026-10-20; Parallel group None, shared-document owner main. Briefs own evidence/base metadata.
+  Scalar FLOAT32 canonical heap/native/mixed forward execution is delivered; other types/layouts,
+  vector/parallel/native scan routes, Data/NN migration, BPTT and performance claims remain unselected.
+- Completed diagnostic DAG: CPU0025 + Compiler0009 + NN0029 → CPU0026 → [CPU0027](tasks/0027-unit-topology-adjacency-ordering.md), all Complete. Main accepted the CPU-only fix after independent APPROVE and focused integration (2026-10-20); CPU0023 remains Draft. Parallel group None; main owns shared-document closure. Evidence and diagnostic limits remain in the brief; no architecture, route, fusion-policy or resource-contract change.
 - Portable coverage and closure are Complete through 0009G1; OpenBLAS and supported lifecycle/
   tuning collaborations are Complete through 0010J.
 - Evidence-backed production-default task 0010M is `Complete`: ordinary production remains
@@ -302,7 +315,9 @@ Historical profile integration evidence remains in its completed task records.
   clean independent re-review, and direct Engine/Checkpoint acceptance. Its combined
   source-matched `test javadoc` checkpoint passed. CPU0025 is Complete after independent APPROVE,
   zero findings; main's final native root gate passed on the unchanged reviewed NN0029 snapshot.
-  CPU0026 diagnostic and CPU0027 adjacency/stable-Kahn fix are Complete after independent reviews and configured validation. CPU frontier None; CPU0023 stays Draft. Existing architecture, routes, fusion policy and resource contracts are unchanged.
+  CPU0026 diagnostic, CPU0027 adjacency/stable-Kahn fix and CPU0028 bounded scan execution are
+  Complete after independent reviews and configured validation. CPU0023 stays Draft; frontier None.
+  Existing architecture, other routes, fusion policy and resource contracts are unchanged.
 - CPU 0023 is a proposed bounded vector ERF shape follow-up, not an authorized successor. The
   audit diagnostic shows a current timing gap, but does not establish its cause or a regression.
 - CPU 0018 closed the virtualized-output/shared-weight recognition validation hole with

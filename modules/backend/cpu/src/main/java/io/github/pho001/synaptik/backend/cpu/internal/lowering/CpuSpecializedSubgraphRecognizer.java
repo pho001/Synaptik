@@ -75,6 +75,9 @@ public final class CpuSpecializedSubgraphRecognizer {
             List<ExecutionUnitPlan> baseline) {
         Objects.requireNonNull(context, "context");
         List<ExecutionUnitPlan> baselineUnits = List.copyOf(baseline);
+        // Direct scan partitions intentionally have no generated baseline or recognition facts.
+        if (baselineUnits.stream().anyMatch(u -> u.runtimeFacts().recurrentScan().isPresent()))
+            return List.of();
         Map<ValueId, GraphValue> values = values(context);
         List<CompiledNode> nodes = context.partitionDag().nodes();
         var claimed = new BitSet(nodes.size());
@@ -479,6 +482,7 @@ public final class CpuSpecializedSubgraphRecognizer {
             case ORDERING_INDICES -> WorkspaceRole.ORDERING_INDICES;
             case AGGREGATE_EXACT_STATE -> WorkspaceRole.AGGREGATE_EXACT_STATE;
             case ATTENTION_ROW_STATE -> WorkspaceRole.ATTENTION_ROW_STATE;
+            case RECURRENT_ROW_STATE -> throw new IllegalArgumentException("direct recurrent units have no generated candidate");
         };
         WorkspaceResourceFact workspace = declaration
                 .map(value -> new WorkspaceResourceFact(role, value.byteSize(),

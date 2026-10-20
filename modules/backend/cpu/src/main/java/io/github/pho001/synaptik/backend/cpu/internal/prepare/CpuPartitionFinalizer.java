@@ -29,14 +29,17 @@ import java.util.LinkedHashMap;
  *
  * <p>Every deduplicated partition buffer assignment and every unit-local exact workspace
  * assignment is resolved and checked before the first artifact-store call. Portable finalization
- * then realizes one already-selected artifact per unit in stable order. An OpenBLAS route requires
+ * then realizes each generated unit's selected artifact or constructs a direct recurrent child,
+ * without an artifact-store call for that child. An OpenBLAS route requires
  * the exact live coordinator that issued its retained qualification, validates that session and
  * target plus the shared budget snapshot, and installs its selected count before realizing any
  * selected
  * affine-copy artifact. Finalization cannot change unit
  * topology, dependencies, materialization, generated carrier patterns, route, strategy,
  * specialization, or declaration geometry. A multi-unit result is wrapped in one CPU-private
- * atomic sequential composite; a one-unit result remains the direct child recipe. When the exact
+ * atomic sequential composite. A single recurrent unit also uses that composite, while an
+ * established generated one-unit result without materialization remains the direct child recipe.
+ * When the exact
  * analyzed plan contains an explicitly chosen representation candidate, finalization also
  * realizes its one or two generated affine-copy artifacts before consumer artifacts. It does not
  * select among retained candidates. For a selected direct loss unit, finalization passes only its
@@ -131,7 +134,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
     @Override public BackendId backendId() { return CpuCapabilityProvider.CPU_BACKEND_ID; }
 
     /**
-     * Verifies the complete exact assignment set and realizes selected unit artifacts without
+     * Verifies exact assignments and realizes generated units or direct recurrent children without
      * changing analysis.
      * @param finalization non-null complete shared post-assignment handoff
      * @return a non-null resource-free result retaining the exact existing direct or composite
@@ -209,7 +212,8 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         if (plan.route() == CpuPartitionPreparationPlan.Route.OPENBLAS) {
             return finalizeOpenBlas(finalization, selections, workspaceSelections);
         }
-        if (plan.units().size() > 1 || !plan.materializations().isEmpty()) {
+        if (plan.units().size() > 1 || !plan.materializations().isEmpty()
+                || plan.units().getFirst().runtimeFacts().recurrentScan().isPresent()) {
             return finalizeComposite(finalization, selections, workspaceSelections);
         }
         var unit = plan.units().getFirst();
@@ -325,7 +329,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
             localSelections.add(local);
             selectedWorkers.add(workers(unit));
         }
-        var children = new ArrayList<CpuPreparedExecutable>();
+        var children = new ArrayList<PreparedExecutable>();
         var copyUnits = new ArrayList<CpuPreparedPartitionExecutable.CopyUnit>();
         var orderedWorkspaces = List.copyOf(workspaceSelections.keySet());
         for (var copy : plan.materializations()) {
@@ -341,6 +345,13 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         for (int index = 0; index < plan.units().size(); index++) {
             int unitIndex = index;
             var unit = plan.units().get(index);
+            if (unit.runtimeFacts().recurrentScan().isPresent()) {
+                children.add(new io.github.pho001.synaptik.backend.cpu.internal.executable.CpuRecurrentScanPreparedExecutable(
+                        finalization.memoryPlan(), localSelections.get(index),
+                        unit.runtimeFacts().workspaceDeclaration().map(workspaceSelections::get),
+                        unit.runtimeFacts().recurrentScan().orElseThrow(), concurrencyBudget.orElse(null)));
+                continue;
+            }
             var represented = plan.representationUnits().isEmpty() ? null
                     : plan.representationUnits().get(index);
             var route = represented == null ? unit.portablePlan() : represented.portablePlan();

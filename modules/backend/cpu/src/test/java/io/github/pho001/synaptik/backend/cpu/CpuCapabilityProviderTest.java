@@ -36,6 +36,16 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @org.junit.jupiter.api.Test void fixedScansDispatchBeforeSingleOutputDefaults() {
+        for (var kind : io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind.values())
+            for (var direction : io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection.values())
+                for (boolean bias : java.util.List.of(false, true)) {
+                    var context = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRecurrentScanLoweringTest.context(
+                            kind, bias, direction, 3, 2, 2, 2, true);
+                    org.junit.jupiter.api.Assertions.assertTrue(new CpuCapabilityProvider().supports(
+                            io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRecurrentScanLoweringTest.query(context)));
+                }
+    }
     @Test
     void admitsSupportedOccurrenceWithoutNumericalSelector() {
         var input = descriptor(DataType.FLOAT32, Shape.of(2));

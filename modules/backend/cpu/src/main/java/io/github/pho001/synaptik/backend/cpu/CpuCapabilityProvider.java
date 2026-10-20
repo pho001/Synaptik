@@ -197,6 +197,12 @@ import java.util.Arrays;
  * uses a distinct injective layout; its semantic effect is to copy base values and replace only
  * selected positions, without mutating either input.</p>
  *
+ * <p>Fixed RNN_TANH, GRU_RESET_AFTER and LSTM scans admit canonical static FLOAT32 floating roles,
+ * non-gradient INT64 lengths, both directions and bias/no-bias signatures. Outputs have the exact
+ * OR of floating gradient flags, not a backward request. Checked int dimensions/counts and exact
+ * packed shapes are mandatory; execution validates runtime values. Neither low type is admitted
+ * by this direct Java capability.</p>
+ *
  * <p>Complete-partition lowering remains stricter. Its closed unit inventory comprises one
  * supported movement, indexing, functional-scatter, overlap-fold, ordering, explicit-state
  * random, cumulative-scan, ordinary-reduction, arg-extrema, masked-reduction,
@@ -282,6 +288,12 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     public boolean supports(OperationCapabilityQuery query) {
         Objects.requireNonNull(query, "query");
         Object requestedKind = query.operation().kind();
+        if (requestedKind instanceof io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind) {
+            try {
+                io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRecurrentScanLowering.geometry(query);
+                return true;
+            } catch (IllegalArgumentException | ArithmeticException unsupported) { return false; }
+        }
         int expectedOutputs = requestedKind == TopKKind.TOP_K ? 2
                 : requestedKind == DropoutKind.DROPOUT ? 3
                 : requestedKind == BatchNormKind.BATCH_NORM_TRAINING ? 5 : 1;

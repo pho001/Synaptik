@@ -1014,7 +1014,9 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         /** Per-range exact floating ordinary-aggregate or masked-reduction state. */
         AGGREGATE_EXACT_STATE,
         /** Per-range in-place attention score and normalized-weight state. */
-        ATTENTION_ROW_STATE
+        ATTENTION_ROW_STATE,
+        /** Two run-owned packed FLOAT32 projection rows for a direct fixed scan. */
+        RECURRENT_ROW_STATE
     }
 
     /**
@@ -1054,7 +1056,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
     /**
      * One complete computation-oriented execution unit.
      *
-     * @param portablePlan non-null already-lowered portable realization plan
+     * @param portablePlan already-lowered generated portable plan, or null exactly for direct recurrent runtime facts
      * @param boundaryValues ordered unit-local materialized values
      * @param accessBindings ordered unit-local cold access facts
      * @param carrierPattern requested carriers in boundary order
@@ -1385,8 +1387,41 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
          *     specialization facts disagree
          * @throws ArithmeticException if the extent product overflows
          */
+        /**
+         * Validates and snapshots one generated or mutually exclusive direct execution unit.
+         * @param portablePlan already-lowered generated portable plan, or null exactly for direct recurrent runtime facts
+         * @param boundaryValues ordered unit-local materialized values
+         * @param accessBindings ordered unit-local cold access facts
+         * @param carrierPattern requested carriers in boundary order
+         * @param generatedCarrierPattern generated-entry carriers in boundary order
+         * @param extents unit-local logical range extents
+         * @param elementCount checked unit-local logical range count
+         * @param executionStrategy unit-local scalar or parallel-scalar selection
+         * @param selectedRangeCount positive selected range count
+         * @param minimumElementsPerWorker positive minimum work per submitted range
+         * @param vectorSpeciesBitSize zero for the admitted split units
+         * @param conv2dGeometry exact Conv2d geometry for the lead unit only
+         * @param conv3dGeometry exact Conv3d geometry for a direct rank-five unit only
+         * @param matmulGeometry exact normalized full-K MATMUL geometry for a MATMUL unit only
+         * @param pool2dGeometry exact NCHW Pool2d geometry for a Pool2d unit only
+         * @param pool3dGeometry exact NCDHW Pool3d geometry for a Pool3d unit only
+         * @param attentionGeometry exact scaled-dot-product-attention row geometry for an attention
+         *     unit only
+         * @param outputCount positive count of trailing materialized output boundaries
+         * @param fusionReason non-null cold diagnostic explanation of the selected fusion
+         * @param dependencies non-null strictly earlier direct producer-unit indices; copied
+         *     defensively
+         * @param memberNodeOrdinals non-null original partition node ordinals in stable order; copied
+         *     defensively
+         * @param runtimeFacts non-null immutable unit-local workspace and specialized-family facts
+         * @throws NullPointerException if a required component is null
+         * @throws IllegalArgumentException if family, boundary, strategy or resource facts disagree
+         * @throws ArithmeticException if exact geometry arithmetic overflows
+         */
         public ExecutionUnitPlan {
-            Objects.requireNonNull(portablePlan, "portablePlan");
+            Objects.requireNonNull(runtimeFacts, "runtimeFacts");
+            if ((portablePlan == null) != runtimeFacts.recurrentScan().isPresent())
+                throw new IllegalArgumentException("exactly one generated or recurrent unit required");
             boundaryValues = List.copyOf(boundaryValues);
             accessBindings = List.copyOf(accessBindings);
             carrierPattern = List.copyOf(carrierPattern);
@@ -1403,6 +1438,28 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             dependencies = List.copyOf(dependencies);
             memberNodeOrdinals = List.copyOf(memberNodeOrdinals);
             Objects.requireNonNull(runtimeFacts, "runtimeFacts");
+            if (runtimeFacts.recurrentScan().isPresent()) {
+                var scan = runtimeFacts.recurrentScan().orElseThrow();
+                if (!boundaryValues.equals(scan.boundaryValues())
+                        || !accessBindings.equals(scan.accessBindings())
+                        || carrierPattern.size() != boundaryValues.size()
+                        || !generatedCarrierPattern.equals(carrierPattern)
+                        || !java.util.Arrays.equals(extents, new long[] {scan.geometry().batch()})
+                        || elementCount != scan.geometry().batch()
+                        || executionStrategy != ExecutionStrategy.SCALAR || selectedRangeCount != 1
+                        || minimumElementsPerWorker != 1 || vectorSpeciesBitSize != 0
+                        || conv2dGeometry.isPresent() || conv3dGeometry.isPresent() || matmulGeometry.isPresent()
+                        || pool2dGeometry.isPresent() || pool3dGeometry.isPresent() || attentionGeometry.isPresent()
+                        || outputCount != boundaryValues.size() - scan.readCount()
+                        || dependencies.stream().anyMatch(p -> p < 0) || memberNodeOrdinals.size() != 1
+                        || memberNodeOrdinals.getFirst() < 0
+                        || runtimeFacts.workspaceDeclaration().isPresent() != (scan.geometry().scratchBytes() > 0)
+                        || runtimeFacts.workspaceUse() != (scan.geometry().scratchBytes() > 0
+                            ? WorkspaceUse.RECURRENT_ROW_STATE : WorkspaceUse.NONE)
+                        || runtimeFacts.workspaceDeclaration().stream().anyMatch(w ->
+                            w.byteSize() != scan.geometry().scratchBytes() || w.byteAlignment() != Float.BYTES))
+                    throw new IllegalArgumentException("direct recurrent unit facts disagree");
+            } else {
             CpuKernelIr generated = portablePlan.kernelIr();
             boolean matmul = portablePlan.specialization().matmulIr().isPresent();
             boolean pool2d = portablePlan.portableKernelIr()
@@ -1460,6 +1517,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                         || matmulGeometry.isPresent() || pool2dGeometry.isPresent()
                         || pool3dGeometry.orElseThrow().outputCount() != elementCount)) {
                 throw new IllegalArgumentException("CPU execution-unit facts disagree");
+            }
             }
         }
 
@@ -1523,6 +1581,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param trailingNormalizationGeometry non-null optional Layer/RMS geometry
      * @param batchNormInferenceGeometry non-null optional batch-normalization inference geometry
      * @param batchNormTrainingGeometry non-null optional batch-normalization training geometry
+     * @param recurrentScan non-null optional direct scan facts, mutually exclusive with generated family facts
      */
     public record UnitRuntimeFacts(long[] affineAddressPairs,
             Optional<CpuMaterializationPlan> materialization,
@@ -1542,7 +1601,56 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
             Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
             Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+            Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
+            Optional<io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRecurrentScanLowering.Facts> recurrentScan) {
+
+/**
+         * Validates and snapshots one unit's immutable resource and family facts.
+         * @param affineAddressPairs non-null alternating affine addresses; copied defensively
+         * @param materialization non-null optional one-input contiguous-copy plan
+         * @param workspaceDeclaration non-null optional exact unit workspace declaration; in a
+         *     multi-unit plan its requirement ID equals the final unit index
+         * @param workspaceUse non-null meaning of {@code workspaceDeclaration}
+         * @param movementGeometry non-null optional movement geometry
+         * @param indexingGeometry non-null optional indexing geometry
+         * @param scatterGeometry non-null optional scatter geometry
+         * @param foldGeometry non-null optional fold geometry
+         * @param orderingGeometry non-null optional ordering geometry
+         * @param randomGeometry non-null optional explicit-state geometry
+         * @param scanGeometry non-null optional cumulative-scan geometry
+         * @param aggregateGeometry non-null optional aggregate geometry
+         * @param argExtremaGeometry non-null optional arg-extrema geometry
+         * @param maskedReductionGeometry non-null optional masked-reduction geometry
+         * @param advancedReductionGeometry non-null optional advanced-reduction geometry
+         * @param softmaxGeometry non-null optional softmax geometry
+         * @param trailingNormalizationGeometry non-null optional Layer/RMS geometry
+         * @param batchNormInferenceGeometry non-null optional batch-normalization inference geometry
+         * @param batchNormTrainingGeometry non-null optional batch-normalization training geometry
+         * @throws NullPointerException if a required component is null
+         * @throws IllegalArgumentException if family, boundary, strategy or resource facts disagree
+         * @throws ArithmeticException if exact geometry arithmetic overflows
+         */
+        public UnitRuntimeFacts(long[] affineAddressPairs,
+            Optional<CpuMaterializationPlan> materialization,
+            Optional<PreparationResourceRequirement.Workspace> workspaceDeclaration,
+            WorkspaceUse workspaceUse,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry,
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+            Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+            Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
             Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry) {
+            this(affineAddressPairs, materialization, workspaceDeclaration, workspaceUse, movementGeometry, indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry, argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry, batchNormTrainingGeometry, Optional.empty());
+        }
         /** Empty facts used only by compatibility constructors for established one-unit plans. */
         public static final UnitRuntimeFacts EMPTY = new UnitRuntimeFacts(new long[0],
                 Optional.empty(), Optional.empty(), WorkspaceUse.NONE, Optional.empty(),
@@ -1551,8 +1659,41 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty());
 
-        /** Validates and snapshots one unit's complete cold resource facts. */
+/**
+         * Validates and snapshots one unit's immutable resource and family facts.
+         * @param affineAddressPairs non-null alternating affine addresses; copied defensively
+         * @param materialization non-null optional one-input contiguous-copy plan
+         * @param workspaceDeclaration non-null optional exact unit workspace declaration; in a
+         *     multi-unit plan its requirement ID equals the final unit index
+         * @param workspaceUse non-null meaning of {@code workspaceDeclaration}
+         * @param movementGeometry non-null optional movement geometry
+         * @param indexingGeometry non-null optional indexing geometry
+         * @param scatterGeometry non-null optional scatter geometry
+         * @param foldGeometry non-null optional fold geometry
+         * @param orderingGeometry non-null optional ordering geometry
+         * @param randomGeometry non-null optional explicit-state geometry
+         * @param scanGeometry non-null optional cumulative-scan geometry
+         * @param aggregateGeometry non-null optional aggregate geometry
+         * @param argExtremaGeometry non-null optional arg-extrema geometry
+         * @param maskedReductionGeometry non-null optional masked-reduction geometry
+         * @param advancedReductionGeometry non-null optional advanced-reduction geometry
+         * @param softmaxGeometry non-null optional softmax geometry
+         * @param trailingNormalizationGeometry non-null optional Layer/RMS geometry
+         * @param batchNormInferenceGeometry non-null optional batch-normalization inference geometry
+         * @param batchNormTrainingGeometry non-null optional batch-normalization training geometry
+         * @param recurrentScan non-null optional mutually exclusive direct scan facts
+         * @throws NullPointerException if a required component is null
+         * @throws IllegalArgumentException if family, boundary, strategy or resource facts disagree
+         * @throws ArithmeticException if exact geometry arithmetic overflows
+         */
         public UnitRuntimeFacts {
+            Objects.requireNonNull(recurrentScan, "recurrentScan");
+            if (recurrentScan.isPresent() && (affineAddressPairs.length != 0 || materialization.isPresent()
+                    || java.util.stream.Stream.of(movementGeometry, indexingGeometry, scatterGeometry, foldGeometry,
+                        orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry, argExtremaGeometry,
+                        maskedReductionGeometry, advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
+                        batchNormInferenceGeometry, batchNormTrainingGeometry).anyMatch(Optional::isPresent)))
+                throw new IllegalArgumentException("direct recurrent runtime facts are mutually exclusive");
             affineAddressPairs = affineAddressPairs.clone();
             materialization = Objects.requireNonNull(materialization, "materialization");
             workspaceDeclaration = Objects.requireNonNull(workspaceDeclaration,
@@ -1593,6 +1734,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @return whether every binding matches its occurrence's ordered boundary access plan
      */
     private static boolean unitAccessesAgree(ExecutionUnitPlan unit) {
+        if (unit.runtimeFacts().recurrentScan().isPresent()) return unit.accessBindings().equals(
+                unit.runtimeFacts().recurrentScan().orElseThrow().accessBindings());
         if (unit.portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr loss) {
             if (loss.boundaryAccesses().size() != unit.accessBindings().size()) return false;
@@ -1816,7 +1959,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     > CpuRepresentationDecision.MAX_TOTAL_DECISION_FACTS) {
             throw new IllegalArgumentException("CPU representation plan facts disagree");
         }
-        boolean split = units.size() > 1;
+        boolean split = units.size() > 1 || units.stream().anyMatch(u -> u.runtimeFacts().recurrentScan().isPresent());
         if (units.isEmpty()
                 || bufferDeclarations.isEmpty()
                 || boundaryValues.size() != bufferDeclarations.size()
@@ -2684,6 +2827,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
 
     private static CpuFusionDecision.WorkspaceRole decisionWorkspaceRole(WorkspaceUse use) {
         return switch (use) {
+            case RECURRENT_ROW_STATE -> throw new IllegalArgumentException("direct recurrent units have no generated candidate");
             case MATERIALIZATION -> CpuFusionDecision.WorkspaceRole.MATERIALIZATION;
             case SCATTER_PRODUCT -> CpuFusionDecision.WorkspaceRole.SCATTER_PRODUCT;
             case ORDERING_INDICES -> CpuFusionDecision.WorkspaceRole.ORDERING_INDICES;
@@ -2783,6 +2927,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     CpuSpecializedSubgraph.WorkspaceRole.AGGREGATE_EXACT_STATE;
             case ATTENTION_ROW_STATE ->
                     CpuSpecializedSubgraph.WorkspaceRole.ATTENTION_ROW_STATE;
+            case RECURRENT_ROW_STATE -> throw new IllegalArgumentException("direct recurrent units have no generated candidate");
         };
         CpuSpecializedSubgraph.WorkspaceResourceFact workspace = unit.runtimeFacts()
                 .workspaceDeclaration()

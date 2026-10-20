@@ -3323,17 +3323,22 @@ Model construction validates only the length Tensor descriptor and never reads i
 Current package-private Compiler forward inference independently revalidates the fully static
 descriptor contract and preserves each producer as one identity-distinct ordinary flat node with
 all output slots. Recurrent occurrences are not common-subexpression-elimination candidates. The
-existing publication and Planning path may carry that node through an ordinary capability query,
-but no current production capability provider advertises support.
+existing publication and Planning path carries that node through an ordinary capability query.
+CPU now advertises and executes canonical fully static FLOAT32 signatures in both directions,
+with or without bias, through ordinary Engine compile/prepare/run and runValues. INT64 runtime
+lengths remain values, never preparation specializations. Other floating types are not admitted
+by that capability.
 
-The fixed future execution meaning traverses each row's valid prefix in the selected direction,
+The fixed execution meaning traverses each row's valid prefix in the selected direction,
 keeps dense outputs aligned to original time, writes positive zero at padded positions, and
 returns the explicit final states. A zero-length row returns its initial states semantically; a
-zero-time input has empty output and will require all runtime lengths to be zero. Every current
+zero-time input has empty output and requires all runtime lengths to be zero. CPU validates every
+length before writing any scan result, uses isolated run-owned row scratch and dense outputs,
+and preserves raw initial states for zero-length rows. Every current
 backward-capable Compiler mode rejects a complete forward inventory containing recurrence before
 constructing a seed or derivative Tensor. The supported first-order gradient inventory therefore
-remains unchanged, and no Engine, Runtime, backend, or backpropagation-through-time (BPTT)
-implementation executes or differentiates the family.
+remains unchanged; backpropagation through time (BPTT) is not implemented. Runtime remains
+recurrence-blind while invoking the CPU-owned direct Java loop.
 
 This differs from a [`cumulative scan`](#cumulative-scan), whose fixed associative addition or
 multiplication combines prefixes of one input and carries no recurrent state or parameters. It
