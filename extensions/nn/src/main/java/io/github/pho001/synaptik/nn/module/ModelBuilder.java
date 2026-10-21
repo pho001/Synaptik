@@ -51,8 +51,10 @@ import java.util.random.RandomGeneratorFactory;
  * <p>Explicit rnnScan/gruScan/lstmScan recipes share a canonical runtime lengths input and produce
  * dense time-major outputs while skipping only each scan's padded transitions. Finish with
  * {@link #buildWithLengths()}; {@link #build()} remains single-input and static. Scan Models are
- * inference-only; current scan execution qualification is canonical FLOAT32 on CPU, not every
- * valid floating expression or ordinary-step composition. {@link #finalHidden()} selects the
+ * inference-only. Each CPU scalar scan supports one common FLOAT32, FLOAT64, BFLOAT16 or FLOAT16
+ * type and resolved nonnegative read layouts, with canonical outputs. This does not change the
+ * builder's exact input descriptors or grant execution of every ordinary-step composition.
+ * {@link #finalHidden()} selects the
  * immediately preceding scan's existing final state, whereas {@link #lastTimeStep()} selects a
  * dense time index. Ordinary bias and activations remain dense and do not acquire automatic
  * padding masks.</p>

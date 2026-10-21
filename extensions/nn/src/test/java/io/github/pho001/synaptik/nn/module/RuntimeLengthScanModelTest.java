@@ -407,7 +407,7 @@ final class RuntimeLengthScanModelTest {
             sameValues(direct.compute(reference), model.compute(x, lengths(3, 1, 0)), 3e-6f);
             assertEquals(Shape.of(3, 2, 1), source(model).outputs().getFirst().descriptor().shape());
         }
-        // Bare Conv1d's squeeze produces a valid symbolic view, not a canonical CPU scan input.
+        // Bare Conv1d's squeeze leaves a noncanonical read layout; this cold save does not execute it.
         try (var model = Model.builder().input(DataType.FLOAT32, 3, 2, 2).conv1d(3, 2).rnnScan(1).buildWithLengths()) {
             assertEquals(Shape.of(3), source(model).inputs().get(1).descriptor().shape());
             assertNull(field(field(model, "execution"), "engine"));

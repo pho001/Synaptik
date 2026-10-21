@@ -3334,10 +3334,16 @@ Current package-private Compiler forward inference independently revalidates the
 descriptor contract and preserves each producer as one identity-distinct ordinary flat node with
 all output slots. Recurrent occurrences are not common-subexpression-elimination candidates. The
 existing publication and Planning path carries that node through an ordinary capability query.
-CPU now advertises and executes canonical fully static FLOAT32 signatures in both directions,
-with or without bias, through ordinary Engine compile/prepare/run and runValues. INT64 runtime
-lengths remain values, never preparation specializations. Other floating types are not admitted
-by that capability.
+CPU now advertises and executes fully static homogeneous FLOAT32/FLOAT64/BFLOAT16/FLOAT16
+signatures in both directions, with or without bias, through ordinary Engine compile/prepare/run
+and runValues. Every input admits resolved nonnegative strides/offsets, including repeated and
+overlapping reads; outputs remain canonical dense. A nonempty referenced storage span includes
+offset/gaps and is distinct from logical element count; empty layouts have span zero regardless
+of their unused offset. INT64 runtime lengths remain values, never preparation
+specializations, even when their own layout is strided. Low work and accumulation use FLOAT32,
+then each published hidden/cell value narrows once; subsequent state reads, including LSTM
+cell-to-hidden consumption, observe that exact stored value. FLOAT64 uses double work without
+denormal flushing. No adjacent operation inherits this capability.
 
 The fixed execution meaning traverses each row's valid prefix in the selected direction,
 keeps dense outputs aligned to original time, writes positive zero at padded positions, and

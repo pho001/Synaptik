@@ -25,7 +25,8 @@ FLOAT16 substitution, with raw `short` storage and the operation's documented
 FLOAT32 computation boundary followed by one direct binary16 narrowing where numerical work is
 performed. The checked capability ledger closes all 114 representative FLOAT16 occurrences in
 the historical provider baseline; unsupported geometry, topology, aliasing, or non-type constraints remain unchanged.
-The later direct recurrent-scan capability is FLOAT32-only; neither low type is inferred from it.
+The later direct scalar recurrent-scan capability independently qualifies BFLOAT16 and FLOAT16,
+alongside FLOAT32 and FLOAT64; the current ledger has 117 supported occurrences for each low type.
 
 A CPU-owned partition directed acyclic graph (DAG) has no fixed eight-node partition cap. Its
 compiled nodes must be supported and remain in stable producer-before-consumer order; checked
@@ -238,24 +239,39 @@ preferences and parallel budgets do not promote the scan; other computation unit
 own strategies. Scan-containing partitions use direct decomposition and report incomplete
 complete-plan discovery, so they remain available for ordinary untuned preparation.
 
-The first support set requires canonical zero-offset layouts, fully static geometry, FLOAT32
-floating roles and non-gradient INT64 lengths `[B]`. Floating gradient flags are accepted and
-outputs retain their exact OR; this enables forward execution, not backward execution. Each
-dimension, packed extent and boundary element count fits `int`, with checked byte and scratch
-arithmetic. Input is `[T,B,I]`, hidden/cell state `[B,H]`, and packed weights/bias follow Model
-gate order. `I/H` are positive; `T/B` may be zero. Heap float[]/long[], native and mixed exact
-aligned segments are accepted, including sliced physical bases and read-only inputs.
+The scalar support set requires fully static geometry, one common FLOAT32, FLOAT64, BFLOAT16 or
+FLOAT16 type for floating roles, and non-gradient INT64 lengths `[B]`. Every input role, including
+lengths, admits resolved nonnegative strides and offsets: dense, transposed, sliced/gapped,
+positive-stride overlapping reads and zero-stride repeated reads. Repetition of a non-singleton
+axis requires Model's view flag. Negative or unresolved layouts remain unsupported; reverse is a
+traversal direction, not a negative storage stride. Outputs stay canonical zero-offset dense.
+Floating gradient flags are accepted and outputs retain their exact OR; this enables forward
+execution, not backward execution. Each dimension, packed extent, logical boundary count and
+referenced storage-element span fits `int`, with checked byte and scratch arithmetic.
+Input is `[T,B,I]`, hidden/cell state `[B,H]`, and packed weights/bias follow Model gate order.
+`I/H` are positive; `T/B` may be zero. Heap `double[]`/`float[]`/raw `short[]`/`long[]`, native
+and mixed exact aligned segments are accepted, including sliced physical bases and read-only inputs.
+The physical slice base and logical layout offset are independent. For example, `[2]` lengths
+with offset 3 and stride 2 read elements 3 and 5: their storage span is 6, not their logical count 2.
+Poisoned gaps are never lengths. An empty layout has span zero and never accesses its unused offset.
 
-Analysis declares every sibling output and `2 * gates * H * 4` bytes of row projection scratch
+Analysis declares every sibling output and `2 * gates * H * workingBytes` bytes of row projection scratch
 before slot assignment, independent of `T` or length values. Empty time/batch needs no scratch.
+Working width and alignment are 8 bytes for FLOAT64 and 4 otherwise. FLOAT64 uses double arithmetic
+without denormal flushing; FLOAT32 retains its rounded primitive sites. Each low type decodes
+exactly and works/accumulates in FLOAT32, without narrowing projections, contributors or gates.
+Hidden and cell publication each narrows once, ties-to-even. Later steps read the exact stored
+hidden/cell state; LSTM hidden also consumes the narrowed stored cell of that same step.
 Finalization creates one immutable direct kernel per occurrence without generated IR, cache
 artifacts, per-step executable growth or retained prototype storage. Every run owns its writable
 outputs and workspace. Binding rejects inaccessible, undersized, misaligned, read-only writable,
-or overlapping representations. Logical slices prevent output initialization from touching an
-oversized representation's unrelated capacity tail.
+or overlapping writable representations. Real read/read aliases are legal. A write or scratch
+may not overlap any other whole selected representation, even only in its gaps or capacity tail.
+Logical slices prevent output initialization from touching an oversized representation's
+unrelated capacity tail.
 
 For example, FLOAT32 input `[3,2,1]` and INT64 lengths `[0,2]` produce dense hidden output
-`[3,2,H]`. Row 0 has positive-zero output at every time and raw initial final states. Row 1
+`[3,2,H]`. Row 0 has positive-zero output at every time and returns its raw initial state bits. Row 1
 visits times `0,1` forward or `1,0` reverse, storing each result at its original time; time 2 is
 positive zero. Padded NaN/Inf never reaches a gate. Dense output allocation remains `O(T*B*H)`.
 Before these writes, execution validates the entire current length vector in `[0,T]`, after any
@@ -267,8 +283,15 @@ Engine applies its existing failure cleanup and returns no public result on fail
 Qualification lives in `CpuRecurrentScanExecutionTest`, `CpuRecurrentScanConformanceTest` and
 `EngineCpuRecurrentScanIntegrationTest`. The independent finite oracle uses explicit test-only
 absolute-plus-relative thresholds; padding, raw initial states, result classes and hidden-state
-publication are checked separately. No tuning, speed, low-precision, FLOAT64, SIMD, parallel scan,
-NN migration or backpropagation-through-time claim follows. See the
+publication are checked separately. Source/dataflow review and bytecode inspection compare the
+direct loops with specialized clean Java. The opt-in eight-case timing diagnostic has a
+120-second deadline and no speed threshold. Its recorded route/oracle mean ratios span 0.88–5.84:
+the route includes bound-invocation lease, access and length checks, while the oracle starts at
+the preflighted kernel boundary. Large within-case sample shifts leave warm-up and just-in-time
+compilation effects unresolved.
+The comparison neither isolates the cause of those ratios nor establishes performance parity.
+No tuning, speed/parity, SIMD, parallel scan, NN migration or backpropagation-through-time claim
+follows. See the
 [fixed-family contract](../architecture/contracts/recurrent-scan.md) and
 [handoff explanation](../architecture/runtime-prepare-backend-boundary.md#fixed-recurrent-scan-handoff).
 

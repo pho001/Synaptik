@@ -115,8 +115,8 @@ final class LowPrecisionCapabilityLedgerTest {
             projected.add(String.join("\t", "2", fields[1], fields[3], fields[4], fields[5],
                     fields[6], fields[7], fields[8], fields[9], fields[10],
                     approvedExpDelta || approvedSigmoidDelta || approvedRecurrentDelta ? "true" : fields[11],
-                    approvedExpDelta || approvedSigmoidDelta ? "true" : fields[12],
-                    approvedExpDelta || approvedSigmoidDelta ? "true" : fields[13]));
+                    approvedExpDelta || approvedSigmoidDelta || approvedRecurrentDelta ? "true" : fields[12],
+                    approvedExpDelta || approvedSigmoidDelta || approvedRecurrentDelta ? "true" : fields[13]));
         }
         assertEquals(254, projected.size());
         assertEquals(resource(RESOURCE), HEADER + String.join("\n", projected) + "\n");
@@ -149,15 +149,15 @@ final class LowPrecisionCapabilityLedgerTest {
                     .filter(fields -> fields[11].equals("NOT_APPLICABLE")
                             && fields[12].equals("NOT_APPLICABLE")).count();
             assertEquals(backend.equals("cpu") ? 125 : 100, supported, backend + " F32 true");
-            assertEquals(backend.equals("cpu") ? 114 : 92, bf16, backend + " BF16 true");
-            assertEquals(backend.equals("cpu") ? 114 : 92, fp16, backend + " FLOAT16 true");
+            assertEquals(backend.equals("cpu") ? 117 : 92, bf16, backend + " BF16 true");
+            assertEquals(backend.equals("cpu") ? 117 : 92, fp16, backend + " FLOAT16 true");
             assertEquals(8, notApplicable, backend + " controls");
             assertEquals(backend.equals("cpu") ? 2 : 27,
                     backendFacts.stream().filter(fields -> fields[10].equals("false")).count(),
                     backend + " F32 false");
             for (int lowColumn : List.of(11, 12)) {
                 final int column = lowColumn;
-                assertEquals(backend.equals("cpu") ? 5 : 27,
+                assertEquals(backend.equals("cpu") ? 2 : 27,
                         backendFacts.stream().filter(fields -> fields[column].equals("false")).count(),
                         backend + " low false column " + column);
             }
@@ -199,8 +199,27 @@ final class LowPrecisionCapabilityLedgerTest {
         }
     }
     @Test
-    void cpuQueriesLowTypesIndependentlyIncludingFloat32OnlyRecurrentScans() {
+    void cpuQueriesLowTypesIndependentlyIncludingScalarRecurrentScans() {
         assertFloat16Closure();
+    }
+
+    @Test void recurrentLowPredicatesRejectMixedTypesUnresolvedReadsAndNoncanonicalOutputs() {
+        var provider = new CpuCapabilityProvider();
+        for (var seed : seeds()) if (seed.query().operation().kind() instanceof RecurrentScanKind) {
+            for (var q : List.of(toBfloat16(seed.query()), toFloat16(seed.query()))) {
+                assertTrue(provider.supports(q));
+                var in = new ArrayList<>(q.inputs()); var x = in.getFirst();
+                in.set(0, new TensorDescriptor(x.dataType(), x.shape(), Optional.empty(), x.requiresGrad()));
+                assertFalse(provider.supports(new OperationCapabilityQuery(q.operation(), in, q.outputs())));
+                in.set(0, new TensorDescriptor(x.dataType() == DataType.FLOAT16 ? DataType.BFLOAT16 : DataType.FLOAT16,
+                        x.shape(), x.layout(), x.requiresGrad()));
+                assertFalse(provider.supports(new OperationCapabilityQuery(q.operation(), in, q.outputs())));
+                var out = new ArrayList<>(q.outputs()); var y = out.getFirst();
+                out.set(0, new TensorDescriptor(y.dataType(), y.shape(), Optional.of(LayoutDescriptor.of(
+                        y.shape(), y.layout().orElseThrow().strides(), 1, true)), y.requiresGrad()));
+                assertFalse(provider.supports(new OperationCapabilityQuery(q.operation(), q.inputs(), out)));
+            }
+        }
     }
 
     private static void assertFloat16Closure() {
@@ -210,15 +229,14 @@ final class LowPrecisionCapabilityLedgerTest {
             OperationCapabilityQuery query = seed.query();
             if (hasFloat32Role(query) && provider.supports(query)) {
                 if (query.operation().kind() instanceof RecurrentScanKind) {
-                    assertFalse(provider.supports(toBfloat16(query)), seed.id());
-                    assertFalse(provider.supports(toFloat16(query)), seed.id());
-                    continue;
+                    assertTrue(provider.supports(toBfloat16(query)), seed.id());
+                    assertTrue(provider.supports(toFloat16(query)), seed.id());
                 }
                 supported++;
                 assertTrue(provider.supports(toFloat16(query)), seed.id());
             }
         }
-        assertEquals(114, supported);
+        assertEquals(117, supported);
     }
 
 

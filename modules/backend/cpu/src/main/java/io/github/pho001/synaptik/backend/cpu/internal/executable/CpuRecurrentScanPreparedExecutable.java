@@ -4,6 +4,10 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRecurrentScanL
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuRecurrentScanKernel;
+import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuRecurrentScanFloat64Kernel;
+import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuRecurrentScanBFloat16Kernel;
+import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuRecurrentScanFloat16Kernel;
+import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
@@ -18,20 +22,29 @@ import java.util.Objects;
 
 /**
  * Reusable direct scan recipe, with one immutable kernel and no retained mutable storage.
- * Cold binding checks exact typed spans, access and disjoint writes without reading values.
- * Bound execution repeats access preflight and validates every length after preceding producers,
+ * Cold binding checks typed referenced storage spans, access and disjoint writes without reading
+ * values. Read/read aliases are legal; writes and scratch must not overlap any other whole
+ * selected representation, including its gaps and capacity tail. Input addresses retain both
+ * the selected segment's physical base and its prepared logical offset/strides.
+ * Bound execution repeats access preflight and validates every logically strided length after
+ * preceding producers,
  * before even padding or raw initial-state copies can write any scan result.
  */
 public final class CpuRecurrentScanPreparedExecutable extends PreparedExecutable {
     private final Facts facts;
     private final CpuRecurrentScanKernel kernel;
+    private final CpuRecurrentScanFloat64Kernel doubleKernel;
+    private final CpuRecurrentScanBFloat16Kernel bfloatKernel;
+    private final CpuRecurrentScanFloat16Kernel halfKernel;
+    private final long lengthOffset, lengthStride;
     private final CpuConcurrencyBudget budget;
 
     /**
      * Constructs one post-assignment direct recipe; resources remain owned by each run.
      * @param plan non-null exact shared memory plan
      * @param buffers unique reads then every sibling output, in lowering order
-     * @param workspace exact optional run-owned row scratch selection
+     * @param workspace exact optional run-owned two-projection-row scratch selection; eight-byte
+     *     working width/alignment for FLOAT64, four otherwise, absent for empty time or batch
      * @param facts non-null immutable checked occurrence facts
      * @param budget borrowed inline concurrency admission, or null when not configured
      * @throws IllegalArgumentException if selection counts disagree with exact scan requirements
@@ -42,7 +55,14 @@ public final class CpuRecurrentScanPreparedExecutable extends PreparedExecutable
                 .mapToObj(p -> p < facts.readCount() ? BufferAccess.READ_ONLY : BufferAccess.WRITE_ONLY).toList());
         this.facts = Objects.requireNonNull(facts, "facts");
         this.budget = budget;
-        kernel = new CpuRecurrentScanKernel(facts.geometry());
+        var type = facts.geometry().dataType();
+        kernel = type == DataType.FLOAT32 ? new CpuRecurrentScanKernel(facts) : null;
+        doubleKernel = type == DataType.FLOAT64 ? new CpuRecurrentScanFloat64Kernel(facts) : null;
+        bfloatKernel = type == DataType.BFLOAT16 ? new CpuRecurrentScanBFloat16Kernel(facts) : null;
+        halfKernel = type == DataType.FLOAT16 ? new CpuRecurrentScanFloat16Kernel(facts) : null;
+        var lengthBinding = facts.accessBindings().get(facts.rolePositions().get(1));
+        lengthOffset = lengthBinding.baseElementOffset();
+        lengthStride = lengthBinding.effectiveStrides().getFirst();
         if (buffers.size() != facts.boundaryValues().size()
                 || workspace.isPresent() != (facts.geometry().scratchBytes() > 0))
             throw new IllegalArgumentException("recurrent selections disagree");
@@ -73,8 +93,8 @@ public final class CpuRecurrentScanPreparedExecutable extends PreparedExecutable
      */
     @Override protected boolean acceptsWorkspaceRepresentation(int p, WorkspaceRepresentation representation) {
         return representation instanceof CpuContiguousWorkspace cpu && cpu.isAccessible()
-                && cpu.byteSize() == facts.geometry().scratchBytes() && cpu.byteAlignment() >= Float.BYTES
-                && cpu.writableSegment().address() % Float.BYTES == 0 && !cpu.writableSegment().isReadOnly();
+                && cpu.byteSize() == facts.geometry().scratchBytes() && cpu.byteAlignment() >= facts.geometry().workingBytes()
+                && cpu.writableSegment().address() % facts.geometry().workingBytes() == 0 && !cpu.writableSegment().isReadOnly();
     }
 
     /**
@@ -115,10 +135,28 @@ public final class CpuRecurrentScanPreparedExecutable extends PreparedExecutable
         MemorySegment w = segments[roles.get(weight)], u = segments[roles.get(weight + 1)];
         MemorySegment bias = g.bias() ? segments[roles.get(weight + 2)] : null;
         MemorySegment y = segments[output], h = segments[output + 1], c = cell ? segments[output + 2] : null;
-        Runnable call = switch (g.kind()) {
+        Runnable call = switch (g.dataType()) {
+            case FLOAT32 -> switch (g.kind()) {
             case RNN_TANH -> () -> kernel.rnn(x, lengths, h0, w, u, bias, y, h, scratch);
             case GRU_RESET_AFTER -> () -> kernel.gru(x, lengths, h0, w, u, bias, y, h, scratch);
             case LSTM -> () -> kernel.lstm(x, lengths, h0, c0, w, u, bias, y, h, c, scratch);
+        };
+            case FLOAT64 -> switch (g.kind()) {
+            case RNN_TANH -> () -> doubleKernel.rnn(x, lengths, h0, w, u, bias, y, h, scratch);
+            case GRU_RESET_AFTER -> () -> doubleKernel.gru(x, lengths, h0, w, u, bias, y, h, scratch);
+            case LSTM -> () -> doubleKernel.lstm(x, lengths, h0, c0, w, u, bias, y, h, c, scratch);
+        };
+            case BFLOAT16 -> switch (g.kind()) {
+            case RNN_TANH -> () -> bfloatKernel.rnn(x, lengths, h0, w, u, bias, y, h, scratch);
+            case GRU_RESET_AFTER -> () -> bfloatKernel.gru(x, lengths, h0, w, u, bias, y, h, scratch);
+            case LSTM -> () -> bfloatKernel.lstm(x, lengths, h0, c0, w, u, bias, y, h, c, scratch);
+        };
+            case FLOAT16 -> switch (g.kind()) {
+            case RNN_TANH -> () -> halfKernel.rnn(x, lengths, h0, w, u, bias, y, h, scratch);
+            case GRU_RESET_AFTER -> () -> halfKernel.gru(x, lengths, h0, w, u, bias, y, h, scratch);
+            case LSTM -> () -> halfKernel.lstm(x, lengths, h0, c0, w, u, bias, y, h, c, scratch);
+        };
+            default -> throw new AssertionError("non-floating scan escaped cold admission");
         };
         return new Invocation(state, typed, scratchOwner, lengths, call);
     }
@@ -144,8 +182,9 @@ public final class CpuRecurrentScanPreparedExecutable extends PreparedExecutable
          * @param state exact open run state
          * @param buffers typed boundary owners used only for per-invocation access recheck
          * @param scratch run-owned row workspace, or null for an empty domain
-         * @param lengths exact logical INT64 segment; values are read only during execution
-         * @param call cold-selected direct family call over logical-size segments
+     * @param lengths exact referenced INT64 span; prepared offset/stride selects logical lengths
+     *     only during execution
+     * @param call cold-selected direct dtype/family call over referenced read and logical write spans
          */
         private Invocation(RunState state, CpuBufferRepresentation[] buffers,
                 CpuContiguousWorkspace scratch, MemorySegment lengths, Runnable call) {
@@ -166,7 +205,7 @@ public final class CpuRecurrentScanPreparedExecutable extends PreparedExecutable
                     throw new IllegalArgumentException("recurrent scratch is no longer accessible");
                 int time = facts.geometry().time();
                 for (int row = 0; row < facts.geometry().batch(); row++) {
-                    long value = lengths.getAtIndex(ValueLayout.JAVA_LONG, row);
+                    long value = lengths.getAtIndex(ValueLayout.JAVA_LONG, lengthOffset + row * lengthStride);
                     if (value < 0 || value > time) throw new IllegalArgumentException(
                             "invalid recurrent length row=" + row + " value=" + value + " T=" + time);
                 }

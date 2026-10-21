@@ -1009,7 +1009,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     }
 
     /**
-     * Declares exact direct scan buffers and row scratch before assignment.
+     * Declares referenced scan storage spans and two packed working rows before assignment.
+     * Workspace width/alignment is eight bytes for double work and four otherwise; low storage
+     * never makes the working projections low precision. Empty time/batch omits scratch.
      * @param context non-null single-occurrence projection; no values are read
      * @param lowered non-null direct scan lowering
      * @param workspaceId non-negative final or temporary unit workspace identifier
@@ -1030,7 +1032,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     scan.boundaryTypes().get(p).byteWidth()));
         Optional<PreparationResourceRequirement.Workspace> workspace = scan.geometry().scratchBytes() == 0
                 ? Optional.empty() : Optional.of(new PreparationResourceRequirement.Workspace(
-                    workspaceId, scan.geometry().scratchBytes(), Float.BYTES));
+                    workspaceId, scan.geometry().scratchBytes(), scan.geometry().workingBytes()));
         var use = workspace.isEmpty() ? CpuPartitionPreparationPlan.WorkspaceUse.NONE
                 : CpuPartitionPreparationPlan.WorkspaceUse.RECURRENT_ROW_STATE;
         var facts = new CpuPartitionPreparationPlan.UnitRuntimeFacts(new long[0],

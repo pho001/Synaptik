@@ -64,7 +64,7 @@ Authorized Checkpoint frontier: None; Checkpoint0008/0009 are Complete.
 Euclid's definitive code/docs APPROVE and main's source-matched root gate (2026-10-19).
 Authorized Training frontier: None; [NN0028](extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md)
 is Complete, accepted 2026-10-19. [NN0029](extensions/nn/tasks/0029-fluent-model-builder-and-checkpoint-independent-execution.md)
-is Complete after Planck final APPROVE, zero findings, and main's source-matched native root gate (2026-10-19), including independently reviewed [Compiler0009](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md) and [CPU0025](backends/cpu/tasks/0025-scatter-validation-coordinate-rank.md). [CPU0026 diagnostic](backends/cpu/tasks/0026-stacked-lstm-cold-preparation-diagnostic.md), [CPU0027 unit topology fix](backends/cpu/tasks/0027-unit-topology-adjacency-ordering.md) and CPU0028/NN0021B bounded scan execution are also Complete. Authorized CPU/Compiler/NN frontiers: None; NN0022B is Complete.
+is Complete after Planck final APPROVE, zero findings, and main's source-matched native root gate (2026-10-19), including independently reviewed [Compiler0009](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md) and [CPU0025](backends/cpu/tasks/0025-scatter-validation-coordinate-rank.md). [CPU0026 diagnostic](backends/cpu/tasks/0026-stacked-lstm-cold-preparation-diagnostic.md), [CPU0027 unit topology fix](backends/cpu/tasks/0027-unit-topology-adjacency-ordering.md) and CPU0028/NN0021B bounded scan execution are also Complete. Authorized Compiler/NN/CPU frontiers: None; CPU0029 scalar coverage is Complete below. NN0022B is Complete.
 Engine0020's completed layout cutover is below.
 The user revised the primary product to automatic usable-model load and a choice of inference or
 Training-owned resume, without routine callbacks/manual construction/digests/Arena.
@@ -108,13 +108,13 @@ after Euclid's final APPROVE and main's root gate; NN0028 is Complete under the 
 | [Compiler](modules/compiler/master-plan.md) | Complete through 0006B11 plus 0006D/0008/0009; [0009 exact SELECT/coordinate-SLICE logical closure](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md) locally accepted after final independent APPROVE, zero findings. Compiler frontier None; main's combined native root gate passed. Conv3d adjoints 0006C and exact rewrites 0007 Draft; BPTT unsupported. |
 | [Prepare](modules/prepare/master-plan.md) | Complete through 0009; opaque backend collaboration and complete resource transaction. |
 | [OpenBLAS provider](backends/openblas-provider/master-plan.md) | 0001–0003 Complete. Optional direct BF16 0004 Blocked on ABI and one-final-narrowing evidence; F32/F64 unaffected. |
-| [CPU](backends/cpu/master-plan.md) | Complete through 0022 plus 0024–0028. [0028 fixed-scan execution](backends/cpu/tasks/0028-fixed-recurrent-scan-forward-execution.md) delivers canonical FLOAT32 scalar Java forward execution, accepted 2026-10-20 after independent approval and main's root gate. Frontier None; 0023 Draft, defaults/vendor gates unchanged. |
+| [CPU](backends/cpu/master-plan.md) | Complete through 0022 plus 0024–0029; [CPU0029 scalar scan coverage](backends/cpu/tasks/0029-recurrent-scan-scalar-type-and-layout-coverage.md) accepted after independent APPROVE and source-matched root PASS: four floating types, valid resolved nonnegative-stride input layouts, canonical outputs. Frontier None; 0023 Draft, no automatic successor launch; defaults/vendor gates unchanged. |
 | [Engine](modules/engine/master-plan.md) | Complete through [0021 prepared-owner/fresh-value binding](modules/engine/tasks/0021-prepared-execution-fresh-value-binding.md), including thin-session removal and mechanical consumers; independent approval and native-enabled test/Javadoc gate passed. Authorized Engine frontier: None. |
 | [Metal](backends/metal/master-plan.md) | Complete through 0079. Current occurrence support is independently typed; hosted GPU CI 0047 remains blocked. |
 | [CUDA](backends/cuda/master-plan.md) | Marker/native scaffold only; no executable CUDA backend. 0001 Draft. |
 | [ONNX](extensions/onnx/master-plan.md) | Marker only; no importer/exporter. Area Draft; first mapping task not yet defined. |
 | [Data](extensions/data/master-plan.md) | 0001–0003 Complete; [0003 shared padded representation and INT64 batching](extensions/data/tasks/0003-padded-integral-sequence-batching.md) accepted after final independent APPROVE and module/architecture-consumer gates, 2026-10-20; Text program root join complete, 2026-10-21. Frontier None; broader batching Draft, no runtime binding. |
-| [NN](extensions/nn/master-plan.md) | 0028/0029, [0021B CPU scan program](extensions/nn/tasks/0021b-fixed-recurrent-scan-implementation-program.md), [0022 NN-only expressions](extensions/nn/tasks/0022-runtime-length-recurrent-nn-api.md), [0022B Model/builder inference](extensions/nn/tasks/0022b-runtime-length-scan-model-workflow.md) and [0022A numeric inference](extensions/nn/tasks/0022a-padded-numeric-sequence-inference.md) Complete. NN0022A accepted 2026-10-21 after independent APPROVE and main's source-matched architecture/root checkpoint. NN/CPU/Data/Text frontiers None. 0023/0024 Draft; no fluent Text pipeline, scan training/BPTT or automatic successor launch. |
+| [NN](extensions/nn/master-plan.md) | 0028/0029, [0021B CPU scan program](extensions/nn/tasks/0021b-fixed-recurrent-scan-implementation-program.md), [0022 NN-only expressions](extensions/nn/tasks/0022-runtime-length-recurrent-nn-api.md), [0022B Model/builder inference](extensions/nn/tasks/0022b-runtime-length-scan-model-workflow.md) and [0022A numeric inference](extensions/nn/tasks/0022a-padded-numeric-sequence-inference.md) Complete. NN0022A accepted 2026-10-21 after independent APPROVE and main's source-matched architecture/root checkpoint. NN/Data/Text/CPU frontiers None; CPU0029 is separately Complete. 0023/0024 Draft; no fluent Text pipeline, scan training/BPTT or automatic successor launch. |
 | [Text](extensions/text/master-plan.md) | [0001 frozen whitespace tokenizer and Data adapter](extensions/text/tasks/0001-whitespace-tokenizer-and-data-batching.md) Complete, accepted 2026-10-21 after independent code/final documentation APPROVE and numerical/root gates. Sole api(Data), Model transitive. Frontier None; training/artifact work Draft. |
 | [Vision](extensions/vision/master-plan.md) | No module; frontier None. Separate Vision architecture approval before decoder/preprocessing work; later numeric batching retains its Data gate. Data0001 grants no Vision edge. |
 | [Training](extensions/training/master-plan.md) | Sessions/optimizers/state, [0007 generic live admission](extensions/training/tasks/0007-generic-live-parameter-admission.md) and [0008 fresh-value runs](extensions/training/tasks/0008-fresh-value-training-session-runs.md) Complete; final independent reviews and coordinator gates passed. Authorized Training frontier: None; NN0028 Complete; 0006/adapter held. |
@@ -229,7 +229,7 @@ with Model.compute/train widening outside NN0022's scope. Main owns serial revie
 at base `2d1c1d6d0867a0bebda34e9177ad52ba9f13071a`, parallel group None. NN0023/0024 retain later
 Data scope. NN0022 is Complete on 2026-10-20 after clean implementation, Mencius final code/docs
 APPROVE with zero findings, and coordinator validation; its brief owns exact evidence and limitations.
-Current NN/CPU/Data/Text frontiers: None; NN0022A is closed.
+Current NN/Data/Text/CPU frontiers: None; NN0022A is closed. CPU0029 is separately Complete below.
 NN0023/0024 remain Draft; no automatic successor launch.
 NN0022 reused existing backend/root evidence; its completion added no root/conformance/performance campaign.
 
@@ -243,6 +243,23 @@ test/Javadoc gate passed. Parallel group None; main owns serial integration/shar
 the brief owns exact commands/counts, reviews and hashes, including cached root tasks and the unrelated
 integration assumption skip. Execution remains inference-only/canonical FLOAT32 CPU; no BPTT, Data,
 dtype, backend or format widening. No capability follow-up or automatic successor launch.
+
+## Completed CPU scalar scan coverage expansion
+
+User-selected [CPU0029](backends/cpu/tasks/0029-recurrent-scan-scalar-type-and-layout-coverage.md)
+is Complete, accepted 2026-10-21 after Raman's final independent Class C code/docs APPROVE,
+zero P1/P2, and main's source-matched native-enabled root test/Javadoc PASS.
+DAG: CPU0022 + CPU0028 → CPU0029, all Complete. CPU frontier None; no automatic successor launch.
+Base `f918d7d7dab3fff0b144747f56d629733bd443c7`, verified 2026-10-21; Parallel group None,
+scan/numerical/ledger/shared-document conflicts serialized, main owns integration/shared documents.
+Clean implementation, final review and the single root checkpoint are complete; source remained
+frozen. The brief owns exact metadata, commands, counts and source/protected-hash evidence.
+Delivered scope is direct scalar FLOAT32/FLOAT64/BFLOAT16/FLOAT16 and representable
+positive/zero-stride/offset input reads with canonical outputs; low work/accumulation stays FLOAT32
+with final narrowing per published value and exact stored recurrent state. Bounded timing is
+diagnostic only: parity/speed remain unproven with unresolved JIT/preflight confounds, not a new
+mandatory task. No BPTT, Metal, public API, NN executable/workflow,
+Engine orchestration, tuning or generic execution abstraction. CPU0023 remains Draft.
 
 ## Proposed next decisions
 
@@ -409,8 +426,8 @@ Ordinary static unrolling depends on normal constituent-operation adjoints, not 
   change, or new numerical policy is authorized by the prior review. Checkpoint 0004's model
   save/inspect/load and direct Engine acceptance are Complete; future persistence work remains
   separately gated.
-- GPU CI provisioning, large-model aggregate memory policy, new vendor routes, recurrent execution
-  beyond CPU0028's baseline and missing adjoints retain their explicit decisions and owning plans.
+- GPU CI provisioning, large-model aggregate memory policy, new vendor routes, unselected recurrent
+  execution beyond CPU0029's scalar scope and missing adjoints retain their decisions/owning plans.
 
 ## History
 

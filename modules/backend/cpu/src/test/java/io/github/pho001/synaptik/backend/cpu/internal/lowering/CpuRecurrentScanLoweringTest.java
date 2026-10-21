@@ -21,8 +21,9 @@ import org.junit.jupiter.api.Test;
 public class CpuRecurrentScanLoweringTest {
     @Test void allSignaturesDirectionsAndFlagsUseOneDirectScalarUnit() {
         for (var kind : RecurrentScanKind.values()) for (var direction : RecurrentDirection.values())
-            for (boolean bias : List.of(false, true)) for (boolean grad : List.of(false, true)) {
-                var context = context(kind, bias, direction, 3, 4, 2, 3, grad);
+            for (boolean bias : List.of(false, true)) for (boolean grad : List.of(false, true))
+                for (var type : floatingTypes()) for (int layout = 0; layout < 6; layout++) {
+                var context = scalarContext(kind, bias, direction, 3, 4, 2, 3, grad, type, layout);
                 var lowered = new CpuPartitionLowering().lower(context);
                 assertNull(lowered.portableKernelIr());
                 assertThrows(IllegalStateException.class, lowered::kernelIr);
@@ -34,21 +35,25 @@ public class CpuRecurrentScanLoweringTest {
                 assertEquals(1, unit.selectedRangeCount()); assertEquals(0, unit.vectorSpeciesBitSize());
                 assertEquals(context.nodes().getFirst().outputs().size(), unit.outputCount());
                 assertEquals(lowered.recurrentScan(), unit.runtimeFacts().recurrentScan());
-                assertEquals(2L * 3 * (kind == RecurrentScanKind.LSTM ? 4 : kind == RecurrentScanKind.GRU_RESET_AFTER ? 3 : 1) * 4,
+                assertEquals(2L * 3 * (kind == RecurrentScanKind.LSTM ? 4 : kind == RecurrentScanKind.GRU_RESET_AFTER ? 3 : 1)
+                                * (type == DataType.FLOAT64 ? 8 : 4),
                         unit.runtimeFacts().workspaceDeclaration().orElseThrow().byteSize());
+                assertEquals(type == DataType.FLOAT64 ? 8 : 4,
+                        unit.runtimeFacts().workspaceDeclaration().orElseThrow().byteAlignment());
                 var candidates = new CpuPartitionPreparer().completePlanCandidates(context);
                 assertFalse(candidates.complete()); assertTrue(candidates.identities().isEmpty());
             }
     }
 
     @Test void scratchAndNodeCountDoNotGrowWithTimeAndEmptyDomainsOmitScratch() {
-        for (int time : List.of(0, 1, 10000)) for (int batch : List.of(0, 4)) {
-            var analysis = new CpuPartitionPreparer().analyze(context(RecurrentScanKind.LSTM, true,
-                    RecurrentDirection.REVERSE, time, batch, 2, 3, false));
+        for (var type : floatingTypes()) for (int time : List.of(0, 1, 10000)) for (int batch : List.of(0, 4)) {
+            var analysis = new CpuPartitionPreparer().analyze(scalarContext(RecurrentScanKind.LSTM, true,
+                    RecurrentDirection.REVERSE, time, batch, 2, 3, false, type, 2));
             assertEquals(1, analysis.plan().units().size());
             var workspace = analysis.plan().units().getFirst().runtimeFacts().workspaceDeclaration();
             assertEquals(time > 0 && batch > 0, workspace.isPresent());
-            workspace.ifPresent(w -> assertEquals(96, w.byteSize()));
+            workspace.ifPresent(w -> { assertEquals(type == DataType.FLOAT64 ? 192 : 96, w.byteSize());
+                assertEquals(type == DataType.FLOAT64 ? 8 : 4, w.byteAlignment()); });
         }
     }
 
@@ -59,8 +64,6 @@ public class CpuRecurrentScanLoweringTest {
             var original = query.inputs().get(role);
             var changes = new ArrayList<TensorDescriptor>();
             changes.add(new TensorDescriptor(original.dataType(), original.shape(), Optional.empty(), original.requiresGrad()));
-            changes.add(new TensorDescriptor(original.dataType(), original.shape(), Optional.of(LayoutDescriptor.of(
-                    original.shape(), original.layout().orElseThrow().strides(), 1, true)), original.requiresGrad()));
             changes.add(new TensorDescriptor(role == 1 ? DataType.INT32 : DataType.FLOAT64, original.shape(), original.layout(), false));
             if (role != 1) changes.add(new TensorDescriptor(original.dataType(), original.shape(), original.layout(), true));
             changes.add(descriptor(original.dataType(), Shape.of(1), false));
@@ -69,11 +72,15 @@ public class CpuRecurrentScanLoweringTest {
                 rejected(new OperationCapabilityQuery(query.operation(), in, query.outputs()));
             }
         }
-        for (var low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
-            rejected(new OperationCapabilityQuery(query.operation(), query.inputs().stream().map(d ->
-                    d.dataType() == DataType.INT64 ? d : new TensorDescriptor(low, d.shape(), d.layout(), d.requiresGrad())).toList(),
-                    query.outputs().stream().map(d -> new TensorDescriptor(low, d.shape(), d.layout(), d.requiresGrad())).toList()));
-        }
+        var mixed = new ArrayList<>(query.inputs());
+        var state = mixed.get(2);
+        mixed.set(2, new TensorDescriptor(DataType.BFLOAT16, state.shape(), state.layout(), false));
+        rejected(new OperationCapabilityQuery(query.operation(), mixed, query.outputs()));
+        var spanOverflow = new ArrayList<>(query.inputs());
+        var x = spanOverflow.getFirst();
+        spanOverflow.set(0, new TensorDescriptor(x.dataType(), x.shape(), Optional.of(LayoutDescriptor.of(
+                x.shape(), new long[] {Integer.MAX_VALUE, 2, 1}, 3, true)), false));
+        rejected(new OperationCapabilityQuery(query.operation(), spanOverflow, query.outputs()));
         var in = new ArrayList<>(query.inputs());
         in.set(0, descriptor(DataType.FLOAT32, Shape.of(1L << 32, 2, 2), false));
         rejected(new OperationCapabilityQuery(query.operation(), in, query.outputs()));
@@ -83,6 +90,9 @@ public class CpuRecurrentScanLoweringTest {
             var outputs = new ArrayList<>(query.outputs());
             var d = outputs.get(port);
             outputs.set(port, new TensorDescriptor(d.dataType(), d.shape(), d.layout(), true));
+            rejected(new OperationCapabilityQuery(query.operation(), query.inputs(), outputs));
+            outputs.set(port, new TensorDescriptor(d.dataType(), d.shape(), Optional.of(LayoutDescriptor.of(
+                    d.shape(), d.layout().orElseThrow().strides(), 1, true)), false));
             rejected(new OperationCapabilityQuery(query.operation(), query.inputs(), outputs));
         }
     }
@@ -101,8 +111,8 @@ public class CpuRecurrentScanLoweringTest {
     }
 
     @Test void everyFloatingRoleIndependentlyContributesToExactOutputFlagOr() {
-        for (var kind : RecurrentScanKind.values()) {
-            var query = query(context(kind, true, RecurrentDirection.REVERSE, 2, 2, 2, 2, false));
+        for (var type : floatingTypes()) for (var kind : RecurrentScanKind.values()) {
+            var query = query(scalarContext(kind, true, RecurrentDirection.REVERSE, 2, 2, 2, 2, false, type, 2));
             for (int role = 0; role < query.inputs().size(); role++) if (role != 1) {
                 var in = new ArrayList<>(query.inputs()); var d = in.get(role);
                 in.set(role, new TensorDescriptor(d.dataType(), d.shape(), d.layout(), true));
@@ -126,6 +136,35 @@ public class CpuRecurrentScanLoweringTest {
 
     public static TensorDescriptor descriptor(DataType type, Shape shape, boolean grad) {
         return new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.contiguous(shape)), grad);
+    }
+
+    public static List<DataType> floatingTypes() {
+        return List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16);
+    }
+
+    /** Builds independent resolved read geometries, leaving canonical sibling outputs untouched. */
+    public static PrepareContext<CpuPartitionAnalysisInputs> scalarContext(RecurrentScanKind kind, boolean bias,
+            RecurrentDirection direction, int t, int b, int i, int h, boolean grad, DataType type, int mode) {
+        var base = context(kind, bias, direction, t, b, i, h, grad);
+        int inputs = base.nodes().getFirst().inputs().size();
+        var descriptors = new ArrayList<TensorDescriptor>();
+        for (int p = 0; p < base.values().size(); p++) {
+            var d = base.values().get(p).descriptor();
+            var layout = d.layout().orElseThrow();
+            if (p < inputs && mode != 0) {
+                long[] strides = layout.strides();
+                if (mode == 2) for (int axis = 0; axis < strides.length; axis++) strides[axis] *= 2;
+                if (mode == 3) {
+                    long stride = 1;
+                    for (int axis = 0; axis < strides.length; axis++) { strides[axis] = stride; stride *= d.shape().toLongArray()[axis]; }
+                }
+                if (mode == 4) Arrays.fill(strides, 0);
+                if (mode == 5) Arrays.fill(strides, 1);
+                layout = LayoutDescriptor.of(d.shape(), strides, 3, true);
+            }
+            descriptors.add(new TensorDescriptor(p == 1 ? DataType.INT64 : type, d.shape(), Optional.of(layout), d.requiresGrad()));
+        }
+        return project(descriptors, base.nodes());
     }
 
     public static PrepareContext<CpuPartitionAnalysisInputs> context(RecurrentScanKind kind, boolean bias,

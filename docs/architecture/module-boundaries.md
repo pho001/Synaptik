@@ -375,7 +375,8 @@ Tensors; NN retains none as implicit next-call state. Automatic cells validate d
 bind even for empty scans through their existing cell-local publication gate, not a dummy
 forward. This keeps parameter initialization in NN and fixed transition meaning in Model.
 The public Engine owns separate compile/prepare/runValues execution; CPU qualification remains
-canonical fully static FLOAT32 forward scans, independent of broader floating expression validity.
+fully static homogeneous FLOAT32/FLOAT64/BFLOAT16/FLOAT16 scalar scans with resolved nonnegative
+read layouts and canonical outputs, independent of adjacent-operation execution support.
 These expressions add no runner or BPTT. The approved NN0022B cutover below permits owned scan
 inference; existing static builder recipes and bidirectional containers remain unchanged.
 Data integration is separate future work.
@@ -416,7 +417,8 @@ zero, but the ordinary head's bias may make its scores nonzero. `lastTimeStep()`
 select dense time index 3, not the semantic final hidden state for short rows.
 Only scans skip padded recurrent transitions; ordinary layers retain dense semantics, without a
 global mask. Shape-valid composition/persistence is separate from backend execution admission:
-canonical FLOAT32 CPU scans are qualified, not every prefix layout or floating dtype. See the
+CPU scalar scans support four homogeneous floating types and resolved nonnegative read layouts;
+this does not qualify every ordinary prefix operation or composition. See the
 [complete runtime-length example](../user-guide/running-models.md#run-a-runtime-length-scan-model).
 
 Cold list forward recomposes instantiated owned steps only when explicitly requested. Inference

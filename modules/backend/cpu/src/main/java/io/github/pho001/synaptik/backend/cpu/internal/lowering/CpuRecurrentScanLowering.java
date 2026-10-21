@@ -15,7 +15,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-/** Cold descriptor-only admission and direct lowering for one fixed FLOAT32 recurrent occurrence. */
+/**
+ * Cold descriptor-only admission and direct scalar lowering for one homogeneous floating scan.
+ * Reads admit every resolved nonnegative layout; sibling outputs remain canonical dense values.
+ * Referenced storage spans, logical counts and projection scratch are checked independently.
+ */
 public final class CpuRecurrentScanLowering {
     /** Creates a stateless lowerer; no runtime values or prototype storage are retained. */
     public CpuRecurrentScanLowering() { }
@@ -24,7 +28,7 @@ public final class CpuRecurrentScanLowering {
      * Validates the complete implemented descriptor domain, without inspecting storage or lengths.
      * @param query non-null exact ordered occurrence
      * @return immutable checked geometry, never null
-     * @throws IllegalArgumentException if any type, flag, shape or canonical layout disagrees
+     * @throws IllegalArgumentException if any type, flag, shape or resolved layout disagrees
      * @throws ArithmeticException if dimensions, boundary counts or scratch arithmetic overflow
      */
     public static Geometry geometry(OperationCapabilityQuery query) {
@@ -38,10 +42,10 @@ public final class CpuRecurrentScanLowering {
         if ((in.size() != base && in.size() != base + 1) || out.size() != (cell ? 3 : 2))
             throw new IllegalArgumentException("recurrent port counts disagree");
         for (var d : java.util.stream.Stream.concat(in.stream(), out.stream()).toList()) {
-            if (!d.shape().isFullyStatic() || !d.layout().equals(
-                    java.util.Optional.of(LayoutDescriptor.contiguous(d.shape()))))
-                throw new IllegalArgumentException("scan requires canonical static layout");
+            if (!d.shape().isFullyStatic() || d.layout().isEmpty())
+                throw new IllegalArgumentException("scan requires resolved static layout");
             for (long dim : d.shape().toLongArray()) Math.toIntExact(dim);
+            Math.toIntExact(d.shape().knownElementCount().orElseThrow());
             Math.toIntExact(d.layout().orElseThrow().referencedElementSpan());
             Math.multiplyExact(d.layout().orElseThrow().referencedElementSpan(), d.dataType().byteWidth());
         }
@@ -51,6 +55,9 @@ public final class CpuRecurrentScanLowering {
             throw new IllegalArgumentException("scan input/state geometry disagrees");
         int t = Math.toIntExact(x[0]), b = Math.toIntExact(x[1]), i = Math.toIntExact(x[2]);
         int hidden = Math.toIntExact(h[1]), packed = Math.multiplyExact(gates, hidden);
+        DataType type = in.getFirst().dataType();
+        if (!List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16).contains(type))
+            throw new IllegalArgumentException("scan requires a floating type");
         boolean grad = false;
         for (int role = 0; role < in.size(); role++) {
             var d = in.get(role);
@@ -58,7 +65,7 @@ public final class CpuRecurrentScanLowering {
                 if (d.dataType() != DataType.INT64 || d.requiresGrad() || !d.shape().equals(Shape.of(b)))
                     throw new IllegalArgumentException("scan lengths must be non-gradient INT64[B]");
             } else {
-                if (d.dataType() != DataType.FLOAT32) throw new IllegalArgumentException("scan requires FLOAT32");
+                if (d.dataType() != type) throw new IllegalArgumentException("scan requires one common floating type");
                 grad |= d.requiresGrad();
             }
         }
@@ -70,13 +77,14 @@ public final class CpuRecurrentScanLowering {
             throw new IllegalArgumentException("scan packed parameters disagree");
         for (int port = 0; port < out.size(); port++) {
             var d = out.get(port);
-            if (d.dataType() != DataType.FLOAT32 || d.requiresGrad() != grad
+            if (d.dataType() != type || d.requiresGrad() != grad
+                    || !d.layout().orElseThrow().equals(LayoutDescriptor.contiguous(d.shape()))
                     || !d.shape().equals(port == 0 ? Shape.of(t, b, hidden) : Shape.of(b, hidden)))
                 throw new IllegalArgumentException("scan output descriptors disagree");
         }
-        long scratch = t == 0 || b == 0 ? 0 : Math.multiplyExact(Math.multiplyExact(2, packed), 4L);
+        long scratch = t == 0 || b == 0 ? 0 : Math.multiplyExact(2L * packed, type == DataType.FLOAT64 ? 8L : 4L);
         return new Geometry(kind, direction == RecurrentDirection.REVERSE, in.size() > base,
-                t, b, i, hidden, gates, scratch);
+                t, b, i, hidden, gates, type, scratch);
     }
 
     /**
@@ -108,13 +116,8 @@ public final class CpuRecurrentScanLowering {
         var bindings = new ArrayList<CpuAccessPlan.Binding>();
         for (int p = 0; p < boundaries.size(); p++) {
             var d = byId.get(boundaries.get(p));
-            var extents = d.shape().toLongArray();
             var layout = d.layout().orElseThrow();
-            var plan = new CpuAccessPlan(p < reads ? CpuAccessPlan.AccessKind.READ : CpuAccessPlan.AccessKind.WRITE,
-                    CpuAccessPlan.Regime.DENSE_LINEAR, extents.length,
-                    java.util.Collections.nCopies(extents.length, CpuAccessPlan.AxisRole.CONTIGUOUS), extents.length);
-            long count = layout.referencedElementSpan();
-            bindings.add(CpuAccessPlan.Binding.create(plan, extents, 0, layout.strides(), count, 0, count, count));
+            bindings.add(binding(d.shape(), layout, p >= reads));
         }
         return new CpuPartitionLowering.LoweredPartition(new Facts(g, boundaries, roles, bindings,
                 boundaries.stream().map(id -> byId.get(id).dataType()).toList(),
@@ -131,10 +134,11 @@ public final class CpuRecurrentScanLowering {
      * @param inputSize positive static feature extent
      * @param hiddenSize positive static hidden extent
      * @param gates family gate count
+     * @param dataType exact common floating storage type; determines the working width
      * @param scratchBytes exact projection workspace bytes; zero for an empty time/batch domain
      */
     public record Geometry(RecurrentScanKind kind, boolean reverse, boolean bias, int time,
-            int batch, int inputSize, int hiddenSize, int gates, long scratchBytes) {
+            int batch, int inputSize, int hiddenSize, int gates, DataType dataType, long scratchBytes) {
         /**
          * Snapshots and validates exact scan geometry; retains no runtime values.
          * @param kind exact fixed family, interpreted only during cold binding
@@ -145,6 +149,7 @@ public final class CpuRecurrentScanLowering {
          * @param inputSize positive static feature extent
          * @param hiddenSize positive static hidden extent
          * @param gates family gate count
+         * @param dataType exact common floating storage type; determines the working width
          * @param scratchBytes exact projection workspace bytes; zero for an empty time/batch domain
          * @throws NullPointerException if a required component is null
          * @throws IllegalArgumentException if the fixed family or canonical geometry disagrees
@@ -152,10 +157,12 @@ public final class CpuRecurrentScanLowering {
          */
         public Geometry {
             Objects.requireNonNull(kind, "kind");
+            Objects.requireNonNull(dataType, "dataType");
             int expectedGates = switch (kind) { case RNN_TANH -> 1; case GRU_RESET_AFTER -> 3; case LSTM -> 4; };
-            if (time < 0 || batch < 0 || inputSize <= 0 || hiddenSize <= 0 || gates != expectedGates
+            if (!List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16).contains(dataType)
+                    || time < 0 || batch < 0 || inputSize <= 0 || hiddenSize <= 0 || gates != expectedGates
                     || scratchBytes != (time == 0 || batch == 0 ? 0
-                        : Math.multiplyExact(Math.multiplyExact(2, Math.multiplyExact(gates, hiddenSize)), 4L)))
+                        : Math.multiplyExact(2L * Math.multiplyExact(gates, hiddenSize), dataType == DataType.FLOAT64 ? 8L : 4L)))
                 throw new IllegalArgumentException("invalid recurrent geometry");
             Math.toIntExact(Math.multiplyExact(Math.multiplyExact((long) time, batch), inputSize));
             Math.toIntExact(Math.multiplyExact(Math.multiplyExact((long) time, batch), hiddenSize));
@@ -163,6 +170,12 @@ public final class CpuRecurrentScanLowering {
             Math.toIntExact(Math.multiplyExact(Math.multiplyExact((long) gates, hiddenSize), inputSize));
             Math.toIntExact(Math.multiplyExact(Math.multiplyExact((long) gates, hiddenSize), hiddenSize));
         }
+
+        /**
+         * Returns the exact primitive projection width and required scratch alignment.
+         * @return eight bytes for double work, otherwise four bytes for FLOAT32 work
+         */
+        public int workingBytes() { return dataType == DataType.FLOAT64 ? Double.BYTES : Float.BYTES; }
     }
 
     /**
@@ -170,9 +183,9 @@ public final class CpuRecurrentScanLowering {
      * @param geometry non-null checked geometry
      * @param boundaryValues unique reads followed by all canonical outputs
      * @param rolePositions input semantic roles as unique-read positions
-     * @param accessBindings canonical occurrence bindings
+     * @param accessBindings resolved read and canonical write bindings, with empty origins normalized
      * @param boundaryTypes exact boundary dtypes
-     * @param spans exact boundary element counts
+     * @param spans exact referenced storage-element spans, not logical counts
      * @param readCount number of distinct read boundaries
      */
     public record Facts(Geometry geometry, List<ValueId> boundaryValues, List<Integer> rolePositions,
@@ -182,9 +195,9 @@ public final class CpuRecurrentScanLowering {
          * @param geometry non-null checked geometry
          * @param boundaryValues unique reads followed by all canonical outputs
          * @param rolePositions input semantic roles as unique-read positions
-         * @param accessBindings canonical occurrence bindings
+         * @param accessBindings resolved read and canonical write bindings, with empty origins normalized
          * @param boundaryTypes exact boundary dtypes
-         * @param spans exact boundary element counts
+         * @param spans exact referenced storage-element spans, not logical counts
          * @param readCount number of distinct read boundaries
          * @throws NullPointerException if a required component is null
          * @throws IllegalArgumentException if the fixed family or canonical geometry disagrees
@@ -210,33 +223,54 @@ public final class CpuRecurrentScanLowering {
             shapes.add(Shape.of(packed, i)); shapes.add(Shape.of(packed, h));
             if (geometry.bias()) shapes.add(Shape.of(packed));
             for (int role = 0; role < shapes.size(); role++) checkBoundary(rolePositions.get(role), shapes.get(role),
-                    role == 1 ? DataType.INT64 : DataType.FLOAT32, false, accessBindings, boundaryTypes, spans);
+                    role == 1 ? DataType.INT64 : geometry.dataType(), false, accessBindings, boundaryTypes, spans);
             for (int port = 0; port < outputs; port++) checkBoundary(readCount + port,
-                    port == 0 ? Shape.of(t, b, h) : Shape.of(b, h), DataType.FLOAT32, true, accessBindings, boundaryTypes, spans);
+                    port == 0 ? Shape.of(t, b, h) : Shape.of(b, h), geometry.dataType(), true, accessBindings, boundaryTypes, spans);
         }
     }
 
     /**
-     * Authenticates a semantic role against one canonical boundary without retaining a descriptor.
+     * Authenticates a semantic role against its resolved boundary without retaining a descriptor.
      * @param p boundary position to check
      * @param shape exact expected static role shape
      * @param type exact expected role dtype
      * @param write whether the role is a sibling output rather than an input
-     * @param bindings immutable canonical access bindings
+     * @param bindings immutable resolved access bindings
      * @param types immutable boundary dtypes
-     * @param spans immutable boundary element counts
+     * @param spans immutable referenced storage-element spans
      * @throws IllegalArgumentException if a mapping, count, type or access plan disagrees
      */
     private static void checkBoundary(int p, Shape shape, DataType type, boolean write,
             List<CpuAccessPlan.Binding> bindings, List<DataType> types, List<Long> spans) {
-        var layout = LayoutDescriptor.contiguous(shape);
-        long count = layout.referencedElementSpan();
-        int rank = shape.rank();
-        var plan = new CpuAccessPlan(write ? CpuAccessPlan.AccessKind.WRITE : CpuAccessPlan.AccessKind.READ,
-                CpuAccessPlan.Regime.DENSE_LINEAR, rank,
-                java.util.Collections.nCopies(rank, CpuAccessPlan.AxisRole.CONTIGUOUS), rank);
-        if (types.get(p) != type || spans.get(p) != count || !bindings.get(p).equals(
-                CpuAccessPlan.Binding.create(plan, shape.toLongArray(), 0, layout.strides(), count, 0, count, count)))
+        var selected = bindings.get(p);
+        var layout = write ? LayoutDescriptor.contiguous(shape) : LayoutDescriptor.of(shape,
+                selected.effectiveStrides().stream().mapToLong(Long::longValue).toArray(), selected.baseElementOffset(), true);
+        if (types.get(p) != type || spans.get(p) != layout.referencedElementSpan()
+                || !selected.equals(binding(shape, layout, write)))
             throw new IllegalArgumentException("scan boundary does not match semantic role: " + p);
+    }
+
+    /**
+     * Creates cold fixed-rank geometry, keeping logical count separate from referenced capacity.
+     * Empty origins are normalized to zero because they are never addressed, even at huge offsets.
+     * @param shape resolved static semantic shape
+     * @param layout resolved nonnegative element geometry
+     * @param write whether this is a canonical output
+     * @return immutable full logical-range binding, never null
+     * @throws ArithmeticException if a logical count or referenced span exceeds the scalar domain
+     */
+    private static CpuAccessPlan.Binding binding(Shape shape, LayoutDescriptor layout, boolean write) {
+        long count = Math.toIntExact(shape.knownElementCount().orElseThrow());
+        long span = Math.toIntExact(layout.referencedElementSpan());
+        int rank = shape.rank();
+        boolean dense = layout.isContiguous();
+        var axes = new ArrayList<CpuAccessPlan.AxisRole>();
+        for (long stride : layout.strides()) axes.add(stride == 0 ? CpuAccessPlan.AxisRole.BROADCAST
+                : dense ? CpuAccessPlan.AxisRole.CONTIGUOUS : CpuAccessPlan.AxisRole.STRIDED);
+        var plan = new CpuAccessPlan(write ? CpuAccessPlan.AccessKind.WRITE : CpuAccessPlan.AccessKind.READ,
+                dense ? CpuAccessPlan.Regime.DENSE_LINEAR : CpuAccessPlan.Regime.GENERAL_ODOMETER,
+                rank, axes, dense ? rank : 0);
+        return CpuAccessPlan.Binding.create(plan, shape.toLongArray(), count == 0 ? 0 : layout.storageOffset(),
+                layout.strides(), count, 0, count, span);
     }
 }

@@ -1,6 +1,6 @@
 package io.github.pho001.synaptik.backend.cpu.internal.route.portable;
 
-import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRecurrentScanLowering.Geometry;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRecurrentScanLowering.Facts;
 import java.lang.foreign.MemorySegment;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
@@ -9,16 +9,39 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
  * Immutable direct Java FLOAT32 scan kernel. Each invocation supplies its own exact segments.
  * All packed projections from prior hidden state finish before any hidden coordinate is replaced.
  * Invalid/padded coordinates never reach projections. No step allocates storage or inspects a graph.
+ * Input roles use the prepared nonnegative offsets/strides relative to each supplied segment;
+ * output and carried state are dense. Callers preflight every representation and the complete
+ * logical length vector before calling a family method; these methods perform result writes.
  */
 public final class CpuRecurrentScanKernel {
     private final int batch, input, hidden, packed, step;
     private final boolean reverse;
+    private final long xo, xt, xb, xi, lo, ls, ho, hb, hj, co, cb, cj;
+    private final long wo, wr, wk, uo, ur, uk, bo, bs;
 
     /**
      * Retains only checked static loop geometry; no storage or runtime lengths are retained.
-     * @param geometry non-null descriptor-validated occurrence geometry
+     * @param facts non-null descriptor-validated occurrence with exact role addressing
+     * @throws NullPointerException if facts is null
      */
-    public CpuRecurrentScanKernel(Geometry geometry) {
+    public CpuRecurrentScanKernel(Facts facts) {
+        var geometry = facts.geometry();
+        var roles = facts.rolePositions();
+        var bindings = facts.accessBindings();
+        var x = bindings.get(roles.get(0)); var l = bindings.get(roles.get(1));
+        var h = bindings.get(roles.get(2));
+        var c = geometry.gates() == 4 ? bindings.get(roles.get(3)) : h;
+        int weight = geometry.gates() == 4 ? 4 : 3;
+        var w = bindings.get(roles.get(weight)); var u = bindings.get(roles.get(weight + 1));
+        var b = geometry.bias() ? bindings.get(roles.get(weight + 2)) : l;
+        xo = x.baseElementOffset(); xt = x.effectiveStrides().get(0);
+        xb = x.effectiveStrides().get(1); xi = x.effectiveStrides().get(2);
+        lo = l.baseElementOffset(); ls = l.effectiveStrides().getFirst();
+        ho = h.baseElementOffset(); hb = h.effectiveStrides().get(0); hj = h.effectiveStrides().get(1);
+        co = c.baseElementOffset(); cb = c.effectiveStrides().get(0); cj = c.effectiveStrides().get(1);
+        wo = w.baseElementOffset(); wr = w.effectiveStrides().get(0); wk = w.effectiveStrides().get(1);
+        uo = u.baseElementOffset(); ur = u.effectiveStrides().get(0); uk = u.effectiveStrides().get(1);
+        bo = b.baseElementOffset(); bs = b.effectiveStrides().getFirst();
         batch = geometry.batch(); input = geometry.inputSize();
         hidden = geometry.hiddenSize(); packed = Math.multiplyExact(geometry.gates(), hidden);
         reverse = geometry.reverse(); step = reverse ? -1 : 1;
@@ -26,9 +49,10 @@ public final class CpuRecurrentScanKernel {
 
     /**
      * Executes the tanh family after complete invocation preflight.
-     * @param x exact canonical input, borrowed read-only
-     * @param lengths validated INT64 batch lengths
-     * @param h0 initial hidden values, copied raw
+     * @param x resolved strided input, borrowed read-only
+     * @param lengths borrowed INT64 span with every logical length validated in [0,T]; read at
+     *     the prepared offset and batch stride
+     * @param h0 borrowed initial hidden source at its prepared read layout, gathered as raw bits
      * @param w packed input weights
      * @param u packed hidden weights
      * @param bias optional input-side bias, or null
@@ -41,7 +65,7 @@ public final class CpuRecurrentScanKernel {
             MemorySegment h, MemorySegment scratch) {
         initialize(output, h0, h);
         for (int b = 0; b < batch; b++) {
-            int length = (int) lengths.getAtIndex(JAVA_LONG, b);
+            int length = (int) lengths.getAtIndex(JAVA_LONG, lo + b * ls);
             for (int n = 0, t = reverse ? length - 1 : 0; n < length; n++, t += step) {
                 project(x, w, u, bias, h, scratch, t, b);
                 for (int j = 0; j < hidden; j++) {
@@ -55,9 +79,10 @@ public final class CpuRecurrentScanKernel {
 
     /**
      * Executes reset-after GRU with reset/update/candidate packing and n + z*(h-n).
-     * @param x exact canonical input, borrowed read-only
-     * @param lengths validated INT64 batch lengths
-     * @param h0 initial hidden values, copied raw
+     * @param x resolved strided input, borrowed read-only
+     * @param lengths borrowed INT64 span with every logical length validated in [0,T]; read at
+     *     the prepared offset and batch stride
+     * @param h0 borrowed initial hidden source at its prepared read layout, gathered as raw bits
      * @param w packed input weights
      * @param u packed hidden weights
      * @param bias optional input-side bias, or null
@@ -70,7 +95,7 @@ public final class CpuRecurrentScanKernel {
             MemorySegment h, MemorySegment scratch) {
         initialize(output, h0, h);
         for (int b = 0; b < batch; b++) {
-            int length = (int) lengths.getAtIndex(JAVA_LONG, b);
+            int length = (int) lengths.getAtIndex(JAVA_LONG, lo + b * ls);
             for (int n = 0, t = reverse ? length - 1 : 0; n < length; n++, t += step) {
                 project(x, w, u, bias, h, scratch, t, b);
                 for (int j = 0; j < hidden; j++) {
@@ -89,10 +114,11 @@ public final class CpuRecurrentScanKernel {
 
     /**
      * Executes LSTM with explicit carried cell and input/forget/candidate/output gate packing.
-     * @param x exact canonical input, borrowed read-only
-     * @param lengths validated INT64 batch lengths
-     * @param h0 initial hidden values, copied raw
-     * @param c0 initial cell values, copied raw
+     * @param x resolved strided input, borrowed read-only
+     * @param lengths borrowed INT64 span with every logical length validated in [0,T]; read at
+     *     the prepared offset and batch stride
+     * @param h0 borrowed initial hidden source at its prepared read layout, gathered as raw bits
+     * @param c0 borrowed initial cell source at its prepared read layout, gathered as raw bits
      * @param w packed input weights
      * @param u packed hidden weights
      * @param bias optional input-side bias, or null
@@ -105,9 +131,9 @@ public final class CpuRecurrentScanKernel {
             MemorySegment w, MemorySegment u, MemorySegment bias, MemorySegment output,
             MemorySegment h, MemorySegment c, MemorySegment scratch) {
         initialize(output, h0, h);
-        MemorySegment.copy(c0, 0, c, 0, (long) batch * hidden * Float.BYTES);
+        copyState(c0, c, co, cb, cj);
         for (int b = 0; b < batch; b++) {
-            int length = (int) lengths.getAtIndex(JAVA_LONG, b);
+            int length = (int) lengths.getAtIndex(JAVA_LONG, lo + b * ls);
             for (int n = 0, t = reverse ? length - 1 : 0; n < length; n++, t += step) {
                 project(x, w, u, bias, h, scratch, t, b);
                 for (int j = 0; j < hidden; j++) {
@@ -135,12 +161,34 @@ public final class CpuRecurrentScanKernel {
      */
     private void initialize(MemorySegment output, MemorySegment h0, MemorySegment h) {
         output.fill((byte) 0);
-        MemorySegment.copy(h0, 0, h, 0, (long) batch * hidden * Float.BYTES);
+        copyState(h0, h, ho, hb, hj);
+    }
+
+
+    /**
+     * Gathers raw initial bits; empty states never dereference an unused origin or stride.
+     * @param source borrowed resolved initial state
+     * @param target dense disjoint carried state
+     * @param offset source origin in elements
+     * @param rowStride source batch stride in elements
+     * @param featureStride source hidden stride in elements
+     */
+    private void copyState(MemorySegment source, MemorySegment target,
+            long offset, long rowStride, long featureStride) {
+        if (batch == 0) return;
+        if (rowStride == hidden && featureStride == 1) {
+            MemorySegment.copy(source, offset * Float.BYTES, target, 0, (long) batch * hidden * Float.BYTES);
+        } else for (int b = 0; b < batch; b++) {
+            long address = offset + b * rowStride;
+            for (int j = 0; j < hidden; j++, address += featureStride)
+                target.setAtIndex(java.lang.foreign.ValueLayout.JAVA_INT, (long) b * hidden + j,
+                        source.getAtIndex(java.lang.foreign.ValueLayout.JAVA_INT, address));
+        }
     }
 
     /**
      * Completes both packed projections before any hidden value can be overwritten.
-     * @param x readable exact time-major input
+     * @param x readable referenced input span, addressed with prepared time/batch/feature strides
      * @param w readable input-side packed weights
      * @param u readable recurrent packed weights
      * @param bias readable input-side packed bias, or null
@@ -151,15 +199,16 @@ public final class CpuRecurrentScanKernel {
      */
     private void project(MemorySegment x, MemorySegment w, MemorySegment u, MemorySegment bias,
             MemorySegment h, MemorySegment scratch, int t, int b) {
-        long xb = ((long) t * batch + b) * input, hb = (long) b * hidden;
+        long xbase = xo + t * xt + b * xb, hbase = (long) b * hidden;
         for (int row = 0; row < packed; row++) {
             float px = 0, ph = 0;
-            for (int k = 0; k < input; k++) px += get(x, xb + k) * get(w, (long) row * input + k);
-            for (int k = 0; k < hidden; k++) ph += get(h, hb + k) * get(u, (long) row * hidden + k);
+            long xa = xbase, wa = wo + row * wr, ua = uo + row * ur;
+            for (int k = 0; k < input; k++, xa += xi, wa += wk) px += get(x, xa) * get(w, wa);
+            for (int k = 0; k < hidden; k++, ua += uk) ph += get(h, hbase + k) * get(u, ua);
             put(scratch, row, px); put(scratch, packed + row, ph);
         }
         if (bias != null) for (int row = 0; row < packed; row++)
-            put(scratch, row, get(scratch, row) + get(bias, row));
+            put(scratch, row, get(scratch, row) + get(bias, bo + row * bs));
     }
 
     /**
@@ -173,16 +222,16 @@ public final class CpuRecurrentScanKernel {
         return exp / (1f + exp);
     }
     /**
-     * Reads a preflighted canonical FLOAT32 element.
-     * @param segment exact readable logical span
-     * @param element in-bounds logical element index
+     * Reads a preflighted physical FLOAT32 element.
+     * @param segment exact readable referenced span
+     * @param element in-bounds physical element index
      * @return represented FLOAT32 value without a carrier conversion
      */
     private static float get(MemorySegment segment, long element) { return segment.getAtIndex(JAVA_FLOAT, element); }
     /**
      * Stores one state or gate value at its canonical coordinate.
      * @param segment exact writable logical span
-     * @param element in-bounds logical element index
+     * @param element in-bounds physical element index
      * @param value represented FLOAT32 value to publish unchanged
      */
     private static void put(MemorySegment segment, long element, float value) { segment.setAtIndex(JAVA_FLOAT, element, value); }

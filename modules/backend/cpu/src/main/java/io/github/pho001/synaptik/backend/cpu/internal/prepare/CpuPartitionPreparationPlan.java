@@ -1457,7 +1457,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                         || runtimeFacts.workspaceUse() != (scan.geometry().scratchBytes() > 0
                             ? WorkspaceUse.RECURRENT_ROW_STATE : WorkspaceUse.NONE)
                         || runtimeFacts.workspaceDeclaration().stream().anyMatch(w ->
-                            w.byteSize() != scan.geometry().scratchBytes() || w.byteAlignment() != Float.BYTES))
+                            w.byteSize() != scan.geometry().scratchBytes() || w.byteAlignment() != scan.geometry().workingBytes()))
                     throw new IllegalArgumentException("direct recurrent unit facts disagree");
             } else {
             CpuKernelIr generated = portablePlan.kernelIr();

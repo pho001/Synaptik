@@ -6,6 +6,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.executable.*;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.*;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.*;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.graph.*;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
@@ -26,7 +28,118 @@ import org.junit.jupiter.api.Test;
 
 /** Provider-to-finalization qualification, independent equations and exact padding/publication checks. */
 final class CpuRecurrentScanConformanceTest {
-    @Test void eachFixedSignatureQualifiesDirectFloat32WithoutGrantingEitherLowType() {
+    @Test void scalarDtypesQualifyAllSignaturesDirectionsAndResolvedReadLayoutsIndependently() {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16))
+            for (var kind : RecurrentScanKind.values()) for (boolean biased : List.of(false, true))
+                for (var direction : RecurrentDirection.values()) for (int layoutMode = 0; layoutMode < 3; layoutMode++) {
+                    var base = context(kind, biased, direction, 3, 3, 1, 1, false);
+                    var ds = new ArrayList<TensorDescriptor>();
+                    int inputCount = base.nodes().getFirst().inputs().size();
+                    for (int p = 0; p < base.values().size(); p++) {
+                        var d = base.values().get(p).descriptor();
+                        var layout = d.layout().orElseThrow();
+                        if (p < inputCount && layoutMode > 0) {
+                            long[] strides = layout.strides();
+                            for (int axis = 0; axis < strides.length; axis++) strides[axis] = layoutMode == 1 ? 2 * strides[axis] : 0;
+                            layout = LayoutDescriptor.of(d.shape(), strides, 3, true);
+                        }
+                        ds.add(new TensorDescriptor(p == 1 ? DataType.INT64 : type, d.shape(), Optional.of(layout), false));
+                    }
+                    var context = project(ds, base.nodes());
+                    var node = context.nodes().getFirst();
+                    var query = new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(node.operation(),
+                            ds.subList(0, inputCount), ds.subList(inputCount, ds.size()));
+                    assertTrue(new CpuCapabilityProvider().supports(query), type + " independent provider query");
+                    var analysis = new CpuPartitionPreparer().analyze(context);
+                    var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
+                    try (var f = new Fixture(analysis, 2, true, true, Map.of())) {
+                        for (int role = 0; role < inputCount; role++) {
+                            f.segment(role).fill((byte) 0x7f); // Poison prefix and strided gaps, including lengths.
+                            var d = ds.get(role); long count = d.shape().knownElementCount().orElseThrow();
+                            for (int k = 0; k < count; k++) {
+                                long address = index(d, k);
+                                if (role == 1) f.segment(role).setAtIndex(ValueLayout.JAVA_LONG, address, new long[] {0, 1, 3}[k]);
+                                else set(type, f.segment(role), address, role == 0 ? (k + 1) * .04 : role == 2 ? .25
+                                        : kind == RecurrentScanKind.LSTM && role == 3 ? .5
+                                        : role == (kind == RecurrentScanKind.LSTM ? 4 : 3) ? .8
+                                        : role == (kind == RecurrentScanKind.LSTM ? 5 : 4) ? -.3 : .07);
+                            }
+                        }
+                        f.executable.bind(f.state).execute();
+                        int out = facts.readCount(), weight = kind == RecurrentScanKind.LSTM ? 4 : 3;
+                        for (int b = 0; b < 3; b++) {
+                            long length = f.segment(1).getAtIndex(ValueLayout.JAVA_LONG, index(ds.get(1), b));
+                            double hidden = get(type, f.segment(2), index(ds.get(2), b));
+                            double cell = kind == RecurrentScanKind.LSTM ? get(type, f.segment(3), index(ds.get(3), b)) : 0;
+                            for (int visit = 0; visit < length; visit++) {
+                                int t = direction == RecurrentDirection.REVERSE ? (int) length - 1 - visit : visit;
+                                double[] px = new double[facts.geometry().gates()], ph = new double[px.length];
+                                for (int g = 0; g < px.length; g++) {
+                                    px[g] = work(type, 0 + work(type, get(type, f.segment(0), index(ds.getFirst(), t * 3 + b))
+                                            * get(type, f.segment(weight), index(ds.get(weight), g))));
+                                    ph[g] = work(type, 0 + work(type, hidden * get(type, f.segment(weight + 1), index(ds.get(weight + 1), g))));
+                                    if (biased) px[g] = work(type, px[g] + get(type, f.segment(weight + 2), index(ds.get(weight + 2), g)));
+                                }
+                                double next;
+                                if (kind == RecurrentScanKind.RNN_TANH) next = work(type, StrictMath.tanh(work(type, px[0] + ph[0])));
+                                else if (kind == RecurrentScanKind.GRU_RESET_AFTER) {
+                                    double r = sigmoid(type, work(type, px[0] + ph[0])), z = sigmoid(type, work(type, px[1] + ph[1]));
+                                    double n = work(type, StrictMath.tanh(work(type, px[2] + work(type, r * ph[2]))));
+                                    next = work(type, n + work(type, z * work(type, hidden - n)));
+                                } else {
+                                    double i = sigmoid(type, work(type, px[0] + ph[0])), forget = sigmoid(type, work(type, px[1] + ph[1]));
+                                    double n = work(type, StrictMath.tanh(work(type, px[2] + ph[2]))), o = sigmoid(type, work(type, px[3] + ph[3]));
+                                    cell = published(type, work(type, work(type, forget * cell) + work(type, i * n)));
+                                    next = work(type, o * work(type, StrictMath.tanh(cell)));
+                                }
+                                hidden = published(type, next);
+                                assertEquals(hidden, get(type, f.segment(out), t * 3 + b), 0d,
+                                        "rounded sequential oracle, not a tolerance for public state");
+                            }
+                            assertEquals(hidden, get(type, f.segment(out + 1), b), 0d);
+                            if (kind == RecurrentScanKind.LSTM) assertEquals(cell, get(type, f.segment(out + 2), b), 0d);
+                            for (int t = (int) length; t < 3; t++) for (byte v : f.segment(out).asSlice(
+                                    (t * 3L + b) * type.byteWidth(), type.byteWidth()).toArray(ValueLayout.JAVA_BYTE)) assertEquals(0, v);
+                        }
+                    }
+                }
+    }
+
+    private static long index(TensorDescriptor d, long ordinal) {
+        var layout = d.layout().orElseThrow(); var extents = d.shape().toLongArray();
+        long result = layout.storageOffset();
+        for (int axis = extents.length - 1; axis >= 0; axis--) { result += ordinal % extents[axis] * layout.stride(axis); ordinal /= extents[axis]; }
+        return result;
+    }
+    private static double work(DataType type, double value) { return type == DataType.FLOAT64 ? value : (float) value; }
+    private static double published(DataType type, double value) {
+        return type == DataType.BFLOAT16 ? BFloat16Bits.toFloat(BFloat16Bits.fromFloat((float) value))
+                : type == DataType.FLOAT16 ? Float16Bits.toFloat(Float16Bits.fromFloat((float) value)) : work(type, value);
+    }
+    private static double sigmoid(DataType type, double value) {
+        double e = work(type, StrictMath.exp(value >= 0 ? -value : value));
+        return work(type, (value >= 0 ? 1 : e) / work(type, 1 + e));
+    }
+    private static double get(DataType type, MemorySegment segment, long index) {
+        return switch (type) {
+            case FLOAT64 -> segment.getAtIndex(ValueLayout.JAVA_DOUBLE, index);
+            case FLOAT32 -> segment.getAtIndex(ValueLayout.JAVA_FLOAT, index);
+            case BFLOAT16 -> BFloat16Bits.toFloat(segment.getAtIndex(ValueLayout.JAVA_SHORT, index));
+            case FLOAT16 -> Float16Bits.toFloat(segment.getAtIndex(ValueLayout.JAVA_SHORT, index));
+            default -> throw new AssertionError(type);
+        };
+    }
+    private static void set(DataType type, MemorySegment segment, long index, double value) {
+        switch (type) {
+            case FLOAT64 -> segment.setAtIndex(ValueLayout.JAVA_DOUBLE, index, value);
+            case FLOAT32 -> segment.setAtIndex(ValueLayout.JAVA_FLOAT, index, (float) value);
+            case BFLOAT16 -> segment.setAtIndex(ValueLayout.JAVA_SHORT, index, BFloat16Bits.fromFloat((float) value));
+            case FLOAT16 -> segment.setAtIndex(ValueLayout.JAVA_SHORT, index, Float16Bits.fromFloat((float) value));
+            default -> throw new AssertionError(type);
+        }
+    }
+
+    @Test void eachFixedSignatureQualifiesDirectFloat32AndQueriesEachLowType() {
         for (var kind : RecurrentScanKind.values()) for (boolean bias : List.of(false, true))
             for (var direction : RecurrentDirection.values()) {
                 var context = context(kind, bias, direction, 3, 3, 1, 1, false);
@@ -39,7 +152,7 @@ final class CpuRecurrentScanConformanceTest {
                     var lowInputs = query.inputs().stream().map(d -> d.dataType() == DataType.INT64 ? d
                             : new TensorDescriptor(low, d.shape(), d.layout(), d.requiresGrad())).toList();
                     var lowOutputs = query.outputs().stream().map(d -> new TensorDescriptor(low, d.shape(), d.layout(), d.requiresGrad())).toList();
-                    assertFalse(provider.supports(new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(node.operation(), lowInputs, lowOutputs)));
+                    assertTrue(provider.supports(new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(node.operation(), lowInputs, lowOutputs)));
                 }
                 var analysis = new CpuPartitionPreparer().analyze(context);
                 var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
@@ -178,7 +291,10 @@ final class CpuRecurrentScanConformanceTest {
                     long capacity = buffer.byteSize() + (sliced ? 16 : 0);
                     MemorySegment segment = carrier == 0 || carrier == 2 && buffers.size() % 2 == 0
                             ? type == DataType.INT64 ? MemorySegment.ofArray(new long[Math.toIntExact(capacity / 8)])
-                                : MemorySegment.ofArray(new float[Math.toIntExact(capacity / 4)])
+                                : type == DataType.FLOAT64 ? MemorySegment.ofArray(new double[Math.toIntExact(capacity / 8)])
+                                : type == DataType.BFLOAT16 || type == DataType.FLOAT16
+                                    ? MemorySegment.ofArray(new short[Math.toIntExact(capacity / 2)])
+                                    : MemorySegment.ofArray(new float[Math.toIntExact(capacity / 4)])
                             : arena.allocate(capacity, buffer.byteAlignment());
                     if (sliced) segment = segment.asSlice(8, buffer.byteSize());
                     segment = overrides.getOrDefault(buffer.valueId(), segment);

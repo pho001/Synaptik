@@ -4370,12 +4370,11 @@ storage-free, and their `requiresGrad` value is the OR of the floating input, st
 optional-bias roles. Valid lengths never contribute to gradient eligibility. No projection,
 gate, mask, step, padding, or zero-fill intermediate Tensor is constructed.
 
-`FORWARD` and `REVERSE` are semantic requests for future execution. For original batch row `b`
-with runtime length `L[b]`, forward traversal will consume coordinates `0 .. L[b]-1`; reverse
-traversal will consume `L[b]-1 .. 0`, reversing only the valid prefix. Both directions return
+For original batch row `b` with runtime length `L[b]`, `FORWARD` consumes coordinates
+`0 .. L[b]-1`; `REVERSE` consumes `L[b]-1 .. 0`, reversing only the valid prefix. Both directions return
 dense outputs aligned to original time positions, with exact positive zero at `t >= L[b]`, plus
 explicit final states. A zero-length row returns its initial states semantically. A zero-time
-input has an empty dense output and will require every runtime length to be zero. These are fixed
+input has an empty dense output and requires every runtime length to be zero. These are fixed
 operation semantics, not values computed by Model construction.
 
 Construction never reads `validLengths` storage, so it cannot validate scalar bounds or infer
@@ -4389,13 +4388,30 @@ multi-output factory contract.
 Current generic graph capture can translate the shared producer to one flat node with the same
 ordered inputs and outputs. Current package-private Compiler forward-only inference independently
 revalidates the fully static descriptor contract, while both backward-capable modes reject a
-complete forward inventory containing recurrence before derivative Tensor allocation. No
-capability provider advertises the family, and no Engine, Runtime, backend, execution, numerical-
-algorithm, or backpropagation-through-time behavior is available yet.
+complete forward inventory containing recurrence before derivative Tensor allocation.
+
+CPU scalar execution supports all six signatures and both directions for homogeneous FLOAT32,
+FLOAT64, BFLOAT16 and FLOAT16, with canonical dense outputs. Every input role, including INT64
+lengths, accepts resolved nonnegative-stride/offset reads: dense, transposed, sliced/gapped,
+overlapping and zero-stride repeated layouts. Non-singleton repetition requires Model's view flag.
+Negative and unresolved storage geometry is unsupported. Every dimension, packed gate extent,
+logical count and referenced storage span must fit `int`; fresh Engine bindings must retain the
+full referenced span, not merely the logical count. Empty layouts have span zero regardless of
+unused offset.
+
+FLOAT64 work/accumulation is double without denormal flushing. Low types decode exactly and use
+FLOAT32 work/accumulation without intermediate low gate or projection narrowing. Hidden/cell
+publication narrows once ties-to-even, and state consumers read the stored value, including LSTM
+hidden's consumption of its newly stored cell. Each run validates the complete logically strided
+length vector before any scan output write. Invalid lengths leave all scan siblings unchanged;
+repair them and reuse the same preparation. These rules do not authorize backward execution,
+serialization of prepared loops, or support for adjacent operations.
+
 [`RnnSequence`, `GruSequence`, and `LstmSequence`](training-api.md#current-nn-recurrent-composition-contract)
-remain the ordinary NN-facing APIs and retain construction-time Java `long[]` lengths, static
-unrolling, and compact outputs. A later runtime-length NN API may call the low-level namespace
-only after backend adoption and the complete executable path are available.
+retain construction-time Java `long[]` lengths, static unrolling, and compact outputs. Their
+separate runtime-length `forwardScan` methods and inference-only builder scan recipes compose the
+same fixed Model operations and public Engine lifecycle; no BPTT or static-container migration
+follows from the scalar CPU expansion.
 
 ### Softmax expressions
 

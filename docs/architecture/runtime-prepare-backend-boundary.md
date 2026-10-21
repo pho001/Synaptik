@@ -321,7 +321,7 @@ before trials. A safe-heuristic fallback never changes the selected adapter.
 ## Fixed recurrent scan handoff
 
 Model now represents the fixed recurrent scan and its valid-length Tensor as ordinary expression
-metadata. The CPU FLOAT32 executable path uses an ordinary caller input whose
+metadata. The CPU scalar executable path uses an ordinary caller input whose
 values alter bounded backend control flow while its Shape and the complete resource geometry stay
 static. The valid-length Tensor is fully static rank-one `INT64[batch]`; only its per-run values
 vary. Model does not read those values. They do not make `time`, `batch`, feature dimensions,
@@ -357,14 +357,21 @@ coordinate, and explicit final hidden and LSTM cell states. It traverses only va
 Branch-based skipping satisfies the first contract; physical active-row compaction, packed
 batches, and stronger memory-work claims remain deferred.
 
-CPU now admits canonical FLOAT32 RNN, reset-after GRU and LSTM occurrences in either direction,
-with or without bias. Analysis retains direct private facts rather than generated IR. Finalization
+CPU now admits homogeneous FLOAT32, FLOAT64, BFLOAT16 and FLOAT16 RNN, reset-after GRU and LSTM
+occurrences in either direction, with or without bias. Resolved nonnegative-stride/offset inputs
+include repeated and overlapping reads; outputs remain canonical dense. Logical counts and
+referenced spans are checked separately, and an empty layout's unused origin is never accessed.
+Analysis retains direct private facts rather than generated IR. Finalization
 creates one Java scan child per occurrence without consulting the generated-artifact store.
-Two packed projection rows require `2 * gates * hiddenSize * 4` run-owned scratch bytes, independent
+Two packed projection rows require `2 * gates * hiddenSize * workingBytes` run-owned scratch bytes,
+with width/alignment 8 for FLOAT64 and 4 otherwise, independent
 of time and lengths; empty time or batch omits scratch. Dense outputs still require `O(T*B*H)` storage.
 Cold binding reads no lengths. Bound execution checks every length after any length producer,
 before padding, initial-state copies or gate writes; an invalid last row leaves every scan output
-unchanged. Existing Engine cleanup propagates the unchecked failure and returns no result.
+unchanged. Strided lengths use their logical addresses, not poisoned gaps. FLOAT64 works in double;
+low types use FLOAT32 work and exact low stored-state barriers, including LSTM cell-to-hidden
+consumption. Read/read aliases remain legal; writes/scratch reject overlap with whole selected
+representations. Existing Engine cleanup propagates the unchecked failure and returns no result.
 
 No shared executable code or contract changes were needed. If a later route proves
 that a selected backend cannot preserve static route and resource decisions across compatible

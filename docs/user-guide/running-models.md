@@ -238,10 +238,11 @@ meaning; there is no model-wide mask or original-padding-independence guarantee:
 | lastTimeStep | Still selects `T-1`, not each row's final hidden state; ordinary intervening steps may change padded zeros. |
 | Another scan | Shares lengths and ignores its own input suffix, including suffix values changed by ordinary intervening steps. |
 
-Current scan execution qualification is canonical FLOAT32 CPU. Valid floating construction/save
-does not promise execution of every dtype, layout or composition. For example, a bare Conv1d prefix
-can leave a noncanonical view that CPU scan execution does not admit. Engine diagnoses unsupported
-occurrences; this workflow neither converts dtype nor widens backend support.
+Current CPU scalar scans support homogeneous FLOAT32, FLOAT64, BFLOAT16 and FLOAT16 with resolved
+nonnegative-stride/offset inputs, including noncanonical Conv1d views and repeated reads. Outputs
+remain canonical dense. Valid construction/save still does not promise execution of every ordinary
+step or composition: each occurrence has its own backend predicate. Engine diagnoses unsupported
+occurrences; this workflow does not convert dtype or grant support to adjacent operations.
 
 | Symptom | Cause and correction |
 |---|---|
@@ -297,8 +298,10 @@ binds an automatic cell even for empty time/batch or all-zero runtime lengths; s
 with no represented step leaves it unbound. All floating descriptors must match the configured
 type exactly; a mismatch fails before initialization. Neither path infers lengths from padding.
 
-Advanced callers separately use ordinary Engine compile/prepare/run or runValues for canonical
-fully static FLOAT32 scans on CPU, with INT64 lengths, explicit states and packed parameters.
+Advanced callers separately use ordinary Engine compile/prepare/run or runValues for fully static
+homogeneous FLOAT32/FLOAT64/BFLOAT16/FLOAT16 CPU scans, with resolved nonnegative read layouts,
+INT64 lengths, explicit states and packed parameters. Fresh input storage must contain its full
+referenced span, including any offset prefix and strided gaps, not only its logical element count.
 Prepare reads no length values;
 each run checks all lengths in `[0,T]` before writing scan results. Repair invalid lengths and
 reuse the preparation with the same descriptors. Backpropagation through time and serialized

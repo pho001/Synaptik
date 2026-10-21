@@ -94,8 +94,9 @@ For a fixed scan, one constructor produces all canonical sibling wrappers, even 
 is a root or downstream operands reuse a port. Copy/load/rebind retain that occurrence once;
 result-carrier objects are not serialized. Static time/batch may be zero, and inference preserves
 the existing unresolved output layouts and gradient eligibility. Persistence itself grants no
-execution or BPTT. Separately, ordinary CPU Engine compile/prepare/run supports canonical static
-FLOAT32 scans after logical layout closure, including PARAMETER weights restored by this API;
+execution or BPTT. Separately, ordinary CPU Engine compile/prepare/run supports static homogeneous
+FLOAT32/FLOAT64/BFLOAT16/FLOAT16 scans with resolved nonnegative read layouts and canonical outputs
+after logical layout closure, including PARAMETER weights restored by this API;
 INT64 length values are checked at execution, not during save/load/rebind.
 
 For a cold scan roundtrip, declare a FLOAT32 sequence `[2,1,3]`,
