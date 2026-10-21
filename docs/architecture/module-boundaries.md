@@ -299,9 +299,21 @@ the cap is `Integer.MAX_VALUE` elements, not bytes. For input rows `[2,3]` and `
 padding with zero produces `[[2,3],[0,1]]` and counts `[2,1]`. Data owns numeric placement, not token
 meaning, model execution or runtime length binding. Floating/sample batching remains deferred.
 
-Neither metadata construction path reads host storage or promises its liveness. Passing host counts as
-if it were the scan's runtime `INT64` Tensor would confuse preparation metadata with execution
-binding; no runtime binding or recurrence occurs. Model retains Tensor/storage semantics;
+Neither metadata construction path reads host storage or promises its liveness. The implemented
+`PaddedSequenceBatch.toScanLengthsTensor()` method is a separate opt-in materialization step,
+used by the [numeric inference workflow](../api/data-api.md#complete-numeric-inference-example).
+For a RIGHT/TIME_MAJOR batch with counts `[3,1,0]`, it creates a fresh canonical non-gradient
+INT64 `[3]` heap Tensor holding those counts. The application passes `batch.values()` and that
+Tensor to the existing `model.compute(values, lengths)` boundary; Data does not bind or execute.
+LEFT is rejected before BATCH_MAJOR, and both checks precede output allocation. The method never
+reads or repacks values, so metadata-only values can export counts but still cannot execute
+without live supported storage. Mutating an export does not change counts or another export.
+
+This separates immutable host declarations from mutable execution inputs without making NN depend
+on Data or adding another prepared/resource owner. The first proof uses canonical FLOAT32
+`[T,B,F]` numeric values and existing scan Models; Text IDs → Embedding → scan requires a separate
+integer-input/Embedding builder decision. [ADR 0044](../design/decisions/0044-opt-in-scan-length-tensor-export.md)
+explains the choice and its explicit O(B) count-copy cost. Model retains Tensor/storage semantics;
 NN, Training and Engine retain their existing roles. [ADR 0042](../design/decisions/0042-data-extension-boundary.md) explains the empty foundation
 and why exporting Model does not require a placeholder Data type.
 

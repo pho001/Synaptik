@@ -114,7 +114,7 @@ after Euclid's final APPROVE and main's root gate; NN0028 is Complete under the 
 | [CUDA](backends/cuda/master-plan.md) | Marker/native scaffold only; no executable CUDA backend. 0001 Draft. |
 | [ONNX](extensions/onnx/master-plan.md) | Marker only; no importer/exporter. Area Draft; first mapping task not yet defined. |
 | [Data](extensions/data/master-plan.md) | 0001–0003 Complete; [0003 shared padded representation and INT64 batching](extensions/data/tasks/0003-padded-integral-sequence-batching.md) accepted after final independent APPROVE and module/architecture-consumer gates, 2026-10-20; Text program root join complete, 2026-10-21. Frontier None; broader batching Draft, no runtime binding. |
-| [NN](extensions/nn/master-plan.md) | 0028/0029, [0021B CPU scan program](extensions/nn/tasks/0021b-fixed-recurrent-scan-implementation-program.md), [0022 NN-only expressions](extensions/nn/tasks/0022-runtime-length-recurrent-nn-api.md) and [0022B Model/builder inference](extensions/nn/tasks/0022b-runtime-length-scan-model-workflow.md) Complete. NN0022B accepted 2026-10-20 after final independent code/docs approval and the coordinator root gate. NN/CPU frontiers None; Data frontier is listed separately. 0022A/0023/0024 Draft; no scan training/BPTT or automatic successor launch. |
+| [NN](extensions/nn/master-plan.md) | 0028/0029, [0021B CPU scan program](extensions/nn/tasks/0021b-fixed-recurrent-scan-implementation-program.md), [0022 NN-only expressions](extensions/nn/tasks/0022-runtime-length-recurrent-nn-api.md), [0022B Model/builder inference](extensions/nn/tasks/0022b-runtime-length-scan-model-workflow.md) and [0022A numeric inference](extensions/nn/tasks/0022a-padded-numeric-sequence-inference.md) Complete. NN0022A accepted 2026-10-21 after independent APPROVE and main's source-matched architecture/root checkpoint. NN/CPU/Data/Text frontiers None. 0023/0024 Draft; no fluent Text pipeline, scan training/BPTT or automatic successor launch. |
 | [Text](extensions/text/master-plan.md) | [0001 frozen whitespace tokenizer and Data adapter](extensions/text/tasks/0001-whitespace-tokenizer-and-data-batching.md) Complete, accepted 2026-10-21 after independent code/final documentation APPROVE and numerical/root gates. Sole api(Data), Model transitive. Frontier None; training/artifact work Draft. |
 | [Vision](extensions/vision/master-plan.md) | No module; frontier None. Separate Vision architecture approval before decoder/preprocessing work; later numeric batching retains its Data gate. Data0001 grants no Vision edge. |
 | [Training](extensions/training/master-plan.md) | Sessions/optimizers/state, [0007 generic live admission](extensions/training/tasks/0007-generic-live-parameter-admission.md) and [0008 fresh-value runs](extensions/training/tasks/0008-fresh-value-training-session-runs.md) Complete; final independent reviews and coordinator gates passed. Authorized Training frontier: None; NN0028 Complete; 0006/adapter held. |
@@ -213,8 +213,15 @@ scan routes, tuning and performance claims remain outside scope; no public API, 
 
 The completed NN-only chain is NN0022 (runtime-Tensor-length forward expressions) →
 [NN0022B](extensions/nn/tasks/0022b-runtime-length-scan-model-workflow.md) (Model/builder inference),
-then Draft NN0022A (Data integration, also gated by Data0001/0002). The
-[completed brief](extensions/nn/tasks/0022-runtime-length-recurrent-nn-api.md) accepts existing
+then [Complete NN0022A](extensions/nn/tasks/0022a-padded-numeric-sequence-inference.md), delivering
+RIGHT/TIME_MAJOR numeric F32 inference. Data0001–0003 and
+NN0022/0022B/0028/0029 are Complete; the exact Data export and narrow contract cutover are approved
+(2026-10-21, ADR0044). Base is HEAD=origin/main `6eabea0c1ebf77b9bd8382855c7131eb89b52e04`.
+The brief records approval, inactive conflicts and all seven integration fields. Serial clean
+implementation and independent Class C code/docs APPROVE are complete; worker gates pass.
+Main accepted after the source-matched architecture/root checkpoint on 2026-10-21. No NN-to-Data edge
+or new owner. Fluent Text requires separate builder support.
+The [completed brief](extensions/nn/tasks/0022-runtime-length-recurrent-nn-api.md) accepts existing
 Sequence/cell ownership and Model result carriers with descriptor-only atomic initialization;
 no new production type/package, runner/session, dependency or authority change. Existing list Model
 inputs already represent sequence/lengths/states; direct public Engine is the execution boundary,
@@ -222,8 +229,8 @@ with Model.compute/train widening outside NN0022's scope. Main owns serial revie
 at base `2d1c1d6d0867a0bebda34e9177ad52ba9f13071a`, parallel group None. NN0023/0024 retain later
 Data scope. NN0022 is Complete on 2026-10-20 after clean implementation, Mencius final code/docs
 APPROVE with zero findings, and coordinator validation; its brief owns exact evidence and limitations.
-NN/CPU frontiers remain None; Data0001–0003 are Complete and the Text frontier is recorded below.
-NN0022A/0023/0024 remain Draft; no automatic successor launch.
+Current NN/CPU/Data/Text frontiers: None; NN0022A is closed.
+NN0023/0024 remain Draft; no automatic successor launch.
 NN0022 reused existing backend/root evidence; its completion added no root/conformance/performance campaign.
 
 NN0022B is Complete: scan recipes/finalHidden, typed buildWithLengths and generic
@@ -295,7 +302,8 @@ dtype, backend or format widening. No capability follow-up or automatic successo
 Step 2 records the completed decision and Training 0004 proof, not a durable artifact. Step 3 records
 completed Checkpoint 0003/0004/0004A and CPU 0024. The subsequently authorized Training-owned
 Checkpoint 0005 prerequisite is Complete, not authorization for the Draft durable adapter.
-Step 4 closes Data0001–0003 and Text0001; Data/Text/NN/Vision frontiers None, broader successors Draft.
+Step 4 closes Data0001–0003 and Text0001; Data/Text/Vision frontiers None, broader successors Draft.
+The subsequently completed NN0022A above is numeric-only; no fluent Text pipeline or BPTT.
 The approved NN-only NN0022B capability is Complete.
 An independent performance/shape follow-up, [CPU 0023](backends/cpu/tasks/0023-vector-erf-direct-java-shape.md),
 is also Draft: the bounded vector ERF diagnostic did not demonstrate parity with direct Java.

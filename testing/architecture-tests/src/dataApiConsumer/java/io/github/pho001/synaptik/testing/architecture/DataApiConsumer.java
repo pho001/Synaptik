@@ -19,6 +19,19 @@ final class DataApiConsumer {
     private DataApiConsumer() { }
 
     /**
+     * Compiles the opt-in count export using only Data's public Model API edge.
+     * @param batch non-null RIGHT/TIME_MAJOR batch; values need not have live storage
+     * @return fresh non-null writable heap INT64 counts in original row order
+     * @throws NullPointerException if batch is null
+     * @throws IllegalArgumentException if side is not RIGHT or axes are not TIME_MAJOR
+     * @throws IllegalStateException if Model tensor identifiers are exhausted
+     * @throws OutOfMemoryError if heap allocation fails
+     */
+    static Tensor scanLengths(PaddedSequenceBatch batch) {
+        return batch.toScanLengthsTensor();
+    }
+
+    /**
      * Exercises fluent construction and the public nested Builder from outside the Data package.
      *
      * @param values non-null borrowed tensor of Shape {@code [3,4,...]}

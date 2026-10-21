@@ -25,6 +25,11 @@ ordinary IDs begin at 2. No normalization, case folding, BOS/EOS, decoding, BPE,
 training, persistence, artifact/fingerprint interface, corpus reader or predictor is selected.
 Those larger proposals remain deferred Draft and are not prerequisites of this capability.
 No Embedding behavior, scan semantics, runtime-length binding or BPTT extension is included.
+The [Complete NN0022A](../nn/tasks/0022a-padded-numeric-sequence-inference.md) delivers numeric F32
+inputs, not a complete fluent Text pipeline. Integer-input/Embedding builder support remains a
+separate NN capability decision; exporting Data lengths alone cannot supply it.
+Its implemented and independently approved opt-in export adds no Text work or frontier;
+main accepted NN0022A after the source-matched architecture/root checkpoint on 2026-10-21.
 
 ## Module invariants and dependencies
 

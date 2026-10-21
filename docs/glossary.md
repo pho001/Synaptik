@@ -3679,9 +3679,13 @@ for `[T,B,...]` or `BATCH_MAJOR` for `[B,T,...]`. It neither transposes values n
 physical [layout](#layout). The values builder requires explicit order, side and counts,
 snapshots counts at the setter, and validates geometry at build time without padding values.
 `LongSequenceBatcher` instead copies ordered long-array rows into one fresh INT64 heap Tensor,
-padding to their maximum length without truncation. Neither path executes a recurrent sequence
-or materializes/binds a runtime INT64 valid-length Tensor; LEFT support does not extend the scan's
-right-padded valid-prefix semantics. See the [Data sequence batching API](api/data-api.md).
+padding to their maximum length without truncation. Neither construction path executes recurrence
+or binds runtime inputs. The separate opt-in `PaddedSequenceBatch.toScanLengthsTensor()` copies
+RIGHT/TIME_MAJOR counts into a fresh ordinary canonical non-gradient heap INT64 `[B]` leaf,
+including empty B; it never reads or repacks values. The application binds that mutable export
+through existing NN/Engine APIs. Logical axis order does not prove physical layout or execution
+support, and LEFT support does not extend the scan's right-padded valid-prefix semantics.
+See the [Data sequence batching API](api/data-api.md#explicit-runtime-scan-lengths).
 
 ### Frozen whitespace tokenizer
 

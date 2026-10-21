@@ -126,8 +126,14 @@ weight storage alive through compute and reads the result before Engine and then
 
 There is no tokenizer interface, byte-pair encoding (BPE), vocabulary trainer, decode,
 persistence, normalization or automatic beginning/end token insertion. No recurrent neural
-network (RNN) binding is added: host counts do not become runtime length tensors, and left
-padding does not extend recurrent scans beyond their right-valid-prefix contract.
+network (RNN) binding is added by Text. A returned RIGHT/TIME_MAJOR Data batch can explicitly
+export a fresh INT64 length Tensor through
+[`toScanLengthsTensor()`](data-api.md#explicit-runtime-scan-lengths); Data still does not bind it
+or convert token IDs to floating features. The current fluent ModelBuilder accepts only floating
+inputs and has no Embedding recipe, so this export does not enable Text IDs → Embedding → scan
+in one builder chain. The [numeric inference example](data-api.md#complete-numeric-inference-example)
+starts with FLOAT32 features, not integer IDs. Left padding still does not extend recurrent scans
+beyond their right-valid-prefix contract, and no backpropagation through time (BPTT) support is added.
 
 The [owning Text contract](../architecture/contracts/extensions-training.md#extensionstext)
 and [owning Data contract](../architecture/contracts/extensions-training.md#extensionsdata)

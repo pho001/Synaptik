@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.data;
 
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,7 +34,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
-/** Exercises prefix geometry, reusable fluent state and exact non-owning Tensor borrowing. */
+/** Exercises unchanged interval geometry, borrowing and isolated opt-in runtime count exports. */
 final class PaddedSequenceBatchTest {
     @Test
     void exposesExactlyTheRecordAndPublicStaticFinalBuilderApi() throws NoSuchMethodException {
@@ -45,11 +46,12 @@ final class PaddedSequenceBatchTest {
                 Arrays.stream(PaddedSequenceBatch.class.getRecordComponents())
                         .map(component -> component.getType()).toList());
         assertEquals(1, PaddedSequenceBatch.class.getConstructors().length);
-        assertEquals(Set.of("values", "validLengths", "axisOrder", "paddingSide", "builder", "equals", "hashCode", "toString"),
+        assertEquals(Set.of("values", "validLengths", "axisOrder", "paddingSide", "builder", "equals", "hashCode", "toString", "toScanLengthsTensor"),
                 Arrays.stream(PaddedSequenceBatch.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .map(method -> method.getName()).collect(Collectors.toSet()));
-        assertEquals(8, PaddedSequenceBatch.class.getDeclaredMethods().length);
+        assertEquals(9, PaddedSequenceBatch.class.getDeclaredMethods().length);
+        assertEquals(Tensor.class, PaddedSequenceBatch.class.getMethod("toScanLengthsTensor").getReturnType());
         assertEquals(List.of(PaddedSequenceBatch.Builder.class),
                 Arrays.asList(PaddedSequenceBatch.class.getDeclaredClasses()));
         Class<?> builder = PaddedSequenceBatch.Builder.class;
@@ -73,6 +75,108 @@ final class PaddedSequenceBatchTest {
         assertEquals(4, PaddedSequenceBatch.class.getDeclaredFields().length);
         assertFalse(AutoCloseable.class.isAssignableFrom(PaddedSequenceBatch.class));
         assertFalse(AutoCloseable.class.isAssignableFrom(builder));
+    }
+
+    @Test
+    void exportsFreshCanonicalCountsWithIndependentMutableHeapStorageIncludingEmptyBatch() {
+        for (long[] counts : List.of(new long[] {3, 1, 0}, new long[0], new long[] {0, 0, 0},
+                new long[] {Long.MAX_VALUE, (long) Integer.MAX_VALUE + 1, 0})) {
+            long time = Arrays.stream(counts).max().orElse(Long.MAX_VALUE);
+            Tensor values = values(Shape.of(time, counts.length));
+            var batch = PaddedSequenceBatch.builder(values).rightPadded().timeMajor().validLengths(counts).build();
+            Tensor first = batch.toScanLengthsTensor(), second = batch.toScanLengthsTensor();
+            assertNotSame(first, second);
+            var a = first.hostStorage().orElseThrow();
+            var b = second.hostStorage().orElseThrow();
+            assertNotSame(a, b);
+            assertNotSame(a.segment(), b.segment());
+            assertFalse(a.segment().isNative());
+            assertTrue(a.isAlive());
+            assertFalse(a.isReadOnly());
+            assertEquals(counts.length, a.elementCapacity());
+            assertEquals(new TensorDescriptor(DataType.INT64, Shape.of(counts.length),
+                    Optional.of(LayoutDescriptor.contiguous(Shape.of(counts.length))), false), first.descriptor());
+            assertTrue(first.provenance().isEmpty());
+            assertArrayEquals(counts, a.segment().toArray(JAVA_LONG));
+            assertArrayEquals(counts, b.segment().toArray(JAVA_LONG));
+            if (counts.length > 0) a.segment().setAtIndex(JAVA_LONG, 0, -7);
+            assertArrayEquals(counts, batch.validLengths().toLongArray());
+            assertArrayEquals(counts, b.segment().toArray(JAVA_LONG));
+            assertArrayEquals(counts, batch.toScanLengthsTensor().hostStorage().orElseThrow().segment().toArray(JAVA_LONG));
+            assertSame(values, batch.values());
+            assertTrue(values.hostStorage().isEmpty());
+        }
+    }
+
+    @Test
+    void exportDoesNotAddDtypeGradientOrTrailingGeometryAdmission() {
+        Shape shape = Shape.ofDimensions(new StaticDimension(3), new StaticDimension(2),
+                new StaticDimension(0), new DynamicDimension("opaque"));
+        for (DataType type : DataType.values()) {
+            for (boolean grad : new boolean[] {false, true}) {
+                if (grad && !type.isDifferentiable()) continue;
+                var descriptor = new TensorDescriptor(type, shape, Optional.empty(), grad);
+                Tensor values = TensorFactory.create(descriptor);
+                var batch = PaddedSequenceBatch.builder(values).rightPadded().timeMajor().validLengths(3, 0).build();
+                assertArrayEquals(new long[] {3, 0}, batch.toScanLengthsTensor()
+                        .hostStorage().orElseThrow().segment().toArray(JAVA_LONG));
+                assertSame(descriptor, values.descriptor());
+                assertTrue(values.hostStorage().isEmpty());
+            }
+        }
+    }
+
+    @Test
+    void exportNeverReadsOrChangesBorrowedReadOnlyClosedOrReplacedValuesStorage() {
+        Tensor values;
+        HostTensorStorage storage;
+        var shape = Shape.of(3, 3);
+        var descriptor = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {1, 3}, 0, true)), true);
+        PaddedSequenceBatch batch;
+        try (Arena arena = Arena.ofConfined()) {
+            var segment = arena.allocate(36, 4);
+            segment.fill((byte) 0x5a);
+            storage = new MemorySegmentStorage(DataType.FLOAT32, 9, segment.asReadOnly());
+            values = TensorFactory.create(descriptor, Optional.empty(), Optional.of(storage));
+            batch = PaddedSequenceBatch.builder(values).rightPadded().timeMajor().validLengths(3, 1, 0).build();
+            byte[] before = segment.toArray(JAVA_BYTE);
+            batch.toScanLengthsTensor();
+            assertArrayEquals(before, segment.toArray(JAVA_BYTE));
+            assertSame(storage, values.hostStorage().orElseThrow());
+        }
+        assertFalse(storage.isAlive());
+        assertArrayEquals(new long[] {3, 1, 0}, batch.toScanLengthsTensor()
+                .hostStorage().orElseThrow().segment().toArray(JAVA_LONG));
+        assertSame(descriptor, values.descriptor());
+        assertSame(storage, values.clearHostStorage().orElseThrow());
+        batch.toScanLengthsTensor();
+        assertTrue(values.hostStorage().isEmpty());
+        Tensor derived = values.add(values);
+        var provenance = derived.provenance().orElseThrow();
+        PaddedSequenceBatch.builder(derived).rightPadded().timeMajor().validLengths(3, 1, 0)
+                .build().toScanLengthsTensor();
+        assertSame(provenance, derived.provenance().orElseThrow());
+        assertTrue(derived.hostStorage().isEmpty());
+    }
+
+    @Test
+    void exportRejectsSideBeforeAxesWithoutNeedingLiveValuesStorage() {
+        Tensor values;
+        try (Arena arena = Arena.ofConfined()) {
+            values = withStorage(Shape.of(3, 3),
+                    new MemorySegmentStorage(DataType.FLOAT32, 9, arena.allocate(36, 4)));
+        }
+        for (var order : SequenceAxisOrder.values()) {
+            var left = new PaddedSequenceBatch(values, ValidSequenceLengths.of(3, 1, 0), order, PaddingSide.LEFT);
+            assertEquals("Scan lengths require RIGHT padding",
+                    assertThrows(IllegalArgumentException.class, left::toScanLengthsTensor).getMessage());
+        }
+        var batchMajor = new PaddedSequenceBatch(values, ValidSequenceLengths.of(3, 1, 0),
+                SequenceAxisOrder.BATCH_MAJOR, PaddingSide.RIGHT);
+        assertEquals("Scan lengths require TIME_MAJOR axes",
+                assertThrows(IllegalArgumentException.class, batchMajor::toScanLengthsTensor).getMessage());
+        assertFalse(values.hostStorage().orElseThrow().isAlive());
     }
 
     @Test

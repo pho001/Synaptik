@@ -131,7 +131,7 @@ Draft rows without links have no detailed task brief.
 | [0021B](tasks/0021b-fixed-recurrent-scan-implementation-program.md) | Fixed recurrent-scan forward execution program | Complete | 0021A; Model0025E/0025F; Compiler0006A; CPU0027; Engine0021; CP0010/CP0011 Complete | CPU0028 scalar FLOAT32 forward baseline accepted 2026-10-20 after independent APPROVE and main's root gate; no NN migration/Data/BPTT. |
 | [0022](tasks/0022-runtime-length-recurrent-nn-api.md) | NN runtime-Tensor-length recurrent forward expressions | Complete | NN0020/0020C; NN0021B/CPU0028; Model0025E/0025F; Compiler0006A; Engine0021 — Complete | Accepted 2026-10-20 after Mencius final APPROVE and focused/module/Javadoc/Engine integration validation; additive forwardScan, no Data or compute/train/BPTT widening. |
 | [0022B](tasks/0022b-runtime-length-scan-model-workflow.md) | Runtime-length scan Model/builder inference workflow | Complete | 0022; 0028/0029; scan/Engine/persistence prerequisites Complete; approved inference-only contract enacted | Accepted 2026-10-20 after final independent code/docs approval and coordinator root gate: scan recipes/finalHidden, typed buildWithLengths and compute(first,second), including after loadGraph. |
-| 0022A | Data integration with NN runtime lengths | Draft | 0022B; Data0001/0002 architecture and valid-length contracts | Later decide host metadata/runtime-Tensor materialization and schema integration, without inventing a Data API here. |
+| [0022A](tasks/0022a-padded-numeric-sequence-inference.md) | Padded numeric sequence inference | Complete | NN0022/0022B/0028/0029; Data0001–0003 Complete; exact export approved | Accepted 2026-10-21 after independent APPROVE and main's source-matched architecture/root checkpoint; fresh count export and numeric reuse, no NN-to-Data edge, Text pipeline or BPTT. |
 | 0023 | Arbitrary dense validity-mask semantics | Draft | 0022/0022B; 0022A for Data integration; concrete attention/loss/recurrent consumer | Add a Boolean mask only for a proven holes-capable consumer, never as duplicate right-padding metadata or a skipped-work claim. |
 | 0024 | Typed model/recurrent/data integration checkpoint | Draft | 0020–0022; 0022B; 0022A; 0023 only if selected; Checkpoint model-state and Training publication readiness | Retain later Data integration, state/binding/checkpoint compatibility, variable batches, continuation and supported training handoff; no scan BPTT implied. |
 | [0025](tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) | Channels-first Conv1d, Conv2d, and Conv3d layers | Complete | 0020B; Model 0025G–0025H; Compiler 0006B and 0006B6; CPU 0008–0008A; Engine 0008 | Added rank-specific unary convolution layers/factory recipes with group-aware initialization, atomic inferred-channel binding, strict loading, and forward-only Conv3d boundary. |
@@ -144,20 +144,32 @@ Draft rows without links have no detailed task brief.
 
 ## Dependency DAG and authorized frontiers
 
+Authorized NN frontier: None. [NN0022A](tasks/0022a-padded-numeric-sequence-inference.md) is Complete,
+accepted 2026-10-21 for numeric F32 sequences at base `6eabea0c1ebf77b9bd8382855c7131eb89b52e04`.
+The user approved the exact opt-in Data length export on 2026-10-21; root/owning Data contract and
+ADR0044 enact the permission. No NN-to-Data dependency or new execution owner is authorized.
+The brief records all seven integration fields and main's approval/base/dependency/conflict checks.
+Parallel group None; serial clean implementation and independent Class C approval are complete.
+Main's source-matched architecture/root checkpoint and acceptance are complete; no new executor.
+Full fluent Text IDs → Embedding → scan has a separate upstream gap: ModelBuilder accepts only
+floating input, has no Embedding recipe and instantiates every recipe with the original input
+dtype. Select an independent NN integer-input/Embedding capability with explicit dtype transitions
+before promising that workflow; the length bridge alone does not deliver it. No Text frontier is opened.
+
 Completed NN0021A + Model0025E/0025F + Compiler0006A + CPU0027 + Engine0021 + CP0010/CP0011
 → [CPU0028](../../backends/cpu/tasks/0028-fixed-recurrent-scan-forward-execution.md)
 → [NN0021B](tasks/0021b-fixed-recurrent-scan-implementation-program.md), all Complete.
 Main accepted independent approval and the final root gate on 2026-10-20; task briefs own evidence
 and base metadata. Parallel group None; main owns integration/shared documents.
-Current authorized NN/CPU/Data frontiers: None; Data0001–0003 are Complete in the
-[Data plan](../data/master-plan.md); Text0001 is Ready in the [Text plan](../text/master-plan.md). No new NN production type,
+Current authorized NN/CPU/Data frontiers: None. Data0001–0003 are Complete in the
+[Data plan](../data/master-plan.md); Text0001 is Complete in the [Text plan](../text/master-plan.md). No new NN production type,
 Data/static-API migration or BPTT is authorized; CPU0028 records the delivered baseline and exclusions.
 
 Completed 2026-10-20: completed scan/cell/Engine prerequisites →
 [NN0022 Complete](tasks/0022-runtime-length-recurrent-nn-api.md) (NN-only) →
-[NN0022B Complete](tasks/0022b-runtime-length-scan-model-workflow.md) (Model/builder inference) → NN0022A Draft
-(Data integration, also requires Data0001/0002) → later NN0024 checkpoint. NN0023 retains its
-concrete-consumer gate and NN0022A when Data is involved. NN0022A/0023/0024 remain Draft; no automatic launch.
+[NN0022B Complete](tasks/0022b-runtime-length-scan-model-workflow.md) (Model/builder inference) → NN0022A Complete
+(numeric Data integration, Data0001–0003 Complete and export approved) → later NN0024 checkpoint. NN0023 retains its
+concrete-consumer gate and NN0022A when Data is involved. NN0023/0024 remain Draft; no automatic successor launch.
 NN0022 records all seven integration fields at base `2d1c1d6d0867a0bebda34e9177ad52ba9f13071a`;
 parallel group None, serial implementation/review/integration, main owns shared documents. Exact
 signatures and descriptor-only atomic first-scan initialization (including T/B=0) are accepted;
@@ -172,8 +184,8 @@ HEAD=origin/main `2d1c1d6d0867a0bebda34e9177ad52ba9f13071a` plus accepted dirty 
 not a merged predecessor. Independent contract/code/docs reviews and the coordinator's source-matched
 root test/Javadoc gate passed; the brief owns exact evidence, including cached tasks and the unrelated
 integration assumption skip. Main owns shared-document integration; parallel group None.
-Current NN/CPU frontiers: None; Data's frontier is recorded separately above.
-NN0022A/0023/0024 remain Draft. No capability follow-up remains;
+At NN0022B completion, NN/CPU frontiers were None; the subsequent NN0022A frontier is now closed.
+NN0023/0024 remain Draft. No NN0022B capability follow-up remains;
 no Data/type/format/backend or BPTT widening, automatic successor launch or new execution pipeline.
 
 Engine0021 + Training0007 + Compiler0008 + Checkpoint0008 + Training0008 → NN0028.
@@ -322,7 +334,8 @@ Exact metadata and 2026-10-14 dependency/base/contracts/review/conflict verifica
 - Complete: NN0021B/CPU0028 canonical FLOAT32 scalar forward execution; evidence in the briefs.
   Complete: NN0022 additive runtime-length expressions after final review and validation;
   Complete: NN0022B Model/builder inference after independent reviews and the coordinator root gate (2026-10-20).
-  0022A/0023/0024 remain Draft, with no automatic launch. Audit repair 0025B is Complete.
+  NN0022A is Complete for numeric inference after independent APPROVE and main's architecture/root gate;
+  0023/0024 remain Draft. Audit repair 0025B is Complete.
 - Complete: NN0026 with final independent reviews and coordinator validation.
   NN0027 remains Draft; CP0005B is Complete. Engine0020's completed layout cutover does not
   authorize NN execution.
@@ -332,7 +345,7 @@ Exact metadata and 2026-10-14 dependency/base/contracts/review/conflict verifica
 - NN0027 is the earlier Draft recurrent follow-up, held with CP0005C/Training0006 held as an optional older proposal,
   not a prerequisite of NN0028; no scan/backend BPTT/Data gate.
 - NN0021B is accepted after CPU0028's independent approval and main's root gate (2026-10-20).
-  Current authorized NN/CPU/Data frontiers: None; Data0001–0003 are Complete and Text0001 is Ready. Model 0032 is Complete; the [roadmap](../../roadmap.md)
+  Current NN frontier: None; NN0022A, Data0001–0003 and Text0001 are Complete. Model 0032 is Complete; the [roadmap](../../roadmap.md)
   owns current cross-area frontiers.
 - Completed NN work used recorded roadmap interleaves. NN 0016/0017 were a bounded parallel pair,
   and 0025/0025A were an explicit out-of-order convolution branch ahead of unrelated Draft
@@ -362,12 +375,13 @@ dependency plans, and roadmap above.
   outside that capability; no Data/NN migration or BPTT is implied.
 - **0022A Data gate:** [Data0001](../data/tasks/0001-data-extension-boundary.md) is Complete for
   the empty Data-only foundation; Data0002/0003 are Complete for host metadata and integral batching,
-  not runtime binding. Text's sole Data API edge is approved and Text0001 is Ready; Vision still needs
+  not runtime binding. NN0022A's opt-in export is Complete after independent approval and main's
+  architecture/root checkpoint. Text's sole Data API edge is approved and Text0001 is Complete; Vision still needs
   a separate module/edge decision. Ordinary right padding
   has one canonical valid length per batch row; padding lengths and dense masks are derived, not
   stored second sources of truth. NN0022 needs no Data module and retains existing static APIs;
-  NN0022B is Complete for approved Model/builder inference before Draft NN0022A; neither NN-only task depends on Data.
-  NN0022A retains later integration rather than blocking them.
+  NN0022B is Complete for Model/builder inference before NN0022A; neither NN-only task depends on Data.
+  NN0022A now authorizes only the approved export and numeric integration, not fluent Text or BPTT.
 - **Scan boundary:** specific runtime length values must not change Model topology or compiled
   graph structure. Invalid lengths fail before published-result mutation, padded coordinates are
   not recurrent inputs, and dense masking must not be described as skipped recurrent work. Static

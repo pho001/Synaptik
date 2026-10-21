@@ -112,9 +112,31 @@ heap-backed, contiguous offset-zero rank-two INT64 non-gradient leaf, `[T,B]` or
 no caller list/arrays. Zero-size outputs use ordinary empty heap storage. Factory failures propagate;
 Data adds no native allocation, Arena, close protocol, storage owner or execution lifecycle.
 
-Host metadata is not a runtime graph input. Materializing and binding
-rank-one non-gradient `INT64` Tensor lengths is a separate lifecycle decision; neither Data's
-foundation nor host metadata grants it. Existing Model storage/Tensor ownership, NN static
+Host metadata is not a runtime graph input. The implemented additive export on the existing record is
+exactly `public Tensor toScanLengthsTensor()`. It checks
+`paddingSide == RIGHT` first, then `axisOrder == TIME_MAJOR`, throwing `IllegalArgumentException`
+for LEFT or BATCH_MAJOR before Tensor creation, output allocation or storage access. It does not
+convert either representation or widen scan semantics.
+
+Each successful call allocates through public `TensorFactory.allocate` and fills writable public
+Model host storage directly from immutable valid counts in original row order. The result is a
+fresh non-null ordinary heap-backed, provenance-free INT64 `[B]` leaf, canonical contiguous,
+offset-zero, non-view and `requiresGrad=false`; B=0 returns fresh ordinary empty heap storage.
+O(B) allocation and copying of counts are explicit. No mutable export is cached: mutating one
+result cannot change metadata or another export. Model factory failures propagate.
+
+This opt-in method never reads values storage or checks its liveness, copies/reorders/repackages
+sequence contents, or changes values descriptors, gradient flags or storage associations. All
+constructor geometry and accessor contracts above remain unchanged, including unrestricted
+Model-valid dtype/layout/provenance, opaque trailing dimensions and zero extents. Export therefore
+also works with storage-free values; it does not certify numeric execution support or exact Model
+input compatibility. The application retains ordinary Tensors for synchronous computation and
+performs existing public NN/Engine binding itself. No graph input protocol, native allocation,
+device transfer, close protocol, resource owner or execution owner is added. First integration is
+canonical FLOAT32 RIGHT/TIME_MAJOR numeric scan inference, not Text IDs/Embedding, LEFT or
+BATCH_MAJOR scans, or BPTT.
+
+Existing Model storage/Tensor ownership, NN static
 length APIs, runtime recurrent-scan semantics, Training and Engine execution remain unchanged.
 Data owns no execution, optimizer, persistence, file loading, dataset/sampler/epoch lifecycle,
 tokenization, image semantics, device transfer, or new Tensor/storage lifetime.

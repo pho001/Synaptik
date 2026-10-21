@@ -18,6 +18,8 @@ The unpublished `RightPaddedSequenceBatch` has been replaced, without a compatib
 Migrate to `PaddedSequenceBatch`, add `PaddingSide.RIGHT` as the fourth constructor argument,
 or add `.rightPadded()` to the values builder to retain the previous prefix semantics.
 Use `LongSequenceBatcher` when Data should allocate and pad values rather than only declare metadata.
+For RIGHT/TIME_MAJOR batches, explicitly call `toScanLengthsTensor()` to copy counts into an
+ordinary runtime input. The application, not Data, passes values and lengths to NN or Engine.
 
 These types are in `io.github.pho001.synaptik.data`, Gradle project `:extensions:data`. Data exports
 the public Model dependency used by its Tensor signatures. The
@@ -177,9 +179,111 @@ The batch fixes references, not Tensor contents, and adds no readiness, lifetime
 guarantee for Tensor access. See [host storage](../glossary.md#host-storage).
 
 Metadata wrapping does not pad or allocate values; LongSequenceBatcher below performs that work.
-Neither path truncates input. Host lengths are not a
-runtime graph input: this API neither creates nor binds an INT64 length Tensor and adds no NN
-batch-compute overload. Padding lengths and dense masks are derived concepts, not stored fields.
+Neither path truncates input. Host lengths are not themselves a runtime graph input.
+The opt-in export below creates an ordinary INT64 length Tensor but does not bind it or add an
+NN batch-compute overload. Padding lengths and dense masks are derived concepts, not stored fields.
+
+## Explicit runtime scan lengths
+
+`public Tensor PaddedSequenceBatch.toScanLengthsTensor()` exports valid counts in original row
+order. It checks RIGHT padding first, then TIME_MAJOR logical axes. LEFT or BATCH_MAJOR throws
+`IllegalArgumentException` before Tensor creation, allocation or storage access; neither order nor
+side is converted. Logical TIME_MAJOR order alone does not prove canonical physical layout.
+
+Every successful call allocates a fresh, non-null ordinary heap-backed INT64 `[B]` leaf through
+public `TensorFactory.allocate`, then fills its writable Model host storage directly from counts.
+The result is provenance-free, canonical contiguous, offset-zero, non-view and `requiresGrad=false`.
+B=0 returns a fresh Tensor with fresh empty heap storage. Allocation and count copying cost O(B);
+there is no cached mutable export. Mutating an export cannot change immutable counts or another
+export. Model allocation failures, including identifier exhaustion and heap exhaustion, propagate.
+
+Only counts are copied. Export never reads values storage or checks its liveness, copies or repacks
+sequence contents, changes descriptors or gradient flags, or attaches/replaces storage. It works
+even for storage-free values or values whose former storage scope has closed. The constructor's
+broader geometry contract remains unchanged, including every Model-valid dtype/layout/provenance,
+opaque trailing dimensions, zero extents and `long` time/count values up to `Long.MAX_VALUE`.
+Export success is not execution admission.
+
+The caller passes ordinary Tensors to existing `model.compute(values, lengths)`. Both must match
+the Model's exact input descriptors and have usable storage free from conflicting mutation for the
+whole synchronous call. Heap lengths have ordinary garbage-collected lifetime: no Arena, close
+protocol, native allocation, device transfer or new resource owner is introduced. Compute returns
+detached results; Model and Engine retain their existing close and preparation responsibilities.
+
+## Complete numeric inference example
+
+This runnable Java program processes sequences `[1,2,3]` and `[10,20]` in original row order.
+Use the repository JDK 26 and an application classpath containing Data, NN and Engine with its
+standard backend/runtime dependencies (including tools used by the standard composition).
+Compile and run with `--add-modules jdk.incubator.vector`; also pass
+`--enable-native-access=ALL-UNNAMED` to `java`. Those application dependencies add no Data-to-NN edge.
+
+Save as `ScanExample.java`:
+
+```java
+import io.github.pho001.synaptik.data.PaddedSequenceBatch;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.module.Model;
+import java.util.Optional;
+
+public class ScanExample {
+    public static void main(String[] args) {
+        var shape = Shape.of(3, 2, 1);
+        var descriptor = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        Tensor values = TensorFactory.fromFlatArray(descriptor, Optional.empty(),
+                new float[] {1, 10, 2, 20, 3, Float.NaN});
+        var batch = PaddedSequenceBatch.builder(values).timeMajor().rightPadded()
+                .validLengths(3, 2).build();
+        try (var model = Model.builder().input(DataType.FLOAT32, 3, 2, 1).seed(42)
+                .rnnScan(4).finalHidden().linear(1).buildWithLengths()) {
+            var result = model.compute(batch.values(), batch.toScanLengthsTensor());
+            if (!result.shape().equals(Shape.of(2, 1))) throw new AssertionError(result.shape());
+            float first = result.bytes().getFloat(0);
+            float second = result.bytes().getFloat(Float.BYTES);
+            if (!Float.isFinite(first) || !Float.isFinite(second)) throw new AssertionError("Padding leaked");
+            System.out.println(result.shape());
+            System.out.println(first + ", " + second);
+        }
+    }
+}
+```
+
+The canonical FLOAT32 `[T,B,F] = [3,2,1]` Tensor stores time slices `[1,10]`, `[2,20]`,
+`[3,NaN]`. `fromFlatArray` copies these values during Model Tensor construction; wrapping and
+exporting counts never copy them again. Counts `[3,2]` exclude the NaN padded suffix from recurrence.
+`rnnScan(4)` produces dense hidden values `[3,2,4]`; `finalHidden()` selects each row's semantic
+final state `[2,4]`, and `linear(1)` produces one score per row, `[2,1]`.
+With seed 42, the qualified CPU route gives finite scores approximately
+`[-0.47897735, -0.6437197]`. These are untrained model outputs, not calibrated predictions.
+
+`gruScan(4)` and `lstmScan(4)` use the same values/lengths workflow. Without `finalHidden()` the
+scan returns dense `[T,B,H]`, not compact outputs; `lastTimeStep()` selects `T-1`, not each row's
+last valid transition. A zero-length row returns its zero initial hidden state at the scan's
+final-state port, although an ordinary classifier bias can subsequently make its score nonzero.
+
+Keep the same Model open to reuse its preparation for fresh values and counts at the same static
+signature. Every replacement must match shape, dtype, layout presence/geometry and gradient
+eligibility exactly; changing counts does not authorize arbitrary T, B or F. For direct Engine
+reuse, prepare once and pass fresh values in `compiled.inputs()` order to `runValues`; preserve
+caller storage until its `RunResult` closes. Data performs neither binding nor preparation.
+
+This first execution slice is inference-only, canonical contiguous offset-zero non-view FLOAT32
+`[T,B,F]` with `requiresGrad=false`, RIGHT/TIME_MAJOR metadata and positive static T/B/F for the
+fluent builder, using existing scalar CPU scan kernels. Empty count export does not widen that
+builder contract; advanced zero-T/B scans remain separate. Expression scan outputs retain unresolved
+Model layout and gradient eligibility from their floating roles (including trainable parameters).
+Lengths never contribute gradients; detached compute results do not imply backpropagation through
+time (BPTT) support. No flags are cleared to bypass admission.
+
+Export does not enable a fluent Text IDs → Embedding → scan chain. ModelBuilder input is currently
+floating-only, has no Embedding recipe and instantiates recipes with the original input dtype.
+That integer-to-floating transition needs a separately selected NN capability.
 
 ## Integral sequence batching
 
@@ -227,7 +331,7 @@ span uses checked long arithmetic, not an int byte cap. Invalid geometry throws
 `IllegalArgumentException`; Model allocation failures, including heap exhaustion, propagate.
 
 LEFT metadata does not extend recurrent scans: they still require valid prefixes with right padding.
-No host-length runtime binding, tokenization, execution, or persistence is added.
+The explicit count export above does not add runtime binding, tokenization, execution or persistence.
 
 ## Related contracts
 

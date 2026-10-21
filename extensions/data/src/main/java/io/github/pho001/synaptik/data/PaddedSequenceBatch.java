@@ -1,9 +1,15 @@
 package io.github.pho001.synaptik.data;
 
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.lang.foreign.ValueLayout;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Declares valid intervals for an existing, already ordered and padded sequence tensor.
@@ -22,6 +28,10 @@ import java.util.Objects;
  * for tensor access. Record-generated equality and hashing use Tensor object identity, structural
  * lengths and both enum identities, never tensor contents. Record-generated diagnostic text contains only
  * component metadata and is not a serialization format.</p>
+ *
+ * <p>{@link #toScanLengthsTensor()} explicitly copies counts into a fresh ordinary heap Tensor
+ * for RIGHT/TIME_MAJOR batches. Unlike construction and accessors, this opt-in export allocates;
+ * it neither reads sequence contents nor establishes compatibility with an execution input.</p>
  *
  * @param values non-null borrowed tensor retained exactly, with static leading time/batch axes
  * @param validLengths non-null immutable counts retained exactly in original batch-row order
@@ -122,6 +132,44 @@ public record PaddedSequenceBatch(
      */
     public PaddingSide paddingSide() {
         return paddingSide;
+    }
+
+    /**
+     * Materializes valid-prefix counts as an ordinary runtime scan input in original row order.
+     *
+     * <p>Checks RIGHT padding first, then TIME_MAJOR axes, before creating a Tensor, allocating
+     * output storage or accessing storage. Each success allocates and copies O(B) counts directly
+     * from immutable metadata, preserving long time-step counts without narrowing. Values storage
+     * is never inspected, even for storage-free or closed values; no sequence data is validated,
+     * converted, reordered or copied, and values descriptors and gradient flags are unchanged.</p>
+     *
+     * <p>The mutable result is independent of this metadata and all earlier exports, including
+     * for B=0. No cache, native allocation, device transfer or close protocol is introduced.
+     * Callers retain the result for synchronous computation and satisfy ordinary Model storage
+     * obligations and exact input descriptors; export alone does not certify execution support.</p>
+     *
+     * @return a fresh non-null heap-backed, provenance-free, canonical contiguous offset-zero
+     *     non-view INT64 {@code [B]} leaf with {@code requiresGrad=false} and writable storage
+     * @throws IllegalArgumentException if padding is LEFT, checked first, or axes are BATCH_MAJOR
+     * @throws IllegalStateException if Model tensor identifiers are exhausted
+     * @throws OutOfMemoryError if Model heap allocation fails
+     */
+    public Tensor toScanLengthsTensor() {
+        if (paddingSide != PaddingSide.RIGHT) {
+            throw new IllegalArgumentException("Scan lengths require RIGHT padding");
+        }
+        if (axisOrder != SequenceAxisOrder.TIME_MAJOR) {
+            throw new IllegalArgumentException("Scan lengths require TIME_MAJOR axes");
+        }
+        Shape shape = Shape.of(validLengths.batchSize());
+        var descriptor = new TensorDescriptor(DataType.INT64, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        Tensor result = TensorFactory.allocate(descriptor);
+        var destination = result.hostStorage().orElseThrow().segment();
+        for (int row = 0; row < validLengths.batchSize(); row++) {
+            destination.setAtIndex(ValueLayout.JAVA_LONG, row, validLengths.length(row));
+        }
+        return result;
     }
 
     /**

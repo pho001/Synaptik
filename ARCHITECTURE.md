@@ -139,7 +139,10 @@ Data is authorized at physical `extensions/data`, Gradle `:extensions:data`, wit
 `io.github.pho001.synaptik.data`. The owning Data contract authorizes position-independent valid
 counts, explicit padding side/sequence-axis order, a borrowed padded batch and INT64 host sequence
 batching. The implemented padded API replaces the unpublished right-only API and supports
-left/right padding and INT64 host allocation.
+left/right padding and INT64 host allocation. The implemented opt-in
+`PaddedSequenceBatch.toScanLengthsTensor()` export materializes fresh ordinary heap INT64 counts
+for RIGHT/TIME_MAJOR batches only. Metadata construction
+and accessors remain allocation-free with respect to Tensors; Data gains no execution owner.
 Text is registered at `extensions/text`, Gradle `:extensions:text`, namespace
 `io.github.pho001.synaptik.text`, for a frozen whitespace tokenizer and Data-delegating batcher.
 Both are implemented. Vision remains separately gated.
@@ -452,7 +455,7 @@ briefs and maintained navigation adopt the exact scoped destinations:
 | CPU routes and generated JVM bytecode | [Backend execution — CPU backend routes](docs/architecture/contracts/backend-execution.md#cpu-backend-routes) |
 | Metal | [Backend execution — Metal backend](docs/architecture/contracts/backend-execution.md#metal-backend) |
 | OpenBLAS provider | [Backend execution — OpenBLAS provider](docs/architecture/contracts/backend-execution.md#openblas-provider) |
-| Data host counts, padded batches and integral sequence batching | [Extensions/training — `extensions/data`](docs/architecture/contracts/extensions-training.md#extensionsdata) |
+| Data host counts, padded batches, integral sequence batching and opt-in scan-length Tensor export | [Extensions/training — `extensions/data`](docs/architecture/contracts/extensions-training.md#extensionsdata) |
 | Frozen whitespace tokenization and Data-delegating text batching | [Extensions/training — `extensions/text`](docs/architecture/contracts/extensions-training.md#extensionstext) |
 | NN stateful composition, declarative reconstruction and retained old model persistence | [Extensions/training — `extensions/nn`](docs/architecture/contracts/extensions-training.md#extensionsnn) |
 | Owned Models, including inference-only runtime-length scan construction and compute | [Extensions/training — owned tensor Models](docs/architecture/contracts/extensions-training.md#owned-tensor-models) |
@@ -481,7 +484,7 @@ This compact routing summary does not replace the linked details:
 | Prepared schedules, residency, publication, and per-run mutable state | Runtime |
 | Explicit composition and public lifecycle | Engine |
 | Typed diagnostics | Trace |
-| Host numeric sequence preparation, without execution or new storage-lifecycle ownership | Data (`extensions/data`); INT64 batching implemented, broader numeric/sample batching deferred |
+| Host numeric sequence preparation, without execution or new storage-lifecycle ownership | Data (`extensions/data`); INT64 batching and opt-in scan-length export implemented, broader numeric/sample batching deferred |
 | Frozen vocabulary, whitespace tokenization and text-to-Data adaptation | Text (`extensions/text`); no NN or execution responsibility |
 | Stateful modules, parameters, buffers, train/eval behavior, declarative and owned tensor Models, model persistence | NN; composes public Engine/Training/Checkpoint owners, never another execution pipeline |
 | Generic live parameter admission, optimizer algorithms, explicit pre-session native parameter copies, and training orchestration | Training (`modules/training`, Gradle `:extensions:training`); NN owns its live Module adapter |

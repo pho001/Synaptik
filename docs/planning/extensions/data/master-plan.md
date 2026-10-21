@@ -28,7 +28,8 @@ Selected: shared LEFT/RIGHT representation, unchanged O(B) host-count API, and a
 Data never tokenizes, owns NN computation, runs Engine, allocates native resources, or adds a
 storage lifetime, runtime-length binding, loader/sampler/epoch lifecycle or persistence.
 Current scans still accept right-valid-prefix counts only; LEFT support is preparation metadata,
-not a scan capability change. NN0022A remains separately gated and Draft.
+not a scan capability change. The implemented NN0022A export only materializes counts for
+RIGHT/TIME_MAJOR batches; binding remains owned by the application.
 
 ## Module invariants and dependencies
 
@@ -37,7 +38,8 @@ sole Data API edge makes Text a downstream consumer; NN gains no Data/Text edge.
 Counts are independent of position: RIGHT means valid prefix, LEFT means valid suffix.
 Stored values never determine validity; padding lengths and dense masks are not second sources
 of truth. Generic metadata construction borrows Tensor references without storage inspection;
-only the selected integral batcher allocates fresh contiguous heap values.
+the integral batcher allocates fresh contiguous heap values. NN0022A additionally authorizes
+explicit fresh heap count export, without changing metadata construction or accessors.
 
 ## Package map
 
@@ -53,7 +55,13 @@ All types stay in `io.github.pho001.synaptik.data`:
 Data0001 → Data0002 → Data0003 → Text0001.
 Data0003 → deferred Data0005 (floating sequences) and Data0006 (equal-shape samples);
 Data0003 + Data0005 + Data0006 → Data0004 (broader batching checkpoint).
-Data0002 + NN0022B → separately Draft NN0022A; no automatic launch.
+Data0001–0003 + NN0022/0022B/0028/0029 Complete →
+[NN0022A numeric inference](../nn/tasks/0022a-padded-numeric-sequence-inference.md) Complete:
+accepted 2026-10-21 after independent APPROVE and main's architecture/root checkpoint.
+The approved Data-owned `PaddedSequenceBatch.toScanLengthsTensor()` export has no NN-to-Data edge.
+The NN0022A cross-area frontier is closed; no separate Data successor is opened.
+Its brief owns all seven integration fields, verified base `6eabea0c1ebf77b9bd8382855c7131eb89b52e04`,
+serial conflicts and main's integration ownership. Shared cutover documents have one exclusive writer.
 
 Authorized Data frontier: None. Data0003 is Complete after final independent APPROVE and local
 acceptance on 2026-10-20. The [Text program join](../text/tasks/0001-whitespace-tokenizer-and-data-batching.md#result)
@@ -73,8 +81,9 @@ completed on 2026-10-21; Text0001 is Complete and the Text frontier is None. No 
 ## Integration ownership and shared documents
 
 Main owns shared root/scoped authority, explanations, API references, glossary, roadmap, master
-plans and final integration plumbing. Implementation and independent review are complete;
-this final planning closure is the sole remaining writer.
+plans and final integration plumbing. NN0022A's serial independent documentation/review pass
+returned frozen source/docs to main; the source-matched architecture/root checkpoint passed.
+No Java executor remains active. The completed Data/Text program's ownership is recorded below.
 All seven integration fields live in each selected brief; Parallel group is None.
 The sole Data worker owns architecture consumer/dependency-test migration; the sole Text worker
 owns registration, Text enforcement and external integration test plumbing. Independent review
@@ -94,7 +103,8 @@ tests, builds, agents, commits or pushes.
 
 No architectural decision or local acceptance gap remains for Data0003; independent review and
 main acceptance are complete. Broader float/sample APIs, arbitrary masks and
-host-to-runtime-length binding remain future decisions. Training's former Data-lifecycle proposal
+binding protocols remain future decisions; the narrow opt-in count export is approved under
+[ADR0044](../../../design/decisions/0044-opt-in-scan-length-tensor-export.md). Training's former Data-lifecycle proposal
 is not satisfied by batching. Early checked geometry must reject enormous virtual lists before
 batch-sized snapshots or output allocation; caller-coordinated mutation avoids a transactional
 snapshot promise. Completed briefs remain historical evidence, not current architecture authority.
