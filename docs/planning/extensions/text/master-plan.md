@@ -2,287 +2,103 @@
 
 ## Goal
 
-Plan text-specific input preparation outside `extensions/nn`: deterministic vocabulary training,
-immutable tokenizer runtime state, durable tokenizer artifacts, reversible decoding where
-supported, and conversion of token sequences into the future Data extension's right-padded
-sequence batch.
+Add one frozen whitespace tokenizer and a fluent adapter that delegates integral padding to Data.
+Text prepares input; existing Embedding and Engine perform numerical computation externally.
+The user approved this bounded Class C direction on 2026-10-20. Text0001 is Complete, accepted
+2026-10-21 after independent code/documentation approvals and the final program join.
 
-Mental model:
+## Contracts and common base
 
-```text
-String values
-  -> Tokenizer
-  -> token-id sequences
-  -> text sequence batcher
-  -> Data-owned Tensor batch + valid sequence lengths
-  -> typed NN Model input
-```
+- [Root layout, scope index, ownership, dependencies and testing](../../../../ARCHITECTURE.md).
+- [Sole owning Text contract](../../../architecture/contracts/extensions-training.md#extensionstext)
+  and [shared Data contract](../../../architecture/contracts/extensions-training.md#extensionsdata).
+- [ADR 0043](../../../design/decisions/0043-whitespace-text-and-padded-integral-batches.md).
+- Common base: `ef35f2ec001b0c161d1abe825ff3be725b9be49e` plus accepted uncommitted
+  Data0001/Data0002, enacted Data/Text authority and accepted Data0003 including the iteration fix
+  and final documentation, plus accepted uncommitted Text0001; not merged predecessors.
 
-This is future planning only. `extensions/text` is not yet authorized by `ARCHITECTURE.md`, present
-in Gradle settings, or implemented.
+## Scope and non-goals
 
-## Architecture references
+Text0001 cohesively delivers `WhitespaceTokenizer` and `TextSequenceBatcher`, tests, Javadoc and
+focused API documentation. Vocabulary is an immutable ordered caller-supplied list; PAD=0, UNK=1,
+ordinary IDs begin at 2. No normalization, case folding, BOS/EOS, decoding, BPE, vocabulary
+training, persistence, artifact/fingerprint interface, corpus reader or predictor is selected.
+Those larger proposals remain deferred Draft and are not prerequisites of this capability.
+No Embedding behavior, scan semantics, runtime-length binding or BPTT extension is included.
 
-- [Architecture contract](../../../../ARCHITECTURE.md)
-- [Module boundaries](../../../architecture/module-boundaries.md)
-- [Dependency rules](../../../architecture/dependency-rules.md)
-- [Planning guide](../../planning-guide.md)
-- [Implementation roadmap](../../roadmap.md)
-- [Data master plan](../data/master-plan.md)
-- [NN master plan](../nn/master-plan.md)
+## Module invariants and dependencies
 
-## Scope
+Physical `extensions/text`, Gradle `:extensions:text`, flat package
+`io.github.pho001.synaptik.text`. Exactly `api(project(":extensions:data"))` is permitted in
+all configurations; public Model APIs are available through Data's existing export, not a second
+direct edge. No Text-to-NN/Engine/backend edge or NN-to-Data/Text edge is permitted.
+The external integration-test module gets Text only as `testImplementation` and composes its
+existing NN/Engine dependencies.
 
-- explicit tokenizer and immutable vocabulary contracts;
-- deterministic dynamic vocabulary construction through a separate mutable trainer/builder that
-  produces a frozen runtime vocabulary;
-- versioned tokenizer-artifact read/write with bounded validation and a stable fingerprint;
-- normalization and special-token policy owned by a concrete tokenizer;
-- token encoding and supported decoding without Tensor or NN knowledge in the tokenizer core;
-- text-specific right-padded batching that derives validity metadata automatically; and
-- later application-level prediction convenience only after the core boundaries and Engine are
-  stable.
+Whitespace means `Character.isWhitespace(int)` over code points, not a regex shorthand.
+Encoding preserves original case, punctuation and non-normalized UTF-16. A token ID equal to PAD
+is a stored value, not evidence of validity; valid counts and padding side belong to Data.
+Frozen IDs do not change after Embedding construction. Embedding row zero remains ordinary state.
 
-## Out of scope
+## Package map
 
-- embedding parameters or NN layers;
-- model topology, gradients, optimizers, training sessions, compiler/runtime/backend behavior;
-- a universal tokenizer algorithm, mandatory subword scheme, model download, remote vocabulary,
-  implicit plugin registry, or catch-all corpus/file parser;
-- automatic vocabulary growth after an Embedding or compatible checkpoint is created;
-- padding inside `Model.forward`, inference of padding from token value, or a padding-row mutation
-  policy for `Embedding`; and
-- a core NN dependency on Text.
+The selected production package contains exactly the two concrete public final types
+`WhitespaceTokenizer` and `TextSequenceBatcher`, plus the latter's nested Builder. No tokenizer
+interface, vocabulary object family, training/artifact/batching subpackages or generic pipeline
+is reserved without a concrete accepted need.
 
-## Module invariants
+## Dependency DAG and authorized frontiers
 
-- A tokenizer owns text normalization, vocabulary identity, token-to-ID mapping, supported
-  decoding, and the meaning of special tokens such as unknown, beginning/end, and padding.
-- Tokenizer output is ordinary host token data. It does not create NN parameters, choose an
-  embedding size, run a model, or define sequence recurrence.
-- The text batcher derives valid lengths from encoded sequences before padding. Users do not type,
-  synchronize, or pass a raw length array to ordinary model code.
-- Padding token identity and padding validity are separate facts. The padding token supplies a
-  stored value; the Data-owned valid lengths say how many leading positions are valid. A token
-  equal to the padding ID inside a valid prefix is governed by tokenizer policy and is never
-  reinterpreted by scanning the Tensor after batching.
-- `extensions/nn` never depends on Text. A typed `Model<I, O>` can accept a Data-owned batch or an
-  application record without importing tokenizer behavior.
-- Vocabulary training/building is separate from immutable runtime tokenization. Once built or
-  loaded, token IDs and special-token IDs are frozen before Embedding construction.
-- A tokenizer artifact persists the algorithm and schema versions, normalization policy, exact
-  token-ID order, special-token IDs, and algorithm data such as byte-pair-encoding merge order. A
-  token list alone is not sufficient.
-- Artifact loading validates the complete candidate, computes or verifies its canonical
-  fingerprint, and publishes no partially accepted tokenizer. Equal vocabulary sizes do not imply
-  compatibility; a different token-to-ID mapping must produce a mismatch.
-- Corpus-format readers supply text observations to a tokenizer trainer. They neither parse the
-  tokenizer artifact format nor participate in `Model.forward`.
-
-## Proposed dependencies
-
-Subject to the shared architecture task:
-
-```text
-modules/model
-  -> extensions/data
-  -> extensions/text
-```
-
-Text may depend on Data for the sequence batch and valid-length metadata and on Model only where
-its concrete batcher must create token Tensors. It must not depend on NN, Training, Compiler,
-Runtime, Prepare, Engine, or concrete backends. A later predictor convenience may live in a
-separate higher-level owner if it needs Engine; it must not broaden the tokenizer foundation's
-dependency.
-
-## Package structure
-
-Proposed after architecture acceptance:
-
-```text
-io.github.pho001.synaptik.text/
-  tokenization/  immutable tokenizer, vocabulary, special-token, encoding, and decoding contracts
-  training/      deterministic vocabulary/tokenizer training and freeze boundaries
-  artifact/      versioned bounded tokenizer artifact codec, fingerprint, and atomic file I/O
-  batching/      text-to-token-sequence and right-padded Data-batch adaptation
-  corpus/        later explicit corpus-format readers, separate from tokenizer artifact parsing
-```
-
-Do not add a generic `pipeline`, `processor`, `service`, `manager`, or model facade to the initial
-module.
+Data0001 Complete → Data0002 Complete → Data0003 Complete → Text0001 Complete.
+Authorized Text frontier: None. Main accepted Text0001 on 2026-10-21 after independent code and
+final documentation approvals and source-matched integration/root gates. The brief owns evidence
+and historical launch verification. No automatic successor or parallel writers.
 
 ## Task list
 
-| ID | Task | Status | Depends on | Summary |
+| ID | Task | Status | Depends on | Intent/result |
 |---|---|---|---|---|
-| 0001 | Immutable tokenizer, vocabulary, and special-token foundation | Draft | Data 0001 architecture boundary | Define immutable text normalization, token vocabulary, special-token, encode/decode, and canonical fingerprint roles without Tensor, NN, network, corpus-format, or file-I/O coupling. |
-| 0002 | Deterministic vocabulary and tokenizer training | Draft | 0001; one selected tokenizer algorithm | Add a separate mutable trainer/builder that observes caller-supplied text/token streams and freezes an immutable runtime artifact using fixed special IDs, frequency ordering, deterministic tie-breaking, size/frequency limits, and algorithm-specific state. |
-| 0003 | Tokenizer artifact persistence and loading | Draft | 0001–0002; selected bounded codec and durable-publication policy | Persist and restore the complete tokenizer artifact with format/algorithm versions, normalization, special IDs, exact token-ID order, optional merge rules, checksums, resource limits, and a canonical fingerprint; validate fully before returning an immutable tokenizer. |
-| 0004 | Explicit corpus-format readers | Draft | 0002; concrete line/CSV/JSON consumer | Add only selected bounded corpus readers that emit text observations; keep them separate from tokenizer-artifact parsing, batching, model definition, and an all-purpose dataset loader. |
-| 0005 | Text right-padding batch adapter | Draft | 0001; Data 0002–0003 | Encode caller Strings, apply explicit truncation/special-token policy, invoke focused Data batching, and return a Data-owned token Tensor batch whose canonical valid lengths are derived automatically. |
-| 0006 | Text model and tokenizer-checkpoint integration checkpoint | Draft | 0003, 0005; NN functional Model/lazy layers/genuine recurrent scan/runtime valid-length integration; Checkpoint model-input fingerprint boundary; required Engine execution capability for runnable claims | Validate build-or-load tokenizer flows, exact tokenizer fingerprint compatibility, and typed String-to-token-batch-to-Embedding/LSTM/classifier composition without specializing the graph to one batch's lengths. |
-| 0007 | Explicit vocabulary extension and state migration | Draft | 0003, 0006; concrete extension consumer; Training checkpoint state | Preserve every existing token ID, append new IDs only, expand Embedding rows and every affected optimizer slot explicitly, produce a new fingerprint, and reject silent in-place tokenizer growth. |
-| 0008 | High-level text predictor convenience | Draft | 0006; stable Engine/inference consumer | Reassess one optional application-level tokenizer + batcher + compiled-model convenience without moving text into NN or creating a broad pipeline facade. |
+| [0001](tasks/0001-whitespace-tokenizer-and-data-batching.md) | Frozen whitespace tokenizer and Data batch adapter | Complete | Data0003 Complete/accepted; main verification recorded | Accepted tokenizer/adapter, registration and enforcement after independent code/docs approvals and numerical/root gates. |
+| 0002 | Deterministic vocabulary/tokenizer training | Draft | 0001; separate selected algorithm and approval | Deferred; mutable observation remains separate from frozen runtime use. |
+| 0003 | Tokenizer artifact persistence/loading | Draft | 0002; selected complete format and compatibility policy | Deferred; no artifact or fingerprint in Text0001. |
+| 0004 | Explicit corpus-format readers | Draft | 0002; concrete format consumer | Deferred; no universal dataset/file loader. |
+| 0005 | Additional text batching policies | Draft | 0001; concrete additional need | Basic whitespace adaptation is incorporated into 0001; only additional policy remains deferred. |
+| 0006 | Broader model/artifact integration | Draft | 0003; separately selected runtime/checkpoint consumer | Text0001's direct Engine/Embedding proof is not a recurrent or persisted-tokenizer workflow. |
+| 0007 | Vocabulary extension/state migration | Draft | 0003, 0006; concrete extension consumer | Deferred explicit ID-preserving model/optimizer migration, never silent vocabulary growth. |
+| 0008 | High-level predictor convenience | Draft | 0006; separately approved higher-level owner | No Engine edge is granted to Text. |
 
-No detailed Text task exists. The first detailed task is created only after the architecture task
-is accepted and becomes the ordered implementation frontier.
+## Delivered example
 
-## Vocabulary and artifact lifecycle
-
-The planned lifecycle keeps mutable observation state out of inference:
-
-```text
-corpus reader or caller Strings
-  -> selected TokenizerTrainer / VocabularyBuilder
-  -> deterministic freeze
-  -> immutable TokenizerArtifact + fingerprint
-  -> immutable runtime Tokenizer
-```
-
-Special tokens receive fixed declared IDs first. Other IDs are assigned by the selected
-algorithm's documented deterministic order; a frequency-based vocabulary uses descending
-frequency and a stable Unicode/code-point tie-break. Minimum frequency and maximum size are
-explicit. The artifact records the exact resulting ID order rather than relying on rebuilding it
-from counts.
-
-Loading follows a distinct path:
-
-```text
-tokenizer artifact bytes
-  -> bounded parse and schema/algorithm validation
-  -> duplicate, contiguous-ID, special-token, and algorithm-state validation
-  -> checksum/fingerprint verification
-  -> immutable TokenizerArtifact
-  -> immutable runtime Tokenizer
-```
-
-These flows are planned and non-runnable. Neither flow constructs an Embedding. An application
-first freezes or loads the tokenizer, then uses its vocabulary size and fingerprint when it
-defines the model. Automatic observation or ID growth after that point is forbidden. A future
-extension operation must preserve old IDs and explicitly migrate Embedding and optimizer state.
-
-Artifact writing uses a sibling temporary target, bounded deterministic encoding, checksums and a
-manifest, durable flush behavior defined for the selected filesystem, then one validated rename.
-The implementation task must state whether an unavailable atomic rename fails or uses a visibly
-weaker mode; it must not silently promise crash atomicity.
-
-## Planned end-to-end example
-
-The following is conceptual planned API, not current runnable Synaptik code:
+Implemented API usage (with `List`, `WhitespaceTokenizer` and `TextSequenceBatcher` imported):
 
 ```java
-Tokenizer tokenizer = ...;
-TextSequenceBatcher batcher = TextSequenceBatcher.builder(tokenizer)
-        .layout(SequenceLayout.TIME_MAJOR)
-        .truncation(Truncation.limit(256))
-        .build();
-
-RightPaddedSequenceBatch hostBatch = batcher.batch(List.of(
-        "Prvni veta",
-        "Druha podstatne delsi veta"));
-
-record TextOutput(Tensor logits) {}
-
-var model = Model.define(topology -> {
-    Embedding embedding = topology.addModule(
-            "embedding",
-            Embedding.initialized(
-                    tokenizer.vocabulary().size(), embeddingSize, dataType, random));
-    LstmSequence lstm = topology.addModule(
-            "lstm",
-            LstmSequence.lazy(hiddenSize, true, dataType, random));
-    Linear classifier = topology.addModule(
-            "classifier",
-            Linear.lazy(classCount, true, dataType, random));
-
-    return (RightPaddedSequenceInput input) -> {
-        Tensor embedded = embedding.forward(input.values());
-        LstmSequenceForwardResult encoded =
-                lstm.forward(embedded, input.validLengths());
-        return new TextOutput(classifier.forward(encoded.finalHidden()));
-    };
-});
+var tokenizer = WhitespaceTokenizer.of(List.of("Hello", "world"));
+var batcher = TextSequenceBatcher.builder(tokenizer).leftPadded().batchMajor().build();
+var batch = batcher.batch(List.of("Hello world", "missing"));
+// INT64 values [[2,3],[0,1]], valid counts [2,1], LEFT, shape [2,2].
 ```
 
-Interpretation:
+Unknown text becomes UNK=1; Data inserts PAD=0 on the left. Choosing `.rightPadded()` changes
+the second row to `[1,0]`. A caller builds an existing Embedding with four vocabulary rows and
+executes `engine.compute(embedding.forward(batch.values()))`; row zero is gathered normally.
+This is not a claim that LEFT metadata can be passed to the current right-prefix scan.
 
-- tokenizer vocabulary size, embedding size, recurrent hidden size, and class count are genuine
-  architecture or text-schema choices;
-- batch size, maximum time, valid prefix per row, LSTM input width, and classifier input width are
-  derived by batching or lazy binding;
-- the batcher, not the model, inserts padding and records canonical valid lengths;
-- `hostBatch.validLengths()` is planned immutable host metadata, while the intentionally unnamed
-  future binding step supplies both components of conceptual `RightPaddedSequenceInput` as runtime
-  Tensors; the example does not pass the host value directly to the recurrent scan;
-- zero initial hidden/cell state is inferred by the planned recurrent convenience;
-- backward is absent from the model definition because compiler/training owns it; and
-- Text/Data APIs and the complete batch-to-recurrent convenience in this example do not exist.
-  Current Synaptik does have an Engine execution pipeline and lower-level fixed recurrent-scan
-  semantics; those do not make this proposed end-to-end example runnable. Follow the NN master
-  plan for lazy-layer, runtime-length, and concrete-backend integration status. Current static
-  recurrent containers use explicit initial states and a Java `long[]`.
+## Integration ownership and shared documents
 
-The tokenizer creation hidden by `...` is one of these two planned, non-runnable paths:
+Main coordinates shared authority/docs integration, independent review and the final external
+integration/root checkpoint. The sole Text worker owns source/tests, module Javadoc, registration,
+architecture enforcement and external integration plumbing. After that worker stops, independent
+targeted review finalized the API guide, shared glossary and indexes and
+checked the actual diff without rerunning successful Java suites. Both selected briefs carry the
+accepted dirty chain and all seven integration fields; Parallel group None. Main's final
+source-matched root test and Javadoc gates passed at the Text program join after implementation,
+independent review and external numerical integration; evidence is in Text0001 Result.
 
-```java
-TokenizerArtifact artifact = tokenizerTrainer.train(corpusReader.documents());
-TokenizerArtifacts.write(tokenizerPath, artifact);
-Tokenizer tokenizer = artifact.tokenizer();
+## Milestones and risks
 
-TokenizerArtifact loaded = TokenizerArtifacts.read(tokenizerPath);
-Tokenizer tokenizer = loaded.tokenizer();
-```
-
-The tokenizer artifact remains Text-owned. A model or training checkpoint records and validates
-its fingerprint but does not parse tokenizer files or make Checkpoint depend on Text.
-
-## Current status
-
-Draft planning only. The user authorized planning this future program, not architecture edits
-or Gradle project creation. Data 0001 is the explicit prerequisite, not an obsolete global CPU
-frontier.
-
-## Open questions
-
-- Select the first concrete tokenizer algorithm and the exact deterministic token/merge ordering.
-- Select the bounded tokenizer artifact encoding and its maximum bytes, token count, token length,
-  and algorithm-state limits.
-- Decide whether an optional predictor has a concrete consumer and belongs in a separate
-  downstream application owner; the existing Engine facade does not authorize an Engine
-  dependency from the tokenizer foundation.
-
-## Decisions made
-
-- Tokenizer and batching stay outside NN and Model forward computation.
-- Tokenizer owns the padding token; Data owns canonical valid lengths and layout.
-- Users do not manually construct sequence lengths for ordinary text batching.
-- A dense Boolean mask is derived only for a concrete consumer and is never stored beside valid
-  lengths as a second source of truth.
-- A predictor is later convenience, not part of the core typed Model or tokenizer foundation.
-- Vocabulary/tokenizer training is mutable and separate from immutable runtime use.
-- The full tokenizer artifact, not only token Strings, is the persistence unit and owns a canonical
-  fingerprint.
-- A vocabulary is frozen before Embedding construction. Same-size/different-mapping artifacts are
-  incompatible, and later growth requires an explicit ID-preserving model/optimizer migration.
-- Tokenizer artifact parsing and corpus-format reading are distinct packages and tasks.
-
-## Risks
-
-- Combining tokenizer, batching, Model, Engine, and prediction in one facade would create a god
-  object and reverse otherwise clean dependencies.
-- Inferring validity by searching for a padding token would conflate stored token values with
-  batch metadata and mishandle valid occurrences.
-- Presenting the conceptual runtime `input.validLengths()` call as runnable before input binding
-  and recurrent scan exist would hide the exact lifecycle gap that prevents graph reuse today.
-- An underspecified tokenizer artifact could restore token Strings while silently changing
-  normalization, special IDs, merge order, or token-to-ID mapping.
-- A mutable runtime vocabulary could invalidate Embedding row meaning and optimizer slots without
-  changing their Shapes enough for ordinary state validation to notice.
-- An unbounded artifact or corpus parser could allocate excessive memory or accept corrupt IDs
-  before validation.
-- Conceptual planned examples can be mistaken for implemented API unless every occurrence stays
-  labelled.
-
-## Notes
-
-This master plan is non-authoritative future coordination. The architecture contract wins.
+Complete: registered Text module, concrete frozen tokenizer, Data delegation and numerical program
+join using accepted integral batching. Future training/artifact/corpus/predictor work
+requires its own concrete selection; its old speculative package/lifecycle design is not authority.
+Do not infer normalization or special-token spellings, reimplement Data padding, grow IDs silently,
+or present host lengths as runtime graph inputs. Same-size vocabularies can have different ID
+meanings; Text0001 makes no persistence compatibility claim.

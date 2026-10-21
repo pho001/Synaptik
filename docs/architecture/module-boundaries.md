@@ -264,6 +264,70 @@ Backends may consume model, config, planning, runtime, prepare, backend-contract
 
 ## Extensions
 
+### `extensions/data`
+
+The [Data contract](contracts/extensions-training.md#extensionsdata) authorizes a host numeric
+sample/sequence preparation boundary with only a Model API dependency. Its initial foundation
+added no production types or batching API; build registration and enforcement belong to
+[Data0001](../planning/extensions/data/tasks/0001-data-extension-boundary.md).
+
+The implemented [Data sequence batching API](../api/data-api.md) provides copied host
+`ValidSequenceLengths`, logical `SequenceAxisOrder`, explicit `PaddingSide` and a
+`PaddedSequenceBatch` record borrowing an existing Tensor. The record replaces the unpublished
+right-only type without a compatibility alias. For caller-supplied values of Shape `[4,3]`,
+the fluent form is:
+
+```java
+var batch = PaddedSequenceBatch.builder(values)
+        .timeMajor().rightPadded().validLengths(3, 2, 1).build();
+```
+
+The lengths describe valid prefixes in the three original rows and derive padding lengths
+`[1,2,3]`. `.batchMajor()` instead requires values of Shape `[3,4]`; neither choice transposes or
+copies data. Axis order, side and counts must be selected explicitly. `.leftPadded()` instead
+declares valid suffixes, without moving values. The reusable builder
+snapshots lengths at the setter and delegates geometry checks to the record constructor; it
+introduces no storage owner or pipeline. The direct constructor and immutable lengths remain
+available to advanced callers. Zeros are ordinary data: declaring lengths does not inspect or
+prove padding contents.
+
+`LongSequenceBatcher` requires an explicit padding value, side and order, then copies host long-array
+rows into one fresh contiguous INT64 heap Tensor through public Model allocation. It pads to the
+batch maximum without truncation, retains no caller arrays and introduces no close protocol.
+Incremental geometry checks reject oversized input before batch-sized metadata or output allocation;
+the cap is `Integer.MAX_VALUE` elements, not bytes. For input rows `[2,3]` and `[1]`, left/batch-major
+padding with zero produces `[[2,3],[0,1]]` and counts `[2,1]`. Data owns numeric placement, not token
+meaning, model execution or runtime length binding. Floating/sample batching remains deferred.
+
+Neither metadata construction path reads host storage or promises its liveness. Passing host counts as
+if it were the scan's runtime `INT64` Tensor would confuse preparation metadata with execution
+binding; no runtime binding or recurrence occurs. Model retains Tensor/storage semantics;
+NN, Training and Engine retain their existing roles. [ADR 0042](../design/decisions/0042-data-extension-boundary.md) explains the empty foundation
+and why exporting Model does not require a placeholder Data type.
+
+The shared left/right design preserves descriptor-only metadata checks independently of allocation.
+[ADR 0043](../design/decisions/0043-whitespace-text-and-padded-integral-batches.md) explains this
+migration and the implemented Text consumer. LEFT preparation does not
+widen the scan's right-padded valid-prefix contract.
+
+### `extensions/text`
+
+The implemented [Text API](../api/text-api.md) follows the
+[Text contract](contracts/extensions-training.md#extensionstext): a concrete frozen
+whitespace tokenizer and Data-delegating adapter. Text exports
+only Data; Model is available transitively. Text owns token-ID meaning, while Data owns counts,
+padding side, axes and numeric preparation. Neither Text nor Data runs a model.
+
+For vocabulary `["Hello", "world"]`, left-padded rows for `"Hello world"` and `"missing"`
+are `[[2,3],[0,1]]`, with counts `[2,1]`. This preserves case and uses UNK=1 for an unknown run.
+An application can compose the resulting Tensor with unchanged Embedding and public Engine;
+the external integration project verifies actual numerical values, including an ordinary
+nonzero PAD row. Adding NN/Engine to Text to perform this work would reverse the boundary.
+LEFT preparation does not change the scan's right-prefix semantics or bind host counts at runtime.
+See [ADR 0043](../design/decisions/0043-whitespace-text-and-padded-integral-batches.md) for migration
+and the [Text API example](../api/text-api.md#complete-example) for caller-owned composition.
+Vision remains separately gated.
+
 ### `extensions/nn`
 
 Owns stateful neural-network composition: `Module`, `Parameter`, `Buffer`, module-tree traversal,

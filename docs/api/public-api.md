@@ -119,6 +119,24 @@ compatibility.
 
 ## Current public contracts
 
+The implemented `extensions:data` surface pairs existing Tensor values with immutable host
+`ValidSequenceLengths`, logical `SequenceAxisOrder` and explicit `PaddingSide` in a
+`PaddedSequenceBatch` record, replacing the unpublished right-only type without an alias.
+Its values builder requires explicit order, side and counts, copies counts at the setter, and
+validates geometry without inspecting Tensor contents. Direct record construction remains available.
+`LongSequenceBatcher` instead allocates one fresh INT64 heap Tensor and pads ordered long-array
+rows to their maximum length, on either side and in either axis order, without truncation.
+Neither path binds runtime length inputs or changes recurrent-scan semantics; see the
+[Data sequence batching API](data-api.md) for construction, ownership and failures.
+
+The implemented `extensions:text` surface contains final `WhitespaceTokenizer` and
+`TextSequenceBatcher` in one flat package. The tokenizer freezes ordered ordinary IDs from 2,
+reserves padding (PAD)=0 and unknown (UNK)=1, and splits exact strings using
+`Character.isWhitespace(int)`. The adapter requires explicit padding side and axis order,
+encodes each row once and delegates all numeric batching to Data. Text exports only Data,
+with Model transitive; NN/Engine composition belongs to the caller. PAD selects an ordinary
+Embedding row, not a mask or a frozen zero row. See the [Text API](text-api.md) for a complete example.
+
 The implemented `extensions:nn` declarative boundary adds `ModelSpecification` and
 `DeclarativeModel` in `nn.module`, plus closed `Activation` in `nn.layers`. Describe a
 bound supported Sequential, reconstruct an evaluation-mode descriptor-only skeleton, then

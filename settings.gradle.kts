@@ -14,6 +14,8 @@ include(
     ":backends:cpu",
     ":backends:metal",
     ":backends:cuda",
+    ":extensions:data",
+    ":extensions:text",
     ":extensions:nn",
     ":extensions:training",
     ":extensions:checkpoint",

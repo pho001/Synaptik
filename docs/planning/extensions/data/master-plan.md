@@ -2,256 +2,99 @@
 
 ## Goal
 
-Plan a narrow host-side numeric batching boundary. It stacks compatible equal-shape samples and
-converts caller-owned variable-length numeric sequences into Tensor values plus explicit
-valid-length metadata. The extension keeps batch construction outside an NN `Model` while letting
-model code receive one self-describing batch value instead of manually maintained primitive length
-arrays.
+Prepare numeric host sequences outside NN computation. The delivered slice pads caller
+`long[]` rows into one INT64 Tensor with immutable valid counts, explicit side and logical axes.
+Broader floating-sequence and equal-shape sample batching remain deferred, not cancelled.
 
-Mental model:
+Data0001–0003 are Complete, accepted locally on 2026-10-20. Current code supplies immutable valid
+counts, explicit axes/side, borrowed `PaddedSequenceBatch` construction and `LongSequenceBatcher`
+allocation. Data0003's brief owns final review and validation evidence.
 
-```text
-variable-length numeric sequences
-  -> explicit truncation, padding value, layout, and type policy
-  -> right-padded Tensor + immutable valid sequence lengths
-  -> typed Model input
-```
+## Contracts and common base
 
-This is future planning. `extensions/data` is not present in the authoritative architecture or
-Gradle build. No row below authorizes implementation before the coordinated architecture decision.
+- [Root scope index, layout, ownership, dependency and testing rules](../../../../ARCHITECTURE.md#scope-indexed-normative-contracts).
+- [Sole owning Data contract](../../../architecture/contracts/extensions-training.md#extensionsdata).
+- [Text contract](../../../architecture/contracts/extensions-training.md#extensionstext) governs the downstream adapter.
+- [ADR 0043](../../../design/decisions/0043-whitespace-text-and-padded-integral-batches.md)
+  records user approval on 2026-10-20.
+- Common base: `ef35f2ec001b0c161d1abe825ff3be725b9be49e` plus accepted uncommitted
+  Data0001/Data0002, enacted Data/Text authority and accepted Data0003 including the iteration fix
+  and final documentation, plus accepted uncommitted Text0001; no predecessor is claimed merged.
 
-## Architecture references
+## Scope and non-goals
 
-- [Architecture contract](../../../../ARCHITECTURE.md)
-- [Module boundaries](../../../architecture/module-boundaries.md)
-- [Dependency rules](../../../architecture/dependency-rules.md)
-- [Planning guide](../../planning-guide.md)
-- [Implementation roadmap](../../roadmap.md)
-- [NN master plan](../nn/master-plan.md)
+Selected: shared LEFT/RIGHT representation, unchanged O(B) host-count API, and a fluent
+`LongSequenceBatcher` using public Model heap allocation. There is no implicit truncation.
+Data never tokenizes, owns NN computation, runs Engine, allocates native resources, or adds a
+storage lifetime, runtime-length binding, loader/sampler/epoch lifecycle or persistence.
+Current scans still accept right-valid-prefix counts only; LEFT support is preparation metadata,
+not a scan capability change. NN0022A remains separately gated and Draft.
 
-## Scope
+## Module invariants and dependencies
 
-- immutable host-side valid-sequence-length metadata;
-- explicit batch/time layout and valid-prefix semantics;
-- focused numeric sequence batchers with explicit padding/truncation/type policies;
-- focused equal-shape numeric sample batching that a downstream image extension may reuse without
-  moving image semantics into Data;
-- Tensor construction through existing Model APIs after the architecture boundary is accepted; and
-- a reusable batch value that text-specific batching may consume without moving tokenization into
-  NN.
+Data retains exactly `api(project(":modules:model"))`, including tests. Text's separately approved
+sole Data API edge makes Text a downstream consumer; NN gains no Data/Text edge.
+Counts are independent of position: RIGHT means valid prefix, LEFT means valid suffix.
+Stored values never determine validity; padding lengths and dense masks are not second sources
+of truth. Generic metadata construction borrows Tensor references without storage inspection;
+only the selected integral batcher allocates fresh contiguous heap values.
 
-## Out of scope
+## Package map
 
-- tokenization, vocabularies, normalization, special-token policy, decoding, or text models;
-- NN modules, parameters, recurrent cells, recurrent scan/control flow, or optimizers;
-- image decoding, image metadata, orientation, color, alpha, resize, crop, normalization, or
-  channel-layout policy; these belong to the proposed [Vision extension](../vision/master-plan.md);
-- loading files, shuffling datasets, sampling, multiprocessing, prefetch, caching, epochs, or a
-  catch-all `DataLoader` facade;
-- compiler/runtime/backend execution, device transfer, pinned memory, or kernel skipping; and
-- implementation before the architecture contract, module explanations, ADR, dependency tests,
-  settings, and build ownership are updated together.
+All types stay in `io.github.pho001.synaptik.data`:
 
-## Module invariants
+- Current `ValidSequenceLengths` and `SequenceAxisOrder` remain, with count terminology updated.
+- Data0003 replaced `RightPaddedSequenceBatch` with `PaddedSequenceBatch` and its nested Builder.
+- Data0003 added `PaddingSide` and `LongSequenceBatcher` with its nested Builder.
+- No compatibility alias, reserved subpackage or generic utility/loader facade.
 
-- Data batching owns host input preparation, not neural-network computation.
-- Valid sequence lengths record one valid prefix per batch row. They are the canonical metadata
-  for ordinary right padding and are never inferred by comparing Tensor values with zero, a token
-  identifier, NaN, or another sentinel.
-- Padding length is derived as `timeExtent - validLength`; it is not stored because it depends on
-  the other sequences selected for the batch rather than only on the logical sequence.
-- A general dense mask is a different capability. It may represent holes or arbitrary validity,
-  but it is derived or supplied only for a concrete consumer and must not be stored alongside
-  canonical valid lengths as a second source of truth.
-- Batch and time extents come from the supplied sequences. They are runtime batch facts, not model
-  architecture parameters.
-- Padding/truncation/layout/type choices are explicit batcher policy. A `Model` does not tokenize,
-  pad raw collections, or mutate caller sequences.
+## Dependency DAG and authorized frontiers
 
-## Proposed dependencies
+Data0001 → Data0002 → Data0003 → Text0001.
+Data0003 → deferred Data0005 (floating sequences) and Data0006 (equal-shape samples);
+Data0003 + Data0005 + Data0006 → Data0004 (broader batching checkpoint).
+Data0002 + NN0022B → separately Draft NN0022A; no automatic launch.
 
-Subject to the architecture task:
-
-```text
-modules/model
-  -> extensions/data
-```
-
-`extensions/data` would depend on `modules/model` only. It would not depend on NN, Training,
-Compiler, Runtime, Prepare, Engine, a concrete backend, or Text. `extensions/text` may depend on
-Data, never the reverse. The proposed Vision extension may also depend on Data for focused numeric
-sample batching and on Model for Tensor construction; Data must not import Vision or image codecs.
-
-## Forbidden dependencies
-
-- extensions/nn
-- extensions/training
-- extensions/text
-- modules/compiler
-- modules/runtime
-- modules/prepare
-- modules/engine
-- concrete backends
-
-These are proposed planning constraints and become enforceable only through the required
-architecture/build task.
-
-## Package structure
-
-Proposed after architecture acceptance:
-
-```text
-io.github.pho001.synaptik.data/
-  batching/  focused equal-shape numeric sample batching and shared host-batch ownership policy
-  sequence/  public valid-length metadata, sequence layout, batch value, and focused batchers
-```
-
-Do not add generic `util`, `common`, `loader`, or `pipeline` packages. A broader dataset/input
-system needs a concrete consumer and separate architecture decision.
-
-## Valid-length representation decision
-
-The conceptual public model-facing value carries values plus valid lengths, not a stored Boolean
-mask and not padding lengths:
-
-```text
-RightPaddedSequenceBatch
-  values       Tensor
-  validLengths ValidSequenceLengths
-  layout       TIME_MAJOR or BATCH_MAJOR
-
-ValidSequenceLengths
-  one valid prefix length for each original batch row
-```
-
-The exact Java type names remain Draft until task 0002 becomes the active frontier, but the public
-meaning and staged representation decision are fixed:
-
-- `validLengths()` conceptually returns an immutable validated host value with one length per
-  original batch row; callers do not maintain or synchronize a naked primitive array;
-- every length is in `[0, timeExtent]`, the number of lengths equals the batch extent, and numeric
-  values in `values()` never determine validity;
-- Data task 0002 must not claim that this host value is already a runtime graph input;
-- a later input-binding and recurrent-scan program may materialize/bind the same information as a
-  rank-one non-gradient `INT64` Tensor with Shape `[batch]`, but only after Model, Compiler,
-  Prepare, Runtime, Engine, and backend ownership and reuse contracts exist; and
-- a dense Boolean validity mask is derived on demand only for a concrete attention, loss, or
-  similar consumer. The batch does not store both lengths and a mask.
-
-The two lifecycle stages must not share a misleading Java type. The first Data batch is a host
-preparation result whose `validLengths()` component is the immutable host value above. A future
-typed Model input may instead expose `Tensor values()` and `Tensor validLengths()` after both have
-been declared and bound as runtime inputs. The exact runtime-input record, materialization, and
-binding API remain deliberately unnamed until their owning lifecycle task; Data 0002 implements
-neither that record nor an implicit conversion.
-
-For valid lengths `[5, 3, 1]` and `timeExtent = 5`, padding lengths are derived as `[0, 2, 4]`.
-An operation that genuinely requires a dense validity mask may derive:
-
-```text
-true true  true  true  true
-true true  true  false false
-true false false false false
-```
-
-The canonical representation remains only `[5, 3, 1]`, validated and owned by the batch metadata.
-Numeric zeros in `values` remain ordinary data.
-
-## Computation boundary
-
-The plan distinguishes four non-equivalent stages or execution models:
-
-| Form | Length/validity input | Graph/expression reuse | Padded recurrent work |
-|---|---|---|---|
-| Data batch metadata | Immutable host `ValidSequenceLengths`-style value | By itself constructs no recurrent expression and promises no graph reuse. | By itself performs no recurrent work. |
-| Current NN static containers | Direct snapshotted Java `long[]` compatibility API | A different length pattern may build and compile a different expression graph. | Current expression construction can omit padded logical rows, but no runtime kernel-skipping claim follows. |
-| Derived dense mask | Boolean Tensor or dense validity expression created for a concrete consumer | A fixed-shape graph may accept different mask values only after the relevant runtime input lifecycle exists. | Recurrent cell expressions still cover the full dense batch/time rectangle; masking alone does not skip cell work. |
-| Fixed recurrent scan; future Data integration | Runtime rank-one `INT64` valid lengths consumed by one fixed Model-owned recurrent operation/node, not a user-defined body or region | CPU0028/NN0021B deliver compatible static-descriptor Engine reuse across length values; Data binding remains future. | Canonical FLOAT32 CPU forward skips inactive recurrent transitions; this does not authorize Data or broaden backend/BPTT support. |
-
-NN containers retain static construction through direct Java length arrays. The completed
-CPU0028/NN0021B baseline executes fixed Model scans through existing Engine reuse.
-[NN0022](../nn/tasks/0022-runtime-length-recurrent-nn-api.md) is Complete after final independent
-approval and validation (2026-10-20), adding NN-only runtime-Tensor-length convenience;
-it preserves compact static APIs and needs no Data module.
-[NN0022B](../nn/tasks/0022b-runtime-length-scan-model-workflow.md) is Complete for Model/builder
-inference, independent of Data, after final independent reviews and the coordinator root gate
-(2026-10-20). Draft NN0022A follows it for Data integration and still requires Data0001/0002.
-Materialization/schema/API choices remain future; no detailed Data API is selected.
-Data0002 still defines only host batch metadata, not implicit runtime binding or static specialization
-presented as dynamic execution. Arbitrary masks with holes remain a separate future capability.
+Authorized Data frontier: None. Data0003 is Complete after final independent APPROVE and local
+acceptance on 2026-10-20. The [Text program join](../text/tasks/0001-whitespace-tokenizer-and-data-batching.md#result)
+completed on 2026-10-21; Text0001 is Complete and the Text frontier is None. No automatic successor.
 
 ## Task list
 
-| ID | Task | Status | Depends on | Summary |
+| ID | Task | Status | Depends on | Intent/result |
 |---|---|---|---|---|
-| 0001 | Data/Text/Vision extension architecture and dependency boundary | Draft | Explicit architecture decision | Update `ARCHITECTURE.md`, module/dependency explanations, a significant ADR, settings/build ownership, and architecture tests to authorize `extensions/data`, `extensions/text`, and `extensions/vision` with one-way dependencies; create no batching, tokenizer, or image API in the architecture task. |
-| 0002 | Valid sequence lengths and right-padded batch value | Draft | 0001; stable Model Tensor construction | Add immutable layout-aware Tensor batch metadata with one validated valid-prefix length per row, staged host/runtime-Tensor boundaries, no stored Boolean mask, no value-based inference, and no batching algorithm beyond the value boundary. |
-| 0003 | Focused numeric sample and right-padding batchers | Draft | 0002 | Add explicit equal-shape numeric sample batching plus integral and floating sequence batchers with configured padding value, truncation, layout, and data type; derive extents and canonical valid lengths from source sequences. |
-| 0004 | Data batching capability checkpoint | Draft | 0003 | Validate sample/sequence batch geometry, valid-length semantics, documentation, architecture boundaries, and Model Tensor construction without adding a general dataset manager, image semantics, or recurrent execution claims. |
+| [0001](tasks/0001-data-extension-boundary.md) | Data-only architecture/build foundation | Complete | None | Accepted empty module, exact Model API edge and architecture enforcement; historical brief unchanged. |
+| [0002](tasks/0002-valid-sequence-lengths-and-right-padded-batch.md) | Host metadata and borrowed batch builder | Complete | 0001 | Accepted immutable host prefixes/logical axes and right-padded metadata; historical brief unchanged. |
+| [0003](tasks/0003-padded-integral-sequence-batching.md) | Shared padded representation and integral batching | Complete | 0001/0002 Complete; main authority approved | Accepted after independent APPROVE and module/architecture-consumer gates; Text program root join complete. |
+| 0005 | Floating sequence batching | Draft | 0003; selected concrete float consumer/API | Preserve broader numeric capability; no speculative dtype/truncation abstraction now. |
+| 0006 | Equal-shape numeric sample batching | Draft | 0003; selected sample consumer/API | Preserve generic numeric stacking for later Vision use without image semantics. |
+| 0004 | Broader Data batching checkpoint | Draft | 0003, 0005, 0006 | Validate the broader sample/sequence capability after selection, not a prerequisite of Text0001. |
 
-No detailed Data task exists. Promote Data 0001 only after the architecture/module decision is
-accepted and its compact brief is Ready. There is no implicit dependency on an old global CPU
-frontier. Complete NN0022/NN0022B are NN-only, independent of Data0001/0002; NN0022A retains their gate.
-Dependency map: Data0001 → Data0002 → Data0003 → Data0004; NN0022 → NN0022B;
-Data0002 + NN0022B → NN0022A
-in the NN plan. Current authorized NN/CPU/Data frontiers: None.
-NN0022A/0023/0024 remain Draft; no automatic successor launch. The scope split and NN-only completion
-do not authorize a Data module, edge or implementation, or cancel the later Data integration checkpoint.
+## Integration ownership and shared documents
+
+Main owns shared root/scoped authority, explanations, API references, glossary, roadmap, master
+plans and final integration plumbing. Implementation and independent review are complete;
+this final planning closure is the sole remaining writer.
+All seven integration fields live in each selected brief; Parallel group is None.
+The sole Data worker owns architecture consumer/dependency-test migration; the sole Text worker
+owns registration, Text enforcement and external integration test plumbing. Independent review
+finalized shared glossary/index/public API docs after the worker stopped. Main completed the
+source-matched architecture/Text–Embedding integration and final root checkpoint at the Text program join,
+reusing successful Data worker and focused architecture-consumer evidence.
+This planning pass runs no
+tests, builds, agents, commits or pushes.
 
 ## Milestones
 
-- Accepted Data/Text extension architecture and one-way dependencies
-- Compact valid-length metadata and layout-aware right-padded sequence batch value
-- Focused numeric batch construction
-- Cross-module sequence-batching checkpoint
-- Reusable numeric sample batching boundary for the downstream Vision extension
+- Complete: foundation, migrated shared padding-side metadata and INT64 batching.
+- Complete in Text: frozen whitespace tokenization, delegating Text adapter and program join.
+- Deferred: floating sequences, numeric samples and broader batching checkpoint.
 
-## Current status
+## Open decisions and risks
 
-Draft planning only. No `extensions/data` Gradle project, package, production type, dependency, or
-architecture permission exists. Planning this future program does not authorize creating its
-modules or silently changing architecture. Training 0003's Data-lifecycle dependency must be
-resolved explicitly: tasks 0001–0004 do not currently provide a dataset/sampler/epoch lifecycle.
-
-## Open questions
-
-- Select exact public type names and whether layout is a batch component or valid-length axis
-  contract when task 0002 becomes current.
-- Define the future host-value-to-runtime-`INT64` binding only with the Model/Engine input
-  lifecycle and recurrent-scan consumer; Data 0002 must not invent that lifecycle.
-- Decide exact truncation policies only with the first concrete numeric/text consumer.
-- Decide whether dense arbitrary masks have a sufficiently concrete non-recurrent consumer to
-  justify a separate Data type before the runtime recurrent scan exists.
-- Select the smallest equal-shape numeric sample input contract that Vision can reuse without
-  introducing a generic dataset or loader abstraction.
-
-## Decisions made
-
-- Padding is public semantic metadata, not a value sentinel and not model-internal inference.
-- Valid prefix lengths are the sole canonical metadata for ordinary right padding.
-- Padding lengths and dense masks are derived and are not stored beside valid lengths.
-- The model receives an already constructed batch; it does not pad raw sequences itself.
-- Data owns generic numeric batching. Text owns tokenization and the adapter that supplies token
-  sequences to Data.
-- Vision, not Data, owns image decoding and image-specific transformation policy. It may delegate
-  only the final numeric sample stacking step to Data.
-- Current static compatibility, derived dense masking, and runtime recurrent scan remain
-  explicitly distinct.
-
-## Risks
-
-- Calling valid lengths a mask could imply unsupported holes or bidirectional validity patterns.
-- Converting compact lengths to a dense Tensor too early would allocate more metadata and still
-  would not make current recurrent computation dynamic.
-- Converting host lengths to an eager `INT64` Tensor without a runtime input-binding contract could
-  freeze one batch's values into expression construction and falsely imply compiled-graph reuse.
-- Adding a broad DataLoader could combine unrelated dataset, batching, sampling, concurrency, and
-  I/O responsibilities.
-- Putting image decoding in Data would force unrelated numeric/text users to inherit codec,
-  metadata, resource-limit, and potentially `java.desktop` obligations.
-- Implementing this module without the coordinated architecture update would silently change the
-  repository layout and dependency contract.
-
-## Notes
-
-This master plan is non-authoritative future coordination. The architecture contract wins.
+No architectural decision or local acceptance gap remains for Data0003; independent review and
+main acceptance are complete. Broader float/sample APIs, arbitrary masks and
+host-to-runtime-length binding remain future decisions. Training's former Data-lifecycle proposal
+is not satisfied by batching. Early checked geometry must reject enormous virtual lists before
+batch-sized snapshots or output allocation; caller-coordinated mutation avoids a transactional
+snapshot promise. Completed briefs remain historical evidence, not current architecture authority.

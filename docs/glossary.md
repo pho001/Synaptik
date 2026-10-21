@@ -40,8 +40,10 @@ sessions, accumulation and SGD/Adam/AdamW state with in-memory snapshots; durabl
 checkpoint/resume behavior remains future work.
 
 CUDA, ONNX, and CLI are currently marker projects. Checkpoint now has a bounded opaque artifact
-file API and public model-state save/inspect/load; Data, Text, and Vision remain planned
-areas without implementation modules. Broader trace payloads/serialization remain unfinished;
+file API and public model-state save/inspect/load. Data implements host sequence metadata and
+INT64 sequence padding without runtime binding. Text implements frozen whitespace tokenization
+and delegates numeric batching to Data; Vision remains unimplemented and separately gated.
+Broader trace payloads/serialization remain unfinished;
 generic backend discovery is not an authorized foundation and requires an explicit architecture
 decision before any convenience layer is planned. Consult the relevant area map before treating
 a glossary term as an implemented API.
@@ -267,9 +269,10 @@ allocations, but publishes no parameter wrapper or layer.
 
 Neither size is inferred from token IDs or a batch. Every row, including row zero, is ordinary
 trainable state; there is no padding index, special or invariant zero row, frozen-row contract,
-gradient/optimizer masking, or runtime-skipping behavior. Proposed Text input preparation owns
-padding-token identity and proposed Data input preparation owns canonical valid lengths. Those
-future schema facts are not current tokenizer/Data APIs and do not alter Embedding state.
+gradient/optimizer masking, or runtime-skipping behavior. Text input preparation owns
+padding-token identity; Data's implemented [host sequence metadata](#host-sequence-metadata)
+declares valid intervals independently of token IDs. Neither changes Embedding state or adds a
+tokenizer or runtime-length binding.
 `forward(indices)` reads the current parameter Tensor once and calls its Model
 `embedding(indices)` convenience. It is mode-insensitive and adds no buffer or separate operation.
 A compatible parameter replacement affects later calls; an expression already constructed from
@@ -3237,6 +3240,8 @@ is represented, clones it immediately before traversal; it retains neither array
 coordinate mutation throughout validation and any snapshot.
 Construction-time lengths are metadata for Java expression construction, not Tensor values,
 module state, parameters, buffers, masks, padding sentinels, or runtime inputs.
+Data's [host sequence metadata](#host-sequence-metadata) is a separate immutable declaration;
+it does not perform this static unroll or bind a runtime valid-length Tensor.
 
 An **active batch** at depth `t` is the stable subsequence of original batch rows whose copied
 construction-time length is greater than `t`. Current static one-directional and bidirectional
@@ -3656,6 +3661,38 @@ Passing one state-consuming expression's returned next state into the following 
 Threading expresses sequential, non-overlapping abstract random intervals without hidden mutation.
 Reusing the same input state for multiple consumers instead expresses branching and intentional
 interval reuse; sharing an immutable state wrapper does not serialize execution.
+
+### Host sequence metadata
+
+An implemented Data declaration of valid time intervals for original batch rows. A **host valid
+count** counts logical time steps belonging to a row, including ordinary zero values.
+`ValidSequenceLengths` owns copied non-negative counts without a stored time extent.
+`PaddedSequenceBatch` borrows an existing Tensor and checks the count of rows and per-row upper
+bounds against its static leading batch/time dimensions, without inspecting values or host storage.
+**Padding side** selects the valid interval: `PaddingSide.RIGHT` declares `[0,L)` and
+`PaddingSide.LEFT` declares `[T-L,T)` for count L at time extent T. For counts `[3,2,1]` and T=4,
+derived padding lengths are `[1,2,3]` on either side; numeric sentinels and dense masks are not
+stored sources of validity.
+
+**Sequence axis order** is the logical leading-axis declaration `SequenceAxisOrder.TIME_MAJOR`
+for `[T,B,...]` or `BATCH_MAJOR` for `[B,T,...]`. It neither transposes values nor specifies
+physical [layout](#layout). The values builder requires explicit order, side and counts,
+snapshots counts at the setter, and validates geometry at build time without padding values.
+`LongSequenceBatcher` instead copies ordered long-array rows into one fresh INT64 heap Tensor,
+padding to their maximum length without truncation. Neither path executes a recurrent sequence
+or materializes/binds a runtime INT64 valid-length Tensor; LEFT support does not extend the scan's
+right-padded valid-prefix semantics. See the [Data sequence batching API](api/data-api.md).
+
+### Frozen whitespace tokenizer
+
+An implemented Text mapping whose ordinary token IDs never grow or change after construction.
+`WhitespaceTokenizer.of` copies ordered distinct nonempty tokens without Java whitespace;
+ordinary IDs start at 2, padding (PAD) is 0 and unknown (UNK) is 1. Listed spellings such as
+"PAD" remain ordinary tokens. Encoding splits maximal runs using `Character.isWhitespace(int)`
+and preserves exact case, punctuation and UTF-16 without normalization. Each absent run emits
+one UNK. `TextSequenceBatcher` encodes rows and delegates padding and host counts to Data;
+neither token IDs nor counts add masking, execution or runtime length binding. See the
+[Text API](api/text-api.md) and [host sequence metadata](#host-sequence-metadata).
 
 ### Host storage
 

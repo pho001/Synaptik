@@ -8,6 +8,7 @@ dependencies {
     testImplementation(project(":modules:model"))
     testImplementation(project(":backends:cpu"))
     testImplementation(project(":extensions:nn"))
+    testImplementation(project(":extensions:text"))
     testImplementation(project(":extensions:training"))
     testImplementation(project(":extensions:checkpoint"))
 }

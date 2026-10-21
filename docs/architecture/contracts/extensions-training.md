@@ -8,9 +8,154 @@
 
 ## Scope
 
-This contract owns NN, Training, generic graph/value Checkpoint, the optional future Training Checkpoint
-adapter, and ONNX responsibilities plus the optimizer/training lifecycle. It does not own Model
-semantics, Compiler autograd, concrete backend optimizer routes, or Engine materialization.
+This contract owns Data host preparation, Text tokenization/adaptation, NN, Training, generic graph/value Checkpoint, the optional
+future Training Checkpoint adapter, and ONNX responsibilities plus the optimizer/training lifecycle.
+It does not own Model semantics, Compiler autograd, concrete backend optimizer routes, or Engine
+materialization.
+
+## `extensions/data`
+
+Data owns host-side numeric sample/sequence preparation outside NN model computation. Its
+authorized foundation is Gradle `:extensions:data` at physical `extensions/data`, with Java
+namespace `io.github.pho001.synaptik.data` and exactly `api(project(":modules:model"))` as its
+sole project dependency. Model is exported because batch signatures expose Model Tensor values;
+this export alone does not authorize additional Data capabilities.
+
+The accepted foundation added no production type, marker, placeholder, speculative API or reserved
+subpackage. The selected capability permits `ValidSequenceLengths`, `SequenceAxisOrder`,
+`PaddingSide`, `PaddedSequenceBatch` and `LongSequenceBatcher` directly in
+`io.github.pho001.synaptik.data`, with nested construction Builders. Package documentation
+requires a real package contract. No other project dependency is permitted, including test-only
+edges. Inward modules and existing extensions must not depend on Data except Text's explicit
+API edge below. Vision requires a separate coordinated architecture decision.
+
+`ValidSequenceLengths` is final with a private constructor and `of(long... lengths)`, `batchSize()`,
+`length(int row)` and `toLongArray()`. It owns one copied non-negative `long` valid count per original
+batch row, with ordered structural equality/hash and metadata-only diagnostics; it stores no time
+extent. `of` rejects null with `NullPointerException("lengths")`, clones once and checks that copy
+in row order, rejecting negatives with `IllegalArgumentException` identifying the row. Callers
+coordinate source mutation during construction. `batchSize()` returns `int`; invalid row indices
+throw `IndexOutOfBoundsException`, and every array export is fresh, including an empty export.
+`SequenceAxisOrder` has exactly `TIME_MAJOR` and `BATCH_MAJOR`, with no custom methods; these are
+logical sequence axes, not Model physical layout.
+
+Counts are position independent: `PaddingSide` has exactly `LEFT` and `RIGHT`, with no custom
+methods. At extent T and count L, RIGHT declares valid positions `[0,L)` and LEFT `[T-L,T)`.
+There are no holes, value-sentinel inference, stored padding lengths or stored dense mask.
+
+`PaddedSequenceBatch(Tensor values, ValidSequenceLengths validLengths, SequenceAxisOrder axisOrder,
+PaddingSide paddingSide)` is a record retaining the exact four references. This is an explicit
+source migration from the current unpublished `RightPaddedSequenceBatch`, not a compatibility family.
+Its public canonical constructor is the single
+geometry-validation algorithm: null-check `values`, `validLengths`, then `axisOrder`, with
+`NullPointerException` naming the parameter; then null-check `paddingSide` likewise before rank,
+numeric leading axes, batch count
+and length upper bounds in row order. Rank must be at least two; `TIME_MAJOR` is `[T,B,...]` and
+`BATCH_MAJOR` is `[B,T,...]`. Both leading axes must be `StaticDimension`; B must equal widened
+`batchSize()` and every length must be <= T from Shape. Geometry failures throw
+`IllegalArgumentException` identifying the mismatch or offending row and T. Never narrow extents
+to `int` or calculate element products/byte spans: B above `Integer.MAX_VALUE` cannot match the
+host array, while T and lengths may reach `Long.MAX_VALUE`. B=0 accepts empty lengths at any T;
+T=0 requires all lengths zero. Opaque trailing Model dimensions may be absent, zero or dynamic;
+zero feature extents do not force zero lengths. No additional dtype (including BOOL), gradient,
+provenance, leaf, physical-layout or storage restriction is permitted.
+
+The record also exposes `static Builder builder(Tensor values)` and one `public static final`
+nested `Builder` with a private constructor. The factory borrows a non-null values reference,
+fixed for that builder, rejecting null with `NullPointerException("values")`; creation reads no
+Shape. Builder exposes exactly `timeMajor()`, `batchMajor()`, `validLengths(long... lengths)` and
+`leftPadded()`, `rightPadded()` and `build()`. There are no default axis order, side or lengths:
+all three selections are required, and explicit
+empty varargs is a valid selection for B=0, distinct from missing lengths. Setters return the same
+Builder; the last successful selection wins, including side/axis changes and length replacement.
+`validLengths` immediately calls `ValidSequenceLengths.of` before assignment, copying and checking
+negativity once; a failed setter preserves prior state. `build()` throws `IllegalStateException`
+for missing selections before geometry checks, otherwise delegates to the canonical constructor
+without recopying immutable lengths. Each successful build returns a fresh batch; later setters
+or failures cannot change earlier batches. The reusable Builder is caller-coordinated and not
+thread-safe. No overloads, generic axis setter, staged interface, facade or pipeline are permitted.
+The direct record constructor and standalone lengths remain available to advanced callers.
+
+Only immutable descriptor/Shape metadata is inspected. Construction never calls `hostStorage()`,
+captures storage, checks liveness, obtains a segment, leases a scope, attaches/replaces/clears
+storage, closes resources, scans/copies Tensor contents, transposes, materializes or executes.
+All Model-valid layouts and original row order survive unchanged. Immutability covers lengths and
+fixed references, not Tensor contents or its mutable borrowed-storage association. No readiness,
+liveness or thread-safety guarantee is added. Equality uses Tensor object identity, structural
+lengths and both enum identities, never Tensor contents. Length creation and batch validation are O(B),
+independent of T and element count; no Tensor/expression is created. For example, declared lengths
+`[3,2,1]` at T=4 derive padding lengths `[1,2,3]`; zeros remain ordinary data and arbitrary values
+outside the declared valid interval do not affect validation. Caller-supplied values must
+already have the declared order and padding side; metadata checks do not prove contents.
+
+`LongSequenceBatcher` is final with private construction, static `builder()`, a public static final
+nested `Builder`, and `batch(List<long[]> sequences)` returning `PaddedSequenceBatch`. Builder
+exposes only `paddingValue(long)`, `leftPadded()`, `rightPadded()`, `timeMajor()`, `batchMajor()` and
+`build()`. Padding value, side and axis order all require explicit selection; missing choices throw
+`IllegalStateException`. Setters return the same builder, last selection wins, and each build
+returns a fresh immutable configuration unaffected by later builder use. Builders are not thread-safe.
+
+Batching preserves list/element order, uses B=list size, T=maximum row length, stores the exact
+row counts, and pads to T on the selected side with the configured long value. No truncation or
+limit-policy API is introduced. Empty outer input has B=0,T=0; all-empty rows have T=0. Null list
+or row throws `NullPointerException` naming `sequences` or the row. Callers coordinate list/row
+mutation throughout the synchronous call; no transactional snapshot guarantee is made.
+Preflight uses checked long arithmetic for element count B*T and byte span (B*T)*Long.BYTES,
+rejecting overflow or element count above Integer.MAX_VALUE with `IllegalArgumentException`
+before output allocation. There is no Integer.MAX_VALUE byte cap. Incrementally check
+B*currentMaxLength while reading rows, before any B-sized lengths/reference snapshot: an enormous
+virtual list with a first nonempty row must fail as soon as that row proves oversized geometry,
+without scanning the remaining rows or allocating batch-sized metadata. No public bounds helper.
+Allocate one destination through public `TensorFactory.allocate` and fill its writable public Model
+host storage directly, without a full flat staging array and import recopy. Output is a fresh
+heap-backed, contiguous offset-zero rank-two INT64 non-gradient leaf, `[T,B]` or `[B,T]`, retaining
+no caller list/arrays. Zero-size outputs use ordinary empty heap storage. Factory failures propagate;
+Data adds no native allocation, Arena, close protocol, storage owner or execution lifecycle.
+
+Host metadata is not a runtime graph input. Materializing and binding
+rank-one non-gradient `INT64` Tensor lengths is a separate lifecycle decision; neither Data's
+foundation nor host metadata grants it. Existing Model storage/Tensor ownership, NN static
+length APIs, runtime recurrent-scan semantics, Training and Engine execution remain unchanged.
+Data owns no execution, optimizer, persistence, file loading, dataset/sampler/epoch lifecycle,
+tokenization, image semantics, device transfer, or new Tensor/storage lifetime.
+
+## `extensions/text`
+
+Text owns frozen whitespace tokenization and adaptation to Data batches, at physical
+`extensions/text`, Gradle `:extensions:text`, flat namespace `io.github.pho001.synaptik.text`.
+Its sole project dependency in all configurations is `api(project(":extensions:data"))`; Model
+comes transitively through Data. Only public Data/Model APIs may be used; Text has no NN, Engine,
+Training, Checkpoint, Compiler, Runtime, Prepare, tuning or backend edge/import. NN has no Data/Text
+edge. External integration tests compose Text, unchanged Embedding and public Engine.
+
+The final concrete `WhitespaceTokenizer` has private construction and static
+`of(List<String> ordinaryTokens)`. It copies ordered ordinary tokens, assigns IDs from 2 in list
+order, reserves PAD=0 and UNK=1, and never grows. Public methods are `int vocabularySize()`
+(including both reserved IDs), `long paddingId()`, `long unknownId()` and `long[] encode(String text)`.
+Null list, token or text throws `NullPointerException` naming the parameter/row; empty ordinary
+tokens, tokens containing a Character.isWhitespace(int) code point, and exact duplicates throw
+`IllegalArgumentException`. Empty vocabulary is valid. Callers coordinate list mutation during of.
+No spelling is magical: ordinary strings such as "PAD" or "UNK" get ordinary IDs if listed.
+Encoding emits one ID per maximal nonempty code-point run separated by
+`Character.isWhitespace(int)`, or UNK for an absent run. It preserves case, punctuation and exact
+non-normalized UTF-16, including unpaired surrogates; it does not replace source characters.
+Every encode returns a fresh array, including empty/whitespace-only input. Vocabulary state is
+immutable and safely shareable. No normalization, BOS/EOS, decode, interface, vocabulary trainer,
+BPE, artifact, fingerprint, file/network I/O or persistence capability is authorized by this slice.
+
+The final `TextSequenceBatcher` has private construction, static
+`builder(WhitespaceTokenizer tokenizer)`, one public static final nested Builder exposing
+`leftPadded()`, `rightPadded()`, `timeMajor()`, `batchMajor()`, `build()`, and
+`batch(List<String> texts)` returning Data's `PaddedSequenceBatch` on the built batcher.
+Tokenizer is non-null and fixed; side and order have no defaults and missing choices throw
+`IllegalStateException`. Setters/repeated builds have the same independent-configuration semantics
+as Data's batcher. Batch rejects null list/rows with named `NullPointerException`, encodes each
+String once in original order and invokes one configured `LongSequenceBatcher.batch` exactly once,
+using tokenizer.paddingId(). Text never reimplements padding, Tensor allocation or valid counts;
+empty and all-empty input inherit Data semantics. Callers coordinate list mutation during batch.
+No new execution/lifetime is introduced. PAD is an ordinary Embedding row: no row freezing,
+zeroing, gradient suppression or masking is added. LEFT batch support does not change the current
+scan's right-valid-prefix contract, add runtime host-length binding or extend BPTT.
 
 ## `extensions/nn`
 
@@ -37,7 +182,8 @@ Forbidden:
 - backend kernel selection
 - concrete backend dependencies
 
-`extensions/nn` has exactly public Model, Training, Checkpoint and Engine project dependencies. Model supplies tensor
+`extensions/nn` has exactly public Model, Training, Checkpoint and Engine project dependencies,
+with no Data or Text edge, including tests. Model supplies tensor
 and operation semantics; Training supplies the generic `TrainingParameters` admission boundary.
 `Module.trainingParameters()` returns a private live adapter retaining the root and exact ordered
 paths, Parameter wrappers and Tensors. Creation rejects unbound reservations. Its immutable entries

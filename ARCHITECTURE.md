@@ -51,6 +51,8 @@ modules/runtime
 modules/backend/cpu
 modules/backend/metal
 modules/training
+extensions/data
+extensions/text
 extensions/nn
 ```
 
@@ -62,6 +64,8 @@ io.github.pho001.synaptik.compiler
 io.github.pho001.synaptik.runtime
 io.github.pho001.synaptik.backend.cpu
 io.github.pho001.synaptik.backend.metal
+io.github.pho001.synaptik.data
+io.github.pho001.synaptik.text
 io.github.pho001.synaptik.nn
 ```
 
@@ -106,6 +110,8 @@ ComputationalGraph/
       cuda/
 
   extensions/
+    data/
+    text/
     nn/
     onnx/
 
@@ -128,6 +134,15 @@ Training is physically `modules/training`, retaining Gradle project `:extensions
 an explicit settings mapping and retaining its Java packages. Its owning contract remains in
 the incorporated extensions/training contract below. Checkpoint is physically `modules/checkpoint`,
 retaining `:extensions:checkpoint` through an explicit settings mapping.
+
+Data is authorized at physical `extensions/data`, Gradle `:extensions:data`, with namespace
+`io.github.pho001.synaptik.data`. The owning Data contract authorizes position-independent valid
+counts, explicit padding side/sequence-axis order, a borrowed padded batch and INT64 host sequence
+batching. The implemented padded API replaces the unpublished right-only API and supports
+left/right padding and INT64 host allocation.
+Text is registered at `extensions/text`, Gradle `:extensions:text`, namespace
+`io.github.pho001.synaptik.text`, for a frozen whitespace tokenizer and Data-delegating batcher.
+Both are implemented. Vision remains separately gated.
 
 ## Core lifecycle
 
@@ -437,6 +452,8 @@ briefs and maintained navigation adopt the exact scoped destinations:
 | CPU routes and generated JVM bytecode | [Backend execution — CPU backend routes](docs/architecture/contracts/backend-execution.md#cpu-backend-routes) |
 | Metal | [Backend execution — Metal backend](docs/architecture/contracts/backend-execution.md#metal-backend) |
 | OpenBLAS provider | [Backend execution — OpenBLAS provider](docs/architecture/contracts/backend-execution.md#openblas-provider) |
+| Data host counts, padded batches and integral sequence batching | [Extensions/training — `extensions/data`](docs/architecture/contracts/extensions-training.md#extensionsdata) |
+| Frozen whitespace tokenization and Data-delegating text batching | [Extensions/training — `extensions/text`](docs/architecture/contracts/extensions-training.md#extensionstext) |
 | NN stateful composition, declarative reconstruction and retained old model persistence | [Extensions/training — `extensions/nn`](docs/architecture/contracts/extensions-training.md#extensionsnn) |
 | Owned Models, including inference-only runtime-length scan construction and compute | [Extensions/training — owned tensor Models](docs/architecture/contracts/extensions-training.md#owned-tensor-models) |
 | Training | [Extensions/training — `modules/training`](docs/architecture/contracts/extensions-training.md#modulestraining) |
@@ -464,6 +481,8 @@ This compact routing summary does not replace the linked details:
 | Prepared schedules, residency, publication, and per-run mutable state | Runtime |
 | Explicit composition and public lifecycle | Engine |
 | Typed diagnostics | Trace |
+| Host numeric sequence preparation, without execution or new storage-lifecycle ownership | Data (`extensions/data`); INT64 batching implemented, broader numeric/sample batching deferred |
+| Frozen vocabulary, whitespace tokenization and text-to-Data adaptation | Text (`extensions/text`); no NN or execution responsibility |
 | Stateful modules, parameters, buffers, train/eval behavior, declarative and owned tensor Models, model persistence | NN; composes public Engine/Training/Checkpoint owners, never another execution pipeline |
 | Generic live parameter admission, optimizer algorithms, explicit pre-session native parameter copies, and training orchestration | Training (`modules/training`, Gradle `:extensions:training`); NN owns its live Module adapter |
 | Generic cold graph/value copy/save/load/rebind and bounded opaque artifact envelope | Checkpoint (`modules/checkpoint`, Gradle `:extensions:checkpoint`); Compiler owns raw capture/reconstruction; no NN, Training or Engine dependency |
@@ -515,6 +534,10 @@ Neural-network composition and training use this direction (Training retains Gra
 `:extensions:training` at physical `modules/training`):
 
 ```text
+modules/model
+  -> extensions/data (Model API export only)
+  -> extensions/text (through Data API export only)
+
 modules/model + public modules/engine facade
   -> modules/training
 
@@ -539,10 +562,21 @@ Concrete rules:
 - `modules/prepare` must not depend on concrete backend implementations.
 - Concrete backends must not depend on `modules/engine`.
 - `modules/backend/openblas-provider` must not depend on compiler, planning, runtime, prepare, engine, or Tensor API.
+- `extensions/data` has exactly `api(project(":modules:model"))` as its sole project dependency.
+  No other project edge is permitted in any configuration, including tests. Inward modules and
+  existing extensions must not depend on Data, except the separately authorized Text edge below.
+  This changes no Model, NN, Training, runtime-input binding or storage-ownership contract.
+- `extensions/text` has exactly `api(project(":extensions:data"))` as its sole project dependency
+  across all configurations, including tests. Model is exported transitively by Data; Text has
+  no direct Model edge and may use only public Data/Model APIs. No NN, Engine, Training,
+  Checkpoint, Compiler, Runtime, Prepare, tuning or backend dependency/import is permitted.
+  Inward modules and existing extensions, including NN, have no Text edge. The integration-test
+  project may add only `testImplementation(project(":extensions:text"))` for Text integration;
+  it composes its existing NN/Engine edges externally. Vision remains unauthorized.
 - `extensions/nn` has exactly public Model, Training, Checkpoint and Engine project edges.
   Training supplies live Module admission and sessions; Checkpoint supplies generic artifacts/graph persistence;
   Engine supplies cached public execution and old persistence materialization. NN has no
-  direct Compiler, Runtime, Prepare or concrete-backend edge, and owns no second execution pipeline.
+  direct Compiler, Runtime, Prepare, Data, Text or concrete-backend edge, and owns no second execution pipeline.
 - `modules/training` has exactly the public Model and Engine project edges and must not depend
   on NN. The explicit public Engine composition edge does not permit a dependency on Compiler,
   Runtime, Prepare, tuning, or a concrete backend, use of Engine internals, or a second execution
@@ -650,6 +684,18 @@ Architecture tests should enforce:
 - prepare does not depend on concrete backend implementations
 - backends do not depend on engine
 - openblas-provider does not depend on compiler/planning/runtime/prepare/engine/Tensor API
+- `:extensions:data` is included at `extensions/data` with exactly the Model API project edge
+  across all configurations, no reverse inward/existing-extension edge except authorized Text,
+  and no Vision inclusion;
+  Data Java sources, when present, use `io.github.pho001.synaptik.data` and only Model project imports;
+  boundary checks retain test-local positive/negative fixtures and an isolated Data-only consumer
+  that constructs and inspects the permitted Data API and compiles Model Tensor declarations
+  through the exported edge, without production placeholders or an NN classpath
+- `:extensions:text` is included at `extensions/text` with exactly the Data API project edge
+  across all configurations and public Data/Model imports only; isolated Text-only consumers
+  compile Data/Model declarations transitively without NN/Engine. Negative fixtures reject
+  forbidden edges/imports, including NN-to-Data/Text. Text's numerical integration is exclusively
+  in `testing/integration-tests` through its test-only Text edge, never a Text-to-NN/Engine edge.
 - `Operation` does not expose `supportedBackends()`
 - runtime hot path does not use `Operation` or `CompiledNode`
 - planning scoring does not reference concrete kernel classes

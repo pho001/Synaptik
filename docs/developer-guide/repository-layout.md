@@ -4,13 +4,27 @@ The repository is organized around the module boundaries defined by [`ARCHITECTU
 
 - `modules/` contains model, compiler, planning, prepare, runtime, engine, generic training, configuration, backend contracts, tracing, and concrete backend projects;
 - `modules/backend/` groups the separate CPU, Metal, CUDA scaffold, and OpenBLAS provider projects;
-- `extensions/` contains NN composition (including old NN checkpoint readers) and ONNX integration;
+- `extensions/` contains NN composition (including old NN checkpoint readers), ONNX integration,
+  Data host preparation, and frozen Text tokenization/adaptation;
 - `tools/` contains tuning, benchmark, and command-line tooling;
 - `modules/backend/metal/macos-arm64/` contains Metal's platform-specific native integration;
 - `testing/` contains architecture, backend-conformance, and integration test modules; and
 - `docs/` contains explanatory documentation and working implementation plans.
 
 Implementation plans live under [`docs/planning/`](../planning/README.md). They coordinate non-trivial work but do not override the root architecture contract. Production Java packages use the `io.github.pho001.synaptik.*` namespace.
+
+Data is registered at `extensions/data`, using the default Gradle path `:extensions:data`
+and namespace `io.github.pho001.synaptik.data`, exporting only Model through
+`api(project(":modules:model"))`. The [Data sequence batching API](../api/data-api.md) provides
+copied host counts, explicit padding side/axis order, a borrowed Tensor batch record and an
+INT64 host-array batcher. Metadata construction does not allocate values; integral batching does.
+Neither executes models or binds runtime length inputs.
+
+Text is registered at `extensions/text`, `:extensions:text`, namespace
+`io.github.pho001.synaptik.text`. Its flat package contains `WhitespaceTokenizer` and
+`TextSequenceBatcher`, with a nested configuration Builder. Its sole edge is api(Data), with
+Model transitive. The [Text API](../api/text-api.md) connects frozen token IDs to Data padding;
+the integration-test project separately composes NN/Engine. Vision remains absent and separately gated.
 
 ## Backend path migration and historical navigation
 

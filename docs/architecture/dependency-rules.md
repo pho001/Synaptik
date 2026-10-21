@@ -73,6 +73,8 @@ Generic Checkpoint is a cold owner, not an Engine execution layer. Arrows below 
 
 ```text
 Model + Engine -> modules/training (:extensions:training)
+Model (API export only) -> extensions/data (:extensions:data)
+Data (API export; Model transitive) -> extensions/text (:extensions:text)
 Model + Compiler (cold only) -> modules/checkpoint (:extensions:checkpoint)
 Model + Training + Checkpoint + Engine -> extensions/nn
 Training + Checkpoint -> optional future training-checkpoint (not included)
@@ -102,6 +104,19 @@ execution. The [graph API](../api/graph-checkpoint-api.md) explains static signa
 - `modules/prepare` must not depend on concrete backend implementations.
 - Concrete backends must not depend on `modules/engine`.
 - `modules/backend/openblas-provider` must not depend on compiler, planning, runtime, prepare, engine, or the Tensor API.
+- `extensions/data` has only `api(project(":modules:model"))`, with no other project edge even
+  in tests. Inward modules and existing extensions cannot depend back on Data except the
+  separately approved Text edge below. Vision still needs a separate decision. A Data-only consumer
+  may compile a Model Tensor declaration through that API export; adding Engine to a Data test
+  would violate the boundary rather than establish execution support. See the
+  [owning Data contract](contracts/extensions-training.md#extensionsdata) and
+  [ADR 0042](../design/decisions/0042-data-extension-boundary.md).
+- `extensions/text` has exactly `api(project(":extensions:data"))` across all
+  configurations; Model is transitive, with no direct project edge. Only public Data/Model imports
+  are permitted. Text has no NN/Engine/backend or other project edge, and NN has no Data/Text edge.
+  Numerical composition belongs to the integration-test project, whose Text edge is test-only.
+  [ADR 0043](../design/decisions/0043-whitespace-text-and-padded-integral-batches.md) records this
+  boundary; an isolated Text-only consumer compiles Data/Model declarations through that export.
 - `extensions/nn` exposes Model, Training, Checkpoint and public Engine directly; it must not
   directly depend on Compiler, Runtime, Prepare or concrete backends.
 - `modules/training` exposes only Model and public Engine directly. It has no NN dependency or
@@ -201,6 +216,13 @@ Tests under `testing/architecture-tests/` should fail when forbidden module or p
 - the CPU backend's exact production dependency set, excluding Compiler and Engine while allowing
   compiler-backed test fixtures only;
 - the OpenBLAS provider's low-level leaf role;
+- Data registration/path, exact Model API edge in every configuration, absent reverse edges
+  except authorized Text and absent Vision inclusion, namespace/import fixtures and isolated
+  Data-only consumer compilation of Model declarations; Data0001 implements this enforcement,
+  not batching or runtime binding;
+- Text registration/path, sole Data API edge, transitive Model exposure in a Text-only consumer,
+  public Data/Model-only imports and forbidden NN-to-Data/Text edges; these checks must be updated
+  with Text implementation, using positive and negative fixtures;
 - absence of backend support APIs on `Operation`;
 - absence of compile-time graph types in the runtime hot path; and
 - absence of concrete implementation references in partition scoring.

@@ -149,7 +149,8 @@ Completed NN0021A + Model0025E/0025F + Compiler0006A + CPU0027 + Engine0021 + CP
 → [NN0021B](tasks/0021b-fixed-recurrent-scan-implementation-program.md), all Complete.
 Main accepted independent approval and the final root gate on 2026-10-20; task briefs own evidence
 and base metadata. Parallel group None; main owns integration/shared documents.
-Current authorized NN/CPU/Data frontiers: None. No new NN production type,
+Current authorized NN/CPU/Data frontiers: None; Data0001–0003 are Complete in the
+[Data plan](../data/master-plan.md); Text0001 is Ready in the [Text plan](../text/master-plan.md). No new NN production type,
 Data/static-API migration or BPTT is authorized; CPU0028 records the delivered baseline and exclusions.
 
 Completed 2026-10-20: completed scan/cell/Engine prerequisites →
@@ -171,7 +172,8 @@ HEAD=origin/main `2d1c1d6d0867a0bebda34e9177ad52ba9f13071a` plus accepted dirty 
 not a merged predecessor. Independent contract/code/docs reviews and the coordinator's source-matched
 root test/Javadoc gate passed; the brief owns exact evidence, including cached tasks and the unrelated
 integration assumption skip. Main owns shared-document integration; parallel group None.
-Current NN/CPU/Data frontiers: None; NN0022A/0023/0024 remain Draft. No capability follow-up remains;
+Current NN/CPU frontiers: None; Data's frontier is recorded separately above.
+NN0022A/0023/0024 remain Draft. No capability follow-up remains;
 no Data/type/format/backend or BPTT widening, automatic successor launch or new execution pipeline.
 
 Engine0021 + Training0007 + Compiler0008 + Checkpoint0008 + Training0008 → NN0028.
@@ -330,7 +332,7 @@ Exact metadata and 2026-10-14 dependency/base/contracts/review/conflict verifica
 - NN0027 is the earlier Draft recurrent follow-up, held with CP0005C/Training0006 held as an optional older proposal,
   not a prerequisite of NN0028; no scan/backend BPTT/Data gate.
 - NN0021B is accepted after CPU0028's independent approval and main's root gate (2026-10-20).
-  Current authorized NN/CPU/Data frontiers: None. Model 0032 is Complete; the [roadmap](../../roadmap.md)
+  Current authorized NN/CPU/Data frontiers: None; Data0001–0003 are Complete and Text0001 is Ready. Model 0032 is Complete; the [roadmap](../../roadmap.md)
   owns current cross-area frontiers.
 - Completed NN work used recorded roadmap interleaves. NN 0016/0017 were a bounded parallel pair,
   and 0025/0025A were an explicit out-of-order convolution branch ahead of unrelated Draft
@@ -358,8 +360,10 @@ dependency plans, and roadmap above.
   directions and bias forms, with runtime INT64 lengths and all outputs through existing lifecycles.
   FLOAT64/low types, noncontiguous layouts, vector/parallel/native scan routes and tuning remain
   outside that capability; no Data/NN migration or BPTT is implied.
-- **0022A Data gate:** [Data 0001–0002](../data/master-plan.md) remain Draft; Data/Text/Vision are
-  not authorized modules until their coordinated architecture decision. Ordinary right padding
+- **0022A Data gate:** [Data0001](../data/tasks/0001-data-extension-boundary.md) is Complete for
+  the empty Data-only foundation; Data0002/0003 are Complete for host metadata and integral batching,
+  not runtime binding. Text's sole Data API edge is approved and Text0001 is Ready; Vision still needs
+  a separate module/edge decision. Ordinary right padding
   has one canonical valid length per batch row; padding lengths and dense masks are derived, not
   stored second sources of truth. NN0022 needs no Data module and retains existing static APIs;
   NN0022B is Complete for approved Model/builder inference before Draft NN0022A; neither NN-only task depends on Data.

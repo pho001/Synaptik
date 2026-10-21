@@ -5,17 +5,23 @@ import org.gradle.api.tasks.testing.Test
 val trainingApiConsumer = extensions.getByType<SourceSetContainer>().create("trainingApiConsumer")
 val nnApiConsumer = extensions.getByType<SourceSetContainer>().create("nnApiConsumer")
 val checkpointApiConsumer = extensions.getByType<SourceSetContainer>().create("checkpointApiConsumer")
+val dataApiConsumer = extensions.getByType<SourceSetContainer>().create("dataApiConsumer")
+val isolatedTextApiConsumer = extensions.getByType<SourceSetContainer>().create("textApiConsumer")
 
 dependencies {
     add(trainingApiConsumer.implementationConfigurationName, project(":extensions:training"))
     add(nnApiConsumer.implementationConfigurationName, project(":extensions:nn"))
     add(checkpointApiConsumer.implementationConfigurationName, project(":extensions:checkpoint"))
+    add(dataApiConsumer.implementationConfigurationName, project(":extensions:data"))
+    add(isolatedTextApiConsumer.implementationConfigurationName, project(":extensions:text"))
 }
 
 tasks.named<Test>("test") {
     dependsOn(tasks.named(trainingApiConsumer.compileJavaTaskName))
     dependsOn(tasks.named(nnApiConsumer.compileJavaTaskName))
     dependsOn(tasks.named(checkpointApiConsumer.compileJavaTaskName))
+    dependsOn(tasks.named(dataApiConsumer.compileJavaTaskName))
+    dependsOn(tasks.named(isolatedTextApiConsumer.compileJavaTaskName))
 
     // Tests read repository files outside their classpath; declare them to avoid false UP-TO-DATE results.
     inputs.files(rootProject.fileTree(rootProject.projectDir) {
@@ -23,6 +29,8 @@ tasks.named<Test>("test") {
         include("modules/runtime/src/main/java/**/*.java", "modules/backend/**/src/main/**")
         include("modules/training/src/**/*.java", "extensions/nn/src/main/java/**/*.java")
         include("modules/checkpoint/src/**/*.java")
+        include("extensions/data/src/**/*.java")
+        include("extensions/text/src/**/*.java")
         include("modules/backend/metal/macos-arm64/**", "modules/backend/cuda/README.md")
         exclude("**/build/**", "**/.gradle/**", "**/.git/**")
     }).withPropertyName("architectureSourceFiles")
