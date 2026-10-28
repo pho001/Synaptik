@@ -29,6 +29,37 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class CpuOpenBlasRouteSelectorTest {
+    @Test void absorbedTransposeInputsRetainOnlyTheNativeCanonicalizationCopies() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            for (boolean left : List.of(false, true)) for (boolean right : List.of(false, true)) {
+                if (!left && !right) continue;
+                var inputs = maskInputs(type, false, false, false, 3, defaultConfig());
+                var context = io.github.pho001.synaptik.backend.cpu.internal.lowering
+                        .CpuMatmulTransposeAbsorptionTest.context(type, 2, 3, 4,
+                                left, right, false, false, inputs);
+                var analysis = new CpuPartitionPreparer().analyze(context);
+                var plan = analysis.plan();
+                var nativePlan = plan.openBlasPlan().orElseThrow();
+                assertEquals(CpuPartitionPreparationPlan.Route.OPENBLAS, plan.route());
+                assertEquals(1, plan.units().size());
+                assertEquals(List.of(new ValueId(0), new ValueId(1), new ValueId(4)),
+                        plan.boundaryValues());
+                assertEquals(left, nativePlan.representation().copiesLeft());
+                assertEquals(right, nativePlan.representation().copiesRight());
+                assertFalse(nativePlan.representation().copiesOutput());
+                assertEquals((left ? 1 : 0) + (right ? 1 : 0), nativePlan.workspaceRequirements().size());
+                assertEquals(3 + nativePlan.workspaceRequirements().size(), analysis.requirements().size());
+                var signature = plan.openBlasTuningBatch().orElseThrow().workload();
+                assertEquals(left ? Shape.of(3, 2) : Shape.of(2, 3),
+                        signature.boundaries().get(0).shape());
+                assertEquals(List.of(2L, 3L), signature.boundaries().get(0).access().extents());
+                assertEquals(right ? Shape.of(4, 3) : Shape.of(3, 4),
+                        signature.boundaries().get(1).shape());
+                assertEquals(List.of(3L, 4L), signature.boundaries().get(1).access().extents());
+            }
+        }
+    }
+
     @Test void selectsCompleteFittingThreadCandidateByCostThenLowerCount() {
         var config = new CpuPartitionAnalysisInputs.OpenBlasRouteConfig(
                 Optional.of(qualification()),

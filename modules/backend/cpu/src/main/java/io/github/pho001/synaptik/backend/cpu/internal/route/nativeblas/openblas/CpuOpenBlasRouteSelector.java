@@ -26,6 +26,8 @@ import java.util.Optional;
  * candidates. It derives one batch from common lowering and route facts, validates an optional
  * exact decision, and otherwise applies the unchanged safe heuristic. It performs no provider
  * query, host discovery, measurement, objective comparison, serialization, or cache I/O.
+ * Proved private transpose/MATMUL units remain eligible through their effective read bindings;
+ * the current non-transposed provider still requires a declared canonical input copy when needed.
  */
 public final class CpuOpenBlasRouteSelector {
     /** Creates a stateless selector with no resources or lifecycle. */
@@ -105,9 +107,12 @@ public final class CpuOpenBlasRouteSelector {
             CpuPartitionPreparationPlan plan, CpuRepresentationPlanner representationPlanner) {
         var config = context.backendInputs().openBlasRoute();
         if (!config.complete() || plan.route() != CpuPartitionPreparationPlan.Route.PORTABLE
-                || context.nodes().size() != 1 || plan.units().size() != 1
-                || context.nodes().getFirst().operation().kind()
+                || context.nodes().isEmpty() || context.nodes().size() > 3 || plan.units().size() != 1
+                || context.nodes().getLast().operation().kind()
                     != io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL
+                || context.nodes().subList(0, context.nodes().size() - 1).stream().anyMatch(node ->
+                        node.operation().kind()
+                            != io.github.pho001.synaptik.model.operation.layout.AxisTransformKind.PERMUTE)
                 || plan.bufferDeclarations().size() != 3 || !plan.materializations().isEmpty()
                 || plan.partialReductionRecipe().isPresent()) return Optional.empty();
         var unit = plan.units().getFirst();

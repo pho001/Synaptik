@@ -1415,8 +1415,9 @@ publication, fan-out, or cross-partition obligation. Such an intermediate remain
 compiled graph and `LogicalMemoryPlan`, but CPU analysis declares no buffer or workspace for it;
 there is no Runtime slot, generated instruction, or store for that value. This is CPU-private
 virtuality, not shared storage aliasing. Because shared preparation does not assign two graph
-values to one representation, the final result always receives its own buffer and one explicit
-boundary copy.
+values to one representation, a standalone affine result receives its own buffer and one explicit
+boundary copy. The narrow private transpose/MATMUL composition
+[described below](#private-transpose-inputs-of-matmul) instead consumes the view as a read mapping.
 
 Analysis walks the final result's logical coordinates, reverses the complete view chain, and
 composes exact source and result element addresses. The result buffer keeps its resolved offset,
@@ -3113,6 +3114,44 @@ order is full-K accumulation, bias ADD, optional terminal, then one store. Vecto
 retain no terminal; unsupported or uncertain suffixes keep the canonical executable split. CPU
 does not create a `LINEAR` operation or rediscover a broader transpose or bias pattern.
 
+#### Private transpose inputs of MATMUL
+
+CPU0047 removes the separate copy for one or two adjacent rank-two `PERMUTE [1,0]` inputs when
+their results are private and each has exactly one consumer occurrence in the MATMUL. Cold
+analysis retains the original backing value as the read boundary and swaps that source's actual
+strides. Nonzero offsets and gaps are retained; the logical graph and its descriptors are not
+rewritten. No buffer, store, workspace or generated transpose step is declared for an absorbed
+view. The existing MATMUL geometry and emitter perform the arithmetic.
+
+For a concrete FLOAT32 example, let input `A[2,3]` contain rows `[1,2,3]`, `[4,5,6]`, and weight
+`W[4,3]` contain rows `[7,8,9]`, `[10,11,12]`, `[13,14,15]`, `[16,17,18]`. The existing expression
+`A.matmul(W.permute(1,0))` has result Shape `[2,4]`. W's canonical storage strides are `[3,1]`;
+the consumed read mapping has Shape `[3,4]` and strides `[1,3]` over the same original buffer.
+For example, the first dot product reads `1*7 + 2*8 + 3*9 = 50`, without creating a transposed W.
+The final rows are `[50,68,86,104]` and `[122,167,212,257]`.
+
+The corresponding plan changes from two units (`copy W -> temporary`, then `MATMUL`) and four
+buffers to one MATMUL unit and three buffers (`A`, original `W`, result). This is CPU-private
+virtuality, not a public alias or an in-place update. Tests execute both heap-array and native
+segment bindings; typed padded/offset reads and valid empty contractions retain existing behavior.
+An equivalent bare strided MATMUL produces identical generated class bytes, so the change adds
+no hot-loop work, new generator schema or geometry-specific class specialization.
+
+Public results, consumers outside the selected unit or partition, and multiple consumer
+occurrences keep the copy. Projection preserves original external obligations before testing
+privacy. If backing substitution would merge the two logical read identities, a required copy
+remains rather than changing the existing boundary ABI. General affine chains, nonadjacent
+prefixes, higher-rank permutations and symbolic geometry are not newly absorbed by this rule.
+Existing bias/activation alternatives include the proved prefix in their membership, so input
+absorption does not discard epilogue fusion. Vector and parallel choices still follow the same
+MATMUL selector; a transposed right operand need not qualify for contiguous N-vector loads.
+
+OpenBLAS selection remains available for an otherwise eligible no-epilogue prefix/MATMUL unit.
+The current provider accepts only canonical non-transposed GEMM inputs. It can therefore still
+require one declared copy per noncanonical input, but there is no additional preceding PERMUTE
+buffer. This repair does not add native transpose flags, remove that provider limitation, or
+establish a timing speedup.
+
 Direct representation is always executable and remains the ordinary preparation choice. The
 existing representation planner can retain a complete one-copy-left or one-copy-right candidate
 using a declared whole-value affine-copy workspace. A two-copy candidate consumed by the same
@@ -3138,7 +3177,9 @@ route claim, or cross-backend bitwise promise.
 ### Current narrow OpenBLAS MATMUL route
 
 CPU preparation may replace the already-complete portable plan with one qualified OpenBLAS route
-only for a bare, one-node, one-unit, positive rank-two matrix product. `A[m,k]`, `B[k,n]`, and
+only for a one-unit, positive rank-two matrix product with no arithmetic epilogue. Besides a bare
+MATMUL, CPU0047 permits its one or two proved private transpose inputs as cold read mappings,
+subject to the same direct/copy checks. `A[m,k]`, `B[k,n]`, and
 `C[m,n]` must all be FLOAT32 or all be FLOAT64; `m`, `n`, and `k` must fit the provider's signed
 32-bit `blasint` dimensions. The operation must use the exact default numerical mode, have no
 broadcast batch, inserted or removed vector axis, bias, terminal, or other epilogue, and produce a

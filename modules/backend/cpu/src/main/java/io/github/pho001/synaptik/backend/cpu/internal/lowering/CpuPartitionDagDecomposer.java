@@ -53,7 +53,8 @@ import java.util.Set;
  * Complete-partition order, producer, consumer, edge, and port-occurrence facts come from
  * {@link PrepareContext#partitionDag()}; unit membership, contracted topology, lowering, and
  * candidate dependencies and their unit-index accounting remain CPU-owned. Established affine
- * and numerical-family lowerings remain indivisible seeds; only the ordinary pointwise IR is
+ * and numerical-family lowerings remain indivisible seeds, including proved private rank-two
+ * transpose inputs of MATMUL; only the ordinary pointwise IR is
  * contracted, and a rejected contraction leaves the split topology unchanged.
  */
 public final class CpuPartitionDagDecomposer {
@@ -441,7 +442,9 @@ public final class CpuPartitionDagDecomposer {
     /**
      * Projects one selected unit without inventing graph values or changing the outer owner.
      * Membership and outside-consumer facts are filtered from the source partition DAG, and the
-     * returned context contains exactly the selected nodes in their original stable order. The
+     * returned context contains exactly the selected nodes in their original stable order.
+     * Original cross-partition consumers and consumers outside the selected unit become protected
+     * publication obligations in the projection, so a private lowering cannot erase their values. The
      * returned context is immutable analysis state and owns no physical resources.
      *
      * @param source non-null complete partition context carrying the source shared partition DAG
@@ -523,6 +526,9 @@ public final class CpuPartitionDagDecomposer {
         });
         Object first = nodes.getFirst().operation().kind();
         return affine || first == io.github.pho001.synaptik.model.operation.layout.AxisTransformKind.EXPAND_DIMS
+                || first == io.github.pho001.synaptik.model.operation.layout.AxisTransformKind.PERMUTE
+                    && nodes.size() <= 3 && nodes.getLast().operation().kind()
+                        == io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL
                 || first == io.github.pho001.synaptik.model.operation.convolution.Conv2dKind.CONV2D;
     }
 
@@ -930,7 +936,9 @@ public final class CpuPartitionDagDecomposer {
         for (GraphValue value : source.values()) {
             LogicalMemoryRequirement old = original.get(value.id());
             boolean outsideConsumer = source.partitionDag().consumers(value.id()).stream()
-                    .anyMatch(occurrence -> !nodeSet.contains(occurrence.node()));
+                    .anyMatch(occurrence -> !nodeSet.contains(occurrence.node()))
+                    || old != null && old.consumerPartitions().stream()
+                            .anyMatch(consumer -> !consumer.equals(source.partition()));
             boolean publication = old != null && old.graphOutput();
             requirements.add(new LogicalMemoryRequirement(value.id(), value.descriptor(),
                     produced.contains(value.id()) ? Optional.of(partition) : Optional.empty(),

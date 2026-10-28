@@ -275,8 +275,13 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0027 | [Unit topology adjacency ordering](tasks/0027-unit-topology-adjacency-ordering.md) | Complete | CPU0026 Complete | Invocation-local adjacency and stable Kahn ordering preserve exact dependencies/order; CPU, conformance, Fluent integration and bounded LSTM probe passed; independent APPROVE, zero findings. |
 | 0028 | [Fixed recurrent scan forward execution](tasks/0028-fixed-recurrent-scan-forward-execution.md) | Complete | NN0021A; Model0025E/0025F; Compiler0006A; CPU0027; Engine0021; CP0010/CP0011 Complete | Canonical FLOAT32 scalar Java RNN/GRU/LSTM accepted 2026-10-20 after independent APPROVE and main's root test/Javadoc gate; evidence in brief. |
 | 0029 | [Recurrent scan scalar type and layout coverage](tasks/0029-recurrent-scan-scalar-type-and-layout-coverage.md) | Complete | CPU0028; CPU0022 Complete | Four scalar floating types and resolved nonnegative-stride input layouts accepted 2026-10-21 after independent APPROVE, zero P1/P2, and main's source-matched native root test/Javadoc PASS; timing parity unproven. |
+| 0047 | [Private PERMUTE input absorption into MATMUL](tasks/0047-private-permute-matmul-absorption.md#result) | Complete | Existing static MATMUL baseline | Private backing/stride reads remove transpose resources; publication barriers, epilogues and native-copy eligibility preserved. Published separately at the user's request, without the uncommitted Scan series. |
 
 ## Active dependency DAG and integration
+
+CPU0047 is an independently publishable static MATMUL repair on the CPU0029 baseline. Its
+isolated source, focused CPU/Javadoc, conformance and public Engine checks passed; no Scan
+capability, timing result or other locally accepted task is published by this entry.
 
 CPU0022 + CPU0028 → CPU0029, all Complete. Authorized CPU frontier: **None**;
 CPU0023 remains Draft; no automatic successor launch.

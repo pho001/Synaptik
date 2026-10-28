@@ -133,7 +133,11 @@ public final class CpuPartitionLowering {
             return conv3dLowering.lower(context);
         }
         if (nodes.getFirst().operation().kind()
-                == io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL) {
+                == io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL
+                || nodes.size() > 1 && nodes.getFirst().operation().kind()
+                        == io.github.pho001.synaptik.model.operation.layout.AxisTransformKind.PERMUTE
+                    && nodes.getLast().operation().kind()
+                        == io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL) {
             return matmulLowering.lower(context);
         }
         if (nodes.getFirst().operation().kind()

@@ -7,7 +7,12 @@ import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr;
 import io.github.pho001.synaptik.model.graph.GraphValue;
+import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
@@ -26,16 +31,21 @@ import java.util.Objects;
  * <p>Rank-one operands receive internal unit M or N axes. Leading batch axes are aligned from
  * the right and absent or expanded singleton coordinates receive effective stride zero. The
  * record retains no graph, operation, carrier, worker, policy, or allocation state.</p>
+ *
+ * <p>One or two adjacent private rank-two transposes may be consumed as read mappings of their
+ * original backing values. This removes only their copies, not arithmetic or observable values;
+ * existing MATMUL and optional epilogue emitters receive the same checked geometry protocol.</p>
  */
 public final class CpuMatmulLowering {
     /** Creates a stateless geometry lowerer. */
     public CpuMatmulLowering() { }
 
     /**
-     * Lowers one canonical MATMUL and its already-proved optional bias/terminal suffix into an
-     * executable scalar or bounded tiled/vector form selected for the cold compute preference.
+     * Lowers one MATMUL with optional proved private transpose inputs, but no arithmetic suffix,
+     * into the existing scalar or bounded tiled/vector form selected by cold compute preference.
+     * The recognition-fact overload separately supplies any bias/terminal formula.
      *
-     * @param context non-null one- through three-occurrence CPU preparation projection
+     * @param context non-null MATMUL projection with at most two private rank-two transpose inputs
      * @return immutable lowering with exact boundary bindings and MATMUL geometry
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if the unit is not one exact bounded MATMUL chain or
@@ -43,8 +53,6 @@ public final class CpuMatmulLowering {
      */
     public CpuPartitionLowering.LoweredPartition lower(
             PrepareContext<? extends BackendAnalysisInputs> context) {
-        if(context.nodes().size()!=1)throw new IllegalArgumentException(
-                "bare MATMUL lowering requires one occurrence");
         return lowerRecognized(context,CpuMatmulIr.Epilogue.none());
     }
 
@@ -76,27 +84,57 @@ public final class CpuMatmulLowering {
                 source.clampRange().orElse(null)));
     }
 
+    /**
+     * Composes proved backing reads with the exact requested MATMUL epilogue, without mutating
+     * graph descriptors or adding a runtime view step.
+     *
+     * @param context non-null exact projected member occurrences and CPU execution inputs
+     * @param epilogue non-null already selected literal bias/terminal formula
+     * @return checked existing MATMUL IR, backing boundaries and invocation geometry
+     * @throws IllegalArgumentException if prefix privacy, membership, descriptors or suffix disagree
+     * @throws ArithmeticException if checked geometry arithmetic overflows
+     */
     private CpuPartitionLowering.LoweredPartition lowerRecognized(
             PrepareContext<? extends BackendAnalysisInputs> context,CpuMatmulIr.Epilogue epilogue) {
         Objects.requireNonNull(context, "context");
         if (!(context.backendInputs() instanceof CpuPartitionAnalysisInputs cpuInputs)) {
             throw new IllegalArgumentException("MATMUL requires CPU preparation inputs");
         }
-        if (context.nodes().isEmpty()||context.nodes().size()>3
-                || context.nodes().getFirst().operation().kind()
-                != io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL) {
-            throw new IllegalArgumentException("MATMUL unit requires one bounded chain");
-        }
-        var node = context.nodes().getFirst();
-        if (node.inputs().size() != 2 || node.outputs().size() != 1)
-            throw new IllegalArgumentException("MATMUL boundary cardinality disagrees");
         Map<ValueId, GraphValue> values = new LinkedHashMap<>();
         context.values().forEach(value -> values.put(value.id(), value));
-        GraphValue left = require(values, node.inputs().get(0));
-        GraphValue right = require(values, node.inputs().get(1));
+        int anchor = 0;
+        while (anchor < context.nodes().size()
+                && context.nodes().get(anchor).operation().kind() == AxisTransformKind.PERMUTE) anchor++;
+        if (anchor > 2 || anchor == context.nodes().size()
+                || context.nodes().size() - anchor > 3
+                || context.nodes().get(anchor).operation().kind() != MatmulKind.MATMUL
+                || privateTransposePrefixStart(context, values, anchor) != 0) {
+            throw new IllegalArgumentException("MATMUL unit requires one bounded chain");
+        }
+        var node = context.nodes().get(anchor);
+        if (node.inputs().size() != 2 || node.outputs().size() != 1)
+            throw new IllegalArgumentException("MATMUL boundary cardinality disagrees");
+        var inputIds = new ArrayList<ValueId>(node.inputs());
+        var readDescriptors = new ArrayList<TensorDescriptor>();
+        for (int role = 0; role < 2; role++) {
+            ValueId id = inputIds.get(role);
+            TensorDescriptor descriptor = require(values, id).descriptor();
+            for (int prefix = 0; prefix < anchor; prefix++) {
+                var transpose = context.nodes().get(prefix);
+                if (!transpose.outputs().getFirst().equals(id)) continue;
+                ValueId source = transpose.inputs().getFirst();
+                var sourceLayout = require(values, source).descriptor().layout().orElseThrow();
+                descriptor = new TensorDescriptor(descriptor.dataType(), descriptor.shape(),
+                        Optional.of(LayoutDescriptor.of(descriptor.shape(),
+                                new long[] {sourceLayout.stride(1), sourceLayout.stride(0)},
+                                sourceLayout.storageOffset(), true)), descriptor.requiresGrad());
+                inputIds.set(role, source);
+            }
+            readDescriptors.add(descriptor);
+        }
         ValueId matmulOutput=node.outputs().getFirst();ValueId current=matmulOutput;
         ValueId biasId=null;
-        int suffix=1;
+        int suffix=anchor+1;
         if(epilogue.hasBias()) {
             var add=context.nodes().get(suffix++);
             if(add.operation().kind()!=io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind.ADD
@@ -117,15 +155,16 @@ public final class CpuMatmulLowering {
         }
         if(suffix!=context.nodes().size())throw new IllegalArgumentException("MATMUL suffix is not linear");
         GraphValue result = require(values,current);
-        Geometry geometry = lower(left.descriptor(), right.descriptor(), result.descriptor());
+        Geometry geometry = lower(readDescriptors.get(0), readDescriptors.get(1), result.descriptor());
         if(biasId!=null){GraphValue bias=require(values,biasId);long[] be=bias.descriptor().shape().toLongArray();
             if(be.length!=1||be[0]!=geometry.n()||bias.descriptor().dataType()!=geometry.resultType())
                 throw new IllegalArgumentException("MATMUL bias descriptor disagrees");}
-        var mutableIds=new ArrayList<ValueId>();mutableIds.add(node.inputs().get(0));
-        mutableIds.add(node.inputs().get(1));if(biasId!=null)mutableIds.add(biasId);mutableIds.add(current);
+        var mutableIds=new ArrayList<ValueId>(inputIds);
+        if(biasId!=null)mutableIds.add(biasId);mutableIds.add(current);
         List<ValueId> ids=List.copyOf(mutableIds);
         var bindings = new ArrayList<CpuAccessPlan.Binding>();
-        for (int i = 0; i < ids.size(); i++) bindings.add(binding(require(values, ids.get(i)),
+        for (int i = 0; i < ids.size(); i++) bindings.add(binding(
+                i < 2 ? readDescriptors.get(i) : require(values, ids.get(i)).descriptor(),
                 i == ids.size() - 1 ? CpuAccessPlan.AccessKind.WRITE : CpuAccessPlan.AccessKind.READ));
         int bits = preferredBits(geometry.resultType());
         int lanes = bits == 0 ? 1 : bits / geometry.resultType().bitWidth();
@@ -144,7 +183,8 @@ public final class CpuMatmulLowering {
         return new CpuPartitionLowering.LoweredPartition(ir.encodedKernelIr(), ids, bindings,
                 ids.stream().map(id -> require(values, id).descriptor().layout().orElseThrow()
                         .referencedElementSpan()).toList(),
-                ids.stream().map(id->require(values,id).descriptor().dataType()).toList(), List.of(),
+                ids.stream().map(id->require(values,id).descriptor().dataType()).toList(),
+                context.nodes().subList(0, anchor).stream().map(n -> n.outputs().getFirst()).toList(),
                 new long[] {geometry.outputCount()}, geometry.outputCount(),
                 "legal: bounded portable MATMUL " + selection.selected(), new long[0],
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
@@ -152,6 +192,56 @@ public final class CpuMatmulLowering {
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.of(
                         new CpuPartitionLowering.LoweredPartition.MatmulFacts(ir,geometry)));
+    }
+
+    /**
+     * Finds the adjacent, single-use private rank-two transpose prefix of one MATMUL anchor.
+     * Public or outside-unit/partition obligations stop the prefix; unsupported views remain
+     * separate copy units. Repeated MATMUL input occurrences do not acquire a fan-out exception.
+     * A substitution that would merge the existing distinct read identities also keeps a copy.
+     *
+     * @param context non-null complete or privacy-preserving projected CPU context
+     * @param values non-null exact projected descriptors by identity
+     * @param anchor valid node ordinal of the candidate MATMUL
+     * @return first included transpose ordinal, or {@code anchor} when none qualifies
+     * @throws IllegalArgumentException if required descriptor facts are missing
+     */
+    static int privateTransposePrefixStart(PrepareContext<?> context,
+            Map<ValueId, GraphValue> values, int anchor) {
+        CompiledNode matmul = context.nodes().get(anchor);
+        if (matmul.operation().kind() != MatmulKind.MATMUL || matmul.inputs().size() != 2
+                || matmul.inputs().stream().anyMatch(id -> require(values, id).descriptor()
+                        .shape().rank() != 2)) return anchor;
+        int first = anchor;
+        var backingIds = new ArrayList<>(matmul.inputs());
+        for (int index = anchor - 1; index >= Math.max(0, anchor - 2); index--) {
+            CompiledNode view = context.nodes().get(index);
+            if (view.operation().kind() != AxisTransformKind.PERMUTE
+                    || !(view.operation().attrs() instanceof PermutationAttrs attrs)
+                    || !attrs.axes().equals(List.of(1, 0))
+                    || view.inputs().size() != 1 || view.outputs().size() != 1) break;
+            ValueId output = view.outputs().getFirst();
+            var uses = context.partitionDag().consumers(output);
+            var memory = context.memoryRequirements().stream()
+                    .filter(requirement -> requirement.valueId().equals(output)).findFirst().orElse(null);
+            if (uses.size() != 1 || uses.getFirst().node() != matmul
+                    || memory == null || memory.graphOutput()
+                    || !memory.producerPartition().equals(Optional.of(context.partition()))
+                    || !memory.consumerPartitions().equals(List.of(context.partition()))) break;
+            int role = uses.getFirst().inputPosition();
+            ValueId source = view.inputs().getFirst();
+            // The existing MATMUL boundary ABI requires distinct logical read identities.
+            // Retain a copy if replacing this view would merge the two read boundaries.
+            if (backingIds.get(1 - role).equals(source)) break;
+            var input = require(values, view.inputs().getFirst()).descriptor();
+            var result = require(values, output).descriptor();
+            if (input.shape().rank() != 2 || !new io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider()
+                    .supports(new OperationCapabilityQuery(view.operation(), List.of(input),
+                            List.of(result)))) break;
+            backingIds.set(role, source);
+            first = index;
+        }
+        return first;
     }
 
     private static int preferredBits(DataType type) {
@@ -168,9 +258,19 @@ public final class CpuMatmulLowering {
         if (value == null) throw new IllegalArgumentException("MATMUL value is not projected: " + id);
         return value;
     }
-    private static CpuAccessPlan.Binding binding(GraphValue value, CpuAccessPlan.AccessKind kind) {
-        long[] extents = value.descriptor().shape().toLongArray();
-        LayoutDescriptor layout = value.descriptor().layout().orElseThrow();
+    /**
+     * Builds a semantic read/write binding from an immutable descriptor. For an absorbed input,
+     * this is a cold read descriptor over the original backing, not a replacement graph value.
+     *
+     * @param descriptor non-null static descriptor with resolved layout
+     * @param kind non-null read or write direction
+     * @return checked numeric binding retaining exact strides, offset and referenced span
+     * @throws IllegalArgumentException if the binding's addressing contract is invalid
+     * @throws ArithmeticException if checked address/count arithmetic overflows
+     */
+    private static CpuAccessPlan.Binding binding(TensorDescriptor descriptor, CpuAccessPlan.AccessKind kind) {
+        long[] extents = descriptor.shape().toLongArray();
+        LayoutDescriptor layout = descriptor.layout().orElseThrow();
         long[] strides = layout.strides();
         var roles = new ArrayList<CpuAccessPlan.AxisRole>();
         long expected = 1; int suffix = 0;

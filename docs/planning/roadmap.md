@@ -123,6 +123,15 @@ after Euclid's final APPROVE and main's root gate; NN0028 is Complete under the 
 | [Tuning](tools/tuning/master-plan.md) | Local/complete-plan tuning and read-only inspection delivered, plus cache-bound repair. |
 | [CLI](tools/cli/master-plan.md) | Marker only; commands await selected concrete Engine/diagnostic workflow. |
 
+## Independently published MATMUL repair
+
+[CPU0047](backends/cpu/tasks/0047-private-permute-matmul-absorption.md#result) removes private adjacent
+rank-two transpose copies before MATMUL. It preserves observable boundaries and existing arithmetic,
+epilogue and native-copy behavior. The user selected publication of only this task; the other
+locally accepted Scan and follow-up changes are deliberately excluded from this commit.
+Isolated CPU/Javadoc, MATMUL/OpenBLAS conformance and Engine validation passed. No performance
+claim or new Scan execution capability is implied.
+
 ## Bounded activation-source successor
 
 The user authorized implementation of [Checkpoint0009](extensions/checkpoint/tasks/0009-owned-model-activation-source-and-persistence.md)

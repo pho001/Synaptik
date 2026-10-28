@@ -1206,7 +1206,8 @@ or Runtime resource.
 
 An exact-capability native realization compared with the portable route by CPU Prepare using
 whole-plan cost. The current first realization is OpenBLAS for one qualified positive rank-two,
-same-type FLOAT32/FLOAT64 bare MATMUL, using direct native matrices or one existing affine input
+same-type FLOAT32/FLOAT64 MATMUL without an arithmetic epilogue, including its proved adjacent
+private transpose read prefixes. It uses direct native matrices or one existing affine input
 copy per non-direct input plus a distinct route-local canonical output workspace and copy-out when
 the logical result is non-direct. The eight bounded masks range from no copies through both input
 copies plus output copy; each copied boundary owns one declared run-owned workspace. Output
@@ -4084,8 +4085,9 @@ cells, rows, or M/N tiles. Exact FLOAT32/FLOAT64 rank-one bias and one recognize
 fused when proved, otherwise the canonical split remains executable. Whole-value one-input
 materializations remain general portable candidates, while ordinary portable preparation remains
 direct. Separately, the current narrow OpenBLAS route accepts only a qualified positive rank-two
-same-type FLOAT32/FLOAT64 bare MATMUL and may select direct native storage or exactly one existing
-affine input materialization by checked whole-plan cost. It adds no rank-one, batch, promotion,
+same-type FLOAT32/FLOAT64 MATMUL without an arithmetic epilogue, including proved private transpose
+read prefixes. It may select direct native storage or declared canonical copies by checked
+whole-plan cost. It adds no rank-one, batch, promotion,
 epilogue, K split, packed panel, automatic tuning, or late fallback. See
 [the current portable MATMUL family](backend-guide/cpu-backend.md#current-portable-matmul-family),
 [the current narrow OpenBLAS MATMUL route](backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route),

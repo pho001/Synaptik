@@ -25,6 +25,8 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -58,6 +60,49 @@ import org.junit.jupiter.api.Test;
 /** Native-free staged-boundary conformance for the borrowed OpenBLAS CPU route. */
 final class CpuOpenBlasRouteConformanceTest {
     private static final QualificationFixture QUALIFICATION = qualificationFixture();
+
+    @Test void privateRightTransposeExecutesOnlyItsSelectedNativeCopyAndOneGemm() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            var base = context(type, false, true, false);
+            var nodes = List.of(new CompiledNode(new NodeId(1),
+                            new Operation(AxisTransformKind.PERMUTE, new PermutationAttrs(List.of(1, 0))),
+                            List.of(new ValueId(3)), List.of(new ValueId(1))), base.nodes().getFirst());
+            var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,
+                    nodes.stream().map(CompiledNode::id).toList());
+            var values = new ArrayList<>(base.values());
+            values.add(new GraphValue(new ValueId(3), descriptor(type, Shape.of(2, 3))));
+            var memory = values.stream().map(value -> new LogicalMemoryRequirement(value.id(),
+                    value.descriptor(), value.id().equals(new ValueId(1)) || value.id().equals(new ValueId(2))
+                            ? Optional.of(partition) : Optional.empty(),
+                    value.id().equals(new ValueId(2)) ? List.of() : List.of(partition),
+                    value.id().equals(new ValueId(2)))).toList();
+            var context = new PrepareContext<>(partition, nodes, values, memory, Map.of(), base.backendInputs());
+            var analysis = new CpuPartitionPreparer().analyze(context);
+            assertEquals(List.of(new ValueId(0), new ValueId(3), new ValueId(2)),
+                    analysis.plan().boundaryValues());
+            assertEquals(4, analysis.requirements().size());
+            assertEquals(CpuOpenBlasRoutePlan.Representation.COPY_RIGHT,
+                    analysis.plan().openBlasPlan().orElseThrow().representation());
+            var fake = new ComputingInvocation(type);
+            var executable = finalize(analysis, fake);
+            try (var arena = Arena.ofConfined()) {
+                var left = arena.allocate(6L * type.byteWidth(), type.byteWidth());
+                var right = type == DataType.FLOAT32
+                        ? MemorySegment.ofArray(new float[] {7, 9, 11, 8, 10, 12})
+                        : MemorySegment.ofArray(new double[] {7, 9, 11, 8, 10, 12});
+                var output = arena.allocate(4L * type.byteWidth(), type.byteWidth());
+                put(type, left, new double[] {1, 2, 3, 4, 5, 6});
+                var entry = executable.memoryPlan().workspaces().getFirst();
+                var workspace = CpuContiguousWorkspace.allocate(entry.byteSize(), entry.byteAlignment());
+                try (var run = state(executable.memoryPlan(), type, left, right, output, List.of(workspace))) {
+                    executable.bind(run).execute();
+                }
+                assertArrayEquals(new double[] {58, 64, 139, 154}, get(type, output));
+                assertEquals(1, fake.calls);
+                assertNotSame(right, fake.right);
+            }
+        }
+    }
 
     @Test void supportedAdapterBorrowingCrossesThePreparedRuntimeBoundary() {
         DataType type = DataType.FLOAT32;

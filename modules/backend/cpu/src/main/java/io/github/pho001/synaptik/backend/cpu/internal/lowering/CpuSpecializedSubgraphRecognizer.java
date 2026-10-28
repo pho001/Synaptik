@@ -37,6 +37,8 @@ import java.util.*;
  * single-use gates, never rewrites graph state, and associates retained supported facts only
  * after the independently selected 0008B baseline is available. Family attempts, member
  * positions, baseline-unit associations, and recognition dispositions remain CPU-owned.
+ * Proved adjacent private MATMUL transpose inputs participate in the anchor membership so existing
+ * bias/activation alternatives retain their exact baseline association without restoring a copy.
  * Recognition is cold metadata only: it does not change capability, lowering, generated artifact
  * identity, finalization, or hot dispatch.
  */
@@ -221,9 +223,10 @@ public final class CpuSpecializedSubgraphRecognizer {
             if (bias.length != 1 || result.length == 0 || bias[0] != result[result.length - 1])
                 suffix = Suffix.none(ordinal);
         }
-        suffix = selectSuffix(context, values, ordinal, ordinal, suffix, attempts);
+        int prefixStart = CpuMatmulLowering.privateTransposePrefixStart(context, values, ordinal);
+        suffix = selectSuffix(context, values, prefixStart, ordinal, suffix, attempts);
         if (suffix == null) return null;
-        List<Integer> members = range(ordinal, suffix.end());
+        List<Integer> members = range(prefixStart, suffix.end());
         return build(Family.MATMUL, Form.MATMUL, new MatmulAttributes(inputForm), members,
                 node.inputs(), context.partitionDag().nodes().get(suffix.end()).outputs(), values,
                 suffix.epilogue(), ExecutionDisposition.EXECUTABLE_ALTERNATIVES);
