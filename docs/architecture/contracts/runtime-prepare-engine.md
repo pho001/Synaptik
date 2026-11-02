@@ -366,6 +366,14 @@ the existing per-run constant initializer. Caller sources still use the existing
 CallerInput path. The contribution reads no payload, allocates/acquires nothing and creates no
 operation, partition, representation or executable.
 
+The audit-driven Metal completion extends this same protocol to Metal-only registrations,
+including constant cotangents and source-only callers. Engine's source-owner selection and
+composite assembler must agree on a registered supporting backend without requiring a CPU
+adapter. Preserve existing CPU behavior and deterministic registration/ownership policy; the
+chosen backend supplies exact physical geometry and the existing initialization/import/export
+path. Do not synthesize a Tensor operation or partition, install a CPU fallback, introduce a
+second initializer, or weaken source authentication and pre-finalization validation.
+
 One shared discovery/validation path requires an actual graph input that is published without
 producer or consumer, classified disjointly by the existing constant/caller plans. Preserve exact
 graph-value/logical-requirement references, canonical complete coverage and duplicate/foreign/

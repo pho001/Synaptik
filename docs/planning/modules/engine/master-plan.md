@@ -48,6 +48,19 @@ Engine does not implement kernels, lowering, backend storage, graph optimizer pa
 state, a service locator, reflective discovery, Tensor-owned execution/backward state, or hidden
 backend selection during a run.
 
+### Audit-driven Metal-only source publication — Ready
+
+Actual complete-signature execution found constant cotangents and source-only publications
+incorrectly requiring a CPU adapter in an explicitly Metal-only Engine. The
+[existing source-publication protocol extension](../../../architecture/contracts/runtime-prepare-engine.md)
+authorizes completing the same producerless-value geometry and initialization/import/export
+path for a registered supporting Metal composition. Reuse existing Prepare/Runtime ownership;
+source-owner selection and composite assembly must agree deterministically. Preserve existing
+CPU behavior and caller/constant authentication, exact physical sizes and pre-finalization
+validation. No synthetic operation, CPU fallback, secondary initializer, execution loop or
+new public facade is in scope. Actual Metal-only constant gradients, source-only raw values,
+reuse and failure cleanup plus independent Class C review are acceptance gates.
+
 ## Stable invariants and ownership
 
 - Engine is the outer composition root. It explicitly constructs or takes ownership of concrete
