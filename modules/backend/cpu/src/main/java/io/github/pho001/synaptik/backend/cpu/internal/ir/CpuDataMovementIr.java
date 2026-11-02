@@ -22,7 +22,7 @@ public record CpuDataMovementIr(DataType dataType, MovementPlan plan,
      * starts, and other invocation facts remain in cold geometry rather than artifact identity.
      */
     public sealed interface MovementPlan permits PadPlan, TilePlan, ConcatPlan, StackPlan,
-            UnfoldAxisPlan, Unfold2dPlan, SliceUpdatePlan {
+            UnfoldAxisPlan, Unfold2dPlan, Unfold3dPlan, SliceUpdatePlan {
         /**
          * Returns the stable generated family name.
          *
@@ -153,6 +153,19 @@ public record CpuDataMovementIr(DataType dataType, MovementPlan plan,
         @Override public List<Integer> occurrenceToBoundary() { return List.of(0); }
     }
     /**
+     * NCDHW-to-columns extraction with exact typed padding and cold spatial facts.
+     * @param outputRank canonical result rank, three
+     * @param immediateBits exact represented padding bits
+     */
+    public record Unfold3dPlan(int outputRank, long immediateBits) implements MovementPlan {
+        /** @throws IllegalArgumentException if the result rank is not three */
+        public Unfold3dPlan {
+            if (outputRank != 3) throw new IllegalArgumentException("unfold3d result rank must be three");
+        }
+        @Override public String family() { return "UNFOLD3D"; }
+        @Override public List<Integer> occurrenceToBoundary() { return List.of(0); }
+    }
+    /**
      * Structural functional slice-update plan. Exact placement geometry and attribute form remain
      * cold; only the two semantic occurrences and output rank shape generated code.
      *
@@ -216,6 +229,12 @@ public record CpuDataMovementIr(DataType dataType, MovementPlan plan,
         if (plan instanceof Unfold2dPlan && (inputAccesses.size() != 1
                 || inputAccesses.getFirst().iterationRank() != 4)) {
             throw new IllegalArgumentException("unfold2d access ranks are inconsistent");
+        }
+        if (plan instanceof Unfold3dPlan && (inputAccesses.size() != 1
+                || inputAccesses.getFirst().iterationRank() != 5
+                || dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64
+                    && dataType != DataType.BFLOAT16 && dataType != DataType.FLOAT16)) {
+            throw new IllegalArgumentException("unfold3d access ranks or type are inconsistent");
         }
         for (int boundary : plan.occurrenceToBoundary()) {
             if (boundary < 0 || boundary >= inputAccesses.size()) {

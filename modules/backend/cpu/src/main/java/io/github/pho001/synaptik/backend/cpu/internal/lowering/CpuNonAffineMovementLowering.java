@@ -21,6 +21,8 @@ import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Unfold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -37,7 +39,7 @@ import java.util.Optional;
 
 /**
  * Lowers one fully static {@code PAD}, {@code TILE}, {@code CONCAT}, {@code STACK},
- * {@code UNFOLD_AXIS}, {@code UNFOLD2D}, or {@code SLICE_UPDATE}
+ * {@code UNFOLD_AXIS}, {@code UNFOLD2D}, {@code UNFOLD3D}, or {@code SLICE_UPDATE}
  * occurrence into one represented-bit movement unit.
  *
  * <p>The lowering preserves semantic input occurrence order while declaring each distinct input
@@ -311,6 +313,27 @@ public final class CpuNonAffineMovementLowering {
                     window.kernelWidth(), window.strideHeight(), window.strideWidth(),
                     window.paddingHeight(), window.paddingWidth(), window.dilationHeight(),
                     window.dilationWidth(), outH, outW);
+        } else if (kind == WindowTransformKind.UNFOLD3D
+                && (attrs instanceof Window3dAttrs || attrs instanceof Unfold3dAttrs)) {
+            requireUnary(occurrences, "UNFOLD3D");
+            DataType type = output.descriptor().dataType();
+            if (type != DataType.FLOAT32 && type != DataType.FLOAT64
+                    && type != DataType.BFLOAT16 && type != DataType.FLOAT16)
+                throw new IllegalArgumentException("UNFOLD3D requires a floating represented type");
+            Window3dAttrs window;
+            long bits = 0;
+            if (attrs instanceof Window3dAttrs direct) window = direct;
+            else {
+                var configured = (Unfold3dAttrs) attrs;
+                if (configured.paddingValue().dataType() != type)
+                    throw new IllegalArgumentException("UNFOLD3D padding type disagrees");
+                window = configured.window(); bits = scalarBits(configured.paddingValue());
+            }
+            long[] input = occurrences.getFirst().descriptor().shape().toLongArray();
+            var spatial = CpuSpatialWindowGeometry.of(input, window);
+            spatial.requireColumns(input, outputExtents);
+            movementPlan = new CpuDataMovementIr.Unfold3dPlan(3, bits);
+            variant = new Geometry.Unfold3d(spatial);
         } else {
             throw new IllegalArgumentException("unsupported CPU movement family");
         }
@@ -501,6 +524,30 @@ public final class CpuNonAffineMovementLowering {
                     window.paddingHeight(), window.paddingWidth(), window.dilationHeight(),
                     window.dilationWidth(), h, w};
             factors = new long[] {ef(input, 1), ef(input, 2), ef(input, 3), 0, 0, 0, 0, 0, 0, 0, 0, hf, wf};
+        } else if (kind == WindowTransformKind.UNFOLD3D
+                && (attrs instanceof Window3dAttrs || attrs instanceof Unfold3dAttrs)) {
+            if (map.size() != 1 || inputRank != 5 || rank != 3
+                    || type != DataType.FLOAT32 && type != DataType.FLOAT64
+                        && type != DataType.BFLOAT16 && type != DataType.FLOAT16) throw invalidBatch();
+            Window3dAttrs window;
+            long bits = 0;
+            if (attrs instanceof Window3dAttrs direct) window = direct;
+            else {
+                var configured = (Unfold3dAttrs) attrs;
+                if (configured.paddingValue().dataType() != type) throw invalidBatch();
+                window = configured.window(); bits = scalarBits(configured.paddingValue());
+            }
+            long[] image = new long[5];
+            for (int a = 1; a < 5; a++) {
+                if (ef(input, a) != 0) throw invalidBatch();
+                image[a] = ec(input, a);
+            }
+            var spatial = CpuSpatialWindowGeometry.of(image, window);
+            checkExtent(output, 0, ec(input, 0), ef(input, 0));
+            checkExtent(output, 1, Math.multiplyExact(image[1], spatial.kernelCount()), 0);
+            checkExtent(output, 2, spatial.columnCount(), 0);
+            plan = new CpuDataMovementIr.Unfold3dPlan(3, bits);
+            facts = spatial.cells(); factors = new long[facts.length];
         } else if (kind == SliceKind.SLICE_UPDATE) {
             if (map.size() != 2 || rank != inputRank
                     || !output.extentConstants().equals(input.extentConstants())
@@ -790,6 +837,8 @@ public final class CpuNonAffineMovementLowering {
                         yield new Unfold2d(facts[0], facts[1], facts[2], facts[3], facts[4],
                                 facts[5], facts[6], facts[7], facts[8], facts[9], facts[10], facts[11], facts[12]);
                     }
+                    case CpuDataMovementIr.Unfold3dPlan ignored ->
+                            new Unfold3d(CpuSpatialWindowGeometry.fromCells(facts));
                     case CpuDataMovementIr.SliceUpdatePlan slice -> {
                         int rank = extents.length;
                         long[] starts = Arrays.copyOf(facts, rank);
@@ -913,7 +962,7 @@ public final class CpuNonAffineMovementLowering {
          * occurrence facts only and are never exposed to Runtime hot-path semantic inspection.
          */
         public sealed interface Variant permits Pad, Tile, Concat, Stack, UnfoldAxis, Unfold2d,
-                SliceUpdate { }
+                Unfold3d, SliceUpdate { }
         /**
          * Constant-padding widths and source extents.
          *
@@ -1006,6 +1055,14 @@ public final class CpuNonAffineMovementLowering {
                 long paddingHeight, long paddingWidth, long dilationHeight, long dilationWidth,
                 long outputHeight, long outputWidth) implements Variant { }
         /**
+         * Shared checked spatial window facts for volumetric extraction.
+         * @param spatial non-null immutable checked geometry
+         */
+        public record Unfold3d(CpuSpatialWindowGeometry spatial) implements Variant {
+            /** @throws NullPointerException if spatial is null */
+            public Unfold3d { Objects.requireNonNull(spatial, "spatial"); }
+        }
+        /**
          * Normalized finite sequence placement on every result axis.
          * @param starts inclusive logical starts; copied defensively
          * @param lengths finite non-negative sequence lengths; copied defensively
@@ -1091,6 +1148,7 @@ public final class CpuNonAffineMovementLowering {
                 case Stack ignored -> 1;
                 case UnfoldAxis ignored -> 3;
                 case Unfold2d ignored -> 18;
+                case Unfold3d ignored -> 18;
                 case SliceUpdate ignored -> 6 * rank;
             };
             long elementCount = 1;
@@ -1157,6 +1215,11 @@ public final class CpuNonAffineMovementLowering {
                     packed[cursor++] = q % unfold.kernelWidth;
                     packed[cursor++] = p / unfold.outputWidth;
                     packed[cursor++] = p % unfold.outputWidth;
+                }
+                case Unfold3d unfold -> {
+                    for (long cell : unfold.spatial.cells()) packed[cursor++] = cell;
+                    long[] image = inputs.getFirst().extents;
+                    for (int a = 2; a < 5; a++) packed[cursor++] = image[a];
                 }
                 case SliceUpdate slice -> {
                     long[] lowTargets = new long[rank];

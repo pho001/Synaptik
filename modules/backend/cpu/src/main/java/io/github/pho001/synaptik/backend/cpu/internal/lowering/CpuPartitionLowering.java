@@ -126,7 +126,8 @@ public final class CpuPartitionLowering {
                 || kind == io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT
                 || kind == io.github.pho001.synaptik.model.operation.index.AxisScatterKind.SCATTER_ADD
                 || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.FOLD_AXIS
-                || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.FOLD2D);
+                || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.FOLD2D
+                || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.FOLD3D);
     }
 
     private static boolean low(DataType type) {
@@ -1010,7 +1011,8 @@ public final class CpuPartitionLowering {
                 return symbolic ? orderingLowering.lowerBatch(context, scanBatchLayouts) : orderingLowering.lower(context);
             }
             if (kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.FOLD_AXIS
-                    || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.FOLD2D) {
+                    || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.FOLD2D
+                    || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.FOLD3D) {
                 return symbolic ? foldLowering.lowerBatch(context, scanBatchLayouts) : foldLowering.lower(context);
             }
             if (kind instanceof io.github.pho001.synaptik.model.operation.index.AxisScatterKind
@@ -1028,6 +1030,7 @@ public final class CpuPartitionLowering {
                     || kind == io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind.STACK
                     || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.UNFOLD_AXIS
                     || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.UNFOLD2D
+                    || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.UNFOLD3D
                     || kind == io.github.pho001.synaptik.model.operation.layout.SliceKind.SLICE_UPDATE) {
                 return symbolic ? movementLowering.lowerBatch(context, scanBatchLayouts) : movementLowering.lower(context);
             }

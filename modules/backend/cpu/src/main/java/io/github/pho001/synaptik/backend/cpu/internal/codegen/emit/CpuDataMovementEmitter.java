@@ -14,7 +14,7 @@ import java.util.Arrays;
 /**
  * Emits one direct allocation-free scalar body for static represented-bit movement.
  *
- * <p>The encoded structural IR chooses PAD, TILE, CONCAT, STACK, UNFOLD_AXIS, UNFOLD2D, or
+ * <p>The encoded structural IR chooses PAD, TILE, CONCAT, STACK, UNFOLD_AXIS, UNFOLD2D, UNFOLD3D, or
  * SLICE_UPDATE during class generation. Compact primitive geometry supplies range-start
  * coordinates, carrier bases, rank-specific strides, and family facts at invocation time. For
  * slice update, per-axis target and update-ordinal cursors select the update only at positions in
@@ -49,6 +49,10 @@ final class CpuDataMovementEmitter {
      */
     void emit(CodeBuilder code, CpuKernelSpecialization specialization, CpuKernelIr ir) {
         Parsed parsed = Parsed.parse(ir.familyIdentity());
+        if (parsed.family.equals("UNFOLD3D")) {
+            emitSpatialUnfold(code, specialization, ir, parsed.bits);
+            return;
+        }
         if (CpuCarrierEmitter.controlFacts().isPresent()) {
             emitGeneralLong(code, specialization, ir, parsed);
             return;
@@ -183,6 +187,105 @@ final class CpuDataMovementEmitter {
                     .branch(Opcode.GOTO, loop);
             code.labelBinding(finished);
         }
+    }
+
+    /**
+     * Emits a generated spatial cursor walk. Geometry is hoisted once; division only decodes
+     * the range seed. The repeated body has typed loads/stores and primitive cursor carries.
+     * @param code generation-time builder
+     * @param s exact carrier specialization
+     * @param ir checked volumetric movement encoding
+     * @param bits exact typed padding bits
+     */
+    private static void emitSpatialUnfold(CodeBuilder code, CpuKernelSpecialization s,
+            CpuKernelIr ir, long bits) {
+        DataType type = ir.values().getFirst().dataType();
+        int[] g = new int[34];
+        for (int n = 0; n < g.length; n++) {
+            g[n] = code.allocateLocal(TypeKind.LONG);
+            geometry(code, 2, n).lstore(g[n]);
+        }
+        int logical = code.allocateLocal(TypeKind.LONG);
+        int address = code.allocateLocal(TypeKind.LONG);
+        int outputAddress = g[6], batch = g[3];
+        int channel = code.allocateLocal(TypeKind.LONG);
+        int channels = code.allocateLocal(TypeKind.LONG);
+        code.lload(g[1]).lload(g[16]).ldiv().lload(g[21]).ldiv().lload(g[26]).ldiv().lstore(channels);
+        int q = code.allocateLocal(TypeKind.LONG), p = code.allocateLocal(TypeKind.LONG);
+        int[] kernel = new int[3], column = new int[3], image = new int[3];
+        code.lload(3).lstore(logical).lload(g[4]).lstore(q).lload(g[5]).lstore(p);
+        for (int a = 2; a >= 0; a--) {
+            kernel[a] = code.allocateLocal(TypeKind.LONG);
+            column[a] = code.allocateLocal(TypeKind.LONG);
+            image[a] = code.allocateLocal(TypeKind.LONG);
+            code.lload(q).lload(g[16+5*a]).lrem().lstore(kernel[a]);
+            code.lload(q).lload(g[16+5*a]).ldiv().lstore(q);
+            code.lload(p).lload(g[20+5*a]).lrem().lstore(column[a]);
+            code.lload(p).lload(g[20+5*a]).ldiv().lstore(p);
+        }
+        code.lload(q).lstore(channel);
+        int value = code.allocateLocal(switch (type) {
+            case FLOAT64 -> TypeKind.DOUBLE;
+            case FLOAT32 -> TypeKind.FLOAT;
+            case BFLOAT16, FLOAT16 -> TypeKind.INT;
+            default -> throw new IllegalArgumentException("image unfold requires a floating carrier");
+        });
+        var carriers = new CpuCarrierEmitter(code);
+        var loop = code.newLabel(); var done = code.newLabel();
+        var padding = code.newLabel(); var ready = code.newLabel();
+        boolean controlled = CpuCarrierEmitter.controlFacts()
+                .map(facts -> facts.boundaryRows().getLast().rowIndexed()).orElse(false);
+        var inactive = controlled ? code.newLabel() : null;
+        code.labelBinding(loop).lload(logical).lload(5).lcmp().branch(Opcode.IFGE, done);
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, 1, logical, TypeKind.LONG, inactive);
+        for (int a = 0; a < 3; a++) {
+            code.lload(column[a]).lload(g[17+5*a]).lmul().lload(g[18+5*a]).lsub()
+                    .lload(kernel[a]).lload(g[19+5*a]).lmul().ladd().lstore(image[a]);
+            code.lload(image[a]).loadConstant(0L).lcmp().branch(Opcode.IFLT, padding);
+            code.lload(image[a]).lload(g[31+a]).lcmp().branch(Opcode.IFGE, padding);
+        }
+        code.lload(g[10]).lload(batch).lload(g[11]).lmul().ladd()
+                .lload(channel).lload(g[12]).lmul().ladd().lstore(address);
+        for (int a = 0; a < 3; a++)
+            code.lload(address).lload(image[a]).lload(g[13+a]).lmul().ladd().lstore(address);
+        carriers.load(type, s.carrierPattern().getFirst(), 0, address);
+        storeValue(code, type, value);
+        code.branch(Opcode.GOTO, ready).labelBinding(padding);
+        loadImmediate(code, type, bits); storeValue(code, type, value);
+        if (controlled) {
+            code.branch(Opcode.GOTO, ready).labelBinding(inactive);
+            loadImmediate(code, type, 0L); storeValue(code, type, value);
+        }
+        code.labelBinding(ready);
+        carriers.store(type, s.carrierPattern().getLast(), 1, outputAddress, value);
+        // The physical output walk keeps arbitrary positive-stride layouts and partial ranges.
+        var advanced = code.newLabel();
+        for (int a = 2; a >= 0; a--) {
+            code.lload(g[3+a]).loadConstant(1L).ladd().lstore(g[3+a]);
+            code.lload(outputAddress).lload(g[7+a]).ladd().lstore(outputAddress);
+            var carry = code.newLabel();
+            code.lload(g[3+a]).lload(g[a]).lcmp().branch(Opcode.IFGE, carry);
+            code.branch(Opcode.GOTO, advanced).labelBinding(carry);
+            code.loadConstant(0L).lstore(g[3+a]);
+            code.lload(outputAddress).lload(g[a]).lload(g[7+a]).lmul().lsub().lstore(outputAddress);
+        }
+        code.labelBinding(advanced);
+        var cursorReady = code.newLabel();
+        for (int a = 2; a >= 0; a--) {
+            code.lload(column[a]).loadConstant(1L).ladd().lstore(column[a]);
+            code.lload(column[a]).lload(g[20+5*a]).lcmp().branch(Opcode.IFLT, cursorReady);
+            code.loadConstant(0L).lstore(column[a]);
+        }
+        for (int a = 2; a >= 0; a--) {
+            code.lload(kernel[a]).loadConstant(1L).ladd().lstore(kernel[a]);
+            code.lload(kernel[a]).lload(g[16+5*a]).lcmp().branch(Opcode.IFLT, cursorReady);
+            code.loadConstant(0L).lstore(kernel[a]);
+        }
+        code.lload(channel).loadConstant(1L).ladd().lstore(channel);
+        code.lload(channel).lload(channels).lcmp().branch(Opcode.IFLT, cursorReady);
+        code.loadConstant(0L).lstore(channel);
+        code.labelBinding(cursorReady).lload(logical).loadConstant(1L).ladd().lstore(logical)
+                .branch(Opcode.GOTO, loop).labelBinding(done);
     }
 
     private static void emitGeneralLong(CodeBuilder code,

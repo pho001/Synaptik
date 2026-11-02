@@ -35,6 +35,117 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLowerin
 import org.junit.jupiter.api.Test;
 
 class CpuFoldGeneratedKernelTest {
+    @Test void volumetricFoldPreservesBroadcastInputOccurrencesAndStridedOutputRanges() throws Throwable {
+        var window = new Window3dAttrs(2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, false);
+        Shape image = Shape.of(1, 1, 2, 2, 2), columns = Shape.of(1, 8, 27);
+        var in = new TensorDescriptor(DataType.FLOAT64, columns,
+                Optional.of(LayoutDescriptor.of(columns, new long[]{0, 0, 2}, 1, true)), false);
+        var out = new TensorDescriptor(DataType.FLOAT64, image,
+                Optional.of(LayoutDescriptor.of(image, new long[]{0, 0, 12, 5, 2}, 3, true)), false);
+        var selected = carriers(CpuScatterLoweringTest.context(
+                new Operation(WindowTransformKind.FOLD3D, new Fold3dAttrs(image, window)),
+                List.of(0), List.of(in), out), CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY);
+        double[] input = new double[54], actual = new double[23], expected = new double[23];
+        for (int i = 0; i < input.length; i++) input[i] = (i % 17 - 8) * 0.125;
+        Arrays.fill(actual, -17); Arrays.fill(expected, -17);
+        var lowered = new CpuPartitionLowering().lower(selected);
+        CpuScalarReferenceKernel.execute((CpuFoldIr) lowered.portableKernelIr(),
+                lowered.foldGeometry().orElseThrow(),
+                List.of(argument(DataType.FLOAT64, input, true), argument(DataType.FLOAT64, expected, false)), 1, 7);
+        invoke(selected, input, actual, 1, 7);
+        assertArrayEquals(expected, actual);
+        assertEquals(-17, actual[3]); assertEquals(-17, actual[22]);
+    }
+
+    @Test void controlledVolumetricFoldExcludesInactiveInputRowsAndPublishesPositiveZero() throws Throwable {
+        var window = new Window3dAttrs(2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, false);
+        Shape image = Shape.of(2, 1, 2, 2, 2);
+        var selected = context(new Operation(WindowTransformKind.FOLD3D, new Fold3dAttrs(image, window)),
+                DataType.FLOAT32, Shape.of(2, 8, 27), image);
+        var plan = new CpuPartitionPreparer().analyze(selected).plan();
+        var entry = CpuAffineCopyGeneratedKernelTest.controlledEntry(
+                plan.units().getFirst().portablePlan(), List.of(
+                        new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 216),
+                        new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 8)));
+        float[] input = new float[216], output = new float[16];
+        Arrays.fill(input, 1); Arrays.fill(output, -99);
+        entry.invokeWithArguments(input, output,
+                plan.foldGeometry().orElseThrow().pack(new long[2], 0, 16),
+                0L, 16L, CpuAffineCopyGeneratedKernelTest.control(new byte[]{1, 0}));
+        for (int i = 0; i < 8; i++) assertEquals(8.0f, output[i]);
+        for (int i = 8; i < 16; i++) assertEquals(0, Float.floatToRawIntBits(output[i]));
+    }
+
+    @Test void volumetricFoldMatchesCanonicalOracleWithOverlapDilationCeilAndPartialRanges() throws Throwable {
+        var window = new Window3dAttrs(2, 2, 3, 2, 2, 2, 1, 0, 1, 2, 1, 1, true);
+        Shape image = Shape.of(2, 2, 3, 4, 5), columns = Shape.of(2, 24, 12);
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            var base = context(new Operation(WindowTransformKind.FOLD3D,
+                    new Fold3dAttrs(image, window)), type, columns, image);
+            Object input = empty(type, 576), expected = empty(type, 240);
+            if (input instanceof float[] f) {
+                for (int i = 0; i < f.length; i++) f[i] = (i % 31 - 15) * 0.125f;
+            } else {
+                var d = (double[]) input;
+                for (int i = 0; i < d.length; i++) d[i] = (i % 31 - 15) * 0.125;
+            }
+            var lowered = new CpuPartitionLowering().lower(base);
+            CpuScalarReferenceKernel.execute((CpuFoldIr) lowered.portableKernelIr(),
+                    lowered.foldGeometry().orElseThrow(),
+                    List.of(argument(type, input, true), argument(type, expected, false)), 0, 240);
+            Object direct = empty(type, 240);
+            long[] cells = ((io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLowering.SpatialGeometry)
+                    lowered.foldGeometry().orElseThrow().mapping()).spatial().cells();
+            if (input instanceof float[] f)
+                CpuSpatialWindowCleanJavaOracle.fold(f, (float[]) direct, 2, 3, 4, 5, cells, 0, 240);
+            else CpuSpatialWindowCleanJavaOracle.fold((double[]) input, (double[]) direct, 2, 3, 4, 5, cells, 0, 240);
+            assertCarrierEquals(type, expected, direct);
+            for (var pattern : List.of(List.of(heap(type), heap(type)),
+                    List.of(CarrierAccess.MEMORY_SEGMENT, heap(type)),
+                    List.of(heap(type), CarrierAccess.MEMORY_SEGMENT),
+                    List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT))) {
+                Object actual = empty(type, 240);
+                var selected = carriers(base, pattern.getFirst(), pattern.getLast());
+                assertDirectGeneratedShape(selected, type,
+                        pattern.getFirst() != CarrierAccess.MEMORY_SEGMENT && pattern.getLast() != CarrierAccess.MEMORY_SEGMENT,
+                        pattern.getFirst() == CarrierAccess.MEMORY_SEGMENT,
+                        pattern.getLast() == CarrierAccess.MEMORY_SEGMENT);
+                Object in = pattern.getFirst() == CarrierAccess.MEMORY_SEGMENT ? segment(input) : input;
+                Object out = pattern.getLast() == CarrierAccess.MEMORY_SEGMENT ? segment(actual) : actual;
+                for (long[] range : List.of(new long[]{0, 0}, new long[]{0, 17},
+                        new long[]{17, 137}, new long[]{137, 240}))
+                    invoke(selected, in, out, range[0], range[1]);
+                assertCarrierEquals(type, expected, actual);
+            }
+        }
+    }
+
+    @Test void volumetricFoldLeavesPositiveZeroGapsAndPreservesContributorOrder() throws Throwable {
+        Shape image = Shape.of(1, 1, 3, 3, 3);
+        var sparse = new Window3dAttrs(1, 1, 1, 2, 2, 2, 0, 0, 0, 1, 1, 1, false);
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            Object input = floating(type, 1, 2, 3, 4, 5, 6, 7, 8), output = empty(type, 27);
+            invoke(context(new Operation(WindowTransformKind.FOLD3D, new Fold3dAttrs(image, sparse)),
+                    type, Shape.of(1, 1, 8), image), input, output, 0, 27);
+            for (int d = 0; d < 3; d++) for (int h = 0; h < 3; h++) for (int w = 0; w < 3; w++) {
+                int index = (d * 3 + h) * 3 + w;
+                double expected = (d % 2 != 0 || h % 2 != 0 || w % 2 != 0) ? 0
+                        : (d / 2 * 2 + h / 2) * 2 + w / 2 + 1;
+                if (output instanceof float[] f)
+                    assertEquals(Float.floatToRawIntBits((float) expected), Float.floatToRawIntBits(f[index]));
+                else assertEquals(Double.doubleToRawLongBits(expected),
+                        Double.doubleToRawLongBits(((double[]) output)[index]));
+            }
+        }
+        Shape small = Shape.of(1, 1, 2, 2, 2);
+        var overlap = new Window3dAttrs(2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, false);
+        float[] input = new float[216], output = new float[8];
+        input[26] = 1e30f; input[27 + 25] = -1e30f; input[54 + 23] = 3;
+        invoke(context(new Operation(WindowTransformKind.FOLD3D, new Fold3dAttrs(small, overlap)),
+                DataType.FLOAT32, Shape.of(1, 8, 27), small), input, output, 0, 8);
+        assertEquals(3.0f, output[7]);
+    }
+
     @Test void everyGeneratedFoldFormHasAStableDirectTypedClassShape() {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
                 DataType.INT32, DataType.INT64)) {

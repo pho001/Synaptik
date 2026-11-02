@@ -29,6 +29,111 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CpuDataMovementGeneratedKernelTest {
+    @Test void controlledVolumetricUnfoldZerosInactiveRowsWithoutReadingTheirInput() throws Throwable {
+        var window = new Window3dAttrs(2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, false);
+        var selected = context(new Operation(WindowTransformKind.UNFOLD3D,
+                        new Unfold3dAttrs(window, ScalarValue.float32(-0.0f))), List.of(0),
+                List.of(CpuNonAffineMovementLoweringTest.descriptor(DataType.FLOAT32, Shape.of(2, 1, 2, 2, 2))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.FLOAT32, Shape.of(2, 8, 27)));
+        var plan = new CpuPartitionPreparer().analyze(selected).plan();
+        var entry = CpuAffineCopyGeneratedKernelTest.controlledEntry(
+                plan.units().getFirst().portablePlan(), List.of(
+                        new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 8),
+                        new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 216)));
+        float[] input = {1, 2, 3, 4, 5, 6, 7, 8}, output = new float[432];
+        Arrays.fill(output, -99);
+        entry.invokeWithArguments(input, output,
+                plan.movementGeometry().orElseThrow().pack(new long[2], 0, 432),
+                0L, 432L, CpuAffineCopyGeneratedKernelTest.control(new byte[]{1, 0}));
+        float[] expected = new float[432], fullInput = new float[16];
+        System.arraycopy(input, 0, fullInput, 0, input.length);
+        invokeReference(selected, List.of(fullInput, expected), 0, 216);
+        assertTrue(equalBits(expected, output));
+        for (int i = 216; i < output.length; i++) assertEquals(0, Float.floatToRawIntBits(output[i]));
+    }
+
+    @Test void volumetricExtractionRetainsRawLowBitsWithoutLowArithmetic() throws Throwable {
+        var window = new Window3dAttrs(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, false);
+        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            short paddingBits = type == DataType.BFLOAT16 ? (short) 0x7fc2 : (short) 0x7e42;
+            var padding = type == DataType.BFLOAT16
+                    ? ScalarValue.bfloat16Bits(paddingBits) : ScalarValue.float16Bits(paddingBits);
+            var selected = withCarrierPattern(context(new Operation(WindowTransformKind.UNFOLD3D,
+                            new Unfold3dAttrs(window, padding)), List.of(0),
+                    List.of(CpuNonAffineMovementLoweringTest.descriptor(type, Shape.of(1, 1, 1, 1, 1))),
+                    CpuNonAffineMovementLoweringTest.descriptor(type, Shape.of(1, 1, 27))),
+                    List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.SHORT_ARRAY));
+            short[] output = new short[27];
+            invoke(selected, List.of(MemorySegment.ofArray(new short[]{(short) 0x8000}), output), 0, 27);
+            for (int i = 0; i < output.length; i++)
+                assertEquals(i == 13 ? (short) 0x8000 : paddingBits, output[i]);
+        }
+    }
+
+    @Test void volumetricWindowsPreserveTypedPaddingAndRangeCursorsAcrossCarriers() throws Throwable {
+        var window = new Window3dAttrs(2, 2, 3, 2, 2, 2, 1, 0, 1, 2, 1, 1, true);
+        Shape image = Shape.of(2, 2, 3, 4, 5), columns = Shape.of(2, 24, 12);
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            Object input = type == DataType.FLOAT32 ? new float[240] : new double[240];
+            for (int i = 0; i < 240; i++) {
+                if (input instanceof float[] f) f[i] = (i - 120) * 0.125f;
+                else ((double[]) input)[i] = (i - 120) * 0.125;
+            }
+            var padding = type == DataType.FLOAT32 ? ScalarValue.float32(-0.0f) : ScalarValue.float64(-0.0);
+            var base = context(new Operation(WindowTransformKind.UNFOLD3D,
+                            new Unfold3dAttrs(window, padding)), List.of(0),
+                    List.of(CpuNonAffineMovementLoweringTest.descriptor(type, image)),
+                    CpuNonAffineMovementLoweringTest.descriptor(type, columns));
+            var heap = type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY : CarrierAccess.DOUBLE_ARRAY;
+            long[] cells = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSpatialWindowGeometry
+                    .of(image.toLongArray(), window).cells();
+            Object direct = type == DataType.FLOAT32 ? new float[576] : new double[576];
+            if (input instanceof float[] f)
+                CpuSpatialWindowCleanJavaOracle.unfold(f, (float[]) direct, 2, 3, 4, 5, cells, -0.0f, 0, 576);
+            else CpuSpatialWindowCleanJavaOracle.unfold((double[]) input, (double[]) direct, 2, 3, 4, 5, cells, -0.0, 0, 576);
+            for (var pattern : List.of(List.of(heap, heap),
+                    List.of(CarrierAccess.MEMORY_SEGMENT, heap),
+                    List.of(heap, CarrierAccess.MEMORY_SEGMENT),
+                    List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT))) {
+                Object actual = type == DataType.FLOAT32 ? new float[576] : new double[576];
+                Object expected = type == DataType.FLOAT32 ? new float[576] : new double[576];
+                var selected = withCarrierPattern(base, pattern);
+                Object in = pattern.getFirst() == heap ? input
+                        : input instanceof float[] f ? MemorySegment.ofArray(f) : MemorySegment.ofArray((double[]) input);
+                Object out = pattern.getLast() == heap ? actual
+                        : actual instanceof float[] f ? MemorySegment.ofArray(f) : MemorySegment.ofArray((double[]) actual);
+                for (long[] range : List.of(new long[]{0, 0}, new long[]{0, 17},
+                        new long[]{17, 293}, new long[]{293, 576})) {
+                    invoke(selected, List.of(in, out), range[0], range[1]);
+                    invokeReference(base, List.of(input, expected), range[0], range[1]);
+                }
+                assertTrue(equalBits(expected, actual), type + " " + pattern);
+                assertTrue(equalBits(direct, actual), "primitive design oracle " + type + " " + pattern);
+                if (actual instanceof float[] f) assertEquals(Integer.MIN_VALUE, Float.floatToRawIntBits(f[0]));
+                else assertEquals(Long.MIN_VALUE, Double.doubleToRawLongBits(((double[]) actual)[0]));
+            }
+        }
+    }
+
+    @Test void volumetricWindowHonorsStridedOffsetsAndExactNanPadding() throws Throwable {
+        Shape image = Shape.of(1, 1, 2, 2, 2), columns = Shape.of(1, 8, 27);
+        var window = new Window3dAttrs(2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, false);
+        var context = context(new Operation(WindowTransformKind.UNFOLD3D,
+                        new Unfold3dAttrs(window, ScalarValue.float64(Double.longBitsToDouble(0x7ff8_0000_0000_0042L)))),
+                List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(DataType.FLOAT64, image,
+                        LayoutDescriptor.of(image, new long[]{0, 0, 8, 4, 2}, 1, true))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.FLOAT64, columns,
+                        LayoutDescriptor.of(columns, new long[]{432, 54, 2}, 3, true)));
+        double[] input = new double[16], actual = new double[434], expected = new double[434];
+        for (int i = 0; i < input.length; i++) input[i] = i * 0.25;
+        Arrays.fill(actual, -17); Arrays.fill(expected, -17);
+        invoke(context, List.of(input, actual), 5, 211);
+        invokeReference(context, List.of(input, expected), 5, 211);
+        assertTrue(equalBits(expected, actual));
+        assertEquals(0x7ff8_0000_0000_0042L, Double.doubleToRawLongBits(actual[13]));
+        assertEquals(-17, actual[12]);
+    }
+
     @Test void controlledTileAdvancesInactiveCursorsWithoutLoadingInputs() throws Throwable {
         var selected = context(new Operation(TileKind.TILE, new TileAttrs(List.of(1L, 2L))),
                 List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(
@@ -665,11 +770,10 @@ class CpuDataMovementGeneratedKernelTest {
         CarrierAccess carrier = switch (output.dataType()) {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY;
             case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
-            case BFLOAT16 -> CarrierAccess.SHORT_ARRAY;
+            case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY;
             case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY;
             case BOOL -> CarrierAccess.BYTE_ARRAY;
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU data movement unsupported");
         };
         return new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
         java.util.Collections.nCopies(inputs.size() + 1, carrier)));
@@ -721,11 +825,10 @@ class CpuDataMovementGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> new CpuBufferArgument.Doubles((double[]) carrier, 0, bytes, readOnly);
             case FLOAT32 -> new CpuBufferArgument.Floats((float[]) carrier, 0, bytes, readOnly);
-            case BFLOAT16 -> new CpuBufferArgument.Shorts((short[]) carrier, 0, bytes, readOnly);
+            case BFLOAT16, FLOAT16 -> new CpuBufferArgument.Shorts((short[]) carrier, 0, bytes, readOnly);
             case INT32 -> new CpuBufferArgument.Ints((int[]) carrier, 0, bytes, readOnly);
             case INT64 -> new CpuBufferArgument.Longs((long[]) carrier, 0, bytes, readOnly);
             case BOOL -> new CpuBufferArgument.Bytes((byte[]) carrier, 0, bytes, readOnly);
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU data movement unsupported");
         };
     }
 

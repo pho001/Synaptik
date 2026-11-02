@@ -39,7 +39,7 @@
  * scratch. Axes, batch and tuple geometry, extents, layout magnitudes, ranges, carriers, scratch
  * sizes, values, and validation results remain cold facts.</p>
 
- * <p>The fold representation keeps FOLD_AXIS and FOLD2D distinct and records only their common
+ * <p>The fold representation keeps FOLD_AXIS, FOLD2D and FOLD3D distinct and records only their common
  * represented type, structural input/output access forms, and canonical sequential-addition
  * policy. Concrete axes, window geometry, extents, layout magnitudes, ranges, and carriers remain
  * cold prepared facts.</p>

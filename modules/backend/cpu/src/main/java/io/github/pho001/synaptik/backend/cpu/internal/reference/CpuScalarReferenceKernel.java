@@ -810,6 +810,8 @@ public final class CpuScalarReferenceKernel {
      * Low contributions are decoded from storage exactly, added sequentially to a positive-zero
      * FLOAT32 accumulator, and narrowed once when the owned result is stored. This boxed cold
      * semantic reference is not the primitive clean-Java hot-loop design oracle or a runtime path.
+     * Volumetric image windows independently decode canonical depth/height/width coordinates
+     * rather than sharing the generated inverse-gather algorithm.
      *
      * @param ir non-null fold structural identity
      * @param geometry non-null matching static fold geometry
@@ -872,6 +874,19 @@ public final class CpuScalarReferenceKernel {
                 if (target != output[current]) return false;
             }
             return true;
+        }
+        if (geometry.mapping() instanceof CpuFoldLowering.SpatialGeometry spatial) {
+            long[] cells = spatial.spatial().cells();
+            long q = input[1], p = input[2];
+            for (int a = 2; a >= 0; a--) {
+                long kernel = q % cells[5*a]; q /= cells[5*a];
+                long column = p % cells[5*a+4]; p /= cells[5*a+4];
+                long target = Math.addExact(Math.subtractExact(
+                        Math.multiplyExact(column, cells[5*a+1]), cells[5*a+2]),
+                        Math.multiplyExact(kernel, cells[5*a+3]));
+                if (target != output[a+2]) return false;
+            }
+            return input[0] == output[0] && q == output[1];
         }
         var two = (CpuFoldLowering.TwoDimensionalGeometry) geometry.mapping();
         long kernelArea = Math.multiplyExact(two.kernelHeight(), two.kernelWidth());
@@ -1430,6 +1445,23 @@ public final class CpuScalarReferenceKernel {
                 long[] source = selected ? updateCoordinate : coordinate;
                 represented = load(arguments.get(boundary), ir.dataType(),
                         movementAddress(geometry.inputs().get(boundary), source));
+            } else if (ir.plan() instanceof CpuDataMovementIr.Unfold3dPlan plan) {
+                var spatial = (CpuNonAffineMovementLowering.Geometry.Unfold3d) geometry.variant();
+                long[] cells = spatial.spatial().cells();
+                long q = coordinate[1], p = coordinate[2];
+                long[] source = new long[5], extents = geometry.inputs().getFirst().extents();
+                source[0] = coordinate[0];
+                boolean padding = false;
+                for (int a = 2; a >= 0; a--) {
+                    long kernel = q % cells[5*a]; q /= cells[5*a];
+                    long column = p % cells[5*a+4]; p /= cells[5*a+4];
+                    source[a+2] = column * cells[5*a+1] - cells[5*a+2] + kernel * cells[5*a+3];
+                    padding |= source[a+2] < 0 || source[a+2] >= extents[a+2];
+                }
+                source[1] = q;
+                represented = padding ? representedImmediate(ir.dataType(), plan.immediateBits())
+                        : load(arguments.getFirst(), ir.dataType(),
+                                movementAddress(geometry.inputs().getFirst(), source));
             } else {
                 var plan = (CpuDataMovementIr.Unfold2dPlan) ir.plan();
                 var variant = (CpuNonAffineMovementLowering.Geometry.Unfold2d) geometry.variant();

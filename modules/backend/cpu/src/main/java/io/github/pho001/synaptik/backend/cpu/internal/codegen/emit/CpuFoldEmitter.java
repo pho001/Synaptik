@@ -78,6 +78,10 @@ public final class CpuFoldEmitter {
         if (specialization.carrierPattern().size() != 2 || specialization.scratchParameter()) {
             throw new IllegalArgumentException("fold requires two boundaries and no scratch");
         }
+        if (p.family.equals("FOLD3D")) {
+            emitSpatialFold(code, specialization, p);
+            return;
+        }
         boolean ints = specialization.loopAddressing(ir)
                 == CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT;
         if (ir.familyIdentity().endsWith(":kernel-broadcast-input-v1")) {
@@ -440,6 +444,76 @@ public final class CpuFoldEmitter {
         storeCarrier(code, carriers, p.type, s.carrierPattern().getLast(), 1, outputAddress, sum,
                 true);
         code.iinc(logical, 1).branch(Opcode.GOTO, outer).labelBinding(done);
+    }
+
+    /**
+     * Emits deterministic output-owned spatial inverse gathering. Ascending kernel coordinates
+     * preserve canonical column-input contributor order, without scanning unrelated batches,
+     * channels or columns. All geometry loads occur once at entry; only primitive locals remain
+     * in the repeated body, and every result starts at positive zero and is stored once.
+     * @param code generation-time builder
+     * @param s authenticated direct carriers
+     * @param p checked F32/F64 volumetric fold encoding
+     */
+    private static void emitSpatialFold(CodeBuilder code, CpuKernelSpecialization s, FoldEncoding p) {
+        int logical = valueLocal(code, false), end = valueLocal(code, false);
+        int inputAddress = valueLocal(code, false), outputAddress = valueLocal(code, false);
+        int kernelOrdinal = valueLocal(code, false), kernelCount = valueLocal(code, false);
+        int q = valueLocal(code, false), column = valueLocal(code, false);
+        int sum = code.allocateLocal(localKind(p.type)), right = code.allocateLocal(localKind(p.type));
+        int[] output = coordinates(code, 5, false), kernel = coordinates(code, 3, false);
+        int[] position = coordinates(code, 3, false);
+        LayoutLocals in = loadLayout(code, p.inputLayout, 3, false);
+        LayoutLocals out = loadLayout(code, p.outputLayout, 5, false);
+        int[] mapping = loadMapping(code, p.mapping, 15, false);
+        code.lload(3).lstore(logical).lload(5).lstore(end);
+        for (int a = 0; a < 5; a++) geometry(code, p.outputSeed+a).lstore(output[a]);
+        code.lload(mapping[0]).lload(mapping[5]).lmul().lload(mapping[10]).lmul().lstore(kernelCount);
+        var carriers = new CpuCarrierEmitter(code);
+        var outer = code.newLabel(); var done = code.newLabel();
+        var inner = code.newLabel(); var write = code.newLabel(); var next = code.newLabel();
+        code.labelBinding(outer).lload(logical).lload(end).lcmp().branch(Opcode.IFGE, done);
+        positiveZero(code, p.type, sum);
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, 1, logical, TypeKind.LONG, write);
+        zero(code, kernelOrdinal, false);
+        for (int cell : kernel) zero(code, cell, false);
+        code.labelBinding(inner).lload(kernelOrdinal).lload(kernelCount).lcmp().branch(Opcode.IFGE, write);
+        for (int a = 0; a < 3; a++) {
+            code.lload(output[a+2]).lload(mapping[5*a+2]).ladd()
+                    .lload(kernel[a]).lload(mapping[5*a+3]).lmul().lsub().lstore(position[a]);
+            code.lload(position[a]).loadConstant(0L).lcmp().branch(Opcode.IFLT, next);
+            code.lload(position[a]).lload(mapping[5*a+1]).lrem()
+                    .loadConstant(0L).lcmp().branch(Opcode.IFNE, next);
+            code.lload(position[a]).lload(mapping[5*a+1]).ldiv().lstore(position[a]);
+            code.lload(position[a]).lload(mapping[5*a+4]).lcmp().branch(Opcode.IFGE, next);
+        }
+        code.lload(output[1]).lload(kernelCount).lmul().lload(kernelOrdinal).ladd().lstore(q);
+        code.lload(position[0]).lload(mapping[9]).lmul().lload(position[1]).ladd()
+                .lload(mapping[14]).lmul().lload(position[2]).ladd().lstore(column);
+        if (CpuCarrierEmitter.controlFacts()
+                .map(facts -> facts.boundaryRows().getFirst().rowIndexed()).orElse(false)) {
+            int inputOrdinal = valueLocal(code, false);
+            code.lload(output[0]).lload(in.extents()[1]).lmul().lload(q).ladd()
+                    .lload(in.extents()[2]).lmul().lload(column).ladd().lstore(inputOrdinal);
+            CpuLoopEmitter.emitActiveOrdinalGuard(code, 0, inputOrdinal, TypeKind.LONG, next);
+        }
+        address(code, in, new int[]{output[0], q, column}, inputAddress, false);
+        loadCarrier(code, carriers, p.type, s.carrierPattern().getFirst(), 0, inputAddress, false);
+        storeValue(code, p.type, right); add(code, p.type, sum, right);
+        code.labelBinding(next);
+        var carried = code.newLabel();
+        for (int a = 2; a >= 0; a--) {
+            increment(code, kernel[a], false);
+            code.lload(kernel[a]).lload(mapping[5*a]).lcmp().branch(Opcode.IFLT, carried);
+            zero(code, kernel[a], false);
+        }
+        code.labelBinding(carried);
+        increment(code, kernelOrdinal, false);
+        code.branch(Opcode.GOTO, inner).labelBinding(write);
+        address(code, out, output, outputAddress, false);
+        storeCarrier(code, carriers, p.type, s.carrierPattern().getLast(), 1, outputAddress, sum, false);
+        advance(code, out, output, false); increment(code, logical, false);
+        code.branch(Opcode.GOTO, outer).labelBinding(done);
     }
 
     private static void emitTyped(CodeBuilder code, CpuKernelSpecialization s, FoldEncoding p,
@@ -888,7 +962,7 @@ public final class CpuFoldEmitter {
             }
             int familyEnd = identity.indexOf(':', 5);
             String family = identity.substring(5, familyEnd);
-            if (!family.equals("FOLD_AXIS") && !family.equals("FOLD2D")) {
+            if (!family.equals("FOLD_AXIS") && !family.equals("FOLD2D") && !family.equals("FOLD3D")) {
                 throw new IllegalArgumentException("unsupported fold family");
             }
             int inputRank = ir.values().getFirst().accessPlan().iterationRank();

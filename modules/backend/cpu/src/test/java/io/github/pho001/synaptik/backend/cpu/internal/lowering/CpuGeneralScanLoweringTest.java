@@ -14,6 +14,24 @@ import org.junit.jupiter.api.Test;
 
 /** Source-built ordinary layout closure and exact carry-bank liveness regressions. */
 public class CpuGeneralScanLoweringTest {
+    /** Existing whole-body proofs independently qualify newly executable ordinary windows. */
+    @Test void volumetricWindowsComposeThroughExistingScanQualification() {
+        var window = new io.github.pho001.synaptik.model.operation.layout.Window3dAttrs(
+                2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, false);
+        for (boolean fold : List.of(false, true)) {
+            Tensor x = fold ? tensor(DataType.FLOAT32, false, 1, 8, 27)
+                    : tensor(DataType.FLOAT32, false, 1, 1, 2, 2, 2);
+            Tensor result = fold ? x.fold3d(Shape.of(1, 1, 2, 2, 2), window) : x.unfold3d(window);
+            var body = new ScanBody(List.of(), List.of(x), List.of(), List.of(), List.of(result));
+            Tensor sequence = fold ? tensor(DataType.FLOAT32, false, 2, 1, 8, 27)
+                    : tensor(DataType.FLOAT32, false, 2, 1, 1, 2, 2, 2);
+            var scan = Scan.apply(List.of(), List.of(sequence), List.of(), body, false);
+            var query = query(scan.outputs());
+            assertDoesNotThrow(() -> CpuGeneralScanCompositionLowering.analyze(query));
+            assertTrue(new io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider().supports(query));
+        }
+    }
+
     /** Unchanged qualified recipes do not acquire an empty composite field or namespace. */
     @Test void retainedRecipeKeepsItsSelectiveIdentityIntersection() {
         var ir = CpuGeneralScanLowering.analyze(denseReadFixture(DataType.FLOAT32, 0, 3, false)).ir();

@@ -14,7 +14,7 @@ import java.util.Objects;
  *
  * @param family non-null current fold coordinate family
  * @param dataType non-null supported represented input and output type; {@code BOOL} is rejected,
- *     and {@link Family#FOLD2D} accepts only floating types
+ *     {@link Family#FOLD2D} accepts floating types and {@link Family#FOLD3D} accepts F32/F64 only
  * @param inputAccess non-null structural read access for the sole input boundary
  * @param outputAccess non-null structural write access for the sole output boundary
  * @param additionPolicy stable sequential-order policy signature; currently must equal
@@ -39,10 +39,11 @@ public record CpuFoldIr(Family family, DataType dataType, CpuAccessPlan inputAcc
             CpuAccessPlan outputAccess, int additionPolicy) {
         this(family, dataType, inputAccess, outputAccess, additionPolicy, false);
     }
-    /** Distinguishes the two current Model fold coordinate mappings in artifact identity. */
+    /** Distinguishes current Model fold coordinate mappings in artifact identity. */
     public enum Family {
         /** General-axis final-window-dimension overlap fold. */ FOLD_AXIS,
-        /** Canonical rank-three columns to rank-four NCHW overlap fold. */ FOLD2D
+        /** Canonical rank-three columns to rank-four NCHW overlap fold. */ FOLD2D,
+        /** Canonical rank-three columns to rank-five NCDHW overlap fold. */ FOLD3D
     }
 
     /**
@@ -76,6 +77,8 @@ public record CpuFoldIr(Family family, DataType dataType, CpuAccessPlan inputAcc
                 || family == Family.FOLD2D
                     && dataType != DataType.FLOAT64 && dataType != DataType.FLOAT32
                     && dataType != DataType.BFLOAT16 && dataType != DataType.FLOAT16
+                || family == Family.FOLD3D && (dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64
+                    || inputAccess.iterationRank() != 3 || outputAccess.iterationRank() != 5)
                 || additionPolicy != CANONICAL_SEQUENTIAL_ADDITION
                 || kernelBroadcastInput && (family != Family.FOLD2D
                     || dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64

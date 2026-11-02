@@ -8,6 +8,7 @@ import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
@@ -28,7 +29,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Lowers static or one-named-batch FOLD_AXIS/FOLD2D with fixed windows, or proves a bounded
+ * Lowers static or one-named-batch FOLD_AXIS/FOLD2D/FOLD3D with fixed windows, or proves a bounded
  * private static F32/F64 raw kernel-repetition chain feeding compact storage to FOLD2D.
  * The lowerer revalidates the Model signature, derives compact checked coordinate geometry, and
  * proves a distinct injective output. It allocates no Runtime resource and declares no workspace.
@@ -99,6 +100,18 @@ public final class CpuFoldLowering {
             if (fixed(input,1) != Math.multiplyExact(Math.multiplyExact(fixed(output,1),w.kernelHeight()),w.kernelWidth())
                     || fixed(input,2) != Math.multiplyExact(oh,ow)) throw new IllegalArgumentException("Fold2d original columns equation disagrees");
             parameters = new long[]{w.kernelHeight(),w.kernelWidth(),w.strideHeight(),w.strideWidth(),w.paddingHeight(),w.paddingWidth(),w.dilationHeight(),w.dilationWidth(),oh,ow};
+        } else if (node.operation().kind() == WindowTransformKind.FOLD3D
+                && node.operation().attrs() instanceof Fold3dAttrs a) {
+            family = CpuFoldIr.Family.FOLD3D;
+            if (inRank != 3 || outRank != 5 || !output.descriptor().shape().equals(a.outputShape())
+                    || type != DataType.FLOAT32 && type != DataType.FLOAT64)
+                throw new IllegalArgumentException("Fold3d original shape/type disagrees");
+            long[] image = new long[5];
+            for (int axis = 1; axis < 5; axis++) image[axis] = fixed(output, axis);
+            var spatial = CpuSpatialWindowGeometry.of(image, a.window());
+            sameAxis(input, 0, output, 0);
+            spatial.requireColumns(image, new long[]{0, fixed(input, 1), fixed(input, 2)});
+            parameters = spatial.cells();
         } else throw new IllegalArgumentException("unsupported fold kind/attributes");
         var in = batchBinding(input,layouts); var out = writeRecipe(batchBinding(output,layouts));
         var ir = new CpuFoldIr(family,type,in.plan(),writePlan(out),CpuFoldIr.CANONICAL_SEQUENTIAL_ADDITION);
@@ -311,6 +324,12 @@ public final class CpuFoldLowering {
             mapping = new TwoDimensionalGeometry(window.kernelHeight(), window.kernelWidth(),
                     window.strideHeight(), window.strideWidth(), window.paddingHeight(),
                     window.paddingWidth(), window.dilationHeight(), window.dilationWidth(), oh, ow);
+        } else if (kind == WindowTransformKind.FOLD3D) {
+            var attrs = (Fold3dAttrs) node.operation().attrs();
+            var spatial = CpuSpatialWindowGeometry.of(outputLayout.extents, attrs.window());
+            spatial.requireColumns(outputLayout.extents, inputLayout.extents);
+            family = CpuFoldIr.Family.FOLD3D;
+            mapping = new SpatialGeometry(spatial);
         } else {
             throw new IllegalArgumentException("unsupported fold family");
         }
@@ -453,7 +472,7 @@ public final class CpuFoldLowering {
     }
 
     /** Marks one immutable, already validated family-specific fold coordinate mapping. */
-    public sealed interface Mapping permits AxisGeometry, TwoDimensionalGeometry { }
+    public sealed interface Mapping permits AxisGeometry, TwoDimensionalGeometry, SpatialGeometry { }
 
     /**
      * Compact general-axis fold geometry.
@@ -514,6 +533,14 @@ public final class CpuFoldLowering {
          * @param outputColumnsWidth non-negative checked column-grid width
          */
         public TwoDimensionalGeometry { }
+    }
+    /**
+     * Shared checked NCDHW spatial facts used by deterministic output-owned inverse gathering.
+     * @param spatial non-null immutable checked window
+     */
+    public record SpatialGeometry(CpuSpatialWindowGeometry spatial) implements Mapping {
+        /** @throws NullPointerException if spatial is null */
+        public SpatialGeometry { Objects.requireNonNull(spatial, "spatial"); }
     }
 
     /**
@@ -621,9 +648,11 @@ public final class CpuFoldLowering {
             @Override public CpuPartitionLowering.LoweredPartition bind(long batch) {
                 var resolved = new ArrayList<CpuAccessPlan.Binding>();
                 for (var binding : bindings) resolved.add(binding.bind(batch));
-                Mapping mapping = ir.family() == CpuFoldIr.Family.FOLD_AXIS
-                        ? new AxisGeometry(Math.toIntExact(parameters[0]),parameters[1],parameters[2],parameters[3])
-                        : new TwoDimensionalGeometry(parameters[0],parameters[1],parameters[2],parameters[3],parameters[4],parameters[5],parameters[6],parameters[7],parameters[8],parameters[9]);
+                Mapping mapping = switch (ir.family()) {
+                    case FOLD_AXIS -> new AxisGeometry(Math.toIntExact(parameters[0]),parameters[1],parameters[2],parameters[3]);
+                    case FOLD2D -> new TwoDimensionalGeometry(parameters[0],parameters[1],parameters[2],parameters[3],parameters[4],parameters[5],parameters[6],parameters[7],parameters[8],parameters[9]);
+                    case FOLD3D -> new SpatialGeometry(CpuSpatialWindowGeometry.fromCells(parameters));
+                };
                 var out = resolved.getLast();
                 var geometry = new Geometry(ir.family(),ir.dataType(),new Layout(resolved.getFirst().extents().stream().mapToLong(Long::longValue).toArray(),resolved.getFirst().baseElementOffset(),resolved.getFirst().effectiveStrides().stream().mapToLong(Long::longValue).toArray()),new Layout(out.extents().stream().mapToLong(Long::longValue).toArray(),out.baseElementOffset(),out.effectiveStrides().stream().mapToLong(Long::longValue).toArray()),mapping);
                 return new CpuPartitionLowering.LoweredPartition(ir, boundaries, resolved,
@@ -728,6 +757,10 @@ public final class CpuFoldLowering {
                     && (!(mapping instanceof TwoDimensionalGeometry)
                         || input.extents.length != 3 || output.extents.length != 4
                         || dataType == DataType.INT32 || dataType == DataType.INT64)
+                    || family == CpuFoldIr.Family.FOLD3D
+                    && (!(mapping instanceof SpatialGeometry) || input.extents.length != 3
+                        || output.extents.length != 5
+                        || dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64)
                     || kernelBroadcastInput && (family != CpuFoldIr.Family.FOLD2D
                         || dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64
                         || compactBinding(input).plan().regime() != CpuAccessPlan.Regime.DENSE_LINEAR
@@ -779,7 +812,8 @@ public final class CpuFoldLowering {
                 throw new IllegalArgumentException("fold packed geometry facts disagree");
             }
             int inputRank = input.extents.length, outputRank = output.extents.length;
-            int mappingSize = family == CpuFoldIr.Family.FOLD_AXIS ? 4 : 10;
+            int mappingSize = family == CpuFoldIr.Family.FOLD_AXIS ? 4
+                    : family == CpuFoldIr.Family.FOLD3D ? 15 : 10;
             int header = 8;
             int size = header + inputRank + outputRank + outputRank
                     + (2 + 2 * inputRank) + (2 + 2 * outputRank) + mappingSize;
@@ -801,6 +835,8 @@ public final class CpuFoldLowering {
             if (mapping instanceof AxisGeometry axis) {
                 packed[x++] = axis.axis; packed[x++] = axis.outputSize;
                 packed[x++] = axis.step; packed[x] = axis.windowSize;
+            } else if (mapping instanceof SpatialGeometry spatial) {
+                for (long cell : spatial.spatial.cells()) packed[x++] = cell;
             } else {
                 var two = (TwoDimensionalGeometry) mapping;
                 packed[x++] = two.kernelHeight; packed[x++] = two.kernelWidth;

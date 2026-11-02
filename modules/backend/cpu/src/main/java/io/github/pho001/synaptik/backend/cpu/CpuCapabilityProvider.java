@@ -83,6 +83,7 @@ import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import java.util.Objects;
 import java.util.Arrays;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSpatialWindowGeometry;
 
 /**
  * Reports the profile-free occurrence predicate and executable semantic coverage currently
@@ -127,7 +128,7 @@ import java.util.Arrays;
  * exact semantic occurrence order, the output layout must be injective, and composition is
  * bounded to one through sixteen occurrences. The same movement route admits one
  * {@code UNFOLD_AXIS} occurrence for all seven represented types or one floating
- * {@code UNFOLD2D} occurrence with direct positive-zero or exact typed padding. Both window
+ * {@code UNFOLD2D} or {@code UNFOLD3D} occurrence with direct positive-zero or exact typed padding. Both window
  * forms require their exact static result geometry and one distinct injective output. A separate
  * one-node indexing matrix admits {@code GATHER}, {@code GATHER_ELEMENTS}, {@code GATHER_ND}, and
  * {@code ONE_HOT} with INT32/INT64 indices, exact static result geometry, and an injective
@@ -136,7 +137,7 @@ import java.util.Arrays;
  * shapes, permitted represented reductions, and a distinct injective data-shaped output.</p>
  *
  * <p>A distinct one-node fold matrix admits numeric {@code FOLD_AXIS} and floating
- * {@code FOLD2D}. Fold requires exact current static geometry, a distinct injective result,
+ * {@code FOLD2D} and F32/F64 {@code FOLD3D}. Fold requires exact current static geometry, a distinct injective result,
  * canonical represented addition, and no implicit base, workspace, or padding value.</p>
  *
  * <p>The pooling matrix admits direct static NCHW Pool2d and non-gradient NCDHW Pool3d max and
@@ -395,7 +396,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             if (kind instanceof AxisScatterKind || kind == ScatterNdKind.SCATTER_ND) {
                 return supportsScatter(query, output);
             }
-            if (kind == WindowTransformKind.FOLD_AXIS || kind == WindowTransformKind.FOLD2D) {
+            if (kind == WindowTransformKind.FOLD_AXIS || kind == WindowTransformKind.FOLD2D
+                    || kind == WindowTransformKind.FOLD3D) {
                 return supportsFold(query, output);
             }
             if (movementKind(kind)) return supportsMovement(query, output);
@@ -1295,6 +1297,12 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                             window.kernelHeight()), window.kernelWidth())
                     && source[2] == Math.multiplyExact(columnsHeight, columnsWidth);
         }
+        if (kind == WindowTransformKind.FOLD3D && attrs instanceof Fold3dAttrs fold) {
+            if (input.dataType() != DataType.FLOAT32 && input.dataType() != DataType.FLOAT64
+                    || !output.shape().equals(fold.outputShape())) return false;
+            CpuSpatialWindowGeometry.of(result, fold.window()).requireColumns(result, source);
+            return true;
+        }
         return false;
     }
 
@@ -1310,6 +1318,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                 || kind == TensorCompositionKind.STACK
                 || kind == WindowTransformKind.UNFOLD_AXIS
                 || kind == WindowTransformKind.UNFOLD2D
+                || kind == WindowTransformKind.UNFOLD3D
                 || kind == SliceKind.SLICE_UPDATE;
     }
 
@@ -1369,6 +1378,22 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                     && result[1] == Math.multiplyExact(Math.multiplyExact(input[1],
                         window.kernelHeight()), window.kernelWidth())
                     && result[2] == Math.multiplyExact(outH, outW);
+        }
+        if (kind == WindowTransformKind.UNFOLD3D
+                && (attrs instanceof Window3dAttrs || attrs instanceof Unfold3dAttrs)) {
+            if (query.inputs().size() != 1
+                    || !windowFloating(output.dataType()))
+                return false;
+            Window3dAttrs window;
+            if (attrs instanceof Window3dAttrs direct) window = direct;
+            else {
+                var configured = (Unfold3dAttrs) attrs;
+                if (configured.paddingValue().dataType() != output.dataType()) return false;
+                window = configured.window();
+            }
+            long[] image = query.inputs().getFirst().shape().toLongArray();
+            CpuSpatialWindowGeometry.of(image, window).requireColumns(image, output.shape().toLongArray());
+            return true;
         }
         if (kind == PadKind.PAD && attrs instanceof PadAttrs pad) {
             if (query.inputs().size() != 1) return false;
