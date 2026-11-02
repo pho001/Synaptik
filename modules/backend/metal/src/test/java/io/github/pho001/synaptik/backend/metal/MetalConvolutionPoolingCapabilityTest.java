@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.backend.metal;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -118,7 +119,7 @@ class MetalConvolutionPoolingCapabilityTest {
         Shape outputShape = Shape.of(1, 2, 3, 3);
         for (DataType type :
                 List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
-            assertFalse(supports(max2d,
+            assertEquals(type == DataType.FLOAT32, supports(max2d,
                     List.of(descriptor(type, inputShape, true)),
                     descriptor(type, outputShape, true)), "overlap " + type);
         }
@@ -151,6 +152,46 @@ class MetalConvolutionPoolingCapabilityTest {
             assertTrue(supports(average2d,
                     List.of(descriptor(type, inputShape, false)),
                     descriptor(type, outputShape, false)));
+        }
+    }
+
+    @Test
+    void poolingGradientOverlapUsesTheSameFloat32ImageFoldBoundaryInBothRanks() {
+        for (int spatial : List.of(2, 3)) {
+            for (boolean maximum : List.of(false, true)) {
+                for (boolean overlap : List.of(false, true)) {
+                    int stride = overlap ? 1 : 5;
+                    Operation pool = spatial == 2
+                            ? maximum
+                                    ? new Operation(Pool2dKind.MAX_POOL2D,
+                                            new MaxPool2dAttrs(3, 3, stride, stride, 0, 0, 2, 2, false))
+                                    : new Operation(Pool2dKind.AVERAGE_POOL2D,
+                                            new AveragePool2dAttrs(3, 3, stride, stride, 0, 0, 2, 2, false))
+                            : maximum
+                                    ? new Operation(Pool3dKind.MAX_POOL3D,
+                                            new MaxPool3dAttrs(3, 3, 3, stride, stride, stride,
+                                                    0, 0, 0, 2, 2, 2, false))
+                                    : new Operation(Pool3dKind.AVERAGE_POOL3D,
+                                            new AveragePool3dAttrs(3, 3, 3, stride, stride, stride,
+                                                    0, 0, 0, 2, 2, 2, false));
+                    long out = overlap ? 3 : 1;
+                    Shape source = spatial == 2 ? Shape.of(1, 2, 7, 7) : Shape.of(1, 2, 7, 7, 7);
+                    Shape target = spatial == 2 ? Shape.of(1, 2, out, out) : Shape.of(1, 2, out, out, out);
+                    for (DataType type : List.of(
+                            DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16)) {
+                        for (boolean gradient : List.of(false, true)) {
+                            boolean expected = (maximum || type != DataType.FLOAT64)
+                                    && (!gradient || !overlap || type == DataType.FLOAT32);
+                            TensorDescriptor input = descriptor(type, source, gradient);
+                            TensorDescriptor output = descriptor(type, target, gradient);
+                            assertEquals(expected, supports(pool, List.of(input), output),
+                                    spatial + "d " + pool.kind() + " " + type + " grad=" + gradient
+                                            + " overlap=" + overlap);
+                            assertFalse(supports(pool, List.of(input), withGradient(output, !gradient)));
+                        }
+                    }
+                }
+            }
         }
     }
 

@@ -212,10 +212,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
      * @param operation non-null typed operation
      * @param inputs non-null ordered input descriptors
      * @param outputs non-null ordered output descriptors
-     * @return {@code true} only if the original occurrence passes the exact current predicate or
-     *     an independently qualified typed EXP, SIGMOID, MATMUL, or materializing RESHAPE
+     * @return {@code true} only if the original occurrence passes its exact current typed
      *     predicate, or a homogeneous low-type occurrence passes the frozen-baseline FLOAT32
-     *     proxy predicate; other FLOAT32-only additions do not gain low support through that proxy
+     *     proxy predicate. Pooling and image folds check their original carrier directly so
+     *     FLOAT32 overlap additions never widen low cotangent support through that proxy
      * @throws NullPointerException if {@code operation}, {@code inputs}, or {@code outputs} is
      *     {@code null}
      */
@@ -252,6 +252,13 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                                 == MetalMpsGraphProgram.ValueState.CANONICAL) {
                     return true;
                 }
+            } catch (IllegalArgumentException | ArithmeticException incompatible) {
+                return false;
+            }
+        }
+        if (operation.kind() instanceof Pool2dKind || operation.kind() instanceof Pool3dKind) {
+            try {
+                return outputs.size() == 1 && supportsPooling(operation, inputs, outputs.getFirst());
             } catch (IllegalArgumentException | ArithmeticException incompatible) {
                 return false;
             }
@@ -389,10 +396,6 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             if (operation.kind() == Conv2dKind.CONV2D
                     || operation.kind() == Conv3dKind.CONV3D) {
                 return supportsConvolution(operation, inputs, output, true);
-            }
-            if (operation.kind() instanceof Pool2dKind
-                    || operation.kind() instanceof Pool3dKind) {
-                return supportsPooling(operation, inputs, output);
             }
             if (operation.kind() == WindowTransformKind.UNFOLD2D
                     || operation.kind() == WindowTransformKind.UNFOLD3D) {
@@ -1865,6 +1868,16 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         return contributors <= UINT32_MAX;
     }
 
+    /**
+     * Admits pooling with matching gradient metadata and checked literal window geometry.
+     * FLOAT32 cotangents reuse the overlapping image-fold capability in both spatial ranks;
+     * other qualified carriers retain non-overlapping gradient windows.
+     *
+     * @param operation pooling occurrence with exact rank-specific attributes
+     * @param inputs single image descriptor
+     * @param output canonical pooled descriptor
+     * @return whether the forward occurrence and its selected cotangent domain are supported
+     */
     private static boolean supportsPooling(
             Operation operation,
             List<TensorDescriptor> inputs,
@@ -1884,10 +1897,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         if (maximum) {
             if (input.dataType() != DataType.FLOAT64
                     && input.dataType() != DataType.FLOAT32
-                    && input.dataType() != DataType.BFLOAT16) {
+                    && input.dataType() != DataType.BFLOAT16
+                    && input.dataType() != DataType.FLOAT16) {
                 return false;
             }
-        } else if (input.dataType() != DataType.FLOAT32) {
+        } else if (!task0064FloatCarrier(input.dataType()) && input.dataType() != DataType.FLOAT16) {
             return false;
         }
         long[] kernel = new long[spatial];
@@ -1951,7 +1965,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return false;
             }
             divisor *= kernel[axis];
-            if (input.requiresGrad()
+            if (input.requiresGrad() && input.dataType() != DataType.FLOAT32
                     && !nonOverlapping(kernel[axis], dilation[axis], stride[axis])) {
                 return false;
             }

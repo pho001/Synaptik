@@ -2865,6 +2865,65 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
+    void poolingOverlapAdmissionMatchesJavaAndRawNativeForEverySpatialAxisAndCarrier()
+            throws Throwable {
+        try (RawAbi abi = new RawAbi(configuredLibrary())) {
+            for (int spatial : List.of(2, 3)) {
+                for (boolean maximum : List.of(false, true)) {
+                    for (int overlappingAxis = -1; overlappingAxis < spatial; overlappingAxis++) {
+                        long[] source = new long[spatial + 2];
+                        long[] target = new long[spatial + 2];
+                        Arrays.fill(source, 7);
+                        Arrays.fill(target, 1);
+                        source[0] = source[1] = 1;
+                        long[] words = new long[spatial * 4 + 1];
+                        for (int axis = 0; axis < spatial; axis++) {
+                            words[axis] = 3;
+                            words[spatial + axis] = axis == overlappingAxis ? 1 : 5;
+                            words[spatial * 3 + axis] = 2;
+                            target[axis + 2] = axis == overlappingAxis ? 3 : 1;
+                        }
+                        var kind = spatial == 2
+                                ? maximum ? MetalMpsGraphProgram.NodeKind.MAX_POOL2D
+                                        : MetalMpsGraphProgram.NodeKind.AVERAGE_POOL2D
+                                : maximum ? MetalMpsGraphProgram.NodeKind.MAX_POOL3D
+                                        : MetalMpsGraphProgram.NodeKind.AVERAGE_POOL3D;
+                        var program = new MetalMpsGraphProgram(List.of(
+                                MetalMpsGraphProgram.Node.generic(
+                                        kind, new int[] {0}, new int[] {1},
+                                        spatial == 2 ? MetalMpsGraphProgram.AttributeKind.WINDOW_2D
+                                                : MetalMpsGraphProgram.AttributeKind.WINDOW_3D,
+                                        words)));
+                        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64,
+                                DataType.BFLOAT16, DataType.FLOAT16)) {
+                            for (boolean gradient : List.of(false, true)) {
+                                var values = List.of(
+                                        new MetalMpsGraphProgram.ValueDescriptor(type, source, gradient),
+                                        new MetalMpsGraphProgram.ValueDescriptor(type, target, gradient));
+                                String label = kind + " " + type + " grad=" + gradient
+                                        + " overlappingAxis=" + overlappingAxis;
+                                if ((maximum || type != DataType.FLOAT64)
+                                        && (!gradient || overlappingAxis < 0 || type == DataType.FLOAT32)) {
+                                    assertTask0064AcceptedByJavaAndNative(
+                                            abi, program, values, new int[] {0}, new int[] {1}, label);
+                                } else {
+                                    assertTask0064RejectedByJavaAndNative(
+                                            abi, program, values, new int[] {0}, new int[] {1}, label);
+                                }
+                                var mismatched = List.of(values.getFirst(),
+                                        new MetalMpsGraphProgram.ValueDescriptor(type, target, !gradient));
+                                assertTask0064RejectedByJavaAndNative(
+                                        abi, program, mismatched, new int[] {0}, new int[] {1},
+                                        label + " mismatched gradient");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void imageFoldOverlapHasMatchingJavaAndNativeCarrierShapeGradientAndOverflowBoundaries()
             throws Throwable {
         Path library = configuredLibrary();

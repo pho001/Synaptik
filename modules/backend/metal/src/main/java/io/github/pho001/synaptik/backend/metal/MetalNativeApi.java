@@ -30,7 +30,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * still binds every ordered live slot buffer. Java preflight independently authenticates all seven
  * carriers, the 49 ordered casts, logical-versus-physical layouts, saved gradient roles, exact
  * replacement safety and fixed custom routing before native entry. FLOAT32 image folds may
- * accumulate overlap; FLOAT64/low image folds and FOLD_AXIS require non-overlapping windows.
+ * accumulate overlap, including Compiler-generated Pool2d/Pool3d cotangents; FLOAT64/low pooling
+ * cotangents, image folds and FOLD_AXIS require non-overlapping windows.
  * Every BFLOAT16/FLOAT16 value is custom-program-only. Native status failures are unchecked and
  * retain both the operation name and raw status value.
  */
@@ -1695,6 +1696,11 @@ abstract class MetalNativeApi implements AutoCloseable {
                         return false;
                     }
                     divisor *= kernel;
+                    if (source.requiresGrad() && source.dataType() != DataType.FLOAT32
+                            && stride < Math.addExact(
+                                    Math.multiplyExact(dilation, kernel - 1L), 1L)) {
+                        return false;
+                    }
                 }
                 return true;
             } catch (ArithmeticException | IndexOutOfBoundsException exception) {

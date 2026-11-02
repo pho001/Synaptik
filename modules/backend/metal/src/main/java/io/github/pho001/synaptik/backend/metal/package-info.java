@@ -170,8 +170,8 @@
  * <p>Task 0064 adds one fixed custom-program route for {@code CONV2D}, {@code CONV3D}, {@code
  * MAX_POOL2D}, {@code AVERAGE_POOL2D}, {@code MAX_POOL3D}, and {@code AVERAGE_POOL3D}. P9 admits
  * homogeneous FLOAT32/BFLOAT16/FLOAT16 convolution and pooling; low input cotangents retain the
- * non-overlap restriction while FLOAT32 convolution input cotangents may accumulate overlapping
- * windows. Maximum pooling additionally retains
+ * non-overlap restriction while FLOAT32 convolution and Pool2d/Pool3d input cotangents may
+ * accumulate overlapping windows. Maximum pooling additionally retains
  * FLOAT64. One-low-plus-FLOAT32 widening convolution remains no-gradient. All six kinds require
  * fully static positive geometry bounded to unsigned 32 bits, exact symmetric padding and fixed
  * layouts, and checked result geometry. Pooling additionally caps the product of kernel extents at
@@ -181,7 +181,8 @@
  * publication; average pooling fixes a full-kernel divisor and conceptual positive-zero padding.
  * FLOAT32 Conv3d gradients close through Compiler's grouped unfold/MATMUL/fold algebra.
  * Direct mixed-low operations, overlapping low image folds, and overlapping FOLD_AXIS remain
- * fail-closed. Non-overlapping maximum-pool gradients close through the compiler formula.
+ * fail-closed. FLOAT64/low pooling gradients retain non-overlapping windows; FLOAT32 pooling
+ * gradients close through the existing Compiler formulas and shared image-fold accumulation.
  *
  * <p>Task 0065 adds zero-input {@code INITIAL_STATE} and canonical
  * FLOAT32/BFLOAT16/FLOAT16 {@code DROPOUT}. INITIAL_STATE publishes one raw {@code INT64[2]}

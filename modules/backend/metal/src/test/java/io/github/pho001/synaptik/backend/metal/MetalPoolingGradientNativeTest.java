@@ -1,0 +1,189 @@
+package io.github.pho001.synaptik.backend.metal;
+
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
+import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
+import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
+import io.github.pho001.synaptik.backend.contract.DeviceClass;
+import io.github.pho001.synaptik.compiler.FunctionalGradientRequest;
+import io.github.pho001.synaptik.compiler.GraphCompilationPort;
+import io.github.pho001.synaptik.config.compile.BackendIntent;
+import io.github.pho001.synaptik.config.compile.CompileMode;
+import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
+import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.prepare.GraphPreparation;
+import io.github.pho001.synaptik.prepare.PartitionPreparation;
+import io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner;
+import java.lang.foreign.Arena;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.UnaryOperator;
+import org.junit.jupiter.api.Test;
+
+class MetalPoolingGradientNativeTest {
+    @Test
+    void overlappingVolumePoolingUsesActualCompilerCotangentsOnMetal() {
+        float[] input = new float[27];
+        input[13] = 9;
+        float[] maxima = new float[8];
+        Arrays.fill(maxima, 9);
+        float[] maximumGradient = new float[27];
+        maximumGradient[13] = 8;
+        assertPool(Shape.of(1, 1, 3, 3, 3),
+                x -> x.maxPool3d(new MaxPool3dAttrs(2, 2, 2, 1, 1, 1,
+                        0, 0, 0, 1, 1, 1, false)),
+                input, maxima, maximumGradient);
+
+        Arrays.fill(input, 8);
+        float[] averages = new float[8];
+        Arrays.fill(averages, 8);
+        float[] averageGradient = new float[27];
+        for (int d = 0; d < 3; d++) {
+            for (int h = 0; h < 3; h++) {
+                for (int w = 0; w < 3; w++) {
+                    averageGradient[(d * 3 + h) * 3 + w] =
+                            (d == 1 ? 2 : 1) * (h == 1 ? 2 : 1) * (w == 1 ? 2 : 1) / 8.0f;
+                }
+            }
+        }
+        assertPool(Shape.of(1, 1, 3, 3, 3),
+                x -> x.averagePool3d(new AveragePool3dAttrs(2, 2, 2, 1, 1, 1,
+                        0, 0, 0, 1, 1, 1, false)),
+                input, averages, averageGradient);
+    }
+
+    @Test
+    void firstWinnerNaNSignedZeroAndRealNegativeInfinityExcludePaddingInActualBackward() {
+        UnaryOperator<Tensor> max = x -> x.maxPool3d(new MaxPool3dAttrs(
+                1, 1, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, false));
+        assertPool(Shape.of(1, 1, 1, 1, 3), max,
+                new float[] {-0.0f, 0.0f, 0.0f}, new float[] {0, 0}, new float[] {0, 2, 0});
+        float firstNaN = Float.intBitsToFloat(0x7fa12345);
+        float secondNaN = Float.intBitsToFloat(0xffc54321);
+        assertPool(Shape.of(1, 1, 1, 1, 3), max,
+                new float[] {firstNaN, secondNaN, 1},
+                new float[] {firstNaN, secondNaN}, new float[] {1, 1, 0});
+        assertPool(Shape.of(1, 1, 1, 1, 3), max,
+                new float[] {7, 7, 7}, new float[] {7, 7}, new float[] {1, 1, 0});
+        assertPool(Shape.of(1, 1, 1, 1, 1),
+                x -> x.maxPool3d(new MaxPool3dAttrs(1, 1, 2, 1, 1, 2,
+                        0, 0, 2, 1, 1, 1, true)),
+                new float[] {Float.NEGATIVE_INFINITY},
+                new float[] {Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY},
+                new float[] {1});
+    }
+
+    @Test
+    void averageDilationPaddingAndLiteralCeilKeepTheFullKernelDivisor() {
+        assertPool(Shape.of(1, 1, 1, 1, 3),
+                x -> x.averagePool3d(new AveragePool3dAttrs(1, 1, 2, 1, 1, 2,
+                        0, 0, 2, 1, 1, 2, true)),
+                new float[] {2, 4, 6}, new float[] {1, 4, 3}, new float[] {1, 0, 1});
+        assertPool(Shape.of(1, 1, 1, 1, 1),
+                x -> x.averagePool3d(new AveragePool3dAttrs(1, 1, 2, 1, 1, 2,
+                        0, 0, 2, 1, 1, 1, true)),
+                new float[] {-0.0f}, new float[] {0, 0, 0}, new float[] {0.5f});
+        assertPool(Shape.of(1, 1, 1, 1, 4),
+                x -> x.averagePool3d(new AveragePool3dAttrs(1, 1, 2, 1, 1, 3,
+                        0, 0, 0, 1, 1, 1, true)),
+                new float[] {2, 4, 6, 8}, new float[] {3, 4},
+                new float[] {0.5f, 0.5f, 0, 0.5f});
+        assertPool(Shape.of(1, 1, 1, 1, 2),
+                x -> x.averagePool3d(new AveragePool3dAttrs(1, 1, 2, 1, 1, 1,
+                        0, 0, 0, 1, 1, 1, false)),
+                new float[] {-0.0f, -0.0f}, new float[] {-0.0f}, new float[] {0.5f, 0.5f});
+    }
+
+    @Test
+    void sharedTwoDimensionalOverlapHasTheSameActualGradientSemantics() {
+        assertPool(Shape.of(1, 1, 1, 3),
+                x -> x.maxPool2d(new MaxPool2dAttrs(1, 2, 1, 1, 0, 0, 1, 1, false)),
+                new float[] {1, 5, 2}, new float[] {5, 5}, new float[] {0, 2, 0});
+        assertPool(Shape.of(1, 1, 1, 3),
+                x -> x.averagePool2d(new AveragePool2dAttrs(1, 2, 1, 1, 0, 0, 1, 1, false)),
+                new float[] {2, 4, 6}, new float[] {3, 5}, new float[] {0.5f, 1, 0.5f});
+    }
+
+    private static void assertPool(
+            Shape shape, UnaryOperator<Tensor> pool, float[] inputValues,
+            float[] expectedForward, float[] expectedGradient) {
+        String library = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
+        assumeTrue(library != null && !library.isBlank(), "SYNAPTIK_METAL_TEST_LIBRARY is not set");
+        Tensor input = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), true));
+        Tensor output = pool.apply(input);
+        var request = new FunctionalGradientRequest(List.of(new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.ForwardTensorReference(output)),
+                List.of(Optional.empty()), List.of(input), false,
+                FunctionalGradientRequest.DisconnectedPolicy.ERROR)));
+        var availability = new BackendAvailabilitySnapshot(MetalCapabilityProvider.METAL_BACKEND_ID,
+                Map.of(new BackendDeviceId(MetalCapabilityProvider.METAL_BACKEND_ID, "default"),
+                        DeviceClass.ACCELERATOR));
+        var artifacts = GraphCompilationPort.compile(CompileMode.FORWARD_AND_BACKWARD,
+                List.of(output), Optional.of(request), GraphOptimizationConfig.disabled(),
+                BackendIntent.unconstrained(), PartitionScoringConfig.neutral(),
+                List.of(new MetalCapabilityProvider()), List.of(availability));
+        assertEquals(1, artifacts.partitions().size(), "the full primal/adjoint closure stays on Metal");
+        assertEquals(1, artifacts.constants().bindableInputs().size());
+        List<ValueId> publications = new ArrayList<>();
+        artifacts.publication().forwardBindings().forEach(binding -> publications.add(binding.valueId()));
+        artifacts.publication().gradientBindings().forEach(binding -> publications.add(binding.valueId()));
+        assertEquals(2, publications.size());
+        try (MetalDeviceContext context = MetalDeviceContext.open(Path.of(library));
+                Arena arena = Arena.ofConfined();
+                MetalBufferRepresentation inputBuffer = context.createBuffer((long) inputValues.length * Float.BYTES)) {
+            var analyzed = new AtomicReference<MetalNegPreparationPlan>();
+            var preparer = new MetalNegPartitionPreparer();
+            var preparation = new PartitionPreparation<>(new MetalNegAnalysisInputs(context),
+                    prepareContext -> {
+                        var result = preparer.analyze(prepareContext);
+                        analyzed.set(result.plan());
+                        return result;
+                    }, new MetalNegPartitionFinalizer(context));
+            try (var execution = GraphPreparation.prepare(artifacts, List.of(preparation),
+                    scheduleContext -> new MetalNegPreparedScheduleAssembler(
+                            context, analyzed.get(), publications).assemble(scheduleContext))) {
+                assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, analyzed.get().route());
+                var host = arena.allocateFrom(JAVA_FLOAT, inputValues);
+                inputBuffer.upload(0, host, 0, host.byteSize());
+                try (var result = new PreparedExecutionRunner().run(execution, List.of(inputBuffer))) {
+                    assertRawFloats(expectedForward,
+                            (MetalBufferRepresentation) result.publicationRepresentation(0), arena);
+                    assertRawFloats(expectedGradient,
+                            (MetalBufferRepresentation) result.publicationRepresentation(1), arena);
+                }
+            }
+        }
+    }
+
+    private static void assertRawFloats(float[] expected, MetalBufferRepresentation actual, Arena arena) {
+        var host = arena.allocate((long) expected.length * Float.BYTES, Float.BYTES);
+        actual.download(0, host, 0, host.byteSize());
+        int[] expectedBits = new int[expected.length];
+        int[] actualBits = new int[expected.length];
+        for (int index = 0; index < expected.length; index++) {
+            expectedBits[index] = Float.floatToRawIntBits(expected[index]);
+            actualBits[index] = Float.floatToRawIntBits(host.getAtIndex(JAVA_FLOAT, index));
+        }
+        assertArrayEquals(expectedBits, actualBits);
+    }
+}

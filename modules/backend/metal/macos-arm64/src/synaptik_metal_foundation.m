@@ -8907,6 +8907,21 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                         & 1U) != 0U;
                 if (!type_valid || input_gradient != output_gradient)
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                /* Only FLOAT32 pooling cotangents have qualified overlapping image folds.
+                 * Shape preflight below independently checks positive uint32 geometry. */
+                if (input_gradient && input_type != SYNAPTIK_METAL_TYPE_FLOAT32) {
+                    uint32_t spatial = operation == SYNAPTIK_METAL_CUSTOM_MAX_POOL2D
+                            || operation == SYNAPTIK_METAL_CUSTOM_AVERAGE_POOL2D ? 2U : 3U;
+                    for (uint32_t axis = 0U; axis < spatial; axis++) {
+                        uint64_t kernel = synaptik_attribute_word(words, axis);
+                        uint64_t stride = synaptik_attribute_word(words, spatial + axis);
+                        uint64_t dilation = synaptik_attribute_word(words, spatial * 3U + axis);
+                        if (kernel == 0U || dilation == 0U
+                                || kernel - 1U > (UINT64_MAX - 1U) / dilation
+                                || stride < dilation * (kernel - 1U) + 1U)
+                            return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    }
+                }
             }
             BOOL task0069_variance = NO;
             if (operation == SYNAPTIK_METAL_MPSGRAPH_VARIANCE
