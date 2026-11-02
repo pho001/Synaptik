@@ -33,6 +33,7 @@ static NSData *synaptik_scan_validation_roles(SynaptikMetalDecodedNode node,
             || node.output_count == 0U || node.output_count > SYNAPTIK_MAX_NODE_OUTPUTS)
         return nil;
     BOOL scatter = synaptik_scan_validation_scatter(node.operation);
+    if (scatter && semanticScatterReduction == 0U) return nil;
     for (uint32_t output = 0U; output < node.output_count; output++) {
         if (node.outputs[output] >= shapes.count || shapes[node.outputs[output]].count > 16U) return nil;
         if (shapes[node.outputs[output]] == nil) return nil;

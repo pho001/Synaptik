@@ -40,6 +40,89 @@ class MetalScanControlStagesNativeTest {
             }
     }
 
+    @Test void replacementScatterNdCopiesBaseThenPlacesExactBoolAndSignedUpdates() {
+        for (var type : List.of(DataType.BOOL, DataType.INT32, DataType.INT64))
+            for (var indexType : List.of(DataType.INT32, DataType.INT64))
+                for (int tuples : new int[] {1, 2}) for (boolean reverse : List.of(false, true)) {
+                    var query = scatterNd(type, indexType, tuples, false, reverse);
+                    assertTrue(MetalScanLowering.supports(query));
+                    try (var run = new MetalGeneralScanNativeTest.RawScan(query, null)) {
+                        long low = type == DataType.BOOL ? 0 : type == DataType.INT32 ? Integer.MIN_VALUE : Long.MIN_VALUE;
+                        long high = type == DataType.BOOL ? 1 : type == DataType.INT32 ? Integer.MAX_VALUE : Long.MAX_VALUE;
+                        byte[] base = type == DataType.BOOL ? represented(type, 1, 0, 0, 0)
+                                : represented(type, 11, -13, 17, -19);
+                        run.bytes(0, base);
+                        run.bytes(1, represented(indexType, tuples == 1 ? new long[] {1} : new long[] {1, 0}));
+                        run.bytes(2, represented(type, tuples == 1 ? new long[] {low, high} : new long[] {low, high, high, low}));
+                        run.execute();
+                        byte[] expected = tuples == 1
+                                ? concat(Arrays.copyOfRange(base, 0, 2 * type.byteWidth()), represented(type, low, high))
+                                : represented(type, high, low, low, high);
+                        assertArrayEquals(expected, run.outputBytes(0));
+                        assertArrayEquals(expected, run.outputBytes(1));
+                    }
+                }
+    }
+
+    @Test void replacementScatterNdPreflightsAllBoundsAndDuplicatesBeforeEitherStage() {
+        for (var type : List.of(DataType.BOOL, DataType.INT32, DataType.INT64))
+            for (var indexType : List.of(DataType.INT32, DataType.INT64))
+                for (boolean reverse : List.of(false, true)) {
+                    try (var run = new MetalGeneralScanNativeTest.RawScan(scatterNd(type, indexType, 2, false, reverse), null)) {
+                        run.bytes(0, represented(type, 1, 0, 0, 1));
+                        run.bytes(2, represented(type, 0, 1, 1, 0));
+                        byte[] poison = new byte[4 * type.byteWidth()]; Arrays.fill(poison, (byte) 0x5a);
+                        for (long[] indices : new long[][] {{1, 1}, {1, 2}, {Long.MAX_VALUE, 0}}) {
+                            run.bytes(1, represented(indexType, indices));
+                            run.bytes(3, poison); run.bytes(4, poison);
+                            var failure = assertThrows(MetalNativeApi.NativeFailure.class, run::execute);
+                            assertEquals(MetalNativeApi.Status.RANGE_OUT_OF_BOUNDS, failure.status());
+                            assertArrayEquals(poison, run.outputBytes(0)); assertArrayEquals(poison, run.outputBytes(1));
+                        }
+                        run.bytes(1, represented(indexType, 1, 0)); run.execute();
+                        assertArrayEquals(represented(type, 1, 0, 0, 1), run.outputBytes(0));
+                        assertArrayEquals(represented(type, 1, 0, 0, 1), run.outputBytes(1));
+                    }
+                }
+    }
+
+    @Test void replacementScatterNdPreservesBatchRowsWithoutInspectingInactiveIndexTuples() {
+        for (var type : List.of(DataType.BOOL, DataType.INT32, DataType.INT64))
+            for (var indexType : List.of(DataType.INT32, DataType.INT64))
+                for (boolean reverse : List.of(false, true)) {
+                    try (var run = new MetalGeneralScanNativeTest.RawScan(scatterNd(type, indexType, 2, true, reverse), null)) {
+                        long low = type == DataType.BOOL ? 0 : type == DataType.INT32 ? Integer.MIN_VALUE : Long.MIN_VALUE;
+                        long high = type == DataType.BOOL ? 1 : type == DataType.INT32 ? Integer.MAX_VALUE : Long.MAX_VALUE;
+                        long badMin = indexType == DataType.INT32 ? Integer.MIN_VALUE : Long.MIN_VALUE;
+                        long badMax = indexType == DataType.INT32 ? Integer.MAX_VALUE : Long.MAX_VALUE;
+                        byte[] base = represented(type, 1, 0, 0, 1, 1, 0, 0, 1);
+                        run.bytes(0, base); run.bytes(1, represented(indexType, 1, 0, badMin, badMax));
+                        run.bytes(2, represented(type, low, high, high, low, high, low, low, high));
+                        run.longs(3, 1, 0); run.execute();
+                        byte[] active = represented(type, high, low, low, high);
+                        byte[] expectedCarry = concat(active, represented(type, 1, 0, 0, 1));
+                        byte[] expectedHistory = concat(active, represented(type, 0, 0, 0, 0));
+                        assertArrayEquals(expectedCarry, run.outputBytes(0)); assertArrayEquals(expectedHistory, run.outputBytes(1));
+                        run.bytes(1, represented(indexType, 1, 0, 0, 0)); run.execute();
+                        assertArrayEquals(expectedCarry, run.outputBytes(0)); assertArrayEquals(expectedHistory, run.outputBytes(1));
+                        run.longs(3, 0, 0); run.execute();
+                        assertArrayEquals(base, run.outputBytes(0));
+                        assertArrayEquals(represented(type, 0, 0, 0, 0, 0, 0, 0, 0), run.outputBytes(1));
+                    }
+                }
+    }
+
+    @Test void replacementScatterNdStillRejectsMalformedUpdateGeometryAtZeroTime() {
+        for (int time : new int[] {0, 1}) {
+            var malformed = singleCarryQuery(new Operation(ScatterNdKind.SCATTER_ND, new ScatterNdAttrs(0, ScatterReduction.NONE)),
+                    time, false, false, List.of(MetalScanPlanTest.descriptor(DataType.INT32, 2, 2),
+                            MetalScanPlanTest.descriptor(DataType.INT64, 2, 1), MetalScanPlanTest.descriptor(DataType.INT32, 2, 3)),
+                    List.of(0, 1, 2));
+            assertFalse(MetalScanLowering.supports(malformed));
+            assertThrows(IllegalArgumentException.class, () -> MetalScanLowering.plan(malformed));
+        }
+    }
+
     @Test void activeReplacementDuplicatesRejectBeforeEveryPublicationIncludingBool() {
         for (var type : List.of(DataType.BOOL, DataType.INT32, DataType.INT64))
             for (boolean lengths : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
@@ -232,6 +315,16 @@ class MetalScanControlStagesNativeTest {
                 new Operation(AxisScatterKind.SCATTER_ELEMENTS, new ScatterElementsAttrs(1, ScatterReduction.NONE)), 2, new long[] {2}, true);
     }
 
+    private static OperationCapabilityQuery scatterNd(
+            DataType type, DataType indexType, int tuples, boolean lengths, boolean reverse) {
+        return singleCarryQuery(new Operation(ScatterNdKind.SCATTER_ND, new ScatterNdAttrs(lengths ? 1 : 0, ScatterReduction.NONE)),
+                1, lengths, reverse, List.of(
+                        MetalScanPlanTest.descriptor(type, lengths ? new long[] {2, 2, 2} : new long[] {2, 2}),
+                        MetalScanPlanTest.descriptor(indexType, lengths ? new long[] {2, tuples, 1} : new long[] {tuples, 1}),
+                        MetalScanPlanTest.descriptor(type, lengths ? new long[] {2, tuples, 2} : new long[] {tuples, 2})),
+                List.of(0, 1, 2));
+    }
+
     private static OperationCapabilityQuery fold(DataType type, int time, int batch, boolean lengths, boolean reverse) {
         return query(type, time, batch, lengths, reverse,
                 new Operation(WindowTransformKind.FOLD_AXIS, new FoldAxisAttrs(1, 4, 2)), 4, new long[] {2, 2}, false);
@@ -243,28 +336,42 @@ class MetalScanControlStagesNativeTest {
         long[] stepShape = new long[sequenceFeatures.length + 1]; stepShape[0] = batch;
         System.arraycopy(sequenceFeatures, 0, stepShape, 1, sequenceFeatures.length);
         var step = MetalScanPlanTest.descriptor(type, stepShape);
-        var h = new ValueId(0); var x = new ValueId(1); var y = new ValueId(scatter ? 3 : 2);
-        var values = new ArrayList<GraphValue>(); values.add(new GraphValue(h, carry));
-        values.add(new GraphValue(x, scatter ? MetalScanPlanTest.descriptor(DataType.INT64, stepShape) : step));
-        var formals = new ArrayList<>(List.of(h, x));
-        List<ValueId> operands;
-        if (scatter) { var updates = new ValueId(2); values.add(new GraphValue(updates, step)); formals.add(updates); operands = List.copyOf(formals); }
-        else operands = operation.kind() == WindowTransformKind.FOLD_AXIS ? List.of(x) : List.of(h, x);
-        values.add(new GraphValue(y, carry));
-        var node = new CompiledNode(new NodeId(0), operation, operands, List.of(y));
+        var local = new ArrayList<TensorDescriptor>(); local.add(carry);
+        local.add(scatter ? MetalScanPlanTest.descriptor(DataType.INT64, stepShape) : step);
+        if (scatter) local.add(step);
+        return singleCarryQuery(operation, time, lengths, reverse, local,
+                scatter ? List.of(0, 1, 2) : operation.kind() == WindowTransformKind.FOLD_AXIS ? List.of(1) : List.of(0, 1));
+    }
+
+    /** One ordinary node and two canonical ports, shared by the stage/geometry fixtures. */
+    private static OperationCapabilityQuery singleCarryQuery(Operation operation, int time, boolean lengths,
+            boolean reverse, List<TensorDescriptor> local, List<Integer> operandPositions) {
+        var carry = local.getFirst();
+        var values = new ArrayList<GraphValue>();
+        var formals = new ArrayList<ValueId>();
+        var inputs = new ArrayList<TensorDescriptor>();
+        for (int f = 0; f < local.size(); f++) {
+            var id = new ValueId(f); formals.add(id); values.add(new GraphValue(id, local.get(f)));
+            inputs.add(f == 0 ? local.get(f) : stacked(local.get(f), time));
+        }
+        var y = new ValueId(local.size()); values.add(new GraphValue(y, carry));
+        var node = new CompiledNode(new NodeId(0), operation,
+                operandPositions.stream().map(formals::get).toList(), List.of(y));
         var graph = new CompiledGraphModel(values, List.of(node), formals, List.of(y), Map.of(node.id(), GraphPhase.FORWARD));
         var body = new CompiledScanBody(graph, List.of(y), List.of(y), List.of(), List.of(0, 1));
-        int sequences = scatter ? 2 : 1;
+        int sequences = local.size() - 1;
         var attrs = lengths ? new ScanAttrs(time, 1, sequences, 0, 1, 0, reverse, true, 1,
                 Collections.nCopies(sequences, OptionalInt.of(0))) : new ScanAttrs(time, 1, sequences, 0, 1, 0, reverse);
-        long[] stacked = new long[stepShape.length + 1]; stacked[0] = time;
-        System.arraycopy(stepShape, 0, stacked, 1, stepShape.length);
-        var inputs = new ArrayList<TensorDescriptor>(); inputs.add(carry);
-        inputs.add(MetalScanPlanTest.descriptor(scatter ? DataType.INT64 : type, stacked));
-        if (scatter) inputs.add(MetalScanPlanTest.descriptor(type, stacked));
-        if (lengths) inputs.add(MetalScanPlanTest.descriptor(DataType.INT64, batch));
+        if (lengths) inputs.add(MetalScanPlanTest.descriptor(DataType.INT64, carry.shape().dimension(0).staticSize().orElseThrow()));
         return new OperationCapabilityQuery(new Operation(ScanKind.SCAN, attrs), inputs,
-                List.of(carry, MetalScanPlanTest.descriptor(type, time, batch, width)), Optional.of(body), Optional.empty());
+                List.of(carry, stacked(carry, time)), Optional.of(body), Optional.empty());
+    }
+
+    private static TensorDescriptor stacked(TensorDescriptor step, int time) {
+        long[] shape = step.shape().toLongArray();
+        long[] stacked = new long[shape.length + 1]; stacked[0] = time;
+        System.arraycopy(shape, 0, stacked, 1, shape.length);
+        return MetalScanPlanTest.descriptor(step.dataType(), stacked);
     }
 
     private static byte[] represented(DataType type, long... values) {

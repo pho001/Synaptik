@@ -136,6 +136,14 @@ static BOOL synaptik_scan_validate_ordinary(SynaptikMetalDecodedNode node, NSArr
                     && node.attribute_values[0] == outputType && task0059_validate_shape(node, shapes);
         case 69U: case 71U:
             return synaptik_scan_index_type(types[node.second_input]) && inputType == outputType && task0059_validate_shape(node, shapes);
+        case 72U:
+            // Floating/reduction variants remain with the joined scatter owner. These are
+            // ordinary exact replacements, whose shape/index contract is already shared.
+            return (inputType == 3U || synaptik_scan_index_type(inputType))
+                    && outputType == inputType && types[node.auxiliary] == inputType
+                    && synaptik_scan_index_type(types[node.second_input])
+                    && node.attribute_kind == 13U && node.attribute_count == 2U
+                    && node.attribute_values[1] == 1U && task0059_validate_shape(node, shapes);
         case 73U: case 74U: case 75U: case 76U: case 77U: case 78U: case 79U:
             for (uint32_t i = 0U; i < node.input_count; i++) if (types[node.inputs[i]] != outputType) return NO;
             return task0059_validate_shape(node, shapes);
