@@ -28,6 +28,11 @@
  * metadata. It admits integral modular SUM and stored-value MIN/MAX, including F64
  * extrema without FP64 arithmetic. Exact extrema use the shared typed comparator;
  * F64 SUM/MEAN/PROD and new low domains are deliberately absent.
+ * audit_reduce_f32_scan and audit_reduce_exact_scan additionally bind control=28,
+ * step=29 and guard their complete ordinary calculation before every input read or
+ * statistical pass. They require the Scan owner's proof that a ROW input's row axis
+ * is retained in the output (or that all inputs are SHARED). Only the controlled
+ * SUM/MEAN entry above admits dropping ROW into a shared terminal result.
  *
  * Each selected contributor is visited in input logical row-major order. Named MUL,
  * ADD, SUB, DIV and SQRT sites remain separate under the shared no-fast-math compiler
@@ -164,6 +169,16 @@ static NSString *const SynaptikAuditReductionKernelSource =
 "    ulong destination = logical_storage(linear, m.outDims, m.outputStrides, m.outputRank, m.outputOffset);\n"
 "    store_word(output, destination, 4u, ulong(result));\n"
 "}\n"
+"kernel void audit_reduce_f32_scan(device const uchar *input [[buffer(0)]],\n"
+"        device const uchar *mask [[buffer(1)]], device uchar *output [[buffer(2)]],\n"
+"        constant DataMeta &m [[buffer(3)]], device const ulong *scanControl [[buffer(28)]],\n"
+"        constant ScanStepControl &scanStep [[buffer(29)]], uint3 gid [[thread_position_in_grid]]) {\n"
+"    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
+"    if (!scan_control_output(scanControl, scanStep, linear)) return;\n"
+"    uint result = audit_reduce_f32_word(input, mask, linear, m);\n"
+"    ulong destination = logical_storage(linear, m.outDims, m.outputStrides, m.outputRank, m.outputOffset);\n"
+"    store_word(output, destination, 4u, ulong(result));\n"
+"}\n"
 "kernel void audit_reduce_f32_controlled(device const uchar *input [[buffer(0)]],\n"
 "        device const uchar *mask [[buffer(1)]], device uchar *output [[buffer(2)]],\n"
 "        constant DataMeta &m [[buffer(3)]], device const ulong *scanControl [[buffer(28)]],\n"
@@ -180,10 +195,7 @@ static NSString *const SynaptikAuditReductionKernelSource =
 "    if (type == 4u) return maximum ? 0xfff0000000000000ul : 0x7ff0000000000000ul;\n"
 "    return maximum ? 0xff800000ul : 0x7f800000ul;\n"
 "}\n"
-"kernel void audit_reduce_exact(device const uchar *input [[buffer(0)]],\n"
-"        device uchar *output [[buffer(1)]], constant DataMeta &m [[buffer(2)]],\n"
-"        uint3 gid [[thread_position_in_grid]]) {\n"
-"    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
+"inline ulong audit_reduce_exact_word(device const uchar *input, ulong linear, constant DataMeta &m) {\n"
 "    ulong domain = audit_reduction_domain(m), accumulator = m.operation == 13u ? 0ul\n"
 "            : audit_reduction_extreme_identity(m.sourceType, m.operation == 32u);\n"
 "    ulong coords[16];\n"
@@ -196,8 +208,25 @@ static NSString *const SynaptikAuditReductionKernelSource =
 "        else accumulator = item == 0ul ? word : exact_numeric_extreme(\n"
 "                accumulator, m.sourceType, word, m.sourceType, m.targetType, m.operation == 32u);\n"
 "    }\n"
+"    return accumulator;\n"
+"}\n"
+"kernel void audit_reduce_exact(device const uchar *input [[buffer(0)]],\n"
+"        device uchar *output [[buffer(1)]], constant DataMeta &m [[buffer(2)]],\n"
+"        uint3 gid [[thread_position_in_grid]]) {\n"
+"    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
+"    ulong result = audit_reduce_exact_word(input, linear, m);\n"
 "    ulong destination = logical_storage(linear, m.outDims, m.outputStrides, m.outputRank, m.outputOffset);\n"
-"    store_word(output, destination, m.width, accumulator);\n"
+"    store_word(output, destination, m.width, result);\n"
+"}\n"
+"kernel void audit_reduce_exact_scan(device const uchar *input [[buffer(0)]],\n"
+"        device uchar *output [[buffer(1)]], constant DataMeta &m [[buffer(2)]],\n"
+"        device const ulong *scanControl [[buffer(28)]], constant ScanStepControl &scanStep [[buffer(29)]],\n"
+"        uint3 gid [[thread_position_in_grid]]) {\n"
+"    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
+"    if (!scan_control_output(scanControl, scanStep, linear)) return;\n"
+"    ulong result = audit_reduce_exact_word(input, linear, m);\n"
+"    ulong destination = logical_storage(linear, m.outDims, m.outputStrides, m.outputRank, m.outputOffset);\n"
+"    store_word(output, destination, m.width, result);\n"
 "}\n";
 
 #endif
