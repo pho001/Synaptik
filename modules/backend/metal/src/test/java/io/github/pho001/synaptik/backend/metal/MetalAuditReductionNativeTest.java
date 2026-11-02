@@ -84,6 +84,37 @@ class MetalAuditReductionNativeTest {
     }
 
     @Test
+    void selectedStoredInfinityClassesTakePrecedenceOverFiniteIntermediateOverflow() {
+        byte[] input = f32(
+                Float.MAX_VALUE, Float.MAX_VALUE, Float.NEGATIVE_INFINITY,
+                -Float.MAX_VALUE, -Float.MAX_VALUE, Float.POSITIVE_INFINITY,
+                Float.MAX_VALUE, Float.MAX_VALUE, Float.POSITIVE_INFINITY,
+                Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, 0,
+                Float.NaN, Float.MAX_VALUE, Float.POSITIVE_INFINITY);
+        byte[] allSelected = new byte[15];
+        java.util.Arrays.fill(allSelected, (byte) 1);
+        for (var kind : List.of(MetalMpsGraphProgram.NodeKind.SUM, MetalMpsGraphProgram.NodeKind.MEAN)) {
+            for (boolean useMask : List.of(false, true)) {
+                var values = useMask
+                        ? List.of(value(DataType.FLOAT32, 5, 3), value(DataType.BOOL, 5, 3),
+                                value(DataType.FLOAT32, 5))
+                        : List.of(value(DataType.FLOAT32, 5, 3), value(DataType.FLOAT32, 5));
+                var node = useMask ? masked(kind, 0, 1, 2, 1)
+                        : reduction(kind, 0, 1, List.of(1), false);
+                float[] actual = floats(execute(values, List.of(node),
+                        useMask ? new int[] {0, 1} : new int[] {0},
+                        useMask ? new byte[][] {input, allSelected} : new byte[][] {input},
+                        useMask ? 2 : 1));
+                assertEquals(Float.NEGATIVE_INFINITY, actual[0]);
+                assertEquals(Float.POSITIVE_INFINITY, actual[1]);
+                assertEquals(Float.POSITIVE_INFINITY, actual[2]);
+                assertTrue(Float.isNaN(actual[3]));
+                assertTrue(Float.isNaN(actual[4]));
+            }
+        }
+    }
+
+    @Test
     void floatingProductsRetainZerosParityAndInvalidZeroTimesInfinity() {
         var values = List.of(value(DataType.FLOAT32, 3, 3), value(DataType.FLOAT32, 3));
         var node = reduction(MetalMpsGraphProgram.NodeKind.PROD, 0, 1, List.of(1), false);

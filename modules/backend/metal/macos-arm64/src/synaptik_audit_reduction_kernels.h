@@ -33,6 +33,9 @@
  * ADD, SUB, DIV and SQRT sites remain separate under the shared no-fast-math compiler
  * policy. LSE uses a guarded max-shifted realization; constant statistics and point
  * norms preserve their Model identities without spurious overflow or square underflow.
+ * SUM/MEAN classify only selected stored NaNs and each infinity sign, independently
+ * of finite intermediate overflow: NaN/opposite input infinities dominate, otherwise
+ * the sole stored infinity sign wins. MEAN still counts every selected contributor.
  */
 static NSString *const SynaptikAuditReductionKernelSource =
 @"\n"
@@ -74,6 +77,7 @@ static NSString *const SynaptikAuditReductionKernelSource =
 "    float accumulator = op == 106u ? 1.0f : 0.0f;\n"
 "    float maximum = as_type<float>(0xff800000u);\n"
 "    bool anyNan = false, anyInf = false, constantValue = true;\n"
+"    bool positiveInf = false, negativeInf = false;\n"
 "    for (ulong item = 0ul; item < domain; ++item) {\n"
 "        audit_reduction_point(linear, item, m, coords);\n"
 "        if (scanStep != nullptr && !scan_control_operand(scanControl, *scanStep, 0u,\n"
@@ -83,6 +87,8 @@ static NSString *const SynaptikAuditReductionKernelSource =
 "        if (selected == 0ul) firstWord = word;\n"
 "        else if (word != firstWord && ((word | firstWord) & 0x7fffffffu) != 0u) constantValue = false;\n"
 "        anyNan = anyNan || audit_reduction_nan(word); anyInf = anyInf || audit_reduction_inf(word);\n"
+"        positiveInf = positiveInf || word == 0x7f800000u;\n"
+"        negativeInf = negativeInf || word == 0xff800000u;\n"
 "        if (op == 111u) maximum = as_type<float>(uint(exact_numeric_extreme(\n"
 "                ulong(as_type<uint>(maximum)), 1u, ulong(word), 1u, 1u, true)));\n"
 "        else {\n"
@@ -94,9 +100,15 @@ static NSString *const SynaptikAuditReductionKernelSource =
 "        ++selected;\n"
 "    }\n"
 "    uint result;\n"
-"    if (op == 13u) result = selected == 1ul ? firstWord : as_type<uint>(accumulator);\n"
-"    else if (op == 14u) result = selected == 0ul ? 0x7fc00000u\n"
-"            : as_type<uint>(audit_reduction_div(accumulator, float(selected)));\n"
+"    if (op == 13u || op == 14u) {\n"
+"        if (op == 13u && selected == 1ul) result = firstWord;\n"
+"        else if (anyNan || (positiveInf && negativeInf)) result = 0x7fc00000u;\n"
+"        else if (positiveInf) result = 0x7f800000u;\n"
+"        else if (negativeInf) result = 0xff800000u;\n"
+"        else if (op == 14u) result = selected == 0ul ? 0x7fc00000u\n"
+"                : as_type<uint>(audit_reduction_div(accumulator, float(selected)));\n"
+"        else result = as_type<uint>(accumulator);\n"
+"    }\n"
 "    else if (op == 106u || op == 114u) result = as_type<uint>(accumulator);\n"
 "    else if (op == 115u) {\n"
 "        result = anyNan ? 0x7fc00000u : anyInf ? 0x7f800000u\n"

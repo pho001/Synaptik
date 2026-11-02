@@ -108,11 +108,13 @@ static BOOL synaptik_reduction_metadata(SynaptikMetalDecodedNode node,
         shape_node.auxiliary = 0U;
     }
     BOOL keep = NO; uint64_t correction = 0U;
-    NSArray<NSNumber *> *axes = statistical
-            ? node_statistical_axes(shape_node, input, output, &keep, &correction)
-            : node_reduction_axes(shape_node, input, output, &keep);
-    if (axes == nil && !statistical && !masked)
-        axes = synaptik_reduction_empty_axes(shape_node, input, output);
+    BOOL empty_input = NO;
+    for (NSNumber *extent in input) empty_input |= extent.unsignedLongLongValue == 0U;
+    NSArray<NSNumber *> *axes = empty_input
+            ? synaptik_reduction_empty_axes(shape_node, input, output)
+            : statistical
+                    ? node_statistical_axes(shape_node, input, output, &keep, &correction)
+                    : node_reduction_axes(shape_node, input, output, &keep);
     if (axes == nil || (statistical && node.attribute_kind != 38U)
             || (!statistical && node.attribute_kind == 38U)) return NO;
     if ((node.operation == 111U || node.operation == 114U || node.operation == 115U)
