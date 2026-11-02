@@ -162,4 +162,73 @@ static BOOL synaptik_scatter_metadata(
     return YES;
 }
 
+/*
+ * Constructs logical index bounds/uniqueness facts only. The existing physical
+ * layout pass subsequently installs indexSpan/indexOffset/indexExtents/indexStrides.
+ * Its validation scan remains stable node/row-major order and completes before any
+ * scatter output write. Only replacement allocates target scratch: arithmetic
+ * duplicate destinations are valid and must never enter the uniqueness check.
+ */
+static SynaptikMetalIndexValidation *synaptik_scatter_index_validation(
+        SynaptikMetalDecodedNode node, NSArray<MPSShape *> *shapes,
+        const uint8_t *types, uint32_t node_index, BOOL preflight) {
+    SynaptikMetalDataMeta logical = {0};
+    MTLSize ignored_grid;
+    /* Canonical construction checks the complete logical grammar and products;
+     * actual affine span/resource checks remain in the real metadata constructor. */
+    if (!synaptik_scatter_metadata(
+                node, shapes, types, NULL, NULL, NULL, &logical, &ignored_grid))
+        return nil;
+    SynaptikMetalIndexValidation *validation = [SynaptikMetalIndexValidation new];
+    if (validation == nil) return nil;
+    validation.operation = node.operation;
+    validation.indexValue = node.inputs[1];
+    validation.indexType = logical.indexType;
+    validation.nodeIndex = node_index;
+    validation.feedPosition = node.inputs[1];
+    validation.preflight = preflight;
+    uint64_t index_count = 1U;
+    for (uint32_t axis = 0U; axis < logical.roleRanks[1]; ++axis)
+        index_count *= logical.roleDims[1][axis];
+    validation.elementCount = index_count;
+    BOOL replacement = logical.attrs[1] == 1U;
+    uint32_t axis = (uint32_t)logical.attrs[0];
+    validation.axis = axis;
+    if (node.operation == 72U) {
+        uint32_t depth = (uint32_t)logical.roleDims[1][logical.roleRanks[1] - 1U];
+        validation.tupleDepth = depth;
+        validation.coordinateExtents = [NSMutableData
+                dataWithBytes:&logical.roleDims[0][axis]
+                length:(NSUInteger)depth * sizeof(uint64_t)];
+        if (validation.coordinateExtents == nil) return nil;
+        if (replacement) {
+            validation.targetCount = index_count / depth;
+            validation.prefixExtents = [NSMutableData
+                    dataWithBytes:logical.roleDims[1]
+                    length:(NSUInteger)(logical.roleRanks[1] - 1U) * sizeof(uint64_t)];
+            if (validation.prefixExtents == nil) return nil;
+        }
+    } else {
+        validation.bound = logical.roleDims[0][axis];
+        if (replacement) {
+            validation.targetCount = index_count;
+            validation.coordinateExtents = [NSMutableData
+                    dataWithBytes:logical.roleDims[1]
+                    length:(NSUInteger)logical.roleRanks[1] * sizeof(uint64_t)];
+            if (validation.coordinateExtents == nil) return nil;
+        }
+    }
+    if (replacement) {
+        if (validation.targetCount > (uint64_t)NSUIntegerMax / sizeof(uint64_t))
+            return nil;
+        validation.dataStrides = [NSMutableData
+                dataWithBytes:logical.roleStrides[0]
+                length:(NSUInteger)logical.roleRanks[0] * sizeof(uint64_t)];
+        validation.targetScratch = [NSMutableData
+                dataWithLength:(NSUInteger)validation.targetCount * sizeof(uint64_t)];
+        if (validation.dataStrides == nil || validation.targetScratch == nil) return nil;
+    }
+    return validation;
+}
+
 #endif
