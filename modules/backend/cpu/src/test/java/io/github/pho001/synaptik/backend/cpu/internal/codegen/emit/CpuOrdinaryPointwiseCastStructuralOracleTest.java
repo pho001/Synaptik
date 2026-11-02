@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.InputStream;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.classfile.ClassFile;
@@ -19,7 +18,6 @@ import java.lang.classfile.instruction.InvokeInstruction;
 import java.lang.classfile.instruction.LabelTarget;
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,12 +40,9 @@ import org.junit.jupiter.api.Test;
  * outcomes instead. This test does not itself promote a structural or performance disposition.</p>
  */
 class CpuOrdinaryPointwiseCastStructuralOracleTest {
-    private static final String BASE = "/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/";
 
     @Test void exactOwnedRowsHaveActiveSelectedEntryHygieneAndRemainTruthfullyPartial()
             throws Throwable {
-        new CpuGeneratedCoverageCheckpointTest()
-                .exactCombinationInventoryReproducesEveryCanonicalFixtureExecution();
         List<String[]> owned = ownedRows();
         long ordinary = owned.stream().filter(row -> !row[2].equals("CAST")).count();
         long casts = owned.stream().filter(row -> row[2].equals("CAST")).count();
@@ -82,8 +77,6 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
 
     @Test void independentlyJavacCompiledTypedCounterpartsMatchEveryExactSelectedAbiAndHaveLiveRangeLoops()
             throws Throwable {
-        new CpuGeneratedCoverageCheckpointTest()
-                .exactCombinationInventoryReproducesEveryCanonicalFixtureExecution();
         List<String[]> inventory = ownedRows();
         List<CpuOrdinaryPointwiseCastCleanJavaOracle.Row> rows = inventory.stream().map(row ->
                 new CpuOrdinaryPointwiseCastCleanJavaOracle.Row(row[0], row[2], row[18], row[9], row[10], row[12],
@@ -829,7 +822,7 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
 
     @Test void inventorySeparatesPointwiseAndCrossCategoryRejectionsFromTheGeneratedStructuralDenominator()
             throws Exception {
-        String inventory = resource("generated-coverage-inventory.tsv");
+        String inventory = CpuGeneratedCoverageCheckpointTest.liveInventory();
         Map<String, Long> rejectedByCategory = new java.util.TreeMap<>();
         for (String line : inventory.lines().skip(1).toList()) {
             String[] row = line.split("\\t", -1);
@@ -843,7 +836,7 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
 
     private static List<String[]> ownedRows() throws Exception {
         List<String[]> rows = new ArrayList<>();
-        for (String line : resource("generated-coverage-inventory.tsv").lines().skip(1).toList()) {
+        for (String line : CpuGeneratedCoverageCheckpointTest.liveInventory().lines().skip(1).toList()) {
             String[] row = line.split("\\t", -1);
             if (row.length == 27 && row[0].startsWith("pointwise-matrix:")
                     && row[21].equals("GENERATED")) rows.add(row);
@@ -886,11 +879,4 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
         return Map.copyOf(methods);
     }
 
-    private static String resource(String name) throws Exception {
-        try (InputStream input = CpuOrdinaryPointwiseCastStructuralOracleTest.class
-                .getResourceAsStream(BASE + name)) {
-            assertTrue(input != null, name);
-            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
-        }
-    }
 }

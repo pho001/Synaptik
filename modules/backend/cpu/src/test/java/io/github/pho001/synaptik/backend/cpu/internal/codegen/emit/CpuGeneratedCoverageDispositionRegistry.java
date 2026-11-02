@@ -178,7 +178,7 @@ final class CpuGeneratedCoverageDispositionRegistry {
                     .filter(term -> !term.endsWith("=present")).count();
         }
         void verifyReference() {
-            if (!reference.equals("CpuGeneratedCoverageCheckpointTest#exactCombinationInventoryReproducesEveryCanonicalFixtureExecution")
+            if (!reference.equals("CpuGeneratedCoverageCheckpointTest#liveInventory")
                     && !reference.equals("CpuAffineMovementIndexingScatterRandomStructuralOracleTest#exactOwnedRowsRetainGeneratedAbiAndScopedHygieneWhileOnlyOtherFamiliesRemainPartial")) {
                 throw new AssertionError("unknown evidence reference for " + id + ": " + reference);
             }

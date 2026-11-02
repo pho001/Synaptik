@@ -103,6 +103,9 @@
   Its nonempty weighted-value contractions and fixed-recurrent projections seed their first
   product, preserving negative zero; empty/exclusion guards remain. Attention projection 74 rejects
   obsolete shifted classes and binds the new working-site marker in both identity streams.
+- Current generated-code structural oracles consume live provider/preparer/generator facts instead
+  of golden class-hash and row-count snapshots. Typed ABI, direct-loop and paired-Java checks remain,
+  including avoidable-dispatch guards; historical checkpoint data is unchanged.
 
 - General Scan preserves rank-17 temporal containers around rank-16 ordinary step values.
   The ordinary rank limit applies to every local value; exact outer role binding retains the

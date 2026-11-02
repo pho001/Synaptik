@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.InputStream;
 import java.lang.foreign.MemorySegment;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.CodeElement;
@@ -23,7 +22,6 @@ import java.lang.classfile.instruction.InvokeInstruction;
 import java.lang.classfile.instruction.LabelTarget;
 import java.lang.classfile.instruction.LoadInstruction;
 import java.lang.classfile.instruction.StoreInstruction;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
@@ -55,7 +53,6 @@ import org.junit.jupiter.api.Test;
  * representative generated/direct performance.</p>
  */
 class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
-    private static final String BASE = "/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/";
     private static final Set<String> AFFINE = Set.of("CONTIGUOUS", "EXPAND", "EXPAND_DIMS", "PERMUTE", "RESHAPE", "SELECT", "SLICE", "SQUEEZE");
     private static final Set<String> MOVEMENT = Set.of("PAD", "TILE", "CONCAT", "STACK", "SLICE_UPDATE", "UNFOLD_AXIS", "UNFOLD2D");
     private static final Set<String> INDEXING = Set.of("GATHER", "GATHER_ELEMENTS", "GATHER_ND", "ONE_HOT");
@@ -1720,7 +1717,6 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
      * counterparts exist.</p>
      */
     @Test void exactOwnedRowsRetainGeneratedAbiAndScopedHygieneWhileOnlyOtherFamiliesRemainPartial() throws Exception {
-        new CpuGeneratedCoverageCheckpointTest().exactCombinationInventoryReproducesEveryCanonicalFixtureExecution();
         List<Row> rows = ownedRows();
         assertEquals(Set.of("affine", "movement", "indexing", "scatter", "random"), counts(rows).keySet());
         assertEquals(AFFINE, formCounts(rows, "affine").keySet());
@@ -2855,10 +2851,9 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     private static Map<String, Long> counts(List<Row> rows) { Map<String, Long> result = new TreeMap<>(); rows.forEach(row -> result.merge(row.family, 1L, Long::sum)); return result; }
     private static Map<String, Long> formCounts(List<Row> rows, String family) { Map<String, Long> result = new TreeMap<>(); rows.stream().filter(row -> row.family.equals(family)).forEach(row -> result.merge(row.form, 1L, Long::sum)); return result; }
     private static List<Row> ownedRows() throws Exception {
-        byte[] bytes; try (InputStream stream = CpuAffineMovementIndexingScatterRandomStructuralOracleTest.class.getResourceAsStream(BASE + "generated-coverage-inventory.tsv")) { assertTrue(stream != null, "checked inventory"); bytes = stream.readAllBytes(); }
+        String text = CpuGeneratedCoverageCheckpointTest.liveInventory();
         
         Map<String, Row> unique = new LinkedHashMap<>();
-        String text = new String(bytes, StandardCharsets.UTF_8); assertTrue(text.endsWith("\n") && !text.contains("\r"), "canonical LF inventory");
         for (String line : text.split("\n")) { String[] row = line.split("\t", -1); if (row.length != 27 || !row[21].equals("GENERATED")) continue; String family = family(row[0], row[2]); if (family != null) assertTrue(unique.put(row[0], new Row(row[0], family, row[2], family.equals("affine") || family.equals("indexing") ? dataType(row[4]) : "INT32", row[18], row[9], row[10], row[12])) == null, "duplicate owner: " + row[0]); }
         return List.copyOf(unique.values());
     }

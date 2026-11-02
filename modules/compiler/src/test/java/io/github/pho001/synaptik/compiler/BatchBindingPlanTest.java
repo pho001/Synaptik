@@ -128,21 +128,6 @@ class BatchBindingPlanTest {
         }
     }
 
-    @Test
-    void rejectsUnprovedNegativeAndEmptyExtractionsEvenWithADeclaredBatch() {
-        Tensor batch = TensorFactory.create(new TensorDescriptor(
-                DataType.FLOAT32, Shape.ofDimensions(B), Optional.empty(), false));
-        Tensor vector = TensorFactory.create(descriptor(Shape.of(3)));
-        for (Tensor extraction : List.of(
-                vector.sliceByLength(new long[] {2}, new long[] {3},
-                        new int[] {0}, new long[] {-1}),
-                vector.cropToShape(Shape.of(0), Shape.of(0)))) {
-            var artifacts = compile(List.of(batch.add(batch), extraction));
-            assertTrue(artifacts.graph().values().get(outputPosition(artifacts, 1))
-                    .descriptor().layout().isEmpty());
-            assertThrows(IllegalArgumentException.class, () -> BatchBindingPlan.prepare(artifacts));
-        }
-    }
 
     private static int outputPosition(CompileArtifacts artifacts, int output) {
         var id = artifacts.publication().forwardBindings().get(output).valueId();

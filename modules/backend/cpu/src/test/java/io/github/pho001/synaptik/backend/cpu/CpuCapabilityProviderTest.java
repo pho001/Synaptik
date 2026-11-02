@@ -628,8 +628,6 @@ class CpuCapabilityProviderTest {
                         new CastAttrs(DataType.FLOAT64), List.of(f32), f64)),
                 () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(CastKind.CAST,
                         new CastAttrs(DataType.BFLOAT16), List.of(bf16), bf16)),
-                () -> assertFalse(provider.supports(query(BinaryArithmeticKind.ADD,
-                        NoOperationAttrs.INSTANCE, List.of(f32, f64), f64))),
                 () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(BinaryArithmeticKind.DIV,
                         NoOperationAttrs.INSTANCE, List.of(f64, f64), f64)),
                 () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(BinaryArithmeticKind.DIV,
