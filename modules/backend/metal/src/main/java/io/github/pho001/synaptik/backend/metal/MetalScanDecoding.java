@@ -3,6 +3,8 @@ package io.github.pho001.synaptik.backend.metal;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
+import io.github.pho001.synaptik.model.tensor.Scan;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.ScanActivityPlan;
 import java.util.ArrayList;
@@ -11,6 +13,7 @@ import java.util.BitSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.OptionalInt;
 
 /**
  * Independent Java acceptance of the one native Scan grammar, including untrusted raw callers.
@@ -66,7 +69,8 @@ final class MetalScanDecoding {
             long bytes = Math.multiplyExact(layout.referencedElementSpan(), type.byteWidth());
             if (w[cursor + 8] != bytes) throw malformed();
             int row = Math.toIntExact(w[cursor + 9]);
-            if (row < -1 || row >= rank || !lengths && row != -1 || row >= 0 && dimensions[row] != w[11]) throw malformed();
+            if (row < -1 || row >= rank || !lengths && (row != -1 || w[cursor + 10] != 0)
+                    || row >= 0 && (dimensions[row] != w[11] || w[cursor + 10] != 0)) throw malformed();
             long inner = row < 0 ? 0 : 1;
             if (row >= 0) for (int a = row + 1; a < rank; a++) inner = Math.multiplyExact(inner, dimensions[a]);
             if (w[cursor + 11] != inner) throw malformed();
@@ -88,10 +92,15 @@ final class MetalScanDecoding {
         if (new HashSet<>(formals).size() != formals.size()) throw malformed();
         for (int d = 1; d < demands.size(); d++) if (demands.get(d) <= demands.get(d - 1)) throw malformed();
         Set<Integer> available = new HashSet<>(formals);
+        var semantics = new Scan.ValueSemantics[values.size()];
+        var shared = new Scan.ValueSemantics(OptionalInt.empty(), false, List.of());
+        var batch = lengths ? new StaticDimension(w[11]) : null;
         for (int f = 0; f < formals.size(); f++) {
             var value = values.get(formals.get(f));
-            if ((value.byteOffset() < 0) != (f >= w[5]) || lengths && (f < w[10] && value.rowAxis() != 0
+            if (value.terminal() || (value.byteOffset() < 0) != (f >= w[5]) || lengths && (f < w[10] && value.rowAxis() != 0
                     || f >= w[10] && f < w[5] && value.rowAxis() != -1 || f >= w[5] + w[6] && value.rowAxis() != -1)) throw malformed();
+            semantics[formals.get(f)] = lengths ? Scan.declaredSemantics(value.descriptor(),
+                    value.rowAxis() < 0 ? OptionalInt.empty() : OptionalInt.of(value.rowAxis()), batch) : shared;
         }
         var nextUses = new java.util.HashMap<Integer, Integer>();
         roles.subList(0, Math.toIntExact(w[5])).forEach(id -> nextUses.merge(id, 1, Integer::sum));
@@ -99,6 +108,7 @@ final class MetalScanDecoding {
             resourceEnd = Math.addExact(align(resourceEnd), values.get(formals.get(c)).byteSize());
         }
         var physicalDescriptors = values.stream().map(v -> MetalMpsGraphProgram.ValueDescriptor.from(v.descriptor())).toList();
+        var localDescriptors = values.stream().map(MetalScanPlan.Value::descriptor).toList();
         var units = new ArrayList<MetalScanPlan.Unit>();
         for (int u = 0; u < w[13]; u++) {
             if (w[25] - cursor < 14) throw malformed();
@@ -112,11 +122,29 @@ final class MetalScanDecoding {
             for (int output : outputIds) if (!available.add(output) || values.get(output).byteOffset() < 0) throw malformed();
             var node = MetalMpsGraphProgram.Node.genericForScanBody(kind, operandIds, outputIds, attributeKind,
                     Arrays.copyOfRange(w, cursor + 14 + inputs + outputs, cursor + record));
+            // Prove ordinary metadata first, then derive coordinates from the Model owner.
+            // Input facts were established at declarations or preceding SSA producers; claimed
+            // output axes/terminal bits are never used as inference inputs.
+            MetalNativeApi.ProgramExecutableAbi.validateScanBody(node, physicalDescriptors);
+            var expectedFacts = lengths ? Scan.ordinarySemantics(
+                    MetalScanOrdinaryOperation.decode(node, localDescriptors),
+                    Arrays.stream(operandIds).mapToObj(localDescriptors::get).toList(),
+                    Arrays.stream(operandIds).mapToObj(id -> semantics[id]).toList(),
+                    Arrays.stream(outputIds).mapToObj(localDescriptors::get).toList(), batch)
+                    : Arrays.stream(outputIds).mapToObj(unused -> shared).toList();
+            for (int port = 0; port < outputIds.length; port++) {
+                var claim = values.get(outputIds[port]);
+                var expected = expectedFacts.get(port);
+                if (claim.rowAxis() != expected.rowAxis().orElse(-1) || claim.terminal() != expected.terminal()) throw malformed();
+                semantics[outputIds[port]] = expected;
+            }
             int scope = scope(w[cursor + 6], w[18]), left = scope(w[cursor + 7], w[18]), right = scope(w[cursor + 8], w[18]);
             int row = Math.toIntExact(w[cursor + 9]), accumulator = Math.toIntExact(w[cursor + 11]);
             if (activity && scope < 0 || !activity && (scope >= 0 || left >= 0 || right >= 0 || accumulator >= 0)
                     || (left < 0) != (right < 0) || row != values.get(outputIds[0]).rowAxis()
                     || w[cursor + 10] < 0 || w[cursor + 10] > 1 || accumulator < -1 || accumulator >= w[5]) throw malformed();
+            boolean contraction = row < 0 && Arrays.stream(operandIds).anyMatch(id -> semantics[id].rowAxis().isPresent());
+            if ((w[cursor + 10] != 0) != contraction) throw malformed();
             if (left >= 0 && (kind != MetalMpsGraphProgram.NodeKind.ADD || inputs != 2 || outputs != 1)) throw malformed();
             long scratch = MetalProgramWorkspace.scratchBytes(node, physicalDescriptors);
             long scratchOffset = scratch == 0 ? -1 : align(resourceEnd);
@@ -276,8 +304,6 @@ final class MetalScanDecoding {
             if (result.dataType() != local.dataType() || !Arrays.equals(result.dimensions(), expected)
                     || result.requiresGrad() != (gradient && local.dataType().isDifferentiable()) || !canonical(result)) throw malformed();
         }
-        var locals = d.values().stream().map(v -> MetalMpsGraphProgram.ValueDescriptor.from(v.descriptor())).toList();
-        for (var unit : d.units()) MetalNativeApi.ProgramExecutableAbi.validateScanBody(unit.node(), locals);
     }
 
     private static long[] prepend(long time, long[] shape) { long[] result = new long[shape.length + 1]; result[0] = time; System.arraycopy(shape, 0, result, 1, shape.length); return result; }

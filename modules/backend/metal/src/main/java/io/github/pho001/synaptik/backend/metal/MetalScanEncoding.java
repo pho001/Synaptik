@@ -1,6 +1,5 @@
 package io.github.pho001.synaptik.backend.metal;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -36,6 +35,37 @@ final class MetalScanEncoding {
     private MetalScanEncoding() {}
 
     /**
+     * Computes the exact serialized size before qualification or allocation, including dense
+     * root-member lists, which are distinct from the expanded bitset workspace representation.
+     * @param plan complete immutable body/binder plan
+     * @return complete bounded word count, including the fixed header
+     * @throws IllegalArgumentException if the complete payload exceeds the wire resource limit
+     * @throws ArithmeticException if checked section arithmetic overflows
+     */
+    static int wordCount(MetalScanPlan plan) {
+        long words = HEADER_WORDS;
+        for (var value : plan.values()) {
+            words = Math.addExact(words, Math.addExact(13L, Math.multiplyExact(2L, value.descriptor().shape().rank())));
+        }
+        for (var unit : plan.units()) {
+            var node = unit.node();
+            long references = Math.addExact((long) node.inputCount(), node.outputCount());
+            words = Math.addExact(words, Math.addExact(14L, Math.addExact(references, node.attributeWordCount())));
+        }
+        words = Math.addExact(words, Math.addExact((long) plan.formals().size(),
+                Math.addExact((long) plan.roles().size(), plan.demanded().size())));
+        if (plan.activity().isPresent()) {
+            var activity = plan.activity().orElseThrow();
+            words = Math.addExact(words, Math.multiplyExact(3L, activity.carries().size()));
+            words = Math.addExact(words, activity.seedFormals().size());
+            for (var scope : activity.scopes()) words = Math.addExact(words, Math.addExact(1L, scope.size()));
+            words = Math.addExact(words, Math.multiplyExact(2L, activity.accumulators().size()));
+        }
+        if (words > MAX_WORDS) throw new IllegalArgumentException("Metal Scan binder exceeds bounded attribute size");
+        return Math.toIntExact(words);
+    }
+
+    /**
      * Encodes immutable local binding/control facts and one copy of each ordinary instruction.
      * @param plan independently qualified complete physical body plan
      * @return fresh exact-sized attribute payload; caller owns and may discard the returned array
@@ -43,8 +73,7 @@ final class MetalScanEncoding {
      * @throws ArithmeticException if checked record geometry overflows
      */
     static long[] encode(MetalScanPlan plan) {
-        var words = new ArrayList<Long>();
-        for (int i = 0; i < HEADER_WORDS; i++) words.add(0L);
+        var words = new Words(wordCount(plan));
         var attrs = plan.header();
         words.set(0, MAGIC); words.set(1, (long) VERSION);
         words.set(3, attrs.timeCount());
@@ -96,19 +125,30 @@ final class MetalScanEncoding {
             for (var scope : activity.scopes()) { words.add((long) scope.size()); appendIndices(words, scope); }
             for (var accumulator : activity.accumulators()) append(words, accumulator.numericSharedCarryPosition(), accumulator.contributionScope());
         }
-        if (words.size() > MAX_WORDS) throw new IllegalArgumentException("Metal Scan binder exceeds bounded attribute size");
         words.set(2, (long) words.size()); words.set(29, (long) words.size());
-        long[] result = new long[words.size()];
-        for (int i = 0; i < result.length; i++) result[i] = words.get(i);
-        return result;
+        return words.finish();
     }
 
-    private static void append(ArrayList<Long> target, long... values) {
+    private static void append(Words target, long... values) {
         for (long value : values) target.add(value);
-        if (target.size() > MAX_WORDS) throw new IllegalArgumentException("Metal Scan binder exceeds bounded attribute size");
     }
 
-    private static void appendIndices(ArrayList<Long> target, List<Integer> values) {
+    private static void appendIndices(Words target, List<Integer> values) {
         for (int value : values) target.add((long) value);
+    }
+
+    /** The sole serializer writes directly into its checked exact-sized primitive payload. */
+    private static final class Words {
+        private final long[] data;
+        private int size = HEADER_WORDS;
+
+        Words(int count) { data = new long[count]; }
+        void add(long value) { data[size++] = value; }
+        void set(int index, long value) { data[index] = value; }
+        int size() { return size; }
+        long[] finish() {
+            if (size != data.length) throw new AssertionError("Metal Scan encoded-size accounting disagrees");
+            return data;
+        }
     }
 }

@@ -8,11 +8,14 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.scan.ScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.ScanKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
+import io.github.pho001.synaptik.planning.capability.ScanActivityPlan;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -91,6 +94,82 @@ class MetalScanPlanTest {
         values.add(MetalMpsGraphProgram.ValueDescriptor.from(query.outputs().getFirst()));
         var node = MetalScanLowering.lower(selected, new int[] {0, 1, 2}, new int[] {3});
         assertDoesNotThrow(() -> MetalScanLowering.validate(node, values));
+    }
+
+    @Test void rawCoordinatesAreProvedFromOperationsDespiteEqualBatchAndFeatureExtents() {
+        for (long batch : new long[] {0, 1, 2}) for (long time : new long[] {0, 2}) {
+            var plan = MetalScanLowering.plan(transposedQuery(time, batch, false));
+            assertDoesNotThrow(() -> MetalScanEncoding.validate(MetalScanEncoding.encode(plan)));
+            long[] forged = forgedTransposedCoordinates(plan);
+            assertThrows(IllegalArgumentException.class, () -> MetalScanEncoding.validate(forged));
+            assertThrows(IllegalArgumentException.class, () -> MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.GENERAL_SCAN, new int[] {0, 1, 2}, new int[] {3, 4, 5},
+                    MetalMpsGraphProgram.AttributeKind.GENERAL_SCAN, forged));
+        }
+    }
+
+    static OperationCapabilityQuery transposedQuery(long time, long batch, boolean reverse) {
+        var step = descriptor(DataType.FLOAT32, batch, batch);
+        var h = new ValueId(0); var x = new ValueId(1); var middle = new ValueId(2); var next = new ValueId(3);
+        var operation = new Operation(AxisTransformKind.PERMUTE, new PermutationAttrs(List.of(1, 0)));
+        var first = new CompiledNode(new NodeId(0), operation, List.of(x), List.of(middle));
+        var second = new CompiledNode(new NodeId(1), operation, List.of(middle), List.of(next));
+        var graph = new CompiledGraphModel(List.of(new GraphValue(h, step), new GraphValue(x, step),
+                new GraphValue(middle, step), new GraphValue(next, step)), List.of(first, second), List.of(h, x),
+                List.of(next, middle), Map.of(first.id(), GraphPhase.FORWARD, second.id(), GraphPhase.FORWARD));
+        var body = new CompiledScanBody(graph, List.of(next), List.of(next), List.of(middle), List.of(0, 1, 2));
+        var attrs = new ScanAttrs(time, 1, 1, 0, 1, 1, reverse, true, 1, List.of(OptionalInt.of(0)));
+        var history = descriptor(DataType.FLOAT32, time, batch, batch);
+        return new OperationCapabilityQuery(new Operation(ScanKind.SCAN, attrs),
+                List.of(step, history, descriptor(DataType.INT64, batch)), List.of(step, history, history),
+                Optional.of(body), Optional.empty());
+    }
+
+    /** Mutates a consistent claim, not its shape: both equal extents remain legitimate B. */
+    static long[] forgedTransposedCoordinates(MetalScanPlan plan) {
+        long[] words = MetalScanEncoding.encode(plan);
+        int middle = plan.units().getFirst().node().outputs()[0];
+        int record = Math.toIntExact(words[23]);
+        for (int v = 0; v < middle; v++) record += Math.toIntExact(words[record]);
+        words[record + 9] = 0;
+        words[record + 11] = plan.batch();
+        words[Math.toIntExact(words[24]) + 9] = 0;
+        return words;
+    }
+
+    @Test void qualificationBoundsDenseSerializedMembershipsNotJustWorkspaceBitsets() {
+        var within = denseActivityQuery(480);
+        assertTrue(MetalScanLowering.supports(within));
+        var plan = MetalScanLowering.plan(within);
+        long[] image = MetalScanEncoding.encode(plan);
+        assertEquals(MetalScanEncoding.wordCount(plan), image.length);
+        assertTrue(image.length <= MetalScanEncoding.MAX_WORDS);
+        assertTrue(plan.controlWords() < MetalScanEncoding.MAX_WORDS);
+        var oversized = denseActivityQuery(512);
+        assertFalse(MetalScanLowering.supports(oversized));
+        assertThrows(IllegalArgumentException.class, () -> MetalScanLowering.plan(oversized));
+    }
+
+    private static OperationCapabilityQuery denseActivityQuery(int denseScopes) {
+        int seeds = 2048;
+        var scalar = descriptor(DataType.FLOAT32);
+        var values = new java.util.ArrayList<GraphValue>();
+        var inputs = new java.util.ArrayList<ValueId>();
+        var actuals = new java.util.ArrayList<TensorDescriptor>();
+        for (int f = 0; f < seeds + 2; f++) {
+            var id = new ValueId(f); inputs.add(id); values.add(new GraphValue(id, scalar));
+            actuals.add(f == 1 ? descriptor(DataType.FLOAT32, 1) : scalar);
+        }
+        var graph = new CompiledGraphModel(values, List.of(), inputs, List.of(inputs.getFirst()), Map.of());
+        var body = new CompiledScanBody(graph, List.of(inputs.getFirst()), List.of(), List.of(), List.of(0));
+        var memberships = new java.util.ArrayList<List<Integer>>();
+        memberships.add(List.of(0));
+        var dense = java.util.stream.IntStream.range(0, seeds + 1).boxed().toList();
+        for (int s = 0; s < denseScopes; s++) memberships.add(dense);
+        var activity = new ScanActivityPlan(graph, List.of(new ScanActivityPlan.Carry(0, true, 0)),
+                java.util.stream.IntStream.range(2, seeds + 2).boxed().toList(), memberships, Map.of(), Map.of(), List.of());
+        return new OperationCapabilityQuery(new Operation(ScanKind.SCAN, new ScanAttrs(1, 1, 1, seeds, 0, 0, false)),
+                actuals, List.of(scalar), Optional.of(body), Optional.of(activity));
     }
 
     private static OperationCapabilityQuery symbolicQuery() {

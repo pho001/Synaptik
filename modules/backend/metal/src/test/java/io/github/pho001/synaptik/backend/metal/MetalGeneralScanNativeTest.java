@@ -20,7 +20,10 @@ import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import io.github.pho001.synaptik.prepare.*;
 import io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner;
 import java.lang.foreign.Arena;
+import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Linker;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.SymbolLookup;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
@@ -72,9 +75,46 @@ class MetalGeneralScanNativeTest {
         int unit = Math.toIntExact(words[24]);
         int attributes = unit + 14 + Math.toIntExact(words[unit + 3] + words[unit + 4]);
         words[attributes + 3] = 2; // A real out-of-rank reduction axis, despite zero contributors.
-        var malformed = MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.GENERAL_SCAN,
-                valid.inputs(), valid.outputs(), MetalMpsGraphProgram.AttributeKind.GENERAL_SCAN, words);
-        assertThrows(RuntimeException.class, () -> { try (var ignored = new RawScan(query, malformed)) {} });
+        assertThrows(RuntimeException.class, () -> {
+            var malformed = MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.GENERAL_SCAN,
+                    valid.inputs(), valid.outputs(), MetalMpsGraphProgram.AttributeKind.GENERAL_SCAN, words);
+            try (var ignored = new RawScan(query, malformed)) {}
+        });
+    }
+
+    @Test void emptyAdvancedReducersKeepActualAxesAndPublishOwnedEmptyIdentities() {
+        for (var kind : List.of(AggregateReductionKind.PROD, AggregateReductionKind.LOG_SUM_EXP,
+                AggregateReductionKind.L1_NORM, AggregateReductionKind.L2_NORM,
+                AggregateReductionKind.MIN, AggregateReductionKind.MAX)) {
+            float identity = switch (kind) {
+                case PROD -> 1f;
+                case LOG_SUM_EXP, MAX -> Float.NEGATIVE_INFINITY;
+                case MIN -> Float.POSITIVE_INFINITY;
+                default -> 0f;
+            };
+            for (int axis : new int[] {0, 1}) {
+                var query = emptyReductionQuery(kind, new MultiAxisReductionAttrs(List.of(axis), false),
+                        axis == 0 ? new long[] {3} : new long[] {0});
+                assertTrue(MetalScanLowering.supports(query));
+                try (var run = new RawScan(query, null)) {
+                    run.poisonOutputs(0x7fc12345); run.execute();
+                    float[] expected = new float[axis == 0 ? 6 : 0]; Arrays.fill(expected, identity);
+                    assertRaw(expected, run.output(0));
+                }
+            }
+        }
+    }
+
+    @Test void emptyStatisticsStillValidateSelectedCountAndCorrectionBeforeSkippingWork() {
+        for (var kind : List.of(AggregateReductionKind.VARIANCE, AggregateReductionKind.STANDARD_DEVIATION)) {
+            var emptyResults = emptyReductionQuery(kind, new StatisticalReductionAttrs(List.of(1), false, 2), 0);
+            assertTrue(MetalScanLowering.supports(emptyResults));
+            try (var run = new RawScan(emptyResults, null)) { run.execute(); assertArrayEquals(new int[0], run.output(0)); }
+            assertFalse(MetalScanLowering.supports(emptyReductionQuery(
+                    kind, new StatisticalReductionAttrs(List.of(1), false, 3), 0)));
+            assertFalse(MetalScanLowering.supports(emptyReductionQuery(
+                    kind, new StatisticalReductionAttrs(List.of(0), false, 0), 3)));
+        }
     }
 
     @Test void activeIndexFailurePrecedesHistoryWritesAndInactiveIndicesAreNeverInspected() {
@@ -87,13 +127,70 @@ class MetalGeneralScanNativeTest {
             run.longs(1, 1); run.execute(); assertRaw(new float[] {2, 5}, run.output(0));
         }
         try (var run = new RawScan(indexQuery(true), null)) {
-            run.floats(0, 10, 20, Float.NaN, Float.NaN, Float.NaN, Float.NaN, Float.NaN, Float.NaN, Float.NaN);
+            run.floats(0, 10, 20, Float.NaN, Float.NaN, Float.NaN, Float.NaN, Float.NaN, Float.NaN);
             run.longs(1, 1, Long.MIN_VALUE, Long.MAX_VALUE, -9);
             run.longs(2, 1, 0); run.execute(); assertRaw(new float[] {20, 0, 0, 0}, run.output(0));
             run.longs(1, 2, Long.MIN_VALUE, Long.MAX_VALUE, -9); run.poisonOutputs(0x7fc12345);
             assertThrows(MetalNativeApi.NativeFailure.class, run::execute);
             assertArrayEquals(new int[] {0x7fc12345, 0x7fc12345, 0x7fc12345, 0x7fc12345}, run.output(0));
             run.longs(2, 0, 0); run.execute(); assertRaw(new float[] {0, 0, 0, 0}, run.output(0));
+        }
+    }
+
+    @Test void transposedRowsUseProvedCoordinatesForPaddingAndEveryHistory() {
+        for (boolean reverse : List.of(false, true)) {
+            try (var run = new RawScan(MetalScanPlanTest.transposedQuery(2, 2, reverse), null)) {
+                run.floats(0, 1, 2, 3, 4);
+                run.floats(1, 10, 20, Float.NaN, Float.NaN, 30, 40, Float.NaN, Float.NaN);
+                run.longs(2, 2, 0); run.execute();
+                assertRaw(reverse ? new float[] {10, 20, 3, 4} : new float[] {30, 40, 3, 4}, run.output(0));
+                assertRaw(new float[] {10, 20, 0, 0, 30, 40, 0, 0}, run.output(1));
+                assertRaw(new float[] {10, 0, 20, 0, 30, 0, 40, 0}, run.output(2));
+            }
+        }
+    }
+
+    @Test void nativeRawConstructorIndependentlyRejectsConsistentForgedRowMappings() throws Throwable {
+        Path path = library();
+        var query = MetalScanPlanTest.transposedQuery(2, 2, false);
+        var descriptors = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+        query.inputs().forEach(d -> descriptors.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+        query.outputs().forEach(d -> descriptors.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+        int[] inputs = {0, 1, 2}, outputs = {3, 4, 5};
+        var node = MetalScanLowering.lower(query, inputs, outputs);
+        byte[] valid = new MetalMpsGraphProgram(List.of(node)).encodedProgramImage(
+                descriptors, inputs, outputs, MetalPreparedRoute.CUSTOM_PROGRAM);
+        long[] forgedWords = MetalScanPlanTest.forgedTransposedCoordinates(MetalScanLowering.plan(query));
+        byte[] forged = valid.clone();
+        int dimensions = descriptors.stream().mapToInt(MetalMpsGraphProgram.ValueDescriptor::rank).sum();
+        int references = inputs.length + outputs.length + node.inputCount() + node.outputCount();
+        int payload = MetalMpsGraphProgram.HEADER_BYTES
+                + descriptors.size() * MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES
+                + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES + dimensions * 2 * Long.BYTES
+                + references * Integer.BYTES;
+        var image = ByteBuffer.wrap(forged).order(ByteOrder.LITTLE_ENDIAN);
+        for (int word = 0; word < forgedWords.length; word++) image.putLong(payload + word * Long.BYTES, forgedWords[word]);
+        try (var api = MetalNativeApi.open(path); Arena arena = Arena.ofConfined()) {
+            var context = api.createContext();
+            try {
+                var symbol = SymbolLookup.libraryLookup(path, arena)
+                        .find("synaptik_metal_mpsgraph_executable_create").orElseThrow();
+                var create = Linker.nativeLinker().downcallHandle(symbol,
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, ADDRESS));
+                for (byte[] bytes : List.of(valid, forged)) {
+                    var program = arena.allocate(bytes.length, Long.BYTES);
+                    program.copyFrom(MemorySegment.ofArray(bytes));
+                    var target = arena.allocate(ADDRESS); target.set(ADDRESS, 0, MemorySegment.NULL);
+                    int status = (int) create.invokeExact(context.carrier(), program, bytes.length, target);
+                    var carrier = target.get(ADDRESS, 0);
+                    try {
+                        assertEquals(bytes == valid ? 0 : 1, status);
+                        if (bytes != valid) assertEquals(0L, carrier.address(), "raw rejection cannot publish an executable");
+                    } finally {
+                        if (carrier.address() != 0L) api.releaseExecutable(new MetalNativeApi.Handle(carrier));
+                    }
+                }
+            } finally { api.releaseContext(context); }
         }
     }
 
@@ -207,14 +304,19 @@ class MetalGeneralScanNativeTest {
     }
 
     private static OperationCapabilityQuery emptySumQuery(int form) {
-        var input = MetalScanPlanTest.descriptor(DataType.FLOAT32, 0, 3);
         long[] outputShape = form == 1 ? new long[0] : form == 2 ? new long[] {1, 3} : new long[] {3};
-        var output = MetalScanPlanTest.descriptor(DataType.FLOAT32, outputShape);
         OperationAttrs attrs = form == 0 ? new AxisReductionAttrs(0, false) : form == 1 ? NoOperationAttrs.INSTANCE : new SumToShapeAttrs(Shape.of(1, 3));
+        return emptyReductionQuery(AggregateReductionKind.SUM, attrs, outputShape);
+    }
+
+    private static OperationCapabilityQuery emptyReductionQuery(
+            AggregateReductionKind kind, OperationAttrs attrs, long... outputShape) {
+        var input = MetalScanPlanTest.descriptor(DataType.FLOAT32, 0, 3);
+        var output = MetalScanPlanTest.descriptor(DataType.FLOAT32, outputShape);
         var id = new ValueId(0); var result = new ValueId(1);
-        var sum = new CompiledNode(new NodeId(0), new Operation(AggregateReductionKind.SUM, attrs), List.of(id), List.of(result));
-        var graph = new CompiledGraphModel(List.of(new GraphValue(id, input), new GraphValue(result, output)), List.of(sum),
-                List.of(id), List.of(result), Map.of(sum.id(), GraphPhase.FORWARD));
+        var reduce = new CompiledNode(new NodeId(0), new Operation(kind, attrs), List.of(id), List.of(result));
+        var graph = new CompiledGraphModel(List.of(new GraphValue(id, input), new GraphValue(result, output)), List.of(reduce),
+                List.of(id), List.of(result), Map.of(reduce.id(), GraphPhase.FORWARD));
         var body = new CompiledScanBody(graph, List.of(), List.of(result), List.of(), List.of(0));
         long[] stacked = new long[outputShape.length + 1]; stacked[0] = 2; System.arraycopy(outputShape, 0, stacked, 1, outputShape.length);
         return new OperationCapabilityQuery(new Operation(ScanKind.SCAN, new ScanAttrs(2, 0, 1, 0, 1, 0, false)),
@@ -271,7 +373,7 @@ class MetalGeneralScanNativeTest {
     private static void assertRaw(float[] expected, int[] actual) { int[] bits = new int[expected.length]; for (int i = 0; i < bits.length; i++) bits[i] = Float.floatToRawIntBits(expected[i]); assertArrayEquals(bits, actual); }
     private static Path library() { String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY"); assumeTrue(configured != null && !configured.isBlank(), "SYNAPTIK_METAL_TEST_LIBRARY is not set"); return Path.of(configured).toAbsolutePath(); }
 
-    private static final class RawScan implements AutoCloseable {
+    static final class RawScan implements AutoCloseable {
         private final MetalNativeApi api;
         private MetalNativeApi.Handle context, executable;
         private final List<MetalNativeApi.Handle> buffers = new ArrayList<>();
@@ -298,8 +400,10 @@ class MetalGeneralScanNativeTest {
         }
         void floats(int ordinal, float... values) { upload(ordinal, MetalGeneralScanNativeTest.floats(values)); }
         void longs(int ordinal, long... values) { upload(ordinal, MetalGeneralScanNativeTest.longs(values)); }
+        void bytes(int ordinal, byte[] values) { upload(ordinal, values); }
+        byte[] outputBytes(int index) { if (outputSizes[index] == 0) return new byte[0]; try (Arena arena = Arena.ofConfined()) { var target = arena.allocate(outputSizes[index], 8); api.download(buffers.get(outputs[index]), 0, target, target.byteSize()); return target.toArray(JAVA_BYTE); } }
         private void upload(int ordinal, byte[] bytes) { if (bytes.length == 0) return; try (Arena arena = Arena.ofConfined()) { var source = arena.allocate(bytes.length, 8); MemorySegment.copy(bytes, 0, source, JAVA_BYTE, 0, bytes.length); api.upload(buffers.get(ordinal), 0, source, bytes.length); } }
-        void poisonOutputs(int word) { for (int i = 0; i < outputs.length; i++) { var bytes = ByteBuffer.allocate(outputSizes[i]).order(ByteOrder.nativeOrder()); while (bytes.hasRemaining()) bytes.putInt(word); upload(outputs[i], bytes.array()); } }
+        void poisonOutputs(int word) { for (int i = 0; i < outputs.length; i++) { var bytes = new byte[outputSizes[i]]; for (int b = 0; b < bytes.length; b++) bytes[b] = (byte) (word >>> ((b & 3) * 8)); upload(outputs[i], bytes); } }
         int[] output(int index) { if (outputSizes[index] == 0) return new int[0]; try (Arena arena = Arena.ofConfined()) { var target = arena.allocate(outputSizes[index], 4); api.download(buffers.get(outputs[index]), 0, target, target.byteSize()); return target.toArray(JAVA_INT); } }
         void execute() { try (Arena arena = Arena.ofConfined()) { var table = arena.allocate(ADDRESS, buffers.size()); for (int i = 0; i < buffers.size(); i++) table.setAtIndex(ADDRESS, i, buffers.get(i).carrier()); var out = arena.allocate(ADDRESS, outputs.length); for (int i = 0; i < outputs.length; i++) out.setAtIndex(ADDRESS, i, buffers.get(outputs[i]).carrier()); api.runExecutable(executable, buffers.size(), table, outputs.length, out); } }
         @Override public void close() { for (int i = buffers.size() - 1; i >= 0; i--) api.releaseBuffer(buffers.get(i)); buffers.clear(); if (executable != null) api.releaseExecutable(executable); executable = null; if (context != null) api.releaseContext(context); context = null; api.close(); }

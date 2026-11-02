@@ -278,9 +278,11 @@ final class MetalScanLowering {
         long controlWords = Math.addExact(10, Math.addExact(Math.multiplyExact(Math.addExact(scopes, roots), rootWords),
                 Math.addExact(Math.multiplyExact(Math.multiplyExact(rows, rootWords), 2), attrs.lengthAware() ? batch : 0)));
         long workspace = Math.addExact(controlOffset, Math.multiplyExact(controlWords, 8));
-        return new MetalScanPlan(attrs, body, values, units, graph.inputs().stream().map(ordinals::get).toList(),
+        var plan = new MetalScanPlan(attrs, body, values, units, graph.inputs().stream().map(ordinals::get).toList(),
                 roles.stream().map(ordinals::get).toList(), body.demandedOutputIndices(), query.scanActivityPlan(),
                 batch, workspace, controlOffset, controlWords);
+        MetalScanEncoding.wordCount(plan);
+        return plan;
     }
 
     private static void validateLengthFeedback(ScanAttrs attrs, List<CompiledNode> nodes, List<ValueId> inputs,

@@ -265,12 +265,12 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
         const uint8_t *attributeBytes = bytes + (cursor + 14U + r[3] + r[4]) * 8U;
         if (!synaptik_decode_scan_ordinary_attributes(&unit.node, attributeBytes, (uint32_t)r[5],
                 types, &unit.semanticScatterReduction)) return nil;
-        if (!synaptik_scan_validate_gradient_flags(unit.node, types, gradients)) return nil;
         /* Operand claims are proved declarations or earlier validated SSA results. Ordinary
          * equations precede the independent coordinate proof; no output claim feeds inference.
          * Both checks run before any pipeline is built, including genuine zero-output markers.
          */
         if (!synaptik_scan_validate_ordinary(unit.node, shapes, types, strides, offsets, states)
+                || !synaptik_scan_validate_gradient_flags(unit.node, types, gradients)
                 || (lengthAware && !synaptik_scan_prove_coordinates(
                         unit.node, shapes, allValueRowAxes, allValueTerminals, w[11]))) return nil;
         if (unit.control.leftScope != UINT32_MAX && (unit.node.operation != 2U || unit.node.input_count != 2U || unit.node.output_count != 1U)) return nil;
