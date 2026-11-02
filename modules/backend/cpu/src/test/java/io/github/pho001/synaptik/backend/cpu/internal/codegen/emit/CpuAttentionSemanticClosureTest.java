@@ -155,8 +155,7 @@ class CpuAttentionSemanticClosureTest {
                 } else if (positive != 0) {
                     for (int index = 0; index < w.length; index++) if (eligible[index] && score[index] == Double.POSITIVE_INFINITY) w[index] = narrow(g.resultType(), 1d / positive);
                 } else {
-                    double max = Double.NEGATIVE_INFINITY; for (int index = 0; index < w.length; index++) if (eligible[index]) max = Math.max(max, score[index]);
-                    double sum = 0; for (int index = 0; index < w.length; index++) if (eligible[index]) { w[index] = narrow(g.resultType(), StrictMath.exp(score[index] - max)); sum = narrow(g.resultType(), sum + w[index]); }
+                    double sum = 0; for (int index = 0; index < w.length; index++) if (eligible[index]) { w[index] = narrow(g.resultType(), StrictMath.exp(score[index])); sum = narrow(g.resultType(), sum + w[index]); }
                     for (int index = 0; index < w.length; index++) if (eligible[index]) w[index] = narrow(g.resultType(), w[index] / sum);
                 }
             }

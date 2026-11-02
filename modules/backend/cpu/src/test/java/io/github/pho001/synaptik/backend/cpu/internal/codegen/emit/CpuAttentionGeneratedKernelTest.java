@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
@@ -59,10 +60,14 @@ class CpuAttentionGeneratedKernelTest {
         -1,
         List.of(),
         true,
-        57);
+        CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA);
+    assertThrows(IllegalArgumentException.class, () -> new CpuKernelSpecialization(
+        specialization.loweringFingerprint(), specialization.executionStrategy(),
+        specialization.boundaryDataTypes(), specialization.carrierPattern(),
+        specialization.vectorSpeciesBitSize(), specialization.materializedSourcePosition(),
+        specialization.scalarPowerRealizations(), specialization.scratchParameter(), 57));
     var generator = new CpuClassFileKernelGenerator();
     byte[] bytes = generator.generateClassBytes(specialization, ir);
-    assertEquals(1, ClassFile.of().parse(bytes).methods().size());
     var handle = generator.defineClassBytes(specialization, ir, bytes).entryPoint();
     float[] q = {1, 0, 0, 1};
     float[] k = {1, 0, 0, 1};

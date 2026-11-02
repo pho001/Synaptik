@@ -23,6 +23,26 @@ import org.junit.jupiter.api.io.TempDir;
 /** Ordinary public lifecycle, positional binding, publication, checkpoint and isolation evidence. */
 final class EngineCpuRecurrentScanIntegrationTest {
     @TempDir Path directory;
+    @Test void nonemptyProjectionContractionsPreserveNegativeZeroThroughFinalHidden() {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (var direction : RecurrentDirection.values()) try (Engine engine = Engine.standard()) {
+                MemorySegment negativeZero = type == DataType.FLOAT64
+                        ? MemorySegment.ofArray(new double[]{-0.0}) : MemorySegment.ofArray(new float[]{-0.0f});
+                MemorySegment positiveOne = type == DataType.FLOAT64
+                        ? MemorySegment.ofArray(new double[]{1.0}) : MemorySegment.ofArray(new float[]{1.0f});
+                Tensor input = tensor(type, Shape.of(1, 1, 1), false, negativeZero);
+                Tensor initialHidden = tensor(type, Shape.of(1, 1), false, negativeZero);
+                Tensor weight = tensor(type, Shape.of(1, 1), false, positiveOne);
+                Tensor lengths = tensor(DataType.INT64, Shape.of(1), false, MemorySegment.ofArray(new long[]{1}));
+                var recurrent = RecurrentScan.rnn(input, lengths, initialHidden, weight, weight, direction);
+                for (var value : engine.compute(List.of(recurrent.outputs(), recurrent.finalHidden()))) {
+                    var bytes = value.bytes();
+                    if (type == DataType.FLOAT64) assertEquals(Long.MIN_VALUE, bytes.getLong());
+                    else assertEquals(Integer.MIN_VALUE, bytes.getInt());
+                }
+            }
+    }
+
 
     @Test void everySignatureAndDirectionRunsWithFlagsPortOrderingAndChangingLengths() {
         for (var type : floatingTypes()) for (int mode = 0; mode < 3; mode++)

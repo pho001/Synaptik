@@ -1301,7 +1301,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                         || value.accessPlan().regime() == CpuAccessPlan.Regime.SCALAR_ALL_ZERO);
         int schema = row.isPresent() ? 72 : convVector ? 63
                 : denseArrayAffine ? CpuKernelSpecialization.DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
-                : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr ? 57
+                : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr
+                    ? CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA
                 : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool3dIr ? 56
                 : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool2dIr ? 55
                 : matrix.isPresent() ? 54

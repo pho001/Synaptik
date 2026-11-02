@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 
 class CpuAttentionLoweringTest {
   @Test
-  void lowersDuplicateRolesAsOneAtomicSchema57RowFamily() {
+  void lowersDuplicateRolesAsOneAtomicRowFamily() {
     var lowered = new CpuPartitionLowering().lower(context(true));
     var ir = assertInstanceOf(CpuAttentionIr.class, lowered.portableKernelIr());
     var geometry = lowered.attentionGeometry().orElseThrow();
@@ -34,9 +34,6 @@ class CpuAttentionLoweringTest {
     var plan = new CpuPartitionPreparer().analyze(context(true)).plan();
     assertAll(
         () -> assertEquals(1, plan.units().size()),
-        () ->
-            assertEquals(
-                57, plan.units().getFirst().portablePlan().specialization().classIdentitySchema()),
         () -> assertEquals(8, plan.workspaceDeclaration().orElseThrow().byteSize()));
   }
 

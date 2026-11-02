@@ -201,10 +201,18 @@ public final class CpuRecurrentScanKernel {
             MemorySegment h, MemorySegment scratch, int t, int b) {
         long xbase = xo + t * xt + b * xb, hbase = (long) b * hidden;
         for (int row = 0; row < packed; row++) {
-            float px = 0, ph = 0;
             long xa = xbase, wa = wo + row * wr, ua = uo + row * ur;
-            for (int k = 0; k < input; k++, xa += xi, wa += wk) px += get(x, xa) * get(w, wa);
-            for (int k = 0; k < hidden; k++, ua += uk) ph += get(h, hbase + k) * get(u, ua);
+            float px = get(x, xa) * get(w, wa);
+            float ph = get(h, hbase) * get(u, ua);
+            for (int k = 1; k < input; k++) {
+                xa += xi;
+                wa += wk;
+                px += get(x, xa) * get(w, wa);
+            }
+            for (int k = 1; k < hidden; k++) {
+                ua += uk;
+                ph += get(h, hbase + k) * get(u, ua);
+            }
             put(scratch, row, px); put(scratch, packed + row, ph);
         }
         if (bias != null) for (int row = 0; row < packed; row++)

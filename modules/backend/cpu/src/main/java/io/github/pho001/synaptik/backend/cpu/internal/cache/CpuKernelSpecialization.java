@@ -42,10 +42,10 @@ import jdk.incubator.vector.LongVector;
  * @param scalarPowerRealizations non-null ordered realization facts for every scalar-power
  *     instruction in canonical instruction order; copied defensively
  * @param scratchParameter whether the generated entry accepts one exact CPU scratch segment
- * @param classIdentitySchema generated family projection; projection 73 additionally appends
- *     the selective dense-array affine empty-range marker to both identity streams;
+ * @param classIdentitySchema generated family projection; projections 73 and 74 additionally
+ *     bind their selective affine-empty-range and literal-attention markers in both streams;
  *     {@code 52} for unchanged families, {@code 54} for MATMUL, {@code 55} for Pool2d,
- *     {@code 56} for Pool3d, {@code 57} for attention, {@code 58} for direct loss bodies,
+ *     {@code 56} for Pool3d, {@code 74} for attention, {@code 58} for direct loss bodies,
  *     {@code 59} for scalar BFLOAT16 pointwise bodies without cross-type CAST, and {@code 60}
  *     exactly for pointwise bodies containing cross-type CAST, and {@code 61} only for vector
  *     pointwise bodies with a dense FLOAT32/FLOAT64 BOOL mask boundary, and {@code 62} only for
@@ -86,6 +86,8 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         List<CompositionUnit> compositionUnits) {
     /** Affected-only affine identity projection; the generator envelope remains unchanged. */
     public static final int DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA = 73;
+    /** Literal attention working sites and nonempty contractions; obsolete shifted classes reject. */
+    public static final int ATTENTION_LITERAL_EXP_SCHEMA = 74;
 
     /**
      * Retains the standalone specialization constructor and its unchanged identity stream.
@@ -662,7 +664,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
             throw new IllegalArgumentException("matrix batch specialization meaning disagrees");
         }
         if (classIdentitySchema != 52 && classIdentitySchema != 54 && classIdentitySchema != 55
-                && classIdentitySchema != 56 && classIdentitySchema != 57
+                && classIdentitySchema != 56 && classIdentitySchema != ATTENTION_LITERAL_EXP_SCHEMA
                 && classIdentitySchema != 58 && classIdentitySchema != 59
                 && classIdentitySchema != 60 && classIdentitySchema != 61
                 && classIdentitySchema != 62 && classIdentitySchema != 63
@@ -842,7 +844,9 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 + compositionIdentity()
                 + rowExecutionIdentity() + scalarRowReuseIdentity() + invariantRowStagingIdentity()
                 + (classIdentitySchema == DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
-                    ? "|affine-dense-array-empty-range-v1" : ""))
+                    ? "|affine-dense-array-empty-range-v1" : "")
+                + (classIdentitySchema == ATTENTION_LITERAL_EXP_SCHEMA
+                    ? "|attention-literal-working-sites-v1" : ""))
                 .getBytes(StandardCharsets.US_ASCII);
     }
     /**
@@ -894,7 +898,9 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 + compositionIdentity()
                 + rowExecutionIdentity() + scalarRowReuseIdentity() + invariantRowStagingIdentity()
                 + (classIdentitySchema == DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
-                    ? "|affine-dense-array-empty-range-v1" : ""))
+                    ? "|affine-dense-array-empty-range-v1" : "")
+                + (classIdentitySchema == ATTENTION_LITERAL_EXP_SCHEMA
+                    ? "|attention-literal-working-sites-v1" : ""))
                 .getBytes(StandardCharsets.US_ASCII);
     }
 

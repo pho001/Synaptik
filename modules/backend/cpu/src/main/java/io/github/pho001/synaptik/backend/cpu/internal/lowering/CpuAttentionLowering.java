@@ -480,7 +480,7 @@ public final class CpuAttentionLowering {
   /**
    * Complete cold primitive attention invocation geometry for one lowered occurrence.
    *
-   * <p>It carries rank/layout/address facts that bind a schema-57 generated body; none of these
+   * <p>It carries rank/layout/address facts that bind the current generated body; none of these
    * fields are Model semantics or Runtime route-selection state.
    *
    * @param batchExtents non-null broadcast-batch extents; defensively copied

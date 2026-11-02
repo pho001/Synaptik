@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 
 class CpuAttentionReferenceKernelTest {
   @Test
-  void finiteRowsUseStableSequentialFloatArithmetic() {
+  void finiteRowsUseLiteralSequentialFloatArithmetic() {
     float[] q = {1, 0, 0, 1},
         k = {1, 0, 0, 1},
         v = {2, 4, 6, 8},

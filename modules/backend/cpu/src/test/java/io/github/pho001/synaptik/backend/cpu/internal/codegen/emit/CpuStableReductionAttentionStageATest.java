@@ -25,7 +25,7 @@ import jdk.incubator.vector.FloatVector;
 import org.junit.jupiter.api.Test;
 
 /**
- * CPU-private Stage-A characterization for the attention stable reduction in task 0008O.
+ * CPU-private Stage-A characterization for attention's literal reduction sites in task 0008O.
  *
  * <p>The candidate deliberately vectorizes loads and multiplication only. Every reduction is
  * folded in increasing logical key (and lane) order, so it is an admissible candidate two, not
@@ -175,8 +175,6 @@ final class CpuStableReductionAttentionStageATest {
         requestedWeights, start, end);
     Result vector = candidate(type, qkv, outputs, keys, valueWidth, scoreSeed, masked, causal,
         requestedWeights, start, end);
-    assertBits(type, direct.max, vector.max, "score max");
-    assertBits(type, direct.sum, vector.sum, "exp/sum");
     assertBits(type, direct.weights, vector.weights, "normalization");
     assertBits(type, direct.output, vector.output, "increasing-key weighted value");
   }
@@ -194,7 +192,7 @@ final class CpuStableReductionAttentionStageATest {
     assertBits(type, vector.weights, generated.weights, "generated/vector normalized weights");
   }
 
-  /** Invokes the current schema-57 generated entry; no prepared executable is involved. */
+  /** Invokes the current generated attention entry; no prepared executable is involved. */
   private static Result generated(Type type, Carrier inputs, Carrier outputs, int s, int ev,
       double[] seed, boolean masked, boolean causal, boolean requestedWeights) throws Throwable {
     long logicalRows = ev == 0 && !requestedWeights ? 0 : 4;
@@ -233,7 +231,7 @@ final class CpuStableReductionAttentionStageATest {
     List<Integer> roles = masked ? List.of(0, 1, 2, 3) : List.of(0, 1, 2);
     var ir = new CpuAttentionIr(dataType, dataType, dataType, dataType, masked, causal,
         outputCount, roles, types, plans(inputCount, outputCount));
-    var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, access, 0, -1, List.of(), true, 57);
+    var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, access, 0, -1, List.of(), true, CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA);
     MethodHandle entry = new CpuClassFileKernelGenerator().defineClassBytes(specialization, ir.encodedKernelIr(), new CpuClassFileKernelGenerator().generateClassBytes(specialization, ir.encodedKernelIr())).entryPoint();
     var geometry = geometry(dataType, rows, s, e, ev, masked, outputCount, logicalRows);
     try (Arena arena = Arena.ofConfined()) {
@@ -252,7 +250,7 @@ final class CpuStableReductionAttentionStageATest {
             + '/' + outputs + ": S=" + s + ", Ev=" + ev + ", masked=" + masked
             + ", causal=" + causal + ", weights=" + requestedWeights, exception);
       }
-      return new Result(new double[rows], new double[rows], requestedWeights ? read(type, weightCarrier, rows * s) : new double[0], read(type, outCarrier, rows * ev));
+      return new Result(requestedWeights ? read(type, weightCarrier, rows * s) : new double[0], read(type, outCarrier, rows * ev));
     }
   }
 
@@ -260,7 +258,7 @@ final class CpuStableReductionAttentionStageATest {
     double[] output = first.output.clone(), weights = first.weights.clone();
     System.arraycopy(second.output, 2 * ev, output, 2 * ev, 2 * ev);
     System.arraycopy(second.weights, 2 * s, weights, 2 * s, 2 * s);
-    return new Result(first.max, first.sum, weights, output);
+    return new Result(weights, output);
   }
 
   private static List<CpuAccessPlan> plans(int inputs, int outputs) {
@@ -316,7 +314,7 @@ final class CpuStableReductionAttentionStageATest {
     return result;
   }
 
-  /** Direct clean-Java baseline: score, max, exp/sum, normalize, then increasing-key values. */
+  /** Direct clean-Java baseline: score, literal exp/sum, normalize, increasing-key values. */
   private static Result direct(Type type, Carrier inputCarrier, Carrier outputCarrier, int s, int ev,
       double[] seed, boolean masked, boolean causal, boolean requestedWeights, long start, long end) {
     try (Arena arena = Arena.ofConfined()) {
@@ -347,7 +345,6 @@ final class CpuStableReductionAttentionStageATest {
     int e = inputs.embedding, s = inputs.keys, ev = inputs.valueWidth;
     boolean[] eligible = new boolean[s];
     for (int j = 0; j < s; j++) eligible[j] = !masked || (j & 1) == 0;
-    double[] maxes = new double[(int) (end - start)], sums = new double[(int) (end - start)];
     double[] allWeights = requestedWeights ? new double[(int) (end - start) * s] : new double[0];
     double[] output = new double[(int) (end - start) * ev];
     {
@@ -360,13 +357,12 @@ final class CpuStableReductionAttentionStageATest {
           positive += score == Double.POSITIVE_INFINITY ? 1 : 0; allNegative &= score == Double.NEGATIVE_INFINITY;
         }
         int mode = eligibleCount == 0 || allNegative ? 0 : nan ? 1 : positive != 0 ? 2 : 3;
-        double max = Double.NEGATIVE_INFINITY, sum = 0;
+        double sum = 0;
         if (mode == 3) {
-          for (int j = 0; j < s; j++) if (eligible[j] && (!causal || j <= row % 2)) max = max(type, max, scores[j]);
-          for (int j = 0; j < s; j++) if (eligible[j] && (!causal || j <= row % 2)) { scores[j] = narrow(type, StrictMath.exp(narrow(type, scores[j] - max))); sum = add(type, sum, scores[j]); }
+          for (int j = 0; j < s; j++) if (eligible[j] && (!causal || j <= row % 2)) { scores[j] = narrow(type, StrictMath.exp(scores[j])); sum = add(type, sum, scores[j]); }
           for (int j = 0; j < s; j++) if (eligible[j] && (!causal || j <= row % 2)) scores[j] = narrow(type, scores[j] / sum);
         } else for (int j = 0; j < s; j++) if (eligible[j] && (!causal || j <= row % 2)) scores[j] = mode == 1 ? Double.NaN : mode == 2 && scores[j] == Double.POSITIVE_INFINITY ? narrow(type, 1d / positive) : 0;
-        int r = (int) (row - start); maxes[r] = max; sums[r] = sum;
+        int r = (int) (row - start);
         for (int j = 0; j < s; j++) if (requestedWeights) allWeights[r * s + j] = eligible[j] && (!causal || j <= row % 2) ? scores[j] : 0;
         for (int d = 0; d < ev; d++) { double total = mode == 1 ? Double.NaN : 0; if (mode != 0 && mode != 1) for (int j = 0; j < s; j++) if (eligible[j] && (!causal || j <= row % 2)) total = add(type, total, narrow(type, scores[j] * scalar(type, inputs.value, j * ev + d))); output[r * ev + d] = total; }
       }
@@ -375,7 +371,7 @@ final class CpuStableReductionAttentionStageATest {
     // narrowing rather than returning a convenient double[] surrogate.
     Object typedOutput = carrier(type, outputCarrier, output, inputs.arena);
     Object typedWeights = requestedWeights ? carrier(type, outputCarrier, allWeights, inputs.arena) : null;
-    return new Result(maxes, sums, requestedWeights ? read(type, typedWeights, allWeights.length) : allWeights,
+    return new Result(requestedWeights ? read(type, typedWeights, allWeights.length) : allWeights,
         read(type, typedOutput, output.length));
   }
 
@@ -385,7 +381,6 @@ final class CpuStableReductionAttentionStageATest {
     int e = inputs.embedding, s = inputs.keys, ev = inputs.valueWidth;
     boolean[] eligible = new boolean[s];
     for (int j = 0; j < s; j++) eligible[j] = !masked || (j & 1) == 0;
-    double[] maxes = new double[(int) (end - start)], sums = new double[(int) (end - start)];
     double[] allWeights = requestedWeights ? new double[(int) (end - start) * s] : new double[0];
     double[] output = new double[(int) (end - start) * ev];
     for (long row = start; row < end; row++) {
@@ -397,19 +392,18 @@ final class CpuStableReductionAttentionStageATest {
         positive += score == Double.POSITIVE_INFINITY ? 1 : 0; allNegative &= score == Double.NEGATIVE_INFINITY;
       }
       int mode = eligibleCount == 0 || allNegative ? 0 : nan ? 1 : positive != 0 ? 2 : 3;
-      double max = Double.NEGATIVE_INFINITY, sum = 0;
+      double sum = 0;
       if (mode == 3) {
-        for (int j = 0; j < s; j++) if (eligible[j] && (!causal || j <= row % 2)) max = max(type, max, scores[j]);
-        for (int j = 0; j < s; j++) if (eligible[j] && (!causal || j <= row % 2)) { scores[j] = narrow(type, StrictMath.exp(narrow(type, scores[j] - max))); sum = add(type, sum, scores[j]); }
+        for (int j = 0; j < s; j++) if (eligible[j] && (!causal || j <= row % 2)) { scores[j] = narrow(type, StrictMath.exp(scores[j])); sum = add(type, sum, scores[j]); }
         for (int j = 0; j < s; j++) if (eligible[j] && (!causal || j <= row % 2)) scores[j] = narrow(type, scores[j] / sum);
       } else for (int j = 0; j < s; j++) if (eligible[j] && (!causal || j <= row % 2)) scores[j] = mode == 1 ? Double.NaN : mode == 2 && scores[j] == Double.POSITIVE_INFINITY ? narrow(type, 1d / positive) : 0;
-      int r = (int) (row - start); maxes[r] = max; sums[r] = sum;
+      int r = (int) (row - start);
       for (int j = 0; j < s; j++) if (requestedWeights) allWeights[r * s + j] = eligible[j] && (!causal || j <= row % 2) ? scores[j] : 0;
       for (int d = 0; d < ev; d++) { double total = mode == 1 ? Double.NaN : 0; if (mode != 0 && mode != 1) for (int j = 0; j < s; j++) if (eligible[j] && (!causal || j <= row % 2)) total = add(type, total, narrow(type, scores[j] * scalar(type, inputs.value, j * ev + d))); output[r * ev + d] = total; }
     }
     for (int i = 0; i < output.length; i++) set(type, typedOutput, i, output[i]);
     if (requestedWeights) for (int i = 0; i < allWeights.length; i++) set(type, typedWeights, i, allWeights[i]);
-    return new Result(maxes, sums, requestedWeights ? read(type, typedWeights, allWeights.length) : allWeights,
+    return new Result(requestedWeights ? read(type, typedWeights, allWeights.length) : allWeights,
         read(type, typedOutput, output.length));
   }
 
@@ -456,7 +450,6 @@ final class CpuStableReductionAttentionStageATest {
   private static void set(Type type, Object carrier, int index, double value) { if (carrier instanceof float[] array) array[index] = (float) value; else if (carrier instanceof double[] array) array[index] = value; else if (type == Type.F32) ((MemorySegment) carrier).set(ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), (long) index * Float.BYTES, (float) value); else ((MemorySegment) carrier).set(ValueLayout.JAVA_DOUBLE_UNALIGNED.withOrder(ByteOrder.nativeOrder()), (long) index * Double.BYTES, value); }
 
   private static double add(Type t, double a, double b) { return narrow(t, a + b); }
-  private static double max(Type t, double a, double b) { return narrow(t, Math.max(a, b)); }
   private static double narrow(Type t, double x) { return t == Type.F32 ? (float) x : x; }
   private static int lanes(Type t) { return t == Type.F32 ? FloatVector.SPECIES_PREFERRED.length() : DoubleVector.SPECIES_PREFERRED.length(); }
   private static boolean indexedVectorAccessIsProved() { return false; }
@@ -464,8 +457,14 @@ final class CpuStableReductionAttentionStageATest {
   private static List<double[]> stimuli(int n) { return List.of(finite(n), new double[] {Double.NaN}, new double[] {Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY}, new double[] {Double.NEGATIVE_INFINITY}, new double[] {-0.0, 0.0}, new double[] {Double.MIN_VALUE, -Double.MIN_VALUE}, new double[] {700, -700}); }
   private static double[] join(double[] a, double[] b) { double[] r = new double[a.length + b.length]; System.arraycopy(a, 0, r, 0, a.length); System.arraycopy(b, 0, r, a.length, b.length); return r; }
   private static boolean sameBits(Type type, double[] a, double[] b) { if (a.length != b.length) return false; for (int i = 0; i < a.length; i++) if (bits(type, a[i]) != bits(type, b[i])) return false; return true; }
-  private static void assertBits(Type t, double[] expected, double[] actual, String pass) { assertEquals(expected.length, actual.length, pass); for (int i = 0; i < expected.length; i++) assertEquals(bits(t, expected[i]), bits(t, actual[i]), pass + " at " + i); }
+  private static void assertBits(Type t, double[] expected, double[] actual, String pass) {
+    assertEquals(expected.length, actual.length, pass);
+    for (int i = 0; i < expected.length; i++) {
+      if (Double.isNaN(expected[i])) assertTrue(Double.isNaN(actual[i]), pass + " at " + i);
+      else assertEquals(bits(t, expected[i]), bits(t, actual[i]), pass + " at " + i);
+    }
+  }
   private static long bits(Type t, double value) { return t == Type.F32 ? Float.floatToRawIntBits((float) value) : Double.doubleToRawLongBits(value); }
-  private record Result(double[] max, double[] sum, double[] weights, double[] output) { }
+  private record Result(double[] weights, double[] output) { }
   private record Inputs(Object query, Object key, Object value, int keys, int valueWidth, int embedding, Arena arena) { }
 }

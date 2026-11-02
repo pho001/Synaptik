@@ -2235,6 +2235,11 @@ public final class CpuClassFileKernelGenerator {
                 == CpuKernelSpecialization.DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA)) {
             throw new IllegalArgumentException("affine empty-range compatibility projection disagrees");
         }
+        boolean attentionFamily = kernelIr.familyIdentity().startsWith("attention:");
+        if (attentionFamily != (specialization.classIdentitySchema()
+                == CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA)) {
+            throw new IllegalArgumentException("literal attention compatibility projection disagrees");
+        }
         boolean bfloatPointwise = pointwise && kernelIr.values().stream().anyMatch(value ->
                 value.dataType() == io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16);
         boolean float16Pointwise = pointwise && kernelIr.values().stream().anyMatch(value ->
@@ -2310,8 +2315,7 @@ public final class CpuClassFileKernelGenerator {
                     || conv3d && (kernelIr.values().size() < 3 || kernelIr.values().size() > 4)
                     || pool2d && kernelIr.values().size() != 2
                     || pool3d && kernelIr.values().size() != 2
-                    || attention && (!specialization.scratchParameter()
-                        || specialization.classIdentitySchema() != 57)
+                    || attention && !specialization.scratchParameter()
                     || matmul && (specialization.matmulIr().isEmpty()
                         || kernelIr.values().size()
                             != (specialization.matmulIr().orElseThrow().epilogue().hasBias()?4:3)

@@ -11,7 +11,7 @@ import java.lang.constant.ClassDesc;
 import java.lang.constant.MethodTypeDesc;
 
 /**
- * Emits the CPU-private schema-57 direct scalar scaled-dot-product-attention row algorithm.
+ * Emits the CPU-private literal-site scaled-dot-product-attention row algorithm.
  *
  * <p>The emitted body consumes only cold-bound primitive geometry, direct carriers, and assigned
  * per-range scratch. It is not a semantic operation implementation or a fallback route.
@@ -38,14 +38,14 @@ public final class CpuAttentionEmitter {
    * Emits complete score, classification, normalization, output, and optional weights loops.
    *
    * @param c non-null Class-File code builder receiving the generated entry body
-   * @param s non-null schema-57 scalar specialization with an attention scratch parameter
+   * @param s non-null literal-attention scalar specialization with an attention scratch parameter
    * @param ir non-null attention identity containing only code-shaping facts
    * @throws IllegalArgumentException if the specialization and IR do not describe the supported
-   *     schema-57 direct scalar attention family
+   *     current direct scalar attention family
    */
   public void emit(CodeBuilder c, CpuKernelSpecialization s, CpuKernelIr ir) {
     if (!ir.familyIdentity().startsWith("attention:")
-        || s.classIdentitySchema() != 57
+        || s.classIdentitySchema() != CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA
         || !s.scratchParameter()
         || s.executionStrategy().compute()
             != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan
@@ -217,35 +217,13 @@ public final class CpuAttentionEmitter {
     c.loadConstant(2).branch(Opcode.GOTO, modeReady).labelBinding(ordinaryMode).loadConstant(3)
         .labelBinding(modeReady).istore(mode);
 
-    // Convert raw scores to final weights in place.
-    int max = mode + 1;
-    int maxJ = max + valueWidth, maxScore = maxJ + 2;
-    int sum = max + valueWidth, expJ = sum + valueWidth, weight = expJ + 2;
+    // Attention owns literal eligible-score EXP/sum/division, unlike first-class softmax.
+    int sum = mode + 1, expJ = sum + valueWidth, weight = expJ + 2;
     boolean lowPrecisionResult = rt == DataType.BFLOAT16 || rt == DataType.FLOAT16;
-    int resultBits = lowPrecisionResult ? mode + 6 : -1;
-    int resultRepresented = lowPrecisionResult ? mode + 7 : -1;
+    int resultBits = lowPrecisionResult ? weight + valueWidth : -1;
+    int resultRepresented = lowPrecisionResult ? resultBits + 1 : -1;
     Label nonOrd = c.newLabel(), classified = c.newLabel();
     c.iload(mode).loadConstant(3).branch(Opcode.IF_ICMPNE, nonOrd);
-    negInf(c, rt);
-    store(c, rt, max);
-    c.loadConstant(0L).lstore(maxJ);
-    Label maxLoop = c.newLabel(), maxDone = c.newLabel();
-    c.labelBinding(maxLoop).lload(maxJ);
-    get(c, g, 8).lcmp().branch(Opcode.IFGE, maxDone);
-    Label maxSkip = c.newLabel();
-    eligibility(c, s, carrier, g, header, rank, rank, masked, causal, roles, qi, maxJ, mb,
-        maxSkip);
-    scratchLoad(c, scratch, rt, maxJ, maxScore);
-    Label keep = c.newLabel();
-    loadValue(c, rt, maxScore);
-    loadValue(c, rt, max);
-    cmp(c, rt);
-    c.branch(Opcode.IFLE, keep);
-    loadValue(c, rt, maxScore);
-    store(c, rt, max);
-    c.labelBinding(keep).labelBinding(maxSkip);
-    c.lload(maxJ).loadConstant(1L).ladd().lstore(maxJ).branch(Opcode.GOTO, maxLoop)
-        .labelBinding(maxDone);
     zero(c, rt);
     store(c, rt, sum);
     c.loadConstant(0L).lstore(expJ);
@@ -256,8 +234,6 @@ public final class CpuAttentionEmitter {
     eligibility(c, s, carrier, g, header, rank, rank, masked, causal, roles, qi, expJ, mb,
         expSkip);
     scratchLoadValue(c, scratch, rt, expJ);
-    loadValue(c, rt, max);
-    sub(c, rt);
     toDouble(c, rt)
         .invokestatic(
             STRICT,
@@ -365,10 +341,12 @@ public final class CpuAttentionEmitter {
     int d = mode + 1, outSum = d + 2, outJ = outSum + valueWidth;
     int outWeight = outJ + 2, vAddress = outWeight + valueWidth;
     int vValue = vAddress + 2, outAddress = outJ;
+    int outHasValue = c.allocateLocal(TypeKind.INT);
     c.loadConstant(0L).lstore(d);
     Label outs = c.newLabel(), outsDone = c.newLabel();
     c.labelBinding(outs).lload(d);
     get(c, g, 10).lcmp().branch(Opcode.IFGE, outsDone);
+    c.loadConstant(0).istore(outHasValue);
     Label zeroOut = c.newLabel(), outInitialized = c.newLabel(), storeOut = c.newLabel();
     Label inactiveFeature = c.newLabel(), publishFeature = c.newLabel();
     if (featureRowControlled)
@@ -391,12 +369,20 @@ public final class CpuAttentionEmitter {
     scratchLoad(c, scratch, rt, outJ, outWeight);
     address2(c, g, header, rank, 2, rank, vb, outJ, d, vAddress);
     load(c, carrier, s, vt, roles[2], vAddress, vValue, rt);
-    loadValue(c, rt, outSum);
     loadValue(c, rt, outWeight);
     loadValue(c, rt, vValue);
     mul(c, rt);
+    store(c, rt, vValue);
+    Label firstProduct = c.newLabel(), accumulatedProduct = c.newLabel();
+    c.iload(outHasValue).branch(Opcode.IFEQ, firstProduct);
+    loadValue(c, rt, outSum);
+    loadValue(c, rt, vValue);
     add(c, rt);
     store(c, rt, outSum);
+    c.branch(Opcode.GOTO, accumulatedProduct).labelBinding(firstProduct);
+    loadValue(c, rt, vValue);
+    store(c, rt, outSum);
+    c.loadConstant(1).istore(outHasValue).labelBinding(accumulatedProduct);
     c.labelBinding(vskip);
     c.lload(outJ)
         .loadConstant(1L)

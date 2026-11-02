@@ -17,6 +17,8 @@ public final class CpuAttentionReferenceKernel {
   /**
    * Evaluates complete rows using the same sequential arithmetic and scratch shape as generated
    * execution. This method is test/evidence infrastructure and is never a generated fallback.
+   * Finite-score rows use literal eligible-score EXP/sum/division; the maximum-shifted
+   * first-class softmax algorithm is not an attention working-site substitute.
    *
    * @param geometry non-null resolved attention geometry
    * @param boundaries non-null unique inputs followed by one or two outputs
@@ -71,15 +73,10 @@ public final class CpuAttentionReferenceKernel {
       }
     int mode = eligible == 0 || allNeg ? 0 : nan ? 1 : positive > 0 ? 2 : 3;
     if (mode == 3) {
-      float max = Float.NEGATIVE_INFINITY;
-      for (long j = 0; j < g.keyLength(); j++)
-        if (eligible(g, b, causal, x, j))
-          max = Math.max(max, scratch.get(ValueLayout.JAVA_FLOAT_UNALIGNED, j * 4));
       float sum = 0;
       for (long j = 0; j < g.keyLength(); j++)
         if (eligible(g, b, causal, x, j)) {
-          float w =
-              (float) StrictMath.exp(scratch.get(ValueLayout.JAVA_FLOAT_UNALIGNED, j * 4) - max);
+          float w = (float) StrictMath.exp(scratch.get(ValueLayout.JAVA_FLOAT_UNALIGNED, j * 4));
           scratch.set(ValueLayout.JAVA_FLOAT_UNALIGNED, j * 4, w);
           sum += w;
         }
@@ -110,12 +107,15 @@ public final class CpuAttentionReferenceKernel {
                 : 0f);
     for (long d = 0; d < g.valueEmbedding(); d++) {
       float out = mode == 1 ? Float.NaN : 0;
+      boolean started = false;
       if (mode != 0 && mode != 1)
         for (long j = 0; j < g.keyLength(); j++)
-          if (eligible(g, b, causal, x, j))
-            out +=
-                scratch.get(ValueLayout.JAVA_FLOAT_UNALIGNED, j * 4)
-                    * (float) read(b.get(role(g, 2)), g.valueType(), x.v() + j1(g.value(), j, d));
+          if (eligible(g, b, causal, x, j)) {
+            float product = scratch.get(ValueLayout.JAVA_FLOAT_UNALIGNED, j * 4)
+                * (float) read(b.get(role(g, 2)), g.valueType(), x.v() + j1(g.value(), j, d));
+            out = started ? out + product : product;
+            started = true;
+          }
       write(b.get(g.uniqueInputCount()), g.resultType(), x.o() + j0(g.output(), d), out);
     }
   }
@@ -141,14 +141,10 @@ public final class CpuAttentionReferenceKernel {
       }
     int mode = eligible == 0 || allNeg ? 0 : nan ? 1 : positive > 0 ? 2 : 3;
     if (mode == 3) {
-      double max = Double.NEGATIVE_INFINITY;
-      for (long j = 0; j < g.keyLength(); j++)
-        if (eligible(g, b, causal, x, j))
-          max = Math.max(max, scratch.get(ValueLayout.JAVA_DOUBLE_UNALIGNED, j * 8));
       double sum = 0;
       for (long j = 0; j < g.keyLength(); j++)
         if (eligible(g, b, causal, x, j)) {
-          double w = StrictMath.exp(scratch.get(ValueLayout.JAVA_DOUBLE_UNALIGNED, j * 8) - max);
+          double w = StrictMath.exp(scratch.get(ValueLayout.JAVA_DOUBLE_UNALIGNED, j * 8));
           scratch.set(ValueLayout.JAVA_DOUBLE_UNALIGNED, j * 8, w);
           sum += w;
         }
@@ -180,12 +176,15 @@ public final class CpuAttentionReferenceKernel {
                 : 0d);
     for (long d = 0; d < g.valueEmbedding(); d++) {
       double out = mode == 1 ? Double.NaN : 0;
+      boolean started = false;
       if (mode != 0 && mode != 1)
         for (long j = 0; j < g.keyLength(); j++)
-          if (eligible(g, b, causal, x, j))
-            out +=
-                scratch.get(ValueLayout.JAVA_DOUBLE_UNALIGNED, j * 8)
-                    * read(b.get(role(g, 2)), g.valueType(), x.v() + j1(g.value(), j, d));
+          if (eligible(g, b, causal, x, j)) {
+            double product = scratch.get(ValueLayout.JAVA_DOUBLE_UNALIGNED, j * 8)
+                * read(b.get(role(g, 2)), g.valueType(), x.v() + j1(g.value(), j, d));
+            out = started ? out + product : product;
+            started = true;
+          }
       write(b.get(g.uniqueInputCount()), g.resultType(), x.o() + j0(g.output(), d), out);
     }
   }
