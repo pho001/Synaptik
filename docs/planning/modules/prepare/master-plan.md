@@ -79,6 +79,96 @@ collaborators from the outer composition root.
 The public Prepare surface is cross-module service-provider interface (SPI), not the ordinary
 Engine user facade.
 
+0010 extends existing `prepare.analysis.PrepareContext` validation and root `GraphPreparation`
+projection; `PartitionDag` retains exact body-bearing nodes. Complete 0011 reuses these owners for
+length-aware bindings/demand and existing resource handoff. No new production type/package/API.
+
+The reviewed [Prepare0012 design delivery](tasks/0012-dynamic-batch-geometry-and-resource-contract.md)
+supplies the user-approved cross-owner dynamic-B package/type/symbol map. Authority cutover
+[Prepare0012A](tasks/0012a-dynamic-batch-authority-cutover.md) is Complete, authority enacted/MAIN-accepted
+2026-10-24. [Prepare0013](tasks/0013-ordinary-dynamic-batch-cpu-vertical.md#result) implements the
+bounded ordinary FLOAT32 CPU path; final independent reviews and native-enabled root validation
+passed, and MAIN accepted it on 2026-10-24.
+
+## Dependency DAG and authorized frontier
+
+Active frontier: the neutral projection/context-copy slice of [CPU0081 Ready](../../backends/cpu/tasks/0081-ordinary-unit-general-scan-composition.md), under accepted coordinated authority/frozen APIs and exact dirty-source context. [Prepare0015 symbolic-length Scan CPU vertical](tasks/0015-symbolic-length-scan-cpu-vertical.md#result)
+is Complete, MAIN accepted 2026-10-27 after independent code/docs APPROVE (0 P1/P2), owning validation,
+the sole bounded probe and configured root test/Javadoc PASS. Complete Model0044 + Compiler0015 +
+Prepare0011/0013/0014 + CPU0042 and retained lifecycle predecessors feed the delivered F32/F64
+vertical, including bounded outer/control/ROW(1). Existing owners and old identities/bytes remain;
+timing is nonstationary, not parity or a JIT-cause qualification. That completion authorized no successor or memo.
+
+Planning coordination only: [Model0043](../model/tasks/0043-symbolic-length-scan-integration-design.md),
+Complete for [combined F32/F64 Scan](../../length-aware-general-scan.md#proposed-symbolic-b-plus-lengths-integration)
+DESIGN DELIVERY ONLY; Hume the 4th final Class C APPROVE, 0 P1/P2/no unresolved findings;
+MAIN accepted 2026-10-26, not new semantics, authority or implementation.
+Prepare0015 now joins typed run-size resources, producer-ordered preflight and actual reverse
+through the existing Prepare→CPU→Engine handoff/owners.
+At Model0043 acceptance, planning/source/authority frontiers were None; no Engine memo is admitted. MAIN's serial review/integration
+is closed; Parallel group None. Historical PlanningAuthorized=true; the brief retains admission/launch.
+
+All-valid baseline: Prepare0001–0009 (including 0003A) + Model0034/0035 + Planning0008 +
+Compiler0011 → [Prepare0010](tasks/0010-general-scan-projection-and-resource-handoff.md) → CPU0030–0033
+F32/F64 domain closure → low-level join: Complete. 0010's accepted projection/resource evidence
+remains in its brief. CPU0037 dense actual-read qualification is also Complete; none enables
+length-aware execution.
+
+Nearest length-aware DAG: Complete Model0037 → Model0038, plus Complete Compiler0013,
+Planning0008 and Prepare0010 → [Prepare0011](tasks/0011-length-aware-scan-projection-and-resource-handoff.md)
+Complete → separately gated CPU mixed-boundary/preflight/skipping capability. Cold/v5 and owned NN
+remain separate coarse gates, without detailed successor briefs or automatic launch.
+
+Prepare0011 Complete, MAIN accepted 2026-10-24 13:00:15 UTC. At that completion checkpoint,
+Prepare Ready frontier was None.
+Tesla planning APPROVE, zero open P1/P2; MAIN metadata accepted 2026-10-24. ImplementationAuthorized=true
+records completed Prepare0011 only, authorized by the user's latest “pust se do prace” request.
+Clean sole writer started 2026-10-24 12:31 UTC; implementation tested and frozen. MAIN's exact
+SPI-consumer compile and four retained CPU/cold/codec guards PASS. Independent Class C code/docs
+APPROVE, zero open P1/P2; MAIN overall acceptance is complete.
+No new launch, downstream tasks, commit or push.
+
+Current common base: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus all accepted
+uncommitted work, including Complete Model0037/0038 and Compiler0013; MAIN reverified launch admission
+2026-10-24 12:25 UTC.
+Parallel group None; scan/projection/resource/shared-document conflicts serialized, none active.
+MAIN owns shared integration/documents and ran the narrow Prepare0011 handoff checkpoint;
+the brief records all seven integration fields, dependency evidence and exact validation commands.
+The brief records worker 71-focused/92-full test and final Javadoc evidence. No root/native/performance campaign; metadata tests are not
+physical-history proof. Ready metadata and implementation authorization remain distinct gates.
+
+Current priority: [true per-run symbolic batch](../../dynamic-batch-execution.md) through one
+immutable compiled/prepared execution. **Prepare0012 reviewed DESIGN delivery: Complete**; the
+[proposal](dynamic-batch-geometry-contract-proposal.md) has independent Class C APPROVE, zero open
+P1/P2, and MAIN delivery acceptance, 2026-10-24. User “ano” explicitly approves architecture first,
+then ordinary CPU forward/actual first-order backward and bounded final A/B. Prepare0012A is the
+Complete authority cutover, enacted/MAIN-accepted 2026-10-24 after Pasteur definitive APPROVE,
+zero open P1/P2, docs/glossary review complete.
+[Prepare0013](tasks/0013-ordinary-dynamic-batch-cpu-vertical.md) is Complete: the sole serial
+implementation is frozen, bounded ordinary FLOAT32 CPU forward/actual first-order backward is
+implemented, and final code/Javadoc/performance and shared-document reviews approve with zero open
+P1/P2. MAIN's native-enabled root gate passed; MAIN accepted the capability on 2026-10-24.
+Its verified brief owns scope and validation. Its completion authorized no automatic successor.
+Complete Prepare0011 + Runtime0016 + Engine0021 + Compiler0013 + CPU0037 feed this decision,
+reverified Complete (plus design Complete) by MAIN at 2026-10-24 17:41:11 UTC at the base above plus accepted uncommitted
+work. All seven dependency/integration fields are in Prepare0012A; no competing writer is active,
+Parallel group None; MAIN owns shared-document integration. Prepare0013 used one clean executor;
+the final documentation context has exclusive serial ownership of the shared support-status edits.
+HEAD/origin/index are unchanged; MAIN's baseline captured 2435 files before writer changes.
+Prepare0012A precedes conflicting CPU binder/resource ABI work, not static length semantics;
+ordinary dynamic-B CPU forward/backward comes before general Scan. No automatic Java launch or
+all-successor authorization follows; completed Prepare0011 remains Complete.
+
+At the earlier checkpoint the frontier was None; current coupled CPU0081 Ready scope is above. Prepare0015 remains Complete. [Prepare0014 symbolic Scan CPU vertical](tasks/0014-symbolic-scan-cpu-vertical.md)
+is Complete, MAIN accepted 2026-10-25 after independent code/docs APPROVE and the configured root gate.
+PlanningAuthorized=true, ImplementationAuthorized=true record historical admission. User “jdi na to” authorized source;
+MAIN verified Ready 2026-10-25 17:00 UTC on accepted planning, sole writer/inactive conflicts. Complete
+Compiler0014 + Prepare0013/0011 + CPU0037 + Runtime0016 + Engine0021 + Model0041/0042 + Planning0008
+feed one atomic Prepare→CPU→Engine F32 forward/actual-backward capability through existing owners.
+Planning/code/docs review: APPROVE, 0 open P1/P2; source frontier None;
+dependency/base/contract verification is recorded in the brief. Parallel group None; MAIN owns shared docs and the
+single configured vertical join. No successor cascade or geometry memo is authorized.
+
 ## Task list
 
 | ID | Task | Status | Depends on | Summary |
@@ -93,9 +183,23 @@ Engine user facade.
 | 0007 | [Partition preparer guide status reconciliation](tasks/0007-partition-preparer-guide-status-reconciliation.md) | Complete | 0006; current CPU/Engine/tuning lifecycle | Reconciled the focused guide with current fixed CPU preparation, Engine/tuning composition, per-run representations, and transactional persistent-resource ownership. |
 | 0008 | [Backend partition finalization glossary status reconciliation](tasks/0008-backend-partition-finalization-glossary-status-reconciliation.md) | Complete | 0007; CPU 0010K; Engine 0013; current CPU finalizer/integration evidence | Corrected and independently reviewed the stale CPU composition and topology status in the shared finalization glossary entry. |
 | 0009 | [Complete duplicate-resource rollback](tasks/0009-complete-resource-rollback-on-duplicate.md) | Complete | 0006/0008; project review | Retain trailing transferred owners before duplicate rejection and close each unique resource once. |
+| 0010 | [General scan projection and resource handoff](tasks/0010-general-scan-projection-and-resource-handoff.md) | Complete | 0001–0009/0003A; Model0034/0035; Planning0008; Compiler0011 Complete | Exact scoped body/roles/demand validation and existing resource handoff; Huygens final independent Class C code/docs APPROVE and main exact compatibility checkpoint accepted 2026-10-22; no real scan execution. |
+| 0011 | [Length-aware scan projection and resource handoff](tasks/0011-length-aware-scan-projection-and-resource-handoff.md) | Complete | Model0037/0038; Compiler0013; Planning0008; Prepare0010 Complete | Static projection/resource metadata implemented; focused 71/full Prepare 92 tests, zero failures/errors/skips, Javadoc and MAIN SPI/four-guard checkpoint PASS. Independent code/docs APPROVE, zero open P1/P2; MAIN accepted 2026-10-24; [result](tasks/0011-length-aware-scan-projection-and-resource-handoff.md#result). |
+| 0012 | [Dynamic batch geometry and resource contract](tasks/0012-dynamic-batch-geometry-and-resource-contract.md) | Complete | Prepare0011; Runtime0016; Engine0021; Compiler0013; CPU0037 Complete | Reviewed [DESIGN delivery](dynamic-batch-geometry-contract-proposal.md), independent Class C APPROVE and MAIN accepted; authority successor 0012A Complete, design history retained. |
+| 0012A | [Dynamic batch authority cutover](tasks/0012a-dynamic-batch-authority-cutover.md) | Complete | Prepare0012 design and its five dependencies Complete | Authority/ADR0050/explanations/glossary enacted/MAIN-accepted 2026-10-24; Pasteur definitive APPROVE, zero open P1/P2. Authority-only checkpoint; 0012A itself enabled no Java capability. |
+| 0013 | [Ordinary dynamic-batch CPU vertical](tasks/0013-ordinary-dynamic-batch-cpu-vertical.md) | Complete | 0012A and recorded predecessors Complete | Bounded ordinary FLOAT32 CPU forward/actual first-order backward implemented; final independent reviews and native-enabled root gate passed, MAIN accepted 2026-10-24; [result](tasks/0013-ordinary-dynamic-batch-cpu-vertical.md#result). |
+| 0014 | [Symbolic Scan CPU vertical](tasks/0014-symbolic-scan-cpu-vertical.md#result) | Complete | Compiler0014; Prepare0013/0011; CPU0037; Runtime0016; Engine0021; Model0041/0042; Planning0008 Complete | Bounded F32 forward/actual backward implemented; independent code/docs APPROVE and source-matched native root gate PASS; MAIN accepted 2026-10-25. Bounded CPU/Engine probe results and limits in brief. |
+| 0015 | [Symbolic-length Scan CPU vertical](tasks/0015-symbolic-length-scan-cpu-vertical.md#result) | Complete | Model0044; Compiler0015; Prepare0011/0013/0014; CPU0042; retained lifecycle predecessors Complete | F32/F64 named-B plus runtime lengths forward/actual reverse, bounded typed prerequisites; independent code/docs APPROVE and configured gates PASS, MAIN accepted 2026-10-27. Probe is nonstationary, not performance parity; frontier None. |
 
 ## Milestones and current frontier
 
+- Active frontier: coupled CPU0081 Ready neutral activity/typed projection and context-copy closure; source/actual qualification pending. Prepare0015 remains Complete with unchanged historical evidence.
+- Prepare0013/0014 are Complete, MAIN-accepted 2026-10-24/25; their completion authorized no launch.
+  Bounded symbolic F32 Scan execution is implemented; NN/TrainingSession reuse stays gated.
+- All-valid general-scan projection/resource handoff Complete through 0010; CPU F32/F64 closure
+  and low-level join Complete. Length-aware 0011 Complete, MAIN accepted 2026-10-24 after worker gates
+  and independent code/docs APPROVE, zero open P1/P2. At 0011 completion, Prepare Ready frontier was None. CPU length
+  execution, cold/v5 and owned length-aware NN remain gated.
 - Analysis/declaration, shared assignment/finalization, complete orchestration, and immutable
   partition-local projection are Complete through 0003A.
 - Opaque tuning transport, producerless published-constant assignment, and the persistent-resource
@@ -106,9 +210,13 @@ Engine user facade.
 
 ## Live risks and gates
 
-- Dynamic dimension binding remains unsupported. Any fact needed for route choice or exact
-  resource geometry must be resolved before analysis unless a future explicit contract preserves
-  route and assignment stability.
+- Prepare0012's redesign, B=0/limits and actual publication with model-free Runtime/run-owned
+  geometry are enacted/MAIN-accepted through Complete 0012A, 2026-10-24. Prepare0013 implements
+  the bounded ordinary FLOAT32 CPU exception, MAIN-accepted after final reviews and the root gate on 2026-10-24.
+  No mandatory public B_max or per-B full-preparation cache is the selected semantics.
+- Dynamic dimension binding outside that qualified ordinary named-B domain remains unsupported.
+  Route choice and complete resource declarations stay fixed before assignment/finalization;
+  the accepted numeric recipes resolve actual run geometry without changing routes or identities.
 - Keep backend candidates opaque and colocated with their owner. Later route work may use the
   existing transport but must not move backend fields, compatibility, numerical meaning, or
   route choice into Prepare.

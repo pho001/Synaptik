@@ -105,6 +105,10 @@ existing indexing inference; positive-step coordinate SLICE, target-relative cro
 views use layout inference. For example, a `[2,6]` matrix product followed by a two-column gate
 slice retains row stride `6`, including a nonzero column-start offset, rather than acquiring a
 contiguous copy. Negative-step, empty, dynamic, and otherwise unproved extractions stay unresolved.
+After exact view inference, fully static validated RESHAPE with resolved noncontiguous input and
+an unproved view may instead select canonical non-view logical output. This permits downstream
+view propagation without changing raw source inference or inserting a consumer copy. Existing
+resolved/offset views stay exact; physical materialization remains separately backend-qualified.
 These descriptor facts leave physical storage, lowering, and execution with Prepare and backends;
 they do not widen the separate cold source boundary above.
 

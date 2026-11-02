@@ -88,7 +88,8 @@ supports a complete non-empty plan only when every partition has one exact regis
 `Engine.standard()` convenience still constructs one fresh CPU-only composition through that same
 path. Both forms expose owner-bound compiled graphs and one reusable closeable PreparedExecution.
 Engine.run binds exact Tensor IDs in arbitrary order; Engine.runValues binds fresh fully static
-exact-descriptor values in compiled order. Both use synchronous execution, independent publication
+values in compiled order (exact descriptors for static slots, qualified binding for named B).
+Both use synchronous execution, independent publication
 leases and explicit detached host materialization.
 The four one-shot `compute(...)` overloads automatically discover reachable provenance-free input
 leaves, then compose a fresh forward-only compile, prepare, run, complete publication and aggregate-
@@ -438,11 +439,14 @@ compatibility, partial-result acceptance, owner substitution, or suppression of 
 preparation failure. Multiple-occurrence extraction, multiple partitions, mixed ownership, and
 broader Compiler/Planning plan alternatives remain planned.
 
-The public `modules:planning` surface contains eight backend-neutral compile-time declarations:
+The public `modules:planning` surface contains these backend-neutral compile-time declarations:
 
 - `OperationCapabilityQuery`, an immutable operation occurrence consisting of one exact
-  backend-independent `Operation` reference plus ordered immutable membership snapshots of input
-  and output `TensorDescriptor` references; and
+  backend-independent `Operation` reference, ordered immutable membership snapshots of input and
+  output `TensorDescriptor` references, an optional independently scoped `CompiledScanBody`,
+  and an optional `ScanActivityPlan`;
+- `ScanActivityPlan`, immutable structural presence and ordered-merge facts for one exact local
+  Scan body, with distinct carry/seed roots and temporal accumulators;
 - `BackendCapabilityProvider`, an explicitly supplied collaboration with a stable non-null
   `BackendId` and a deterministic boolean capability answer; and
 - `BackendOwnerPlanning`, a stateless one-method collaboration that composes internal hard
@@ -457,10 +461,34 @@ The public `modules:planning` surface contains eight backend-neutral compile-tim
 - `LogicalMemoryPlanning`, the stateless derivation over one closed graph and its ordered complete
   partitions.
 
-The query validates only non-null references and the input/output occurrence counts declared by
-the operation signature. It does not validate operand data types, Shapes, layouts, graph closure,
-availability, hard requirements, scoring, or execution. Mutable source lists cannot change a
-constructed query, while the exact operation and descriptor element references are retained.
+The query validates non-null references, signature occurrence counts and attachment applicability.
+A present body requires `ScanKind.SCAN`; a present activity plan requires that exact attached
+body graph and applicable header positions, next-presence bindings and ordered temporal ADDs.
+Its canonical constructor has five arguments, including both optionals. The genuine
+three-argument ordinary/fixed-operation constructor supplies empty body and activity attachments;
+there is no four-argument body-bearing constructor. Missing-body Scan questions remain
+representable for provider rejection. Attachment checks do not infer ordinary descriptors or
+establish backend support. Mutable source lists cannot change a constructed query, while the
+exact operation, descriptor elements and optional body/activity references are retained.
+For scans, provider true requires the whole body and loop binder, not merely supported children.
+The [complete capability contract](compile-api.md#current-operation-capability-contracts) separates
+implemented transport, Compiler query/demand emission and Prepare scoped projection/static
+binding/demand validation from actual backend support. CPU0030 now qualifies bounded FLOAT32
+same-shape pointwise scans, including automatic reverse only when its actual generated body also
+qualifies. CPU0031 adds qualified homogeneous FLOAT32 broadcast, SUM/sumToShape and bounded
+shape/layout closure, including independently qualified actual reverse bodies. CPU0032 adds static
+homogeneous FLOAT32 rank-two MATMUL under that same whole-body/binder qualification. CPU0033
+implements homogeneous FLOAT64 across the complete bounded declared algebra and actual
+first-order reverse closure. Those task inventories are historical qualification layers.
+Current general Scan composes every ordinary CPU-supported PURE unit under its ordinary guards,
+not a finite Scan-kind whitelist. All-valid WholeTensor differs from proved length-aware
+ROW(axis) and SHARED roles; SHARED tensors are not restricted to scalars. Original length-AD
+carries/sequences and emissions stay ROW(0), while intermediate ROW axes follow the proof.
+Row-mixing requires materialized same-length support, not Tensor identity.
+Selected ordinary VJPs retain ND cuts and finite-path guards; absence is not a present zero seed.
+Java BFLOAT16/FLOAT16 computation remains locked, and no Metal general Scan support follows.
+Cold/wire and NN workflow inventories remain separately bounded. The
+[CPU guide](../backend-guide/cpu-backend.md#bounded-float32-general-scan) states the execution scope.
 
 This current example asks an illustrative local provider about one unary `ABS` occurrence:
 
@@ -505,8 +533,9 @@ The concrete inputs are one FLOAT32 descriptor with Shape `[4]`, the `ABS` opera
 backend identity `"cpu"`. The result is `true` because this illustrative provider recognizes that
 operation kind. It proves only semantic ownership support for this immutable occurrence; it does
 not prove CPU registration or availability, evaluate `BackendIntent`, choose a device or CPU
-route, prepare work, or execute values. The repository supplies no production provider
-implementation. Package-private Compiler is the current consumer, while no public graph-wide
+route, prepare work, or execute values. Production CPU and Metal providers exist for their
+qualified occurrence domains; this example is not either provider and grants no general-scan
+support. Package-private Compiler is the current consumer, while no public graph-wide
 planning consumer exists.
 
 Provider implementations must reject a null query with `NullPointerException("query")`. A false
@@ -589,7 +618,8 @@ The public `modules:compiler` contract surface now contains:
   cotangent seeds and an explicit disconnected-target policy;
 - `GradientPublicationBinding`, the derivative-order and stage-local
   target-to-gradient-publication association;
-- `DerivativeGraphMetadata`, the exact graph-adjacent per-node derivative-order sidecar;
+- `DerivativeGraphMetadata`, the exact graph-adjacent per-node derivative-order sidecar, including
+  `scanActivityByNode()` associations from containing Scan IDs to exact local activity plans;
 - `CompileArtifacts`, the exact eight-component immutable recipe containing mode, final graph,
   maximal partitions, logical memory, publication, constants, diagnostics, and derivative
   metadata;
@@ -830,13 +860,16 @@ multi-output node remain separate occurrences in node-and-port order. External i
 sinks are topology-only: they imply no cross-partition owner, publication, transfer,
 materialization, memory, fusion, route, or schedule policy.
 
-`PrepareContext` has five canonical record components: `partitionDag`, `values`,
-`memoryRequirements`, `constants`, and `backendInputs`. Its derived `partition()` and `nodes()`
-views delegate to the DAG. A public six-argument constructor accepting the previous partition and
-node-list call shape remains source-compatible by constructing one DAG; no binary compatibility
-is promised for the changed record descriptor, component reflection, equality, hash code, or text
-form. The context exposes no complete `CompiledGraphModel`, graph region, callback, or
-Compiler-owned aggregate.
+`PrepareContext` has six canonical record components: `partitionDag`, `values`,
+`memoryRequirements`, `constants`, `backendInputs`, and `Map<NodeId, ScanActivityPlan>
+scanActivityPlans`. Activity keys name containing Scan nodes in this projection and each plan
+retains that occurrence's exact local body graph. Shared `GraphPreparation` projects these
+associations from `artifacts.derivatives().scanActivityByNode()`; copying or subsetting contexts
+preserves or filters applicable associations explicitly. Ordinary/synthetic constructors supply
+an empty map, not a way to discard an annotated Scan's metadata. Its derived `partition()` and
+`nodes()` views delegate to the DAG. No binary compatibility is promised for a changed record
+descriptor, component reflection, equality, hash code or text form. The context exposes no
+complete containing `CompiledGraphModel`, graph region, callback or Compiler-owned aggregate.
 
 `PreparationResourceAssignment` associates each exact declaration
 with an assigned Runtime slot and dense plan index. `BackendPartitionFinalization` carries one
@@ -857,13 +890,28 @@ back after any later preparation failure, and transfers the ordered unique resou
 returning the exact validated `PreparedExecution`. Shared Prepare invokes cleanup but neither
 looks up a resource nor performs its physical allocation.
 
-The ordinary three-argument preparation form identifies every producerless published compile-time
-constant in final graph-value order and asks the supplied assembler for a
-`ProducerlessPublishedConstantResource`. The assembler contributes only physical byte size and
-alignment from the stable value, logical requirement, and scalar. Shared Prepare validates the
-exact role and contribution association, appends the buffer slots after ordinary declarations,
-and keeps the value outside partition-local analysis and finalizer assignment. The four-argument
-form remains available for callers that already hold the complete explicit contribution list.
+The ordinary three-argument preparation form identifies every producerless, consumerless
+published graph input, classified by the existing caller or constant source plan. It asks the
+supplied assembler for a `ProducerlessPublishedValueResource`, retaining five components:
+the exact stable value and logical requirement, backend owner, existing Runtime `ByteSize size`,
+and byte alignment. The default geometry hook is
+`producerlessPublishedValue(GraphValue, LogicalMemoryRequirement, Optional<ScalarValue>)`;
+the scalar is present only for an authenticated constant, empty only for a caller. No payload
+is read or representation allocated by this contribution. The four-argument form accepts the
+complete explicit contribution list and uses the same exact-reference, role and coverage checks.
+
+Source-only callers receive real slots in Compiler bindable occurrence order, before remaining
+ordinary declarations; source-only constants remain last in final graph-value order. Neither
+source receives a partition-local analysis or finalizer assignment. Caller payloads remain borrowed;
+constants retain existing fresh per-run initialization. Static affine layouts use Model referenced
+span; named templates use checked existing binding recipes, including structurally symbolic
+zero-byte geometry. Complete source facts participate in explicit batch mode. A genuinely fixed
+CPU unit within that complete batch plan authenticates its fixed selected geometry without changing
+its lowering or relaxing Runtime defaults.
+
+`PrepareContext.validateValueShapes(List<GraphValue>)` shares the existing fixed-or-sole-named-B
+shape proof and returns the common symbol, if any. It does not establish caller-axis authority,
+ROW provenance or backend admission.
 
 The complete-set operation that validates coverage and source identity, assigns slots, constructs
 the shared memory plan, and invokes finalizers remains package-private behind the public graph
@@ -913,6 +961,27 @@ the complete descriptor. `runValues(prepared, values)` instead binds by final co
 with no ID requirement. It requires exact count and fully static exact descriptors: dtype, shape,
 layout presence/geometry and requiresGrad. One fresh Tensor may fill distinct matching slots.
 There is no shape specialization: [64,784] rejects a compiled [32,784] slot.
+
+The qualified CPU-only exception is an explicitly symbolic ordinary or bounded all-valid Scan graph, not a static graph
+silently specialized at run time. Compile/prepare once with FLOAT32 X `[B,F]` and fixed W `[F,H]`;
+`compile(List.of(X.matmul(W).mean()), List.of(scalarOne), List.of(X,W))` supports actual first-order
+gradients at changing B through existing `runValues`. Actual inputs retain type/gradient flags and
+fixed axes; symbolic inputs require present zero-offset canonical dense layouts (dense read views
+qualify). Compiler binds B and predicates; Engine checks logical counts/byte prefixes/storage
+before borrowing. Runtime receives same-plan numeric geometry and actual publication descriptors
+follow generated values, including dX `[B,F]` and fixed dW `[F,H]`.
+At B=0, empty MEAN is NaN, dX is empty and nonempty dW is positive zero; the whole run is not skipped.
+Slots/routes/code do not change, and different-B runs own independent writable state.
+See the [complete public example](../user-guide/running-models.md#ordinary-cpu-execution-with-changing-batch-size).
+Current symbolic Scan composes ordinary CPU-supported PURE units with fixed time/features/state
+widths and the same ordinary dtype, layout and attribute guards. Each complete forward and
+selected ordinary-VJP reverse body qualifies independently; source validity alone grants no
+CPU or derivative support. Java BFLOAT16/FLOAT16 computation remains locked. The same public lifecycle supplies actual
+canonical final/emission/residual descriptors and fixed parameter-shaped gradients; see the
+[Scan changing-B example](../user-guide/running-models.md#symbolic-scan-with-changing-batch-size).
+Final qualification is tracked in [Prepare0014](../planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md).
+This does not enable NN Model/Training reuse, symbolic cold loading or wire formats, native,
+mixed-owner, tuning, vector or parallel dynamic execution.
 
 Both calls snapshot each selected host-storage association once and validate all inputs before
 any borrow: presence, storage dtype, capacity, liveness and current-thread accessibility.
@@ -1272,11 +1341,43 @@ builder, or target prototypes and a list builder, plus an Optimizer. It succeeds
 two declared inputs and one output, including ordinary graphs and loaded Models. It binds positions,
 not inferred dtype or length roles, and uses the same cached execution as list compute with
 `Long.MAX_VALUE`. Capability/lifecycle admission precedes arity, then arguments. Cold `forward`
-is optional, never a prerequisite. Scan-containing sources reject both configureTraining and both
+is optional, never a prerequisite. Fixed-scan-containing sources reject both configureTraining and both
 train overload families with `UnsupportedOperationException` after lifecycle/live-source checks,
 before arity/arguments, binding freeze, callbacks, Engine creation, inference-cache closure or
 native parameter copy. Valid rejected sources retain state, caches and their previous freeze status;
 ordinary static training is unchanged.
+
+`Model.graph` and `defineTensor` also acquire bounded all-valid general-scan bodies through Checkpoint and
+Compiler's [cold constructor inventory](../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction).
+This does not add a ModelBuilder recipe. Cold admission preserves applicable Model dtypes, including
+low TANH bodies while Java low-type computation remains locked; it is not arbitrary
+PURE-body support. The all-valid compute/first-order training workflow is qualified for static,
+canonical homogeneous FLOAT32/FLOAT64 occurrences whose actual forward/reverse bodies and binders
+qualify. All-valid means every static time step participates, with no lengths or padding mask.
+Acquire private state once, configure once, and pass fresh exact-descriptor batches to the same
+prepared/session owners. Connected nonempty parameter admission still applies at T=0. A source
+containing any fixed scan remains inference-only, even when it also contains general scans.
+Bounded all-valid general-body save/load uses
+[v4](../architecture/contracts/extensions-training.md#canonical-graph-model-version-4);
+the static homogeneous FLOAT32/FLOAT64 length intersection uses
+[v5](../architecture/contracts/extensions-training.md#canonical-graph-model-version-5)
+through the same Model/GraphCheckpoint owners. V1/v2/v3 remain body-free. Unsupported saves reject
+before file effects without freezing Engine selection or disabling compute/train. Load restores
+source/current raw values, not objective/optimizer history or execution plans.
+See the
+[complete general-scan workflow](../user-guide/running-models.md#train-an-all-valid-general-scan).
+
+Model's separate [length-aware Scan source API](tensor-api.md#length-aware-source-only-construction)
+constructs bounded source metadata and structural IR only. Its final INT64 lengths actual has no
+body formal. Compiler independently supports length-mode inference, bounded first-order reverse
+construction and final role/demand queries; original-source AD requires every carry and every
+original sequence to be ROW(0), including unused/non-gradient positions. Generated reverse inputs
+may retain explicit mixed roles. Prepare0011 transports those exact bindings and demand through
+the existing staged resource handoff after static boundary validation; it reads no length values.
+This does not enable owned-Model acquisition, compute/train or save/load: cold capture/
+reconstruction and encoding still explicitly reject length mode. CPU0042 separately qualifies
+direct fixed-geometry FLOAT32/FLOAT64 Scan execution through Engine, not owned-Model acquisition
+or migration.
 
 Unsupported generic/custom/declarative tensor methods throw `UnsupportedOperationException` before
 file/Engine work; their close is a no-op. Owned operations reject busy before inspecting arguments.
@@ -1292,8 +1393,8 @@ RNN_TANH/GRU_RESET_AFTER/LSTM scans. It is not all-family serialization. Advance
 may declare sequence, non-gradient INT64 runtime lengths and initial states as ordered external
 inputs for cold persistence/rebind. Prototypes are descriptor-only; their bytes are neither read
 nor saved. A scan remains one multi-output producer with canonical sibling identities, even when
-only a final-state port is a root. Cold persistence executes nothing; owned scan compute separately
-uses public Engine's qualified canonical FLOAT32 CPU forward route. Scan training and
+only a final-state port is a root. Cold persistence executes nothing; owned fixed-scan compute separately
+uses public Engine's qualified canonical FLOAT32 CPU forward route. Fixed-scan training and
 backpropagation through time (BPTT) remain unsupported. Persistence adds no Conv3d gradients or optimizer
 resume. Single `load` still rejects multiple boundaries.
 
@@ -1320,13 +1421,27 @@ replacement; old occurrences keep old bindings. Existing Java `long[]` `forward`
 compact result carriers, static training and builder recurrence remain unchanged.
 
 Execute selected scan outputs separately through public Engine compile/prepare/runValues with
-fresh exact descriptors in compiled input order. Current CPU forward qualification is canonical
-FLOAT32, both directions and bias modes, including trainable NN parameters; other Model floating
-types do not gain execution support. Owned Models can instead acquire these expressions through
-`graph` or the explicit scan builder below and compute through the same Engine path. No scan BPTT,
-Data adapter, bidirectional migration or implicit state/default-length Sequence overload is added. See the
+fresh exact descriptors in compiled input order. Fixed CPU scalar forward supports its declared
+homogeneous FLOAT32/FLOAT64 and resolved nonnegative read domain; it adds no BPTT.
+Owned Models can acquire fixed expressions through `graph` or retained fixed builder recipes,
+while unsupported occurrences still reject independently. No implicit state/default-length
+overload or bidirectional migration is added. See the
 [NN recurrent contract](training-api.md#current-nn-recurrent-composition-contract) and
 [scan construction example](../user-guide/running-models.md#build-a-fluent-model).
+The BF16/FP16 fixed implementation and source constructors remain retained, but CPU numerical
+execution follows the [temporary low lock](../backend-guide/production-support.md#temporary-java-low-computation-lock).
+
+`RnnSequence.forwardGeneralScan(input, validLengths, initialHidden, direction)` separately composes
+ordinary general Scan for homogeneous configured FLOAT32/FLOAT64. It reuses the same cell
+initialization and equation, including bias order, with static T/B >= 0 and positive I/H.
+Complete actual/formal/emission/latent geometry checks precede parameter publication or body IDs.
+Canonical general outputs are emission port 1 and final hidden carry port 0; the result carrier's
+component names are semantic, not universal producer indices. Fixed `forwardScan` is unchanged.
+Qualified CPU reads use dense zero-offset geometry or existing proved scalar-broadcast exceptions,
+not every fixed-scan read layout. No copy, conversion or fallback repairs unsupported actuals.
+NN0033 qualifies first-order compute/train and v5 save/close/load/new training, with fresh lengths;
+see the [complete RNN journey](../user-guide/running-models.md#train-a-runtime-length-rnn).
+
 
 ### Fluent Model builder
 
@@ -1391,7 +1506,7 @@ and cached bindings, never recipes per batch. They are independent of serializat
 Graph-model v3 enables saves for the selected default CNN/static recurrent DAGs;
 other unsupported saves still fail before file work without freezing Engine selection or
 invalidating execution. Only sources wholly within the original five/eight-kind slices retain
-byte-identical graph-model.v1/v2 saves; any selected added kind chooses v3, including CNN+RELU.
+byte-identical graph-model.v1/v2 saves; any selected added body-free kind chooses v3, including CNN+RELU.
 See the [single owning wire contract](../architecture/contracts/extensions-training.md#canonical-graph-model-version-3).
 Execution still requires actual Engine capability;
 static unrolling adds no scan BPTT, runtime lengths, streaming state or Conv3d adjoint.
@@ -1413,12 +1528,20 @@ as an appended seed step. Append an ordinary classifier head afterwards.
 `build()` rejects scans and `buildWithLengths()` rejects no-scan chains before acquisition effects;
 both snapshot recipes and create fresh private state.
 
+FLOAT32/FLOAT64 `rnnScan` uses the general composition above, supporting qualified first-order
+training and v5 persistence with canonical source outputs. Retained low RNN, GRU/LSTM and direct
+fixed expressions stay fixed/inference-only. Any fixed scan in a mixed source preserves the
+pre-setup training rejection. Old v3 fixed files remain fixed rather than migrating on load.
+
+
 There is no model-wide mask: bias and sigmoid may change padded zeros; convolution/pooling keep
 dense channels-first semantics, flatten preserves axis zero, static recurrence ignores lengths, and
 `lastTimeStep()` still selects `T-1`, not final hidden. Each scan ignores its own suffix, not arbitrary
-ordinary results. Shape-valid construction or save does not guarantee backend execution; current
-scan qualification is canonical FLOAT32 CPU, and a noncanonical prefix result may be unsupported.
-See the complete [runtime-length build/save/load/compute example](../user-guide/running-models.md#run-a-runtime-length-scan-model).
+ordinary results. Shape-valid construction or save does not guarantee backend execution. General
+F32/F64 RNN uses its narrower dense zero-offset CPU read qualification; fixed recipes retain
+their separately declared read domain. No descriptor is erased and no layout copy is inserted.
+See the [runtime-length inference example](../user-guide/running-models.md#run-a-runtime-length-scan-model)
+and [training journey](../user-guide/running-models.md#train-a-runtime-length-rnn).
 
 ### Advanced Engine lifecycle
 

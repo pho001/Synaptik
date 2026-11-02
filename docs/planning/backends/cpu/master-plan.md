@@ -53,6 +53,24 @@ CPU does not own Tensor semantics, global compilation, shared slots, Runtime pol
 measurement/cache mutation, Engine composition, or Metal/CUDA routes. It creates no separate CPU
 backends, inferred relaxed numerics, or platform-label-selected vendor routes.
 
+The [first-release product target](../../production-release-goal.md#java-cpu-target) requires
+equal F32/F64 support and a temporary lock on Java CPU BF16/FP16 floating computation, retaining
+the existing implementation without expanding it. Shared types, storage, raw transfers,
+conversions and discrete semantics remain. CPU0078's reviewed CPU-only authority is accepted;
+implementation/qualification follow its Ready packet. Later unlocking needs an explicit decision.
+
+The production installation check also repaired unconditional Vector API species queries in
+scalar preparation and MATMUL discovery. A plain-JVM consumer now computes actual FLOAT32/
+FLOAT64 forward values and gradients without resolving the incubator module, and the public
+runtime-length Model trains repeatedly with fresh lengths in both types. Explicit vector
+requests retain their policy; no kernel, numerical or specialization identity changed. See
+the [runtime prerequisites](../../../user-guide/running-models.md#jvm-prerequisites).
+
+The [reviewed first-release matrix](../../../backend-guide/production-support.md) freezes static
+F32/F64 scope and actual-closure evidence. CNN1d/2d training passed both types; 3D remains bounded
+forward-only by explicit reviewed decision. CPU0077 is Complete: 45 passing tests/Javadocs and
+actual public F32/F64 softmax/backward proof. CPU0078 low lock and CPU0079 raw reshape are Complete.
+
 ## Stable invariants
 
 - Capability is exact and fail-closed across semantics, type, shape, layout, determinism,
@@ -127,6 +145,72 @@ in existing `io.github.pho001.synaptik.backend.cpu.internal.route.portable`.
 Addressing stays in existing lowering/binding types; no new addressing class or generic execution
 protocol was added. Oracle/timing types
 are test-only in `internal.route.portable`; no new package or unrelated abstraction is authorized.
+
+Completed [CPU0030](tasks/0030-general-scan-f32-pointwise-vertical.md) adds only four family-specific
+internal production types: `lowering.CpuGeneralScanLowering` (nested Facts/Geometry),
+`ir.CpuGeneralScanIr` (derived code-shaping facts using existing CpuKernelIr, not another semantic
+body), `codegen.emit.CpuGeneralScanEmitter`, and `executable.CpuGeneralScanPreparedExecutable`
+(private Invocation). Existing prepare/unit/cache/binding types retain their responsibilities.
+It implements the specified invocation/step ABI, canonical plus generated scalar-zero read closure,
+temporal carry-bank/resources and schema 71 compatibility within the bounded F32 domain.
+
+Completed [CPU0031](tasks/0031-general-scan-f32-broadcast-sum-layout-closure.md) reuses these four seams
+for F32 broadcast/SUM/layout forward and actual reverse closure. Its only new top-level
+production type is `CpuGeneralScanReductionEmitter` in existing
+`io.github.pho001.synaptik.backend.cpu.internal.codegen.emit`: step-bound SUM generation, not
+a general execution layer or the ordinary aggregate entry's fixed two-boundary/scratch ABI.
+Shape/liveness/resource and generation-time binding facts stay in the existing scan types.
+
+Completed [CPU0032](tasks/0032-general-scan-f32-matmul-and-reverse.md#result) adds only generation-only
+`CpuGeneralScanMatmulEmitter` in existing `io.github.pho001.synaptik.backend.cpu.internal.codegen.emit`.
+Existing Stage/Stages, lowering, carrier/MATMUL emission and cache seams gain explicit two-operand
+step facts, not another executor or AD layer. No other production type/package was added.
+
+Completed [CPU0033 F64 domain closure](tasks/0033-general-scan-f64-domain-closure.md) reuses these
+lowering/IR/emitter/executable, prepare and cache packages; no new top-level production type or
+duplicate F64 executor was added. Full declared algebra and actual reverse are qualified together.
+
+CPU0070's [replacement package/ownership plan](existing-emitter-composition-plan.md#first-foundation-and-stable-immediate-successor)
+proposes no added/moved production type, package or public signature. Completed CPU0071 separates
+setup/bound MATMUL emission in existing lowering/IR/carrier/loop/emitter owners; completed CPU0072
+closes current pointwise/SUM reuse via approved helpers in existing `lowering.CpuPartitionLowering`,
+`lowering.CpuAggregateLowering`, `codegen.emit.CpuClassFileKernelGenerator` and
+`codegen.emit.CpuAggregateEmitter`; no added/moved type or public signature. The
+[brief](tasks/0072-common-pointwise-sum-composition.md#files-current-package-map-and-proposed-helper-seams)
+indexes reviewed seams and the frozen implementation. Ordinary scalar/SIMD/tiled math and workers
+retain their family/executable owners. Both Scan math subemitters were retired after migration and
+actual-AD qualification, preserving temporal bindings/proofs and v9. No second slot manager or body.
+New named types require exact source justification and user approval, not the archived four-type
+mandate. Scan SIMD and parallel execution remain separately gated; no PhaseState/protocol selected.
+
+User-approved 2026-10-30 [CPU0073 package/seam design](row-map-multi-reduction-fusion-plan.md#minimal-proposed-production-map-and-signatures):
+three CPU-internal production types/two nested records and exact common seams; ordinary lowered
+unit and Scan-emitted region share one proof/emitter, not new math or a Runtime owner. Boole
+APPROVE/MAIN authority acceptance preceded implementation; final independent reviews and MAIN
+integration accepted 2026-10-30. These types/seams are implemented; no extra type/seam implied.
+
+[CPU0049 implemented package map](tasks/0049-producer-reduction-fusion.md#files-types-and-composition-seams)
+adds only `internal.ir.CpuAggregateFusionIr`: existing aggregate plus pointwise producer/tail facts
+with explicit bindings for their distinct domains. Existing lowering/emitter/binder/cache owners
+remain; no row-region/represented-SUM reuse for exact ordinary SUM, new math owner or executor.
+Bounded static F32/F64 SUM/MEAN + ADD/RELU implementation/review/gates are Complete, MAIN accepted
+2026-10-31; no authority delta. The brief owns exact results and diagnostic limitations.
+
+[CPU0050 completed package map](tasks/0050-average-pool2d-backward-broadcast-fold.md#files-types-and-reuse-seams):
+no new/moved production type or package. Existing `internal.ir.CpuFoldIr`,
+`internal.lowering.CpuFoldLowering.Geometry` gain explicit compact-source mapping facts;
+existing `CpuFoldEmitter` owns inverse-coordinate gather and shared typed addition/carrier helpers.
+Existing decomposition/prepare/binding/cache owners retain their responsibilities; no parallel
+pooling emitter, semantic operation or Compiler recipe change. Extra types require MAIN approval.
+Selected domain is F32/F64 only; low chains retain their existing path/artifact, not a new
+conformance claim. The brief records the confirmed pre-existing low-fold rounding defect separately.
+
+[CPU0051 proposed package map](tasks/0051-softmax-logsoftmax-backward-fusion.md#files-symbols-and-proposed-types):
+only new `internal.ir.CpuSoftmaxBackwardIr` (fixed two-pass topology/bindings) and
+`internal.codegen.emit.CpuSoftmaxBackwardEmitter` (direct loops composing existing exact SUM/scalar/carrier
+emitters). Recognition stays in `CpuAggregateLowering`; decomposition, resources, binding and cache
+stay with existing owners. The reduced-domain ADD/RELU tail in `CpuAggregateFusionIr` cannot express
+this full-domain reread. No semantic operation, general framework, executor or authority change.
 
 ## Ordered task list
 
@@ -275,17 +359,387 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0027 | [Unit topology adjacency ordering](tasks/0027-unit-topology-adjacency-ordering.md) | Complete | CPU0026 Complete | Invocation-local adjacency and stable Kahn ordering preserve exact dependencies/order; CPU, conformance, Fluent integration and bounded LSTM probe passed; independent APPROVE, zero findings. |
 | 0028 | [Fixed recurrent scan forward execution](tasks/0028-fixed-recurrent-scan-forward-execution.md) | Complete | NN0021A; Model0025E/0025F; Compiler0006A; CPU0027; Engine0021; CP0010/CP0011 Complete | Canonical FLOAT32 scalar Java RNN/GRU/LSTM accepted 2026-10-20 after independent APPROVE and main's root test/Javadoc gate; evidence in brief. |
 | 0029 | [Recurrent scan scalar type and layout coverage](tasks/0029-recurrent-scan-scalar-type-and-layout-coverage.md) | Complete | CPU0028; CPU0022 Complete | Four scalar floating types and resolved nonnegative-stride input layouts accepted 2026-10-21 after independent APPROVE, zero P1/P2, and main's source-matched native root test/Javadoc PASS; timing parity unproven. |
-| 0047 | [Private PERMUTE input absorption into MATMUL](tasks/0047-private-permute-matmul-absorption.md#result) | Complete | Existing static MATMUL baseline | Private backing/stride reads remove transpose resources; publication barriers, epilogues and native-copy eligibility preserved. Published separately at the user's request, without the uncommitted Scan series. |
+| 0030 | [F32 pointwise general-scan vertical milestone](tasks/0030-general-scan-f32-pointwise-vertical.md) | Complete | Model0034/0035; Planning0008; Compiler0011; Prepare0010; CPU0022/0027/0028/0029 Complete | Bounded F32 pointwise forward/actual automatic reverse accepted by main 2026-10-22 after independent review and focused checkpoint PASS; remaining declared algebra/closure + F64 stays gated. |
+| 0031 | [F32 broadcast/SUM/layout scan closure](tasks/0031-general-scan-f32-broadcast-sum-layout-closure.md#result) | Complete | CPU0030 and accepted predecessor baseline Complete | Main accepted 2026-10-22, 14:38+ UTC after final independent code/docs APPROVE (0 P1/P2), module and named checkpoint PASS; MATMUL/F64 remain Draft. |
+| 0032 | [F32 MATMUL and actual reverse in emitted scan](tasks/0032-general-scan-f32-matmul-and-reverse.md#result) | Complete | CPU0031; accepted foundation baseline Complete | Main accepted 2026-10-22, 17:09+ UTC after independent code/docs and test-addendum APPROVE, CPU module/Javadoc and named checkpoint PASS; F64 remains Draft. |
+| 0033 | [General-scan F64 domain closure](tasks/0033-general-scan-f64-domain-closure.md#result) | Complete | Model0034/0035; Planning0008; Compiler0011; Prepare0010; CPU0030–0032 Complete | Full homogeneous F64 algebra + actual reverse accepted by main after independent code/docs approval and native root PASS; unexplained timing limitation retained. |
+| 0034 | [General-scan coordinate loops and carry transition](tasks/0034-general-scan-coordinate-loops-and-carry-transition.md#result) | Complete | CPU0033 + low-level join; accepted Compiler0012 baseline Complete | Main accepted 2026-10-23 after independent code/docs and recovery approval, CPU/Javadoc and targeted checkpoint PASS; 900 paired samples audited, bounded generated/direct ratios 0.970/0.990/0.969, no universal parity or successor advancement. |
+| 0035 | [General-scan emission cleanup and specialized oracle](tasks/0035-general-scan-emission-cleanup-and-specialized-oracle.md#result) | Complete | CPU0034 Complete, accepted baseline retained | Bounded cleanup accepted 2026-10-23 after independent APPROVE and final gates; 900-pair matched static-B4/H8/runtime-long campaign shows ~3× gap, not parity; separate narrow performance follow-up required, not launched. |
+| 0036 | [General-scan javac loop control](tasks/0036-general-scan-javac-loop-control.md#result) | Complete | CPU0035 and accepted foundation Complete | Main accepted 2026-10-23 after independent approval and gates; bounded structural canonicalization with narrow near-reference timings, supplementary guard qualification insufficient; no successor. |
+| 0037 | [General-scan dense actual read views](tasks/0037-general-scan-dense-read-views.md#result) | Complete | CPU0036 and accepted foundation/low-level join Complete | Main accepted 2026-10-24 after Newton final APPROVE and CPU/Javadoc, named and configured-root gates; no NN migration or new performance claim. |
+| 0038 | [Symbolic Scan timing methodology](tasks/0038-symbolic-scan-timing-methodology.md#result) | Complete | Prepare0014; CPU0037 Complete | MAIN accepted 2026-10-25 after Sagan final APPROVE and single bounded probe; method reuse/oracle fairness repaired, production unchanged, no parity or successor claim. |
+| 0039 | [Symbolic Scan fixed-geometry specialization](tasks/0039-symbolic-scan-fixed-geometry-specialization.md#result) | Complete | CPU0038; Prepare0014; CPU0037 Complete | MAIN accepted bounded structural/correctness/verification after independent APPROVE and final gates/probe; original performance gap remains open (largest observed ratio 2.351869×), no successor or extra measurement authorized. |
+| 0040 | [Symbolic Scan phase and optimized-code diagnostic](tasks/0040-symbolic-scan-phase-code-diagnostic.md#result) | Complete | CPU0039; Prepare0014; CPU0037 Complete | MAIN accepted bounded diagnostic after final independent APPROVE; reverse code-quality differences observed, performance issue unresolved; production frozen. |
+| 0041 | [Symbolic Scan reverse carrier specialization](tasks/0041-symbolic-scan-reverse-carrier-specialization.md#result) | Complete | CPU0040; CPU0039; CPU0037; Prepare0014 Complete | MAIN accepted 2026-10-26 after Peirce final APPROVE and all gates; immutable port-backed entry receivers resolve the measured large-case gap with bounded near-Java phase timings, not universal parity; CPU frontier None. |
+| 0042 | [Length-aware general Scan execution](tasks/0042-length-aware-general-scan-execution.md#result) | Complete | Model0037/0038; Compiler0013; Prepare0011/0014; CPU0033/0037/0041 Complete | MAIN accepted 2026-10-26 after independent Class C code/docs APPROVE and recorded gates; fixed-geometry F32/F64 forward/actual reverse, nonstationary probe limits, CPU frontier None. |
+| 0043 | [Symbolic-length actual reverse diagnostic](tasks/0043-symbolic-length-reverse-diagnostic.md#result) | Complete | Prepare0015; CPU0041; CPU0042 Complete | MAIN accepted frozen source/evidence 2026-10-27 after independent APPROVE and module/preservation gates; compilation-phase confounds observed, historical cause/residual overhead unknown, no production repair or third probe. |
+| 0044 | [Symbolic-length Scan code-shape optimization](tasks/0044-symbolic-length-scan-code-shape.md#result) | Complete | CPU0043; Prepare0015; CPU0041; CPU0042 Complete | MAIN accepted bounded four-fix v4 repair and sole comparison, 2026-10-27; lower elapsed time than v3 in both measured cases, Java parity unresolved. Independent reviews/gates/docs complete; all four bodies consumed, no successor/retry. |
+| 0045 | [Equivalent symbolic-length Scan clean Java](tasks/0045-symbolic-length-scan-equivalent-java.md#result) | Complete | CPU0044; Prepare0015; CPU0041; CPU0042 Complete | MAIN accepted source/evidence/docs 2026-10-28; equivalent reference and bounded v5 offset sharing delivered, no demonstrated speedup or Java parity. Budget exhausted. |
+| 0046 | [Collected generated-kernel cache entry cleanup](tasks/0046-collected-kernel-cache-entry-cleanup.md#result) | Complete | Compiler0016; CPU0045 Complete | MAIN accepted 2026-10-28: cold exact-token cleanup, live/concurrent reuse, focused checks and Javadoc PASS. Full run's legacy unconditional timing-gate failure remains explicit. |
+| 0047 | [Private PERMUTE input absorption into MATMUL](tasks/0047-private-permute-matmul-absorption.md#result) | Complete | 0046 | MAIN accepted 2026-10-28: backing/stride reads remove private transpose resources; publication barriers, epilogues and native-copy eligibility preserved. Filtered CPU/Javadoc, conformance and Engine integration passed; no timing claim. |
+| 0048 | [Proven static typed-one count folding](tasks/0048-static-typed-one-count-folding.md#result) | Complete | 0047; accepted 0076 baseline | MAIN accepted 2026-10-31 after source/docs APPROVE, filtered CPU/Javadoc and named join PASS; exact count/resource removal with original source retention, no timing claim. |
+| 0049 | [Producer-reduction fusion and executable epilogues](tasks/0049-producer-reduction-fusion.md#result) | Complete | 0048; Complete 0073–0076 baseline | MAIN accepted 2026-10-31: independent FINAL APPROVE, filtered CPU/Javadoc and named join PASS; exact static F32/F64 scalar SUM/MEAN + ADD/RELU, diagnostic closed without steady-profitability claim. |
+| 0050 | [AveragePool2d backward compact-source fold](tasks/0050-average-pool2d-backward-broadcast-fold.md#result) | Complete | 0049 Complete | MAIN accepted 2026-10-31: F32/F64 static SCALAR/single-range compact fold, existing IR/emitter, preserved DIV boundary; Dirac FINAL APPROVE 0 P1/P2, named join and filtered CPU/Javadoc PASS. Sole diagnostic retained; parity/cause unresolved, low fix separate; frontier None. |
+| 0050A | [Low fold FP32 accumulation repair](tasks/0050a-low-fold-fp32-accumulation.md#result) | Complete | 0050 Complete | MAIN accepted after Raman FINAL APPROVE and qualified targeted/Javadoc closure; original full gate remains FAILED, unchanged successes reused. Generic-loop efficiency unqualified; frontier None, no timing/successor. |
+| 0051 | [Softmax and LogSoftmax backward fusion](tasks/0051-softmax-logsoftmax-backward-fusion.md#result) | Complete | 0050A Complete | MAIN accepted: bounded two-pass fusion, independent FINAL APPROVE, CPU/Javadoc and qualified consumer closure. Sole synthetic diagnostic did not establish parity; CPU0052 held. |
+| 0052 | Private recurrent-gate SLICE read mapping | Draft | 0051 | Read projection ranges directly in ordinary pointwise consumers, without changing NN recipes or observable/saved values. |
+| 0053 | [Fresh Scan/Java continuation measurement](tasks/0053-scan-java-continuation-measurement.md#result) | Cancelled | 0045; 0047 | User stopped after untimed historical-class-pin mismatch; launcher preparation/review complete, 0/3 measured slots used, no new performance result or production change. |
+| 0054 | [Scan ClassFile and ABI verification](tasks/0054-scan-classfile-and-abi-verification.md#result) | Complete | Compiler0016; 0047; retained 0053 evidence | MAIN accepted 2026-10-28 after independent APPROVE: name-only v5 ClassFile change causally confirmed, exact ABI/raw-output checks passed. No benchmark or production change. |
+| 0055 | [Verified Scan/Java measurement](tasks/0055-verified-scan-java-measurement.md#result) | Complete | 0045; Compiler0016; 0047; 0054 | MAIN accepted 2026-10-28 after independent actual-result APPROVE: three serial uncensored runs, exact schedule/raw checks, preserved evidence and unresolved narrow Java gap. No production change. |
+| 0056 | [Scan invocation binding](tasks/0056-scan-invocation-binding.md#result) | Complete | 0055; Prepare0015 | Independently reviewed rejection: negligible hot gain, repeat binding regression; candidate withdrawn exactly, original invocation retained, Java gap open. |
+| 0057 | [Scan body/Java offline audit](tasks/0057-scan-body-java-offline-audit.md#result) | Complete | 0056 | Independently reviewed stage/count/JIT comparison; zero-base and inactive-cursor differences identified, native cause unproved; no source change or new measurement. |
+| 0058 | [Symbolic-length zero scratch base](tasks/0058-symbolic-length-scan-zero-scratch-base.md#result) | Complete | 0057 | Independently approved all-B scratch proof and baked v6; typed semantic/cache/bytecode and CPU/Javadoc/conformance/Engine gates pass, no timing or publication. |
+| 0059 | [Scan v6/v5/Java entry comparison](tasks/0059-scan-v6-v5-java-measurement.md#result) | Complete | 0058 | MAIN accepted independently approved bounded observations: repaired preflight/three JVMs pass, no consistent v6 speedup, local Java gap and full-path JIT limits retained. No source change. |
+| 0060 | [Symbolic-length Scan Java loop shape](tasks/0060-symbolic-length-scan-java-loop-shape.md#result) | Complete | 0058; 0059; Prepare0015 | Independently approved combined F32/F64 loop/init/address simplification and baked v7; owning/named gates pass, sole diagnostic shows modest improvement with Java/JIT limits retained. |
+| 0061 | [Scan feature-contraction affine addresses](tasks/0061-scan-feature-contraction-addresses.md#result) | Cancelled | 0060; Prepare0015 | Performance-only experiment completed; candidate failed its frozen retention gate and was restored exactly to v7. No functional suites or retained capability. |
+| 0062 | [Decompiled Scan Java lab](tasks/0062-decompiled-scan-java-lab.md#result) | Complete | 0060; Prepare0015; 0061 restored | Two reviewed off-tree runs pass raw checks; no prototype beats G7. Java gap remains, no generator port or functional suites. |
+| 0063 | [Clean Scan Java with generated ABI](tasks/0063-clean-scan-java-generated-abi.md) | Complete | 0062; 0060; Prepare0015 | Reviewed off-tree J4 whole-loop alignment; separate port authorized as 0064. |
+| 0064 | [Port measured clean-Java Scan shape](tasks/0064-scan-clean-java-generator-port.md#result) | Complete | 0063 measured/reviewed; 0060; Prepare0015 | Combined baked v9; matched timing benefit, independent review, CPU/Javadoc and named conformance/integration gates PASS. |
+| 0065 | [Vector MATMUL TANH epilogue](tasks/0065-vector-matmul-tanh-epilogue.md#result) | Complete | 0064 stable base; existing MATMUL/vector TANH | Ordinary F32/F64 direct/tiled vector TANH; independent review and CPU/Javadoc/conformance PASS, no Scan route or parity claim. |
+| 0066 | [Shared ordinary/Scan emission plan](tasks/0066-shared-scan-body-emission-plan.md) | Complete | 0064/0065 Complete | Source-grounded three-stage plan; independent APPROVE, no blocking findings; MAIN accepted 2026-10-28. Planning only; no source/capability grant. |
+| 0067 | [Common scalar body lowering/emission](tasks/0067-common-scalar-body-lowering-and-emission.md) | Superseded | Historical 0066 | Replaced by CPU0070/0071/0072; old four-type mandate and diagnostic budget retired. |
+| 0068 | [Qualified shared feature-vector bodies](tasks/0068-qualified-shared-body-vector-emission.md) | Superseded | Historical 0067 | Replaced by shared existing math plus separately approved bounded Scan SIMD qualification. |
+| 0069 | Worker integration ([archived outline](shared-body-emission-proposal.md#vector-realization-then-worker-integration)) | Superseded outline | Historical 0068 | Replaced by the unresolved parallel-composition design/authority gate; no phase protocol selected. |
+| 0070 | [Existing-emitter composition replan](tasks/0070-existing-emitter-composition-replan.md) | Complete | CPU0064/0065 accepted; user direction 2026-10-29 | Independent APPROVE, 0 P1/P2; MAIN accepted replacement planning delivery 2026-10-29; no source or measurement grant. |
+| 0071 | [Common MATMUL binding/setup foundation](tasks/0071-common-matmul-binding-foundation.md#result) | Complete | Accepted 0070, retained 0064/0065, Compiler0015/0016/Prepare0015 and USER gates | Reviewed common MATMUL/setup, exact two static cutovers, module/named joins PASS; sole diagnostic closed, no speed/parity claim. |
+| 0072 | [Common pointwise/SUM composition](tasks/0072-common-pointwise-sum-composition.md#result) | Complete | Seven Complete predecessors; verified MAIN Ready/GO 2026-10-29 | Common normalization/composition and represented SUM; independent APPROVE/P2 closure, combined module/Javadoc and MAIN named gates accepted; literal retention, zero measurements. |
+| 0073 | [Row-map/multiple-terminal fusion](tasks/0073-row-map-multi-reduction-fusion.md#result) | Complete | 0064/0065/0070/0071/0072; Compiler0015/0016/Prepare0015 Complete | Common bounded ordinary/Scan core, independent final APPROVE, accepted targeted closure/evidence transfer, MAIN named join and docs closure; performance unmeasured. |
+| 0074 | [Row-fusion SIMD and parallel realizations](tasks/0074-row-fusion-simd-parallel.md#result) | Complete | CPU0073 + retained Complete baseline | MAIN accepted functional capability, final CPU/Javadoc, named gates and collected bounded comparison; steady-state profitability unqualified, concrete JIT-pressure follow-up separate, defaults unchanged. |
+| 0075 | [Scalar row-fusion load/address reuse](tasks/0075-row-fusion-scalar-load-address-reuse.md#result) | Complete | CPU0073/0074 Complete; explicit selective-cutover approval | Independent final APPROVE, CPU/Javadoc PASS; ordinary 32→20 / Scan 27→22 load sites. Sole comparison closed: ordinary ratios JIT-qualified, no material Scan speedup; Java gap and C1 failures remain. |
+| 0076 | [Generic row-invariant load staging](tasks/0076-row-invariant-load-staging.md#result) | Complete | CPU0073/0074/0075 Complete; explicit user approval | Independent review, complete-lifetime fallback and affected-only identity; CPU/Javadoc/named Engine PASS, bounded B256 improvement/B32 JIT caveat; defaults unchanged. |
+| 0077 | [F64 finite-softmax admission parity](tasks/0077-f64-finite-softmax-admission-parity.md#result) | Complete | NN0033; reviewed production scope; accepted bounded authority | Independent APPROVE, 45 passing targeted tests/Javadocs and actual public both-type/kind backward proof; no arithmetic/identity change. |
+| 0078 | [Temporary low-arithmetic lock](tasks/0078-temporary-low-arithmetic-lock.md#result) | Complete | CPU0077; final production/fixture/resource/evidence/docs APPROVE0; accepted CPU-only authority/ADR0060 | MAIN's affected gate1716passed64skipped; actual both-low rejection/retention and F32-master restore/resume pass. Implementation and old qualified identities retained; no low expansion. |
+| 0079 | [Materializing RESHAPE admission](tasks/0079-materializing-reshape-admission.md#result) | Complete | CPU0078/Compiler0019 Complete; final independent source/evidence/docs APPROVE0 and exact integration | Full CPU 1,473 passed/60 existing skips, conformance 83 passed; unchanged actual seven-type raw reshape passed. Existing affine copy, low lock and old identities retained; joined release gate remains separate. |
+| 0080 | [Shared generation-time kernel method emission](tasks/0080-shared-kernel-method-emission.md#result) | Complete | Complete0078/0079; final independent source/evidence/docs APPROVE0 | Exact source integrated; CPU1,474pass/60existing skips, all85retained files exact, actual prefixed ordinary/contiguous-and-strided-loss dispatches and84actual VJPs pass. Original coverage overclaim corrected; no new capability. |
+| 0081 | [General Scan ordinary-unit composition](tasks/0081-ordinary-unit-general-scan-composition.md) | Ready | Complete0080/0078/0079, Model0046/0047/0048 and Compiler0017A/B; accepted frozen coupled0017 interface and both independent authority APPROVE0 reviews | MAIN admits exact dirty-source/disjoint contexts for the complete all-valid/length typed selected-backward cutover; physical/actual qualification pending, no whitelist substitute or implemented capability claim. |
 
 ## Active dependency DAG and integration
 
-CPU0047 is an independently publishable static MATMUL repair on the CPU0029 baseline. Its
-isolated source, focused CPU/Javadoc, conformance and public Engine checks passed; no Scan
-capability, timing result or other locally accepted task is published by this entry.
+CPU0078 and CPU0079 are Complete after final independent source/evidence/documentation APPROVE0,
+exact-byte integration and their recorded full module/conformance/public-consumer proofs.
+CPU0080 parity factoring is Complete after final independent acceptance. Model0048 source/
+forward-coordinate semantics and Compiler0017B ordinary rules remain independently qualified.
+No broader Scan body or low computation is granted. MAIN owns shared integration and the final
+source-matched production checkpoint; no old performance campaign is reopened.
 
-CPU0022 + CPU0028 → CPU0029, all Complete. Authorized CPU frontier: **None**;
-CPU0023 remains Draft; no automatic successor launch.
+[CPU0051 Complete](tasks/0051-softmax-logsoftmax-backward-fusion.md#result),
+MAIN accepted 2026-10-31 after independent FINAL APPROVE, filtered CPU/Javadoc and qualified consumer
+closure. Its Result preserves the failed first join and test-only targeted correction with unchanged
+success reuse, not a relabeled full-join PASS. The sole synthetic diagnostic did not establish parity,
+profitability or a JIT cause. Verified launch/base, seven integration fields, matrix and exact evidence
+remain in the brief. Parallel group None; MAIN owns shared integration. CPU0052 remains Draft/held;
+Scan budgets stay closed, with no automatic successor, further timing or Git publication.
+
+[CPU0050A Complete](tasks/0050a-low-fold-fp32-accumulation.md#result),
+MAIN accepted 2026-10-31 after Raman FINAL APPROVE, 0 open P1/P2, and qualified gate closure.
+Complete CPU0050 → Complete CPU0050A → Complete CPU0051 → held Draft CPU0052.
+CPU0050A repairs existing low fold numerics under current Model authority, not CPU0050 compact-low
+admission. Existing emitter/reference/IR identity owners only; no added/moved production type/package.
+Its brief records all seven integration fields and verified actual-before manifest
+`/private/tmp/synaptik-cpu0050a.yqY321/before.json` (2596 files, matching HEAD `07a281ed`, empty index),
+plus `before-source.tar.gz`; all hashes matched before planning edits. Historical Ready verification
+and MAIN-LAUNCH proof remain in the brief. No parallel repo writers; MAIN owns shared integration.
+Actual order: focused evidence/pre-final review → named join once PASS → failed CPU gate → approved
+metadata/environment recovery → targeted recovery → metadata/Javadoc closure → final review/MAIN acceptance.
+The Result preserves the original full FAILED gate and targeted closure with unchanged-outcome reuse,
+not a full-repeat/full-green claim. Recovery changes only test-derived hashes/provenance, not new math.
+Arithmetic core aligned; generic traversal retained under explicit technical deviation evidence, not
+whole-loop/dataflow/performance parity. Known geometry hoisting grants no task/campaign; CPU0051 admission is above.
+No timing budget, architecture change, global schema bump or Git publication.
+[CPU0050](tasks/0050-average-pool2d-backward-broadcast-fold.md#result)
+Complete, MAIN accepted 2026-10-31 after Dirac FINAL APPROVE and all gates PASS; worker closed.
+CPU0051 is Complete above; CPU0052 remains held. [CPU0048](tasks/0048-static-typed-one-count-folding.md#result) is
+Complete, MAIN accepted 2026-10-31 after independent source/docs APPROVE, the final filtered
+CPU/Javadoc gate, named conformance/Engine join and protection checks passed.
+Closed DAG: Complete CPU0047 + accepted CPU0076 → CPU0048 implementation/review
+→ final worker gate → MAIN join. The brief owns verified
+base/contracts, seven integration fields and the single new `internal.ir.CpuConstantWriteIr` package seam.
+MAIN owns shared documents; no concurrent writer or Git publication grant.
+
+[CPU0049 Complete](tasks/0049-producer-reduction-fusion.md#result), MAIN accepted 2026-10-31:
+Complete CPU0048/CPU0073–0076 → verified Ready/user instruction → clean implementation and
+independent FINAL APPROVE → filtered CPU/Javadoc and MAIN named join PASS. The Result owns
+recovered gate evidence, preservation and the sole nonstationary diagnostic, not steady profitability.
+Closed DAG: Complete CPU0049 → CPU0050 freeze/independent review → MAIN named join once → sole
+diagnostic → final filtered CPU/Javadoc → MAIN acceptance, 2026-10-31. CPU0050's Result owns seven
+integration fields, exact commands/evidence and limits; base `07a281edd3086efde2853211b71b48288db027e1`
+plus accepted dirty actual-before retained. Parallel group None; MAIN owns shared integration.
+F32/F64 static SCALAR/single-range only, existing fold owners/no new production type; source/guide freeze
+and ordinary literal artifacts retained. BF16/F16 remain unchanged compatibility controls, not numerical
+qualification; its separate F32-accumulator/final-narrowing repair is CPU0050A Complete above.
+Bounded diagnostic does not establish parity/cause, steady-state/C2 or speedup. CPU0050 frontier closed;
+CPU0051 has its separate bounded admission above; CPU0052 held, Scan budgets paused/closed.
+No historical campaign, automatic successor or stage/commit/push. CPU0073's row-region exclusion is unchanged.
+
+At CPU0076 acceptance the source/Ready frontier was None. Complete CPU0073/0074/0075 → accepted authority/Ready
+packet → clean CPU0076 implementation/untimed freeze → independent source/protocol review → MAIN
+sole finite release/result acceptance → final CPU/Javadoc/named Engine gates and independent docs,
+all complete. The [CPU0076 Result](tasks/0076-row-invariant-load-staging.md#result) owns evidence,
+qualifications, seven integration fields and frozen base. Parallel group None; MAIN owns shared
+integration with exclusive final documentation delegation. That completion itself opened no successor/measurement grant;
+the later CPU0048-only admission is above; defaults unchanged, no rollout or stage/commit/push.
+
+Complete CPU0073/0074 → CPU0075 implementation, sole bounded
+comparison, final CPU/Javadoc PASS and independent review are closed. The
+[CPU0075 Result](tasks/0075-row-fusion-scalar-load-address-reuse.md#result) owns evidence and
+limits; its seven integration fields remain in the brief. Parallel group None; MAIN owns shared
+docs. That completion itself authorized no successor, new timing budget, rollout or stage/commit/push. At that checkpoint CPU0048–0052
+remained held/inactive; the remaining Scan/Java gap and C1 failures are disclosed limitations.
+
+CPU0074 is Complete, MAIN accepted 2026-10-30; its source/measurement frontier is closed.
+Complete CPU0073 + retained baseline → accepted authority/Ready → implementation/independent
+reviews → named joins → final CPU/Javadoc and sole bounded comparison → MAIN acceptance.
+The [Brief Result](tasks/0074-row-fusion-simd-parallel.md#result) centralizes final receipts and limits:
+functional support is accepted, steady-state profitability is not qualified. Concrete JIT-pressure
+investigation is recommended separately, not a new task/frontier/campaign. The single budget is
+exhausted; no retry or old campaign opens. All seven integration fields and launch receipt remain
+in the brief; Parallel group None, CPU0048–0052 held/inactive at that acceptance, no automatic successor.
+Guarded ordinary-only `ROW_REGION_STATE` remains cold metadata, not Scan tuning, pointwise repair
+or scoring change. CPU0010M scalar/max1 defaults remain unchanged; no rollout or commit/push follows.
+The completed-frontier statements below describe their earlier checkpoints, not CPU0074 admission.
+
+CPU0070 planning delivery is Complete after independent APPROVE and MAIN acceptance on 2026-10-29.
+MAIN's admission/preservation receipt remains in the brief. CPU0071 and CPU0072 are Complete;
+their source writers are closed. CPU0072's [Result](tasks/0072-common-pointwise-sum-composition.md#result)
+records independent Class C APPROVE/P2 closure, combined module/Javadoc evidence and MAIN's named
+join acceptance on 2026-10-29. Their frontiers closed; CPU0073 completion is below.
+CPU0067–0069 stay superseded. The subsequent backward-versus-optimized-Java code comparison
+motivated CPU0073, not repeated timing.
+The bounded comparison identifies a cross-operation staging gap; the user approved
+[CPU0073's exact design/contract packet](row-map-multi-reduction-fusion-plan.md) and starting
+implementation on 2026-10-30. DAG: Complete CPU0072 + retained baseline → Boole authority APPROVE
+(0 P1/P2)/MAIN acceptance → verified MAIN Ready receipt → CPU0073 clean implementation/review
+→ MAIN named join and independent documentation closure, all Complete on 2026-10-30.
+Source and measurement frontiers: None; no automatic successor. Its [Result](tasks/0073-row-map-multi-reduction-fusion.md#result)
+owns validation and limits, including the failed full-module run, passing repairs and approved
+unchanged-outcome transfer. MAIN owns shared integration; parallel group None. The recorded
+dirty base is preserved; no measurement, commit or push is authorized.
+The [narrow compatibility exception](../../../architecture/contracts/backend-execution.md#cpu0071-approved-static-matmul-compatibility-cutover)
+is implemented. Independent corrected source/Javadoc review approved; MAIN accepted source and
+module/named gates on 2026-10-29. The [Result](tasks/0071-common-matmul-binding-foundation.md#result)
+owns validation counts, finite-corpus/species limits and unsteady diagnostic evidence; budget closed.
+
+CPU0045, [Compiler0016](../../modules/compiler/tasks/0016-matmul-gradient-noop-reduction-elision.md#result),
+CPU0046 and [CPU0047](tasks/0047-private-permute-matmul-absorption.md#result) are Complete.
+CPU0066 planning delivery remains [Complete](tasks/0066-shared-scan-body-emission-plan.md), independently
+approved and MAIN accepted 2026-10-28; its direction is historical, not the active DAG.
+Replacement DAG: CPU0064/0065 + retained Compiler0015/0016/Prepare0015 → CPU0070 acceptance
+→ CPU0071 → CPU0072, all Complete. No old budget reuse or automatic successor launch.
+CPU0071's completed review, implementation, module/Javadoc, named conformance/Engine joins and
+sole authorized diagnostic are recorded in its Result. No speedup/parity gate or new capability
+follows: timing differences remain an unresolved performance question, not a correctness failure.
+CPU0071/0072 use existing owners and CodeBuilder allocation. New named types require
+demonstrated source need and user approval. Bounded Scan SIMD authority/whole-binder qualification
+and a genuine parallel-composition design/authority decision remain separate gates, not detailed
+task cascades. Ordinary workers and per-submission Jobs are unchanged; inline math does not provide
+their orchestration. The foundation is complete; [Job reuse remains optional, not a dependency or blocker](existing-emitter-composition-plan.md#deferred-job-reuse-evidence).
+Future ordinary synchronous worker composition needs narrow approved authority and budget-ownership
+qualification, not zero scheduler metadata allocation or a mandated new cohort/phase/barrier.
+Parallel group None; conflicts include common emission, Scan, geometry/cache/resources and queued
+CPU0048–0052. Common base remains `07a281edd3086efde2853211b71b48288db027e1` plus accepted
+dirty work, verified before launch. MAIN completed the DAG's named conformance/Engine checkpoint;
+clean Class C implementation and independent targeted review are complete. MAIN owns integration
+and delegated the final documentation/status pass exclusively. CPU0070 grants no Java, authority,
+build or measurement change.
+CPU0072 retains literal accepted-current generated bytes/identities and unchanged resources/ABI/
+binding; MAIN accepted the [four-group conditional transfer table](existing-emitter-composition-plan.md#cpu0072-evidence-transfer-table)
+with all limits on 2026-10-29, not a new certification ledger or historical-parity gate. A necessary
+shape/namespace change or new type/handoff requires a narrow user approval, not CPU0071's exception.
+The target remains general composition of existing ordinary emitters, not all-operation admission;
+forward, actual backward and parallel each qualify separately, without a speculative task campaign.
+Next prioritize [complete backward-versus-optimal-Java code comparison](existing-emitter-composition-plan.md#post-integration-actual-scan-evaluation)
+and avoidable-work analysis before optional Job reuse. No timing budget/protocol is inherited.
+CPU0062 Complete → [CPU0063 Complete](tasks/0063-clean-scan-java-generated-abi.md) → CPU0064 Complete → CPU0065 Complete.
+CPU0060 + Prepare0015 Complete + CPU0061 restored → [CPU0062 Complete](tasks/0062-decompiled-scan-java-lab.md#result).
+CPU0060 + Prepare0015 Complete → [CPU0061 Cancelled](tasks/0061-scan-feature-contraction-addresses.md#result).
+The performance-only experiment is closed: its sole candidate failed the retention gate and was
+restored exactly to v7, with no functional suite. No retry, retained capability or successor follows.
+CPU0058 + CPU0059 + Prepare0015 Complete → [CPU0060 Complete](tasks/0060-symbolic-length-scan-java-loop-shape.md#result).
+MAIN accepted serial clean implementation, independent code/docs/prelaunch/result reviews and
+owning/named gates on 2026-10-28. The sole diagnostic slot is consumed; Java gap and full-path JIT
+limits remain. No CPU0048–0052 launch, automatic successor or old measurement-budget reopening.
+[CPU0059](tasks/0059-scan-v6-v5-java-measurement.md#result) is Complete, MAIN accepted after
+independent actual-result APPROVE (0 P1/P2). Repaired preflight and three measured JVMs passed;
+no consistent v6 speedup, local Java gap and full-path JIT limits remain. All slots consumed;
+original failure/evidence unchanged. That completed grant authorizes no automatic successor or further measurement.
+CPU0058 Complete → CPU0059 is the user's distinct finite measurement grant; old budgets stay closed.
+CPU0057 → [CPU0058 Complete](tasks/0058-symbolic-length-scan-zero-scratch-base.md#result): MAIN accepted
+independent code/docs APPROVE and the CPU/Javadoc/conformance/Engine gates on 2026-10-28.
+Only coefficient-proved nonbanked scratch bases and combined baked v6 changed; no timing or publication.
+CPU0056 → CPU0057 Complete: MAIN accepted parallel read-only source/ClassFile and JIT analyses,
+serial independent report review and documentation/preservation checkpoint on 2026-10-28.
+The report identifies bounded code-shape opportunities, not an authorized implementation or timing cause.
+CPU0055 + accepted Prepare0015 → CPU0056 Complete: independently reviewed hot/cold comparison
+rejected per-run handle insertion; exact withdrawal retains the original invocation. MAIN accepted
+the result on 2026-10-28. All measurement grants are closed; CPU0057 grants no further execution.
+CPU0047 records its bounded read-mapping/native-route
+scope, filtered owning validation and public Engine integration. Only CPU0047 is published as
+`07a281ed`. The user stopped CPU0053 after its untimed historical-pin mismatch; that task stays
+Cancelled without a retry. CPU0054's separately requested untimed verification is Complete after independent
+APPROVE: the ClassFile difference is confined to its generated name, with ABI and tested raw
+results unchanged. The subsequent user continuation delivered CPU0055, now Complete after
+independent actual-result APPROVE: one retained preflight and three serial measured JVMs,
+unchanged Java and preserved historical inputs/results. The wrapper filename false-negative and
+reviewed evidence-only continuation remain explicit in its Result. Its slots stay closed.
+CPU0048/CPU0049/CPU0050/CPU0050A/CPU0051 are Complete after MAIN acceptance; no CPU frontier is open;
+CPU0052 remains Draft/held.
+The user approved structural repairs before returning to Scan performance analysis:
+Compiler0016 → CPU0046 → CPU0047 → CPU0048 → CPU0049 → CPU0050 → CPU0050A → CPU0051 → CPU0052.
+CPU0049 includes both producer-to-reduction and recognized reduction-epilogue realization; all
+other requested repairs retain separate rows. Each Draft needs its compact verified packet before
+execution. Parallel group None; MAIN owns serial integration and shared documents under the
+explicit user-approved context exception for the completed repairs. The user separately authorized
+publication of only CPU0047 and CPU0053's finite measurement before CPU0048–0052; those remaining
+repairs grant no other Git mutation or benchmark. Completed measurement budgets remain exhausted;
+CPU0053's isolated campaign is now Cancelled at the user's request, with no measured slots used;
+it did not reopen historical selectors or evidence and authorizes no continuation.
+Completed CPU0043 + Prepare0015 + CPU0041 + CPU0042 → [CPU0044 Complete](tasks/0044-symbolic-length-scan-code-shape.md#result):
+MAIN accepted the bounded four-fix v4 repair and sole comparison on 2026-10-27 after independent
+source/evidence APPROVE, owning gates and accepted documentation receipts. Java parity remains
+unresolved, not a new authorized task. All four bodies consumed; no fifth/retry, rollback or successor.
+Seven integration fields, 2487-file repair-request base, protocols/evidence/limits remain in the brief.
+Parallel group None; MAIN owns final serial integration/shared documents.
+Historical completed diagnostic: Prepare0015 + CPU0041 + CPU0042 →
+[CPU0043 Complete](tasks/0043-symbolic-length-reverse-diagnostic.md#result), a bounded diagnostic with
+no production change and a bounded-unknown historical cause/residual overhead, not parity.
+Its brief owns seven integration fields, accepted dirty base, evidence and launcher limits.
+Independent Class C review approved; MAIN accepted frozen source/evidence and retains final
+shared-document integration/receipt acceptance. Its acceptance granted no automatic successor or further timing;
+CPU0044's separately authorized bounded repair is Complete above.
+
+[Prepare0015](../../modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result)
+is Complete, MAIN accepted 2026-10-27 after independent code/docs APPROVE (0 P1/P2), owning validation,
+the sole bounded probe and configured root test/Javadoc PASS. It delivers one named B plus runtime
+lengths, fixed T/features, homogeneous F32/F64 forward/actual reverse and bounded outer/control/ROW(1)
+through existing owners, retaining old identities/bytes. Separate combined/typed identities, no new
+type/memo/prerequisite chain. The short probe has large nonstationary reverse gaps; it is not parity
+or a JIT-cause proof. CPU0043's diagnostic and CPU0044's bounded repair are Complete.
+Historical v3 performance acceptance stays withheld; the accepted v4 comparison does not resolve
+the broader Java-parity target. All four bodies consumed; no rollback, new work or measurement authorized.
+
+At Model0043 acceptance, planning/source/authority frontiers were None. [Model0043](../../modules/model/tasks/0043-symbolic-length-scan-integration-design.md)
+is Complete for [combined symbolic-B/runtime-length F32/F64 Scan](../../length-aware-general-scan.md#proposed-symbolic-b-plus-lengths-integration)
+DESIGN DELIVERY ONLY; Hume the 4th final Class C APPROVE, 0 P1/P2/no unresolved findings;
+MAIN accepted 2026-10-26, not new semantics, authority or implementation.
+Its future vertical first qualifies bounded typed outer/control and ROW(1) constant plumbing,
+including proposed 34-limb F64 exact SUM/MEAN, then combined generated forward/actual reverse.
+At that design checkpoint CPU source/test and authority frontiers were None; completed CPU0043 is above.
+MAIN's serial review/integration is closed; Parallel group None; PlanningAuthorized=true is historical.
+
+Complete Model0037/0038 + Compiler0013 + Prepare0011/0014 + CPU0033/0037/0041 →
+[CPU0042 Complete](tasks/0042-length-aware-general-scan-execution.md#result), MAIN accepted
+2026-10-26 after independent Class C code/docs APPROVE and the recorded CPU/Javadoc, named joined
+checkpoint and sole bounded probe. Scope is fixed T/B/features length-aware F32/F64 forward and
+actual Compiler reverse, not dynamic-B lengths, cold/v5 or NN0032 migration. Existing CPU owners
+implement mixed INT64 control, producer-ordered preflight and activity/shared contribution loops;
+no new production type/package, supported API or Runtime handoff. Probe timing is nonstationary,
+not steady-state parity or a diagnosed compiler cause. The brief owns base, seven integration
+fields, evidence and limits. Parallel group None; MAIN owns integration and delegated the exclusive
+final docs pass after source freeze. Source/test frontier None; other frontiers unchanged,
+no automatic successor, further measurement or commit/push.
+
+Complete Prepare0014 + CPU0037 → CPU0038 Complete →
+[CPU0039](tasks/0039-symbolic-scan-fixed-geometry-specialization.md#result) Complete, MAIN accepted
+2026-10-25 for bounded fixed-geometry structural/correctness/verification after independent final
+code/docs APPROVE and module/Javadoc, named checkpoint and single bounded probe PASS.
+At CPU0039 acceptance the original performance gap remained unresolved; that implementation/reviewer closed.
+Complete CPU0039 + Prepare0014 + CPU0037 →
+[CPU0040](tasks/0040-symbolic-scan-phase-code-diagnostic.md#result) Complete for bounded diagnostic only.
+Complete CPU0040 + CPU0039 + CPU0037 + Prepare0014 →
+[CPU0041](tasks/0041-symbolic-scan-reverse-carrier-specialization.md#result) Complete, MAIN accepted
+2026-10-26 after Peirce final source/docs and evidence APPROVE and all gates. At CPU0041 acceptance,
+CPU source/test frontier was None; CPU0042's subsequent completion is above, other areas remain held.
+The controlled source change binds demanded port-backed cuts directly to immutable entry receivers
+in existing `internal.codegen.emit.CpuGeneralScanEmitter`, with symbolic v3 in `internal.ir.CpuGeneralScanIr`;
+`CpuGeneralScanMatmulEmitter`, arithmetic/resources and checked FFM are unchanged. The measured large
+case now has four-way guard-free reverse backedges and near-Java timings, not universal parity or
+an internal C2 phi proof. The brief owns results, limits and all seven integration fields.
+Historical admission verified Complete predecessors/reviews/gates, sole writer/inactive conflicts,
+2475-file pre-plan snapshot, empty index and HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`
+plus accepted dirty work. Parallel group None; MAIN-owned serial implementation/review, final CPU
+gate, named join and one DEV/one FINAL capture are closed. Full 2476-file freeze remained unchanged
+through gates; canonical/family/static v4/fixed/ordinary identities and four oracle/timing files retained.
+CPU0038 remains historical Complete; its acceptance itself authorized no production successor.
+
+CPU0022 + CPU0028 → CPU0029, all Complete. CPU0030 bounded vertical milestone is Complete.
+Before CPU0038, CPU frontier was None. [CPU0037](tasks/0037-general-scan-dense-read-views.md#result) is Complete,
+accepted by main 2026-10-24 after Newton final independent APPROVE and final gates. Pre-code authority
+was accepted at 05:44 UTC, launch verified at 05:47:51 UTC; no successor authorized.
+CPU0036 + accepted foundation/low-level join → CPU0037, all Complete. Conflicts: scan admission/resources/binding/
+IR/identity/shared docs (inactive); Parallel group None; base HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`
+plus accepted dirty work. Main owns serial integration/shared docs and the brief's final checkpoint.
+Package map: existing `internal.lowering.CpuGeneralScanLowering` only; no new production type/package.
+
+[Prepare0014 symbolic Scan CPU vertical](../../modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md)
+is Complete, MAIN accepted 2026-10-25 after independent code/docs APPROVE and the configured
+source-matched root gate (PlanningAuthorized=true; ImplementationAuthorized=true record admission), joining Complete
+Compiler0014/Prepare0013/Prepare0011 and the recorded CPU0037/resource/Engine/source predecessors.
+It coordinates existing lowering/IR/preparer/emitter/executable owners, exact run sizing and a
+distinct symbolic identity while freezing static schema71/v4 keys/bytes. No new type/signature
+selected or added; any future addition requires explicit approval. At that acceptance CPU source frontier was None.
+Planning APPROVE, 0 P1/P2; user “jdi na to” source approval and MAIN Ready verification 2026-10-25 17:00 UTC.
+Parallel group None; MAIN completed serial integration/shared docs and the configured vertical join.
+The brief records bounded CPU/Engine measurements and their limits, not performance parity.
+
+CPU0033 + low-level join and accepted Compiler0012 baseline →
+[CPU0034](tasks/0034-general-scan-coordinate-loops-and-carry-transition.md#result), all Complete.
+Main accepted CPU0034's bounded coordinate-loop/carry optimization on 2026-10-23 after independent
+review, runtime gates and exact-data/JIT audit. Existing emission/IR/cache owners remain; the brief
+owns integration metadata, results and limits. CPU0034 → CPU0035 are Complete; Parallel group None,
+main-owned serial implementation/review/checkpoint/campaign closed. CPU0035 Result owns evidence
+and limits. CPU0035 → CPU0036 are Complete; CPU0036 Result owns evidence and disclosed limits.
+Its brief retains verified base/dependencies/conflicts and integration metadata: Parallel group None,
+serial clean implementation/review, main-owned shared documents/checkpoints/single campaign closed.
+Checkpoint/NN/other gates stay held; no additional campaign or performance qualification implied.
+CPU0032 accepted Complete 2026-10-22, 17:09+ UTC;
+its [Result](tasks/0032-general-scan-f32-matmul-and-reverse.md#result) owns final evidence and limits.
+CPU0023 and later domain gates stay Draft; [CPU0033 full homogeneous F64 closure](tasks/0033-general-scan-f64-domain-closure.md)
+is Complete after main accepted independent code/docs approval and the native root join.
 NN0022A/B remain Complete compatibility baselines, not new CPU dependencies.
+
+[General scan program](../../general-differentiable-scan.md) / [Model0034 decision](../../modules/model/tasks/0034-general-differentiable-scan-decision.md)
+records Model0034 authority decision/cutover Complete, accepted by main 2026-10-21 after final
+independent Class C APPROVE, zero blockers; the brief owns result evidence. Compiler0010 fixed-adjoint
+direction is Superseded. Serial DAG: completed reviewed authority cutover
+→ Model source/IR → Planning body query → Compiler body AD → Prepare projection → bounded
+CPU0030 F32 pointwise forward/automatic-reverse Complete → CPU0031 F32 broadcast/SUM/layout
+Complete → CPU0032 rank-two MATMUL/actual F32 reverse Complete → CPU0033 full homogeneous F64 algebra/closure Complete
+→ low-level root/native join Complete.
+Base main=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`; Parallel group None, main owns
+shared documents/integration. CPU0030 is Complete. Actual user approval (“ok, tak tedy pokracuj”)
+covers the concrete body/reverse-scan/residual proposal and authority cutover, not CPU implementation.
+The brief records historical Complete predecessors/base/inactive conflicts verified on 2026-10-21.
+Authority/Model frontiers None; [Model0035 source/IR](../../modules/model/tasks/0035-general-scan-source-and-compiled-body.md)
+is Complete, accepted by main 2026-10-22 after independent approval and its compatibility checkpoint.
+Planning0008 body query is Complete, accepted by main 2026-10-22 after final independent APPROVE and
+compatibility gates; Planning frontier None. [Compiler0011](../../modules/compiler/tasks/0011-general-scan-capture-and-first-order-ad.md)
+is Complete, accepted by main 2026-10-22 after independent code/docs APPROVE and compatibility checkpoint.
+[Prepare0010](../../modules/prepare/tasks/0010-general-scan-projection-and-resource-handoff.md) is Complete:
+scoped projection/demand validation and resource handoff, main accepted 2026-10-22 after Huygens
+final Class C code/docs APPROVE and the exact compatibility checkpoint.
+At that completed milestone CPU/Prepare/Compiler/Planning/Model/NN frontiers were None;
+  CPU0034–CPU0045 are Complete; the current structural-repair queue is recorded above.
+Bounded CPU F32 pointwise forward + actual
+automatic reverse [CPU0030](tasks/0030-general-scan-f32-pointwise-vertical.md) is Complete, accepted
+by main 2026-10-22 after independent review and focused checkpoint PASS; its brief owns evidence.
+Current base retains accepted uncommitted predecessors and CPU0030–0033 work.
+[CPU0031 Result](tasks/0031-general-scan-f32-broadcast-sum-layout-closure.md#result) owns final
+review/module/checkpoint evidence and main acceptance; its seven integration fields and historical
+launch verification remain recorded. User-selected CPU0032 is Complete;
+full F64 closure is CPU0033, Complete. Production ownership remains CPU-only. The low-level
+root/native join is Complete; padding/NN, persistence and BF16/FP16 qualification stay separately gated Draft.
+
+CPU0032's brief retains all seven integration fields, historical dependency/base verification and
+main launch authorization. Serial integration, independent code/docs and two-file test-addendum
+approval, final CPU test/Javadoc, named conformance/Engine and targeted architecture checkpoint,
+and main acceptance are complete. Main owns shared documents; no implementation context remains.
+[CPU0033 Result](tasks/0033-general-scan-f64-domain-closure.md#result) owns main acceptance, independent
+code/docs and identity-test addendum approval, final CPU/Javadoc and source-matched native root evidence.
+Its seven fields preserve actual HEAD plus accepted uncommitted foundations. Main owns shared documents;
+at that acceptance CPU frontier was None, low-level join Complete, no successor launch. The shaped-forward timing gap remains
+unexplained, reverse samples nonstationary; no JIT-cause or performance-parity claim.
+
+Completed CPU0029 integration metadata (historical, not CPU0030 launch authority):
 
 - Depends on: CPU0028 and CPU0022, verified Complete with accepted review/validation on 2026-10-21.
 - Conflicts with: scan admission/lowering/kernel/binding/resources, numerical policy, current
@@ -306,6 +760,34 @@ diagnostic, not speed qualification or a performance claim.
 
 ## Milestones and current frontier
 
+- CPU0048/CPU0049 are Complete after independent approval, recorded gates and MAIN acceptance.
+  [CPU0049 Result](tasks/0049-producer-reduction-fusion.md#result) owns bounded scope/evidence/limits;
+  [CPU0050](tasks/0050-average-pool2d-backward-broadcast-fold.md#result) Complete, MAIN accepted
+  2026-10-31 after Dirac FINAL APPROVE and all gates PASS; no new production types, bounded existing-owner
+  fold only. Separate [CPU0050A](tasks/0050a-low-fold-fp32-accumulation.md#result) Complete after FINAL
+  approval and qualified gate closure; original full gate remains FAILED, not full green.
+  Frontier was None after CPU0051 acceptance; CPU0077's separately admitted release repair is
+  indexed above. CPU0052 Draft/held, historical Scan timing paused; no automatic successor.
+- CPU0076 is Complete after independent source/protocol/result/documentation approval and MAIN's
+  CPU/Javadoc/named Engine PASS. B256's bounded improvement and B32's JIT caveat stay in its Result;
+  no universal speed/parity/C1 repair or automatic successor. Its frontier/budget closed; CPU0048 admission is above.
+- CPU0074 is Complete and MAIN accepted; the brief records final validation and the sole comparison.
+  Steady-state profitability is unqualified; concrete JIT-pressure investigation is separate.
+  Scalar CPU0073/no-region Scan/defaults remain; no rollout or automatic successor is authorized.
+- CPU0066 completed planning result is retained; CPU0067/0068 and CPU0069 outline are superseded.
+  CPU0070 replacement, CPU0071 MATMUL foundation and CPU0072 pointwise/SUM composition are Complete
+  after independent review and recorded MAIN gates on 2026-10-29. Their frontiers are closed;
+  the subsequent backward-code comparison motivated CPU0073. Literal-transfer limits remain; CPU0072
+  measured nothing and CPU0071's sole diagnostic stays spent/closed, with no parity claim.
+- CPU0073's [exact fusion design](row-map-multi-reduction-fusion-plan.md) and implementation start
+  were user-approved 2026-10-30. Implementation, independent final reviews, MAIN named join and
+  documentation closure are Complete; source/measurement frontiers None, no automatic successor.
+  Performance is unmeasured; no commit/push. CPU0048–0052 stayed queued at that checkpoint.
+- CPU0065 Complete delivers ordinary F32/F64 vector MATMUL TANH after independent review and recorded gates; frontier None. CPU0063/0064 Complete: reviewed J4 alignment ported as combined baked v9, with scoped timing benefit and CPU/Javadoc/named integration gates; no broader Scan parity or vector/parallel capability. CPU0062 slots closed; CPU0061 Cancelled; CPU0048–0052 queued, CPU0053 Cancelled.
+  [CPU0042](tasks/0042-length-aware-general-scan-execution.md#result)
+  is Complete, MAIN accepted 2026-10-26 after independent code/docs APPROVE and recorded gates.
+  [CPU0041](tasks/0041-symbolic-scan-reverse-carrier-specialization.md#result) remains Complete after
+  MAIN acceptance/all gates; bounded measured-case gap resolved, no automatic launch.
 - Completed DAG: NN0021A + Model0025E/0025F + Compiler0006A + CPU0027 + Engine0021 + CP0010/CP0011
   → [CPU0028](tasks/0028-fixed-recurrent-scan-forward-execution.md)
   → [NN0021B](../../extensions/nn/tasks/0021b-fixed-recurrent-scan-implementation-program.md), all Complete.
@@ -342,20 +824,66 @@ diagnostic, not speed qualification or a performance claim.
 Model 0032 removed the selectors and profile fields introduced by historical CPU 0017. The
 review baseline uses CPU generated schema 69 and explicit dtype/shape/strategy compatibility.
 FLOAT16 is an active Model type with occurrence-specific CPU support, not a future Model 0026
-prerequisite. Completed CPU 0022 advances the current generated envelope to schema 70 for
-activation-extreme and low-working-site corrections; stale schema 69 is an incompatible miss.
+prerequisite. Completed CPU 0022 advanced the generated envelope to schema 70 for
+activation-extreme and low-working-site corrections. CPU0030 advances the current envelope and
+general-scan family identity to 71; schemas 70 and earlier are stale.
 Historical profile integration evidence remains in its completed task records.
+CPU0034/CPU0035's historical staged v2/v3 payloads were superseded by CPU0036's
+`scan-shaped-v4` and `scan-matmul-v4` in both specialization streams; real v1/v2/v3 artifacts reject. Envelope/family 71,
+geometry-free canonical v1 projections and unrelated pointwise/fixed keys/bytes stay frozen.
+CPU0041 advances only the symbolic baked payload to v3 in both streams, rejecting symbolic v1/v2;
+canonical symbolic v1, family/schema 71 and retained static/ordinary identities and bytes are unchanged.
+CPU0042 adds only length canonical v1 and baked `|scan-length-aware-v1=` in both streams;
+runtime L values are excluded, and retained all-valid/fixed/ordinary keys and generated bytes stay unchanged.
+The implemented [CPU0071 exception](../../../architecture/contracts/backend-execution.md#cpu0071-approved-static-matmul-compatibility-cutover)
+narrowly qualifies those historical retention promises. Its Result records the two static MATMUL
+cutovers and exact retained controls, not universal byte-preservation or performance proof.
+
+The [CPU0073 accepted mechanism](../../../architecture/contracts/backend-execution.md#cpu0073-accepted-row-map-and-multiple-terminal-reduction-fusion)
+uses only selected ordinary projection 72 and ordinary/Scan row-fusion-v1 appendages.
+Envelope 71, Scan projection 71 and noneligible keys/ClassFiles/resources stay unchanged;
+bounded execution is implemented, independently reviewed and MAIN accepted 2026-10-30.
+
+[CPU0076's implemented exception](../../../architecture/contracts/backend-execution.md#cpu0076-prospective-invariant-external-cell-load-staging)
+permits new affected-only scalar staging markers in both streams; no-staging cases, canonical
+keys, envelope71/projections72/71, SIMD/nonregional bytes and historical resources remain unchanged.
+Complete-body/rank/lifetime-budget fallback preserves existing capability; the Result owns bounded
+evidence rather than a blanket generation or performance guarantee.
 
 ## Live gates and decisions
 
+- **CPU0031–0033 and low-level join Complete:** Compiler0010 is Superseded. All-valid canonical/static T first;
+  F32 is the initial working case, first completed declared CPU domain includes F32 AND F64.
+  Emit outer time loop + admitted typed body emitters at generation time, only in finalization
+  after exact resource declaration/assigned slots. Hoist invariants and prefer direct time offsets;
+  justify necessary staging/carry/temporaries, retaining live residuals/MATMUL storage. Changing
+  addresses/geometry/carry belong to RunState, never shared prepared state. Existing entry-ABI
+  emitters need explicit bindings; no runtime interpreter/per-op lookup/per-step callback or allocation
+  or T-fold growth. Follow program's clean-Java/Class-File/short warmed performance gate; no no-copy,
+  vector/parallel, all-dtype, JIT or CPU0029 parity promise. Concrete proposal/cutover approval is recorded;
+  Model0034 authority and Model0035 source/IR are Complete; their frontiers None. CPU0033 and the
+  low-level native root join and CPU0034–CPU0045 are Complete; the current repair queue is above.
+  Planning0008 transport and Compiler0011 AD/capture are Complete;
+  main accepted Compiler0011 2026-10-22 after independent code/docs APPROVE and compatibility checkpoint.
+  Prepare0010 scoped projection/resource handoff is Complete; other scan frontiers None.
+  [CPU0030](tasks/0030-general-scan-f32-pointwise-vertical.md) is Complete for bounded F32 pointwise
+  forward/actual automatic reverse, accepted 2026-10-22. CPU0031 is Complete for bounded F32 broadcast/SUM/layout
+  forward/actual reverse, including parameter-shaped carries and nonempty SUM from empty steps.
+  CPU0032 closes MATMUL's fixed entry-slot/geometry seam and actual F32 automatic reverse;
+  accepted evidence and limitations stay in its Result. F64's typed/byte-width/numerical
+  qualification is [CPU0033](tasks/0033-general-scan-f64-domain-closure.md#result), Complete after independent
+  code/docs approval and native root PASS; no new AD layer. No padded training upgrade or extra timing campaign. Old four-dtype/layout fixed routes remain.
 - CPU 0024 is Complete after exact heap-segment binding, the P1 mixed-carrier overlap fix,
   clean independent re-review, and direct Engine/Checkpoint acceptance. Its combined
   source-matched `test javadoc` checkpoint passed. CPU0025 is Complete after independent APPROVE,
   zero findings; main's final native root gate passed on the unchanged reviewed NN0029 snapshot.
   CPU0026 diagnostic, CPU0027 adjacency/stable-Kahn fix and CPU0028 bounded scan execution are
   Complete after independent reviews and configured validation. CPU0023 stays Draft; CPU0029 is
-  Complete after final independent APPROVE and main's source-matched root gate. CPU frontier None;
-  no automatic successor launch or performance qualification; timing parity remains unproven.
+  Complete after final independent APPROVE and main's source-matched root gate. CPU0030–CPU0036 and the low-level join are Complete;
+  CPU0037–CPU0045 are Complete; the current repair queue is above. CPU0040's diagnostic
+  left the issue unresolved at that checkpoint; CPU0041 closes the narrow fix with bounded
+  observed near-Java performance in the measured case, not universal parity or a wider campaign.
+  CPU0036 owns reused bounded loop-control evidence/limits; CPU0034/0035 timing stays historical.
   Existing architecture, other routes, fusion policy and resource contracts are unchanged.
 - CPU 0023 is a proposed bounded vector ERF shape follow-up, not an authorized successor. The
   audit diagnostic shows a current timing gap, but does not establish its cause or a regression.

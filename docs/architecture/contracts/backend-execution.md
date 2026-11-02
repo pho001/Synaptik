@@ -68,6 +68,17 @@ Concrete backend modules may depend on:
 
 Concrete backend modules must not depend on engine.
 
+For accepted general scan, provider support must qualify the complete body and its loop binder,
+not infer support from child operations alone. One backend owns the whole scan; global AD remains
+Compiler-owned. CPU0030 implements bounded FLOAT32 pointwise execution; CPU0031 extends it with
+qualified FLOAT32 broadcast, SUM/sumToShape and bounded shape/layout closure, including actual
+independently qualified reverse bodies. CPU0032 adds static homogeneous FLOAT32 rank-two MATMUL
+and independently qualified actual reverse bodies, as described under
+[CPU backend routes](#cpu-backend-routes). CPU0033 implements homogeneous FLOAT64 across the
+complete bounded declared algebra and actual first-order reverse closure under the same
+whole-body/binder qualification. The
+[scan contract](recurrent-scan.md#general-differentiable-scan) solely owns scan semantics and gates.
+
 Each concrete backend owns the complete typed configuration vocabulary and candidate generator
 for each route it implements. A generator derives and prunes complete valid configurations from
 target capabilities, canonical workload facts, and the tuning budget. CPU matrix-multiplication
@@ -151,8 +162,9 @@ production preparation and adds no runtime timing, fallback, retry, or workload 
 
 ## Low-precision capability evidence
 
-The Model, CPU, and Metal `FLOAT16` allocation, value, provider, route, and execution semantics are
-active. Canonical capability ledgers are generated from actual `CpuCapabilityProvider` and
+Model `FLOAT16` values/storage/semantics and Metal's qualified low execution remain active.
+CPU low arithmetic is subject to the independently reviewed CPU0078 lock below; retained exact/
+raw/conversion/storage roles stay active. Canonical ledgers use actual `CpuCapabilityProvider` and
 `MetalCapabilityProvider` queries over a stable representative basis. Each row records backend,
 occurrence identity, kind and attributes, ordered input/output descriptors, data type,
 Shape, layout, gradient metadata, arity, and the boolean provider answer. Checked-in supported and
@@ -171,18 +183,19 @@ historical evidence; its `ACCELERATOR` true and false answers established the pr
 baseline and must not be rewritten by later capability work. The v2 ledger records actual current
 profile-free answers on its representative basis, including independent homogeneous BFLOAT16 and
 FLOAT16 queries and explicit negative predicates. It was initially projected from the cutover
-`ACCELERATOR` answers, but is not permanently constrained to equal that projection. Reviewed new
-occurrences may change v2 and the provider while leaving v1 intact. Both ledgers detect drift in
+`ACCELERATOR` answers, but is not permanently constrained to equal that projection. Reviewed
+capability changes may update v2 and the provider while leaving v1 intact. Both ledgers detect drift in
 their respective snapshots; neither enumerates the full provider domain or certifies numerics.
 Every supported frozen `ACCELERATOR` FLOAT32 Metal occurrence retains its independently queried
-homogeneous low counterparts where declared. Existing supported low answers remain true. Exact
+homogeneous low counterparts where declared. Existing supported Metal low answers remain true;
+CPU's temporary arithmetic lock is the explicit exception to retained CPU availability. Exact
 movement, Shape/layout, indexing, selection,
 ordering, state, and cast occurrences remain exact substrate. Direct BFLOAT16/FLOAT16 mixed-low
 operations are unsupported; an explicit
 cast to FLOAT32 is the sole mixed-low boundary. Forward capability remains distinct from
 generated-backward ownership.
 
-Every active low family has a qualified custom implementation with FLOAT32 working/accumulator
+Every active Metal low family has a qualified custom implementation with FLOAT32 working/accumulator
 values and Model-owned exact discrete/raw/cast/one-final-ties-to-even-narrowing rules. The
 Model's named arithmetic-site DAZ/FTZ table and family exact-zero sign and NaN class/domain
 rules govern it. Operation-local
@@ -245,6 +258,10 @@ mutation rules. No version number is assigned by this documentation stage.
 
 ## CPU backend routes
 
+The implemented [CPU0074 exception](#cpu0074-selected-row-region-execution-exception)
+qualifies only the selected exec-v1 cases of the scalar-only/no-per-step-dispatch restrictions
+below. All other restrictions and implemented-capability statements remain unchanged.
+
 CPU scalar, CPU Vector API, generated JVM-bytecode CPU computation kernels, and OpenBLAS are
 routes inside the CPU backend.
 
@@ -287,6 +304,1197 @@ cpu-blas
 ```
 
 unless this document is updated first.
+
+The accepted general-scan CPU path is not the existing fixed recurrent Java route. Analysis
+prepares one body and declares exact checked staging, carry, temporary, output and demanded-history
+resources before shared slot assignment. Finalization, only after assigned slots, emits the outer
+time loop and admitted typed body emitters. The complete semantic protocol remains in
+[the scan owner](recurrent-scan.md#general-differentiable-scan). CPU0030 implements this path for
+bounded same-shape FLOAT32 pointwise bodies and their actual independently qualified
+Compiler-generated reverse siblings. CPU0031 adds homogeneous FLOAT32 broadcast, SUM/sumToShape
+and bounded shape/layout closure under the same independent whole-occurrence qualification.
+CPU0032 adds static homogeneous FLOAT32 rank-two MATMUL within the same emitted time loop,
+including independently qualified actual Compiler-generated reverse bodies. CPU0033 implements
+homogeneous FLOAT64 across the complete bounded declared algebra and actual first-order reverse
+closure, with double producing/accumulator sites and eight-byte resources. CPU0037's implemented
+actual-read exception is defined only by the
+[scan owner](recurrent-scan.md#traversal-empty-domains-and-declared-qualification);
+qualification and main's final capability acceptance are recorded in CPU0037 (2026-10-24).
+No low-type, wider-layout, vector, parallel or OpenBLAS scan capability follows;
+a forward provider answer alone is not a
+backward capability claim.
+
+Existing CpuLoopEmitter generation callbacks and CpuScalarEmitter typed locals are generation-time
+composition seams, not runtime per-step callbacks. CpuKernelIr's pointwise instruction list,
+CpuMatmulEmitter's entry-slot/geometry assumptions and CpuCarrierEmitter's fixed entry ABI/local
+block are not plug-and-play step bodies. Implementation must explicitly bind invocation versus
+step setup, typed carriers/locals, bases, ranges and geometry. Hoist invariant setup outside time
+and prefer direct time-dependent offsets/addresses into sequences, emissions and live residuals.
+Reuse scalar/vector/carrier arithmetic only where qualified; no vector/parallel capability follows.
+
+Select/materialize only when necessary and justify staging copies, carry banks and body temporaries.
+Emission cannot remove live saved histories or all MATMUL storage. Dead residuals, including reverse
+residuals, require no history bytes/stores or residual fusion restriction. One RunState owns all
+mutable memory, changing addresses, carry and geometry arrays; shared prepared state is immutable.
+No runtime graph interpreter, per-operation lookup, per-step dispatch/callback/allocation or T-fold
+graph/code expansion is allowed. Technically necessary direct static helpers require an explicit
+clean Java oracle rationale; this is not a mandate for one giant method or hidden fallback overhead.
+
+CpuKernelIr canonical identity still excludes extents, assigned slots and run bindings. Separate
+baked from runtime scan facts, and key every baked body/role/demand fact in the appropriate CPU
+generated compatibility identity. Reject stale format or meaning artifacts. The original scan
+decision selected no schema number or CPU type; CPU0030 now uses generator envelope 71 and typed
+general-scan family projection 71. CPU0031 preserves both identities and the old pointwise keys/bytes:
+its additive shaped-v1 canonical projection is geometry-free, while both existing specialization
+identity byte streams conditionally include all baked shaped geometry and resource facts.
+CPU0032 preserves schema/family 71 and both old pointwise and shaped keys/bytes. Its additive
+MATMUL-v1 canonical projection remains geometry-free; the separate `scan-matmul-v1` payload binds
+ordered operands and all baked affine/resource facts in both specialization identity streams.
+CPU0033 adds typed FLOAT64 variants without changing schema/family 71, either staged projection or
+its versioned payload. Existing arithmetic/boundary dtype and eight-byte baked resource facts
+distinguish those variants in both streams; accepted FLOAT32 keys and generated bytes are retained.
+CPU0034 subsequently advanced the sole baked shaped/MATMUL payload discriminants to
+`scan-shaped-v2` and `scan-matmul-v2` for both dtypes. Typed coordinate induction and proved
+post-step emission-carry transitions change staged bytecode, so both specialization streams,
+binary names and cache keys advanced and rejected staged v1 artifacts. CPU0035 advanced those
+same sole baked payloads to `scan-shaped-v3` and `scan-matmul-v3` in both streams for proved
+redundant factor, address and local-copy cleanup. CPU0036 advances the same payloads to
+`scan-shaped-v4` and `scan-matmul-v4` for top-tested staged loop control and dominating final-copy
+bases. Staged v1/v2/v3 artifacts are incompatible.
+Global schema/family 71, geometry-free canonical v1 projections and pointwise/fixed/unrelated
+identities remain unchanged;
+the CPU0033 retention statement above describes that earlier acceptance, not current staged bytes.
+Future CPU briefs must name every added type without speculative
+general control-flow infrastructure. Generic no-copy, JIT, speed or CPU0029 timing parity is unproved.
+The [scan qualification gates](recurrent-scan.md#qualification-performance-and-migration-gates)
+require a complete F32 forward/automatic-reverse milestone, then declared algebra/closure and F64
+completion, clean Java algorithm/hot-loop/dataflow comparison, Class-File inspection and short warmed
+matched-work evidence with cold/entry/kernel costs separated. No measurement is part of this cutover.
+
+CPU0042's fixed-geometry length-aware execution reuses this generated path, not the fixed executor;
+its complete semantics belong to the [scan owner](recurrent-scan.md#length-aware-whole-batch-scan).
+CPU independently qualifies FLOAT32/FLOAT64 forward and actual Compiler reverse, mixed INT64/floating boundary
+binding, exact predeclared resources, activity-dominated lowering/emission and changed length-mode
+identities. Old all-valid/fixed keys and generated bytes stay unchanged and must not depend on
+changed ScanAttrs diagnostic text. The length-only branch precedes legacy analysis and adds canonical
+`:length-aware-v1` and baked `|scan-length-aware-v1=` in both specialization streams, retaining
+schema/family 71, static staged v4, symbolic v3 and unrelated keys/bytes. MAIN accepted CPU0042
+on 2026-10-26 after independent review and recorded gates; its
+[Result](../../planning/backends/cpu/tasks/0042-length-aware-general-scan-execution.md#result)
+owns the evidence and nonstationary timing limits. Prepare0015 implements symbolic-B plus lengths;
+its root validation and the sole bounded probe completed (evidence and limits:
+[Prepare0015 Result](../../planning/modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result) );
+final MAIN acceptance remains pending.
+Low-type/Metal/vector/parallel/OpenBLAS Scan remain unsupported.
+
+The implemented combined scope is fixed T/features, one named B, homogeneous FLOAT32/FLOAT64
+generated scalar, single-range forward and actual Compiler-generated reverse. Existing Scan
+lowering/IR/preparer/emitter/executable owners carry combined numeric recipes, explicit B and
+separate INT64 control; no new type/API/protocol or all-valid symbolic FLOAT64 capability is selected.
+The bounded ordinary outer/control/ROW(1) prerequisite below is implemented in the same task.
+The [scan owner](recurrent-scan.md#runtime-preflight-and-implementation-gates) retains all semantics,
+including original-source AD restrictions, generated mixed roles, saved sites, activity/preflight
+and resource algorithms. Owning executable validation and independent code/structural review passed;
+Root validation and the sole bounded probe completed;
+[Prepare0015 Result](../../planning/modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result)
+records evidence and limits. Final MAIN acceptance remains pending.
+Use separate canonical `:symbolic-length-v1` and current baked `|scan-symbolic-length-v9=` identities
+in both specialization streams, binding dtype, roles, terminal dependencies, demand, control position,
+numeric pack and baked recipe facts. Actual B/L, resolved bytes, slots and addresses stay excluded.
+CPU0044 advanced only this combined baked payload to v4 for cached-local self-move removal, copy-local
+actual splat initializer caching, unused layout/dense-geometry setup removal and coefficient-proved
+original-time product sharing. CPU0045 advanced it to v5 for stable own-final-port carries without
+a bank: raw initial copying precedes nominal-stride binding, each derived view retains its own
+recipe, and identical read/write relative offsets share one cell-scoped local with proved zero
+bases omitted. Changing/bank-backed and noncombined bindings retain their selection protocol.
+CPU0058 advanced only the combined baked payload to v6: a nonbanked scratch cut gains the existing
+zero-base load/store proof only when both coefficients of its complete
+`offset + offsetPerBatch * B` recipe are zero. Its entry scratch carrier/base stays valid through
+every use in the inclusive cut lifetime; aliases consult the exact origin's proof while keeping
+their own relative strides. Port/time-backed and carry-bank cuts retain their original bases,
+and relative-offset caching remains cell-scoped. No allocation, lifetime or bank choice changes.
+CPU0060 advanced only that payload to v7 for flat scalar initialization, the existing initialized
+EMPTY publication path at zero maximum length, coordinate-nested pointwise affine prefixes,
+proved direct addresses for active ROW(1) @ ROW(0) contributors and raw-singleton SUM-to-Shape
+without a contributor loop. At that version, other matrix paths retained their cursor algorithm.
+CPU0064 advances only that payload to v9, skipping withdrawn v8. Stable carriers and temporal
+bases bind directly, and affine byte facts derive from admitted explicit B. Combined feature
+contractions with proved constant effective K strides also use indexed addresses; the existing
+contiguous-feature ROW(1) @ ROW(0) proof retains activity-gated indexed contributors.
+Bank-free stage scheduling preserves producing dependencies, physical output read/write hazards
+and inclusive assigned-scratch lifetimes; failed proofs retain the declared order. Bank-free
+active-time skipping precedes temporal setup, while bank-backed transitions retain raw inactive
+copies. Unproved contractions retain their cursor path. Represented products/additions, separate
+per-time carry ADD sites, singleton raw movement, padding and saved histories remain unchanged.
+Both streams reject combined baked v1 through v8 artifacts. Canonical v1,
+the `typed-explicit-b-v1` numeric pack, cuts and scratch remain unchanged.
+Retain schema/family 71, static staged v4, all-valid symbolic canonical v1/baked v3, static-length v1
+and all other noncombined keys and generated bytes exactly.
+
+The accepted [symbolic Scan domain](recurrent-scan.md#accepted-symbolic-batch-scan)
+is implemented by Prepare0014, with final qualification tracked in its
+[task](../../planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md). Execution is homogeneous FLOAT32, generated
+scalar and single-range, fixed T/features/state widths with invocation B; Model source dtype
+validity and Compiler's bounded FLOAT32/FLOAT64 AD are not CPU answers. Qualify the complete
+forward and actual Compiler-generated reverse occurrences independently, including bounded
+rank-three outer closure, not merely supported child kinds or a handwritten reverse body.
+
+Prepare0014 extends existing Scan analysis/IR/preparer/emitter owners and explicit provider dispatch;
+symbolic Scan no longer falls through ordinary-batch-only analysis. Analysis fixes the
+complete body/resource topology and immutable numeric access/frame/cut/carry-offset recipes before
+slots; finalization emits after slots. Use existing `CpuAccessPlan.BatchBinding`, MATMUL/aggregate
+numeric binding, `PreparedMemoryPlan.ByteSize` and numeric RunMemoryGeometry handoff. Recipes may
+need checked piecewise alignment/empty scratch, not only affine byte sizes. Do not interpret a
+sample B, relower on bind, allocate maximum banks or choose per-B routes/slots/topology.
+Structural zero-byte workspaces keep their fixed requirement/creator. Prove any cut lifetime and
+size dominance for every admitted B; retain disjoint regions otherwise. Complete resource and
+empty/saved-site semantics remain solely with the linked Scan owner.
+
+State-aware representation hooks must check actual bytes plus physical type/access/alignment/
+overlap. Binding copies numeric facts into fresh run-owned mutable packed/access/carry/address
+arrays; no shared currentB or ThreadLocal. The accepted future
+[Engine memo](runtime-prepare-engine.md#accepted-engine-geometry-memo) does not authenticate CPU
+storage or expose a memo to generated code. Load B/strides/frame offsets once per invocation or
+necessary row setup, then use direct time/row/feature loops, cursor increments and typed MATMUL
+contributors matching optimal specialized clean Java. No per-element recipe/memo lookup, boxing,
+reflection, allocation or dispatch, hidden generic fallback overhead or changed arithmetic is allowed.
+
+Use a distinct symbolic-Scan compatibility branch in both existing specialization streams; bind
+all baked dtype/body/role/demand/mapping/recipe facts. Actual B, resolved bytes, assigned slots and
+addresses stay excluded. Preserve static Scan/fixed/ordinary keys and generated bytes; diagnostic
+text is not identity. Prepare0014 retains schema/family 71 and static canonical v1,
+`scan-shaped-v4`/`scan-matmul-v4` identities and bytes. Symbolic mode alone adds canonical
+`:symbolic-batch-v1`, which remains unchanged. CPU0039 advanced only the baked symbolic payload
+to `|scan-symbolic-batch-v2=` in both existing specialization streams for coefficient-proved fixed
+geometry, int-bounded symbolic contractions and generation-only cell-scoped affine offset sharing.
+CPU0041 advances only that payload to the current `|scan-symbolic-batch-v3=` for direct immutable
+entry-carrier bindings on produced cuts backed by demanded ports. Checked foreign-memory access and
+independent formal-carry selection remain unchanged. Symbolic baked v1/v2 artifacts are
+incompatible; schema/family 71 and static Scan/fixed/ordinary
+keys and generated bytes remain unchanged. Scan's ordinary-batch flag remains false.
+Existing View/Cut/Stages facts carry the numeric recipes,
+with no new production type or Runtime handoff in that delivered vertical. The later
+[CPU0073 accepted mechanism](#cpu0073-accepted-row-map-and-multiple-terminal-reduction-fusion)
+permits only its exact named types and selective identities. Any other new named type or
+changed Runtime handoff requires the explicit approval stop gate in the Scan owner.
+
+Affected-module/conformance/integration tests must cover the Scan owner's semantic/empty/
+resource/admission matrix and independent actual reverse qualification. Generated Class-File
+inspection must compare clean-Java algorithm/hot-loop/dataflow and hidden overhead; bounded warmed
+matched-work generated/direct evidence separates setup, admission and kernel costs. Retained static
+keys/bytes and read exceptions need regression evidence; symbolic length skipping remains separate.
+Prepare0014 records source-matched focused evidence and bounded probe results/limits; final root
+qualification remains tracked there. No static/ordinary timing guarantee is inherited.
+
+### CPU0071 approved static MATMUL compatibility cutover
+
+The user approved this append-only cutover on 2026-10-29; CPU0071 implements it in the existing
+CPU owners. Independent source/Javadoc review approved the corrected frozen implementation;
+MAIN accepted its source and validation gates on 2026-10-29. This is the implemented narrow exception to static/noncombined key-and-byte retention
+promises elsewhere in this contract and the root identity history; those historical results remain
+unchanged. The exception permits only these baked specialization discriminant updates:
+
+- Static all-valid Scan with a retained MATMUL stage: `|scan-matmul-v4=` → `|scan-matmul-v5=`.
+- Static-length Scan with a retained MATMUL stage: `|scan-length-aware-v1=` →
+  `|scan-length-aware-matmul-v2=`. Select this branch only when the retained stage order satisfies
+  `order.anyMatch(s -> s.right() >= 0)`, not from a MATMUL that lowering has removed.
+
+Both apply to the already-admitted FLOAT32/FLOAT64 forward and actual Compiler-generated reverse
+occurrences. `compatibilityBytes()` and `classIdentityBytes()` must both consume
+`bakedSpecializationIdentity()` so the changed names/keys advance together and reject old artifacts
+in the changed namespaces. No blanket schema bump or invalidation of unchanged controls is allowed.
+
+Retain non-MATMUL shaped-v4 and static-length-v1, all-valid symbolic-v3, combined symbolic-length-v9,
+pointwise/fixed, ordinary scalar/vector/tiled/TANH, `ordinary-batch-v1` and
+`ordinary-batch-typed-v1` identities and generated bytes. Retained byte identity is a validation
+target, not assumed proof. CPU0071's frozen-corpus checks cover the recorded controls; vector-byte
+evidence is qualified by matching captured species. An unexpected changed namespace still stops
+implementation for review; finite corpus evidence is not proof for every possible specialization.
+Schema/family 71, canonical projections, numeric packs, resources and Runtime handoff stay unchanged.
+
+The selected setup change moves static constant MATMUL strides outside the time loop; the evolving
+scalar-to-dense factor remains a changing binding. No new production type/public API, RunState,
+route, numerics, resource, worker or Job-reuse change is authorized; test fixtures are not new
+production types. Scan and Runtime semantics remain solely with
+their existing owners. The [CPU0071 brief](../../planning/backends/cpu/tasks/0071-common-matmul-binding-foundation.md)
+records implementation, validation and diagnostic limitations, not additional authority or a speed claim.
+
+### CPU0073 accepted row-map and multiple-terminal reduction fusion
+
+CPU0073 scalar v1 remains governed below, with only the implemented
+[CPU0075 scalar emission/cache cutover](#cpu0075-selective-scalar-load-and-address-reuse)
+and the implemented [CPU0076 staging exception](#cpu0076-prospective-invariant-external-cell-load-staging)
+qualifying affected scalar generation and literal retention. The implemented
+[CPU0074 exec-v1 exception](#cpu0074-selected-row-region-execution-exception) qualifies its
+scalar/range, additional-seam and retention restrictions; CPU0074 itself did not change v1 scalar artifacts.
+
+Implemented by CPU0073 after user approval and authority acceptance on 2026-10-30. Independent
+code/tests/Javadoc review approved with no open findings; MAIN accepted the implementation and
+named conformance/Engine join. The [task result](../../planning/backends/cpu/tasks/0073-row-map-multi-reduction-fusion.md#result)
+records validation, evidence-transfer limits and unmeasured performance.
+This subsection owns the exact CPU mechanism and selective identity exception; plans and
+[ADR 0052](../../design/decisions/0052-row-map-multi-reduction-fusion.md) do not add authority.
+The [Scan owner](recurrent-scan.md#general-differentiable-scan) retains all Scan semantics;
+[Prepare and Run lifecycles](runtime-prepare-engine.md#prepare-lifecycle) remain unchanged.
+
+#### Physical region and admission
+
+A row map is a pure ordered row-local directed acyclic graph (DAG) sharing the same proved row
+axis R. It may include bounded feature contractions and feed independent row outputs plus
+multiple terminal contractions or represented Scan sums. A terminal consumes rows and finishes
+after all contributors; it cannot feed row work in the same pass. This region is derived CPU
+physical lowering, not a new Tensor operation, Compiler graph, semantic DAG, scheduler or executor.
+Ordinary lowering selects one complete execution unit. Scan wraps the same generation-time
+region inside its existing unit/time traversal, never a per-step Runtime unit, callback or Job.
+
+Implemented selection requires a genuinely computed row producer reaching a terminal and
+another retained or terminal sink. Direct-input or movement sharing alone remains noneligible;
+the bounded region is not blanket pointwise or arbitrary-shape fusion.
+
+Admission is scalar, single-range, homogeneous FLOAT32 or FLOAT64 within existing capability:
+ordinary static F32/F64, already-admitted ordinary symbolic F32, and independently admitted static,
+symbolic, length and combined Scan occurrences. Canonical boundaries, existing dense/scalar read
+exceptions and proved internal transpose/expand/feature-only edits remain the limits. No new
+operation, dtype, layout or carrier follows: ordinary symbolic F64 MATMUL and all-valid symbolic
+F64 Scan remain unqualified. Fixed bounded features, static R or existing named B, and fixed T
+do not authorize B/T unrolling, per-B caching, runtime profitability decisions, SIMD, threads,
+OpenBLAS, Job reuse or across-time carry promotion.
+
+Ordinary exact SUM/MEAN remain outside the region: keep required producer materialization,
+exact workspace slots/creators and empty/singleton behavior. Retain symbolic F32 five-limb/48-byte
+and bounded symbolic F64 34-limb/280-byte state; static F64 remains domain-sized.
+`CpuExactSumEmitter` is unchanged. Represented Scan SUM is its existing distinct algorithm,
+not a relabeling of exact `CpuAggregateIr.Kind.SUM`. Model and existing math owners retain all
+numerics: preserve contributor/operand order, typed MUL/ADD/result rounding and raw no-axis/
+singleton movement. No new FMA, reassociation, derivative simplification or numerical policy.
+
+#### Cold proof, resources and range
+
+Before cuts or resource declarations, use complete partition/body uses, demanded/public/saved/
+external uses and physical storage origins. Prove dependency convexity and an acyclic quotient
+of the full DAG, including both contraction operands, views and temporal old/new hazards.
+Retain exact producing stores for live external/saved uses or split the region; never replay
+activations or remove demanded histories. Prove named row-axis provenance through each view,
+injective writes, legal read aliases, no overwritten future reads, and inclusive cut lifetime/
+size dominance for every admitted B. Equal extents (including F=B) or sampled B are not proof;
+unknown aliases reject. Recheck actual backing aliases at binding.
+
+Activity dominates both operand loads and dependent math, including shared/invariant hoists.
+Preserve the Scan owner's B=0/1, T=0, all-inactive, raw carry identity, +0 padding and poisoned-read
+rules, producer-ordered all-length preflight before any Scan-local write, and one distinct shared
+carry ADD after row reduction at active(t). No carry ADD is folded into per-row contributions.
+
+Every attempted candidate is bounded: at most 32 row sites, 4 terminal outputs, 64 terminal
+scalar cells, feature extents at most 16 each, 128 simultaneously live JVM local slots (double
+counts two), 32 boundary carriers, 64 candidate attempts per anchor, and a conservative generated
+method-size proof at most 48000 bytes. Reject over-limit candidates before resources; do not
+truncate work or cap the whole partition. These are cold structural limits, not measured
+profitability thresholds; the live-value limit is primary and method size only a Class-File guard.
+
+Ordinary fused work owns both row and shared outputs: prepared work count is 1 and entry [0,1)
+executes the full body even at R/B=0, publishing required nonempty shared zeros. [0,0) does no
+work; every other range rejects before writes. No rowCount work count, arbitrary pointwise
+ranges or parallel splitting. Extend the existing ordinary binder for this case and all-output
+alias checks rather than inheriting last-output/count assumptions; no Runtime protocol changes.
+
+Select ordinary regions before decomposition/materialization, Scan regions before
+`shapedResources`. Recompute liveness and exact scratch for selected regions, retaining required
+banks, histories, old-carry hazards and exact-SUM producer stores. Finalization only binds assigned
+slots and emits; it cannot discover requirements, change topology or rerun fusion. Method-size
+verification failure then is a defect, not a late fallback. One RunState owns all mutable state.
+
+#### Exact types, signatures and generation lifetime
+
+Only three new top-level production types are admitted, under
+`io.github.pho001.synaptik.backend.cpu`: `internal.ir.CpuRowMapReductionIr` (immutable,
+implements `CpuPortableKernelIr`), `internal.lowering.CpuRowMapReductionLowering` (shared cold
+proof), and `internal.codegen.emit.CpuRowMapReductionEmitter` (generation-only loop/lifetime
+orchestration). The IR alone contains the two nested binding records below. Existing pointwise
+IR and single-anchor Scan stages do not express multiple terminal accumulators sharing row sites.
+These declaration excerpts describe the implemented internal seams, not supported API or runnable Java:
+
+```java
+// Nested in CpuRowMapReductionIr; ordered value-ordinal bindings.
+public record Contraction(int output, int left, int right) {}
+public record Sum(int output, int input, List<Integer> axes, boolean sumToShape) {}
+// CpuRowMapReductionIr: immutable snapshots; cold ordinal validation.
+public CpuRowMapReductionIr(CpuKernelIr arithmetic, List<Integer> rowSites,
+    List<Contraction> contractions, List<Sum> sums, List<Integer> terminalOutputs,
+    List<CpuAccessPlan.BatchBinding> accesses, List<Integer> viewOrigins,
+    List<Integer> rowAxes, List<Integer> retainedStores);
+public CpuKernelIr encodedKernelIr();
+String structuralKey();
+String bakedSpecializationIdentity();
+// CpuRowMapReductionLowering; complete normalized uses and required order/alias edges.
+public static Optional<CpuRowMapReductionIr> prove(CpuRowMapReductionIr candidate,
+    List<List<Integer>> allUses, List<List<Integer>> requiredOrder);
+// CpuRowMapReductionEmitter; package-private, generation-only.
+static void emitBound(CodeBuilder code, CpuRowMapReductionIr ir,
+    int rowIndex, int rowLimit, int[][] valueLocals, int[][] terminalAccumulatorLocals,
+    Runnable init, Consumer<Runnable> activeRow, IntConsumer emitRowSite,
+    IntConsumer emitTerminalStep, Runnable finish);
+```
+
+`rowSites` interleaves pointwise outputs and row-feature contraction outputs topologically;
+each ordinal resolves to exactly one kind and completes its fixed feature cells before consumers.
+Terminals are excluded from rowSites and ordered by `terminalOutputs`; operands are dominated.
+Use typed contraction loaders, not fabricated ordinary F64 batch MATMUL IR.
+`viewOrigins[value]` covers every value with its self-rooted storage-producing ordinal; accesses
+encode geometry relative to that origin (zero batch factors for static recipes). BatchBinding
+does not encode alias identity. Validate total coverage, only self-root cycles, view composition,
+rowAxes provenance and physical hazards. Proof lists contain full normalized uses and must-precede
+pairs including conservative alias edges, not candidate-local counts.
+
+The caller allocates locals with the same CodeBuilder: INT rowIndex/rowLimit, valueLocals by
+value ordinal/fixed feature cell, terminalAccumulatorLocals by terminal position/cell. Only direct
+storage uses -1; validate typed widths, disjoint slots and load dominance. Callbacks close over
+these exact immutable handle tables; site callbacks receive ordinals and neither replace locals
+nor mutate the tables or rowIndex. Emitter owns control/lifetimes, not allocation: init once,
+rowIndex=0, increasing loop to prebound rowLimit, activeRow around all rowSites then terminal
+steps, finish once after the loop, including R=0. Finish publishes completed contributions and
+separate carry ADDs; Scan's outer active-time gate encloses emission. All callbacks/arrays exist
+only during generation, not as runtime/per-step objects.
+
+Existing math owners expose only these additional package-private static void generation seams:
+
+```java
+// CpuMatmulEmitter; ordered typed loaders, typed accumulator local.
+static void emitInit(CodeBuilder code, DataType dataType, int accumulator);
+static void emitContributorStep(CodeBuilder code, DataType dataType, int accumulator,
+    Runnable left, Runnable right);
+static void emitFinish(CodeBuilder code, DataType dataType, int accumulator, IntConsumer sink);
+// CpuAggregateEmitter; represented Scan SUM only, retaining raw singleton movement.
+static void emitRepresentedInit(CodeBuilder code, DataType dataType, int accumulator,
+    boolean directSingleton);
+static void emitRepresentedContributorStep(CodeBuilder code, DataType dataType, int accumulator,
+    boolean rawSingleton, Runnable load);
+static void emitRepresentedFinish(CodeBuilder code, DataType dataType, int accumulator,
+    IntConsumer sink);
+```
+
+Reuse these seams in old complete loops and new orchestration without changing old byte/local
+order. Reuse `CpuClassFileKernelGenerator.emitBoundPointwise`, `CpuScalarEmitter` and carrier
+access; do not clone opcode/math switches or recreate retired Scan math subemitters.
+Extend existing portable permits/route, partition lowering/decomposition/recognition/preparation,
+Scan lowering/Stages/emitter, specialization, generator and ordinary binder owners only.
+`CpuPortableRoutePlan.encoded(CpuPortableKernelIr)` must explicitly return
+`region.encodedKernelIr()` before its final aggregate cast. That envelope exposes boundary
+stores/family identity with the same structuralKey; typed region facts select emission, not a
+second semantic graph. `CpuGeneralScanStageSchedule.order` remains a post-slot reorder proof,
+not fusion, and must see region reads/writes/lifetimes. Any extra named production type,
+common-seam change beyond the approved signatures, or cross-owner protocol/runtime edge requires
+explicit approval; a plan alone cannot authorize it. Ordinary private implementation helpers in
+existing owners are permitted within this capability; they are not extra common seams or types.
+
+#### Selective compatibility and retention
+
+Keep global generator `CURRENT_VERSION=71`, existing namespaces and Scan class projection 71.
+Reserve ordinary class projection 72 only for selected row regions. Append
+`Optional<CpuRowMapReductionIr> rowMapReductionIr` to existing `CpuKernelSpecialization`:
+projection 72 iff present, mutually exclusive with matmulIr/generalScanIr. Scan embeds regions
+only within generalScanIr, retaining projection 71; keep 54 iff matmulIr and 71 iff generalScanIr.
+Preserve every existing constructor overload, including the old canonical signature, delegating
+with Optional.empty(). Check fingerprint, boundary dtype/carrier/access, scalar/species-zero,
+materializedSourcePosition=-1 and scratch requirements against the region. Ordinary symbolic
+regions remain F32 only; this is no bypass of F64 batch-MATMUL rejection.
+
+Use geometry-free ordinary family marker `row-map-multi-reduction-v1`. Append
+`|ordinary-row-map-multi-reduction-v1=` only for selected ordinary groups, and
+`|scan-row-map-multi-reduction-v1=` only to selected Scan groups' existing baked mode payload.
+Both `compatibilityBytes()` and `classIdentityBytes()` consume the same baked payload and reject
+old unfused artifacts for selected fused specializations. Bind topology, ordered operands/sites,
+dtype/carrier/access, algorithm/singleton/rounding distinctions, row/activity roles, retained
+stores/demand, feature/coefficient/resource/lifetime facts, range convention and all code-shaping
+limits. Include fixed R/T/strides/resource bytes when baked into ClassFiles. Exclude only
+invocation-resolved symbolic B, length values, addresses, assigned slots and invocation-resolved
+resource bytes. Diagnostic text is not identity; no blanket schema bump or control namespace change.
+
+This exception and CPU0071's separate implemented exception do not retire noneligible controls.
+Noneligible ordinary/static/symbolic/length/combined, vector/tiled/TANH/fixed specializations keep
+literal old keys, ClassFiles and resources. Freeze controls before source edits, never derive them
+from candidate code. Test both streams, constructor/factory exclusivity, encoded route construction,
+artifact generation/load/reuse and stale rejection, plus B/L-independent reuse. Qualify ordinary
+and actual Compiler-generated Scan reverse separately with durable specialized clean-Java oracles
+and generated-ClassFile inspection; finite controls are not universal preservation proof.
+Only after both callers work may superseded eligible whole-domain traversal glue/cuts retire;
+keep fallback emitters, scheduling/temporal proofs, exact SUM, live saved stores and old oracles.
+No performance claim or measurement permission follows; old timing budgets remain closed.
+
+### CPU0074 selected row-region execution exception
+
+Implemented, independently reviewed and MAIN accepted, 2026-10-30. CPU0074 is Complete after
+final CPU/Javadoc, named integration and bounded performance evidence. Steady-state profitability
+is not qualified; defaults and rollout are unchanged. This section is the sole CPU mechanism/ABI/identity owner for
+this exception. [ADR 0053](../../design/decisions/0053-row-fusion-simd-parallel.md) records rationale;
+the ADR alone grants neither implementation launch nor executable capability.
+
+#### Bounded selection and numerical boundary
+
+CPU0073's genuine computed-row-producer, complete-use, convexity, alias, named-axis, liveness,
+retained-store and structural-limit proofs still apply. The same ordinary static F32/F64,
+ordinary symbolic F32, static all-valid F32/F64 Scan, all-valid symbolic F32 Scan, and static-length/
+combined symbolic-length F32/F64 Scan domains may select vector, parallel-scalar or parallel-vector
+regions. This is not ordinary symbolic F64 MATMUL or all-valid symbolic F64 Scan admission.
+Ordinary array/checked-segment eligibility and Scan's checked-segment-only boundaries remain.
+Unproved vector mapping retains scalar compute; unproved worker ownership retains inline execution.
+No new dtype/layout/carrier, general pointwise rewrite, native route or automatic all-op Scan SIMD.
+
+Vectorize fixed feature/output cells within one active row, never implicit feature-K splitting.
+Use admitted existing vector instructions and masked feature-tail access/publication. Feature K
+retains its original ordered MUL/ADD sites; unused vector lanes never enter another result's
+reduction. Only selected terminal row-axis contractions and represented Scan SUM may regroup
+under the [Scan semantic exception](recurrent-scan.md#cpu0074-selected-terminal-grouping-exception).
+Standalone MATMUL-K and ordinary exact SUM/MEAN, including producer stores/workspaces, remain
+unchanged. Same compute/accumulator dtype, no implicit FMA/TF32/lower precision or public numerical
+mode. Raw movement/casts/indices/masks, singleton/empty identities and selected-realization saved
+values remain exact. No cross-strategy/thread-count/device bitwise claim.
+
+Strategy, maximum ranges W and minimum row work m remain in existing preparation
+`CpuPartitionPreparationPlan.ExecutionUnitPlan`; no worker policy enters canonical row IR.
+Cold run binding resolves N=min(W,ceil(R/m)) for R>0, otherwise zero, with quotient/remainder
+partitioning of [0,R) in ascending range index. The rule is fixed before execution and across
+time, not length-value profitability selection. N<2 executes inline. Each worker owns disjoint
+rows and terminal partials; merge valid partials in fixed ascending range-index order on the caller.
+Each bounded partial slot has typed terminal cells and an eight-byte validity flag; skip invalid
+empty/inactive partials, never invent +0 contributors or infer singleton geometry from activity.
+No shared atomic floating updates or B×parameter bank. Keep one complete ordinary execution unit;
+internal range/merge helpers, not arbitrary pointwise ranges, implement new non-scalar realizations.
+Scalar v1's work=1/[0,1) and rejection behavior remain unchanged.
+
+Qualify actual F3/H2 saved-primal RNN reverse as a selected vector/parallel region independently
+of a genuinely fused forward fixture. An ordinary RNN forward with no eligible terminal region
+remains scalar. CPU0010M production scalar/thread-count-one defaults do not change; only existing
+explicit eligible configuration/tuning selects new realizations cold.
+
+Cold candidate metadata uses the appended `CpuFusionDecision.WorkspaceRole.ROW_REGION_STATE`
+only for ordinary selected row scratch authenticated by matching row IR/emission and no Scan/
+recurrent owner. The shared `GENERAL_SCAN_BANKS` preparation tag alone is insufficient. Candidate
+construction and retained-plan validation use the same guard; actual Scan/recurrent banks remain
+outside generic candidate discovery. Internal row-to-terminal uses stay inside the indivisible
+unit, not false cross-unit materializations. Ordinary pointwise accounting and scoring are unchanged.
+
+#### Exact new internal seams
+
+MAIN addendum accepted 2026-10-30 after focused independent APPROVE: the two additional
+generation/cold-binding declarations below complete the existing CPU0074 packet. No new type,
+runtime protocol or capability-completion claim follows from those declarations.
+MAIN/focused-reviewer correction accepted 2026-10-30: the Scan overload also transports
+positive minimum row work cold, as specified below; this replaces the unimplemented seven-argument form.
+MAIN/Boyle byte-seam addendum accepted 2026-10-30: only the two checked-segment byte-address
+generation methods below are added. These accepted seams are implemented and MAIN accepted.
+
+All names are under `io.github.pho001.synaptik.backend.cpu`; no new top-level production type.
+The following are non-runnable declaration excerpts, not supported application API:
+
+```java
+// Nested in internal.cache.CpuKernelSpecialization: emitted facts, not selection policy.
+public record RowFusionEmission(int maximumPartialCount,
+    List<Integer> invariantTransposeValues, List<Integer> temporalTransposeValues,
+    int stepOperandCount, int stepFrameLongCount) {}
+// Append Optional<RowFusionEmission> rowFusionEmission to CpuKernelSpecialization;
+// every old constructor, including the former canonical signature, delegates empty.
+// Existing internal.codegen.emit.CpuRowMapReductionEmitter; generation only.
+static void emitRangeBound(CodeBuilder code, CpuRowMapReductionIr ir,
+    int rowIndex, int rowBegin, int rowEnd,
+    int[][] valueLocals, int[][] terminalAccumulatorLocals,
+    Runnable init, Consumer<Runnable> activeRow, IntConsumer emitRowSite,
+    IntConsumer emitTerminalStep, Runnable finish);
+// Existing CpuMatmulEmitter; matching FloatVector/DoubleVector reference locals/loaders.
+static void emitVectorInit(CodeBuilder code, DataType type, int accumulator);
+static void emitVectorContributorStep(CodeBuilder code, DataType type, int accumulator,
+    Runnable left, Runnable right);
+static void emitVectorFinish(CodeBuilder code, DataType type, int accumulator, IntConsumer sink);
+// Existing CpuAggregateEmitter; represented Scan SUM, never exact ordinary SUM/MEAN.
+static void emitRepresentedVectorInit(CodeBuilder code, DataType type, int accumulator,
+    boolean directSingleton);
+static void emitRepresentedVectorContributorStep(CodeBuilder code, DataType type,
+    int accumulator, boolean rawSingleton, Runnable load);
+static void emitRepresentedVectorFinish(CodeBuilder code, DataType type, int accumulator,
+    IntConsumer sink);
+// Existing CpuCarrierEmitter: append matching VectorMask local to full current forms.
+void vectorLoad(DataType type, CarrierAccess access, int parameterSlot, int addressLocal,
+    boolean broadcast, boolean intAddress, int maskLocal);
+void vectorStore(DataType type, CarrierAccess access, int parameterSlot, int addressLocal,
+    int valueLocal, boolean intAddress, int maskLocal);
+// Existing CpuCarrierEmitter; package-private generation-only checked-segment byte access.
+void vectorLoadBytes(DataType type, int carrierSlot, int byteAddressSlot, int maskLocal);
+void vectorStoreBytes(DataType type, int carrierSlot, int byteAddressSlot,
+    int valueLocal, int maskLocal);
+// Existing CpuGeneratedKernel: explicit cold lookup accessors, never a runtime registry.
+public MethodHandle ordinaryRowRangeEntryPoint(); // specialization.entryType()
+public MethodHandle ordinaryRowMergeEntryPoint(); // specialization.entryType()
+public MethodHandle scanRowRangeEntryPoint();
+// Scan range helper: (MemorySegment[], long[], long begin, long end,
+//                    long partialByteOffset)void
+// Existing package-private CpuGeneralScanEmitter; generation-only access to its private binder.
+void emitRowRange(CodeBuilder code, CpuKernelSpecialization specialization, CpuGeneralScanIr ir);
+// Existing internal.executable.CpuPreparedExecutable; ordinary symbolic constructor overload.
+public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+    CpuGeneratedKernel artifact, CpuPortableRoutePlan route,
+    Optional<WorkspaceSelection> workspace, CpuConcurrencyBudget budget,
+    int selectedRangeCount, long minimumElementsPerWorker, CpuWorkerGroup workerGroup);
+// Existing six-argument constructor delegates with (1, 1, null).
+// Nested in internal.executable.CpuGeneralScanPreparedExecutable.
+public static final class StepDispatch {
+    private StepDispatch(MemorySegment[] operands, long[] frame,
+        CpuWorkerGroup.RangeCall[] calls, CpuWorkerGroup workerGroup);
+    public MemorySegment[] operands();
+    public long[] frame();
+    public void execute();
+}
+// Existing CpuGeneralScanPreparedExecutable: keep old six-argument constructor; delegate (null,1).
+public CpuGeneralScanPreparedExecutable(PreparedMemoryPlan plan, List<BufferSelection> buffers,
+    Optional<WorkspaceSelection> workspace, Facts facts, CpuGeneratedKernel artifact,
+    CpuConcurrencyBudget budget, CpuWorkerGroup workerGroup, long minimumElementsPerWorker);
+// No retention of the unimplemented seven-argument overload is required.
+// Existing executable package only; RangeCall stays package-private.
+void CpuWorkerGroup.execute(RangeCall[] calls, CpuConcurrencyBudget.Lease reservation);
+boolean CpuConcurrencyBudget.Lease.covers(CpuConcurrencyBudget budget, int demand);
+```
+
+The qualified last two declarations identify methods on their existing owners, not Java source
+syntax. emitRowRange generates the already-approved scanRowRange helper using the existing private
+temporal/row binder; it is not a runtime callback. The ordinary symbolic constructor overload
+transports existing unit-owned range policy and borrowed workers to cold numeric B binding,
+without per-B artifact selection or worker policy in canonical row IR. The old six-argument
+constructor retains behavior by delegating (1,1,null). The selected parallel Scan entry appends StepDispatch after its existing geometry long[]
+and before start/end longs; ordinary and nonparallel entry ABIs remain unchanged. The generated
+entry reads context arrays once, then emits bounded frame updates and direct execute calls at
+the single selected region. No stage ordinal lookup, callback registry or per-operation dispatch.
+
+vectorLoadBytes/vectorStoreBytes accept only checked MEMORY_SEGMENT FLOAT32/FLOAT64 carriers,
+the dtype's target preferred species, a LONG byte-offset local and a matching mask (and matching
+value vector for stores). Emit direct native-byte-order masked fromMemorySegment/intoMemorySegment;
+disabled lanes access no storage. Scalar broadcasts retain existing loadBytes plus broadcast.
+Keep old element-address methods and array paths literally unchanged. Migrate only selected
+exec-v1 Scan byte addresses and ordinary private partial scratch. This removes the emitted
+byte-offset /width*width roundtrip; JIT elimination is unproved and no slowdown/speed claim follows.
+No new type/layer, runtime entry ABI, resource or global schema change. Selected exec-v1 remains
+unreleased; final inspection/performance must use a fresh private artifact root so an old
+candidate cache cannot hide the changed generated shape.
+
+The Scan overload rejects nonpositive minimumElementsPerWorker with IllegalArgumentException.
+CpuPartitionFinalizer passes unit.minimumElementsPerWorker() during cold finalization; policy stays
+in the existing unit, not canonical IR, Facts or specialization. The old six-argument Scan
+constructor delegates (null,1), preserving its inline behavior. No runtime protocol changes.
+
+RowFusionEmission snapshots nonnull disjoint duplicate-free ordinal lists; each ordinal names a
+proved source value. maximumPartialCount is positive; other counts are nonnegative and checked
+against emitted frame layout and existing unit facts. Scalar v1 has no payload. Range tables use
+typed primitive cells for scalar code or reference locals by fixed feature chunk for vector code;
+validate coverage, disjointness and load dominance at generation. Callbacks/handle tables remain
+generation-only. Init/finish execute once around [rowBegin,rowEnd), including zero-trip ranges.
+
+Vector init uses the selected target's preferred F32/F64 species, whose bits must match the
+specialization, never arbitrary species. Specialization validation must require that dtype's
+target preferred species and matching accumulator, load and mask species; arbitrary species
+cannot qualify by equal lane count alone. It initializes typed +0 except omitted direct-singleton
+reset. Loaders push matching vectors; MATMUL emits separate per-lane MUL then ADD, not FMA.
+Represented SUM emits typed ADD or raw singleton assignment. Finish passes the completed local
+to the generation-only sink without arithmetic. Reuse existing pointwise/vector math, loop and
+carrier owners, not copied opcode switches or another RNN emitter. All further common signatures,
+named production types or cross-owner edges require explicit approval.
+
+#### Resources, dispatch lifetime and compatibility
+
+Analysis fixes all staging/partial/frame facts before resource declarations/slots. F3/H2 reverse
+may stage canonical W/U transposes in ten represented cells: 40 F32 / 80 F64 bytes before alignment.
+Stage once per run only when invariant across T and inside any-active gating. SHARED histories/
+changing cuts stage at their exact active original time after producers, or vector fallback;
+never reuse stale data. Reuse that bounded area only after all readers join. Preserve demanded
+stores, carry banks, inclusive cut lifetimes and CPU0073 method/local/resource limits. T=0/B=0/
+all-inactive executes no such body staging. No per-row transpose arrays, B×parameter banks or
+T-fold code/buffers. Run-bound context/calls/arrays are O(body+W), never O(T).
+
+Use the [run-owned synchronous reservation](runtime-prepare-engine.md#cpu0074-run-owned-synchronous-reservation).
+StepDispatch is private in purpose, public only for generated cross-package bytecode access.
+One RunState owns it and its mutable arrays; accessors expose those run arrays without copying.
+Calls/helpers are resolved and bound before execution. Per-step work updates only current
+operand/time/base facts, never repacks geometry or rediscovers graph/access/strategy facts.
+The exception allows synchronous selected-region dispatch and existing calls.clone/Job/failure/
+latch/queue metadata per dispatch, not general callbacks, body allocations or another executor.
+Job reuse is optional. Length producers and complete typed/access/alias/value preflight still
+precede all Scan-local writes. Worker accessibility includes staging/partial scratch.
+
+Keep envelope 71, ordinary projection 72, Scan projection 71 and canonical row structuralKey.
+Only new selected realizations append `|ordinary-row-map-multi-reduction-exec-v1=` or
+`|scan-row-map-multi-reduction-exec-v1=` after existing payloads in both specialization streams.
+Bind selected strategy/preferred species, mask/transpose/lifetime facts, fixed partition/merge
+algorithm, emitted range/frame/partial/helper layout/types, all code-shaping bounds/resource recipes
+and baked geometry/bytes. Exclude actual symbolic B/L, addresses/slots and invocation-resolved bytes.
+Unit policy stays preparation-owned; key it where it shapes emitted meaning or compatibility.
+Scalar v1 and noneligible keys/ClassFiles/resources/ABIs remain literal unchanged except for the
+implemented [CPU0075 scalar generation/identity cutover](#cpu0075-selective-scalar-load-and-address-reuse).
+Validate explicit
+helper shape, artifact stale rejection/reuse and B/L-independent reuse without blanket schema bumps.
+
+Acceptance requires each realized eligible domain, actual F3/H2 reverse and separate fused forward,
+optimal same-specialization Java/ClassFile comparison, no hidden elementwise allocation/boxing/
+reflection/dispatch, vector tails, exact masks/singletons/empties/saved sites, finite per-op/dtype
+tolerances plus cancellation/special/raw checks, and budget/access/error/close/concurrency tests.
+Finite performance validation needs its own task budget; no historical campaign reopens or
+universal speed/bitwise/JIT guarantee follows. MAIN accepted functional capability after final validation;
+the [CPU0074 Result](../../planning/backends/cpu/tasks/0074-row-fusion-simd-parallel.md#result)
+records final evidence, concrete JIT compilation-pressure limitations and a separate recommended
+investigation, not another authorized task/frontier or timing campaign.
+
+#### CPU0075 selective scalar load and address reuse
+
+Implemented and independently reviewed, 2026-10-30, after explicit user approval. CPU0075 is
+Complete after MAIN's final CPU/Javadoc gate and the sole bounded comparison; its
+[Result](../../planning/backends/cpu/tasks/0075-row-fusion-scalar-load-address-reuse.md#result)
+records evidence and limits. This subsection qualifies only CPU0073/CPU0074 generation and
+compatibility retention, not their numerical, eligibility, resource-ownership or worker semantics.
+[ADR 0054](../../design/decisions/0054-row-fusion-scalar-load-address-reuse.md) explains the decision.
+
+Replace affected ordinary and general-Scan scalar row emission, including existing parallel-scalar
+row bodies, in the existing emitter/binder owners. Reuse only repeated external loads within one
+active row and fold/share proved constant affine address terms and row bases. SIMD bodies and
+unrelated emitters remain literal controls. No W/U hoisting out of the row, across-T carry promotion,
+new fuser, dtype/layout/carrier capability, public policy, runtime object, entry-ABI parameter,
+top-level production type or new common helper seam is authorized. Private helpers in existing
+owners are permitted; any needed expansion requires approval before implementation.
+
+The implemented [CPU0076 exception](#cpu0076-prospective-invariant-external-cell-load-staging)
+qualifies only this within-row-only load-placement prohibition and affected
+scalar retention. CPU0075's completed implementation and evidence are not reinterpreted.
+
+A shared load identifies its authenticated source/storage origin and complete effective affine
+cell recipe, including symbolic B coefficients, temporal/bank binding and store epoch (the interval
+between potentially aliasing writes). A value ordinal, equal extents or sampled B is not proof.
+Prove alias/view equivalence, unchanged storage across all intervening retained/public/scratch
+writes, activity and first-load dominance on every path. A possibly aliasing store ends that reuse
+interval; unknown equivalence keeps a direct checked load. Neither loads nor address-dependent
+access move above existing row/time/empty guards. Preserve checked spans, alignment, overflow,
+raw inactive identities and all required stores and floating instruction order.
+
+Cold analysis before resource declarations/slots must conservatively bound the replacement's
+simultaneously live typed values, cached loads and addresses as well as existing bindings and
+accumulators. Retain the 128-slot and method-size limits; doubles/longs count two. Allocate cached
+cells only for repeated uses, release at last use and reuse type-compatible local slots; do not
+retain every external cell through the row. JVM max_locals is not hardware-register liveness.
+If reuse cannot be proved or bounded, use unshared accesses within the replacement or reject the
+candidate cold through the existing fallback. Finalization cannot discover resources or choose a
+new route. No maintained parallel legacy scalar emitter or runtime discovery follows.
+
+Only affected scalar/parallel-scalar specializations append the scoped
+`|ordinary-row-scalar-load-address-reuse-v1=` or `|scan-row-scalar-load-address-reuse-v1=` marker to
+both `compatibilityBytes()` and `classIdentityBytes()`. Bind every deterministic code-shaping
+reuse/address/proof choice using existing specialization facts; exclude actual symbolic B/L,
+addresses, assigned slots and invocation-resolved bytes. Keep envelope 71, ordinary/Scan
+projections 72/71, canonical structural keys and all existing namespaces/payload versions unchanged.
+Old affected scalar artifacts are stale under the new keys; artifacts outside this cutover keep
+literal keys/ClassFiles/resources and entry/helper ABIs. Test both streams and B/L-independent reuse.
+Historical `.tsv` and `.gz.b64` controls are not regenerated from candidate code: affected snapshots
+prove selective stale rejection, while unaffected SIMD/nonregional snapshots remain literal controls.
+Captured old bytecode may be a test-only comparison arm, never a production emitter alternative.
+The implemented scalar path ends value reuse at every retained write, excludes changing Scan
+carry/scratch bindings, and leaves alternative SUM loads unshared with address-recipe invalidation.
+Cold analysis reserves remaining capacity under the existing 128-slot limit; emission caps its
+typed pool and single LONG offset within that capacity. Unavailable capacity preserves checked
+unshared reads, not a changed route or broader SIMD rejection.
+The [CPU0075 brief](../../planning/backends/cpu/tasks/0075-row-fusion-scalar-load-address-reuse.md#result)
+records the exhausted separate validation budget. Reduced bytecode load sites are structural
+evidence, not a matched-JIT speed guarantee or C1 repair; no material Scan speedup was established.
+CPU0074 and all historical campaigns remain closed; defaults and rollout are unchanged.
+
+<a id="cpu0076-prospective-invariant-external-cell-load-staging"></a>
+
+#### CPU0076 invariant external-cell load staging
+
+Accepted after explicit user approval, 2026-10-31; implemented with independent source/protocol,
+bounded-result and documentation approval, 0 P1/P2, and MAIN's final CPU/Javadoc/named Engine PASS.
+This is the sole owning CPU load-placement/compatibility exception to
+CPU0075's within-row-only prohibition. [ADR 0055](../../design/decisions/0055-row-invariant-load-staging.md)
+explains the choice; the [CPU0076 brief](../../planning/backends/cpu/tasks/0076-row-invariant-load-staging.md)
+owns execution and the separate finite measurement grant. Prior completed results stay historical.
+
+An external cell is a represented value read from an authenticated storage origin, not a row
+producer or accumulator local. Existing homogeneous FLOAT32/FLOAT64 ordinary and general-Scan
+scalar row regions may stage such cells in typed method locals outside the row loop when the
+following proof succeeds. This is generic source/access analysis, never an RNN, F3/H2, ordinal,
+root-number or weight-value special case. Retain existing static/named-B/length/combined admission,
+ordinary array/checked-segment and Scan checked-segment boundaries; ordinary symbolic F64 MATMUL
+and all-valid symbolic F64 Scan gain no qualification.
+
+Authenticate the source, complete view/storage origin and effective affine cell recipe for all
+admitted B: fixed and B coefficients, row coefficients, byte base/strides, original-time source,
+bank selection and store epoch. Prove structural row independence, nonempty consuming-domain and
+first-load dominance, source readiness, and storage/mapping stability throughout the staged
+value's complete lifetime. Equality of extents, nominal ordinals, copied history values or sampled
+B is not proof. Include every retained/public/saved/carry/scratch write and inclusive cut lifetime;
+actual binding still checks backing overlap/access. Unknown alias, mapping, lifetime or dominance
+keeps current checked loads. An unrelated write need not end a proved disjoint cell's lifetime;
+a possibly aliasing write does. No new alias permission or unchecked access follows.
+
+True invocation invariants load once per generated entry invocation, after existing preflight
+and nonempty/any-active guards, before their consuming row loop; they may stay local across T
+only with proved temporal invariance. A lazy first-consuming-active-time placement is permitted
+if it dominates every use and performs no extra read. A SHARED sequence/history is not an
+invocation invariant: stage only after its producer at each consuming active original t, under
+active(t), with the exact original-time base. ROW histories, evolving carries and bank/scratch
+bindings retain their existing loads in this implementation. Authenticate the SOURCE activity
+domain: selecting a constant row from a ROW history does not permit global-active-time staging.
+Already-hoisted typed scalar roots are excluded from new placement and its marker. Neither a
+scalar-broadcast initializer, zero stride nor SHARED role proves temporal invariance.
+The [Scan owner's activity and history rules](recurrent-scan.md#activity-raw-identity-and-retained-histories)
+remain unchanged. T=0/B=0/all-inactive/empty-feature paths perform no speculative body staging;
+required nonempty shared zero publication and raw inactive carry identities still execute.
+
+Existing parallel-scalar may stage only inside its current method/range bindings when this proof
+and local lifetime fit the existing helper ABI. Worker staging additionally requires a consuming
+active row in that worker's range: global active(t) alone does not qualify an all-inactive range.
+No transport of typed locals between caller and worker, frame extension, new staging bank,
+dispatch/reservation change or cross-worker cache is authorized. A helper-preheader load is once
+per helper invocation, not once per whole Scan across repeated dispatches. If the intended wider
+lifetime cannot fit, retain the current checked path and record that precise qualification.
+Inline scalar is the primary acceptance path.
+
+The implemented proof accepts only complete, actually consumed fixed-feature view domains;
+rank greater than two and partial/unused/empty domains remain checked. For Scan, every nonformal
+self-rooted producer must belong to the region's row sites, terminals or finish epilogue.
+Otherwise the binding owners supply empty staging scopes, even when one region in a larger body
+would pass an isolated proof. This bounds the full invocation lifetime, not just the pruned
+regional stage. Small ordinary F64 staging is qualified; the larger combined F64 primary geometry
+retains CPU0075 emission. None of these optimization limits reduces existing execution capability.
+
+Cold proof before cuts, resource declarations and slots bounds staging plus bindings, addresses,
+producer values, terminal accumulators and controls, separately for caller/helper phases,
+including inline scalar without exec-v1 metadata. Retain all CPU0073 limits, especially 128
+simultaneously live JVM slots (DOUBLE/LONG count two) and 48000-byte method bound; use last-use/
+type-compatible slot reuse where valid. Do not increase resource limits, scratch/frame recipes
+or entry/helper signatures. Finalization emits the fixed proof, not late resource discovery.
+Unproved or over-budget staging retains CPU0075 checked emission or existing cold fallback
+without shrinking already-supported capability or rejecting an otherwise eligible strategy.
+No parallel maintained old emitter or runtime selection is added.
+
+The applicable structural no-duplicate caller/helper floors independently fit conservative 112/116
+non-pool reserves; they include rooted stride/address facts, typed producers and terminals,
+bindings, controls and CPU0075's LONG offset. Additional wrapper allowances cannot conceal an
+excessive floor. Let D count extra demanded wrappers per producing row origin and H count ALL
+demanded history ports, including forwarded formals and SHARED histories outside regional row
+sites. Every binding owner uses caller base `112 + 3*D + 2*H` and helper base `116 + 3*D`:
+each extra wrapper includes a carrier and LONG base in both phases; every history retains its
+own LONG caller base across prepublication and staging. Ordinary has no Scan history allowance.
+For typed width w and distinct staged-cell slots S, each applicable CPU0075 pool is capped by
+both its prior bound and `floor((128 - phaseBase - S - 1) / w)`. The one-slot readiness allowance
+is conservative for inline emission and covers the helper's first-active-consumer flag.
+Unproved/over-budget selection is empty BEFORE cuts/resources/slots, not a strategy rejection.
+
+Only load placement and proved address work may change: preserve ordered typed MUL/ADD/SUB,
+operand/contributor order, retained stores and saved sites, ordinary exact SUM/MEAN, and distinct
+memory-backed carry ADDs after each active-time reduction. No carry promotion, FMA, arithmetic
+regrouping or SIMD-body rewrite. Add no top-level production type, public API/policy, capability,
+runtime object, generic framework or ownership/dependency change. Private helpers in existing
+owners are permitted. The following cold method is the ONLY new shared seam/signature exception;
+any broader requirement stops for explicit approval.
+
+<a id="cpu0076-shared-cold-proof"></a>
+
+MAIN's accepted request and independent exact-seam APPROVE, 0 P1/P2, 2026-10-31, authorize this
+declaration in existing `internal.lowering.CpuRowMapReductionLowering` only. This is the implemented
+internal declaration, not a supported public API:
+
+```java
+public static List<Integer> invariantLoadStaging(
+        CpuRowMapReductionIr candidate,
+        List<Integer> invocationInvariantOrigins,
+        List<Integer> activeTimeOrigins,
+        long callerBaseLiveSlots,
+        long helperBaseLiveSlots);
+```
+
+Use existing `java.util.List<Integer>`, `CpuRowMapReductionIr` and primitive long only. Public
+visibility permits cold internal cross-package access, not a new production type, record
+component, emitter, generated helper, entry/helper ABI or runtime protocol. The method is pure,
+read-only and deterministic: no runtime storage/input reads, identity parsing, class generation,
+allocation-derived eligibility, measured profitability or route/resource decision.
+
+Return an immutable ordered list of actual consumer-view ordinals for complete fixed-feature
+cell-domain staging, with deterministic origin/affine deduplication. Every staged cell must have
+an actual consumer; partial, unused or unproved domains stay checked. In this one owner, enumerate
+exact consuming requests/retained-write epochs and prove source/view origin, all-B effective
+affine equality and zero row coefficients under the authenticated temporal/full-lifetime alias
+and write scopes. Private helpers here may implement the proof; competing private eligibility
+or selection in callers is forbidden.
+
+The binding owner supplies disjoint authenticated read-only source-origin lists: invocation
+invariants versus active-original-time sources. Membership is by storage origin, not consumer
+ordinal/shape/SHARED alone. Carries and uncertain cut/bank/scratch origins are absent. These same
+authenticated scope lists AND conservative structural caller/helper base-live-slot facts must
+drive pre-cut lowering (`prove` and existing `CpuGeneralScanLowering` row-region/`shapedResources`
+call paths), `CpuPartitionPreparer` analysis, both specialization identity streams, and emission.
+No phase substitutes allocation-derived counts or a privately recomputed selection.
+
+Base-live-slot arguments cover all non-pool state: bindings, controls, addresses, row/terminal
+locals and fixed CPU0075 state. Zero helper bound means no helper; DOUBLE/LONG count two. Jointly
+bound staging, ready/control flags and the remaining CPU0075 typed pool within 128 slots in each
+applicable phase; retain the existing method bound. Facts exclude actual B/L, addresses, slots
+and measured cost. Unknown proof, checked-arithmetic failure or over-budget optimization returns
+empty: retain the CPU0075 checked path without rejecting an otherwise eligible capability or
+strategy. Malformed/null metadata keeps existing IllegalArgumentException/NullPointerException
+conventions; it is not silently accepted as optimization failure.
+
+Emission binds only this selected complete cell set to locals. The existing binding owner still
+authenticates source readiness, temporal scopes, all writes/aliases over the FULL staged lifetime,
+activity/nonempty dominance and actual span/alignment/overlap preflight. The method grants none
+of those permissions by itself; worker-local staging cannot cross the ABI. Cache appends the
+affected-only marker iff this same selection changes emitted scalar placement; empty/no-stage,
+SIMD and nonregional cases keep literal controls. No validation/performance grant is added.
+
+Only scalar cases whose emitted placement changes append
+`|ordinary-row-invariant-load-staging-v1=` or `|scan-row-invariant-load-staging-v1=` in BOTH
+`compatibilityBytes()` and `classIdentityBytes()`, after existing payloads. Bind deterministic
+source/affine/temporal/store-lifetime/activity placement and local-budget choices through existing
+facts and the scoped algorithm marker. Exclude actual symbolic B/L, addresses, slots and
+invocation-resolved bytes. Preserve canonical keys, envelope 71, ordinary/Scan projections 72/71
+and prior namespace/payload versions. No-staging cases retain CPU0075 identities/bytes/resources;
+SIMD/nonregional controls and immutable historical `.tsv`/`.gz.b64` resources remain literal.
+Test affected old-artifact rejection, current generate/load/reuse and B/L-independent reuse in
+both streams. Captured old code is test-only evidence, never a production alternative.
+
+The [CPU0076 Result](../../planning/backends/cpu/tasks/0076-row-invariant-load-staging.md#result)
+records actual scalar F32 Compiler-generated reverse Scan, generic typed/temporal/helper tests,
+resource fallbacks, literal retention and the sole MAIN-released comparison. Its bounded B256
+improvement does not imply universal speed, Java parity or C1 repair; B32 is JIT-confounded.
+The off-tree Java experiment remains historical input evidence. All measurement grants are now
+spent; defaults, rollout and stage/commit/push remain unchanged or unauthorized.
+
+### Accepted ordinary symbolic-batch CPU contract
+
+The implemented [CPU0074 selected-region exception](#cpu0074-selected-row-region-execution-exception)
+qualifies only new exec-v1 F32 row regions here. Other scalar-only, typed-control, F64 exclusion
+and exact ordinary SUM/MEAN rules remain unchanged; no general symbolic SIMD/worker admission.
+
+Accepted on 2026-10-24 and implemented by
+[Prepare0013](../../planning/modules/prepare/tasks/0013-ordinary-dynamic-batch-cpu-vertical.md#result).
+Final independent reviews and MAIN's native-enabled integration gate passed;
+MAIN accepted the capability on 2026-10-24. The implemented scope is
+homogeneous FLOAT32 ordinary generated scalar, single-range CPU, one named B, fixed features/
+parameters, rank-at-most-two boundaries plus needed AD views. Exact symbolic capability answers
+must qualify every final forward and actual first-order derivative operation. Native/OpenBLAS,
+Metal, mixed-owner, other dtype/family extensions, Vector API, parallel and general Scan support
+do not follow. Prepare0015 implements only the bounded additional occurrences below.
+
+Prepare0015's bounded outer prerequisite is implemented; owning validation and independent
+code/structural review passed, with root validation and the sole bounded probe completed (evidence and limits:
+[Prepare0015 Result](../../planning/modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result) );
+final MAIN acceptance remains pending.
+Retain the existing ordinary FLOAT32 domain. Added floating occurrences use homogeneous FLOAT32
+or FLOAT64, at most one exact named B per value, fixed other extents and checked int-bounded
+domains. Rank-at-most-two endpoints and the specific `[T,B,F]`, ROW(1) literal/zero `[F,B]` /
+`[T,F,B]` mappings plus their required singleton-feature rank edits qualify, not arbitrary rank-three
+algebra. T/F are fixed; named axes, not F=B coincidence, determine mappings. Each ordinary provider
+predicate must be explicit in family, dtype, shape/rank/axis, attributes and access. An identical
+qualifying occurrence gets the same answer inside or outside Scan closure; no origin tag/registry.
+
+The table bounds the added occurrences; all retain existing Model family semantics and flags.
+
+| Occurrence | Required descriptor/attribute/mapping predicate |
+|---|---|
+| Seed/zero/one/literal constants | Existing registered typed splat ingress for the bounded shapes above, including ROW(1) constants/zeros; no new constant protocol. |
+| ADD and required MUL/DIV | Same floating dtype; exact ordinary tensor broadcast/result shape and no-operation attributes, or existing same-dtype scalar-value attributes with shape preserved. Preserve the identified B coordinate under broadcasting; no other ordinary F64 arithmetic family is added. |
+| SUM/MEAN and SUM-to-Shape | Existing no-axis, normalized axis/ordered-axes/keep-dimensions or SUM-to-Shape target attributes; exact family result shape, actual contributor count and proved read/write mapping. Use the typed exact ordinary algorithm below, not Scan's activity reduction. |
+| EXPAND, feature-only RESHAPE/EXPAND_DIMS/SQUEEZE | Exact target/axis attributes, ordinary broadcast or checked feature-product equality, singleton insertion/removal only; preserve B without flattening/mixing it into features. |
+| Transpose/CONTIGUOUS/same-dtype CAST | Valid exact permutation/result shape, no-operation attributes for CONTIGUOUS with shape unchanged, or exact same-dtype CAST target; require a proved canonical/transpose/expand mapping for these bounded shapes and preserve raw semantics. |
+| Length CAST control producer | Only non-gradient FLOAT32 `[B]` or FLOAT64 `[B]` to non-gradient INT64 `[B]`, exact CAST target and unchanged shape, under existing cast semantics. No general integral arithmetic/cast family; direct INT64 lengths requires no producer. |
+
+Added cases use checked-segment carriers with exact per-value four/eight-byte spans/alignment,
+proved zero-offset canonical/transpose/expand reads and canonical injective writes; preserve existing
+qualified read views and reject unresolved/unproved mappings, unsupported carriers and writable
+overlap. This qualification requires no new heap-carrier support. Validate fixed-feature products
+even behind empty T/B, then actual counts/strides/spans/bytes/aggregate bounds before borrow/allocation;
+recheck physical access at binding. The separate eight-byte INT64 control boundary does not make
+body arithmetic mixed-dtype. Ordinary symbolic F64 MATMUL, arbitrary rank-three operations and
+all-valid symbolic F64 Scan remain unqualified. Scan-internal MATMUL retains its own typed emitter.
+
+The four implemented public nested records live only in existing internal packages under
+`io.github.pho001.synaptik.backend.cpu`; declaration excerpts (not runnable Java):
+
+```java
+// internal.memory.CpuRepresentationRecipes
+public record BatchByteSize(long constantBytes, long bytesPerBatch, int elementByteWidth)
+        implements PreparedMemoryPlan.ByteSize { /* fixedByteSize(), byteSize(B) */ }
+// internal.ir.CpuAccessPlan
+public record BatchBinding(CpuAccessPlan plan, List<Long> extentConstants,
+        List<Long> extentBatchFactors, long baseElementOffset,
+        List<Long> strideConstants, List<Long> strideBatchFactors) {
+    public CpuAccessPlan.Binding bind(long batchSize);
+}
+// internal.lowering.CpuMatmulLowering
+public record BatchGeometry(DataType dataType, CpuAccessPlan.BatchBinding left,
+        CpuAccessPlan.BatchBinding right, CpuAccessPlan.BatchBinding result) {
+    public CpuMatmulLowering.Geometry bind(long batchSize);
+}
+// internal.lowering.CpuAggregateLowering
+public record BatchGeometry(CpuAggregateIr.Kind kind, DataType dataType,
+        CpuAggregateIr.Form form, List<Integer> axes, boolean keepDimensions,
+        CpuAccessPlan.BatchBinding input, CpuAccessPlan.BatchBinding output)
+        implements PreparedMemoryPlan.ByteSize {
+    public CpuAggregateLowering.Geometry bind(long batchSize);
+    public OptionalLong fixedByteSize(); // empty: structural run-bound marker
+    public long byteSize(long batchSize); // bind(B).workspaceBytes(1)
+}
+```
+
+References/results are non-null, list membership snapshots reject nulls in encounter order;
+null/invalid/overflow/index failures use the corresponding exceptions in the
+[resource contract](runtime-prepare-engine.md#accepted-symbolic-batch-resource-contract).
+Recipes are immutable/thread-safe/storage-free; all resolved access/packed arrays belong to one
+run. BatchBinding validates equal-rank lists and nonnegative coefficients/base; extent/stride
+`constant+factor*B` is in elements with checked counts/spans. One B-bearing axis per represented
+shape and proved canonical/transpose/expand mappings only. Preserve exact Model empty strides:
+`[F,0]` has `[0,1]`, never max(1,B). Regimes/axis roles stay prepared; no representative fake B.
+BatchByteSize computes checked `constantBytes+bytesPerBatch*B`, with nonnegative coefficients,
+positive supported element width, divisibility and CPU representability limits. Its run-bound
+marker remains absent even when bytes happen to be constant.
+
+MATMUL binds existing Geometry/pack once per invocation: forward M/K/N=B/F/H, dX=B/H/F,
+dW=F/B/H, preserving actual transposed strides. Analysis fixes route/carrier/code independently
+of B. Unsupported carriers reject, never select another artifact at admission. Aggregate geometry
+binds actual domains/output counts and conditional workspace, not maximum banks. For the admitted
+FLOAT32/int-limited N, signedBits=278+ceil(log2(N)), cardinality term zero at N<=1, is at most
+309 bits: retain constant-five-limb CpuExactSumEmitter for all admitted N, including 0/1.
+Single-range scratch is 48 bytes (`8+8*5`) when outputCount>0, otherwise zero. SUM-to-Shape
+handles B=1 copy/singleton at entry in the same code/route/slot. Zero scratch does not remove or
+discover requirements. Preserve actual count division/numerics; long domains remain unqualified.
+
+For implemented bounded ordinary FLOAT64 SUM/MEAN, retain the existing typed exact
+sum/rational-mean algorithm: `signedBits=2099+ceil(log2(N))`, with cardinality term zero for N<=1.
+Int-bounded N needs at most 2130 bits, so use fixed 34-limb state and 280-byte (`8+8*34`)
+single-range scratch when outputCount>0, otherwise zero while retaining its declared slot/creator.
+Preserve subnormals, signed zeros, NaN/Inf, empty domains and exact rational-MEAN rounding with no
+FLOAT32 narrowing or FLOAT64 DAZ/FTZ. Retained FLOAT32 stays five limbs/48 bytes, including 0/1;
+static FLOAT64 sizing remains domain-sized (N=3: 33 limbs/272 bytes). Scan producing-site SUM
+remains its distinct typed sequential algorithm; this ordinary qualification changes no Scan numerics.
+
+CPU analysis proves canonical write injectivity during preparation; run binding checks numeric bounds, never Model
+lowerers or element-enumerating injectivity. CPU state-aware representation hooks validate actual
+bytes from state.geometry(), retaining type/access/alignment/read-only/overlap checks. Existing
+bindCompatible/Invocation keeps direct typed carriers and fresh packed/access arrays; no tenth
+type, shared currentB/ThreadLocal, per-element recipe dispatch or hidden generic fallback overhead.
+
+Dynamic identities use `ordinary-batch-v1` to distinguish changed baked meaning in both existing
+specialization streams; actual B/bytes/slots/addresses are excluded. Retain static keys/generated
+bytes and existing IR numeric formats. Migrate inward creator consumers without deleting useful
+static/native paths. No type move/removal, new module, dependency or executor is selected.
+
+The implemented [CPU0073 mechanism](#cpu0073-accepted-row-map-and-multiple-terminal-reduction-fusion)
+permits only its exact internal types, optional region and selected-fusion identity suffixes.
+It changes neither this symbolic admission nor exact ordinary SUM/MEAN; noneligible identities
+and ClassFiles retain the rules above. Its validation and limits are recorded in CPU0073.
+
+Added outer F64/control/new rank-three cases use `ordinary-batch-typed-v1` in IR and BOTH existing
+specialization streams, including exact boundary dtype/carrier, mapping and reduction-state facts;
+actual B/L/bytes/slots/addresses remain excluded. Existing FLOAT32 `ordinary-batch-v1`, fixed/static
+identities and generated bytes remain identical. Positive/negative provider and validated-generation
+tests plus artifact load/reuse/stale-rejection tests must qualify the typed namespace, independently
+from combined Scan identities. These tests pass for the implemented typed branch; an identity alone
+does not grant any wider family or dtype capability.
+
+Qualification must compile/query genuinely symbolic B and execute actual first-order closure
+before general Scan: reuse one compilation/preparation for 64→40→1→64; check actual resources,
+descriptors and fixed parameter gradients, B=0/1, constant-byte batch-required mode, mismatch,
+overflow, failure/cleanup/retry/concurrency and static regressions. The reference is optimal clean
+Java for the same specialized algorithm/hot-loop/dataflow, including five-limb SUM. Inspect generated
+Class-Files for hidden allocation/boxing/reflection/per-element binding or dispatch. Bounded warmed
+matched-work A/B uses invocation B on both sides and separates cold generation/classload/JIT,
+admission and kernel costs. Disclose entry/harness costs when generated MethodHandle entry is
+compared with a direct Java call; a measured ratio is not an emitted-inner-loop-only measurement.
+Diagnose/justify overhead; no identical-JIT or zero-penalty promise.
+Prepare0013 records semantic and Class-File checks against specialized clean Java and bounded
+generated/direct and dynamic/static measurements. The original harness measurements precede the
+final MATMUL loop repair; one separately authorized private post-fix probe also completed. Short-window
+variance, the unmatched medium Engine route policy and a remaining exact-MEAN probe gap are
+disclosed, not evidence of steady-state parity, negligible overhead or an all-B speed guarantee.
+Final code/Javadoc/performance and shared-document reviews approve with zero open P1/P2.
+MAIN's native-enabled architecture/conformance/integration join passed and MAIN accepted the
+capability on 2026-10-24; this status update runs no measurement.
+
+### CPU0077 finite-softmax admission parity
+
+Implemented and independently reviewed under the delegated first-release parity requirement.
+[CPU0077](../../planning/backends/cpu/tasks/0077-f64-finite-softmax-admission-parity.md#result)
+records 45 passing targeted tests, CPU Javadoc/Jar and actual public both-type/kind backward proof.
+FLOAT32 and FLOAT64 admit finite represented SOFTMAX/LOG_SOFTMAX inputs even when maximum
+subtraction overflows to a negative-infinity working shift. BFLOAT16 retains its finite-working-
+shift requirement; finite FLOAT16 pairs cannot overflow their FLOAT32 working shift. This is
+not a new low occurrence. Nonfinite represented inputs, including negative infinity produced
+upstream, still reject after producers and before consumer writes or worker submission.
+
+The existing stable arithmetic, compensation, saved-output backward, fused derivative, and
+loss/attention formulas remain unchanged. Remove only the obsolete F64 shift-domain check and
+dead maximum/traversal from the production validator and synchronize the existing reference
+oracle's admission; maintain checked addresses, complete-domain validation and invocation
+freshness. Emitter Javadoc follows the domain, not a new implementation. Cached classes contain
+unchanged arithmetic and invocation always uses the current validator, so no algorithm version,
+generated-class identity, ABI or global schema changes. No new type/package/API, numeric policy,
+fallback, special-case repair, value snapshot or per-element allocation is selected.
+
+Both dtypes/kinds need independent forward and actual first-order backward proof, tied extrema
+with nonzero gradients, axis/layout/carrier controls, and fresh valid/invalid/valid invocations.
+Retain nonfinite failure atomicity, including later slices and parallel submission, and qualify
+the ordinary dense/index cross-entropy derivative consumers without changing their formulas.
+This correction does not extend cold inventories, general Scan algebra or any low family.
+
+### CPU0078 temporary low-arithmetic lock
+
+The CPU-only availability cutover implements the user's retain/freeze/lock decision after
+independent production, fixture and resource reviews. [ADR0060](../../design/decisions/0060-temporary-cpu-low-arithmetic-admission-lock.md)
+explains the choice; [CPU0078](../../planning/backends/cpu/tasks/0078-temporary-low-arithmetic-lock.md#result)
+records the passed affected gate and actual rejection/retention/F32-master workflows.
+No low implementation or shared Model semantic/type/storage contract is removed; broader release
+acceptance remains separate.
+
+Reject BFLOAT16/FLOAT16 numerical operand roles even when the result is promoted: tensor/scalar
+ADD/SUB/MUL/DIV/POW and numerical unary composites; MATMUL/convolution; numerical/statistical/
+masked/cumulative reductions; average pooling; normalization, loss, attention and dropout scaling;
+floating scatter ADD/MUL; CPU zero-initialized fold ADD; and fixed RNN/GRU/LSTM computation.
+POW's selected IDENTITY/POSITIVE_ONE realization, T/B=0 or all-inactive lengths do not bypass
+semantic admission. CPU FoldIr always adds from positive zero; no new raw/singleton alternative.
+
+Preserve existing exact ABS/NEG/SIGN/FLOOR/CEIL/RELU/clamp, MIN/MAX including reduction/scatter,
+comparison/classification/WHERE, ordering/arg-extrema/max pooling, affine/movement/indexing/
+replacement, original graph literals, casts/conversions, state/mask and INT32/INT64/BOOL semantics.
+Their generated backward still needs independently legal operations. Low-containing storage is
+not itself prohibited: explicit low -> F32 CAST -> F32 computation and final storage conversion,
+including Training-owned F32 master/candidate updates, remain available. No implicit emulated-low
+CPU route, runtime unlock flag/profile/policy object or low-capability expansion.
+
+Use existing owners only; no new/moved production type/package/facade/dependency. One
+CpuPointwiseOpcode.usesFloatingArithmetic() distinguishes numerical sites for floating operands
+from exact operations. Generalize existing package-private CpuPartitionLowering.opcode to
+OperationKind and migrate its Lowering/GeneralScanLowering/DagDecomposer callers. Its three
+new public-static, unsupported backend-internal cold methods are:
+
+```java
+boolean permitsLowPrecisionUse(OperationCapabilityQuery query)
+void requirePermittedLowPrecisionUse(CpuPortableKernelIr ir)
+void requirePermittedLowPrecisionUse(CpuKernelSpecialization specialization, CpuKernelIr ir)
+```
+
+These are declaration excerpts, not application API or runnable snippets. The query predicate
+never constructs a lowerer, calls provider.supports or re-enters recurrent/general-Scan analysis.
+Share the one opcode mapping; use actual instruction operand ordinals/virtual types, not blanket
+low-boundary rejection. Narrow read-only semantic discriminator access is authorized on existing
+encoding owners: CpuAggregateIr/CpuPool2dIr/CpuPool3dIr.encodedKind(CpuKernelIr),
+CpuScatterIr.encodedReduction(CpuKernelIr), CpuRandomIr.encodedFamily(CpuKernelIr), returning
+their existing kind/reduction/family enums. Share with existing emitter parsing where needed;
+no general decoder/registry, geometry reconstruction or decode-record allocation for admission.
+
+Direct byte definition cleanly becomes defineClassBytes(CpuKernelSpecialization, CpuKernelIr,
+byte[]); migrate every caller, remove the two-argument bypass. Authenticate actual emitted facts:
+typed MATMUL encoding/key agrees with the envelope and both represented operands are checked.
+Existing class-shape-only verification remains non-executing and does not change the trusted-local-
+byte threat model. Allowed emitted bytes/entry ABI/identities remain unchanged; no arbitrary
+global schema bump. Integral-only partial reduction retains its existing floating exclusion.
+
+Independent current admission is mandatory before source folding/fusion, direct/recognized
+MATMUL lowering, analyze/analyzeSelected/completePlanCandidates resource/candidate work, and
+retained finalization of semantic units AND substituted representation portable plans before
+copies/children/native setup. ArtifactStore rejects before weak/persisted hits, outside persisted
+catches; policy rejection never becomes cache miss/regeneration. Fresh generation and direct
+definition independently check. Fixed lowering/preparation/executable construction reject before
+empty-domain/scratch decisions or low-kernel construction. OpenBLAS stays F32/F64-only.
+
+Reject low CpuConstantWriteIr/constant-write-v1 at typed/envelope/retained admission: these are
+SUM-derived counts with erased numerical source roles, not original graph-literal initialization.
+Shared Prepare's original low literals remain. Keep all admission outside hot loops, with no
+unnecessary allocation/copying; add no provenance merely to rescue this temporary optimization.
+Current v2 ledger records actual CPU answers; historical v1 and all Metal rows remain unchanged.
+Actual unsupported/retained-bit/storage/F32-workflow and stale-cache witnesses, complete unaffected
+neural regressions and independent code/Javadoc review precede acceptance.
+
+### General Scan ordinary-unit realization
+
+Implemented coordinated Class C realization, accepted with Compiler0017/CPU0081 after independent
+authority/interface and exact-source implementation reviews, actual ordinary forward/selected-
+backward/typed/activity/boundary/raw consumers and the unfiltered affected test/Javadoc gate.
+It realizes the [Scan semantics](recurrent-scan.md#general-ordinary-unit-scan-cutover) through
+ordinary owners, without widening cold/wire, Metal Scan, low numerical or universal performance
+capabilities. Genuine qualified old recipes retain their exact key/ABI/generated-byte replay.
+
+Use the actual local CompiledScanBody graph to build a local PrepareContext/DAG/requirements and
+reuse CpuPartitionDagDecomposer.decompose/unitContext and CpuPartitionLowering.lower. Do not
+subset the outer one-node Scan DAG or create a second semantic graph/math inventory. Reuse
+ordinary focused family emitters, the same CPU0080 emitMethods owner and existing emitted Scan
+time loop. Preserve real typed physical layouts/carriers/cuts and live old/new carry/history.
+
+Resolve inferred computed local descriptors centrally in the existing composition `bodyContext`
+through Model `ScanBody.closeOrdinaryLayouts(Operation, List<TensorDescriptor>,
+List<TensorDescriptor>)`, shared with flat Compiler closure. Overlay projected values and matching
+logical requirements only; keep the captured body and exact activity graph immutable. Analysis
+and helper resource preparation use this same projection. Retain strict actual/formal guards,
+actual-only symbol authority and existing symbolic numeric mapping without sampled B. Exact
+views keep backing offsets/strides and ordinary fusion; only existing materialization decisions
+may create canonical cuts. Unproved/negative/empty extraction layouts do not acquire fabricated
+storage. Do not copy the Compiler classifier/geometry, import Compiler, or add a fallback resolver.
+
+The reviewed complete-graph source-publication prerequisite reuses the existing CPU source
+assembler, geometry and representation owners. Expose one descriptor-level checked size
+factory on the existing cold geometry owner; use Model referenced span for static affine/empty
+layouts and existing batchCanonical(READ)/BatchBinding proof for sole-named-B sources.
+If needed, the one nested numeric adapter
+`CpuRepresentationRecipes.BatchLayoutByteSize(CpuAccessPlan.BatchBinding, DataType)` implements
+existing Runtime ByteSize through actual binding span and checked width multiplication, with a
+structurally empty fixedByteSize marker. It is not a new top-level owner, IR or executor.
+Reuse existing caller borrowing/constant initialization and raw representation policy.
+
+Every affected concrete CPU unit/container, including generic, general/fixed recurrent and
+OpenBLAS paths, must cold-authenticate genuinely fixed selected geometry inside a complete
+batch-required source plan. Keep Runtime defaults strict, actual physical/access checks,
+static code shape and qualified keys/bytes/ABIs unchanged. Never make a fixed unit adopt an
+unrelated caller B, choose a new route or bypass its typed representation validation.
+
+The following focused additional internal production owners are selected, if needed, rather
+than growing a duplicate executor or validator framework:
+`internal.lowering.CpuGeneralScanCompositionLowering` for local physical composition,
+`internal.codegen.emit.CpuGeneralScanBodyEmitter` for fixed ordinary helper-call orchestration
+inside the existing time loop, and `internal.ir.CpuScanControl` for CPU numeric control layout/
+code-shaping facts. Private nested physical records remain within existing IR/recipe owners.
+No other top-level production type or cross-owner protocol is selected by a task brief alone.
+
+Extend existing family emit/geometry owners for controlled emission, active-contributor hooks
+and pack rebind/reset. Controlled ordinary helpers append one MemorySegment control after the
+old ABI; composite Scan entries may receive numeric long[][] packs. Standalone/retained entry
+descriptors and empty-prefix bytes stay unchanged. Derive local-slot widths from actual JVM
+descriptors, forward control through subsidiary calls, and verify the ACTUAL complete method
+inventory plus class/code/local/parameter/constant-pool limits for fresh and cached artifacts.
+One declaration owner supplies emission and verification, not a second family/method registry.
+
+All unit calls inside the time loop are fixed invokestatic calls. Bind wrappers/packs/cursors
+once per invocation and emit owner-defined temporal-base/cursor resets, including retry.
+No per-step pack/clone/slice/ofArray, unit-object loop, MethodHandle lookup, BoundInvocation body
+children, callback, scheduler or new runtime interpreter. Native control is declared RunState
+workspace; simultaneous ranges and numeric/control/scratch storage have proved disjoint lifetime.
+Initialize roots from the local compiled plan and this occurrence's own time/row domain. A
+retained external Tensor seed remains present; do not recognize numeric zeros or consult another
+occurrence's control. This clarifies no new helper ABI, storage or selective identity field.
+Shared scoped Model declaration proof precedes analysis but grants no backend capability. Retain
+independent physical geometry/resource and actual length-contributor checks; do not duplicate the
+symbolic proof or impose length ROW provenance on ordinary all-valid reshape.
+
+Qualify static and one-named-B/fixed-feature geometry without sampled descriptors or actual-B-
+baked classes. Per-value widths/alignment and arbitrary proved history ranks/axes remain real;
+do not replace obsolete first-carry/rank-three assumptions with another permanent body-family
+list. Fuse only compatible structural scopes, physical domains, value-validation boundaries
+and optional-merge/temporal-ADD meaning. Existing standalone/native/SIMD/parallel eligibility
+does not automatically expand to controlled units; portable semantic support is separate.
+
+Reuse represented SUM and MATMUL active-contributor seams and factor existing scatter traversal/
+coordinate/reduction ownership for skip-before-index/load behavior. Factor existing softmax/
+loss/BOOL/attention-mask/index/scatter validator loops into nonallocating temporal/activity/range
+entries shared with ordinary bind. Complete the current unit's entire eligible validation domain
+before its first numerical output/history/scratch write. No duplicated predicates, validator
+registry or new normalization/categorical finite policy.
+
+Every nested IR/specialization independently passes CPU0078 before resource/cache/generation/
+definition. Control/pack/typed/provenance/lifetime/method-inventory code-shaping facts have a
+selective composite identity; absent activity adds no old-route empty suffix. Preserve unchanged
+frozen recipe bytes/keys, distinguishing genuinely new compact AD graphs. No Metal Scan, native
+step route, numerical-policy selector, low arithmetic unlock or broader cold/wire grant follows.
+Actual all-valid/length forward AND selected backward, empty/no-ROW/typed/family/poison/guard/
+retry/lifetime/identity evidence and independent source/Javadoc review are mandatory.
 
 ## Metal backend
 
@@ -376,6 +1584,43 @@ storage descriptor and complete referenced span before resource creation or muta
 materializing outputs are canonical. Scalar targets are valid values, not empty buffers; zero
 extents, zero/negative external strides, unresolved layouts, overlap, and byte overflow fail closed.
 
+### Accepted Metal dense-view MATMUL extension
+
+MAIN implements the bounded [Metal0080](../../planning/backends/metal/tasks/0080-dense-view-matmul-composition.md)
+extension for first-production consumers. Integrated identity38 source and the source-matched
+GPU/package/unchanged consumer proof qualify its bounded domain; final release acceptance remains separate.
+
+MATMUL input geometry may be exact canonical row-major strides, zero offset and referenced span
+equal to logical element count with logical isView true or false. Retain positive fully static
+rank 1..16, exact contraction/vector promotion/batch broadcasting and checked byte/dispatch
+bounds. Outputs remain canonical. No general strided, offset, overlap or zero-stride operand
+storage is admitted; legal MATMUL batch broadcasting is separate from storage broadcasting.
+
+Non-dense transpose still requires an actual earlier local PERMUTE with identity prefix and the
+last two axes exchanged, rooted in an authenticated dense value. Every source/descriptor/carrier/
+gradient/span relation stays checked. A materialized affine result uses its represented dense
+buffer; an already-elided transpose uses its authenticated source plus one transpose application.
+Do not follow arbitrary logical ancestry, add elision/copies, fabricate canonical metadata or
+change Model/Compiler views. Preserve transpose publication/non-MATMUL fan-out.
+
+Provider, preparer, route planner, independent Java/native validation and MPSGraph value-state
+initialization authenticate actual selected descriptors/physical sources. Dense MATERIALIZED_LAYOUT
+feeds and local AFFINE_VIEW results are admitted only with this MATMUL proof, not blanket state
+admission or clearing physical facts. Generic canonicalStorage and canonical-only anchors remain.
+
+Original homogeneous FLOAT32, BFLOAT16 and FLOAT16 forward/generated-gradient rows require
+independent qualification. Keep existing no-gradient integral/promotion/widening bounds; no F64
+MATMUL, mixed BF16/F16, F16/F32 widening or integral/widening gradients. Low-containing partitions
+remain CUSTOM_PROGRAM only, with no generated-pointwise/anchor fusion or fallback. No Java CPU
+low-numeric permission follows.
+
+Metal0080 advanced all six coordinated workload/exact-policy/candidate/compatibility/route/codec
+identities from36 to37; Metal0081 now advances them to38. Stale handoffs/decisions reject even
+with valid outer integrity. Schema20/header124/ABI7/thirteen exports and native/source/package
+authentication remain. Earlier native packages or historical v1 capability evidence do not
+substitute for the rebuilt exact current source and independently queried original-typed facts.
+
+
 Metal-specific optimizer execution belongs to Metal backend prepare/kernels, not to training.
 
 Do not add `MetalOptimizerBridge` to `extensions/training`.
@@ -424,32 +1669,45 @@ missing scope requires an explicit architecture update.
 A concrete backend must use profile-free, occurrence-specific provider capability and qualified
 routes. Plans, specialization, generated artifacts, tuning candidates and decisions, and cache
 compatibility retain their non-profile semantic, type, target, ABI, source, and version identities;
-changed formats reject stale inputs. CPU retains its supported routes without a profile selector.
+changed formats reject stale inputs. CPU's retained routes obey its CPU0078 arithmetic lock;
+there is no profile selector.
 
 After the cutover, a new supported occurrence must have an independently true provider query for
 its exact dtype, descriptors, attributes, and gradient metadata; a route qualified against Model
 semantics and the applicable exact, special-value, finite, and failure conformance tests; and an
 updated current ledger and provider/conformance tests. A FLOAT32 true answer never implies a
 BFLOAT16 or FLOAT16 true answer, including through a FLOAT32 descriptor proxy used to preserve
-the frozen low baseline. Each newly supported low occurrence additionally needs its own qualified
-custom step under the fixed low-containing `CUSTOM_PROGRAM` partition rule. Preserve all existing
-supported low occurrences. Advance the relevant compatibility identity append-only when changed
+the frozen Metal low baseline. Each newly supported Metal low occurrence additionally needs its
+own qualified custom step under the fixed low-containing CUSTOM_PROGRAM rule; preserve existing
+Metal low occurrences. CPU-only arithmetic availability follows CPU0078 above. Advance the relevant compatibility identity append-only when changed
 route, program, plan, serialized, or generated behavior makes old inputs incompatible; reject
 stale inputs. Capability evidence and route qualification remain cold backend/Prepare concerns,
 not a Runtime certificate, tolerance policy, retry, or fallback layer.
 
-Current generated CPU artifact envelopes use schema 70. Current Metal images use schema 20 with a
+Current generated CPU artifact envelopes use schema 71. Current Metal images use schema 20 with a
 124-byte header, and coordinated workload, exact-policy, candidate, compatibility, route, and
-codec identities use version 36. Native ABI 7 still exposes thirteen symbols. CPU schema 68 and
+codec identities use version 38. Native ABI 7 still exposes thirteen symbols. CPU schema 68 and
 Metal schema 19/identity 29 are historical pre-cutover baselines; Metal identity 30 is the
 historical cutover value and identity 31 is the superseded FLOAT32 `EXP` value; neither is a valid
 current input. Identity 32 is the superseded low-`EXP` value and identity 33 is the superseded
 FLOAT32 `SIGMOID` value; both are rejected. Identity 34 is the superseded low-`SIGMOID` value;
-identity 35 is the superseded native-boundary and exact low-value repair value. Current identity 36
-binds corrected Java/native admission of already-advertised scalar RELU/MUL. CPU schema 70 binds
-corrected activation extremes and named low FLOAT32 working sites. Both reject stale inputs,
-including Metal identity 35 and CPU schema 69; neither repair changes Model semantics or expands
-provider admission.
+identity 35 is the superseded native-boundary/exact low-value repair value. Identity36 corrected
+standalone scalar admission;37 added dense-view MATMUL and current38 adds materializing RESHAPE. CPU schema 70
+corrected activation extremes and named low FLOAT32 working sites; those repairs changed neither
+Model semantics nor provider admission. CPU schema 71 retains those repairs and adds the bounded
+FLOAT32 pointwise general-scan family. CPU0031's distinct shaped specialization retains schema 71
+and old pointwise compatibility. CPU0032's MATMUL-only specialization preserves both old scan
+forms within schema 71; baked shaped/MATMUL facts enter both existing specialization identity
+streams, not the geometry-free canonical family envelope. CPU0033's additive FLOAT64 scan variants
+retain those projections/payloads and accepted FLOAT32 keys/bytes; existing dtype and baked
+resource facts distinguish their identities. CPU0034 advanced the staged payloads to v2;
+CPU0035 advanced them to v3; CPU0036's current staged specialization payloads are v4 in both
+existing streams for top-tested loop control and dominating final-copy bases. The global
+envelope/family stays 71 and canonical shaped/MATMUL projections stay geometry-free v1.
+Staged v1/v2/v3 artifacts are incompatible, while pointwise, fixed
+and unrelated identities are unchanged. Current identities reject stale inputs, including Metal
+identity 37 and CPU schema 70 and earlier. Existing CPU family projections and historical
+versioned evidence remain distinct from this current global envelope identity.
 Native source, manifest, and package authentication remain safety gates; historical schema-19
 source certificates do not certify schema-20 programs.
 
@@ -625,5 +1883,30 @@ production. Counts are over operation kinds, not all dtype occurrences. Workload
 exact-policy, candidate, compatibility, route-policy, and codec identities were version 29 before
 cutover, version 30 at cutover, version 31 for FLOAT32 `EXP`, version 32 for low `EXP`, version 33
 for FLOAT32 `SIGMOID`, version 34 for low `SIGMOID`, and version 35 for the native-boundary and
-exact low-value repairs. Current version 36 corrects standalone scalar admission; stale
-versions fail closed. The complete-plan wrapper retains its unrelated version-one format.
+exact low-value repairs. Version36 corrected standalone scalar admission and37 added dense-view
+MATMUL; current38 adds selected materializing RESHAPE. Stale versions fail closed. The complete-
+plan wrapper retains its unrelated version-one format.
+
+## Accepted ordinary materializing RESHAPE extension
+
+[ADR0062](../../design/decisions/0062-ordinary-materializing-reshape-closure.md) is implemented through
+Complete Compiler0019 final geometry and Complete CPU0079 existing affine ordinal copy, without
+unlocking low arithmetic. Integrated Metal0081 source has actual source-matched package/device
+and unchanged typed-backward consumer proof; final current-ledger/docs/release acceptance remains
+separate. Ordinary validated static RESHAPE selects canonical non-view geometry only when its
+supported inferred view remains unproved. Raw source/wire inference stays unchanged.
+
+Metal0081 independently retains the exact AFFINE_VIEW branch and admits the selected materializing
+branch only with canonical non-view output/CANONICAL state, offset0, span=count and
+densePhysical=false. Source/output offset/span equality remains mandatory for actual views,
+not for compact materialization of a valid offset/holed source. Neither source flags nor actual
+physical geometry may be erased. Materialization receives its ordinary distinct destination and
+lifetime, not an alias or new elision.
+
+Reuse the selected exact_move_unary_0066 operation6 kernel and existing metadata/copy helpers,
+with the representation actually bound. Preserve existing movement dtype/gradient/storage bounds,
+fan-out/publication, runtime alias/size/context checks and CUSTOM_PROGRAM-only low partitions.
+No new shader, numeric math, consumer CONTIGUOUS or older0059-kernel substitution is authorized.
+Schema20/header124/ABI7/thirteen exports remain; all six coordinated Metal identities advance
+37 to38 and valid stale37 evidence rejects. This explicitly extends the former noncontiguous-
+RESHAPE exclusion; it does not broaden MATMUL storage or other affine operations.

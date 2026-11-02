@@ -153,6 +153,13 @@ and integrations in reverse registration order. Cleanup is attempt-all and failu
 Metadata stays readable after closure; detached values outlive result, preparation, Engine and
 caller storage.
 
+Advanced and ordinary result publication includes wrapper construction and Engine registration:
+failure rolls back the completed run and releases admission even when cleanup fails. Result/state
+closure drops these owners' direct references to fresh invocation payloads, including borrowed
+input wrappers, without closing caller storage. Retained metadata does not require keeping those
+payloads live. Runtime plan/count/geometry inspection remains available; Runtime repeated close
+does not replay failure, while the outward Engine result preserves its exact failure replay.
+
 `InferenceSession` and `Engine.session` are removed without a compatibility shim. Migrate
 `engine.session(graph)` to `engine.prepare(graph)` and `session.run(inputs)` to
 `engine.run(prepared, inputs)`, then recompile. Fresh values explicitly opt into runValues.
@@ -1151,17 +1158,27 @@ recipes:
 `PartitionPreparation<I,P>` positionally associates backend inputs, a typed preparer, and its
 matching finalizer. `GraphPreparation.prepare(...)` accepts one complete `CompileArtifacts`, one
 such value per planned partition, and one explicit `PreparedScheduleAssembler`. Its ordinary
-three-argument form identifies each required producerless published constant and asks the
-assembler to contribute a `ProducerlessPublishedConstantResource` from the exact stable graph
-value, producerless/consumerless graph-output logical requirement, and scalar. The contribution
-supplies backend-owned physical byte size and alignment. The four-argument form remains available
-for a caller that already holds the complete contribution list.
+three-argument form identifies each producerless, consumerless published caller or constant input
+and requests a `ProducerlessPublishedValueResource` from the assembler's default
+`producerlessPublishedValue(value, logicalRequirement, Optional<ScalarValue>)` hook. The scalar is
+present exactly for a constant, empty exactly for a caller. The five-component contribution retains
+the exact graph value and logical requirement, backend owner, an existing immutable `ByteSize`
+recipe and alignment. The four-argument form accepts the complete explicit contribution list.
 
-Before backend work, Prepare snapshots the lists, validates exact artifact-reference membership
-and the complete graph-input, graph-output, constant-source, unconsumed logical role, and orders
-valid contributions by final graph-value encounter order. The value remains absent from every
-partition-local `PrepareContext`. At least one ordinary non-empty planned partition is still
-required, so this handoff does not enable a zero-node execution.
+Before backend work, Prepare snapshots the lists and validates exact references, authenticated
+disjoint source roles, required publication, complete unique coverage and no producer or consumer.
+The shared `PrepareContext.validateValueShapes(List<GraphValue>)` guard retains the existing
+fixed-or-sole-named-B vocabulary; actual caller-axis authority and backend admission remain separate.
+Callers receive leading slots in exact Compiler occurrence order, including source-only callers;
+remaining ordinary declarations retain encounter order and producerless constants remain last.
+No source contribution is added to a partition-local `PrepareContext` or finalizer requirement.
+
+ByteSize recipes remain unevaluated until existing run geometry resolves actual B once before
+allocation. Complete source named facts determine batch mode even for zero bytes. Fixed CPU units
+within that complete batch plan retain their static lowering and authenticate fixed selected
+geometry through existing cold hooks; Runtime defaults remain unchanged. Caller borrowing,
+constant initialization and publication use existing owners. At least one ordinary non-empty
+planned partition remains required; this handoff does not enable zero-node execution.
 
 The operation constructs all partition contexts before analysis, invokes each preparer and
 finalizer once in partition order, then gives the assembler one immutable
@@ -1171,14 +1188,15 @@ shared memory plan, prepared partitions, and `PreparedBufferAssignment` values t
 `ValueId` values to dense Runtime buffer positions.
 
 The package-internal complete-set handoff validates expected partition coverage, exact projected
-source references, and backend ownership before assignment. It traverses partitions and
-requirements in stored order. A first-seen buffer `ValueId` receives the next dense buffer slot;
-later declarations of that value share the exact slot and its plan entry uses the maximum
-declared size and alignment. Every workspace declaration receives a fresh dense workspace slot
-with unchanged geometry. After all ordinary declarations, each canonical producerless
-contribution receives the next dense buffer slot and plan index with its supplied geometry
-unchanged. It receives no finalizer assignment because no partition owns it. No lifetime,
-interference, aliasing, or reuse model is inferred.
+source references, and backend ownership before assignment. It first seeds caller buffer slots in
+exact Compiler bindable occurrence order, using each caller's ordinary declaration or authenticated
+source-only contribution. It then traverses ordinary partitions and requirements in stored order.
+Each remaining first-seen buffer `ValueId` receives the next dense slot; later declarations share
+that exact slot and retain maximum declared size and alignment. Every workspace declaration receives
+a fresh dense slot with unchanged geometry. Only canonical source-only constants are appended after
+ordinary declarations, with their supplied geometry unchanged. Producerless contributions receive
+no finalizer assignment because no partition owns them. No lifetime, interference, aliasing, or
+reuse model is inferred.
 
 Every typed finalization is constructed before any backend is invoked. Finalizers then run once
 in partition order, and each returned finalization result must contain a non-null executable that

@@ -11,6 +11,36 @@ rank-0..16 static canonical or positive-stride non-overlapping layouts. Other co
 conversion-based transfer, and most extensions remain planned or incomplete. The
 [roadmap](../planning/roadmap.md) records exact delivery status.
 
+## Accepted symbolic-batch ownership
+
+The implemented bounded ordinary [dynamic-batch handoff](runtime-prepare-backend-boundary.md#accepted-symbolic-batch-handoff)
+and Prepare0014's bounded FLOAT32 symbolic Scan extension use existing modules and unchanged
+dependency edges. Final Scan qualification is tracked in its
+[task](../planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md); static paths are retained. The
+[root index](../../ARCHITECTURE.md#scope-indexed-normative-contracts) routes each concern to its sole
+normative owner; [ADR 0050](../design/decisions/0050-dynamic-batch-geometry.md) records the decision.
+
+| Stage/owner | Responsibility | Remains outside that owner |
+|---|---|---|
+| Compiler | Prepare BatchBindingPlan from final metadata/private typed obligations; bind B and requested descriptors. | Runtime state, storage or public diagnostic-string predicates. |
+| Prepare | Complete fixed/run-size declarations, explicit batch-required mode, stable slots/positions and transaction. | CPU geometry evaluation, physical allocation or late resource discovery. |
+| CPU | Numeric byte/access/MATMUL/aggregate recipes and one-time actual-byte/typed-carrier binding. | Semantic graph interpretation per invocation or per-element recipe dispatch. |
+| Runtime | Authenticate exact-plan numeric geometry, create actual resources and own one isolated RunState. | Model/Compiler dependency, symbolic expressions, code/cache/route selection. |
+| Engine | Admit actual static input descriptors/storage, exact-prefix borrowing, actual publication/materialization. | Another runner, lease protocol or per-B source rebuild. |
+
+Read the table from immutable compile/prepare decisions toward one invocation's numeric resources.
+For X `[B,4]` @ W `[4,3]`, the same plan serves B=64→40→1→64 while Y/dX bytes vary
+and dW stays `[4,3]`; no shared currentB changes. A creator closed over prototype B or a Runtime
+Shape interpreter would give incorrect spans or cross ownership. Complete recipes plus checked
+pre-borrow admission avoid that failure without changing code/routes/slot membership.
+
+The ordinary and Scan slices qualify genuine symbolic capability and the entire actual first-order
+derivative closure independently, including empty/overflow/failure/concurrency and retained static
+paths. Generated loops are compared with specialized clean Java and bounded matched-work evidence;
+no timing parity follows. Engine geometry memoization, NN/Training one-state reuse,
+symbolic Compiler/Checkpoint cold acquisition, symbolic wire, builder and
+native/mixed/tuning remain separate gates. None grants a new dependency or execution owner.
+
 ## Shared modules
 
 ### `modules/trace`
@@ -71,14 +101,24 @@ wrappers, and exactly six public static biased or bias-free constructors on the 
 module, execution service, registry, or general scan-body abstraction. It owns no callback body,
 nested graph, region, captured free variable, runtime length inspection, hidden state, or
 execution loop. Current Compiler forward-only inference adopts the family, but every executable
-route remains future work. Current NN `RnnSequence`, `GruSequence`, and `LstmSequence` containers
-retain construction-time Java `long[]` lengths and static unrolling; later NN delegation requires
-backend adoption and a complete executable path.
+route is qualified independently: CPU now implements the fixed four-floating-dtype/read-layout
+domain described below. Current NN static `RnnSequence`, `GruSequence`, and `LstmSequence` routes
+retain construction-time Java `long[]` lengths and static unrolling; additive `forwardScan` routes
+delegate explicitly, without redirecting those static APIs.
 
 Cold semantic persistence is independent: the
 [Checkpoint v3 contract](contracts/extensions-training.md#canonical-graph-model-version-3) retains
-the same flat occurrence and all canonical ports. Model gains no codec, body, runtime artifact or
-new public type; result carriers are not serialized.
+the same fixed flat occurrence and all canonical ports. This persistence adds no codec/body/runtime
+artifact ownership to Model; result carriers are not serialized.
+
+The accepted [general-scan exception](contracts/recurrent-scan.md#general-differentiable-scan)
+separately permits immutable source Tensor algebra on a producer and one scoped compiled body on
+a node. Both attachments are implemented. Model constructs canonical latent residual
+ports without choosing derivatives or allocating history; this preserves original immutable
+producer identity for Compiler's exact saved-value references. Users write Tensor algebra, not
+saved-tensor recipes. Operation attrs still contain no Tensor/graph. The
+[focused explanation](general-differentiable-scan.md) distinguishes this decision from implemented
+fixed scans and from arbitrary control flow.
 
 ### `modules/config`
 
@@ -105,10 +145,30 @@ Planning asks whether a backend supports a complete operation occurrence through
 `OperationCapabilityQuery`, with no numerical selector. Concrete backend preparation, not
 Planning, qualifies and realizes a route under Model semantics.
 
-When the fixed recurrent scan becomes executable, it enters Planning through the unchanged
+The executable fixed recurrent scan enters Planning through the unchanged
 ordinary operation capability query. Planning selects an owner but does not interpret cell
 variant, direction, valid-length values, active rows, loop bounds, or a recurrent execution
-route. No current capability provider advertises the Model family.
+route. CPU advertises only its qualified fixed domain.
+
+General Scan transports optional CompiledScanBody and ScanActivityPlan query metadata, including
+role bindings, residual demand, full source shapes and structural activity. These are not an
+executable Runtime graph. Planning selects one complete-body owner; body and binder qualify
+together, not mixed-owner body partitions. Compiler owns contextual inference and selected actual
+FLOAT32/FLOAT64 first-order AD; Prepare projects exact body/activity metadata.
+CPU composes every ordinary CPU-supported PURE unit under ordinary dtype/layout/value/derivative
+guards, reusing ordinary lowering/emitters under the existing loop, direct same-class helpers and
+run-owned staging. Model remains the logical-layout owner. This is no universal no-copy or
+zero-allocation promise. Families without backward retain that limit; non-gradient primal paths
+may contain ordinary nondifferentiable units. All-valid bodies use WholeTensor. Length bodies
+may contain proved ROW(axis) values and arbitrary-shape SHARED tensors. The separate final
+non-gradient INT64 `[B]` lengths control has no body formal; it is not a scalar alternative.
+Original AD carries/sequences and emission boundaries remain ROW(0), while intermediate/history
+ROW axes and ranks follow their proofs. Supported row-mixing materialization requires exactly
+the same length values, not Tensor identity. Structural absence differs from a present all-zero
+seed; cross-Scan materialization is explicit. CPU0030–0033 retain historical bounded qualification,
+not a current finite operator whitelist. The bounded [owned NN workflow](#owned-tensor-model-composition)
+and narrow [body persistence](contracts/extensions-training.md#canonical-graph-model-version-4)
+remain separate admission; no Metal general Scan, nested control flow or fixed-family BPTT follows.
 
 See [Partition Scoring](partition-scoring.md).
 
@@ -122,11 +182,36 @@ optimization, publication binding, planning orchestration, compile diagnostics, 
 
 Its output is immutable compile-time state. It does not create physical buffers, backend executables, runtime workspaces, prepared schedules, or `PreparedExecution`, and it has no concrete backend dependencies.
 
-Compiler captures each current Model scan producer as exactly one ordinary flat node and current
+Compiler captures each current fixed Model scan producer as exactly one ordinary flat node and current
 forward-only inference independently revalidates its fully static descriptors. Both backward-
-capable modes reject any complete forward inventory containing recurrence before any derivative
-Tensor is allocated. A later explicit backpropagation-through-time (BPTT) decision owns
-derivatives. Compiler must not unroll the recurrence into `time` nodes or create a body graph.
+capable modes reject any complete forward inventory containing fixed recurrence before any derivative
+Tensor is allocated. Fixed BPTT remains unsupported. Compiler must not unroll fixed recurrence into
+`time` nodes or attach a body graph to that family.
+
+For accepted general scan, Compiler instead builds an ordinary reverse sibling through existing
+Tensor rules before one combined capture. Every original primal formula operand binds explicitly
+to its residual/step/invariant reverse formal; a saved TANH output is not replayed. Constant leaves
+close through explicit outer splats and formals. Reused templates capture in independent scopes
+without outer ValueIds, escaping producers or cross-template sharing. The
+[Compiler boundary](contracts/compiler-autograd.md#compiler-owned-automatic-differentiation)
+and [sole semantic protocol](contracts/recurrent-scan.md#reverse-scan-and-exact-primal-bindings)
+describe this implemented compile-time path; no captured-IR AD, second algebra, fixed-family adjoint
+or general-scan execution follows.
+
+Compiler0013 extends this boundary to bounded length-mode inference, first-order reverse
+construction and complete final queries/demand. The extra INT64 lengths actual has no body
+formal or cotangent. Every original carry and sequence must be ROW(0) for AD, including unused
+and non-gradient positions; generated reverse histories/seeds instead retain their checked mixed
+roles. Per-incoming SHARED normalization, explicit ROW literal/zero bindings and protected actual
+binding sites preserve those roles without a new derivative engine or public API. For example,
+a shared transposed weight history stays `[T,F,H]`, even at F=B, while a transposed row history
+retains ROW(1). Prepare0011 now preserves those exact roles, scoped bodies and saved ports while
+checking static boundaries and complete-graph demand before analysis. Its separate INT64 actual
+has no local formal; backend analysis still owns resource geometry. Prepare does not duplicate
+Model/Compiler row-algebra proof or impose original-source AD admission on generated reverse
+bindings. CPU0042 separately implements fixed-geometry FLOAT32/FLOAT64 forward and actual reverse
+through existing CPU owners, without changing this handoff. Cold capture/reconstruction and codec
+still reject length mode; no symbolic-length, v5 or owned NN workflow follows.
 
 The [cold source lifecycle](contracts/compiler-autograd.md#compile-lifecycle) also owns narrow
 CNN/static recurrent admission and fixed-scan reconstruction. It preflights every stored
@@ -165,7 +250,7 @@ the first action, traverses them in schedule order, and returns the complete sta
 `RunResult` lease. Separate calls may share the immutable recipe but never runner-created mutable
 state.
 
-For a future executable fixed recurrent scan, Runtime receives only ordinary caller-input
+For the executable fixed recurrent scan, Runtime receives only ordinary caller-input
 representations, one reusable prepared executable recipe, cold-bound direct references, and an
 isolated `RunState`. It does not inspect the valid-length value, interpret direction or
 recurrence, choose loop bounds, or compact active rows.
@@ -179,10 +264,17 @@ prepared memory validation, and prepared schedule validation.
 
 Prepare bridges compile artifacts to runtime contracts, but shared prepare code does not contain concrete CPU, Metal, or CUDA lowering, kernel selection, executable implementations, or backend-specific storage. Those belong to concrete backend modules.
 
-The future executable fixed recurrent scan needs no shared loop-body contract. Prepare projects one
+The executable fixed recurrent scan needs no shared loop-body contract. Prepare projects one
 ordinary static-Shape partition occurrence, accepts the backend's opaque one-time recurrent-loop
 analysis and exact resource declarations, assigns slots, and supplies those assignments for
 finalization through the existing staged lifecycle.
+
+The accepted general scan requires new validated projection of its body, disjoint local/outer
+descriptor scopes, role bindings and ordinary residual edges/demand. One owner prepares the body
+once and declares exact staging/carry/temporary/live-history resources before slots. CPU finalization
+then emits the time loop and typed body code; changing addresses/carry remain in the single RunState.
+There is no Runtime interpreter, nested execution owner, per-step callback/allocation or opaque
+saved-workspace protocol. See the [general handoff](runtime-prepare-backend-boundary.md#general-differentiable-scan-handoff).
 
 ### `modules/engine`
 
@@ -220,7 +312,7 @@ routes, one fixed complete-plan candidate, session compatibility, and decision c
 multiple-partition, and MPSGraph-only Metal plans remain ineligible. Any allowed fallback stays
 with the already-selected adapter.
 
-For a future runnable recurrent scan, Engine owns the checked typed mapping from the logical input
+For a runnable fixed recurrent scan, Engine owns the checked typed mapping from the logical input
 Tensors, including `INT64[batch]` valid lengths, to ordered Runtime caller-input representations
 and from publication positions to typed outputs. A length value never causes graph capture,
 specialization, or preparation to repeat.
@@ -383,6 +475,16 @@ Data integration is separate future work.
 
 ### Owned tensor Model composition
 
+The implemented all-valid general-scan workflow uses existing Model.graph/defineTensor and cached
+compute/configureTraining/train owners. Acquisition delegates to Compiler's bounded cold inventory
+through Checkpoint's attachment-preserving in-memory copy/rebind, independently of CPU support.
+Canonical static homogeneous FLOAT32/FLOAT64 occurrences may compute and train where their actual
+forward/reverse bodies qualify. All-valid means all static time steps participate, not arbitrary
+body support. Fixed scan-training rejection and padding exclusion remain; v4 body files use the
+same bounded cold inventory independently of execution support. See the
+[extension contract](contracts/extensions-training.md#owned-tensor-models) and
+[ADR0046](../design/decisions/0046-general-scan-cold-source-and-owned-model-direction.md).
+
 The [owning NN contract](contracts/extensions-training.md#owned-tensor-models) places high-level
 owned state and exclusion in NN, without moving execution or optimizer algorithms there.
 `Model.defineTensor` acquires a source after one eval prototype forward; `Model.graph` acquires an
@@ -395,7 +497,9 @@ NN owned source -> Engine compile/prepare/runValues -> detached values
                -> GraphCheckpoint.save            -> source + current raw values
 ```
 
-Each arrow delegates to the existing public owner. For a supported scan-free source, configuring training after compute
+Each arrow delegates to the existing public owner; save additionally requires wire admission.
+General bodies use the bounded v4 inventory below, not arbitrary PURE operations.
+For a supported source without fixed scans, configuring training after compute
 closes inference preparation before one native parameter admission, preserving Tensor identity.
 Rebuilding a source or replacing a weight per batch would invalidate this lifecycle, not refresh it.
 Mode, wrappers, paths and storage associations are guarded; inherited mutators remain caller-excluded.
@@ -427,11 +531,12 @@ requires a prior forward call. The two-input compute convenience applies equally
 two-input/one-output graph and follows declared positions, not inferred length roles. Existing
 graph-model v3 stores those ordered input descriptors, without new role metadata or format changes.
 
-Scan-containing Models must reject configure/train before the training-transition arrow above:
+Fixed-scan-containing Models must reject configure/train before the training-transition arrow above:
 after lifecycle/live-source checks, but before freezing binding, invoking an objective callback,
 creating an Engine, closing inference preparation or copying parameters to native storage. Waiting
 for Compiler's BPTT error would perform those side effects first. Static unrolled Models still
-train normally; scans remain inference-only. The [owning contract](contracts/extensions-training.md#owned-tensor-models)
+train normally; fixed scans remain inference-only even in a mixed fixed/general source.
+The [owning contract](contracts/extensions-training.md#owned-tensor-models)
 and [ADR 0041](../design/decisions/0041-runtime-length-scan-model-inference.md) define and explain
 this limited cutover; backend support, recurrence numerics and execution ownership do not change.
 
@@ -469,7 +574,27 @@ NN/Training/Engine dependency. A static input prototype contributes only its des
 host leaves contribute raw values by exact identity. Load returns ordinary symbolic Tensors,
 without execution or a second ownership copy. See the [graph API](../api/graph-checkpoint-api.md).
 
-Checkpoint owns [v3 wire and normalization](contracts/extensions-training.md#canonical-graph-model-version-3),
+General-body in-memory copy/rebind now retains each immutable scanBody attachment unchanged while
+normalizing only outer node/value IDs. Coincident numeric IDs do not cross body scopes; Compiler
+alone preflights and reconstructs fresh body formals and canonical ports per occurrence. For
+example, two uses of one source template still become two independent reconstructed bodies.
+The exact [cold constructor inventory](contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction)
+is independent of CPU dtype support, not arbitrary PURE-body copying. V1/v2/v3 remain independently
+closed to bodies. Implemented [v4 persistence](contracts/extensions-training.md#canonical-graph-model-version-4)
+uses that same cold inventory; unsupported bodies reject before host copy/file effects.
+NN uses it for graph/definition acquisition and save/load, while execution
+still requires its independently qualified body and binder domain.
+
+For example, a three-step FLOAT32 `tanh(carry + step * weight)` source uses v4 with one inline
+body and one raw named weight payload, not three copies of the body or saved activations. Loading
+must delegate fresh scoped construction to Compiler; a Checkpoint interpreter or constructor table
+would duplicate family ownership and risk scope aliasing. Focused tests cover cold roundtrips and
+loaded FLOAT32/FLOAT64 execution/training; main accepted CP0013's final gates.
+The [persistence decision](../design/decisions/0047-bounded-general-scan-graph-persistence.md) records
+the compatibility tradeoff and pre-code gate. No new module edge or execution owner is involved.
+
+Checkpoint owns [v3 wire and normalization](contracts/extensions-training.md#canonical-graph-model-version-3)
+and [v4 body records](contracts/extensions-training.md#canonical-graph-model-version-4),
 not operation semantics or Tensor reconstruction. All ordered producer ports receive distinct
 implicit value positions; iterative producer-aware topology retains unused sibling outputs while
 rejecting dead producers. For example, a finalCell-only LSTM root still retains one three-output

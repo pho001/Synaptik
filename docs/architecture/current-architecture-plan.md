@@ -9,7 +9,7 @@ The authoritative architecture root and sole authority index is:
 The root explicitly incorporates exactly six scoped normative contracts:
 
 - [Foundational modules](contracts/foundational-modules.md)
-- [Fixed recurrent scan](contracts/recurrent-scan.md)
+- [Fixed and general differentiable scan](contracts/recurrent-scan.md)
 - [Compiler and automatic differentiation](contracts/compiler-autograd.md)
 - [Runtime, Prepare, and Engine](contracts/runtime-prepare-engine.md)
 - [Backend execution](contracts/backend-execution.md)
@@ -36,6 +36,8 @@ Focused architecture documentation:
 - [ADR 0010: Staged backend preparation](../design/decisions/0010-staged-backend-preparation.md)
 - [ADR 0011: Per-run Runtime resource ownership and cold binding](../design/decisions/0011-per-run-runtime-resource-ownership.md)
 - [ADR 0012: Fixed recurrent scan without graph regions](../design/decisions/0012-fixed-recurrent-scan-without-regions.md)
+- [General differentiable scan: ordinary PURE CPU composition and selected first-order AD](general-differentiable-scan.md)
+- [ADR 0045: Bounded general differentiable scan (historical rationale)](../design/decisions/0045-general-differentiable-scan.md)
 - [ADR 0013: Prepared-execution persistent-resource lifecycle](../design/decisions/0013-prepared-execution-persistent-resource-lifecycle.md)
 - [ADR 0014: Scope-indexed normative architecture contracts](../design/decisions/0014-scope-indexed-normative-architecture-contracts.md)
 - [ADR 0015: Explicit Engine backend composition](../design/decisions/0015-explicit-engine-backend-composition.md)

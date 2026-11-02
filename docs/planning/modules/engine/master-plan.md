@@ -79,11 +79,11 @@ backend selection during a run.
 
 Current allowed direct dependencies are `modules/model`, `modules/planning`, `modules/compiler`,
 `modules/runtime`, `modules/prepare`, `modules/config`, `modules/trace`, `modules/backend/cpu`,
-`modules/backend/metal`, `modules/backend/cuda`, and `tools/tuning`. Each edge exists only for a contract named
-by composition. No inward semantic role or concrete backend may depend on `modules/engine`.
+`modules/backend/metal`, and `tools/tuning`. Each edge exists only for a contract named by
+composition. No inward semantic role or concrete backend may depend on `modules/engine`.
 A future physical modules/training or modules/checkpoint directory would not make that outward
 owner an inward role; its separately approved dependency contract, not a path prefix, must govern.
-Current edges remain until coordinated cutover.
+Engine0024 removes the unused CUDA marker edge; the separate unsupported CUDA source remains.
 
 ## Package map
 
@@ -125,8 +125,28 @@ not a catch-all service registry.
 | [0019](tasks/0019-lifecycle-and-mixed-owner-test-repair.md) | Lifecycle and mixed-owner regression repair | Complete | 0016–0018; Metal 0077; project review | Make copy/close tests deterministic, restore real heterogeneous transfer fixtures, and correct public tuning Javadoc. |
 | [0020](tasks/0020-backend-native-layout-relocation.md) | Mechanical backend/native layout cutover | Complete | CP0005D Complete; user-approved layout | Delivered parent/child mappings, coordinated layout/consumers and native package/device checks; independent review and combined test/Javadoc passed, identities/packages/kernels/ABI preserved. |
 | [0021](tasks/0021-prepared-execution-fresh-value-binding.md) | Sole ordinary prepared owner and fresh-value binding | Complete | Complete 0017/0019/0020; reviewed P2 and approved simplification | Removed session API/delegates, migrated consumers, added Engine.runValues; independent approval and native-enabled test/Javadoc gate passed. |
+| [0022](tasks/0022-result-publication-and-closed-payload-cleanup.md#result) | Result publication rollback and closed-payload cleanup | Complete | Engine0021/Runtime0016; actual before evidence; independent final approval | Frozen publication regression failed-before/passed-after; 417 affected tests passed, 2 opt-in timing skips; public F32/F64 bounded-heap/lifetime/race proof passed. Existing owners/counts/metadata/caller storage preserved. |
+| [0023](tasks/0023-reentrant-close-and-lease-admission.md#result) | Reentrant close and failure-atomic lease admission | Complete | Engine0022/Runtime0016; actual real-GPU self-wait and bounded-heap lease-allocation failures | Exact reviewed nine-file correction; affected728pass/12existing skips, public Metal34pass and unchanged real self-close/OOM consumers pass; final independent source/evidence/docs APPROVE0. No native-memory/performance/release claim. |
+| [0024](tasks/0024-versioned-local-distribution.md#result) | Versioned local production distribution | Complete | Complete0023/Metal0080/81/82; exact product closure; final independent source/evidence/docs APPROVE0 | Actual eighteen-product archives, uncached extracted-source compile and external Maven/Gradle CPU/Metal train/save/load/new-train consumers pass. Final source freeze/legal grant/release acceptance remain separate. |
 
 ## Model-execution program and immediate frontier
+
+Engine0023 corrective frontier: None after independent final source/evidence/docs APPROVE0.
+Its exact reviewed source and actual repaired consumers are accepted. The first failed public-
+consumer compile stays FAILED; the real Trace API export repair passed separately.
+Engine0022 remains Complete for publication rollback and closed-payload retention with its
+independent reviews and actual proof; no complete production release is implied.
+
+Engine0024 is the independent build/distribution Ready frontier under the user-authorized
+production goal. Its coordinated dependency clarification and bounded contract are independently
+approved. This technical work does not claim a final source freeze or public redistribution grant.
+
+[Prepare0015 symbolic-length Scan CPU vertical](../prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result)
+is Complete, MAIN accepted 2026-10-27 after independent code/docs APPROVE (0 P1/P2), owning validation,
+the sole bounded probe and configured root test/Javadoc PASS. Its F32/F64 named-B/runtime-length
+forward and actual reverse use existing runValues/admission/publication owners, without a new
+memo/session/type/lease. Timing limitations, including nonstationary reverse gaps, are in the Result;
+no performance parity or successor launch follows.
 
 The [P2 program](../../model-execution-refactor.md) incorporates the five accepted product choices.
 Engine0021 removed InferenceSession/Engine.session and delivered
@@ -135,12 +155,20 @@ Engine.run retains exact-ID/arbitrary-order matching. Both adopt former session-
 Engine first, prepared null/owner/closed gate, then inputs; direct run's error precedence changes.
 No new public type; Engine prepared wrapper versus Runtime unique lease boundary stays intentional.
 
-Authorized Engine frontier: None. Engine0021 is Complete after independent Class C approval and
+At the completed program checkpoint the frontier was None; Engine0022's separately admitted repair
+is above. Prepare0015 is Complete. Engine0021 is Complete after independent Class C approval and
 the coordinator's native-enabled integrated test/Javadoc gate. Its brief owns evidence. Training,
 benchmark, reflective hooks and integration consumers use direct prepared ownership. No generic
 Training/Checkpoint relocation or cold codec was added by Engine0021. Training0007 is Complete
 after final independent APPROVE and the coordinator gate. Authorized Training frontier: None.
-Next planning candidate: Compiler0008, still Draft with no brief or launch; later tasks remain Draft.
+Compiler0008 and the selected model-execution program are Complete; the former Draft-candidate
+claim is obsolete. [Prepare0014 symbolic Scan vertical](../prepare/tasks/0014-symbolic-scan-cpu-vertical.md)
+is Complete (PlanningAuthorized=true; ImplementationAuthorized=true record historical admission).
+It qualifies scoped numeric admission/actual publication through existing prepared ownership and
+run/runValues, not a memo/session/second lease. Independent code/docs APPROVE, 0 open P1/P2;
+configured source-matched root gate PASS, MAIN accepted 2026-10-25. Engine source frontier None;
+user “jdi na to” approved source, MAIN verified Ready 2026-10-25 17:00 UTC. MAIN completed
+serial integration/shared docs and the configured vertical join; Parallel group None.
 Shared-document owner:
 model-execution coordinator; parallel group None.
 
@@ -152,6 +180,7 @@ checks, not blanket directory exemptions. Completed evidence is not rerun for P2
 
 ## Milestones and current frontier
 
+- Engine0023 corrective source frontier: None. Its bounded acceptance and Engine0022/Prepare0015 evidence remain separate from wider native-memory and final release gates.
 - Explicit CPU composition and advanced lifecycle are Complete through 0002.
 - Ordinary typed compile/prepare/run, publication, host materialization, compute, and backward are
   Complete through 0006.

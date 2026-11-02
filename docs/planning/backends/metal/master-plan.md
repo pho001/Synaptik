@@ -17,6 +17,12 @@ capability evidence, Profile-free backend capability and identity, and the appli
 lifecycle headings in [runtime-prepare-engine](../../../architecture/contracts/runtime-prepare-engine.md).
 The [backend guide](../../../backend-guide/metal-backend.md) and native README explain implementation.
 
+The [first-release product target](../../production-release-goal.md#metal-target) requires
+production-supported Metal in v1, not an experimental or deferred backend. Freeze its actual
+hardware-qualified support matrix and verify native installation and supported consumer workflows
+on a real device. This product decision does not widen current capability, unblock hosted GPU CI
+or authorize an implementation successor; Java CPU F64 parity is not a Metal capability promise.
+
 ## Current behavior and boundaries
 
 - Model has one profile-free numerical contract. Exact stored/discrete/cast/movement boundaries
@@ -48,10 +54,10 @@ route wires 1..3. Current representative-kind audit: capability 88/27, structura
 103/12, MPSGraph catalog 74/36/5, custom catalog 73/42/0. These counts are not universal occurrence,
 dtype, layout, gradient, or performance coverage.
 
-Metal 0077 and Model 0032 are Complete. Repairs 0078 and 0079 are Complete after independent
-review and the combined source-matched checkpoint. Current identity is 36; the fixed source
-corpus remains 84,593 bytes. Scalar admission/lowering now matches the advertised provider
-domain; neither repair adds a provider operation. ABI 7 and program schema 20 are unchanged.
+Metal0077/0078/0079, Model0032 and Metal0080/0081 are Complete. Integrated source is identity38,
+with the unchanged84,593-byte fixed source corpus, ABI7/schema20/header124/thirteen exports.
+Actual source-matched build/cleanZIP/GPU, unchanged all15typed gradient graphs, full F32 MLP/CNN
+journeys, current306-row conformance78 and final independent source/evidence/docs review passed.
 
 ## Package map
 
@@ -144,6 +150,9 @@ Only the current frontier and gates after the table authorize new work.
 | 0077 | [BFLOAT16/FLOAT16 SIGMOID custom route](tasks/0077-profile-free-low-precision-sigmoid-custom-route.md) | Complete | 0076 Complete at `bcf9d3b4`; Model 0032 and Metal 0069/0074–0075 Complete | Concurrent low-kernel/native/provider/identity/source-evidence or shared-document edits | None | Typed custom/device qualification → 0069 rebind → independent Class C `APPROVE` → closure | Native/package, 346 Metal + 32 conformance + 94 integration tests, 0069 source/AIR proof, Javadoc/docs and full build passed | BF16/F16 SIGMOID independently qualified with one F32 EXP and final low narrowing; F32 route retained; identity 34; zero review findings. |
 | 0078 | [Native boundary and low-value audit repairs](tasks/0078-native-boundary-and-low-value-audit-repairs.md) | Complete | 0077; Model 0032; project review | Other Metal/native/identity writers | PROJECT-REVIEW-2026-10-13-REPAIRS | Repair → source/package/device validation → independent review → integration | Focused device/conformance, source binding, module/Javadoc, final project checkpoint | Fix rank16 WHERE metadata, untouched low ScatterAdd words, low scan seed, and exact native context ownership. |
 | 0079 | [Scalar provider/preflight alignment](tasks/0079-scalar-provider-preflight-alignment.md) | Complete | Reviewed/integrated 0078; project review D5 | Metal admission/anchor/native writers | PROJECT-REVIEW-2026-10-13-REPAIRS, serial successor | 0078 → 0079 → combined checkpoint | Focused provider-to-device/public regression, module/Javadoc, review | Make advertised scalar RELU/MUL pass preflight without weakening anchor authentication. |
+| 0080 | [Dense-view MATMUL production composition](tasks/0080-dense-view-matmul-composition.md#result) | Complete | Metal0079; reviewed original authority/37source plus explicit0081 prerequisite | Other Metal/native/identity writers; MAIN shared docs/ledger | RELEASE-METAL80 | Reviewed36→37→38 source → exact package/GPU/unchanged consumers | Metal376passed10observer skips; typed16passed; publicMLP/CNN; currentconformance78passed; finalAPPROVE0 | Integrated20-file current38 source; all15originaltyped graphs pass unchanged; declared production matrix frozen. |
+| 0081 | [Materializing RESHAPE production composition](tasks/0081-materializing-reshape-composition.md#result) | Complete | Reviewed0080; CompleteCompiler0019; owning authority/ADR0062 | Metal identity/schema writers; MAIN shared docs/ledger | RELEASE-RESHAPE | Exact reviewed layeredbytes → rebuilt cleaninstalledpackage → actual consumers → currentledger | All7raw carriers, all15typed graphs, fullpublicMLP/CNN, current306rows/78conformance; finalAPPROVE0 | Existing0066copy only; no shader/consumercopy/fallback; exact source/evidence/docs accepted. |
+| 0082 | [Native host-copy autorelease boundaries](tasks/0082-host-copy-autorelease-boundaries.md#result) | Complete | Complete0080/0081/Engine0023; actual controlled raw host-copy growth evidence | Native .m/source-package writers; MAIN shared receipts | RELEASE-METAL82 | Exact reviewed one-file integration → rebuilt clean native install → unchanged actual consumers → final evidence/docs APPROVE0 | 426 GPU/public integration passes/10 observer skips; unchanged public MLP/CNN/raw movement and category-specific raw/mixed before-after proof | Host-copy IOAccelerator growth repaired without Java caller-pool workaround or ABI/schema/identity/kernel changes; final independent approval has zero P1/P2. |
 
 ## Dependency DAG and authorized frontier
 
@@ -151,8 +160,15 @@ Only the current frontier and gates after the table authorize new work.
 
 Tasks 0078/0079 and Engine 0019 are Complete. Independent reviews and the final source-matched
 repository checkpoint passed, including genuine CPU/Metal transfer and scalar publication.
-No Metal implementation successor is authorized by this audit closure; select a concrete
-remaining capability or operational gate explicitly.
+Integrated [Metal0080](tasks/0080-dense-view-matmul-composition.md#result) and
+[Metal0081](tasks/0081-materializing-reshape-composition.md#result) source now binds identity38.
+All unchanged typed/raw/public consumers, current conformance and final independent
+source/evidence/documentation review passed; no Metal0080/0081 component frontier remains.
+Engine0023 is Complete for its separate Java lifetime correction.
+[Metal0082](tasks/0082-host-copy-autorelease-boundaries.md#result) is Complete after source-matched
+packaging, unchanged actual consumers/category-specific before-after proof and final independent
+source/evidence/docs APPROVE0. No corrective component frontier remains. MAIN still owns the final
+production checkpoint; verified local source-build installation does not establish publisher trust.
 
 ## Live gates and deferred work
 

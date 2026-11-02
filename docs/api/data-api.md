@@ -273,13 +273,13 @@ eligibility exactly; changing counts does not authorize arbitrary T, B or F. For
 reuse, prepare once and pass fresh values in `compiled.inputs()` order to `runValues`; preserve
 caller storage until its `RunResult` closes. Data performs neither binding nor preparation.
 
-This first execution slice is inference-only, canonical contiguous offset-zero non-view FLOAT32
-`[T,B,F]` with `requiresGrad=false`, RIGHT/TIME_MAJOR metadata and positive static T/B/F for the
-fluent builder, using existing scalar CPU scan kernels. Empty count export does not widen that
-builder contract; advanced zero-T/B scans remain separate. Expression scan outputs retain unresolved
-Model layout and gradient eligibility from their floating roles (including trainable parameters).
-Lengths never contribute gradients; detached compute results do not imply backpropagation through
-time (BPTT) support. No flags are cleared to bypass admission.
+This Data consumer slice uses canonical contiguous offset-zero non-view FLOAT32 `[T,B,F]` with
+`requiresGrad=false`, RIGHT/TIME_MAJOR metadata and positive static T/B/F for the fluent builder.
+Empty count export does not widen that builder contract; direct zero-T/B scans remain separate.
+F32 `rnnScan` now composes NN0033's general RNN, whose source outputs are canonical; retained
+fixed families keep their old source-layout semantics. Gradient flags are not cleared.
+Data only exports values/counts: NN independently qualifies general RNN compute/train/v5
+persistence, and lengths never receive gradients. This does not unlock fixed GRU/LSTM BPTT.
 
 Export does not enable a fluent Text IDs → Embedding → scan chain. ModelBuilder input is currently
 floating-only, has no Embedding recipe and instantiates recipes with the original input dtype.

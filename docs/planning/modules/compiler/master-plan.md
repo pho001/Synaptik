@@ -93,6 +93,21 @@ No new graph representation, module, dependency, generic validator or execution 
 0009 changes only existing `StaticResultLogicalLayoutClosure` in this package, routing SELECT to
 `IndexingInference` and coordinate SLICE to `LayoutInference`; no new production type or owner.
 
+Completed 0011 adds only package-private `ScanBodyInference` and `ScanGradientRules` in this existing
+root package; all other changes extend existing owners. No public API, AD system or execution layer.
+
+Completed 0013 extends these same inference/scan-rule owners, existing `AutogradPreflight`,
+`FirstOrderAutograd`/`DerivativeConstants`, capture, final query and demand paths. Production
+additions/moves: None. Bounded role-aware cotangent normalization/zero bindings use ordinary Tensor
+algebra and existing closed protocols, not a new gradient framework or public abstraction.
+
+[0014](tasks/0014-symbolic-scan-inference-ad-and-binding.md) extends these existing owners
+and `BatchBindingPlan` for symbolic inference, actual first-order AD and scoped all-port binding.
+Added/moved production types: None. No public signature or protocol change.
+Forward inference retains accepted Model PURE/dtype breadth; bounded F32/F64 AD and later initial
+CPU F32 execution are independent admissions. Compiler0014 is independently reviewed and MAIN
+accepted 2026-10-25 after the scoped-binding compatibility checkpoint; it enables no execution.
+
 ## Task list
 
 | ID | Task | Status | Depends on | One-line result or intent |
@@ -130,14 +145,126 @@ No new graph representation, module, dependency, generic validator or execution 
 | 0007 | Exact constant identities under profile-free semantics | Draft | 0006; explicit legality proof under current Model semantics | Reassess exact identities without broadening constant evidence or using test tolerances as rewrite permission. |
 | 0008 | [Cold source capture and reconstruction](tasks/0008-cold-source-capture-and-reconstruction.md) | Complete | Approved P2/ADR0039; completed capture/inference/integration boundaries; Training0007 serial base only | Bounded raw-source API and authority cutover implemented; final independent code/docs APPROVE and coordinator Class C checkpoint passed. |
 | 0009 | [Static SELECT and SLICE logical layout closure](tasks/0009-static-select-and-slice-logical-layout-closure.md) | Complete | Compiler0006B11; Compiler0008; CPU0025 — Complete | Final independent APPROVE, zero findings; exact views support NN0029. Main's unchanged-snapshot native root gate passed (2026-10-19). |
+| 0010 | [First RNN_TANH scan BPTT proposal](tasks/0010-rnn-tanh-scan-bptt.md) | Superseded | User selected general scan; Model0034 decision replaces this direction | Historical fixed-adjoint proposal/evidence retained; no fixed public adjoint selected. |
+| 0011 | [General scan capture and first-order AD](tasks/0011-general-scan-capture-and-first-order-ad.md) | Complete | Model0034/0035 + Planning0008 Complete; Compiler0006A/0006D/0008/0009 baseline | Scoped capture/inference, joint first-order AD and final body queries/demand accepted by main 2026-10-22 after independent code/docs APPROVE and compatibility checkpoint. |
+| 0012 | [General-scan cold source reconstruction](tasks/0012-general-scan-cold-source-reconstruction.md) | Complete | Approved NN0030; Complete Compiler0011/foundation and low-level join | Bounded cold body reconstruction accepted 2026-10-23 after independent review/final gates; later CP0012 and [NN0031](../../extensions/nn/tasks/0031-general-scan-owned-model-workflow.md#result) completed bounded consumer gates. Body wire stays closed. |
+| 0013 | [Length-aware Scan capture and first-order AD](tasks/0013-length-aware-scan-capture-and-first-order-ad.md) | Complete | Model0037/0038, Compiler0011 and Planning0008 Complete; Compiler0012 cold baseline preserved | MAIN accepted 2026-10-24 after independent code/docs APPROVE, 0 P1/P2, worker module, compatibility and final documentation/Javadoc PASS; [evidence](tasks/0013-length-aware-scan-capture-and-first-order-ad.md#result). No execution/cold/wire grant. |
+| 0014 | [Symbolic Scan inference, first-order AD and scoped binding](tasks/0014-symbolic-scan-inference-ad-and-binding.md) | Complete | Model0041/0042, Compiler0011/0013, Planning0008 and Prepare0013 ordinary binding baseline Complete | MAIN accepted 2026-10-25 after independent code/docs APPROVE (0 P1/P2), module/Javadoc PASS (384 tests) and scoped compatibility PASS (68 tests). No backend enablement; evidence in brief. |
+| 0015 | [Symbolic-length Scan inference, first-order AD and scoped binding](tasks/0015-symbolic-length-scan-inference-ad-and-binding.md#result) | Complete | Model0041/0044, Compiler0011/0013/0014, Planning0008 and Prepare0013 baseline Complete; pre-Java authority/Ready accepted | MAIN accepted 2026-10-26 after independent source/docs APPROVE and recorded final gates. Inference/actual sibling AD/fresh all-port binding only; no downstream execution grant. |
+| 0016 | [Omit redundant MATMUL-gradient shape reductions](tasks/0016-matmul-gradient-noop-reduction-elision.md#result) | Complete | Compiler0015; CPU0045 accepted Complete | MAIN accepted 2026-10-28: exact-Shape normalization, preserved broadcast/cast order, Compiler 402 tests/Javadoc and CPU actual-Scan 101 tests PASS; context exception recorded. |
+| 0017 | [Typed all-PURE Scan demand, first-order proof and activity](tasks/0017-per-value-typed-length-scan-inference-and-ad.md) | Ready | Complete Model0046/0047/0048, Compiler0017A/B and CPU0078/0080; frozen coupledCPU0081 interface, both independent authority APPROVE0 reviews | MAIN admits exact dirty-source/disjoint contexts for finite selected-pair/same-engine proof/typed history/component-eight control. Full all-valid/length source and actual qualification pending, no narrower milestone. |
+| 0017A | [Ordinary lexical primal binding](tasks/0017a-ordinary-lexical-primal-binding.md#result) | Complete | Existing ordinary AD protocol; actual before witness; independent combined source APPROVE0 | Nine ordinary-owner files; 629 affected tests passed/20 CPU skips, all unchanged 18/84/12 lexical consumers and 84 ordinary regressions passed; no new Scan capability. |
+| 0017B | [Shared checked ordinary gradient construction](tasks/0017b-shared-checked-ordinary-gradient-construction.md#result) | Complete | Complete0017A/Model0046/0047/CPU0078; final independent source/evidence/docs APPROVE0 | Seventeen paths integrated; affected2,463pass/60existing skips, original84numerical+18/84/12lexical, all-eleven-family metadata zero-ID CLI and85oldartifact bytes pass. No new Scan admission. |
+| 0018 | [Static length-aware Scan cold reconstruction](tasks/0018-static-length-scan-cold-reconstruction.md#result) | Complete | Complete Compiler0012/0013/0015 and Model0038/0044; approved coordinated consumer authority | MAIN accepted independent code/docs APPROVE, 1025 affected tests/Javadocs and eight public cold roundtrip cases; Checkpoint/NN cold effects qualified, no v5 grant. |
+| 0019 | [Static materializing RESHAPE logical closure](tasks/0019-static-materializing-reshape-logical-layout-closure.md#result) | Complete | Compiler0009; governing authority/ADR0062; final independent source/evidence/docs APPROVE0 | Exact two-file source integrated;418Compiler tests/Javadoc/jar and15actualcapturedgraphs pass. CPU/Metal physical execution remains separate; raw source/wire unchanged. |
 
 ## Dependency DAG and authorized frontiers
 
-Compiler0006B11 + Compiler0008 + CPU0025 → Compiler0009 → NN0029 → shared native root gate: all Complete.
-Authorized Compiler frontier: None. Main verified NN0029 resume on 2026-10-19;
-neither Compiler0009 nor CPU0025 depends on NN0029. No other Compiler task is authorized.
+Compiler0016 is Complete, accepted by MAIN on 2026-10-28; its
+[Result](tasks/0016-matmul-gradient-noop-reduction-elision.md#result) owns the focused/module/consumer
+evidence and explicit user-approved context exception. Compiler0018 is Complete, accepted by MAIN
+on 2026-11-01 after independent code/docs APPROVE, the public cold smoke and the recorded
+Compiler/Checkpoint/NN gate. Compiler0019 is Complete after independent final acceptance and its
+full module/captured-geometry proof. Compiler0017B ordinary construction parity is Complete after
+final independent source/evidence/documentation acceptance and its recorded actual consumer gates.
+[0017A ordinary lexical binding](tasks/0017a-ordinary-lexical-primal-binding.md#result) is Complete
+after independent source/Javadoc APPROVE0, MAIN's affected gate and unchanged real lexical/
+ordinary numerical before/after proof. The accepted cold/v5/practical RNN workflow remains Complete.
 
-Conflicts: closure/inference, scoped tests/docs, NN0029 and shared planning writers; serialize.
+[Compiler0017](tasks/0017-per-value-typed-length-scan-inference-and-ad.md) remains Draft.
+Its older length-only closed-inventory plan is not the mandatory all-PURE target. Complete
+Model0046 resolves empty/no-ROW representation and Model0047 supplies shared ordinary guards.
+Selected mixed cotangent demand, coordinate/presence proof and physical composition remain
+substantive work. ADR0061's broader direction is not Ready; 0017B is the independent parity seam.
+0017A completes the already-authorized ordinary lexical resolver independently, without enabling
+new body operations or changing preflight/coverage. Its new manifest is distinct from the old
+historical Compiler0017 preservation snapshot; that old evidence is not recaptured or relabeled.
+Downstream/cold/wire/NN/higher-order domains remain unchanged until separately qualified.
+
+Planning coordination: [Model0043](../model/tasks/0043-symbolic-length-scan-integration-design.md)
+is Complete for the [combined F32/F64 Scan proposal](../../length-aware-general-scan.md#proposed-symbolic-b-plus-lengths-integration),
+DESIGN DELIVERY ONLY, MAIN accepted 2026-10-26 after Hume the 4th final Class C APPROVE
+(0 P1/P2, no unresolved findings). Compiler0015 delivers the later approved inference/actual AD/scoped
+binding phase together, preserving ROW(1) constant sequences and fresh all-port obligations.
+At that design-delivery checkpoint, planning/source/authority frontiers were None and its serial
+review/integration closed. Parallel group None; that delivery itself granted no authority or implementation.
+
+Symbolic branch: Complete Model0041 authority → Complete Model0042 source, joining Complete
+Compiler0011/0013 + Planning0008 + Prepare0013 ordinary binding → Compiler0014 →
+[Prepare0014 vertical Complete](../prepare/tasks/0014-symbolic-scan-cpu-vertical.md#result).
+The latter is MAIN accepted 2026-10-25 after independent code/docs APPROVE and the configured
+root gate. PlanningAuthorized=true; ImplementationAuthorized=true record historical admission;
+Prepare/CPU/Engine frontiers None. User “jdi na to” approved source, MAIN verified Ready 2026-10-25 17:00 UTC.
+Compiler production is read-only for that existing-owner Prepare/CPU/Engine packet; fresh full
+scoped BatchBindingPlan.bind remains mandatory per invocation. MAIN owns serial integration,
+Parallel group None. Compiler0014 is Complete, PlanningAuthorized=true,
+ImplementationAuthorized=true records the user's historical source admission. MAIN verified all dependencies,
+accepted base/contracts, inactive conflicts and sole frontier on 2026-10-25 before clean launch.
+Seven integration fields and scoped validation are in its brief; Parallel group None, MAIN owns
+integration. Independent planning/code/docs APPROVE, zero open P1/P2; module/Javadoc and MAIN
+compatibility checkpoint PASS, MAIN accepted 2026-10-25. Implementation frontier: None;
+Prepare0014 is Complete; Prepare/CPU/Engine frontiers None and Compiler production stayed read-only.
+
+Immediate length-aware DAG: Model0037 authority → Model0038 source/IR, both Complete, joins
+Complete Compiler0011 + Planning0008 → [Compiler0013 Complete](tasks/0013-length-aware-scan-capture-and-first-order-ad.md#result).
+MAIN accepted Compiler0013 on 2026-10-24 after independent code/docs APPROVE (0 P1/P2), worker
+module/Javadoc, compatibility and final docs/Javadoc PASS. ImplementationAuthorized=true is historical admission.
+Active frontier: None; no downstream successor or new Planning-module task is authorized.
+Later Prepare/CPU execution and cold/v5 remain coarse owner gates, not a detailed task cascade.
+0013's seven integration fields and Ready verification record the accepted uncommitted base,
+inactive conflicts, Parallel group None and MAIN-owned serial integration/compatibility checkpoint.
+
+Compiler0006B11 + Compiler0008 + CPU0025 → Compiler0009 → NN0029 → shared native root gate: all Complete.
+At that completed checkpoint Compiler frontier was None; neither Compiler0009 nor CPU0025 depends
+on NN0029. [0012 Result](tasks/0012-general-scan-cold-source-reconstruction.md#result) records Complete
+bounded cold reconstruction, independent code/docs APPROVE and main's final gates (2026-10-23);
+historical pre-code APPROVE/Ready verification remains in its brief. Later CP0012 copy/rebind and
+[NN0031 owned workflow/native join](../../extensions/nn/tasks/0031-general-scan-owned-model-workflow.md#result)
+are Complete; at that checkpoint Compiler/NN/Checkpoint frontiers were None, body wire closed, no successor launch.
+[0011](tasks/0011-general-scan-capture-and-first-order-ad.md) is Complete.
+[Prepare0010](../prepare/tasks/0010-general-scan-projection-and-resource-handoff.md) is Complete:
+scoped projection/demand validation and resource handoff, main accepted 2026-10-22 after Huygens
+final Class C code/docs APPROVE and the exact compatibility checkpoint. CPU/NN/Checkpoint frontiers: None;
+Compiler0012 is Complete as recorded above; no successor launch.
+Bounded CPU F32 pointwise forward + actual automatic reverse
+[CPU0030](../../backends/cpu/tasks/0030-general-scan-f32-pointwise-vertical.md) is Complete, accepted
+by main 2026-10-22 after independent review and focused checkpoint PASS. CPU0031–0033 declared
+algebra/closure + F64 and low-level join are Complete; no NN/padding/persistence implementation grant.
+Other Compiler tasks remain Draft/Superseded.
+
+[0010](tasks/0010-rnn-tanh-scan-bptt.md) is Superseded by the
+[Model0034 decision](../model/tasks/0034-general-differentiable-scan-decision.md) and
+[general scan program](../../general-differentiable-scan.md). Model0034 authority decision/cutover
+is Complete, accepted by main 2026-10-21 after Ramanujan the 2nd's final independent Class C
+APPROVE, zero blockers; the brief owns result evidence. No authority frontier remains.
+Base main=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`; Parallel group None;
+main owns shared integration. DAG: approved authority → Model body/IR → Planning body query →
+Compiler scoped capture/joint-output AD → Prepare projection → complete bounded CPU F32 pointwise
+forward/automatic-reverse milestone → remaining declared forms/closure + F64 → one low-level root join.
+Later padding/NN and persistence are separate gates. Model0035 source/IR is Complete, accepted by main
+2026-10-22 after independent approval and its compatibility checkpoint; Model frontier None;
+Model0034 owns seven metadata fields. Implemented `compiler.ScanBodyInference` and `ScanGradientRules`
+stay in the existing root package. Actual user approval (“ok, tak tedy pokracuj”) covers the concrete
+body/reverse-scan/residual/primal-binding proposal and authority cutover, not all Java slices.
+The brief records historical verified Complete predecessors/base/inactive conflicts on 2026-10-21.
+Planning0008 body query is Complete, accepted by main 2026-10-22 after final independent APPROVE and
+compatibility gates; Planning frontier None. Compiler0011 is Complete, accepted by main 2026-10-22
+after Euclid final independent Class C code/docs APPROVE and the compatibility checkpoint.
+Prepare0010 projection/resource handoff and CPU0030 bounded F32 pointwise forward/actual-reverse
+execution are Complete; CPU0031–0033 algebra/closure + F64 and low-level join are also Complete.
+Compiler0012 is Complete; at that checkpoint Compiler/NN/Checkpoint frontiers were None, no successor launch.
+Initial tensor/scalar floating DIV reuses ElementwiseGradientRules' ordinary derivatives; inventory
+full generated closure (broadcast reductions, views/contiguous, constants) under existing family numerics.
+
+0011 metadata: Depends on Model0034/0035, Planning0008 and Compiler0006A/0006D/0008/0009 Complete;
+conflicts with capture/inference/AD/closure/query/shared-scan writers, none active. Parallel group None;
+common base is HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus ALL accepted dirty work.
+Integration order: frozen plan → independent plan review/main acceptance → explicit launch → clean
+implementation → independent code/docs APPROVE → main's **Compiler0011 scoped-body compatibility checkpoint**.
+The brief owns exact commands/evidence. Shared-document integration owner main;
+Prepare0010's completed brief retains its historical Ready admission and implementation authorization.
+
+Historical 0009 metadata: conflicts were closure/inference, scoped tests/docs, NN0029 and shared planning writers.
 Parallel group: None. Common base: `7e880fb1044168043e45b10419a570d64c5283ae` plus the full dirty
 snapshot, including accepted CP0009, frozen NN partial and completed CPU0025/Compiler0009; preserve all.
 Integration order: reviewed Compiler repair → completed/reviewed NN0029 → main's one native-enabled
@@ -151,10 +278,10 @@ joins completed Compiler0008/0009, Checkpoint0008/0009, Training0008 and NN0028/
 fluent CNN/static-unroll persistence, with [CP0011 scan supplement](../../extensions/checkpoint/tasks/0011-flat-recurrent-scan-persistence.md)
 using completed Model0025E/0025F/Compiler0006A. Both Complete on 2026-10-20 after independent
 APPROVE and main's focused/native root gates; [CP0010 Result](../../extensions/checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md#result)
-owns evidence. Raw inference stays separate from optimized layout closure; scans remain cold-only,
-without backend execution or BPTT.
+owns evidence. Raw inference stays separate from optimized layout closure; cold persistence grants
+no execution or BPTT. CPU0028/CPU0029 and NN0021B subsequently completed forward execution only.
 Base `8d5357e9a8698721a2252cb2ca3cb94150e705e8`;
-authorized Compiler/Checkpoint/NN frontiers None, no successor or independent Compiler task;
+at that checkpoint Compiler/Checkpoint/NN frontiers None, no successor or independent Compiler task;
 Parallel group None, main integration.
 
 The [source-verified brief](tasks/0008-cold-source-capture-and-reconstruction.md) supplies the
@@ -173,7 +300,7 @@ Checkpoint0008 completed its separate Compiler-edge cutover; Compiler gained no 
 Existing autograd and planning remain unchanged.
 
 Compiler0008 is Complete after Einstein's final independent code/docs APPROVE and the coordinator's
-Class C checkpoint (2026-10-17); its brief owns evidence. Authorized Compiler frontier: None.
+Class C checkpoint (2026-10-17); its brief owns evidence. At that checkpoint Compiler frontier was None.
 Checkpoint0008, Training0008 and NN0028 are Complete, including high-level Model/withEngine;
 the selected program stays Complete. Engine0021/Training0007 remain Complete. Completed execution
 bases and evidence remain in their briefs, not new launch authorization.
@@ -210,9 +337,19 @@ the brief records final review/gate evidence and all seven integration fields. N
 - Bounded raw source capture/reconstruction 0008 and its authority cutover are Complete after
   independent review and the coordinator checkpoint.
 - Complete: 0009, the SELECT/coordinate-SLICE exact logical-view repair, accepted after final
-  independent APPROVE, zero findings, and main's native root gate (2026-10-19). Compiler/NN frontiers: None.
+  independent APPROVE, zero findings, and main's native root gate (2026-10-19). At that checkpoint Compiler/NN frontiers: None.
 - 0006C and 0007 remain `Draft`, have no detailed task brief, and are independent side branches;
   0006B11 grants neither implementation authorization.
+- 0011 is Complete, accepted by main 2026-10-22 after independent code/docs APPROVE and compatibility checkpoint.
+  Prepare0010 projection/resource handoff and CPU0030 bounded execution also Complete; CPU/NN/Checkpoint frontiers None;
+  later domain-completion, low-level join, NN and persistence gates unchanged.
+- Compiler0012 is Complete after independent code/docs APPROVE and main's final module/consumer gates;
+  its Result owns evidence. Downstream CP0012 and [NN0031](../../extensions/nn/tasks/0031-general-scan-owned-model-workflow.md#result)
+  separately completed bounded copy/rebind and owned workflow qualification, including the configured
+  native program join; no body persistence or fixed-scan BPTT. At that checkpoint Compiler frontier was None.
+- Compiler0013 is Complete, MAIN accepted 2026-10-24; independent code/docs APPROVE (0 P1/P2),
+  worker module/Javadoc, compatibility and final docs/Javadoc PASS; its Result owns evidence.
+  Ready frontier None; no downstream task is launched.
 
 ## Live gates and risks
 
@@ -221,9 +358,12 @@ the brief records final review/gate evidence and all seven integration fields. N
   algebra. If any part is inexpressible, select the smallest prerequisite in the
   [Model plan](../model/master-plan.md) first and keep Conv3d fail-closed.
 - **Recurrent differentiation:** 0006A covers forward compilation only. The exact RNN, GRU, and
-  LSTM signatures remain outside gradient coverage; no BPTT task brief or saved-state policy
-  exists. [Neural-network (NN) 0021B](../../extensions/nn/master-plan.md) also remains Draft until
-  truthful concrete-backend recurrent execution is identified, and no current backend claims it.
+  LSTM signatures remain outside gradient coverage. CPU0028/CPU0029 and
+  [NN0021B](../../extensions/nn/tasks/0021b-fixed-recurrent-scan-implementation-program.md) are Complete
+  for forward execution; BPTT remains unsupported. [0010](tasks/0010-rnn-tanh-scan-bptt.md) is
+  Superseded by general scan, not a fixed-adjoint primitive. Completed Model0034 authority covers source/IR and original
+  canonical residual ports, pre-capture joint-output body AD and truthful capability projection.
+  Existing fixed scans and NN early training rejection remain unchanged; no successor implementation authorized.
 - **Exact versus relaxed algebra:** preserve the guarded scalar `POW(+1) -> input`. Any exact
   `POW(0)` needs a typed shape-correct one-splat and proof across exceptional values, constant
   sidecars, publication identity, phase, autograd, and descriptors. Do not replace `POW(0.5)` with
@@ -240,7 +380,7 @@ the brief records final review/gate evidence and all seven integration fields. N
 ## Status normalization
 
 The task table and linked task `Status`/completion summaries take precedence over historical prose.
-Current completion extends through 0006B11 plus independently reviewed 0006D, 0008 and 0009;
+Current completion extends through 0006B11 plus independently reviewed 0006D, 0008, 0009, 0011 and 0012;
 the historical coverage checkpoint is not proof of every value-level higher-order derivative.
 
 ## History and update policy

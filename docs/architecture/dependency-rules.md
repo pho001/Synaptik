@@ -39,12 +39,16 @@ runtime
 prepare
 modules/backend/cpu
 modules/backend/metal
-modules/backend/cuda
 tools/tuning
   -> engine
 ```
 
 These diagrams express architectural direction; individual modules should depend only on the contracts they actually use.
+
+The first-production product closure includes the implemented CPU and Metal backends, not an
+Engine dependency on the unused CUDA marker. CUDA remains registered with its source for future
+development but is not a published supported product. Existing public-signature types require
+API exports; private implementation use such as Engine's Tuning runners does not.
 
 The concrete CPU backend consumes only shared Model, Planning, Prepare, Runtime, and backend
 contracts plus CPU-owned configuration. Engine passes Compiler-owned `CompileArtifacts` to

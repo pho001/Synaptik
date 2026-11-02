@@ -62,6 +62,185 @@ compile recipe into runtime-ready state, but executable construction is delibera
 shared slot assignment. Runtime executes the result without rediscovering, lowering, or selecting
 backend work.
 
+## Accepted symbolic-batch handoff
+
+The [resource contract](contracts/runtime-prepare-engine.md#accepted-symbolic-batch-resource-contract),
+[Compiler binding](contracts/compiler-autograd.md#accepted-symbolic-batch-metadata-binding) and
+[CPU recipes](contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract) now
+are implemented for the bounded ordinary homogeneous FLOAT32, rank-at-most-two one-B CPU closure.
+Prepare0014 additionally implements the [bounded symbolic Scan execution](#symbolic-scan-execution-and-future-geometry-reuse)
+slice through these same owners; its task tracks final qualification.
+Prepare0015 implements combined one-B/fixed-T/features F32/F64 length-Scan through this same
+handoff. Owning validation and independent code/structural review passed; root validation and the sole bounded
+probe completed (evidence and limits:
+[Prepare0015 Result](../planning/modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result) );
+final MAIN acceptance remains pending. No new API/type, Runtime numeric protocol, storage owner or lease
+follows.
+The current-foundation sections below also describe the preserved fixed paths.
+[ADR 0050](../design/decisions/0050-dynamic-batch-geometry.md) records why exact per-run sizing
+replaces mandatory maximum banks or per-batch full preparation without introducing another owner.
+
+```text
+compile/prepare once: Compiler metadata plan -> Prepare fixed identities -> CPU numeric recipes
+each invocation:     Engine binds static descriptors -> checked numeric sizes -> borrow
+                       -> Runtime lease/create/cold bind -> execute -> actual publications
+```
+
+Read the upper line as immutable semantic/physical recipes, the lower as one invocation's state.
+Compiler alone interprets symbolic dimensions and private typed constraints; Prepare validates
+complete declarations/coverage without executing CPU geometry. Runtime receives same-plan numeric
+geometry, not Model/compiler objects. CPU packs actual access/contraction domains once and emits
+no per-element recipe evaluation. Engine resolves only publication descriptors, not intermediate
+Shapes or a new graph. The eight CompileArtifacts components and dependency edges do not change.
+
+Execution mode is not a size test: `X[B,0].sum()` still requires B even when its declarations all
+have constant bytes. PreparedMemoryPlan's explicit mode rejects absent B before creators. Entries
+carry exact fixed bytes or immutable run-size recipes; creators receive actual bytes/alignment,
+not a zero-argument closure over a guessed B. Slots, representation positions, routes and generated
+code remain fixed; all mutable arrays and writable resources belong to the run. This preserves
+different-B concurrent results without shared currentB or a new lease protocol.
+
+Implemented low-level acceptance scenario: compile grad-eligible FLOAT32 X `[B,4]`,
+W `[4,3]`, Y=X@W and L=mean(Y), requesting actual dX/dW with scalar-one seed. Prepare once;
+all-one data and no updates give the following actual outputs under existing rounding:
+
+| B | Y shape / bytes | dX shape / bytes | dW shape / bytes | Y / L / each dW |
+|---:|---|---|---|---|
+| 64 | `[64,3]` / 768 | `[64,4]` / 1024 | `[4,3]` / 48 | 4 / 4 / 1/3 |
+| 40 | `[40,3]` / 480 | `[40,4]` / 640 | `[4,3]` / 48 | 4 / 4 / 1/3 |
+| 1 | `[1,3]` / 12 | `[1,4]` / 16 | `[4,3]` / 48 | 4 / 4 / 1/3 |
+| 64 | `[64,3]` / 768 | `[64,4]` / 1024 | `[4,3]` / 48 | 4 / 4 / 1/3 |
+
+The table distinguishes batch-sized outputs from fixed parameter gradients: each dX entry is
+1/B, and dW contracts K=B rather than allocating B×parameter storage. L is four bytes; each
+materialized AD helper has its own declared resource, so this is not a total-memory budget.
+MEAN/count preserves existing algebra, while admitted FLOAT32 exact SUM retains five limbs and
+conditional 0/48-byte scratch. B=0, if predicates allow, produces empty Y/dX, NaN empty MEAN and
+nonempty typed-zero dW; it cannot skip the whole run. Changed feature width or inconsistent B
+rejects before borrowing, as do unsupported layout, overflow and invalid storage.
+
+A counter-scenario is resolving Model Shape expressions inside Runtime or resizing buffers while
+running a kernel: that crosses semantic ownership and invalidates fixed requirement coverage.
+Instead, validate numeric sizes and referenced prefixes before borrow/allocation; preserve lease
+precedence, caller ownership, actual publication descriptors and reverse failure cleanup.
+
+Ordinary forward plus actual first-order backward qualifies independently of Scan. Symbolic Scan
+keeps T/features fixed; future length-value checks remain after producers/before first writes, not
+in shape admission. NN/Training one-state reuse, cold graph acquisition, symbolic wire and builder
+qualification are separate; static saved Models/readers remain. Focused tests cover sizes/empty/
+failure/concurrency/static retention and generated-versus-optimal-Java structure plus bounded
+matched-work A/B. The public three-list Engine compile workflow separately executes scalar L plus
+actual dX/dW; publishing Y and L while selecting L alone uses the existing low-level functional
+gradient request, not a new public overload.
+
+<a id="future-symbolic-scan-and-geometry-reuse"></a>
+
+## Symbolic Scan execution and future geometry reuse
+
+Prepare0014 implements bounded homogeneous FLOAT32 scalar, single-range CPU forward and actual
+Compiler-generated first-order reverse; its [task](../planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md)
+tracks final qualification. This execution path is separate from the still-unimplemented geometry
+memo. The following recurrence illustrates current geometry; the miss/hit scenario below is
+explicitly future metadata reuse, not a current API or execution claim. The
+[Scan contract](contracts/recurrent-scan.md#accepted-symbolic-batch-scan) alone defines semantics;
+the [Engine memo contract](contracts/runtime-prepare-engine.md#accepted-engine-geometry-memo)
+owns the narrow metadata exception. [ADR0051](../design/decisions/0051-symbolic-scan-and-geometry-reuse.md)
+compares the selected direction with static execution and per-B respecialization.
+
+Goal: reuse one fixed recurrence and preparation across fresh same-B and changed-B inputs.
+Use fixed T=3, F=4, H=3 and one named B. Inputs are
+X `[3,B,4]`, h0 `[B,3]`, Wx `[4,3]`, Wh `[3,3]`, bias `[3]`. Conceptual body:
+
+```text
+hNext = tanh(xStep @ Wx + h @ Wh + bias)
+nextCarry = hNext; emission = hNext
+finalCarry[B,3]; Y[3,B,3]
+```
+
+At each original time index, MATMUL and bias produce the next state, whose exact activation
+output is saved when the actual reverse needs it. With zero X/h0/Wx/Wh and bias=atanh(0.25),
+each step is approximately 0.25 after FLOAT32 rounding. This illustrative value is not a
+qualification oracle: numerical tests must use signed nonuniform data and seeds versus ordinary
+Tensor unrolling and specialized clean Java, including both traversals and joint output seeds.
+dX/dh0 follow actual row shapes, but dWx `[4,3]`, dWh `[3,3]` and dbias `[3]` stay fixed;
+the weight adjoints contract K=B, while mean(finalCarry) counts actual B*3.
+
+Current calls resolve fresh numeric geometry, with no memo lookup/publication:
+
+```text
+prepare once -> fixed scoped checks + CPU numeric recipes + slots/code
+each call    -> Engine/owner/inward admission -> full fresh Compiler bind
+             -> checked scoped/numeric/aggregate geometry -> ALL current storage admission
+             -> borrow exact prefixes -> Runtime's sole lease -> fresh resources/cold binding
+             -> execute -> actual publications and fresh result
+```
+
+Read downward: prepared identities are reused, not mutable arrays, caller descriptors or resources.
+For B64→40→1→64, X bytes are 3072→1920→48→3072 and final-carry bytes 768→480→12→768;
+dWx remains `[4,3]` with 48 bytes. These are data sizes, not the complete run budget. Scoped
+unused declarations still participate in pre-borrow admission, including overflowing geometry
+behind zero extents. [The public example](../user-guide/running-models.md#symbolic-scan-with-changing-batch-size)
+uses the implemented compile/prepare/runValues lifecycle.
+
+### Future memo only
+
+For a conceptual serial memo witness, start with one preparation and an empty metadata entry, then supply
+fresh values in compiled input order. Each row below still performs complete fresh Compiler
+bind/private obligations, input/storage/physical checks and new resource creation. Payload bytes
+are exact FLOAT32 data sizes, not the total declared memory budget.
+
+| Call | B | Memo result | X bytes | finalCarry bytes | Y bytes |
+|---:|---:|---|---:|---:|---:|
+| 1 | 64 | miss; retain 64 facts | 3072 | 768 | 2304 |
+| 2 | 64 | hit on pure Engine facts only | 3072 | 768 | 2304 |
+| 3 | 40 | miss; replace with 40 facts | 1920 | 480 | 1440 |
+| 4 | 40 | hit on pure Engine facts only | 1920 | 480 | 1440 |
+| 5 | 64 | miss; 64 was replaced | 3072 | 768 | 2304 |
+
+Read the memo column as metadata reuse, not reuse of a Binding, supplied descriptor or invocation.
+Input-backed publications always retain the current admitted descriptor, including `isView`;
+only template-derived non-input metadata can hit. Code/routes/slots remain identical across all
+five calls. Each gets fresh RunState, writable storage/workspaces (even at zero bytes), mutable
+working arrays and result. Immutable exact-plan numeric facts/private backing may be shared;
+the existing geometry test's sharing across states proves no Engine memo implementation.
+
+The flow distinguishes semantic admission from numeric facts and physical resources:
+
+```text
+prepare once -> fixed scoped checks/layout recipes + CPU size/access recipes + slots/code
+each call    -> Engine/owner/inward admission -> full fresh Compiler bind
+             -> local memo snapshot or checked numeric candidate -> current storage admission
+             -> atomic metadata publication if still open -> borrow exact prefixes
+             -> Runtime's sole lease -> fresh resources/cold binding -> execute -> fresh result
+```
+
+An admission failure publishes nothing and leaves a good entry intact. Allocation or execution
+failure may leave valid metadata, never resources/failures; retry revalidates and allocates fresh.
+Concurrent calls keep local immutable snapshots, with candidate retention bounded by active
+admissions. Close clears/prevents late publication. After inward admission it suppresses memo
+publication rather than imposing a new outward-close error; Runtime's existing lease still
+arbitrates the later close/run race. No execution lock or second lease is introduced, and the
+exact coordination mechanism remains a later approved implementation choice.
+
+Useful variations: B=0 empties row work but not shared outputs or parameter gradients; empty MEAN
+is NaN, and empty contractions/SUM produce typed zeros. T=0 is a separate fixed-T preparation with
+raw initial carry and no body/hoisted work. A changed F/H, inconsistent later input B, invalid
+same-B layout/storage or overflowing latent local domain rejects before borrow. Neither emptiness
+nor a hit can hide it. A false shortcut would retain a previous caller's dense-view descriptor or
+shared mutable packed array because B matched; it would break publication truth or run isolation.
+
+No new type/public signature or Runtime handoff is selected. Existing static F32/F64 Scan/read
+exceptions, constituent arithmetic and compatibility identities remain unchanged. Length-value
+preflight stays after producers/before Scan writes. CPU0042 implements fixed-batch length
+execution separately; symbolic-B plus lengths remains gated.
+Prepare0014's execution tests cover both actual reverse seeds, exact demanded/dead/shared resources,
+aliases and failure/close/concurrency. Future memo tests must additionally distinguish reused
+Engine geometry work from still-executed binder work. Generated Class-File inspection and bounded
+matched-work CPU evidence compare specialized clean-Java algorithm/hot-loop/dataflow; the initial
+Engine timing setup failed and its approved environment-only follow-up is pending. Neither the
+CPU samples nor this future memo example promises parity, speed or automatic
+NN/Training/cold/wire/wider-backend capability.
+
 ## Current Runtime memory geometry
 
 The current `modules/runtime` production surface contains two nominally distinct non-negative
@@ -77,7 +256,9 @@ and another plan may reuse either number without establishing cross-plan identit
 
 The current `PreparedMemoryPlan` carries final ordered geometry through immutable buffer-entry and
 workspace-entry snapshots. Each entry retains one exact slot reference plus exact non-negative
-byte size and positive power-of-two byte alignment. Slots are unique within their respective
+byte-size declaration and positive power-of-two byte alignment. `requiresBatchSize` is explicit;
+`RunMemoryGeometry` resolves same-plan per-run numeric sizes without Model/Compiler dependencies.
+Slots are unique within their respective
 lists, the two domains remain separate, and empty plans are valid.
 
 These Runtime contracts deliberately retain no compile-time `ValueId`, analysis-local workspace
@@ -122,19 +303,19 @@ partition membership/order disagreement, self-dependencies, and later-producer d
 construction before backend analysis.
 
 `PrepareContext` stores this exact DAG as its sole node/topology component. Its derived
-`partition()` and `nodes()` methods delegate to the DAG. The canonical record has five components:
-the DAG, projected values, logical-memory requirements, constants, and backend inputs. Its public
-six-argument partition-and-node-list constructor remains source-compatible with the former call
-shape by constructing one DAG and delegating to the canonical constructor. No binary
-compatibility is promised: the record descriptor, component reflection, equality, hash code, and
-textual form now follow the five-component shape.
+`partition()` and `nodes()` delegate to the DAG. Its six components are the DAG, projected values,
+logical-memory requirements, constants, backend inputs and the Scan activity map. Structural
+ScanActivityPlan metadata and full source shapes accompany the scoped body; these are not an
+executable Runtime graph. Runtime receives prepared recipes, not another executor. The
+[runtime contract](contracts/runtime-prepare-engine.md) owns the exact context/constructor surface.
 
 Projected values are unique by `ValueId`, every node input and output resolves to one projected
 value, and every projected value has one descriptor-matching logical-memory requirement. This is
 intentionally asymmetric: the current contract does not separately require every projected value
 to occur in a node input or output.
 
-All projected Shapes must be fully static. An immutable logical-splat constant may be projected
+Projected Shapes follow qualified ordinary and Scan static/named-batch projection, not arbitrary
+symbolic geometry. An immutable logical-splat constant may be projected
 only for a projected graph input, and its exact `ScalarValue` type must match that input's
 descriptor. Neither the context nor any marker role exposes `CompileArtifacts` or another
 Compiler-owned aggregate.
@@ -242,7 +423,9 @@ The next lifecycle step is current inside a package-private complete-set handoff
 assigns stable Runtime-owned `BufferSlot` and `WorkspaceSlot` identities, retains exact
 requirement-to-slot associations, and constructs one `PreparedMemoryPlan`. The current rule is
 conservative: one buffer slot per distinct declared `ValueId`, with maximum declared size and
-alignment when that value is repeated, and one distinct workspace slot per workspace declaration.
+alignment only for repeated fixed-byte declarations. Run-bound declarations require structural
+recipe equality and identical alignment; Prepare never evaluates them to invent a numeric maximum.
+There is one distinct workspace slot per declaration, with exact recipe/alignment agreement.
 No aliasing, lifetime, interference, or reuse model is inferred.
 
 Backend finalization is also current as a shared contract. After assignment, the owning backend's
@@ -273,10 +456,11 @@ published constant, Prepare identifies and orders the exact logical role and ask
 to contribute physical geometry from the stable graph value, logical-memory requirement, and
 scalar. Prepare still validates complete coverage and owns assignment and transactionality.
 
-Any dynamic or unresolved Shape currently fails `PrepareContext` construction before backend
-analysis. A future fact may remain run-dynamic only when an explicit prepared contract represents
-it without changing the selected route, declared resources, or slot assignment. The current
-repository has no such run-dynamic fact contract.
+Unknown/expression Shapes or symbolic geometry outside the bounded single named-B projection,
+including its rank-three Scan closure, fail `PrepareContext` construction before backend analysis. The implemented
+[ordinary symbolic-batch handoff](#accepted-symbolic-batch-handoff) preserves selected routes,
+declared identities and slots; Scan still requires its independent whole-body qualification,
+not a per-run graph.
 
 ## Current explicit Engine composition and cold routing
 
@@ -338,9 +522,10 @@ Planning: one ordinary operation capability query and owner
 ```
 
 Planning does not interpret variant, direction, valid lengths, active rows, loop parameters, or a
-backend route. Shared Prepare adds no body, region, loop, or callback contract. Backend analysis
-may retain the fixed transition and loop geometry in its opaque plan, but it must declare every
-shared resource before assignment and must not create one executable body per time step.
+backend route. For this fixed family, shared Prepare adds no body, region, loop, or callback
+contract. Backend analysis may retain the fixed transition and loop geometry in its opaque plan,
+but it must declare every shared resource before assignment and must not create one executable
+body per time step.
 Finalization constructs one reusable executable for the compatible static descriptors.
 
 Engine, not Runtime, owns typed mapping of logical caller inputs to the ordered Runtime
@@ -378,6 +563,167 @@ that a selected backend cannot preserve static route and resource decisions acro
 valid-length values, it must expose the exact gap for a new architecture decision instead of
 adding speculative control-flow state to Prepare or Runtime. See
 [ADR 0012](../design/decisions/0012-fixed-recurrent-scan-without-regions.md).
+
+<a id="cpu0074-staged-synchronous-row-region-exception"></a>
+
+## CPU0074 implemented synchronous row-region exception
+
+Implemented and MAIN accepted: the [CPU mechanism](contracts/backend-execution.md#cpu0074-selected-row-region-execution-exception)
+and [run-owned reservation contract](contracts/runtime-prepare-engine.md#cpu0074-run-owned-synchronous-reservation)
+permit only selected fused regions to dispatch synchronous worker ranges from the emitted Scan
+loop. CPU0074 is Complete after final bounded validation. Its
+[Result](../planning/backends/cpu/tasks/0074-row-fusion-simd-parallel.md#result) distinguishes
+functional acceptance from unqualified steady-state profitability; defaults and rollout are unchanged.
+Shared Prepare and Runtime APIs, one RunState and synchronous publication do not change.
+
+Lifecycle example with two actual participants and a capacity-two budget: analysis declares
+the bounded feature-transpose scratch and two terminal partial/validity slots before assignment.
+Cold run binding creates the context/arrays/calls once. The caller acquires two permits, performs
+after-producer preflight, and enters generated code. At the selected active-time region it lends
+the same reservation to the two workers and waits without concurrent math. Workers acquire no
+nested permits. Join completes before caller merge/carry or scratch reuse; the caller releases
+only after all started work quiesces, also on failure/interruption/close. With one participant,
+the inline path uses one permit and submits nothing. A wrong, released or insufficient reservation
+rejects before enqueue. Holding one inline permit while separately acquiring worker permits is
+not this protocol and can deadlock.
+
+Only existing scheduler Job/queue/failure/latch metadata may allocate per dispatch. Frames, typed
+bindings and calls remain run-owned and prebound; no per-step graph lookup, geometry repacking,
+tensor allocation or second executor is introduced. True invariant transposes stage once under
+activity gating; SHARED history/changing cuts stage at the right active time or fall back.
+The [Scan owner](contracts/recurrent-scan.md#cpu0074-selected-terminal-grouping-exception) retains
+activity and separate per-time carry ADD semantics. Existing scalar handoff statements below
+remain unchanged outside this explicit selected exec-v1 exception.
+
+The implemented, independently reviewed
+[CPU0075 scalar emission/cache cutover](contracts/backend-execution.md#cpu0075-selective-scalar-load-and-address-reuse)
+does not change this handoff. CPU analysis must account for within-row cached values/addresses
+and last-use slot reuse before resources/slots; finalization only emits the proved form. For
+example, two reads of one saved cell may share a typed local within an active row, but never
+across a possibly aliasing write or a time/bank transition. This avoids redundant generated
+accesses without a runtime cache, new run object, entry parameter or changed worker reservation.
+Only affected scalar compatibility identities advance; SIMD/nonregional controls stay literal.
+The [decision record](../design/decisions/0054-row-fusion-scalar-load-address-reuse.md) explains why
+the former literal scalar-retention promise is qualified instead of preserving two emitters.
+MAIN's CPU/Javadoc gate passed; the [CPU0075 Result](../planning/backends/cpu/tasks/0075-row-fusion-scalar-load-address-reuse.md#result)
+separates structural savings from JIT-qualified timing. Neither a C1 repair nor a material Scan
+speedup was established, and the remaining Java gap grants no wider staging or carry lifetime.
+
+<a id="cpu0076-prospective-scalar-invariant-staging"></a>
+
+### CPU0076 implemented scalar invariant staging
+
+The user-approved [CPU0076 contract](contracts/backend-execution.md#cpu0076-prospective-invariant-external-cell-load-staging)
+permits the implemented bounded load-placement step. CPU
+cold analysis proves a cell's storage/address/activity lifetime before cuts/resources/slots;
+generation may then keep the represented value in method locals without adding a Runtime cache.
+Shared Prepare still assigns the same resources and Runtime executes the same prepared unit.
+
+For example, an authenticated read-only matrix cell with no row/time dependence may load once
+under the invocation's nonempty/any-active guard. A SHARED history of that matrix instead loads
+its current original-time slice after its producer at active(t). Loading the first slice once
+and reusing it through reverse traversal would read stale data. A worker range with no active
+consumer cannot preload body cells just because another range is active. If the existing helper
+bindings cannot express the required placement, its checked path remains supported. A constant-row
+view of a ROW history still needs that source row's activity; it is not a SHARED source. The
+implemented scopes omit ROW/carry/bank/scratch origins and already-hoisted scalar actuals.
+
+Only complete consumed fixed-feature views and complete regional bodies qualify; rank greater
+than two or unrelated body producers keep checked reads. The shared cold query is reused with
+identical authenticated scope/base facts before cuts, in preparation, both cache streams and
+emission. Caller lifetime includes every demanded history base, even forwarded sources and
+prepublication; both phases include duplicate wrapper carrier/base allowances. This prevents a
+regional-only estimate from hiding locals that coexist with invocation staging.
+
+Caller/helper live-slot proof remains separate and pre-slot; no new frame, bank, helper ABI,
+reservation or resource owner follows. Carry accumulators remain memory-backed with separate
+per-time ADDs. [ADR0055](../design/decisions/0055-row-invariant-load-staging.md) explains the
+tradeoff. The [task result](../planning/backends/cpu/tasks/0076-row-invariant-load-staging.md#result)
+records generic tests, actual ClassFile proof, literal retention and the sole comparison:
+B256 observed 17.7547% lower time than accepted CPU0075, with logged primary/Entry/window C2
+stable through its sample envelope; B32 is outer-loop-JIT-confounded. This is not universal
+stationarity, assembly, parity or C1-repair evidence. Final CPU/Javadoc and named Engine gates
+passed; the independent documentation pass reuses that source-matched evidence without reruns.
+
+## General differentiable scan handoff
+
+This handoff is implemented for the bounded static homogeneous FLOAT32/FLOAT64 CPU scan, including
+rank-two MATMUL and independently qualified actual Compiler first-order reverse bodies. CPU0033
+derives F64 spans, strides, histories, banks and cuts from eight-byte elements, with exact checked
+resources before slots and typed capacity/alignment checks at binding. The historical Prepare0014
+layer extended this handoff to bounded all-valid one-B FLOAT32 with unresolved template layouts
+and exact run-size declarations. Current ordinary CPU general Scan qualifies named-batch F32/F64
+forward and actual selected VJPs under single-B, fixed-T/features guards; this does not grant
+ordinary symbolic F64 MATMUL, arbitrary symbolic geometry, symbolic NN/training or persistence. The
+[scan owner](contracts/recurrent-scan.md#general-differentiable-scan) specifies the complete semantic
+protocol; the [Prepare](contracts/runtime-prepare-engine.md#modulesprepare) and
+[CPU](contracts/backend-execution.md#cpu-backend-routes) contracts own only their boundaries.
+
+```text
+Compiler: validated scoped body + role/result bindings + ordinary residual edges/demand
+  -> Planning: Tensor-free whole-body/binder query, one complete-body owner
+  -> PrepareContext/PartitionDag: preserve attachment, separate local/outer descriptors
+  -> CPU analysis: prepare once, exact checked resource declarations
+  -> shared slot/representation assignment
+  -> CPU finalization: emit outer time loop + admitted typed step emitters
+  -> Runtime: cold-bind direct references, execute with one isolated RunState
+```
+
+Read downward: no generated executable is finalized before its resources have slots. Supported
+children do not prove that a loop binder can execute their topology. A body with a supported
+pointwise child but an unsupported role/carrier binding must reject as a whole, not dispatch that
+child at runtime or split the body across owners. Local numeric ValueIds can coincide with outer
+IDs without identifying the same values; projection validates them in separate scopes.
+
+Prepare0011 also projects length-aware forward and actual Compiler-generated reverse scans.
+It separates the final INT64 lengths actual from floating body formals, preserves explicit
+ROW(0)/ROW(1)/SHARED bindings and outer layouts, and validates static boundaries and complete-graph
+demand before any analyzer. It neither repeats Model/Compiler row-algebra proof nor reads length
+values. The existing handoff transports backend-declared mixed-boundary resources before slots;
+test-only analyzers verify those associations and rollback without invoking physical creators
+or executables. CPU0042 separately implements real fixed-geometry FLOAT32/FLOAT64 length lowering,
+mixed-width declarations and generated forward/actual-reverse execution through this same handoff.
+
+Prepare0015 extends length projection to static or one named B, without changing that sequence
+or re-proving Model/Compiler algebra in Prepare. Before analyzers, validate
+all scoped declarations/bindings/latent ports and complete demand. Every run, including repeated B,
+retains fresh Compiler bind/private obligations, current input-backed metadata/storage and checked
+numeric sizing before borrow; after producers, run-aware typed checks and all B lengths precede
+the first Scan-local write. `[B,0]` still carries explicit B and batch-required mode. Actual
+F32/F64 widths and separate eight-byte INT64 control feed existing declarations/creators and one
+RunState; the Engine memo remains excluded.
+
+Canonical residual wrappers are not memory reservations. A reverse consumer makes selected
+histories live through ordinary edges; inference with no residual publication/consumer has zero
+history bytes/stores. Internal body uses require only step temporaries. Analysis declares checked
+output, staging, carry-bank, temporary and live-history bytes before slots, including demand for
+reverse residuals. No opaque saved-workspace exchange or nested execution owner replaces this work.
+
+CPU generation composes typed body emitters inside an emitted time loop. Existing carrier/MATMUL
+entry assumptions need explicit step-local carrier/local/base/range bindings; CPU0032's generation-only
+matrix composer supplies them without an ordinary MATMUL entry call. A generation-time Consumer
+is not a runtime callback. Hoist invariant setup, prefer direct time offsets, and justify
+every materialization/carry bank/temporary. Live saved histories and needed MATMUL storage remain;
+the decision does not promise universally copy-free or faster execution. Mutable carry, changing
+addresses/geometry arrays and storage belong to the run, never shared prepared state. Body shape
+is compiled once, not T times, with no runtime interpreter/per-op lookup/per-step allocation.
+
+Generated identity must key every baked body/role/demand fact while CpuKernelIr excludes extents,
+slots and run bindings; stale meaning/format artifacts reject. The current CPU route retains
+schema/family 71 and old pointwise/shaped keys and bytes; a separate MATMUL-only versioned
+specialization payload includes every baked affine/resource fact in both identity streams.
+The additive F64 variants use existing dtype and baked eight-byte resource facts in those same
+streams, preserving accepted F32 keys and generated bytes.
+The fixed Java route above remains intact. CPU0042 adds the separately qualified fixed-geometry
+length branch: INT64 control outside floating formals, after-producer preflight, and activity-dominated
+generated work. All-valid static/symbolic keys and generated bytes remain unchanged. Cold/v5,
+owned NN workflows remain separate gates. Prepare0015 adds a separate combined symbolic-length
+branch, including typed outer/control closure and explicit B even behind zero features. Owning tests
+and independent source/Class-File review passed; root validation and the sole bounded probe completed;
+[Prepare0015 Result](../planning/modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result) records
+evidence and limits; final MAIN acceptance remains pending. See
+[the focused scan explanation](general-differentiable-scan.md) and
+[ADR 0045](../design/decisions/0045-general-differentiable-scan.md).
 
 ## What prepare creates
 

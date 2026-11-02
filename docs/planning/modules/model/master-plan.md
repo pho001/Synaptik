@@ -252,6 +252,173 @@ records its serial integration and validation. Git history records publication s
 | 0032A | [Stored-subnormal provider regressions](tasks/0032a-stored-subnormal-provider-regressions.md) | Complete | 0030/0031, CPU 0017, Metal 0063 Complete; verified native package at execution | CPU/Metal backend-local stored-subnormal regressions passed; no stronger Model contract or behavior change. |
 | 0032 | [Profile-free numerical-semantics reset](tasks/0032-profile-free-numerical-semantics-reset.md) | Complete | 0032A Complete; user-approved arithmetic-site DAZ/FTZ rule | Profile-free cutover, source-matched native rebuild, integrated validation, independent review, and documentation completed in main; historical ACCELERATOR true/false provider answers retained. |
 | 0033 | [Stable softmax numerical contract](tasks/0033-stable-softmax-overflow-semantics.md) | Complete | Owner decision; 0032; review G1 | Stable finite meaning, CPU execution, conformance, bounded v2 generated/direct evidence, ADR 0029 and independent review complete. |
+| 0034 | [General differentiable scan architecture decision/cutover](tasks/0034-general-differentiable-scan-decision.md) | Complete | All 16 declared baseline predecessors Complete; actual concrete user approval and frontier verification recorded in brief | Authority-only cutover accepted by main 2026-10-21 after final independent Class C APPROVE, zero blockers; no Java. |
+| 0035 | [General scan source and compiled body](tasks/0035-general-scan-source-and-compiled-body.md) | Complete | 0034 Complete | Bounded source/IR foundation accepted by main 2026-10-22 after independent authority/code/docs approval and compatibility checkpoint; no execution/AD. |
+| 0036 | [Length-aware general scan design](tasks/0036-length-aware-general-scan-design.md) | Complete | Accepted general-scan/AD/cold/CPU/owned baseline; planning-only user approval | Proposal delivery only; independent final APPROVE and MAIN acceptance, no semantic/API/wire approval or implementation. |
+| 0037 | [Length-aware Scan authority](tasks/0037-length-aware-general-scan-authority.md) | Complete | 0036 and accepted downstream baseline Complete; subsequent user design approval | Authority only; Hume final overall Class C APPROVE, zero open P1/P2; MAIN accepted 2026-10-24. |
+| 0038 | [Length-aware Scan source/IR foundation](tasks/0038-length-aware-scan-source-foundation.md) | Complete | 0037 independent approval/MAIN acceptance Complete | MAIN accepted 2026-10-24 after independent APPROVE, zero open P1/P2, and combined compile/architecture/root retry PASS following one test-only ledger serializer repair; source/IR and guards only. |
+| 0039 | [General Scan symbolic-batch design](tasks/0039-general-scan-symbolic-batch-design.md) | Complete | Complete Model0035/0038, Compiler0013, Prepare0013, CPU0037; user planning request | DESIGN DELIVERY ONLY; independent frozen APPROVE, zero open P1/P2, MAIN accepted 2026-10-24; no authority or implementation grant. |
+| 0040 | [Same-geometry reuse design amendment](tasks/0040-same-geometry-reuse-design-amendment.md) | Complete | Complete Model0039 and Prepare0013; user planning-amendment request | DESIGN ONLY; independent APPROVE, zero open P1/P2, MAIN accepted 2026-10-25. Single-entry immutable metadata reuse retains per-call admission; no authority or implementation grant. |
+| 0041 | [Symbolic Scan and geometry-reuse authority](tasks/0041-symbolic-scan-authority-cutover.md) | Complete | Complete Model0039/0040 and retained Model0038/Compiler0013/Prepare0013/CPU0037; user approval | AUTHORITY ONLY; independent APPROVE, zero open P1/P2; MAIN accepted 2026-10-25. Accepted future contracts/docs enacted, no implementation successor. |
+| 0042 | [Static and symbolic Scan source foundation](tasks/0042-symbolic-scan-source-foundation.md) | Complete | Complete Model0041; retained Model0038/Compiler0013 | Static/named-symbol Model source and consumer rejection complete; independent APPROVE, zero open P1/P2, configured root test/Javadoc PASS; MAIN accepted 2026-10-25. No downstream symbolic enablement. |
+| 0043 | [Symbolic-batch/runtime-length Scan integration design](tasks/0043-symbolic-length-scan-integration-design.md) | Complete | Model0042; Compiler0013/0014; Prepare0011/0013/0014; CPU0037/0041/0042 Complete | DESIGN DELIVERY ONLY; Hume the 4th final independent Class C APPROVE, 0 P1/P2/no unresolved findings; MAIN accepted 2026-10-26. No new semantics, authority or implementation grant. |
+| 0044 | [Static/one-B length Scan source foundation](tasks/0044-symbolic-length-scan-source-foundation.md) | Complete | 0043/0042/0038; Compiler0013/0014; Prepare0011/0014; CPU0042 Complete; user semantic/source approval | Source and two deliberate reject fixes complete; independent source/docs APPROVE, 0 P1/P2. MAIN accepted 2026-10-26 after configured root test/Javadoc PASS; evidence/counts in task Result. No downstream enablement or successor. |
+| 0045 | [Per-value typed length-aware Scan source](tasks/0045-per-value-typed-length-scan-source.md) | Complete | 0044, Compiler0015, Prepare0015 Complete; authority/Ready/GO accepted 2026-11-01 | MAIN accepted source only 2026-11-01 after independent APPROVE, retained source-matched coverage and three approved Class A test-only recoveries, each 1 PASS/0 skip. Original commands remain FAILED, not a clean root PASS; [Result](tasks/0045-per-value-typed-length-scan-source.md#result) owns evidence/limits. |
+| 0046 | [Empty-carry Scan and explicit length-mode source](tasks/0046-empty-carry-scan-and-explicit-length-mode.md#result) | Complete | Model0045/practical RNN Complete; integrated Complete CPU0078; accepted ADR0059 and coordinated source authority | Exact reviewed35-file source cutover; affected3,998pass/60existing skips, public96source/reject cases and28old CPU artifact checks pass; independent final core/wire/evidence/docs APPROVE0. No typed execution/wire widening. |
+| 0047 | [Ordinary checked descriptor seam](tasks/0047-ordinary-checked-descriptor-seam.md#result) | Complete | Existing ordinary Model semantics; qualified Model0046 | Exact reviewed 88-file integration; affected 3,705 passes/60 existing skips, actual 84-fixture/137-occurrence descriptor checks and 28 retained CPU kernels pass. Final independent primitive/structured/contract evidence/docs APPROVE0; no row/AD/execution widening. |
+| 0048 | [Shared per-output ordinary Scan semantics](tasks/0048-shared-ordinary-scan-value-semantics.md#result) | Complete | Complete0046/0047/Compiler0017A/CPU0078; final independent source/evidence/docs APPROVE0 | Fourteen paths integrated; affected3,261pass/60existing skips, actual public metadata/history preflight,85oldkernel files and48oldv4/v5archive bytes pass. No typed AD/physical/wire widening. |
+
+## General scan decision DAG and frontier
+
+Model0047 is Complete after final independent primitive, structured and contract/evidence/
+documentation APPROVE0. No descriptor-source acceptance frontier remains.
+Model0046 is Complete for bounded source after final independent core/wire/evidence/docs
+APPROVE0. Its original failed full gate remains FAILED, with the Compiler repair passed separately.
+Model0047's original affected command likewise remains FAILED, with the repaired Model gate
+passed separately. General typed inference/AD/CPU execution and wire domains remain bounded.
+Model0048 source/forward-coordinate semantics is Complete after final independent source/
+evidence/documentation acceptance and actual consumer/artifact qualification.
+Typed AD, physical execution and persistence remain independently bounded.
+Current Model source frontier is only the generated-history header/declared-axis portion of
+[Compiler0017 Ready](../compiler/tasks/0017-per-value-typed-length-scan-inference-and-ad.md),
+under accepted coordinated authority and exact dirty source. Its owner must preserve independent
+old cold/codec intersections. No new mathematical guard/coordinate transfer implementation,
+standalone Model successor, persistence or numerical-policy grant is selected.
+
+[Model0045](tasks/0045-per-value-typed-length-scan-source.md#result) remains Complete for source only,
+with its retained review/coverage and three separate Class A recoveries. Its original commands
+remain FAILED, not a clean root PASS; no rerun is authorized merely to relabel that evidence.
+The new production prerequisite is separately scoped; MAIN owns shared authority/integration.
+Model0044, Compiler0015 and Prepare0015 remain Complete, with no new downstream admission. Typed CPU bindings/dtypes,
+feature SLICE, layout reads, cold/v5/legacy compatibility and NN cutover stay coarse follow-up,
+not source-step dependencies. Existing unrolled/static and fixed APIs remain intact; unchanged
+unrolled higher-order support is not a blocker. Older closed-frontier statements below describe
+their accepted checkpoints.
+
+At Model0044 acceptance, Model planning/source/authority/implementation frontiers were None.
+[Model0044](tasks/0044-symbolic-length-scan-source-foundation.md) is Complete. MAIN accepted bounded
+authority/Ready after independent pre-Java APPROVE on 2026-10-26.
+A different clean worker implemented the source/rejection scope; independent source/docs APPROVE
+has no open P1/P2. MAIN's configured root test/Javadoc checkpoint passed; MAIN accepted the exact
+source-only task on 2026-10-26. Recorded Model0044 admission: PlanningAuthorized=true;
+AuthorityAuthorized=true only for bounded Model-source wording;
+ImplementationAuthorized=true only for the source foundation and deliberate rejection guards/tests.
+The user explicitly accepted static-or-one-named-B length source with fixed T/features/F32/F64 body,
+not Compiler inference/AD/binding or Prepare/CPU execution. No new production type/package/API;
+existing Scan owns source validation; existing ScanGradientRules and PrepareContext own early reject fixes.
+Writes were serial, Parallel group None; MAIN completed shared integration and the configured root checkpoint.
+The brief contains all seven integration fields and accepted dirty-base/dependency evidence.
+Other frontiers remain None; no standalone authority task or downstream successor is admitted.
+
+[Model0043](tasks/0043-symbolic-length-scan-integration-design.md) is Complete for DESIGN DELIVERY ONLY;
+Hume the 4th final independent Class C APPROVE, 0 P1/P2/no unresolved findings; MAIN accepted 2026-10-26.
+The user's “ok, pust se do toho” selected only concise integration planning; MAIN verified Ready
+admission/dependencies/base and confirmed launch. The [bounded proposal](../../length-aware-general-scan.md#proposed-symbolic-b-plus-lengths-integration)
+identifies the limited static-wording delta and real F64/control prerequisites, followed by coarse
+source → Compiler AD/binding → Prepare/CPU/Engine capabilities. Its delivery created no successor;
+the subsequent explicit source approval is now scoped only by Model0044 above.
+Historical PlanningAuthorized=true; AuthorityAuthorized=false; ImplementationAuthorized=false.
+MAIN's serial review/integration is closed; Parallel group None, all other gates remain held.
+
+The user's “ok, pust se do prace” admitted [Model0042](tasks/0042-symbolic-scan-source-foundation.md), now Complete,
+on 2026-10-25, including the explicit request to preserve static dimensions. ImplementationAuthorized=true
+applies only to that compact source/test/documentation packet. MAIN verified authority/dependencies,
+baseline and inactive conflicts. Independent APPROVE, zero open P1/P2, and MAIN's configured root
+test/Javadoc gate passed; MAIN accepted 2026-10-25. Compiler0014 is Complete: scoped inference/
+actual AD/binding, module/Javadoc PASS (384 tests), independent APPROVE (0 P1/P2), and MAIN's
+compatibility checkpoint PASS (68 tests); MAIN accepted 2026-10-25. Compiler frontier None;
+Prepare/CPU/Engine frontiers remain None.
+Authority frontier: None. The user's “ok, pokracuj tedy” authorized the now Complete
+[Model0041](tasks/0041-symbolic-scan-authority-cutover.md) contract-first cutover after confirming
+the original symbolic-B plan plus same-geometry reuse. AuthorityAuthorized=true;
+ImplementationAuthorized=false. MAIN verified dependencies/base/conflicts on 2026-10-25.
+[Model0040](tasks/0040-same-geometry-reuse-design-amendment.md) is Complete for DESIGN AMENDMENT ONLY,
+authorized by the user's “ok, dopln to” on 2026-10-25; PlanningAuthorized=true,
+ImplementationAuthorized=false. Independent frozen APPROVE, zero open P1/P2; MAIN accepted 2026-10-25.
+Model0041 enacts the explicit immutable-facts/mutable-run-array and prepared-meaning exception;
+independent APPROVE, zero open P1/P2; MAIN accepted 2026-10-25. That authority task authorized no Java;
+the separately admitted and completed Model0042 source foundation above did.
+[Model0039](tasks/0039-general-scan-symbolic-batch-design.md) is Complete for DESIGN DELIVERY ONLY,
+independent frozen APPROVE (zero open P1/P2), MAIN accepted 2026-10-24. PlanningAuthorized=true
+records the completed admission from the user's “ok, pokracuj” planning request;
+ImplementationAuthorized=false. The [focused proposal](general-scan-symbolic-batch-proposal.md)
+separates Model PURE/dtype source validity, Compiler's bounded AD domain and initial F32 CPU
+qualification; zero new/moved production types proposed, existing Scan/numeric owners extended.
+Base HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus accepted uncommitted
+baseline; index unchanged, no competing writer, Parallel group None. MAIN owns integration;
+the brief records all seven metadata fields. Design review/MAIN acceptance → explicit user
+semantic approval → separately admitted coordinated authority cutover → cohesive source/AD/
+CPU vertical gates. User detailed semantic approval and authority admission are now supplied;
+the sole [Scan semantic owner](../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)
+and [memo lifecycle owner](../../../architecture/contracts/runtime-prepare-engine.md#accepted-engine-geometry-memo)
+contain the accepted direction; only Model source is implemented and accepted through Model0042.
+No new production type/signature or atomic
+mechanism is selected. Independent authority review/MAIN acceptance are complete; separately Ready
+implementation briefs remain required for downstream capabilities. The completed authority delivery's
+ImplementationAuthorized=false is unchanged; Model0042's source authorization is completed, with no active successor.
+
+At the completed length-authority checkpoint, authority frontier was None;
+[Model0037](tasks/0037-length-aware-general-scan-authority.md) is Complete
+after Hume's final overall independent Class C APPROVE, zero open P1/P2, and MAIN acceptance
+2026-10-24. User “ok, pust se do prace” selects the reviewed design and first foundation.
+Model source frontier: None; [Model0038](tasks/0038-length-aware-scan-source-foundation.md) Complete,
+MAIN-accepted 2026-10-24 after independent review and successful combined integration retry.
+Compiler0013 below is Complete, MAIN accepted 2026-10-24. Model0036 remains historical proposal-only Complete.
+The recurrent-scan owner defines source/IR and the accepted downstream semantics. Compiler0013
+implements bounded inference/first-order reverse construction/query/demand; cold, Prepare, CPU,
+v5 and owned NN length capability remain unsupported.
+Immediate DAG: Model0036 Complete + user approval → Model0037 review/MAIN acceptance → Model0038
+Model source/IR with fail-closed consumers → Compiler0013 implementation admission below. Beyond that immediate
+packet, Prepare/CPU/cold-v5/owned qualification remain coarse dependencies, not detailed tasks.
+The immediate Compiler-owned successor is now [Compiler0013](../compiler/tasks/0013-length-aware-scan-capture-and-first-order-ad.md),
+joining Complete Compiler0011 and Planning0008, is Complete; MAIN accepted 2026-10-24 after
+independent code/docs APPROVE (0 P1/P2), worker module, compatibility and final docs/Javadoc PASS;
+its [Result](../compiler/tasks/0013-length-aware-scan-capture-and-first-order-ad.md#result) owns evidence.
+ImplementationAuthorized=true is historical admission; no new production type/Planning layer.
+Ready frontier None; this is not a new Model task or successor authorization.
+Cold capture/reconstruction, Prepare, CPU and codec remain individually closed owner gates.
+NN0032 migration and its higher-order compatibility decision remain separately held.
+MAIN owns shared integration; Parallel group None. Both new briefs record all seven metadata fields,
+dependency/frontier checks and the uncommitted accepted common base. Conflicts: scan semantics/API,
+role/count/AD/cold/runtime/wire and shared documents, serialized; no competing writer active.
+Completed integration order: authority acceptance → source/review → MAIN combined named compile/
+architecture and existing-native root test/Javadoc. First attempt failed only test-ledger metadata;
+bounded test-only repair and same-command retry passed, both performance flags false, no rebuild/
+campaign, reusing successful/cached evidence. No automatic next task follows.
+No production type/package additions: existing model.operation.scan
+ScanAttrs, model.tensor Scan/ScanBody and model.graph CompiledNode/CompiledScanBody only; exact
+bounded consumer rejection paths are in Model0038. Other owners' support remains held.
+
+[Model0035](tasks/0035-general-scan-source-and-compiled-body.md)
+is Complete, accepted by main 2026-10-22 after pre-code authority approval, final independent code/docs
+APPROVE and the named compatibility checkpoint; its brief owns evidence and seven integration fields.
+Model0034 remains Complete; its [decision brief](tasks/0034-general-differentiable-scan-decision.md)
+records actual user approval and verified dependencies/base/inactive conflicts on 2026-10-21.
+The [program](../../general-differentiable-scan.md) coordinates the serial DAG:
+completed authority cutover → completed Model source/IR → Planning body query → Compiler body AD/capture
+→ Prepare projection → bounded CPU F32 forward/automatic-reverse milestone → remaining declared
+forms/closure + F64 → main low-level join. Planning0008 body query is Complete, accepted by main
+2026-10-22 after final independent APPROVE and compatibility gates; Planning frontier None.
+[Compiler0011](../compiler/tasks/0011-general-scan-capture-and-first-order-ad.md) is Complete, accepted by main
+2026-10-22 after independent code/docs APPROVE and compatibility checkpoint; then Compiler frontier None.
+[Prepare0010](../prepare/tasks/0010-general-scan-projection-and-resource-handoff.md) is Complete:
+scoped projection/demand validation and resource handoff, main accepted 2026-10-22 after Huygens
+final Class C code/docs APPROVE and the exact compatibility checkpoint.
+At that earlier all-valid checkpoint CPU/Prepare/Compiler/Planning/Model/NN frontiers were None.
+Current length-aware Model0037/0038 status is above. Bounded CPU F32 pointwise forward + actual
+automatic reverse [CPU0030](../../backends/cpu/tasks/0030-general-scan-f32-pointwise-vertical.md)
+is Complete, accepted by main 2026-10-22 after independent review and focused checkpoint PASS.
+Remaining declared algebra/closure + F64 is a mandatory later Draft gate; no successor launch.
+Padding/NN training and persistence retain separate gates; BF16/FP16 qualification follows existing
+semantics. Compiler0010 is Superseded; existing fixed/static kernels and APIs remain.
+Common base: main=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus accepted
+uncommitted authority/Model0034/0035, Planning0008, Compiler0011, Prepare0010 and CPU0030 work; Parallel group None.
+Scan API/IR/residual/query/AD/projection/NN/authority
+conflicts remain serialized. Main owns shared integration/docs and the later program root gate.
+Implemented inventory: existing `model.tensor` Scan/ScanBody/ScanResult,
+`model.operation.scan` ScanKind/ScanAttrs, `model.graph` CompiledScanBody.
+This source/IR foundation grants no capture, AD, execution, training or persistence capability.
+The program is non-authoritative coordination, not the semantic owner.
 
 ## Milestones and current frontier
 
@@ -317,9 +484,10 @@ records its serial integration and validation. Git history records publication s
   the current `FLOAT32` boundary. Task 0026 is Superseded and is not a remaining prerequisite.
 - **Recurrent execution:** Model 0025E–0025F and Compiler 0006A are Complete. Compiler captures
   each scan as one identity-distinct flat forward node, but recurrent differentiation remains
-  fail-closed. No concrete backend currently advertises recurrent-scan execution, so
-  [NN 0021B](../../extensions/nn/master-plan.md) remains Draft pending an honest route and
-  lifecycle validation; current static NN sequence APIs remain unchanged.
+  fail-closed. CPU0028/CPU0029 and [NN0021B](../../extensions/nn/master-plan.md) are Complete:
+  four scalar floating types and resolved nonnegative-stride input layouts are supported by CPU0029.
+  Current fixed/static APIs remain unchanged. [0034](tasks/0034-general-differentiable-scan-decision.md)
+  completed authority for generic all-valid body scan, not code, automatic padded rnnScan training or speed parity.
 - **Other downstream gradients:** [Compiler 0006C](../compiler/master-plan.md) remains the Draft
   owner of Conv3d adjoint expressibility and gradient closure. It may request a separately
   selected minimal Model prerequisite, but this plan does not pre-authorize one.

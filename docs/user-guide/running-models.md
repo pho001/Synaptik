@@ -9,14 +9,26 @@ prepared execution repeatedly with current caller-owned input storage. Each run 
 ordered publication metadata and supports explicit copying into detached immutable
 `HostTensorValue` objects.
 
+## JVM prerequisites
+
+Use JDK 26 and the runtime dependencies of the selected API. The default scalar CPU route does
+not require `jdk.incubator.vector`. Explicit Vector API CPU computation requires
+`--add-modules jdk.incubator.vector`.
+
+Enable FFM native access with `--enable-native-access=ALL-UNNAMED` for `Engine.standard()` as well
+as explicit Metal/OpenBLAS use. The standard CPU composition performs bounded optional OpenBLAS
+library discovery when opened, even when the selected numerical work is portable Java. JDK 26
+otherwise reports restricted-access warnings from that probe. The flag grants the required FFM
+access; it does not choose a backend, require an installed BLAS library or change the prepared route.
+
 ## Build a fluent Model
 
 Use `Model.builder()` when fixed-shape inputs should flow through dense, convolutional or
 recurrent layers without a definition callback. Static `rnn/gru/lstm` and explicit runtime-length
 `rnnScan/gruScan/lstmScan` are separate recipes. A build creates a private evaluation-mode Model
-with one working weight set for compute and supported saves; scan-free sources may also train.
-It creates no Engine. Use Java 26, `:extensions:nn`, and `--add-modules jdk.incubator.vector`
-for the default CPU Engine. Close the Model when finished; compute results are detached values.
+with one working weight set for compute and supported saves; sources without fixed scans may also train.
+It creates no Engine. Use Java 26 and `:extensions:nn`. Close the Model when finished; compute
+results are detached values.
 
 For example, a multilayer perceptron (MLP) maps FLOAT32 `[32,784]` to `[32,10]`:
 
@@ -92,7 +104,7 @@ public final class FluentModelExample {
 }
 ```
 
-Run with the NN runtime classpath, Java 26 and the vector module enabled. The destination's parent
+Run with the NN runtime classpath and the JVM prerequisites above. The destination's parent
 must exist. Output is `6.0`, `25.0`, `-2.0`: squared error `(2*3-1)^2` has weight gradient 30,
 so SGD changes only the private weight to `2-0.1*30=-1`. Configure training again after load;
 the file contains neither the objective nor optimizer history.
@@ -154,12 +166,13 @@ See [builder API and lifecycle](../api/public-api.md#fluent-model-builder).
 
 ### Run a runtime-length scan Model
 
-Use `buildWithLengths()` to build an inference-only Model with two ordered inputs: values and
-valid lengths. The list-typed `Model<List<Tensor>,List<Tensor>>` keeps both inputs explicit, while
-`compute(values, validLengths)` returns the sole detached result without list indexing. No prior
-`forward` call is required, before or after load. This workflow has no Data dependency.
+Use `buildWithLengths()` to build a Model with two ordered inputs: values and valid lengths.
+F32/F64 `rnnScan` supports qualified first-order training; retained fixed recipes are inference-only.
+The list-typed `Model<List<Tensor>,List<Tensor>>` keeps inputs explicit, while `compute(values,
+validLengths)` returns the sole detached result. No prior forward is required, before or after load;
+this workflow has no Data dependency. The example below retains fixed GRU/LSTM inference.
 
-The example below uses the same Java 26/NN/vector-module prerequisites as the fluent examples
+The example below uses the same Java 26/NN/CPU prerequisites as the fluent examples
 above. It supplies canonical FLOAT32 `[4,3,2]` values and non-gradient INT64 `[3]` lengths
 `[4,2,0]`: four valid time steps for row 0, two for row 1, none for row 2. Use an existing parent
 directory; save atomically replaces an existing destination. It saves before the first compute,
@@ -238,11 +251,11 @@ meaning; there is no model-wide mask or original-padding-independence guarantee:
 | lastTimeStep | Still selects `T-1`, not each row's final hidden state; ordinary intervening steps may change padded zeros. |
 | Another scan | Shares lengths and ignores its own input suffix, including suffix values changed by ordinary intervening steps. |
 
-Current CPU scalar scans support homogeneous FLOAT32, FLOAT64, BFLOAT16 and FLOAT16 with resolved
-nonnegative-stride/offset inputs, including noncanonical Conv1d views and repeated reads. Outputs
-remain canonical dense. Valid construction/save still does not promise execution of every ordinary
-step or composition: each occurrence has its own backend predicate. Engine diagnoses unsupported
-occurrences; this workflow does not convert dtype or grant support to adjacent operations.
+F32/F64 RNN now uses general Scan with canonical source outputs and qualified first-order training.
+Its CPU actual reads require dense zero-offset geometry (including dense views) or existing
+proved scalar-broadcast exceptions. Fixed GRU/LSTM and low RNN retain their separately declared
+resolved nonnegative-stride/offset read domain. Each occurrence still needs backend qualification;
+there is no implicit conversion, layout copy or CPU fallback for unsupported composition.
 
 | Symptom | Cause and correction |
 |---|---|
@@ -250,10 +263,94 @@ occurrences; this workflow does not convert dtype or grant support to adjacent o
 | `finalHidden()` rejects | Place it immediately after a new scan recipe, before any classifier or transform. |
 | Later scan rejects geometry | Preserve exact time/batch axes; do not reshape lengths or guess a different batch axis. |
 | Compute rejects length input | Match canonical non-gradient INT64 `[B]` and all declared descriptor fields. Values must lie in `[0,T]`; repair out-of-range values and reuse the Model. |
-| Configure/train throws `UnsupportedOperationException` | Scan Models are inference-only. Both overload families reject after lifecycle/live-source checks, before arity/arguments, freeze, callbacks, Engine creation, cache closure or native copy. Valid-source state, caches and existing freeze status stay unchanged. Static unrolled training remains supported. |
+| Configure/train throws `UnsupportedOperationException` | Fixed runtime-length scan Models are inference-only. Both overload families reject after lifecycle/live-source checks, before arity/arguments, freeze, callbacks, Engine creation, cache closure or native copy. Valid-source state, caches and existing freeze status stay unchanged. Static unrolled training remains supported. |
 
 See [builder API details](../api/public-api.md#fluent-model-builder) and
 [training rejection](../api/training-api.md#owned-model-training-convenience).
+
+### Train a runtime-length RNN
+
+F32/F64 `rnnScan` composes the existing RNN cell equation through general Scan. Configure once,
+then supply fresh values and INT64 lengths at the same static signature. Save before compute or
+after training; close and `loadGraph`, then configure a new objective and optimizer on restored
+weights. This is not exact optimizer continuation. Old v3 fixed-RNN files stay inference-only.
+
+The example below uses the same JVM/NN prerequisites and an existing destination directory.
+Inactive sequence suffixes contain NaN deliberately: recurrence skips them rather than masking
+an already-computed value. Padding does not automatically mask the classifier loss.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.module.Model;
+import io.github.pho001.synaptik.training.Sgd;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
+
+public final class RuntimeLengthRnnTrainingExample {
+    private static Tensor values(long[] axes, float... lanes) {
+        Shape shape = Shape.of(axes);
+        var descriptor = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        return TensorFactory.fromFlatArray(descriptor, Optional.empty(), lanes);
+    }
+
+    private static Tensor lengths(long... lanes) {
+        Shape shape = Shape.of(lanes.length);
+        var descriptor = new TensorDescriptor(DataType.INT64, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        return TensorFactory.fromFlatArray(descriptor, Optional.empty(), lanes);
+    }
+
+    private static Tensor loss(List<Tensor> prediction, List<Tensor> target) {
+        Tensor error = prediction.getFirst().sub(target.getFirst());
+        return error.mul(error).sum();
+    }
+
+    public static void main(String[] args) throws Exception {
+        Path file = Path.of(args[0]);
+        Tensor target = values(new long[]{2, 1}, .2f, -.1f);
+        Tensor first = values(new long[]{3, 2, 2},
+                .1f, .2f, .3f, .4f,
+                .2f, .3f, Float.NaN, Float.NaN,
+                .3f, .4f, Float.NaN, Float.NaN);
+        Tensor fresh = values(new long[]{3, 2, 2},
+                .2f, .1f, Float.NaN, Float.NaN,
+                .3f, .2f, Float.NaN, Float.NaN,
+                Float.NaN, Float.NaN, Float.NaN, Float.NaN);
+        Tensor firstLengths = lengths(3, 1), freshLengths = lengths(2, 0);
+
+        try (var model = Model.builder().input(DataType.FLOAT32, 3, 2, 2).seed(37)
+                .rnnScan(3).finalHidden().linear(1).buildWithLengths()) {
+            model.save(file); // Cold: no compute or configured training yet.
+            model.configureTraining(List.of(target), RuntimeLengthRnnTrainingExample::loss, new Sgd(.02));
+            model.train(List.of(first, firstLengths), List.of(target));
+            model.train(List.of(fresh, freshLengths), List.of(target));
+            model.save(file);
+        }
+        try (var loaded = Model.loadGraph(file)) {
+            System.out.println("shape [2,1]: " + loaded.compute(fresh, freshLengths).shape().equals(Shape.of(2, 1)));
+            loaded.configureTraining(List.of(target), RuntimeLengthRnnTrainingExample::loss, new Sgd(.02));
+            var step = loaded.train(List.of(fresh, freshLengths), List.of(target));
+            System.out.println("new optimizer step: " + step.optimizerStep().orElseThrow());
+        }
+    }
+}
+```
+
+Output is `shape [2,1]: true` and `new optimizer step: 1`. All-zero lengths preserve the recurrent
+initial state and produce zero recurrent-parameter gradients; a downstream head can still train.
+Invalid lengths reject before parameter/optimizer mutation; repair values and reuse the session.
+Direct `RnnSequence.forwardGeneralScan` additionally exposes reverse traversal, bias-free cells,
+explicit initial state and zero T/B. General final hidden is carry port 0 and dense output emission
+port 1; retained fixed result ordering is unchanged. See the [NN0033 Result](../planning/extensions/nn/tasks/0033-trainable-runtime-length-rnn-workflow.md#result)
+for independent forward/BPTT and owned lifecycle evidence in both CPU dtypes.
+
 
 ### Compose explicit-state scans
 
@@ -299,14 +396,14 @@ with no represented step leaves it unbound. All floating descriptors must match 
 type exactly; a mismatch fails before initialization. Neither path infers lengths from padding.
 
 Advanced callers separately use ordinary Engine compile/prepare/run or runValues for fully static
-homogeneous FLOAT32/FLOAT64/BFLOAT16/FLOAT16 CPU scans, with resolved nonnegative read layouts,
+homogeneous FLOAT32/FLOAT64 CPU scans, with resolved nonnegative read layouts,
 INT64 lengths, explicit states and packed parameters. Fresh input storage must contain its full
 referenced span, including any offset prefix and strided gaps, not only its logical element count.
 Prepare reads no length values;
 each run checks all lengths in `[0,T]` before writing scan results. Repair invalid lengths and
 reuse the preparation with the same descriptors. Backpropagation through time and serialized
 prepared loops remain unsupported. Scan gradient flags remain intact even in eval. Owned Model
-compute uses the same Engine path, while scan training and BPTT remain unsupported. Compile selected `outputs()`,
+compute uses the same Engine path, while fixed-scan training and BPTT remain unsupported. Compile selected `outputs()`,
 `finalHidden()` and `finalCell()` Tensors and bind every compiled input slot, including weights
 and states. Follow [fresh-value binding](#run-fresh-values-in-compiled-order), replacing lengths
 with `[0,2]` under the same descriptors to reuse the preparation; row 0 then preserves its initial
@@ -317,18 +414,276 @@ Existing builder `rnn/gru/lstm` and bidirectional containers remain static; expl
 recipes opt into runtime lengths. Data integration is not part of this API.
 See the [cold scan scenario](../api/graph-checkpoint-api.md#selected-cnn-and-recurrent-persistence)
 and [CPU execution scope](../backend-guide/cpu-backend.md#fixed-recurrent-forward-execution).
+Low fixed-scan source constructors, storage and cold files remain supported in their declared
+source domain; BF16/FP16 CPU numerical execution is temporarily locked. Use F32/F64 for this
+CPU workflow, not an implicit low emulation or alternate scan executor.
+
+## Ordinary CPU execution with changing batch size
+
+Use the ordinary Engine API when one prepared FLOAT32 matrix-loss graph must accept different
+batch sizes. This does not change NN Model or Training session signatures, which remain static.
+With JDK 26 and the Engine module available, this complete example compiles a scalar loss and
+actual first-order gradients once, then supplies fresh canonical values in compiled input order:
+
+```java
+import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.*;
+import io.github.pho001.synaptik.model.tensor.*;
+import java.util.*;
+
+class ChangingBatch {
+    static TensorDescriptor descriptor(Shape shape, boolean grad) {
+        return new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), grad);
+    }
+    static Tensor ones(Shape shape, boolean grad) {
+        float[] data = new float[Math.toIntExact(shape.knownElementCount().orElseThrow())];
+        Arrays.fill(data, 1);
+        return TensorFactory.fromFlatArray(descriptor(shape, grad), Optional.empty(), data);
+    }
+    public static void main(String[] args) {
+        Tensor x = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32,
+                Shape.ofDimensions(new DynamicDimension("B"), new StaticDimension(4)),
+                Optional.empty(), true));
+        Tensor w = TensorFactory.create(descriptor(Shape.of(4, 3), true));
+        Tensor seed = ones(Shape.scalar(), false);
+        try (Engine engine = Engine.standard()) {
+            var compiled = engine.compile(List.of(x.matmul(w).mean()), List.of(seed), List.of(x, w));
+            try (var prepared = engine.prepare(compiled)) {
+                for (int b : new int[] {64, 40, 1, 64, 0}) {
+                    Tensor actualX = ones(Shape.of(b, 4), true);
+                    Tensor actualW = ones(Shape.of(4, 3), true);
+                    var values = compiled.inputs().stream().map(i -> i.tensorId().equals(x.id())
+                            ? actualX : i.tensorId().equals(w.id()) ? actualW : seed).toList();
+                    try (var result = engine.runValues(prepared, values)) {
+                        var loss = result.materialize(result.publications().get(0), 1_000_000);
+                        System.out.println(b + ": " + loss.bytes().getFloat());
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+The symbolic X has no storage; actual X values declare concrete B and keep F=4 fixed. The explicit
+scalar-one seed differentiates only the published scalar loss. The result order is loss, dX, dW:
+for positive B, loss is 4, each dX is approximately `1/B`, and each dW is approximately `1/3` under
+FLOAT32 rounding. Their shapes are scalar, `[B,4]`, `[4,3]`; the parameter gradient is not a bank
+of B parameter copies. Printed losses are `4.0, 4.0, 4.0, 4.0, NaN`. At B=0, dX is empty and dW
+contains positive zeros. Slots, route and generated code are reused; results own independent
+writable storage and remain materializable after prepared close while Engine remains open.
+
+A wrong fixed feature count, gradient flag, missing/noncanonical/offset dynamic input layout,
+inconsistent B, overflow or unusable storage rejects before borrowing. Dynamic inputs require
+present canonical zero-offset layouts; dense read views qualify. Static slots still require exact
+descriptors. For qualified Scan execution, use the example below. Neither example enables
+NN/Training reuse, symbolic cold/wire loading, native/mixed-owner/vector/parallel execution or
+tuning. See the [CPU slice](../backend-guide/cpu-backend.md#ordinary-named-batch-cpu-execution).
+
+## Symbolic Scan with changing batch size
+
+Use the same public Engine lifecycle for an all-valid Scan: every time step participates, time
+and feature widths stay fixed, and one named batch B changes between calls. JDK 26 and Engine/CPU
+modules are prerequisites. Current ordinary CPU general Scan qualifies FLOAT32/FLOAT64 forward
+and actual selected VJPs under these ordinary single-B, fixed-T/features guards. The FLOAT32
+example below retains the historical generated scalar, single-range Prepare0014 layer; its
+[task](../planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md) retains that evidence,
+not a global FLOAT32-only restriction or broader ordinary symbolic F64 MATMUL admission.
+
+This complete example uses three steps of `next = h + step`, width three, zero initial carry,
+one-valued sequence and joint final/emission one seeds. It compiles the forward outputs and
+actual Compiler-generated gradients once, then binds fresh values in final compiled input order.
+
+```java
+import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.*;
+import io.github.pho001.synaptik.model.tensor.*;
+import java.util.*;
+
+class ChangingScanBatch {
+    static TensorDescriptor descriptor(Shape shape, boolean grad) {
+        return new TensorDescriptor(DataType.FLOAT32, shape,
+                shape.isFullyStatic() ? Optional.of(LayoutDescriptor.contiguous(shape))
+                        : Optional.empty(), grad);
+    }
+    static Tensor filled(Shape shape, boolean grad, float value) {
+        float[] data = new float[Math.toIntExact(shape.knownElementCount().orElseThrow())];
+        Arrays.fill(data, value);
+        return TensorFactory.fromFlatArray(descriptor(shape, grad), Optional.empty(), data);
+    }
+    public static void main(String[] args) {
+        var b = new DynamicDimension("B");
+        Shape row = Shape.ofDimensions(b, new StaticDimension(3));
+        Shape sequence = Shape.ofDimensions(new StaticDimension(3), b, new StaticDimension(3));
+        Tensor h = TensorFactory.create(descriptor(row, true));
+        Tensor step = TensorFactory.create(descriptor(row, true));
+        Tensor initial = TensorFactory.create(descriptor(row, true));
+        Tensor x = TensorFactory.create(descriptor(sequence, true));
+        Tensor next = h.add(step);
+        var scan = Scan.apply(List.of(initial), List.of(x), List.of(),
+                new ScanBody(List.of(h), List.of(step), List.of(), List.of(next), List.of(next)), false);
+        Tensor fs = TensorFactory.create(descriptor(row, false));
+        Tensor es = TensorFactory.create(descriptor(sequence, false));
+        try (Engine engine = Engine.standard()) {
+            var graph = engine.compile(List.of(scan.finalCarry().getFirst(), scan.outputs().getFirst()),
+                    List.of(fs, es), List.of(initial, x));
+            try (var prepared = engine.prepare(graph)) {
+                for (int batch : new int[] {64, 40, 1, 64}) {
+                    Shape actualRow = Shape.of(batch, 3), actualSequence = Shape.of(3, batch, 3);
+                    var supplied = Map.of(initial.id(), filled(actualRow, true, 0),
+                            x.id(), filled(actualSequence, true, 1),
+                            fs.id(), filled(actualRow, false, 1), es.id(), filled(actualSequence, false, 1));
+                    var values = graph.inputs().stream().map(i -> supplied.get(i.tensorId())).toList();
+                    try (var result = engine.runValues(prepared, values)) {
+                        var carry = result.materialize(result.publications().get(0), 1_000_000);
+                        var dInitial = result.materialize(result.publications().get(2), 1_000_000);
+                        System.out.println(batch + ": " + carry.bytes().getFloat()
+                                + " / " + dInitial.bytes().getFloat());
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+Each line prints `B: 3.0 / 4.0`, with B equal to `64, 40, 1, 64`. Forward carry progresses
+through 1, 2 and 3; emissions retain those original-time frames. Publications are final carry,
+emissions, dInitial and dX. The final seed and three emission seeds each contribute once, giving
+dInitial=4 and dX time frames 4, 3 and 2. This arithmetic walkthrough is not a performance or
+nonuniform conformance oracle; focused tests also compare actual reverse with ordinary unrolling.
+
+Symbolic templates have no storage or resolved numeric layout. Actual inputs/seeds have canonical
+static descriptors and unchanged gradient flags; caller storage stays borrowed until result close.
+Code/routes/slots are reused, but writable outputs, working arrays and results are fresh. B=0 is
+valid for this algebra and gives empty row outputs; the example omits it because it prints a cell.
+Other bodies can still require nonempty shared work at B=0. Changing time requires a separate
+compile/prepare, including T=0. Inconsistent B, changed fixed widths, unusable storage or unsupported
+layouts reject. Current all-valid symbolic general Scan admits FLOAT32/FLOAT64 under the guards
+above; adding lengths selects the separate length-aware rules below. Neither route grants low
+CPU computation, arbitrary symbolic geometry, ordinary symbolic F64 MATMUL, NN/Training,
+cold/copy/wire, native/mixed, vector/parallel or a geometry memo. See the
+[qualified CPU domain](../backend-guide/cpu-backend.md#symbolic-scan-cpu-execution).
+
+## Symbolic-length Scan with changing batch size
+
+For variable active prefixes, pass non-gradient INT64 `[B]` lengths to the existing `Scan.apply`
+overload. Keep time/features fixed and use a qualified homogeneous FLOAT32 or FLOAT64 body.
+The same Engine/CPU and JDK 26 prerequisites apply. Prepare0015 implements this path; owning
+tests and independent code/structural review passed, with root validation and the sole bounded probe completed
+(evidence and limits:
+[Prepare0015 Result](../planning/modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result) );
+final MAIN acceptance remains pending. No new Engine API or per-batch preparation is needed.
+
+This complete FLOAT64 example uses three steps of `next = h + step`, width two, and joint final/
+emission one seeds. The original carry and every original step are ROW(0): their leading coordinate
+is the same named B. Each call supplies new lengths and static storage in compiled input order.
+
+```java
+import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.*;
+import io.github.pho001.synaptik.model.tensor.*;
+import java.util.*;
+
+class ChangingLengthScanBatch {
+    static TensorDescriptor descriptor(DataType type, Shape shape, boolean grad) {
+        return new TensorDescriptor(type, shape,
+                shape.isFullyStatic() ? Optional.of(LayoutDescriptor.contiguous(shape))
+                        : Optional.empty(), grad);
+    }
+    static Tensor filled(Shape shape, boolean grad, double value) {
+        double[] data = new double[Math.toIntExact(shape.knownElementCount().orElseThrow())];
+        Arrays.fill(data, value);
+        return TensorFactory.fromFlatArray(descriptor(DataType.FLOAT64, shape, grad),
+                Optional.empty(), data);
+    }
+    public static void main(String[] args) {
+        var b = new DynamicDimension("B");
+        Shape row = Shape.ofDimensions(b, new StaticDimension(2));
+        Shape stack = Shape.ofDimensions(new StaticDimension(3), b, new StaticDimension(2));
+        Tensor h = TensorFactory.create(descriptor(DataType.FLOAT64, row, true));
+        Tensor step = TensorFactory.create(descriptor(DataType.FLOAT64, row, true));
+        Tensor initial = TensorFactory.create(descriptor(DataType.FLOAT64, row, true));
+        Tensor x = TensorFactory.create(descriptor(DataType.FLOAT64, stack, true));
+        Tensor lengths = TensorFactory.create(descriptor(DataType.INT64, Shape.ofDimensions(b), false));
+        Tensor next = h.add(step);
+        var scan = Scan.apply(List.of(initial), List.of(x), List.of(), lengths, 1,
+                List.of(OptionalInt.of(0)),
+                new ScanBody(List.of(h), List.of(step), List.of(), List.of(next), List.of(next)), false);
+        Tensor fs = TensorFactory.create(descriptor(DataType.FLOAT64, row, false));
+        Tensor es = TensorFactory.create(descriptor(DataType.FLOAT64, stack, false));
+        try (Engine engine = Engine.standard()) {
+            var graph = engine.compile(List.of(scan.finalCarry().getFirst(), scan.outputs().getFirst()),
+                    List.of(fs, es), List.of(initial, x));
+            try (var prepared = engine.prepare(graph)) {
+                for (int batch : new int[] {3, 1, 0, 3}) {
+                    long[] ls = new long[batch];
+                    for (int r = 0; r < batch; r++) ls[r] = r % 4;
+                    Tensor lv = TensorFactory.fromFlatArray(
+                            descriptor(DataType.INT64, Shape.of(batch), false), Optional.empty(), ls);
+                    var values = Map.of(initial.id(), filled(Shape.of(batch, 2), true, 0),
+                            x.id(), filled(Shape.of(3, batch, 2), true, 1), lengths.id(), lv,
+                            fs.id(), filled(Shape.of(batch, 2), false, 1),
+                            es.id(), filled(Shape.of(3, batch, 2), false, 1));
+                    var ordered = graph.inputs().stream().map(i -> values.get(i.tensorId())).toList();
+                    try (var result = engine.runValues(prepared, ordered)) {
+                        var carry = result.materialize(result.publications().get(0), 1_000_000);
+                        var dInitial = result.materialize(result.publications().get(2), 1_000_000);
+                        System.out.println(batch + ": " + carry.shape());
+                        if (batch > 0)
+                            System.out.println(carry.bytes().getDouble() + " / "
+                                    + dInitial.bytes().getDouble());
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+At B=3, lengths are `[0,1,2]`: each final row is its length, inactive emission frames are +0,
+and each dInitial row is `1 + length` from the final seed and active emission seeds. The first row
+therefore prints `0.0 / 1.0`, including B=1. B=0 publishes empty row outputs safely; do not read a
+cell from them. The carry descriptor is `[B,2]` resolved to each actual batch. Forward and reverse
+reuse the same code/routes/slots while each run owns fresh outputs, resources and mutable arrays.
+
+Use FLOAT32 descriptors and `float[]`/`getFloat()` for the corresponding FLOAT32 example; do not
+change just the descriptor while leaving double storage. For produced lengths, construct a
+non-gradient floating `[B]` template, pass its `.cast(DataType.INT64)` result to `Scan.apply`, and
+bind the floating producer input instead of the derived INT64 value. Casting follows ordinary
+cast semantics; the resulting lengths must still lie in `[0,3]`.
+
+Lengths are checked after producers and before any Scan-local write, even when time or features
+are zero. An invalid length can be repaired for a later run on the same preparation; producer writes
+are not rolled back. Padding is not read in primal or adjoint work; an inactive row preserves raw
+initial carry/final-seed bits. Lengths do not make `mean(finalCarry)` divide by the active count:
+its denominator remains dense B×width, and an empty mean is NaN. Changing T or feature widths needs
+a different compilation/preparation. All-valid symbolic F64, arbitrary ordinary F64 arithmetic or
+MATMUL, low types, higher-order, native/mixed, vector/parallel, cold/copy/wire, NN/Training and a
+geometry memo remain outside this route. See the
+[exact supported occurrences](../backend-guide/cpu-backend.md#symbolic-length-scan-cpu-execution).
 
 ## Owned static Model workflow
 
 For an application-built and file-restored model with the same compute/train/save API, opt into
 an **owned source**: ordinary static Tensor provenance over private weight values. The builder above
 retains layer composition; the definition/graph/load paths below reconstruct the bounded source.
-Use Java 26, an explicit `:extensions:nn` dependency, and the CPU Engine's incubator vector module
-(`--add-modules jdk.incubator.vector`). No caller Arena is required for this workflow.
-Definition/graph acquisition uses the same narrow
-[source slice](../api/graph-checkpoint-api.md#selected-cnn-and-recurrent-persistence), not all NN
-layers or all codecs.
-Execution and training support remain narrower than raw graph persistence's seven data types.
+Use Java 26 and an explicit `:extensions:nn` dependency with the JVM prerequisites above.
+No caller Arena is required for this workflow.
+Definition/graph acquisition uses the bounded
+[cold source slice](../architecture/contracts/compiler-autograd.md#compile-lifecycle), including its
+general-body exception, not all NN layers or arbitrary PURE bodies. Save/load uses the
+[body-free persistence slice](../api/graph-checkpoint-api.md#selected-cnn-and-recurrent-persistence)
+or [bounded v4 body persistence](../api/graph-checkpoint-api.md#bounded-general-scan-persistence),
+through the same Model API.
+Execution and training support are independent of raw graph persistence's seven data types.
 
 This complete example learns one FLOAT32 weight, starting at 2. Both batch and target are [1,1].
 It saves before compute, trains on input 3 and target 1, then restores the trained source.
@@ -410,7 +765,7 @@ same model. That selection freezes even if setup fails, and a closed selected En
 replaced. Without a selection, only execution opens a fresh model-owned CPU Engine. Close never
 closes a borrowed Engine; it waits for active work and closes session/preparation before native
 storage and an owned Engine, attempting all cleanup and replaying retained failures.
-Rejected scan-training requests are not setup attempts: after lifecycle/live-source checks they
+Rejected fixed-scan training requests are not setup attempts: after lifecycle/live-source checks they
 leave a valid source's Engine freeze status and cached inference unchanged.
 
 | Symptom | Cause and correction |
@@ -419,7 +774,7 @@ leave a valid source's Engine freeze status and cached inference unchanged.
 | Busy or closed/closing | Another high-level operation or close owns admission. Serialize calls; keep borrowed Engine open through Model use. |
 | Source changed | Mode, paths/wrappers, Tensor or storage associations changed. Construct a replacement Model; restoring a binding does not revive an invalid capability. |
 | Native training admission rejects | Current Training rejects unresolved/empty/nonfinite/aliased parameters. Supply supported state before acquisition; there is no implicit conversion or alias splitting. |
-| Unsupported source operation | Acquisition/save requires the narrow source slice: selected default CNN/static recurrence and cold fixed scans, not arbitrary attributes or families. Builder execution is independent of save admission. |
+| Unsupported source operation | Graph/definition acquisition and general-body persistence require the bounded cold inventory, not arbitrary PURE operations or attributes. Body-only signatures do not widen outer admission. Builder execution is independent of save admission. |
 
 Short save/load forms use 256 MiB file/aggregate, 4 MiB manifest, 16384 entries, 64-byte keys and
 64 MiB payload ceilings; explicit `ArtifactLimits` overloads remain. Old `model.v1` and
@@ -427,6 +782,128 @@ Short save/load forms use 256 MiB file/aggregate, 4 MiB manifest, 16384 entries,
 Zero-node source may save/load but retains Engine's empty-plan rejection. Model/Training autotuning
 is not integrated; advanced `Engine.prepareTuned` remains separate. See the
 [API contracts](../api/public-api.md#owned-tensor-model-capability).
+
+### Train an all-valid general scan
+
+Use `Model.graph` or `defineTensor` for a fixed-count general scan, not a new ModelBuilder recipe.
+**All-valid** means every static time step participates; there is no runtime length or padding mask.
+Use the Java 26/NN/CPU setup above. Current general Scan composes every ordinary CPU-supported
+PURE unit under ordinary dtype/layout/value and derivative guards, with selected actual
+FLOAT32/FLOAT64 first-order AD; forward and actual reverse qualify independently. All-valid
+bodies use WholeTensor. Families without backward retain that limit. Cold acquisition is
+separate: low TANH may be copied while Java BFLOAT16/FLOAT16 computation stays locked. It requires
+the exact [cold constructor inventory](../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction),
+not merely PURE operations. Execution does not widen cold/wire, NN recipes or Metal Scan admission.
+Length-aware body values may be proved ROW(axis) values or arbitrary-shape SHARED tensors.
+Lengths is a separate final non-gradient INT64 `[B]` control with no body formal, not a scalar
+alternative. Original AD carries/sequences and emission boundaries remain ROW(0); intermediate
+and history ROW axes/ranks follow their proofs. Supported row-mixing materialization requires
+exactly the same length values, not Tensor identity. Structural absence differs from a present
+all-zero seed; cross-Scan materialization is explicit.
+
+This complete FLOAT32 example acquires weight `0.5` privately once. The body computes
+`next = carry * weight + step` and emits the pre-step carry. Input `[1,2,3]`, initial carry `0`
+and forward traversal produce final carry `4.25` and original-time emissions `[0,1,2.5]`.
+It saves before compute and after training, then closes and reloads the trained source. Run in a
+trusted writable working directory: the example atomically replaces `general-scan-before.graph`
+and `general-scan-trained.graph` if they already exist.
+
+```java
+import io.github.pho001.synaptik.checkpoint.graph.GraphCheckpoint;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Scan;
+import io.github.pho001.synaptik.model.tensor.ScanBody;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.module.Model;
+import io.github.pho001.synaptik.training.Sgd;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
+
+public final class OwnedGeneralScanExample {
+    static Tensor value(Shape shape, boolean grad, float... lanes) {
+        var descriptor = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), grad);
+        return TensorFactory.fromFlatArray(descriptor, Optional.empty(), lanes);
+    }
+
+    static Tensor squared(Tensor prediction, Tensor target) {
+        Tensor error = prediction.sub(target);
+        return error.mul(error).sum();
+    }
+
+    public static void main(String[] args) throws IOException {
+        Path before = Path.of("general-scan-before.graph");
+        Path trained = Path.of("general-scan-trained.graph");
+        Tensor initial = value(Shape.of(1), false, 0);
+        Tensor weight = value(Shape.of(1), true, .5f);
+        Tensor sequence = TensorFactory.create(value(Shape.of(3, 1), false, 0, 0, 0).descriptor());
+        Tensor h = TensorFactory.create(initial.descriptor());
+        Tensor x = TensorFactory.create(initial.descriptor());
+        Tensor w = TensorFactory.create(weight.descriptor());
+        var body = new ScanBody(List.of(h), List.of(x), List.of(w),
+                List.of(h.mul(w).add(x)), List.of(h));
+        var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(weight), body, false);
+        var leaves = List.of(
+                new GraphCheckpoint.Leaf("weight", GraphCheckpoint.Role.PARAMETER, weight),
+                new GraphCheckpoint.Leaf("initial", GraphCheckpoint.Role.CONSTANT, initial));
+        try (var model = Model.graph(List.of(sequence),
+                List.of(scan.finalCarry().getFirst(), scan.outputs().getFirst()), leaves)) {
+            model.save(before); // Cold save creates no Engine and saves no input batch.
+            var batch = value(Shape.of(3, 1), false, 1, 2, 3);
+            System.out.println(model.compute(List.of(batch)).getFirst().bytes().getFloat()); // 4.25
+            Tensor finalTarget = TensorFactory.create(initial.descriptor());
+            Tensor emissionTarget = TensorFactory.create(sequence.descriptor());
+            model.configureTraining(List.of(finalTarget, emissionTarget), (p, t) ->
+                    squared(p.get(0), t.get(0)).add(squared(p.get(1), t.get(1))), new Sgd(.01));
+            var step = model.train(List.of(batch), List.of(value(Shape.of(1), false, 0),
+                    value(Shape.of(3, 1), false, 0, 0, 0)));
+            System.out.println(step.objective().bytes().getFloat()); // 25.3125, before update
+            model.save(trained);
+        }
+        try (var restored = Model.loadGraph(trained)) { // Heap state; no Engine on load.
+            var freshBatch = value(Shape.of(3, 1), false, 1, 2, 3);
+            System.out.println(restored.compute(List.of(freshBatch))
+                    .getFirst().bytes().getFloat()); // approximately 3.428025
+            // Objectives and optimizer state are not saved: configure a new session.
+            restored.configureTraining(List.of(TensorFactory.create(initial.descriptor()),
+                    TensorFactory.create(sequence.descriptor())), (p, t) ->
+                    squared(p.get(0), t.get(0)).add(squared(p.get(1), t.get(1))), new Sgd(.01));
+            restored.train(List.of(freshBatch), List.of(value(Shape.of(1), false, 0),
+                    value(Shape.of(3, 1), false, 0, 0, 0)));
+        }
+    }
+}
+```
+
+The invariant formal `w` makes the shared weight explicit; a captured weight inside the body would
+be an undeclared free leaf and reject. The CONSTANT initial carry stays outside `stateDictionary`.
+The scalar objective consumes both output roles: `4.25² + 0² + 1² + 2.5² = 25.3125`.
+Its weight gradient is `30.5`, so SGD changes the owned weight to approximately `0.195`; the caller's
+weight remains `0.5`. Later compute sees that same updated native store. Pass fresh exact-descriptor
+batches/targets to further compute/train calls; neither cold `forward` nor reconstruction is needed.
+There is one inference preparation per setup and one configured training session, not one per batch.
+
+At T=0 the body does not execute; Training still requires connected, nonempty parameters. Residual
+ports may be cold roots, but residual-root differentiation rejects. Sources containing any fixed
+scan, including mixed fixed/general sources, still reject configure/train before setup effects.
+This all-valid source saves as v4; the separate static homogeneous length intersection uses v5.
+The explicit F32/F64 `rnnScan` workflow above adds neither low training nor fixed-scan BPTT.
+
+The two saved sources retain the initial and trained raw weights respectively, with one scoped
+body rather than three unrolled steps. `Model.loadGraph` adopts final heap values and reconstructs
+ordinary provenance without creating an Engine. The restored compute above uses the trained weight
+of approximately `0.195`; its new training session starts without the previous optimizer history.
+No input batch or residual history is saved.
+Single-boundary sources use `Model.load` instead. Execution remains limited to qualified occurrences.
+Focused tests cover this save/load workflow; main accepted final module/Javadoc, integration,
+architecture and configured root gates in CP0013. This capability does not migrate `.rnn` or
+reinterpret an old file. See [bounded v4 persistence](../api/graph-checkpoint-api.md#bounded-general-scan-persistence).
 
 ### Two Linear layers with an activation
 
@@ -511,8 +988,8 @@ execution is stored in the file.
 Use an explicit `:extensions:nn` dependency and import `nn.checkpoint.ModelCheckpoint`;
 the generic Checkpoint project no longer exports NN. The old flexible readers/defaults are
 unchanged, distinct from [static generic graph persistence](../api/graph-checkpoint-api.md).
-This complete Java 26 example needs NN and its public dependencies on the classpath and
-`jdk.incubator.vector` enabled. Its trusted local directory is created before save. The source has
+This complete Java 26 example needs NN and its public dependencies on the classpath.
+Its trusted local directory is created before save. The source has
 FLOAT32 diagonal weights `[1, 0; 0, 2]` followed by RELU. Both source owners close before load;
 the saved file is then deleted before fresh-CPU inference. The input `[-3, 4]` should produce
 `[0, 8]`.
@@ -646,8 +1123,8 @@ bounded copy through the publication adapter captured during preparation. A deta
 ## Run fresh values in compiled order
 
 **Goal and inputs.** Prepare negation of a storage-free FLOAT32 [2] prototype once, then supply
-fresh batches [1,-2] and [3,-4]. With Java 26, Engine and Model on the classpath and
-`jdk.incubator.vector` enabled, this complete block uses their ordinary CPU heap-input support:
+fresh batches [1,-2] and [3,-4]. With Java 26, Engine and Model on the classpath, this complete
+block uses their ordinary scalar CPU heap-input support:
 
 ```java
 var shape = Shape.of(2);

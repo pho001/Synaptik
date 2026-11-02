@@ -3,8 +3,9 @@
 ## Outcome and current scope
 
 This guide shows a concrete backend contributor how to implement both current backend stages of
-Synaptik's staged preparation handoff. Analysis accepts one validated, fully static planned
-partition and returns an opaque backend plan plus exact shared buffer and workspace declarations.
+Synaptik's staged preparation handoff. Analysis accepts one validated static partition or the
+qualified ordinary or all-valid Scan one-B projection and returns an opaque backend plan plus exact shared buffer
+and workspace declarations.
 After shared Prepare assigns Runtime slots, finalization consumes those exact assignments and
 constructs an immutable executable recipe.
 
@@ -105,6 +106,66 @@ candidate enumeration, decision construction and codec operations; the measureme
 one complete candidate on equivalent representative inputs. Tuning returns a new handoff for each
 original occurrence with the selected decision present. The concrete backend must still validate
 that decision against a freshly generated compatible batch before it can affect analysis.
+
+## General-scan projection and resource handoff
+
+`GraphPreparation` now preserves each scan's exact compiled body and ordered role bindings inside
+its selected partition. A residual port names a body value that may be saved as history; demand
+means an outer publication or consumer uses a port. Before any analyzer runs, projection checks
+demand against final graph outputs and all outer input uses, including other partitions.
+`PrepareContext` checks every local descriptor
+for static shape or the occurrence's single named batch dimension B and validates formal/actual and outer-role descriptors, even for unused formals,
+sibling results and zero time steps. A directly constructed context checks locally visible uses
+and supplied logical obligations; it cannot verify unseen external edges. Local numeric IDs may
+coincide with outer IDs without identifying the same values. Model/Compiler retain ordinary body
+inference and automatic differentiation (AD); backends still qualify execution.
+
+All-valid symbolic Scan projection retains fixed time/features and unresolved symbolic
+formal/result layouts; static formal/results remain canonical. The bounded rank-three outer
+sequence/history and AD projection is not arbitrary-rank backend support. `requiresBatchSize`
+is explicit even when every byte recipe has zero slope, as with `[B,0]`. Analysis declares exact
+fixed or run-size requirements before slots; assignment fixes identities and representation
+positions without evaluating CPU recipes. The CPU binds actual B later, not a sample B or a
+new resource topology. [Prepare0014](../planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md)
+tracks the implemented FLOAT32 execution slice and its final qualification separately.
+
+Length-aware projection uses those same owners. T is the static time count and B the batch extent.
+The final non-gradient INT64 `[B]` lengths actual remains an outer input, never a body formal or
+gradient contributor. Prepare validates T/B,
+homogeneous FLOAT32/FLOAT64 locals and declared ROW(0), rank-two ROW(1) or SHARED boundaries,
+including tied actual positions and empty domains. SHARED has no inferred batch axis, even when
+its extent equals B. Actual layouts, including lengths, are retained; CPU read-layout predicates
+do not belong in shared validation. Generated reverse scans may mix these roles and append
+SHARED parameter accumulators without inheriting Compiler's restricted original-source AD admission.
+
+The remaining pipeline is unchanged: analysis declares outer-value buffers and analysis-local
+scratch workspaces; shared Prepare assigns slots; finalization receives those exact declarations
+and assignments. Shared buffers use maximum declared size/alignment across participating owners;
+each workspace must match its declaration exactly. A body-local ID is not an outer buffer ID,
+and numeric coincidence supplies no local-storage provenance.
+
+For example, consider a scalar FLOAT32 body with three time steps, a published final carry and a
+residual consumed by a different backend owner's partition. If these are its only outer uses,
+only those ports are demanded. A test backend can declare the residual's `3 × 4 = 12` bytes at both
+partitions and its scratch separately; both residual declarations receive one shared buffer slot
+with owner-specific representation positions. Missing producer or consumer declarations reject
+before finalization.
+At zero steps a zero-byte residual declaration is legal, but descriptor and demand checks still
+run. These are metadata/resource-handoff guarantees, not physical history or numerical execution
+evidence.
+
+For a length-mode FLOAT64 fixture with T=3 and batch, feature and hidden extents B=F=H=2,
+lengths requires `2 × 8 = 16` bytes.
+A demanded SHARED transposed weight history `[T,F,H]` requires `3 × 2 × 2 × 8 = 96` bytes,
+not a 192-byte `[T,B,F,H]` bank. A test-only backend can declare two banks for one `[B,H]` row
+carry and one `[F,H]` shared accumulator: `2 × (4 + 4) × 8 = 128` workspace bytes. This is the
+fixture's geometry, not a CPU policy. It also declares staging/temporaries before assignment;
+dead histories have no declaration. Finalizers receive exact declarations, slots and owner
+representation positions; missing cross-partition declarations fail before finalization.
+All fixture creators throw if invoked, and no executable runs. Real CPU length-mode lowering,
+runtime length validation and skipping remain closed; qualified all-valid CPU support is unchanged.
+Shared Prepare cannot detect hidden allocations inside an opaque backend executable. See
+[general-scan resource and execution boundaries](../architecture/general-differentiable-scan.md#capability-resources-and-generated-code).
 
 ## Current-contract example
 
@@ -432,11 +493,20 @@ them. Every projected value has exactly one descriptor-matching `LogicalMemoryRe
 the contract does not add a separate rule that every projected value must appear in a node input
 or output.
 
-Every projected descriptor must have a fully static Shape. A projected logical-splat constant is
+Projected Shapes are fully static except for the ordinary rank-at-most-two single named-B
+projection; expressions, unknown axes and general Scan dynamic geometry remain unsupported here.
+`PrepareContext.requiresBatchSize()` records symbolic context even when every byte recipe is
+constant, as in `X[B,0].sum()`. A projected logical-splat constant is
 permitted only for a projected graph input, and its `ScalarValue` data type must match the input
 descriptor exactly. The constant map is immutable metadata; analysis does not materialize its
 logical repetitions.
 
+Resource declarations retain `PreparedMemoryPlan.ByteSize`: fixed bytes or an immutable run-size
+recipe. Existing long constructors wrap `FixedByteSize`; `byteSize()` rejects a run-bound
+declaration rather than guessing. Prepare never evaluates a recipe. Fixed buffer aggregation
+retains maximum size/alignment; run-bound buffer declarations must agree structurally and in
+alignment, and workspaces agree exactly. Runtime creators now take actual
+`(byteSize, byteAlignment)`; migrate static SAM consumers without a zero-argument adapter.
 Resource sizes are non-negative byte counts, so zero is valid. Alignments are positive powers of
 two measured in bytes. Buffer and workspace identities occupy separate domains. Current initial
 assignment gives each workspace declaration its own stable Runtime slot; reuse and lifetime
@@ -504,7 +574,9 @@ For the current shared contract, run:
 
 ## Limitations and related documentation
 
-The current preparation lifecycle has no dynamic-dimension binding or workspace reuse. It does
+The preparation lifecycle supports the bounded ordinary named-B handoff, not general dynamic
+binding or workspace reuse. Compiler owns semantic admission, CPU numeric recipes and Runtime
+per-run state without Shapes. It does
 support exact shared-resource declarations, backend-owned per-run representation recipes, and
 persistent-resource transfer, but the concrete backend owns the physical mechanics and Runtime
 owns the per-run state. Fixed CPU `Engine.standard()`, explicit CPU/Metal builder composition

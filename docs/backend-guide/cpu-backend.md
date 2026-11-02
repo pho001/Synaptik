@@ -4,29 +4,84 @@
 
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
 as separate backends. The current CPU module accepts the bounded, fully static portable families
-described below.
+described below, plus separately bounded ordinary and all-valid Scan named-batch slices.
 It publishes `CpuBackendIntegration` as the supported lifecycle service-provider interface (SPI)
 used by `Engine.standard()` and explicit `Engine.builder()` composition.
 `Engine.standard()` opens and owns a fresh integration, while
 `AdvancedEngine.takeOwnership(...)` accepts one explicitly supplied integration for advanced
 CPU-only composition. The SPI is not the ordinary end-user execution facade.
 
+The [temporary CPU low-arithmetic lock](production-support.md#temporary-java-low-computation-lock)
+is implemented. Later low mathematical descriptions in this guide document retained implementation,
+not current numerical admission. Exact/raw/storage/conversion roles and explicit F32-master work
+remain active; historical low-support counts do not override the current capability ledger.
+
+## Ordinary named-batch CPU execution
+
+An ordinary homogeneous FLOAT32 graph may carry one named B with fixed features/parameters and
+rank at most two. CPU prepares scalar, single-range portable units once; invocation B only
+resolves numeric extent/stride/contraction and byte recipes. The qualified closure includes
+MATMUL, tensor/scalar ADD/SUB/MUL/DIV, NEG/TANH/SIGMOID, SUM/MEAN (full/selected and
+SUM-to-Shape), logical splats, singleton-preserving rank edits/RESHAPE, EXPAND, PERMUTE,
+same-type casts and CONTIGUOUS. Bounded rank-three outer Scan seeds/histories and their
+pointwise/layout/reduction closure are additionally qualified, not arbitrary-rank operations.
+The actual Compiler-generated first-order reverse of `mean(X @ W)`
+executes dX and dW; dW contracts K=B rather than creating a batch of parameters.
+
+`BatchBinding`, MATMUL/aggregate `BatchGeometry` and `BatchByteSize` retain coefficients, not a
+representative B or Model lowerer. Views preserve backing spans; CONTIGUOUS materializes actual
+logical counts. Generated MATMUL uses direct typed row/column/full-K loops with fixed F/H facts;
+the binder supplies `[0, outputCount)`, and an entry guard selects canonical loops without
+per-row first/last-column selection or range division. A separate subrange body preserves the
+entry ABI for partial rows; the normal full-range hot loop does not pay for that flexibility.
+Exact FLOAT32 SUM/MEAN uses signed five-limb state and one final rounding, with 0/48 workspace
+bytes according to actual output count. SUM-to-Shape at B=1 copies raw point bits. At B=0,
+nonempty K=0 parameter adjoints still write typed zero.
+
+Both identity streams conditionally mark `ordinary-batch-v1` and key baked MATMUL coefficients;
+actual B, resolved bytes, slots and addresses are excluded. Static identities and generated
+bytes retain their previous stream. Direct-entry tests inspect Class-Files and compare fixed-fact
+clean Java, including exact five-limb reductions. Opt-in bounded timing uses
+`-Dsynaptik.cpu.dynamicBatch.performance=true`; it is off by default and promises no zero overhead
+or identical JIT assembly. Static tiled versus dynamic direct medium Engine timing is explicitly
+an unmatched route-policy diagnostic, not isolated B-binding overhead.
+
+Symbolic Scan has its own [whole-body qualification](#symbolic-scan-cpu-execution), not an
+automatic consequence of ordinary operation support. Neither slice enables NN/Training
+one-state reuse, symbolic cold/wire support, wider dtype,
+native/mixed-owner/vector/parallel execution or tuning. Existing static routes remain separate.
+See the [public changing-B example](../user-guide/running-models.md#ordinary-cpu-execution-with-changing-batch-size).
+
 Before ownership selection, Compiler completes canonical logical layouts for fully static,
 layout-unresolved results only from explicitly proven materializing operation families and
-`CONTIGUOUS`, plus explicit compile-time splat inputs. Affine/view results remain input-derived or
-unresolved, so offsets and non-contiguous or zero-stride mappings are never replaced with
-canonical geometry. Caller-bindable input descriptors remain exact. This completion grants no CPU
+`CONTIGUOUS`, plus explicit compile-time splat inputs. Proved affine views retain exact source
+offsets/strides. A separate topological case now selects canonical non-view output for validated
+static noncontiguous-input RESHAPE whose supported view remains unproved. Other unknown mappings
+stay unresolved and caller-bindable input descriptors remain exact. This completion grants no CPU
 capability: the provider and complete-partition lowering still reject unsupported semantics, data
 types, Shapes, resolved geometry, topology, carriers, and resource requirements.
 
-Historical generator schema 68 introduced the systematic portable FLOAT16 expansion. Current
-schema 70 retains it: every historical admitted CPU FLOAT32 occurrence has the descriptor-identical
-FLOAT16 substitution, with raw `short` storage and the operation's documented
-FLOAT32 computation boundary followed by one direct binary16 narrowing where numerical work is
-performed. The checked capability ledger closes all 114 representative FLOAT16 occurrences in
-the historical provider baseline; unsupported geometry, topology, aliasing, or non-type constraints remain unchanged.
-The later direct scalar recurrent-scan capability independently qualifies BFLOAT16 and FLOAT16,
-alongside FLOAT32 and FLOAT64; the current ledger has 117 supported occurrences for each low type.
+Historical generator schemas68/71 retain the portable FLOAT16 implementation, raw short storage
+and the operation's FLOAT32 working boundary/final binary16 narrowing. CPU0078 now locks numerical
+BFLOAT16/FLOAT16 operand roles without deleting those implementations, including direct scalar
+low recurrence. It preserves exact represented-value operations, raw movement, borrowing/export,
+initialized literals and casts; no historical F32 substitution rule grants current low compute.
+An explicit low-storage -> F32 cast -> F32 computation path remains supported. Actual repeated
+TrainingSession SGD and snapshot/restore/resume preserve F32 master values and narrow logical
+parameters only at the existing commit boundary. See [CPU0078's evidence](../planning/backends/cpu/tasks/0078-temporary-low-arithmetic-lock.md#result)
+and current v2 independently queried answers; no implicit emulated-low backend or runtime unlock.
+
+Ordinary static noncontiguous-input RESHAPE now materializes canonical non-view output through
+the existing affine ordinal copy. Genuine contiguous views retain exact offsets and metadata.
+All seven carriers passed public PERMUTE -> RESHAPE logical-order/raw-bit proof; generated-copy
+tests cover changed inputs, offset/gapped source, source preservation and destination canaries.
+This raw movement does not unlock low arithmetic. [CPU0079](../planning/backends/cpu/tasks/0079-materializing-reshape-admission.md#result)
+records its separate provider, full module/conformance and public consumer evidence.
+
+The separate [current general Scan composition](#current-general-scan-composition) composes every
+ordinary CPU-supported PURE unit and selected actual FLOAT32/FLOAT64 first-order derivatives.
+Historical low substitution grants no current low compute; actual forward/reverse bodies
+independently qualify under ordinary guards.
 
 A CPU-owned partition directed acyclic graph (DAG) has no fixed eight-node partition cap. Its
 compiled nodes must be supported and remain in stable producer-before-consumer order; checked
@@ -101,8 +156,10 @@ The tenth family is exactly one resolved-layout ordinary or binding-aware aggreg
 floating types; and Boolean `ALL` and `ANY` accept canonical BOOL. Exact full, single-axis, and
 multi-axis forms share one output-cell geometry, including an empty multi-axis selection as a
 one-value point domain. Scalar or parallel-scalar execution distributes only whole output cells.
-Floating SUM, MEAN, and PROD use declared run-owned exact-state workspace; every other row uses
-zero workspace. No row uses input materialization, partial reductions, or a combine step.
+Unfolded floating SUM, MEAN, and PROD use declared run-owned exact-state workspace; every other
+row uses zero workspace. Proved static typed-one SUMs instead use the
+[output-only count path](#static-typed-one-count-folding), retaining original source initialization.
+No row uses input materialization, partial reductions, or a combine step.
 Binding-aware SUM-to-Shape adds fully bound right-aligned SUM over the same six numeric types;
 it uses exact floating or modular integral arithmetic when axes reduce and raw represented copying
 when none does.
@@ -131,7 +188,7 @@ over matching rank-four NCHW BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 input and ou
 Model's literal floor/ceiling grid, symmetric padding, stride, and dilation. Scalar or parallel-scalar
 execution owns complete output cells, accepts exact typed heap-array, segment, or mixed carriers,
 and declares zero workspace. Max excludes padding; average includes conceptual positive-zero
-padding in its fixed kernel-position divisor. The direct schema-70 generated body is the only
+padding in its fixed kernel-position divisor. The direct schema-71 generated body is the only
 pooling route and adds no fusion, materialization, vector body, native route, saved indices, or
 backward execution.
 
@@ -141,13 +198,13 @@ and the external rank-three input and output are the only buffer boundaries. Rec
 private single-use intermediates, exact affine singleton-height layouts, and Pool2d height
 geometry `(kernel, stride, padding, dilation) = (1, 1, 0, 1)`. A near match follows ordinary
 partition-DAG decomposition. This optimization retains the Pool2d family projection under the
-current schema-70 envelope and does
+current schema-71 envelope and does
 not create a Pool1d operation, capability query, IR family, route, or generated artifact; CPU
 continues to report the three visible component occurrences independently.
 
 The fifteenth family is exactly one resolved-layout `MAX_POOL3D` or `AVERAGE_POOL3D` occurrence
 over matching rank-five NCDHW BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 input and output. The direct
-schema-70 generated body visits each complete output cell in depth-height-width order and supports
+schema-71 generated body visits each complete output cell in depth-height-width order and supports
 typed heap-array, native-order segment, and mixed carriers. Maximum excludes padding, preserves the
 first eligible NaN or equal winner, ranks positive zero above negative zero, and returns negative
 infinity for an all-padding window. Average uses the fixed
@@ -163,7 +220,7 @@ The sixteenth family is exactly one first-class `SCALED_DOT_PRODUCT_ATTENTION` o
 three ordered query/key/value inputs and an optional right-broadcast canonical BOOL mask, and one
 output or same-occurrence normalized weights at output slot one. It accepts only fully static,
 resolved non-negative layouts and BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 query/key/value types. The
-direct schema-70 generated scalar body owns complete broadcast-batch/query rows, applies top-left
+direct schema-71 generated scalar body owns complete broadcast-batch/query rows, applies top-left
 causal eligibility (`j <= i`) together with the BOOL mask before reading excluded score/value data,
 uses one exact score/weight scratch slice per selected range. The body has no MATMUL/SOFTMAX
 decomposition, external fusion, materialization, vector/native/packed/flash route, or interpreted
@@ -919,8 +976,10 @@ complete CPU-owned partition
 ### General partition DAG and bounded pointwise fusion
 
 CPU preparation treats the complete CPU-owned partition as a directed acyclic graph
-(DAG), not as a promise that every node belongs in one generated loop. It first selects the
-longest already-established seed at each stable node position. Affine chains and specialized
+(DAG), not as a promise that every node belongs in one generated loop. Proved static typed-one
+count chains are selected first by following producers, including across unrelated interleaved
+nodes. Their original node ordinals and downstream dependencies remain intact. Other seeds use
+the longest already-established form at each stable node position. Affine chains and specialized
 movement, indexing, scatter, fold, ordering, random, scan, reduction, normalization, and
 convolution families remain indivisible seeds. Only units represented by the ordinary pointwise
 kernel IR may be contracted.
@@ -1020,7 +1079,9 @@ MATMUL recognition and cannot enter a successful CPU plan. `ORDINARY_SPLIT` reta
 materialized units already selected for Conv1d, Conv3d, and reduction epilogues.
 `EXISTING_SPECIALIZED` refers only to an already implemented identical form: the exact Conv2d
 `ADD` and `ADD -> RELU` forms from CPU 0008, plus the existing one-unit first-class softmax and
-normalization kernels. Recognition does not infer first-class semantics from algebraically similar
+normalization kernels and selected [ordinary exact aggregate fusion](#ordinary-exact-aggregate-fusion).
+An admitted aggregate fact describes its actual executable baseline; bare or unsupported tails
+retain `ORDINARY_SPLIT`. Recognition does not infer first-class semantics from algebraically similar
 decomposed graphs.
 
 Retained evidence compares recognition-free and recognized Conv2d `ADD` and `ADD -> RELU`
@@ -1153,10 +1214,9 @@ form, loop model, and stores. It excludes selected route, thread count, vector s
 root, graph/Runtime identity, generator version, and invocation bindings. The current single
 right-aligned access system consumes Model `ShapeBroadcast` and `LayoutDescriptor` semantics. It
 supports fully static scalar, expanded-rank, singleton/multi-axis/zero broadcast, offsets,
-positive and zero strides, and heap, segment, or mixed carriers. Current Prepare has no exact
-dynamic binding and rejects non-static projected shapes, so CPU fails closed for dynamic/symbolic
-dimensions; a future task requires an explicit
-exact-binding contract. The access family does not duplicate `WHERE`, elementwise, or fused
+positive and zero strides, and heap, segment, or mixed carriers. Named-batch access uses the
+separate bounded ordinary/Scan numeric recipes described above; other dynamic/symbolic
+dimensions remain fail-closed. The access family does not duplicate `WHERE`, elementwise, or fused
 planners. Broadcast gradients remain `SUM_TO_SHAPE` and later reduction work.
 
 Carrier access form is structural when it changes generated code. Each generated class contains
@@ -1415,9 +1475,10 @@ publication, fan-out, or cross-partition obligation. Such an intermediate remain
 compiled graph and `LogicalMemoryPlan`, but CPU analysis declares no buffer or workspace for it;
 there is no Runtime slot, generated instruction, or store for that value. This is CPU-private
 virtuality, not shared storage aliasing. Because shared preparation does not assign two graph
-values to one representation, a standalone affine result receives its own buffer and one explicit
-boundary copy. The narrow private transpose/MATMUL composition
-[described below](#private-transpose-inputs-of-matmul) instead consumes the view as a read mapping.
+values to one representation, a standalone affine unit's final result receives its own buffer
+and one explicit boundary copy. The narrow private transpose/MATMUL composition
+[described below](#private-transpose-inputs-of-matmul) instead consumes the original backing
+directly and does not form a standalone affine unit.
 
 Analysis walks the final result's logical coordinates, reverses the complete view chain, and
 composes exact source and result element addresses. The result buffer keeps its resolved offset,
@@ -1457,7 +1518,7 @@ affine load/store, gather, scatter, masked tail, or speed claim.
 Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
 scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
-before current schema-70 artifact access and constructs one immutable executable. Cold binding
+before current schema-71 artifact access and constructs one immutable executable. Cold binding
 validates the exact data type, carrier, byte size, alignment, accessibility, output writability,
 and source/result non-overlap. Invocation checks canonical BOOL input bytes before copying.
 Runtime invokes only the prepared direct carriers, address table, and `start`/`end` bounds;
@@ -1520,7 +1581,7 @@ callback, or per-element allocation in generated code.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes current schema-70 generated
+falls back to scalar for this family. CPU finalization realizes current schema-71 generated
 artifacts; cold binding validates complete input/output spans and rejects every output/input
 overlap before execution. The scalar reference consumes the same movement IR and compact geometry for
 differential tests, not as a Runtime fallback.
@@ -1649,7 +1710,7 @@ before any consumer write.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-70 generated class artifact, one prepared
+no materialization, no workspace, one current schema-71 generated class artifact, one prepared
 executable, and one bound invocation. The generated class embeds carrier-, type-, family-, and
 access-specialized output loops rather than delegating through a generic carrier bridge. Proved
 dense heap arrays use integer loop/address state; segment, mixed-carrier, and general-layout forms
@@ -1838,8 +1899,10 @@ production tuning input. The broader frozen comparison still has one unresolved 
 
 ### Current overlap fold family
 
-The portable fold family accepts exactly one fully static, resolved-layout `FOLD_AXIS` or
-`FOLD2D` occurrence with one read-only input and one distinct writable output. It creates a fresh
+The ordinary portable fold family accepts one fully static, resolved-layout `FOLD_AXIS` or
+`FOLD2D` occurrence with one read-only input and one distinct writable output. A selected F32/F64
+raw-repetition chain can instead feed compact stored input to that same fold emitter, as described
+below. Both forms create a fresh
 result rather than mutating or aliasing the input. Every output coordinate begins at represented
 positive zero, including coordinates that receive no contribution.
 
@@ -1858,10 +1921,33 @@ scalar to compare or add. This family supports FLOAT64, FLOAT32, BFLOAT16, and F
 
 For each output coordinate, scalar generated execution visits contributing logical input
 positions in canonical flattened row-major order. FLOAT64 and FLOAT32 perform sequential
-same-format addition. BFLOAT16 and FLOAT16 widen the represented accumulator and operand to
-binary32, add, and round back to their represented type after every contribution. INT32 and INT64 `FOLD_AXIS` use fixed-width
-two's-complement modular addition. This order is the current CPU realization and gives bitwise
-parity between scalar and parallel-scalar execution; it is not a cross-backend Model promise.
+same-format addition. INT32 and INT64 `FOLD_AXIS` use fixed-width two's-complement modular addition.
+This order is the current CPU realization, not a cross-backend Model promise. BFLOAT16/FLOAT16
+decode each stored contribution exactly, including stored subnormals, accumulate in FLOAT32
+(FP32), and narrow once at the output store with round-to-nearest, ties-to-even. This repairs
+the former per-add narrowing defect under the existing
+[low-precision accumulation contract](../architecture/contracts/foundational-modules.md#model-low-precision-contract);
+it adds neither capability nor a new denormal policy. Compact-source selection still excludes
+both low formats, so their expanded input buffers remain real storage boundaries.
+
+For example, one BFLOAT16 output receiving stored contributions `1`, `2^-8`, `2^-8` has FP32
+partial sums `1`, `1 + 2^-8`, `1 + 2^-7`. The single final result is BFLOAT16 bits `0x3f81`.
+Narrowing after each add would instead lose both increments and produce `0x3f80`. For FLOAT16,
+the analogous contributors `1`, `2^-11`, `2^-11` produce `0x3c01`, not `0x3c00`. These witnesses
+distinguish the repaired arithmetic; they do not change contributor membership or geometry.
+
+The repair retains the shared ordinary geometry-generic traversal. In general `FOLD2D`, that
+fallback scans logical input occurrences and repeats channel/kernel-coordinate decoding inside
+the contributor loop. The primitive Java oracle hoists that decoding outside its position loop;
+the difference is acknowledged, hoistable pre-existing overhead, not a limitation imposed by
+runtime geometry. The changed arithmetic core matches the oracle's exact decode, sequential
+FP32 accumulation and final conversion. The traversal is retained to isolate the numerical repair,
+preserve existing mapping/order and nonlow ClassFiles, and avoid a separate low-only geometry
+implementation. Source comparison and the captured before/after ClassFiles confirm unchanged
+geometry decoding. This is qualification of the arithmetic repair within the existing generic
+fallback, not whole-loop optimality, inverse-gather specialization or steady-state performance
+parity. A bounded optimized gather would require its own geometry/address/order proof and review;
+no such new specialization is established here.
 
 Input and output layouts may use non-negative offsets and strides, including repeated logical
 input reads through zero strides. Heap arrays, native-order `MemorySegment`, and compatible mixed
@@ -1880,6 +1966,26 @@ carrier pattern, execution mode, and canonical sequential-addition policy. Schem
 embeds typed mapping, carrier access, and sequential addition; every older schema is an
 incompatible miss with no migration reader.
 
+Within current envelope 71 and fold class projection 52, ordinary low folds append only
+`:low-fp32-accumulation-v1` to their canonical family identity. The resulting fingerprint changes
+both compatibility streams, generated names, artifact keys and weak-intern keys. Authentic old
+low classes and checksummed stale envelopes are incompatible misses; current artifacts retain
+weak and persisted reuse. Nonlow ordinary and CPU0050 compact F32/F64 keys, ClassFiles, packed
+geometry, entry signatures and resource declarations remain unchanged.
+
+`CpuLowFoldFp32AccumulationTest` checks both low types/families, every carrier pair, rounding,
+special values, layouts, empty/partial ranges and ClassFile arithmetic structure against independent
+primitive Java. The literal-control tests distinguish stale low artifacts from retained nonlow
+artifacts. `CpuBroadcastFoldConformanceTest`, `EngineCpuLowFoldIntegrationTest` and
+`EngineCpuAveragePoolBackwardIntegrationTest` execute physical binding and actual generated
+adjoints with fresh inputs. AveragePool backward still stores its typed `DIV` result before the
+fold; the oracle includes that low conversion rather than summing unrounded quotients. Focused
+CPU evidence passed 78 tests with one opt-in diagnostic skipped; the named consumer join passed
+20 tests without skips, with performance diagnostics disabled throughout. The
+[CPU0050A validation packet](../planning/backends/cpu/tasks/0050a-low-fold-fp32-accumulation.md#validation)
+defines those commands and their bounded scope. This evidence does not qualify a new folding
+algorithm or add a timing claim.
+
 Schema 35 adds one guarded form for the frozen A1G mixed-carrier FLOAT32 FOLD2D geometry: input
 columns `[1, 9, 512]`, NCHW output `[1, 1, 16, 32]`, a `3 x 3` kernel, unit stride, symmetric
 padding `2`, and dilation `2`. After complete cold proof, each output cell starts at `+0.0f`, then
@@ -1896,6 +2002,54 @@ semantic algorithm or evidence of universal fold parity.
 This is exact current CPU route coverage, not broader Model, Compiler, Runtime, Engine, gradient,
 native, fusion, dynamic-layout, reduction-framework, backend-conformance, cross-backend bitwise,
 or performance support.
+
+#### Compact-source AveragePool2d backward
+
+For homogeneous FLOAT32 or FLOAT64, CPU can remove a private raw kernel-repetition chain before
+`FOLD2D`. Compiler still builds the original automatic differentiation (AD) recipe: a typed-one
+reduction supplies the divisor, and a separate typed `DIV` stores each rounded per-position
+cotangent. CPU removes only subsequent rank edits, expansion and raw copies, not that division
+or its stored result. Recognition follows producer edges through at most eight nodes, including
+the fold, rather than requiring adjacent nodes.
+
+The physical input is dense `[N,C,P]`, where `P=OH*OW`; logical columns remain `[N,C*K,P]`, where
+`K=KH*KW>1`. For each output `(n,c,y,x)`, the existing fold emitter visits `ky`, then `kx`, in
+ascending order. It derives `a=y+padH-ky*dilH` and `b=x+padW-kx*dilW`, excludes negative,
+stride-indivisible or out-of-grid positions, and reads `[n,c,(a/strideH)*OW+b/strideW]` only after
+those checks. This inverse gathering avoids an all-columns scan and preserves sequential typed
+addition from positive zero. Padding, ceil tails and uncovered output cells add no terms.
+
+For example, a FLOAT32 source `[2,3,4]` and a `2 x 2` kernel with unit stride, no padding and
+unit dilation produce `[2,3,3,3]`. Each channel's source `[1,2,3,4]` represents a `2 x 2` pooled
+grid. Logical repetition would store sixteen columns cells per channel; compact folding reads
+the four stored cells directly and produces `[1,3,2,4,10,6,3,7,4]`. The source declaration is
+`2*3*4*4 = 96` bytes instead of `384` bytes for expanded columns. The child has exactly source
+and output arguments, no workspace, no materialization and no hidden expanded allocation.
+This example starts after the typed division; it does not replace the divisor recipe with a
+host-computed kernel count.
+
+Public, saved, autograd, fan-out, outside-unit and cross-partition uses of removed mappings
+prevent absorption. The compact source itself remains a real boundary and may have other
+consumers. Unsupported strategies, types, layouts, geometry or failed checked proofs retain
+the existing route. Only scalar, single-range selection is enabled. Existing empty domains,
+nonnegative source offsets, injective nonnegative output strides and legal subranges retain
+their semantics. Binding validates physical spans, types, alignment, output access and complete
+source/output overlap before writes, including aliases between arrays and heap segments.
+
+Both generated-artifact identity streams inherit the selected-only
+`:kernel-broadcast-input-v1` discriminator. Geometry remains cold; envelope 71, fold projection 52,
+ordinary nonlow keys, packed geometry and ordinary nonlow ClassFiles remain unchanged. The
+separate low arithmetic repair above changes only ordinary low identities and arithmetic; it
+does not enable compact low input. A complete entry guard
+selects int coordinates only when every relevant bound, inverse numerator and physical address
+fits; other admitted geometry uses long arithmetic in the same emitter. Source/output cursors
+and per-kernel-row source bases avoid redundant per-cell address products.
+
+`CpuBroadcastFoldGeneratedKernelTest` compares both dtypes with independent Java inverse gathering
+and physically repeated ordinary-fold input, and checks generated ClassFiles. The named
+`CpuBroadcastFoldConformanceTest` and `EngineCpuAveragePoolBackwardIntegrationTest` cover physical
+binding and actual AD consumers. A separate, default-disabled bounded diagnostic is observational
+only; it establishes no speed/parity threshold, rollout or broader pooling capability.
 
 ### Current stable ordering and selection family
 
@@ -1948,13 +2102,13 @@ independent primitive-index insertion implementation for differential evidence; 
 Runtime fallback.
 
 Schema 27 introduced the complete carrier-, represented-type-, family-, direction-, output-,
-and access-specialized ordering body, which current schema 70 retains. It uses a stable bottom-up
+and access-specialized ordering body, which current schema 71 retains. It uses a stable bottom-up
 merge over the two assigned
 INT64 scratch regions, selecting the left logical index on equality. Dense heap-array forms use
 cold-proved integer loop and address state. Arbitrary supported layouts and heap, segment, or
 mixed carrier forms use typed long-address access; values and indices are stored without a
 generic `Object` execution bridge or runtime family dispatch. Schema 27 and every earlier envelope
-are incompatible misses and are regenerated under current schema 70; no migration reader is
+are incompatible misses and are regenerated under current schema 71; no migration reader is
 provided.
 
 The retained fixed five-fork evidence compares dense FLOAT32 schema-27 generated entries with
@@ -2060,7 +2214,7 @@ probability bits, ordered boundary roles and carriers, and zero-scratch shape. C
 slots, carriers, workers, and ranges remain cold when they do not change emitted bytes. There is
 no migration reader for old artifacts. Schema 28 is the first version whose random entries embed
 the direct typed initializer and FLOAT64/FLOAT32 dropout bodies. A schema-27 envelope is an
-incompatible safe miss: cold finalization regenerates and may publish current schema-70 bytes
+incompatible safe miss: cold finalization regenerates and may publish current schema-71 bytes
 after shared slot assignment rather than loading, converting, or aliasing the old bridge class.
 
 Retained observational evidence for the fixed dense heap-array shape `[64,16384]`, probability
@@ -2201,6 +2355,166 @@ one-byte BOOL. Integral MEAN, the distinct masked and arg-extrema forms, and lat
 families fail closed through this ordinary-family path before their focused lowerers are
 considered.
 
+The separate [static typed-one count fold](#static-typed-one-count-folding) can replace a proved
+SUM and its private affine prefixes before ordinary aggregate emission. The ordinary arithmetic,
+state and two-boundary behavior below describe the unchanged fallback, not that output-only path.
+Selected FLOAT32/FLOAT64 compositions can instead use the separate
+[ordinary exact aggregate fusion](#ordinary-exact-aggregate-fusion) below without changing that
+fallback's arithmetic or exact-state sizing.
+The two fixed softmax derivative patterns use a separate
+[two-pass backward composition](#ordinary-softmax-and-log-softmax-backward-fusion), whose final
+write spans the full input Shape rather than the reduced SUM Shape.
+
+#### Ordinary exact aggregate fusion
+
+For a fully static, homogeneous FLOAT32 or FLOAT64 scalar unit, CPU preparation can remove a
+private pointwise producer chain before exact `SUM`/`MEAN`, an `ADD`, `RELU`, or `ADD -> RELU`
+tail after it, or both. A tail must keep the aggregate's exact output Shape: its external ADD
+operand may broadcast **to** that Shape, but may not expand it. Every removed producing site
+still rounds to its represented dtype in a local variable. The existing exact accumulator
+consumes that rounded value, finishes and rounds the SUM/MEAN, then the existing pointwise
+emitter evaluates the tail. This is not an unrounded dot product or an exact-precision epilogue.
+
+For example, given FLOAT32 `gradient = [[1,2,3],[4,5,6]]` and `normalized = [[2,2,2],[2,2,2]]`,
+`gradient.mul(normalized).sum(1)` has represented products `[[2,4,6],[8,10,12]]` and result
+`[12,30]`. If those products have one private use, their values live only in typed locals rather
+than a six-cell buffer. For an adversarial distinction, let `a = 1 + 2^-23` and `p = 1 + 2^-22`:
+the FLOAT32 products of `[a,-p] * [a,1]` sum to zero; an unrounded product would leave `2^-46`.
+Likewise `SUM([1,2^-24]) + (-1)` is zero because SUM rounds before ADD.
+
+The immutable `CpuAggregateFusionIr` binds the producer's contribution domain, the tail's output
+domain and every physical input/final-output access explicitly. Selection uses complete graph
+uses before shared slots: public, saved, fan-out and outside-partition values keep their stores.
+Independently legal portions can still fuse. Analysis removes only proved private declarations;
+the ordinary domain-sized exact state, alignment, workspace slot/creator and per-run ownership
+remain. One executing range covers complete output cells, including empty/subranges. Cold binding
+checks full spans of **all** inputs against the final output and checks scratch disjointness
+before writes, with the existing typed-array and checked heap/native segment rules.
+
+The eight-node bound includes producer, reduction and tail. CAST, predicate/mask/selection/state
+crossings, movement absorption, symbolic dimensions, SUM-to-Shape, other aggregates, low/integer/
+mixed dtypes, noncanonical writes and wider terminals keep their established split routes.
+CPU0048 typed-one constant writes are selected first and do not regain contribution loops or
+exact-state scratch. This composition neither extends the row-map region nor changes Scan.
+Both artifact identity streams append `ordinary-aggregate-fusion-v1`; global envelope 71,
+existing class projections and unrelated generated keys/bytes remain unchanged.
+The canonical envelope retains structural roles and ordered typed topology (including existing
+aggregate domain/state facts); a separate baked payload binds the new static extents, offsets,
+strides and address-width proof. Invocation bases, slots and ranges belong to neither identity.
+The independent recognition-fact budget remains six members; a selected seven- or eight-node
+executable can therefore omit that diagnostic fact without splitting or changing execution.
+An empty selected domain emits no contributor traversal at all, even when a zero extent follows
+a very large selected prefix; output-cell initialization and empty SUM/MEAN finalization remain.
+
+Untimed tests compare represented results with materialized split execution, an independent
+integer/rational numerical reference and a specialized clean-Java limb implementation. Class-File
+inspection checks one contribution traversal and no runtime callback, allocation, boxing,
+reflection, operation dispatch or Synaptik helper. These are structural and semantic claims, not
+a general speed or profitability guarantee.
+
+#### Ordinary softmax and log-softmax backward fusion
+
+This CPU-only physical lowering removes private buffers from two exact ordinary-operation
+graphs constructed by Compiler automatic differentiation. It does not add a public operation,
+construct gradients in CPU, or change the [forward softmax family](#current-stable-softmax-family).
+Here `g` is the incoming cotangent (the gradient supplied by the downstream calculation), and
+`y` or `logY` is the exact stored forward output:
+
+```text
+softmax:      y * (g - SUM(g * y, axis, keepDimensions=true))
+log-softmax:  g - EXP(logY) * SUM(g, axis, keepDimensions=true)
+```
+
+Preparation recognizes exact operand/use edges, not node adjacency, names or mathematical
+equivalence. The following conditions must all hold; the table describes this specialization,
+not the capability of the constituent ordinary operations.
+
+| Concern | Admitted two-pass composition |
+|---|---|
+| Representation | Homogeneous FLOAT32 or FLOAT64 at every captured site; no casts |
+| Domain | Fully static rank one, axis zero; or rank two, axis one; one kept-axis SUM |
+| Saved read | Canonical dense mapping, with a nonnegative offset |
+| Cotangent read | Canonical dense mapping, or normalized scalar/per-row column broadcast with zero feature stride; nonnegative offset |
+| Final write | Canonical, injective full-gradient mapping; checked nonoverlap with every read and scratch |
+| Carriers | Independent typed `float[]`/`double[]` or checked native-order `MemorySegment` boundaries, including mixed tuples |
+| Execution | Generated scalar, one complete-slice range; checked int-bounded counts, extents, byte spans and address arithmetic |
+
+An intermediate can disappear only when its complete graph use inventory proves exactly the
+expected private use. Public outputs, gradient publications, saved/higher-order uses, fan-out
+and outside consumers keep their stores. Saved output and cotangent remain stored read boundaries,
+even when they have other consumers. The contracted nodes must be convex: no dependency path may
+leave the selected group and return to it. Unrelated interleaved nodes are allowed, and reserved
+units cannot overlap. Failed proofs retain the established decomposition, including any already
+legal partial fusion and existing rejection behavior. Other ranks/axes, symbolic Shapes,
+SUM-to-Shape, low/mixed dtypes, casts and unproved striding are not admitted by this composition.
+Vector/worker preference hints do not widen its scalar, single-range execution.
+
+Each slice uses two direct feature passes. For softmax, pass one rounds each `g * y` product in
+the captured dtype and includes it exactly once in the existing exact-limb SUM. SUM rounds once
+before pass two performs a typed SUB followed by a typed MUL. For log-softmax, pass one sums each
+stored cotangent once; pass two performs the existing scalar `StrictMath.exp`, converts its result
+to FLOAT32 when needed, then performs typed MUL and SUB. No unrounded dot product, forward Kahan
+accumulator, FMA, forward-output recomputation or primitive-eliding singleton shortcut is used.
+The ordinary SUM flags, domain-sized limbs, rounding and special-value finish remain unchanged.
+Backward operands follow ordinary primitive rules, including NaNs and infinities; they do not
+inherit forward softmax's finite-input validator. The forward producer still validates before
+any of its consumers write.
+
+For a concrete FLOAT32 rank-one example, stored `y = [0.25, 0.75]` and `g = [2, -1]` produce
+rounded products `[0.5, -0.75]` and exact SUM `-0.25`. The second pass subtracts that rounded SUM
+to obtain `[2.25, -0.75]`, then multiplies by `y` to publish `[0.5625, -0.5625]`. These dyadic
+values are exactly representable. The result is the gradient with respect to the softmax input;
+it is not a new normalization of `g`. Publishing the product intermediate would prevent its
+removal even though this numerical result stays the same.
+
+`CpuSoftmaxBackwardIr` retains the fixed formula, normalized physical bindings and existing
+aggregate state facts. `CpuSoftmaxBackwardEmitter` composes existing scalar, carrier and exact-SUM
+emitters rather than introducing another arithmetic or execution owner. Bases and carriers are
+hoisted, and row/feature cursors replace per-element coordinate decoding. A zero-feature-stride
+cotangent is loaded once per nonempty row and reused across both passes. Identical saved/cotangent
+positions share one typed load per pass. These are load-placement proofs, not permission to omit
+contributors or arithmetic sites.
+
+Analysis declares the full final-gradient span and one flags-plus-limbs workspace slice before
+shared slot assignment. Finalization follows assignment and reuses the existing aggregate header
+and `packFusion` handoff. Mutable scratch and packed bases are run-owned, never shared in the
+prepared recipe. Binding validates carriers, usable spans, writability, overlap and actual bases
+against the integer proof before execution. Zero rows need no state or output write; zero-width
+slices perform no tensor reads or writes, although state reset/finish may remain. Width one
+retains all sites, and generated entries accept legal half-open complete-slice subranges. Empty
+ranges and zero width cannot trigger a hoisted cotangent read. This does not widen the forward
+softmax producer's positive selected-axis requirement.
+
+The canonical family is `ordinary-softmax-backward-v1`, with a selective baked suffix in both
+artifact compatibility and generated-class identity streams. Variant, typed sites, roles and
+structural access participate; the baked payload also binds extents, strides, offsets, spans,
+domain count and exact-state facts. Graph IDs, assigned slots, carrier objects, addresses,
+invocation bases and subranges are excluded. Envelope 71 and static class projection 52 remain;
+forward, aggregate-fusion, low-fold, row/Scan and unrelated identities and generated bodies are
+unchanged. Route validation rejects mismatched baked facts, and the existing artifact store
+handles compatible reuse and stale payload rejection.
+
+Focused untimed tests compare fused execution with materialized split execution and independent
+typed clean-Java exact-limb loops, covering both kinds/dtypes, carrier tuples, broadcasts, offsets,
+empty/singleton/subranges, rounding counterexamples and special values. Class-File checks inspect
+typed sites and the two-pass dataflow without intermediate tensor stores or Synaptik runtime
+helpers. Compiler selection and prepared-resource tests are separate from public Engine consumer
+qualification; the [CPU0051 validation packet](../planning/backends/cpu/tasks/0051-softmax-logsoftmax-backward-fusion.md#validation)
+records the required gates and their result belongs to that task's completion record.
+
+The test-only `CpuSoftmaxBackwardCleanJavaOracle.main` diagnostic requires the explicit
+`--softmax-backward-diagnostic` argument and MAIN release after source review. Its one JVM uses
+only `[32,128]` heap cases for the two kinds and two dtypes, five warmup groups and five alternating
+paired samples of five calls, separate setup/empty-entry observations, a 60-second cap and no
+retry. Saved-input values cycle through `(i % 11 - 5) * 0.125`; seeds use `(i % 7 - 3) * 0.5`.
+These are synthetic primitive-pattern inputs: softmax saved values are not normalized
+probabilities, and the log-softmax values are not a normalized log-probability slice. The
+diagnostic therefore measures matched generated/direct pattern work, not representative
+end-to-end softmax training. It cannot establish universal speedup, steady-state parity or a
+production tuning decision.
+
+#### Ordinary aggregate geometry and arithmetic
+
 The accepted attribute forms determine selected axes as follows:
 
 | Attribute form | Selected domain | Output Shape |
@@ -2275,7 +2589,7 @@ ties-to-even conversion.
 INT32 and INT64 SUM and PROD use same-width two's-complement modular arithmetic. Overflow wraps
 modulo 2^32 or 2^64; no widening, saturation, floating accumulator, or boxed state is involved.
 
-Analysis declares exactly `[input, output]`, one computation unit, and one generated artifact.
+Unfolded aggregate analysis declares exactly `[input, output]`, one computation unit, and one generated artifact.
 Floating SUM, MEAN, and PROD also declare one eight-byte-aligned CPU-private workspace before
 shared slot assignment. It contains one disjoint exact-state slice for each simultaneously
 executable output-cell range; zero output cells require no workspace. The workspace is allocated
@@ -2386,7 +2700,8 @@ order and produce bit-identical results. This is a deterministic CPU result guar
 that floating output arithmetic is mathematically associative or that another backend uses the
 same NaN policy.
 
-Current coverage ends at this one-node static family. Arg extrema, masked reductions, advanced
+Apart from the bounded count fold below, this aggregate increment covers the one-node static
+family. Arg extrema, masked reductions, advanced
 reductions, stable softmax, and trailing Layer/RMS normalization are the separate current families
 below. Batch normalization, multi-node reduction fusion,
 within-domain parallelism, partial/combine trees, vector/native reduction bodies, dynamic
@@ -2394,6 +2709,50 @@ Shape/layout binding, in-place overlap, tuning, and broader performance guarante
 this increment. The task's fixed generated/direct measurements are acceptance evidence for its
 selected dense cases, not a route selector or universal speed promise. No claim extends to
 dynamic binding, a Vector API reduction body, native execution, or fusion.
+
+#### Static typed-one count folding
+
+CPU cold analysis can evaluate a static SUM whose contributors are all the exact typed value
+`+1`. Its only source is an explicit entry in `PrepareContext.constants()`: a
+[logical splat](../glossary.md#logical-splat), meaning one immutable typed scalar repeated at
+every logical coordinate. A Tensor label, factory, shape or mutable buffer currently containing
+ones is not such a fact. No payload is read to establish constancy.
+
+The admitted source feeds SUM directly, or through same-dtype `EXPAND` optionally followed by
+`CONTIGUOUS`. Source, domain and result shapes must be static. Full, single/multiple-axis,
+keep/remove-dimension and SUM-to-Shape forms reuse the existing normalized axes and geometry.
+Public, saved, fan-out or outside-consumer affine intermediates retain the ordinary path; the
+final count may still be published or consumed downstream. Dynamic and otherwise unproved
+counts keep their current algebra and admission behavior, including checked overflow failures.
+
+For an internal lowering example, suppose the immutable FLOAT32 source fact is scalar `+1`,
+the private expansion/contiguous domain is `[2, 3]`, and SUM removes axis `1`. Each of two output
+cells has three contributors, so the prepared result is `[3.0, 3.0]` with shape `[2]`. Analysis
+removes the private domain buffers, copies and contributor traversal; `CpuConstantWriteIr`
+instead describes the exact typed literal and one output-write boundary. Finalization emits
+literal stores using the existing carrier and loop machinery after shared slot assignment.
+Dense heap entries use integer induction; segment and other mappings retain existing output
+addressing. There is no computational source argument or exact-state workspace in this unit.
+
+The containing partition still declares every original
+[compile-time constant source](../glossary.md#compile-time-constant-source) and shared Prepare
+still initializes its representation for each run. A scalar source remains scalar-sized, but
+a nonscalar direct source retains its full mandated initialization. Those original bytes/fills
+are not removed by this optimization. A one-unit count partition uses the existing composite's
+ValueId-based child selection so retained sources never become extra kernel arguments.
+
+The count is rounded directly to the existing CPU SUM result representation: ties-to-even for
+FLOAT32/FLOAT64/BFLOAT16/FLOAT16, including low final rounding and overflow, and same-width
+modular bits for INT32/INT64. A selected-empty domain produces typed positive zero; no selected
+axes means one contributor per output cell; an empty output has no stores. A host cast chain
+does not establish equivalence: BFLOAT16 count `16,842,753` rounds directly to `16,908,288`,
+whereas converting through FLOAT32 first incorrectly yields `16,777,216`.
+
+The baked typed literal enters both existing specialization identity streams through the IR
+fingerprint; no global schema bump or Runtime proof mechanism is added. The
+[CPU0048 result](../planning/backends/cpu/tasks/0048-static-typed-one-count-folding.md#result)
+records focused semantic/resource/ClassFile evidence and pending final gates. This is structural
+work removal, not a benchmark, speed/parity claim, broader constant propagation or Scan change.
 
 ### Current arg-extrema family
 
@@ -2597,14 +2956,19 @@ use the same FLOAT64, FLOAT32, BFLOAT16, or FLOAT16 representation and exact Sha
 matching gradient-eligibility metadata. The selected normalized axis must have positive extent. A zero
 extent on any non-selected axis instead makes the shape-preserving output empty, so execution
 performs no value scan, generated call, write, or worker submission.
+The separate [ordinary backward fusion](#ordinary-softmax-and-log-softmax-backward-fusion) reads
+this stored result and retains the Compiler's primitive derivative graph. Its empty-domain and
+special-value handling do not broaden this forward producer's admission.
 
 This route deliberately admits a CPU-private numerical subset. Every represented input must be
-finite. FLOAT64 and BFLOAT16 also require each working `value - sliceMaximum` shift to be finite;
-FLOAT32 preserves its admission of all finite inputs even when a FLOAT32 shift overflows to
-negative infinity, while finite FLOAT16 pairs cannot overflow a FLOAT32 shift. Model separately
-defines non-finite and empty-slice results; CPU rejects non-finite inputs before a write. The
-capability domain requires a positive selected-axis extent. These restrictions do not imply
-that another backend must reject the same values.
+finite. The implemented [CPU0077 correction](../architecture/contracts/backend-execution.md#cpu0077-finite-softmax-admission-parity)
+admits FLOAT32 and FLOAT64 finite inputs even when maximum subtraction overflows to a negative-
+infinity working shift. BFLOAT16 retains its finite-working-shift requirement, while finite
+FLOAT16 pairs cannot overflow a FLOAT32 shift. The
+[task result](../planning/backends/cpu/tasks/0077-f64-finite-softmax-admission-parity.md#result) records qualification.
+Model separately defines nonfinite and empty-slice results; CPU rejects nonfinite inputs before
+consumer writes. A positive selected-axis extent is required. These CPU restrictions do not
+require another backend to reject the same values.
 
 Cold binding first validates the exact heap-array or native-order `MemorySegment` carrier,
 thread access, liveness, alignment, complete referenced span, output writability and injectivity,
@@ -2651,10 +3015,11 @@ LOG_SOFTMAX retains its required logarithm. Complete inspection found no allocat
 reflection, method handle, `invokedynamic`, collection, semantic dispatch, or Synaptik numerical
 helper in the retained generated targets.
 
-The current route advances its CPU-private softmax algorithm identity from version 1 to 2. That
-changes the structural fingerprint, generated binary name, and artifact compatibility key for
-both kinds; old softmax artifacts cannot be reused even though the global CPU envelope stays at
-schema 70. Unchanged families retain their current identities. The earlier performance evidence
+The CPU-private softmax algorithm identity advanced from version 1 to 2. That changed the
+structural fingerprint, generated binary name, and artifact compatibility key for both kinds,
+while the global CPU envelope stayed at schema 70 at that checkpoint. Current schema 71 retains
+the version-2 algorithm; old softmax artifacts cannot be reused. Other families retain their
+family projections under the new global envelope. The earlier performance evidence
 below describes the old generated bodies; it is historical, not a new performance claim for
 version 2.
 
@@ -3078,7 +3443,7 @@ Cold analysis selects from exactly four bounded generated realizations:
 | Realization | Work-unit ownership | Eligibility boundary |
 |---|---|---|
 | `DIRECT_SCALAR` | One output cell | Complete fallback for every admitted type, layout, and carrier pattern. |
-| `DIRECT_N_VECTOR` | One complete `(batch, m)` row, including its scalar N tail | Same-type FLOAT32, FLOAT64, INT32, or INT64 with positive K, unit right/result N strides, at least one preferred species, and no fused terminal. |
+| `DIRECT_N_VECTOR` | One complete `(batch, m)` row, including its scalar N tail | Same-type FLOAT32, FLOAT64, INT32, or INT64 with positive K, unit right/result N strides, and at least one preferred species. The terminal is absent, or TANH for homogeneous FLOAT32/FLOAT64 with unit-stride bias when present. |
 | `TILED_SCALAR_2X2` | One bounded two-by-two M/N microtile plus edge tails | Any admitted type/layout after the direct-small gates when M and N are at least two and the checked work reaches the fixed tiling threshold. |
 | `TILED_N_VECTOR_2X2` | Two M rows by two preferred-species N vectors plus edge tails | The vector-access subset with at least two rows, two species, and the fixed large-work threshold. |
 
@@ -3109,10 +3474,25 @@ before any write or worker submission; read-only input/input sharing remains leg
 The recognized linear suffix remains the visible Model and Compiler
 `PERMUTE([1,0]) -> MATMUL -> optional ADD` composition. CPU recognition may retain an exact
 FLOAT32/FLOAT64 rank-one bias ADD and at most one recognized terminal activation or CLAMP in one
-scalar generated body when legality and complete-topology profitability prove it. The operation
-order is full-K accumulation, bias ADD, optional terminal, then one store. Vector candidates can
-retain no terminal; unsupported or uncertain suffixes keep the canonical executable split. CPU
-does not create a `LINEAR` operation or rediscover a broader transpose or bias pattern.
+generated body when legality and complete-topology profitability prove it. The operation order
+is full-K accumulation, bias ADD, optional terminal, then one store. Scalar realizations retain
+the recognized terminal vocabulary. Both vector realizations admit TANH only for homogeneous
+FLOAT32/FLOAT64, with no bias or a unit-stride rank-one bias in either original ADD order.
+Complete vectors use the existing typed vector TANH mathematics; scalar N tails use scalar TANH.
+A non-unit bias stride keeps TANH on the scalar realization. Other terminals remain scalar;
+unsupported or uncertain suffixes keep the canonical executable split. CPU does not create a
+`LINEAR` operation or rediscover a broader transpose or bias pattern.
+
+Vector TANH retains the existing cold selection thresholds, explicit compute preference and
+disjoint row/tile range ownership. The default remains `SCALAR`. This capability applies only to
+ordinary fully static MATMUL; it adds no symbolic or Scan vector/parallel route. Focused tests
+check both floating types and vector forms, heap and native-segment carriers, ordered bias,
+vector interiors and scalar tails. Finite checks use test-only bounds of five FLOAT32 or three
+FLOAT64 ulps against independently accumulated scalar arithmetic and `StrictMath.tanh`; NaN,
+infinity and zero-sign checks are separate. A single short FLOAT32 heap diagnostic measured
+generated/direct median ratios of 1.276 for direct-N and 1.080 for vector-2x2. These are bounded
+diagnostic observations, not a performance gate, speedup claim or extension of the historical
+kernel ledger below.
 
 #### Private transpose inputs of MATMUL
 
@@ -3846,11 +4226,21 @@ bytes. Schema, structural key, metadata, lengths, checksum, trailing data, class
 descriptor must all verify. Any absence, incompatibility, corruption, malformed class, or file or
 security failure is a safe miss; verified generation remains correct, and optional publication
 uses a forced temporary file plus atomic move. There is one current schema, no migration reader,
-expiry, eviction, background service, or hostile-byte authentication claim.
+disk expiry/eviction, background service, or hostile-byte authentication claim. The size limits
+apply to each envelope, not to the total number of persisted files or live artifacts.
 
-A hit reuses verified Java Virtual Machine (JVM) class bytes only. It still defines a fresh hidden
-class that the JVM may independently interpret or just-in-time (JIT) compile and profile. Neither
-class bytes nor JIT machine code/profile are the Phase-1 workload tuning cache: that separate
+A process-local weak-intern hit reuses the same live artifact, including its hidden class.
+Prepared executables retain artifacts strongly; the store itself does not keep them alive.
+After garbage collection clears an artifact, a reference queue records its weak token and key.
+The next cold realization drains that queue under the existing lookup/publication lock and removes
+only the matching token. For example, a delayed notification for old artifact A cannot remove
+replacement B under the same structural key. No cleanup occurs in kernel execution, and no
+live-artifact quota or geometry-specific class generation is introduced. Without a later cold
+realization, pending dead-key cleanup waits; this does not retain the artifact itself.
+
+A persisted-envelope hit instead reuses verified Java Virtual Machine (JVM) class bytes only.
+It defines a fresh hidden class that the JVM may independently interpret or just-in-time (JIT)
+compile and profile. Neither class bytes nor JIT machine code/profile are the Phase-1 workload tuning cache: that separate
 `tools/tuning` cache records compatible route/configuration decisions before finalization.
 
 The opt-in CPU 0005D development evidence suite compared complete no-root generation against
@@ -4204,7 +4594,7 @@ affected typed layouts; schema 66 freezes aggregate scalar segment layouts; sche
 historical numerical-profile wire identity; schema 68 activated direct FLOAT16 execution throughout the
 portable generated families; schema 69 removed that profile wire while preserving non-profile
 specialization facts. Schema 70 repairs ERF extremes and named FLOAT32 low activation sites.
-The current envelope version is 70; older envelopes, including 69, are incompatible
+The current envelope version is 71; older envelopes, including 70, are incompatible
 safe misses, while scalar Conv retains schema 52, scalar loss remains on schema 58, and unchanged
 prior-family projections retain their established structural bytes.
 
@@ -4235,6 +4625,1269 @@ tests and keep benchmarks reproducible.
 
 See the [CPU master plan](../planning/backends/cpu/master-plan.md), [kernel routes](kernel-routes.md), and [CPU kernel strategy](../design/notes/cpu-kernel-strategy.md).
 
+## Current general Scan composition
+
+Current admission composes every ordinary CPU-supported PURE unit under the same ordinary dtype,
+layout, finite/value-validation and selected derivative guards, not the finite historical algebra
+below. The sole [Scan semantic contract](../architecture/contracts/recurrent-scan.md#general-differentiable-scan)
+and [backend execution contract](../architecture/contracts/backend-execution.md) remain authoritative.
+Selected actual FLOAT32/FLOAT64 AD uses ordinary rules; families without backward retain that
+limit, while nondifferentiable units may occur on non-gradient primal paths.
+
+All-valid bodies use WholeTensor. Length-aware body values may be proved ROW(axis) values or
+arbitrary-shape SHARED tensors; lengths is a separate final non-gradient INT64 `[B]` control
+actual with no body formal, not a scalar alternative. Original AD source carries/sequences and
+emission boundaries remain ROW(0); intermediate/history ROW axes and ranks follow their proofs.
+Supported row-mixing materialization requires exactly the same length values, not Tensor identity.
+Structural absence differs from a present all-zero seed; cross-Scan materialization is explicit.
+Model remains the logical-layout owner. CPU reuses ordinary lowering/emitters under the existing
+loop, direct same-class helpers and run-owned staging, not a second executor or universal
+no-copy, zero-allocation or speedup behavior.
+
+The following legacy sections retain qualified domains, exact identities/ABIs, read views, native
+and parallel exclusions, and bounded performance evidence, not a current operator whitelist.
+Current ordinary CPU general Scan qualifies all-valid named-batch FLOAT32/FLOAT64 forward and
+actual selected VJPs under ordinary single-B, fixed-T/features guards. This does not grant ordinary
+symbolic FLOAT64 MATMUL or arbitrary symbolic geometry. Java BFLOAT16/FLOAT16 computation stays
+locked; raw/storage/cast/exact roles remain.
+No Metal general Scan, nested control flow, fixed BPTT, parallel-composite, cold/wire or NN recipe
+widening follows. Legacy qualified bytes/identities remain unchanged; composite-only v2 streams
+invalidate the old bad interface-copy form. Partial smokes/numeric receipts are not final unified
+release qualification. Reviewed borrowed-source APIs do not prove production cutover or passing
+end-to-end T0 caller publication; that qualification remains pending.
+
+<a id="bounded-float32-general-scan"></a>
+
+## Bounded FLOAT32/FLOAT64 general scan
+**Legacy qualified route:** this heading and its anchors retain the historical bounded domain
+and evidence below, not current whole-feature admission.
+
+
+This route executes a fixed-count scan over a captured ordinary Tensor body. A **carry** is the
+previous step's state; an **emission** is a requested per-step output. A
+[residual port](../glossary.md#scan-residual-port-and-history-demand) names an exact body value
+available for saving to a downstream consumer, including Compiler's automatic reverse scan.
+A port alone allocates no history. The [general-scan contract](../architecture/contracts/recurrent-scan.md#general-differentiable-scan)
+owns semantics; this section explains the CPU realization, not a region protocol.
+
+```text
+whole-query proof -> one typed body -> exact resources -> shared assigned slots
+                  -> generated time/coordinate loops -> one call under the run's RunState
+```
+
+The provider and lowering share `CpuGeneralScanLowering`'s whole-body/binder proof. CPU0031 extends
+the unchanged CPU0030 same-shape pointwise path to static homogeneous FLOAT32 shapes of local rank
+0..16, non-negative T, and independently shaped carries, sequence steps, invariants and emissions.
+The closed algebra is right-aligned ADD/SUB/MUL/DIV broadcasting, existing scalar forms,
+NEG/TANH/SIGMOID, full/single-/multi-axis SUM and sumToShape, EXPAND/RESHAPE, EXPAND_DIMS/SQUEEZE,
+rank-two `[1,0]` PERMUTE and CONTIGUOUS. CPU0032 adds rank-two MATMUL
+`[M,K] @ [K,N] -> [M,N]` inside the same emitted scan, including independently qualified actual
+Compiler-generated reverse bodies. RESHAPE requires proved storage compatibility or an
+explicit contiguous input; it never silently reorders a transpose. CPU0033 implements homogeneous
+FLOAT64 across that complete bounded declared algebra and actual first-order reverse closure,
+including closed derivative constants and same-type identity casts. Type-changing casts reject.
+Zero-offset all-zero-stride outer reads bind their actual one-cell span without dense expansion.
+Local derived views may have broadcast or permuted strides. Internal formals and outer writes
+remain canonical; actual reads additionally admit the CPU0037 dense-view case below alongside
+proved scalar reads. A rank-16 step has rank-17 stacked CPU boundaries, not rank-17 cross-owner
+transfer. MATMUL requires static homogeneous F32 or F64 operands and the existing
+proved affine access rules; rank-one and batched products do not enter this scan route. Low types,
+mixed arithmetic dtypes, arbitrary views and NN/training/persistence migration remain gated.
+The separate fixed-batch length mode below adds discrete INT64 control, not mixed body arithmetic.
+No vector, parallel or OpenBLAS scan route is granted.
+A forward provider answer never promises its generated reverse.
+
+CPU0071 implements the [approved static MATMUL compatibility exception](../architecture/contracts/backend-execution.md#cpu0071-approved-static-matmul-compatibility-cutover)
+inside the existing CPU owners. The exception versions artifacts for static constant-stride setup
+outside time; the static/length retention results below remain historical evidence. Other
+identities/bytes remain preservation targets. No route, arithmetic, resource or worker change follows.
+
+### Common rank-two MATMUL binding
+
+Ordinary MATMUL and Scan now share exact rank-two shape validation in `CpuMatmulLowering` and
+scalar contraction emission in `CpuMatmulEmitter`. A bound contraction is the full increasing-K
+multiply/add loop after its caller has selected typed carriers, addresses and geometry. It is not
+an entry adapter, a second body graph or a Runtime object. Shape checks compare Dimensions by
+their exact static value or dynamic name, never by sampling a batch size. Ordinary batch MATMUL
+retains its FLOAT32-only access/coefficient guards.
+
+Invocation setup precedes operation regions. `CpuCarrierEmitter` reserves its six layout locals
+once, with the existing combined-mode omission of unused initialization. Ordinary geometry and
+compatible vector-species/byte-order setup remain invocation-local. Scan binds constant static
+MATMUL byte strides before time, including empty exits, while its evolving scalar-to-dense factor
+stays temporal. Symbolic Scan reuses its already-selected stride/proof handles. JVM-local indexes
+are allocated only by CodeBuilder; they are not indexes in the invocation's packed `long[]` and
+are not shared Runtime slots.
+
+`CpuGeneralScanEmitter.Shaped` adapts temporal bases, M/N output activity, active K, stores and
+same-cell tails to common cursor or proved indexed contractions. The common owner receives no
+Scan stage/state type. Its callbacks execute during generation only: emitted code has no callback,
+graph lookup, per-step allocation or geometry repacking. ROW output activity guards the complete
+cell, ROW(1) activity guards both K-operand loads and math, and SHARED work retains any-active-time
+gating. Inactive cursor paths still advance over the original increasing contributors. K=0 keeps
+the caller's typed positive-zero accumulator; known-empty static contractions emit no K loop.
+Common MATMUL does not admit Scan SIMD, parallel workers or new dtypes/layouts.
+
+For example, with existing declared storage, a non-fused `x@W` followed by `product+h` completes
+the product domain in its declared intermediate or demanded port before the consumer domain.
+For `x=[[1,2]]`, `W=[[3],[4]]`, and `h=[[5]]`, the intermediate is `[[11]]` and the result is
+`[[16]]`. The consumer uses that existing storage without a mandatory extra copy. If the product
+has a demanded saved port, that exact represented `11` remains live; a scratch cut can be reused
+only after its inclusive last use. This illustrates binding/completion order, not a new fusion
+permission or a universal no-copy claim. Old/next carries, original-time histories, physical
+final-port hazards and the v9 bank-free scheduling/fallback proofs are unchanged.
+
+Permanent tests retain pre-edit old ClassFiles for the eight static T4/B7/F3/H2 forward/actual
+Compiler-reverse rows and pre-edit digests for affected/control matrices. They check both identity
+streams, stale input rejection, common-loop activity/typed zeros, setup dominance, exact old/new
+results and saved bits against specialized clean Java without timing. The 226-case matrix records
+68 approved changes and 158 exact retained controls; 21 ordinary-batch/typed controls additionally
+use immutable-before-source recovery. Ordinary vector golden bytes are qualified only for the
+captured 128-bit preferred species; other hosts report unqualified vector rows while retaining
+scalar checks and portable vector tests. These finite controls are not proof for every artifact.
+
+The [CPU0071 Result](../planning/backends/cpu/tasks/0071-common-matmul-binding-foundation.md#result)
+records the separately authorized single-JVM diagnostic: all eight semantic checks passed,
+but no speedup is established. Some measured arms changed timing regime after the fixed warmup;
+no compilation log proves the cause. The FLOAT64 length-forward direct arm is unsteady, so its
+aggregate new/direct ratio is not a performance claim. Length-reverse new/direct medians of about
+1.50 (FLOAT32) and 1.42 (FLOAT64) remain a performance question, not a correctness failure or
+proof of a CPU0071 regression. Generated-entry/MethodHandle and direct-call costs are included;
+Engine admission was not measured. Historical v9 timing does not qualify these static shapes.
+No steady-state parity, identical-JIT or inner-loop-only conclusion follows. The sole measurement
+budget is spent and closed; no retry, additional fork or CPU0072 measurement is authorized.
+
+### Common pointwise and SUM composition
+
+Ordinary and Scan pointwise sites share generation-time ordering in
+`CpuClassFileKernelGenerator.emitBoundPointwise`: entry loads, then each instruction's operand
+loads, arithmetic and producing stores, followed by exit stores. Ordinary scalar/vector entries
+load boundaries at entry and publish after the instruction list. Flat Scan retains formal loads
+and previous-carry histories at entry, exact produced histories per instruction, and bank stores
+at exit. Shaped Scan supplies demand-driven loads and producing sinks at each active coordinate.
+These callbacks emit bytecode during preparation; they are not runtime objects or per-step calls.
+
+`CpuPartitionLowering.validatePointwise` shares current common arithmetic attribute, dtype and
+exact broadcast checks. `CpuAggregateLowering` owns normalized axes, keep-dimensions and target
+validation for ordinary SUM/MEAN and Scan SUM. Exact named Dimensions remain distinct even when
+their current extents coincide. Provider, layout, role, fusion and resource admission remain with
+their existing owners; shared validation does not admit another operation or backend route.
+
+`CpuAggregateEmitter.emitRepresentedSum` owns Scan's sequential reset/fold/result/tail sequence.
+Scan adapters bind selected/retained coordinates, activity and physical sinks; common math accepts
+no Scan state type. Contributor activity guards both producer arithmetic and loads. Legacy
+invariant preloads remain confined to all-valid paths. Each contributor has fresh scalar
+availability; the tail initially has only the completed result. Raw no-axis movement and exact
+SUM-to-Shape singleton paths still bypass addition. A batch with one active row among several is
+not a singleton domain. Ordinary SUM/MEAN still use exact primitive-limb state and rational MEAN,
+not this sequential entry. For FLOAT32 or FLOAT64 inputs `[1e20,1,-1e20]`, exact ordinary SUM is
+`1`, while Scan's represented increasing-contributor SUM is `0`; the extraction preserves this
+algorithm distinction, saved sites, empty positive zero and raw singleton bits.
+
+The Scan-only reduction emitter is retired; its source is recoverable from MAIN's immutable
+before-source snapshot. CPU0072 captured 278 whole ClassFiles, both identity streams and
+resource/geometry/pack witnesses before extraction; vector golden rows require their captured
+species and report mismatches as unqualified without suppressing scalar checks.
+The original eight conditional binding diagnostics
+contained process identities; their deterministic value witnesses were separately recovered from
+immutable before-source classes with literal original-ClassFile provenance, without changing the
+sealed capture. Finite controls complement review of changed generation/allocation paths; they
+do not certify every specialization. Schema/family 71, namespaces, entry ABI, resources, workers
+and Job lifecycle are unchanged. Literal equality transfers existing evidence only with its
+original limitations; no new optimal-Java parity or speed claim, Scan SIMD/parallel capability,
+or timing budget follows.
+
+CPU0072 is Complete after independent Class C source/Javadoc/documentation/provenance approval
+and MAIN's combined module and named conformance/Engine gates. Its
+[Result](../planning/backends/cpu/tasks/0072-common-pointwise-sum-composition.md#result) distinguishes
+the original failed module command (one stale inventory expectation) from its one-test correction
+PASS; Javadoc completed with existing warnings. No CPU0072 measurement ran. The next priority is
+[complete backward-versus-optimized-Java code comparison](../planning/backends/cpu/existing-emitter-composition-plan.md#post-integration-actual-scan-evaluation),
+including entry, activity, saved-value, address and staging work, not repeated timing or a presumed
+compiler cause. This does not open another source or measurement frontier.
+
+<a id="accepted-row-map-and-multiple-terminal-fusion-design"></a>
+
+### Implemented row-map and multiple-terminal fusion
+
+CPU0073 is implemented, independently reviewed and MAIN accepted on 2026-10-30. The
+[backend mechanism contract](../architecture/contracts/backend-execution.md#cpu0073-accepted-row-map-and-multiple-terminal-reduction-fusion)
+owns the exact five internal type names, signatures, cold proofs/limits, generation lifetime
+and selective cache identities. [ADR 0052](../design/decisions/0052-row-map-multi-reduction-fusion.md)
+records the rationale; the [task](../planning/backends/cpu/tasks/0073-row-map-multi-reduction-fusion.md)
+records exact validation and evidence-transfer limits, not additional authority.
+
+A row map evaluates pure ordered row-local sites once and shares their values with row outputs
+and multiple terminal contractions/represented Scan sums. A genuinely computed producer must
+reach a terminal and another retained or terminal sink; input/movement sharing alone is ineligible.
+Ordinary analysis selects one full-body unit (work=1, [0,1), including empty rows;
+[0,0) does no work, other ranges reject before writes). Scan emits the same region within its
+existing time traversal and activity wrapper, not by submitting a per-step unit/Job. Analysis fixes
+resources before slots; generation reuses current pointwise, MATMUL and represented-SUM math.
+The derived physical region is not a new Model operation or semantic graph. Existing carrier,
+dtype/layout, RunState and Runtime/Prepare/Engine boundaries remain unchanged.
+
+Conceptual ordinary example, assuming admitted disjoint static F32 storage: X=`[[1],[2]]`,
+computed D=`X+2`=`[[3],[4]]`, W=`[[2]]`. A selected row loop produces dX=`[[6],[8]]` and
+accumulates dW from 3 after row 0 to 11 after row 1. It must also retain D for separate ordinary
+exact `db=SUM_R(D)`, whose result is 7. Sharing D is the optimization; removing that exact-SUM
+boundary is not permitted. In Scan the represented sum can be a terminal, followed by a distinct
+per-time shared carry ADD. A terminal feeding row work forces a split. These values illustrate
+completion/storage, not runnable API code, broader admission or a performance claim.
+
+This historical CPU0073 region admission is bounded ordinary static F32/F64, already-admitted
+ordinary symbolic scalar F32 and separately admitted homogeneous scalar Scan cases. Its original
+all-valid symbolic F64 exclusion is not a current general Scan exclusion. Ordinary symbolic F64
+MATMUL remains unsupported; no new carrier/layout, SIMD, threads or OpenBLAS route follows.
+Structural budgets reject rather than truncate candidates.
+
+Only selected ordinary regions use class projection 72, the geometry-free family marker
+and ordinary row-fusion-v1 suffix. Scan keeps projection 71 and appends its selective suffix to
+the existing baked mode. The generator envelope remains 71; noneligible keys/ClassFiles/resources,
+including vector/tiled/TANH/fixed controls, stay literal unchanged. Artifact routing, both identity
+streams, actual Compiler reverse and optimal same-algorithm Java/ClassFile comparisons are
+qualified by CPU0073's durable tests and independent review. MAIN's named join passed 42 tests,
+including one public prepared dense-AD owner with sequential/concurrent mixed B. See the task's
+[Result](../planning/backends/cpu/tasks/0073-row-map-multi-reduction-fusion.md#result) for the failed
+full-module run, passing targeted closures and approved transfer; no fresh full-suite pass is claimed.
+Performance is unmeasured. Across-time carry promotion remains separate; old timing budgets are
+closed and no new measurement or automatic successor is authorized.
+
+<a id="accepted-but-unimplemented-row-fusion-exec-v1"></a>
+
+<a id="implemented-row-fusion-exec-v1-final-validation-pending"></a>
+
+### Implemented and accepted row-fusion exec-v1
+
+CPU0074's [mechanism contract](../architecture/contracts/backend-execution.md#cpu0074-selected-row-region-execution-exception)
+is implemented, independently reviewed and MAIN accepted; CPU0074 is Complete after bounded
+validation. It qualifies only
+selected CPU0073-shaped regions for feature SIMD, parallel-scalar or parallel-vector, preserving
+the historical ordinary static F32/F64, ordinary symbolic F32 and static/symbolic/length/combined
+Scan dtype bounds of this selected-region layer. That layer's all-valid symbolic F64 exclusion is
+not a global general Scan limit. No new layout/carrier or general pointwise rewrite follows.
+Production scalar/thread-count-one defaults and no-region Scan execution remain unchanged.
+
+The historical selected-region arithmetic matrix below is not current whole-feature admission or
+a guarantee that every graph in a domain contains an eligible region.
+
+| Domain | Arithmetic |
+|---|---|
+| Ordinary static | F32/F64 |
+| Ordinary named-B symbolic | F32 only |
+| Static all-valid Scan | F32/F64 |
+| All-valid symbolic Scan | F32 only |
+| Static-length / combined symbolic-length Scan | F32/F64; separate exact INT64 control |
+
+For an admitted F3/H2 actual reverse, masked H2/F3 feature vectors consume saved primals;
+the target dtype's preferred species must match accumulator/load/mask specialization facts.
+Feature K stays ordered. W/U transposes use ten cells (40/80 bytes before alignment) once per run
+only for proved invariants; SHARED histories/changing cuts require proper active-time staging or
+fallback. This is not arbitrary segment gather or a transpose manager. Genuinely fused forward
+and actual reverse qualify separately; a standard RNN forward may contain no eligible region.
+The nonlinear static all-valid F64 reverse fails the existing live-value proof; a separate
+admitted `h+xW` F3/H2 closure tests that domain without widening the 128-slot limit.
+
+Existing unit fields select worker policy cold. Analysis declares bounded partials and validity
+flags before slots; cold binding fixes ranges and calls in one RunState. The emitted time loop
+invokes one typed StepDispatch, lending a sufficient same-budget live reservation synchronously.
+Join precedes fixed range-index merge, each distinct active-time carry ADD and scratch reuse.
+No nested permit acquisition/submission or B×parameter bank. Existing Job metadata may allocate
+per dispatch; body/element allocation and generic runtime lookup remain forbidden. Invalid empty
+partials are skipped, not merged as invented zeros. Ordinary exact SUM/MEAN and raw singleton
+paths remain separate. See [ADR 0053](../design/decisions/0053-row-fusion-simd-parallel.md) for tradeoffs.
+
+Cold candidate metadata labels ordinary selected scratch `ROW_REGION_STATE` only with matching
+row IR/emission and no Scan/recurrent owner, despite its shared `GENERAL_SCAN_BANKS` preparation
+tag. The selector and retained-plan validator agree; internal row-to-terminal uses stay within
+one indivisible unit. Actual Scan banks, ordinary pointwise accounting and scoring are unchanged.
+
+At CPU0074 acceptance only new selected exec-v1 payloads/helper ABIs changed in both identity
+streams; scalar CPU0073 and noneligible keys/ClassFiles/resources remained literal controls.
+The implemented CPU0075 cutover below narrowly qualifies that scalar-retention promise.
+Implementation must compare
+each realization with optimal clean Java/ClassFiles, qualify finite arithmetic plus special/raw
+semantics, and test budget-one, aliases, producer preflight, interruption/close and concurrent runs.
+The [brief](../planning/backends/cpu/tasks/0074-row-fusion-simd-parallel.md) owns commands and MAIN's
+new finite performance budget; this docs pass launches no Java/native tests or measurement.
+Its optimal Java Scan arms retain twelve typed carry cells across T and a distinct ADD at each
+active time. Generated across-T carry promotion remains deferred; disclose that dataflow gap
+in performance interpretation, without weakening the oracle or claiming identical traffic/parity.
+The brief records 356 authentic scalar payload controls and available focused/named receipts;
+the final post-fix module and named gates passed. Worker fault injection covers
+F32 parallel-vector Scan, not an exhaustive cross-product of every owner and realization.
+The sole performance comparison completed, but steady-state profitability remains unqualified.
+Concrete JIT compilation-pressure failures require separate investigation; do not dismiss the
+whole gap as warm-up or infer a universal speedup/ranking. The brief centralizes observations
+and limitations; scalar/thread-count-one defaults remain unchanged, with no automatic rollout.
+
+<a id="accepted-scalar-loadaddress-reuse-cutover"></a>
+
+#### Implemented scalar load/address reuse cutover
+
+[CPU0075's generation/compatibility contract](../architecture/contracts/backend-execution.md#cpu0075-selective-scalar-load-and-address-reuse)
+is implemented and independently reviewed. It replaces affected ordinary/Scan scalar and parallel-scalar
+row emission in existing owners, sharing repeated external cells only within the active row and
+folding/sharing proved affine addresses. For example, two reads of the same saved Y cell can use
+one typed local if the first load dominates the second and no intervening store can change it;
+release that slot after its last use. A possibly aliasing store requires a fresh read. This is not
+W/U preloading outside the row or carry promotion across T; the Java reference's wider staging
+advantage remains disclosed. Mathematics, retained stores and existing eligibility do not change.
+
+Only affected scalar artifacts gain scoped markers in both identity streams. Old affected
+snapshots become stale; historical `.tsv`/`.gz.b64` evidence is not regenerated from the candidate.
+SIMD/nonregional controls retain literal bytes/keys, and the old scalar emitter is not maintained
+alongside the replacement. [ADR 0054](../design/decisions/0054-row-fusion-scalar-load-address-reuse.md)
+records the tradeoff; the [Result](../planning/backends/cpu/tasks/0075-row-fusion-scalar-load-address-reuse.md#result)
+records final CPU/Javadoc validation and the exhausted one-JVM A/B/C observation.
+
+In the actual F32 F3/H2 fixtures, ordinary load sites fall 32→20 and Scan row gets 27→22
+(including the length read); floating MUL/ADD/SUB sites, retained stores and distinct per-time
+carry ADDs are unchanged. Ordinary's four overlapping duplicate-cell intervals need four FLOAT
+slots plus one recycled LONG offset, not twenty permanently live inputs. Scan caches only proved
+borrowed sequences/invariants; carries, scratch and SUM alternatives keep checked direct reads.
+The remaining cold slot budget caps the typed pool. JVM max_locals is not simultaneous live
+slots or hardware-register pressure.
+
+For B32/B256, observed ordinary old/new median ratios were 172.8×/216.3×, but old A had no own
+nmethod/only C2 on-stack replacement (OSR), whereas new B had normal C2 before samples. These
+are not matched-optimized-loop speedups. Scan A/B/Java had normal C2 before samples; its
+1.007×/1.005× old/new ratios do not establish material speedup. New/Java remained 1.36×/1.27×
+ordinary and 1.68×/1.79× Scan. The unchanged Java reference stages W/U and retains Scan carry
+locals across T; generated entry wrappers and dataflow differ. C1 virtual-register failures
+persist, including candidate methods; neither C1 repair nor machine-code root cause is proved.
+No further timing, production-default change or rollout follows.
+
+<a id="cpu0076-accepted-staging-plan-not-yet-implemented"></a>
+
+#### CPU0076 implemented scalar invariant staging
+
+The [CPU0076 exception](../architecture/contracts/backend-execution.md#cpu0076-prospective-invariant-external-cell-load-staging)
+qualifies CPU0075's within-row-only placement. It implements generic scalar staging
+of proved external cells, not a weight/RNN/root-number shortcut. An external cell is a represented
+value in an authenticated input/storage origin. Scope remains existing ordinary/Scan F32/F64
+eligibility; SIMD bodies, exact SUM, worker ownership and entry/helper ABIs do not change.
+
+Placement example: a fixed `[3,2]` invariant matrix has six F32 cells. If its effective address
+has zero row/time dependence, stays disjoint from all writes, and all six cells have active
+consumers, load those six cells once into invocation locals before rows. A fresh invocation
+must reread changed values. If the same shape instead denotes a SHARED `[T,3,2]` history, stage
+only the six cells at the current active original time after their producer. Equal shape or
+copied-equal history values do not establish temporal invariance. Empty/all-inactive domains
+must not touch inaccessible body sources. Worker preheaders also need range-local activity.
+The current proof stages only complete actually consumed fixed-feature views, with rank at most
+two and a complete regional body: each nonformal self-rooted producer is a row site, terminal or
+finish-epilogue producer. Partial/unused/empty domains or unrelated producers keep checked reads.
+ROW histories, carries and uncertain cut/bank/scratch origins are excluded; a zero-stride or
+constant-row view does not erase source activity. Existing typed scalar hoists are not relabeled.
+
+Analysis must bound both caller/helper phases before cuts/resources/slots, including overlap of
+staged cells with producer/terminal/address/control locals and CPU0075's reuse pool. There is no
+larger local limit or scratch/frame extension. Unproved/over-budget placement retains checked
+emission without reducing capability. Helper-local staging is not once-per-whole-Scan staging
+across repeated dispatches. Small ordinary F64 staging is qualified, but the larger combined
+F64 primary geometry retains CPU0075. Existing symbolic F64 exclusions remain unchanged.
+
+Both resource findings are closed by whole-lifetime accounting, not just witness exclusions.
+The caller counts ALL demanded history LONG bases, including forwarded formals, through
+prepublication; both phases count each extra producing wrapper's carrier plus LONG base.
+Independent structural floors, distinct staged typed cells, a readiness allowance and the
+remaining CPU0075 pool must fit 128 simultaneous JVM slots (DOUBLE/LONG count two). The
+[owning resource proof](../architecture/contracts/backend-execution.md#cpu0076-prospective-invariant-external-cell-load-staging)
+defines the common bases. An over-budget optimization declines staging, not the existing strategy.
+
+The sole new shared cold method is existing lowering owner's
+[`invariantLoadStaging`](../architecture/contracts/backend-execution.md#cpu0076-shared-cold-proof).
+Lowering, preparer, both identity streams and emitters use its deterministic immutable ordered
+selection with the SAME authenticated temporal scopes and structural caller/helper base facts,
+not allocation-derived/private competing eligibility. It selects only complete actual-consumer
+cell domains, deduplicates equivalent origin/affine reads and jointly bounds staging/flags/pool
+(helper base zero means none). Unknown/over-budget proof keeps checked emission; malformed
+metadata keeps existing exceptions. No runtime reads, class generation, key parsing or route/
+resource decisions occur here. Binding owners retain full-lifetime access/alias/write and
+activity/nonempty checks; worker-local staging does not cross the ABI. No new type, supported API,
+runtime map, resource, layer or late route decision is introduced.
+
+Only changed scalar cases gain the new markers in both identity streams; unchanged cases,
+SIMD/nonregional controls and historical resources remain literal. [ADR0055](../design/decisions/0055-row-invariant-load-staging.md)
+records rationale. The [task](../planning/backends/cpu/tasks/0076-row-invariant-load-staging.md)
+owns exact validation and the sole MAIN-released three-arm/two-case comparison: accepted CPU0075
+current code versus real new generator versus unchanged independent Java. Actual reverse-Scan
+row gets fall 22→12: ten W/U cells stage before time under the existing activity guards. Row
+24 MUL/24 ADD/2 SUB, five ordered stores and twelve distinct memory-backed after-row carry ADDs
+remain. Actual CFG live slots are 59 versus 51 before; max_locals is 138 versus 128, a different
+quantity and not a hardware-register/spill measurement. SIMD and historical resources stay literal.
+
+The table reports medians in ns/call from three 5000-call sample blocks per arm/case in one JVM;
+common resets and staging are inside each timed call. A is literal accepted CPU0075, not CPU0074.
+
+| Case | CPU0075 A | CPU0076 B | Original Java R | Interpretation |
+|---|---:|---:|---:|---|
+| B256, T4/F3/H2 | 5301.4 | 4360.15 | 3013.225 | Observed 17.7547% lower time; logged primary/Entry/window stable during sampling. |
+| B32, T4/F3/H2 | 699.3166 | 584 | 431.2332 | Observed 16.4899% lower, but outer-window C1/C2 OSR transitions confound a stationary causal estimate. |
+
+B256 still takes 1.447× R's time. R retains its distinct carry-local algorithm; neither full Java
+parity nor a machine-code cause is established. C1 virtual-register failures persist. Five fresh
+symmetric raw-five-gradient checks per case passed; these are not checks of every timed call.
+This bounded result is independently accepted, not universal stationarity, support or speed.
+Final CPU/Javadoc and the two named Engine methods (four typed parameterized cases) passed;
+no further timing/default/rollout decision follows. The earlier external Java experiment remains
+historical, not this measurement.
+
+### Length-aware fixed-batch execution
+
+Length mode uses the same compile → Prepare → generated CPU execution path. Its floating body
+is homogeneous FLOAT32 or FLOAT64; one additional INT64 `[B]` actual supplies prefix lengths.
+That control actual is not a body formal, arithmetic ordinal, invariant or differentiation target.
+T, B and feature extents remain fixed by preparation. Changing length **values** changes activity,
+not code, slots, resource declarations or specialization. The
+[length-mode semantic contract](../architecture/contracts/recurrent-scan.md#length-aware-whole-batch-scan)
+owns the accepted row algebra and reverse construction.
+
+A row role identifies a batch coordinate, not an extent numerically equal to B. ROW(0) is
+row-leading; a rank-two transpose may carry ROW(1). SHARED values have no batch coordinate,
+even when F=B. CPU independently proves these roles across the whole body, including dead
+declarations. Contributor and epilogue fusion must preserve the activity domain as well as shape:
+an independent SHARED `[F,F]` calculation cannot move under a numerically equal ROW `[B,F]` gate.
+
+For a concrete linear example, take T=5, B=3, H=1, initial state `[-0,1,3]`, sequence values all
+one, shared weight `2`, and `L=[5,3,0]`. The body is `next = h + xStep*w`, also emitted each step.
+By original time, two rows are active at times 0, 1 and 2,
+and one at times 3 and 4. This executes `2+2+2+1+1=8` row transitions, not 15.
+The final state is `[10,7,3]`, with these original-time emission frames:
+
+```text
+t=0 [ 2,3,0]
+t=1 [ 4,5,0]
+t=2 [ 6,7,0]
+t=3 [ 8,0,0]
+t=4 [10,0,0]
+```
+
+The zero-length row keeps its raw initial state; its emissions are positive zero. With final
+cotangent seeds all one and no emission seed, actual Compiler reverse returns dInitial all one,
+active dSequence cells equal two, inactive dSequence cells positive zero, and dWeight equal eight.
+Reverse traversal visits valid prefixes only. A cotangent is the sensitivity propagated by
+reverse-mode differentiation; padded seeds and primal cells are never loaded or multiplied by zero.
+
+Cold binding checks every selected typed span, eight-byte control alignment, accessibility and
+writable overlap without reading lengths. After producers run, the scan invocation rechecks
+physical bindings and **all** B values in `[0,T]` before any scan output, padding, history or
+workspace write. An invalid last value therefore preserves scan-local sentinels; upstream writes
+are not rolled back. T=0 still requires every length to be zero. B=0 has an empty length domain
+and executes no body, while nonempty shared final state retains its initial bits.
+
+Generated guards dominate row loads and arithmetic, including both MATMUL operands and fused SUM
+producers. Shared work runs only at active times. Each shared contribution starts at typed zero,
+reduces active batch contributors in increasing order, then performs one distinct shared-state
+ADD per time. No B-by-parameter gradient bank is allocated. Proved same-cell transitions may use
+their distinct final output as state; cross-coordinate or otherwise unproved transitions retain
+independent banks. Previous-carry histories save before work; produced sites save their represented
+values without replay. Demanded ROW histories retain `[T]+localShape`, and SHARED histories also
+retain `[T]+localShape` without inserting B. Inactive history cells are positive zero; undemanded
+histories require no storage or stores.
+The in-place proof follows actual scalar availability: a SUM contributor's old-carry local is
+not available automatically in its epilogue. A later old-state reload keeps separate banks.
+
+Length mode alone adds canonical `:length-aware-v1` and baked `|scan-length-aware-v1=` identity.
+CPU0071 selects `|scan-length-aware-matmul-v2=` instead only when the retained stage order still
+contains a MATMUL. Eliminated/dead products do not select the new namespace.
+Both specialization streams bind control dtype, formal/actual mappings, explicit roles,
+terminal dependencies, demand, storage and baked geometry. Length values, slots and addresses
+are excluded. Schema/family 71, old pointwise/fixed/ordinary identities, static staged v4 and
+symbolic v3 projections/bytes are retained; diagnostic ScanAttrs text is not identity.
+
+MAIN accepted [CPU0042](../planning/backends/cpu/tasks/0042-length-aware-general-scan-execution.md#result)
+on 2026-10-26 after independent Class C code/docs review, CPU/Javadoc and the named joined
+conformance/Engine checkpoint. Focused fixtures cover actual Compiler siblings in both dtypes,
+poisoned padding/seeds, saved roles, producer ordering, pre-write failure/retry, raw inactive bits
+and generated activity instrumentation. Twenty representative baseline witnesses preserve canonical
+identity, both specialization streams and generated bytes exactly, not every possible graph.
+
+The sole observational probe compared specialized clean Java and generated `h+x*w` forward and
+actual reverse at T=5/B=3/F=H=8, L=[5,3,0], in both dtypes. Each side/case completed 2,000 warmup
+and 1,000 measured calls, with equal per-call deadline-clock overhead and cold/binding costs
+reported separately. No censorship or overshoot occurred. Timings changed abruptly within the
+measured pairs on both sides; they do not establish steady-state parity, a stable speed ratio or
+a confirmed just-in-time compiler cause. The Result links raw pairs and limits; no extra campaign
+or performance promise follows.
+Symbolic-B plus lengths remains outside CPU0042; Prepare0015 implements that separate combined
+path below. Cold/persistence/NN migration, low types, higher-order derivatives,
+vector, parallel and native Scan routes remain outside this task.
+
+<a id="accepted-symbolic-length-qualification-not-implemented"></a>
+
+### Symbolic-length Scan CPU execution
+
+[Prepare0015](../planning/modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md) implements
+one named B with fixed T/features and existing non-gradient INT64 `[B]` lengths for homogeneous
+F32/F64 generated scalar, single-range forward and actual Compiler-generated reverse. Owning tests,
+focused conformance/integration and independent code/structural review passed. Root validation and the sole
+bounded probe completed;
+[Prepare0015 Result](../planning/modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result) records
+evidence and limits; final MAIN acceptance remains pending; no speed or
+steady-state parity claim is made here.
+
+Use the same `Scan.apply` length overload and `Engine.compile` → `prepare` → `runValues` lifecycle
+as the [complete public example](../user-guide/running-models.md#symbolic-length-scan-with-changing-batch-size).
+Direct INT64 lengths need no producer. A non-gradient floating `[B]` input may instead feed the
+ordinary `.cast(DataType.INT64)` operation, whose result supplies lengths. Each run freshly binds
+all descriptors/obligations and allocates actual-sized outputs, banks and demanded histories; repeated
+B does not cache admission or mutable arrays. ROW histories scale with B; shared parameter state
+remains O(parameter count), not B times that count. Even `[B,0]` carries explicit B.
+
+After upstream producers, the Scan invocation rechecks typed spans/access/alignment/overlap and
+validates every length before any output, padding, history or scratch write. Invalid-last and T=0
+inputs reject without partial Scan writes; this does not undo producer writes. Activity guards
+dominate padded primal/seed/history loads and arithmetic. Inactive carry/dInitial values are raw
+identities, while inactive emissions/dX are raw +0. The new combined ROW(0) carry transition tests
+activity once per row before its feature-copy loops; retained fixed-length Class-Files are unchanged.
+
+The [bounded ordinary prerequisite](../architecture/contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract)
+qualifies only typed splats/seeds, ADD ties, required MUL/DIV, SUM/MEAN/sumToShape and necessary
+layout plumbing for `[T,B,F]` and ROW(1) `[F,B]`/`[T,F,B]` constants/zeros. Predicates are exact
+family/dtype/shape/attribute/access checks with equal answers inside/outside Scan, never an AD-origin
+tag. Only non-gradient F32/F64 `[B]`→INT64 `[B]` CAST adds produced control. No ordinary F64 MATMUL,
+arbitrary rank-three or all-valid symbolic F64 Scan qualification follows.
+
+The existing exact F64 ordinary reduction algorithm needs at most 2130 signed bits for int-bounded
+N: fixed 34 limbs, 280-byte single-range scratch when outputCount>0, zero otherwise with its
+slot/creator retained. F32 stays five limbs/48 bytes; static F64 N=3 stays 33 limbs/272 bytes.
+This is not Scan's typed sequential producing-site SUM. Exact rational-MEAN rounding, subnormals,
+special values, empty domains and absence of F64 narrowing/DAZ/FTZ are covered by executable tests
+against an independent high-precision oracle. F64 workspace recipes count eight-byte cells, not
+four-byte units; numeric admission tests exercise large valid/invalid domains without allocating them.
+
+Combined Scan uses canonical `:symbolic-length-v1` / current baked `|scan-symbolic-length-v9=`;
+combined baked v1 through v8 artifacts are stale; v8 was withdrawn. The `typed-explicit-b-v1` numeric pack, cuts, scratch
+and schema/family 71 are unchanged. Added outer F64/control/new
+rank-three cases use `ordinary-batch-typed-v1` in IR and both specialization streams. Actual B/L,
+bytes, slots and addresses are not keys. Existing F32/static/all-valid-symbolic/static-length
+identities and generated bytes remain unchanged. Existing owners/protocols suffice; header,
+row/AD/activity/saved-site/resource rules remain with the Scan owner, with no memo or new API/type.
+
+Structural review inspected eight combined forward/reverse Class-Files, typed optimal clean Java,
+and ordinary F64 exact SUM/MEAN artifacts. Both dtypes retain direct typed arithmetic, with no
+generated allocation, boxing, reflection, helper dispatch or activation replay in reverse.
+Independent ordinary Tensor AD active-prefix unrolling also covers mixed ROW(1) histories and shared
+transpose; the larger changing-B RNN witness separately covers direct/produced lengths, joint seeds,
+poisoned padding and fixed topology. These checks establish algorithm/dataflow properties, not
+literal Class-File or just-in-time assembly equality.
+
+The authorized timing probe has a hard global 60-second admission budget and reports cold setup,
+first entry, binding/preflight and censored cases separately. Its Scan comparison measures generated
+entry plus fixture list access/`asSpreader` MethodHandle invocation against a direct typed Java call.
+Any resulting ratio includes that entry/harness difference; it must not be attributed solely to
+emitted inner loops, just-in-time compilation or steady-state performance. The sole campaign completed all 24
+cases in 10.117149416 seconds,
+without censoring or overshoot. B=7 reverse paired-median generated/direct ratios were 1.344–1.462;
+B=32 reverse ratios were 41.129–78.837, with strongly nonstationary round results. All 16 measured
+Scan Class-Files match the structurally reviewed retained classes byte for byte. These results
+establish neither parity nor a speed guarantee, steady-state behavior or a JIT-cause diagnosis.
+[Prepare0015 Result](../planning/modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result) owns
+the full evidence, limits and MAIN interpretation; any causal
+diagnosis requires separately authorized future work, not another campaign here.
+
+#### CPU0044 combined code-shape repair
+
+CPU0044 removed four proved redundancies only in combined symbolic-batch/runtime-length Scan
+generation. The existing FLOAT32/FLOAT64 forward and actual Compiler-generated reverse scope,
+arithmetic, resources and checked foreign-memory accesses are unchanged:
+
+- An already cached scalar keeps its existing typed local without a load/store self-move.
+  An alias needing a different destination local still receives its copy.
+- Scalar initializers are read once per nonempty initialization copy, not once per destination
+  cell. For a reverse witness with T=4 time steps, F=3 input features and H=2 state features,
+  weight gradients dW `[3,2]`, recurrent-weight gradients dU `[2,2]` and bias gradient db `[2]`
+  read their actual scalar splats 1+1+1 times instead of 6+4+2. This is required initialization,
+  not activity-guarded body work: nonempty shared state still initializes at T=0, B=0 or all-zero
+  lengths. Values are not inferred as literal zero, and evolving carry is never cached as invariant.
+- Unused layout initialization and dense-stride products are omitted. The same six layout-local
+  slots remain reserved, and dense setup remains for every consuming copy/write/stage domain,
+  including an uncut first scalar value whose loop stores a later materialized value.
+- Equal full affine byte coefficients share original-time products within one dominating step
+  lifetime. The witness's six products become two; equality at a sampled B is not a proof.
+  Empty/final exits and different time lifetimes do not borrow those products.
+
+CPU0044 advanced both specialization streams only to combined baked v4; noncombined identities and
+generated bytes remained unchanged. [CPU0044 Result](../planning/backends/cpu/tasks/0044-symbolic-length-scan-code-shape.md#result)
+records structural/semantic validation and the accepted bounded same-JVM v3/v4/unchanged-Java
+comparison. Entry and wrapper differences remain part of that observation; it establishes no
+Java parity, exact assembly equality, steady-state speed guarantee or new backend capability.
+
+#### CPU0045 equivalent Java and stable carry offsets
+
+CPU0045 adds a separate executable clean-Java reference for the F32/F3/H2 actual Compiler reverse.
+It retains invocation T/B and actual scalar initializers and derivative operand, rather than
+substituting literal T=4, zero and one. Saved primals, activity gates, represented rounding sites,
+increasing-row contributions, singleton raw SUM and distinct per-time shared carry ADDs remain
+required. Separately compiled fixed T=0/1/4 cases qualify the reference; runtime T in the entry
+does not grant changing-T prepared execution. The fastest literal Java reference is unchanged.
+
+The v5 generation change is combined-only. After a required raw initial copy, a carry with its
+own final output port and no bank uses stable nominal strides and a proved zero base. Each
+derived view keeps its own nominal recipe, not its formal's stride tuple. The existing
+cell-scoped address cache can then share an identical relative offset between carry read and
+producing write, without reusing it across cells or carry versions. Binding follows formal
+origin, so another input sharing the same actual read slot or segment remains independent.
+Bank-backed/changing and noncombined bindings keep their previous selection protocol. Checked
+accesses, required initialization at T=0/B=0/all-zero lengths, arithmetic and resources are unchanged.
+Only the combined baked identity advances from v4 to v5 in both specialization streams.
+
+Actual generated Class-Files show one unmodified offset local for each dW, dU and singleton/general
+bias read/write pair. In the F3/H2 witness this removes duplicate relative-address work of 22 long
+multiplications and 10 long additions per active time, plus 24 proved-zero-base additions at the
+12 shared cells. These are pre-JIT bytecode facts, not surviving instruction counts or timing
+causes. Tests cover both dtypes/traversals, production cache lifetime, each view's nominal strides,
+bank/noncombined vetoes and a real aliased read while the copied carry evolves.
+
+The sole four-target measurement compared retained v4, v5, equivalent Java and unchanged literal
+Java in one normal-tiered JDK 26.0.1 JVM: F32, original-forward/actual reverse, T4/F3/H2, B7 then
+B32, 100 warmup and 300 measured rounds per B, 100 calls per target/round. It completed uncensored
+in 1.129084042 seconds including result persistence; the 1/1 measured-body budget is consumed.
+Raw median paired v5/v4 latency ratios were 1.032334 at B7 and 1.011950 at B32; no v5 speedup
+was demonstrated. All 300 measured rounds per B lie within the guarded common normal-C2 kernel
+window, but B7's wrappers/host transition during measurement. Its separate 204-round segment
+has a normal C1 host and median paired v5/v4 ratio 1.028667; B32 retains all 300 rounds after
+normal-C2 host/observed-adapter installation. This is not an all-wrapper-C2 or steady-state claim.
+
+Timings include required initialization, padding/body work, deadline-clock checks and unequal
+generated MethodHandle/spreader versus direct Java entry costs. They are not pure inner-loop
+measurements and establish neither causality, parity, statistical significance nor a general
+regression or speed guarantee. Surviving bounds checks, spills and alias effects remain unknown.
+The full CPU run reported 1290 passed, one task-caused test-selector collision and 52 skipped;
+the repaired generated-test class passed all 31 tests, reusing successful unaffected evidence.
+This is not a clean post-repair full-module rerun. CPU Javadoc succeeds with 94 existing warnings.
+[CPU0045 Result](../planning/backends/cpu/tasks/0045-symbolic-length-scan-equivalent-java.md#result)
+records source/Class-File, validation and independently accepted measurement evidence and limits;
+final task acceptance remains MAIN-owned. No API, ABI, semantics, resource or capability is added.
+
+#### CPU0058 zero scratch-base omission
+
+CPU0058 advanced the combined baked identity to `|scan-symbolic-length-v6=` in both specialization
+streams. It extends the existing zero-base proof to a scratch cut (a materialized intermediate
+with an inclusive stage lifetime) only when the cut has neither a backing output port nor a
+carry bank and both coefficients of `offset + offsetPerBatch * B` are zero. Testing only the
+constant term or resolving zero at B=0 is insufficient: `0 + 8 * B` still needs its base.
+
+The exact scratch origin keeps its entry carrier/base across all stages and time transitions.
+Derived views retain their own relative stride recipes, and relative-offset sharing stays
+inside one emitted cell. For the F32 T4/F3/H2 actual reverse, the activation-adjoint scratch
+store and bias-SUM scratch load now pass their relative byte offset directly to the same
+checked foreign-memory access. At active row 3, feature 1, the relative offset is
+`3 * 8 + 1 * 4 = 28` bytes; removing the proved zero base still accesses byte 28.
+Port/time-backed cuts, bank selection, matrix cursor/base arithmetic, activity guards,
+represented arithmetic, required initialization and resources are unchanged.
+
+The two base-load/add sequences on the B7/B32 paths are absent; the same proof also removes
+the mutually exclusive B1 raw-SUM branch's static sequence. With the retained witness's 11/61 active
+time-row pairs at B7/B32 and two state features, structural accounting removes `4 * 11 = 44`
+and `4 * 61 = 244` executed zero additions and matching local loads. These are bytecode/dataflow
+facts, not timing, native instruction counts or a speed claim. The optimal specialized Java
+oracle and all historical campaigns remain unchanged; no measurement accompanies CPU0058.
+
+At that checkpoint, both streams rejected combined baked v1 through v5 artifacts and reused valid v6 artifacts.
+Canonical `:symbolic-length-v1`, numeric packing `typed-explicit-b-v1`, schema/family 71 and
+all noncombined identities and generated bytes remain unchanged. No API, protocol, resource
+or backend capability is added.
+
+#### CPU0060 combined Java loop shape
+
+CPU0060 introduced combined baked `|scan-symbolic-length-v7=` in both specialization
+streams. V7 replaced scalar initialization's coordinate nest with a dense byte cursor and
+omits a nonempty guard when the frame is a positive constant. After required initialization
+and padding, zero maximum length takes the existing EMPTY path: bank-backed and non-own-port
+final carries publish their raw initial values, not an unreadied bank.
+
+Pointwise address prefixes are computed at the enclosing coordinate that binds them, after
+its row-activity guard. Keys include the selected base and each alias's own stride mapping;
+prefixes expire at the stage boundary before any carry/time rebinding. A ROW(1) alias keeps
+its actual nesting order rather than assuming rows are always the outermost coordinate.
+
+For ROW(1) @ ROW(0) contractions with proved contiguous feature strides, each active batch
+coordinate computes both affine addresses from selected strides. Inactive rows do not update
+operand cursors; at v7, other matrix paths retained their cursor algorithm. Contributor order, typed
+zero/product/ADD sites and the separate per-time shared-carry ADD remain unchanged.
+
+The raw-singleton SUM-to-Shape branch binds selected coordinates to zero without a loop.
+When B=1 and time is active, that sole row is active; B>1 with only one active row still uses
+ordinary SUM. Fused producing stores, demanded saved sites and epilogues remain present.
+For example, raw singleton movement preserves negative zero instead of adding it to positive zero.
+
+At that checkpoint, both streams rejected baked v1 through v6 and reused valid v7. CPU0064
+supersedes v7 as described below; canonical v1, numeric pack, schema/family 71, resources and
+all noncombined identities/bytes remain unchanged.
+
+#### CPU0064 clean-Java generator port
+
+The current combined baked identity is `|scan-symbolic-length-v9=` in both specialization
+streams; v8 was withdrawn. The generator borrows stable entry carriers and original-time bases
+directly and derives affine byte facts from the invocation's admitted explicit B. T, B, lengths
+and scalar operands remain invocation values, not sampled constants. Proved constant effective
+K strides enable indexed feature contractions; active ROW(1) @ ROW(0) contractions retain their
+contiguous-feature proof. Other contractions retain their cursor path.
+
+Bank-free stages may reorder only after checking producing dependencies, physical output
+read/write hazards (including a history-backed next carry's additional final destination) and
+inclusive scratch lifetimes against the assigned byte ranges for every admitted B. An unchanged
+candidate returns immediately; failed or overflowing proofs retain the declared order. No IR,
+cut, bank or workspace assignment changes. Bank-free active-time skipping precedes temporal
+setup; banked paths retain their raw inactive-state transitions. Typed products and additions,
+the separate per-time carry ADD, raw singleton SUM, padding and exact saved sites remain intact.
+
+Two short matched FLOAT32 reverse measurements at B=7/32 found about 10–12%/25% less
+entry-inclusive time than v7 and about 1–3% longer time than E, the clean-Java reference. Generated
+entries and the manual J4 Java oracle used the same 19-carrier/pack/range ABI; E used a different
+entry ABI. These
+bounded observations do not establish pure-body parity, other-shape/dtype performance, or Engine
+speed. They introduce no new capability, architecture rule or arithmetic permission.
+
+### Symbolic Scan CPU execution
+
+Current ordinary composition supports named-batch F32/F64 forward and actual selected VJPs under
+single-B, fixed-T/features guards. The following Prepare0014 domain and evidence are historical;
+its FLOAT32-only and finite-algebra limits are not global current general Scan restrictions.
+
+Prepare0014 implements all-valid homogeneous FLOAT32 forward and actual Compiler-generated
+first-order reverse with one named batch B and fixed time T, feature F and state H widths.
+Final qualification is tracked in the [task](../planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md).
+The generated scalar, single-range route independently proves each complete body: tensor/scalar
+ADD/SUB/MUL/DIV, NEG/TANH/SIGMOID, rank-two MATMUL/transpose, SUM/sumToShape, explicit constants
+and the required named-coordinate-preserving layout/rank edits. Model PURE/applicable dtype
+validity and Compiler FLOAT32/FLOAT64 AD are broader, separate admissions. Static F32/F64
+execution below is retained; all-valid symbolic F64/low types and lengths are not admitted by
+Prepare0014 (the combined target above qualifies separately). Native/mixed execution,
+vector/parallel/tuning, cold/copy/wire and NN/Training reuse remain excluded.
+
+One compile/prepare serves B=64→40→1→64 through the ordinary public
+[Engine workflow](../user-guide/running-models.md#symbolic-scan-with-changing-batch-size).
+Analysis fixes body topology, demand, code, routes, slots and representation positions. Numeric
+recipes bind actual B, including sequence time stride B*F and row frame B*H for canonical
+inputs. Proved outer transpose/expand reads retain their actual strides: a repeated-time
+sequence may have time stride zero, independently of its logical frame size. Axis provenance,
+not coincident sizes, distinguishes `[B,F]` from shared `[F,H]`; a shared history is `[T,F,H]`
+even at B=F=H. Reverse weight gradients accumulate in parameter-shaped carries, not B copies.
+
+The [CPU0039 specialization](../planning/backends/cpu/tasks/0039-symbolic-scan-fixed-geometry-specialization.md)
+emits a fixed extent, byte stride or frame/offset fact directly when its recipe's coefficient of
+B is zero. Identical complete constant/B-coefficient pairs may share invocation setup facts;
+equal resolved sizes do not prove shared provenance. For example, with F=4 and H=3, a canonical
+`[B,4]` step has fixed byte strides 16 and 4, but its sequence time stride is 16*B bytes.
+A shared `[4,3]` parameter frame is always 48 bytes. Actual B and genuinely B-dependent geometry
+remain invocation-bound. Initial physical scalar reads retain zero effective strides; evolving
+carry reads select their nominal dense mapping only after the initial version is consumed.
+Actual transposed reverse operands keep their proved mappings, not strides inferred from B=F=H.
+
+Identical relative affine offsets are shared while generating one cell, independently of storage
+bases; the generation-only keys include coordinate and selected-stride identities. This adds no
+runtime cache or shared mutable geometry. Symbolic MATMUL uses int K control under the existing
+`BatchBinding.bind(B)` proof, which checks B and every resolved extent against integer limits,
+including empty domains. A fixed F/H bound is emitted directly, while K=B remains dynamic;
+coordinates widen before long byte products and addresses. Static or unproved K retains long
+control. Arithmetic, contributor/stage order, public writes and exact saved sites are unchanged.
+These structural facts do not establish machine-cycle savings or timing parity; CPU0038's
+measurements predate this specialization.
+
+Scan's four-byte alignment and disjoint symbolic workspace regions admit exact checked
+constant-plus-B frame, cut, carry-bank and workspace recipes. This is the selected mechanism,
+not a claim that every possible size recipe is affine. Only demanded histories receive
+storage/stores; exact saved TANH/SIGMOID outputs are loaded by reverse, never replayed.
+Distinct demanded wrappers receive the same represented producer value, including singleton
+SUM-to-Shape's raw-copy branch. A proved pointwise carry may use its distinct final output;
+unproved transitions retain independent old/new banks. Scan producing-site SUM is separate
+from outer exact five-limb SUM/MEAN with conditional 0/48-byte scratch. Structural zero-byte
+workspaces keep their declaration, slot and creator.
+
+B=0 suppresses empty row loops, not nonempty shared work or parameter gradients: empty
+contractions/SUM write typed zero and empty MEAN is NaN. `mean(finalCarry)` divides by actual
+B*H. T=0 uses a separate fixed-T plan, bypasses body/hoisted work and copies initial carry bits
+into distinct final outputs. Every run performs fresh scoped metadata/numeric/storage admission,
+then actual-byte/access/alignment and full-capacity overlap checks. Mutable packed/access/carry
+arrays and writable resources belong to one RunState; no Engine memo or per-B relowering exists.
+
+Symbolic mode retains canonical `:symbolic-batch-v1`. CPU0039 advances only its baked payload
+to `|scan-symbolic-batch-v2=` in both specialization identity streams, rejecting symbolic baked
+v1 artifacts. It does not set the ordinary-batch Scan flag.
+Schema/family 71, static pointwise/shaped-v4/MATMUL-v4 and accepted ordinary keys/bytes remain
+unchanged; actual B, resolved bytes, assigned slots and addresses are excluded from identity.
+
+Focused generated-code, public Engine, conformance and ordinary-unrolling integration tests
+cover both traversals, actual reverse, exact saved sites/resources, empty domains and lifecycle
+failures. Prepare0014 records their source checkpoints and final root gate. Its one CPU probe
+completed all four fixed cases in 2.941 seconds including cold setup, with equal mandatory
+writable footprints, distinct emission/saved histories and zero temporary workspace. Samples
+were variable, not evidence of parity or negligible B overhead; packing-only timing is not full
+Engine admission. The initial Engine probe failed during cold setup because its JVM lacked
+`jdk.incubator.vector`, before any timing sample. The explicitly approved Engine-only environment
+follow-up then completed all four cases (XML testcase 6.046 seconds), with the module enabled
+only for that command, no source/build edit or CPU remeasurement. Its separate cold, full-admission
+and fresh-run/five-materialization samples remain diagnostic: they do not establish parity or
+negligible batch overhead. The configured final root test/Javadoc gate passed; the task records
+counts, skips and preserved original/supplemental evidence.
+
+The test-only [CPU0038 methodology repair](../planning/backends/cpu/tasks/0038-symbolic-scan-timing-methodology.md)
+retains the same actual forward/reverse hidden methods across runtime B and compares literal-specialized
+Java with matched public/saved writes. It reports generator-only constant storage separately and
+separates cold setup, fixed paired startup/warmup,
+kernel windows and numeric/access packing. True hidden names, handle identities and JVM-uptime
+boundaries support compilation-log correlation. Post-fixed-warmup samples remain observational,
+not guaranteed steady state or full Engine admission; the single body cap includes setup/checks.
+
+### Retained static Scan qualification and resources
+
+CPU0037's [approved read-boundary extension](../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)
+is implemented with focused qualification. It admits actual dense zero-offset reads whose strides
+exactly match canonical row-major geometry even if `isView=true`, without changing internal formal or
+output/write requirements. For example, Conv1d can supply a `[3,2,4]` view with strides `[8,4,1]`;
+its addresses match the canonical twin, while an offset-one or transposed input still rejects.
+The existing scalar-all-zero read path remains supported, not normalized into dense storage.
+The [CPU0037 packet](../planning/backends/cpu/tasks/0037-general-scan-dense-read-views.md) records
+focused source forward and actual reverse numerical-gradient tests for real Conv1d-prefix and
+singleton-CONCAT workflows against ordinary unrolling, in both traversals and dtypes. Eighteen
+canonical/view pairs have identical access/resource/IR facts, canonical and both specialization
+identities, generated bytes and cached artifact reuse. Carrier, reuse, scalar/empty-domain and
+binding-guard tests retain read/read aliasing while rejecting writable overlap, including capacity
+tails. Main accepted final module/Javadoc, named conformance/integration and configured root gates
+and the capability on 2026-10-24. No copy, CONTIGUOUS, generator,
+schema/cache-identity or physical-binding change was made. CPU0036's clean-Java and bounded
+performance evidence is reused with its existing limits; no new timing claim or campaign follows.
+This does not authorize fluent `.rnn` migration, arbitrary layouts or low-type scan execution.
+
+Admission checks dead interiors even at T=0 or empty S. Limits independently apply to the actual
+forward and Compiler-generated reverse body: 128 nodes, 256 local values and outer ports each,
+64 formals, and 248 input positions plus demanded ports. Forward admission alone does not
+promise an arbitrary backward body; the actual pair qualifies before physical allocation or
+class generation. Conservative generated-method/local budgets additionally account for matrix
+stages, affine operands, publication work and F64 two-slot JVM locals; supported children can still
+exceed the binder's budget. There is no CPU AD, interpreter, per-step invocation or time unrolling.
+
+Analysis derives `CpuGeneralScanIr` from the one captured body, preserving the homogeneous
+producing dtype and positional roles. With W=4 bytes for F32 or W=8 for F64 and N=elements(S),
+the pointwise path requires W bytes per referenced input cell, W*N per demanded final wrapper,
+W*T*N per demanded dense history, and W*N per necessary
+independent scratch bank. Local values are generated locals, not step arrays. Undemanded
+histories, including reverse residuals, have zero bytes/stores. Tied demanded wrappers remain
+distinct. A demanded emission or produced-value residual may back the exact next value without
+new history or duplicate bank stores; each distinct final wrapper then receives one final frame
+copy. Otherwise a live role uses a demanded final output or independent bank. Selection considers
+the whole tied-next group before scratch. Prior-carry residuals are not assumed to save next.
+Liveness also closes direct next-role dependencies transitively: an emission-only carry chain
+must retain the evolving source of a later carry read even when that edge has no arithmetic
+instruction. Loading all old locals protects the current step, not a later time version.
+
+The shaped path derives affine accesses and stage lifetimes before slots. Each value has its own
+frame size. A **cut** is a producing value that must survive its scalar loop, not a history.
+Only live cuts materialize; demanded exact frames are preferred as backing. Compatible producer,
+SUM and same-cell accumulation sites share one emitted traversal with represented F32 or F64 locals,
+so a parameter gradient needs no contribution array or exact-limb aggregate state. Remaining
+scratch cuts reuse complete dead regions after their last consumer. Carries without demanded
+next frames use disjoint old/new banks; next producers write directly into those banks. This
+protects transpose/reduction reads across coordinates. Self-forwarding and temporally unused
+carries need no banks. Prior-carry histories store before the body, produced saved sites at their
+typed producer, and distinct demanded wrappers remain distinct. No inputs are staged.
+Fusion requires a same-output-cell dependency proof, not just equal Shapes. Contributor fan-out
+after SUM and a permuted SUM consumer retain a complete-domain boundary and the necessary live
+cuts; a demanded SUM history cannot make reading a not-yet-produced cell safe. Within proved
+cells, generated accesses share affine byte offsets. Equal-sized frames share their per-step
+time offset, and proved dense final/publication copies use one flat byte cursor; other affine
+copies retain their coordinate traversal.
+
+CPU0034 selects int coordinate locals for static extents in `0..Integer.MAX_VALUE`; larger legal
+extents use long locals. Zero domains emit no body access, singleton axes need no increment,
+and the final int increment reaches the extent rather than overflowing past it. Every address
+consumer widens int coordinates before long byte/stride arithmetic. Reduction coordinate bindings
+and restored singleton axes preserve their selected kinds; MATMUL M/N use the same proof while
+its independent K counter, time and all byte cursors/bases remain long. Endpoint tests inspect
+0, 1, MAX and MAX+1 generated classes without allocating or executing giant domains.
+
+CPU0035 removes proved redundant work inside those existing emitters. Forward traversal uses its
+long iteration directly as the original-time index; reduction coordinates borrow their dominating
+loop locals. Immutable carriers and equal-sized frame bases also borrow existing bindings rather
+than emit alias copies. Zero-base additions disappear only where the selected base is proved zero;
+changing carry bases retain their complete binding protocol. Empty/singleton, scalar-read and
+matrix cases keep an initialized zero local before branches when binding or access can consume it.
+Only nonempty scalar-initializer-to-dense carries need dynamic factors: zero for the initial
+one-cell read, one after a completed step. Loads, dense copies and MATMUL strides use that same
+transition. Fixed scalar MATMUL operands instead bind zero strides without a factor local.
+
+CPU0036 uses top-tested time, coordinate, full-K and dense-copy loops: bound test, forward exit,
+body, increment, then an unconditional backedge to the test. Singleton coordinates still bind
+zero without a loop, and empty domains omit cell accesses. Moving the time test exposes a
+verifier zero-trip edge even after the separate T=0 guard. Generation therefore initializes
+only the bank bases and shared frame-base locals read by nonempty final copies before the top
+test, then updates those same locals in each step. Existing formal carriers/bases, scalar
+factors, static scratch bases and hoisted scalar values already dominate their reads. Empty
+finals need no dummy base stores. This changes neither represented arithmetic/order nor saved
+sites, resources, carry-memory strategy or fallback selection; the separate final/T=0 copy
+tails remain. Mixed empty, dense and scalar carry tests cover step/transpose/emission/bank final
+sources in both dtypes and directions at T=0/1/3, including a zero-sized first carry alongside
+nonempty work. Class-File checks inspect actual exit and backedge targets, not only opcodes.
+
+An exact produced dense next value backed by a demanded emission/residual frame can now bind
+once before time and transition after each complete step. The generation-time proof removes
+only its first-iteration selection branch. Previous-state saves, all stage reads, publications
+and simultaneous next-bank copies finish before rebinding; scalar initializers become dense
+only after the first step. Tied roles may share the exact produced frame, not their distinct
+final wrappers. Bank-backed carries, forwarded views and other unproved cases keep the safe
+selection fallback. A demanded final-next view rooted at an old formal also prevents rebinding
+that formal: for `next=(h+xStep*w, h)`, the second final must be the last pre-step h, not the
+new first final. The exclusion also covers a transpose or chained view of h. T=0 still copies
+the raw initializer without a body step. These are generation changes within existing types,
+not new capability, resources or runtime dispatch.
+
+CPU0032 originally added the package-private generation-only `CpuGeneralScanMatmulEmitter`.
+CPU0071 retires that subemitter after migrating its qualified indexed/cursor callers to the
+common contraction owner; temporal adaptation stays in `CpuGeneralScanEmitter.Shaped`.
+The shared math does not inherit the ordinary entry ABI or batch decoding. Invocation/step bindings select
+carriers, bases and affine byte strides before cell loops. Each output cell uses one F32 or F64
+accumulator; the K loop loads both operands, multiplies/adds, and advances two byte cursors.
+There is no per-K geometry lookup, Synaptik helper call, operation dispatch or allocation. Proved internal
+left/right transposes need no operand copy, but do not authorize noncanonical outer bindings.
+
+Both operands participate in dependency closure and inclusive stage lifetimes. Same-cell scalar
+tails consume the represented product directly when proved legal; later products, cross-coordinate
+views, fan-out and demanded saved sites retain the necessary complete cuts. Disjoint-lifetime
+cuts can reuse storage without aliasing a live operand or old carry. In the MATMUL-containing
+domain, a proved no-axis SUM to the same Shape aliases its raw input at the generation binding
+seam rather than introducing a redundant copy; saved/public wrappers retain exact values.
+Dead products are pruned only after whole-body qualification, without dropping live independent
+scalar tails. A direct product of invariant formals with no fused tail, demanded-history backing
+or next-carry role may execute once after the T>0 guard; its scratch is pinned across time.
+
+For a concrete F32 resource example, use `next=emit=h+xStep@w`, T=3, `h[2,3]` initially filled with
+0.25, `xStep[2,2]` filled with 2 and `w[2,3]` filled with 0.5. Each dot is
+`2*0.5 + 2*0.5 = 2`, so the three next frames contain 2.25, 4.25 and 6.25, respectively.
+Final-only demand needs 48 workspace bytes for two six-cell F32 carry versions; demanding the
+next frames instead supplies carry backing with zero workspace, plus 72 bytes of requested
+emission output. The distinct final wrapper still needs its 24-byte publication and final copy.
+The identical F64 case has the same represented results, 96 bank bytes for final-only demand,
+or zero workspace plus 144 emission bytes when those frames back carry, and a distinct 48-byte
+final publication. Both calculations follow six cells per frame and the dtype's four/eight-byte width.
+This illustrates demand-dependent backing, not a universal zero-scratch or no-copy property.
+
+M=0 or N=0 produces no matrix cells, while K=0 with positive M/N still writes nonempty typed
+positive-zero products. An empty product can feed a nonempty SUM result. No global empty-domain
+return replaces constituent rules. At T=0 no body arithmetic or invariant product executes:
+final carry and its final-seed gradient retain their raw values, histories are empty and parameter
+gradient sums are typed zero.
+
+For example, `h[2,2] + xStep[2,2]*w[2]`, T=3, final-only demand uses 32 bytes for two carry
+versions and exactly 16 F32 stores: twelve direct next-bank stores and four final stores. An
+unused `h[2]` with next=`xStep.sum(0,false)` and only `xStep` emission demanded needs zero workspace
+and twelve emission stores; whole-body qualification still validates that unused SUM. An empty
+`[0,H] -> [H]` SUM instead performs H nonempty result stores with typed zero, without reading or
+combining NaN/Inf parameters from the empty contributor domain. No selected reduction axes and
+equal-shape sumToShape are raw copies, preserving stored zero signs and NaN bits.
+
+### Complete forward example
+
+With Java 26 and the ordinary Engine/Model dependencies, S is `[1]`, T is 3, initial states are
+`(1,100)`, and sequence steps are `(2,4,8)`. This demonstrates temporal old-carry preservation.
+The shown results are expected from these transitions; this source-checked example is not a
+claim that the separate Engine runtime checkpoint below has passed.
+
+```java
+import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.*;
+import java.util.List;
+import java.util.Optional;
+
+class GeneralScanExample {
+    static TensorDescriptor descriptor(long... dimensions) {
+        Shape s = Shape.of(dimensions);
+        return new TensorDescriptor(DataType.FLOAT32, s,
+                Optional.of(LayoutDescriptor.contiguous(s)), false);
+    }
+    public static void main(String[] args) {
+        Tensor h = TensorFactory.create(descriptor(1));
+        Tensor previous = TensorFactory.create(descriptor(1));
+        Tensor step = TensorFactory.create(descriptor(1));
+        ScanBody body = new ScanBody(List.of(h, previous), List.of(step), List.of(),
+                List.of(h.add(step), h), List.of());
+        Tensor initial = TensorFactory.fromFlatArray(descriptor(1), Optional.empty(), new float[] {1});
+        Tensor old = TensorFactory.fromFlatArray(descriptor(1), Optional.empty(), new float[] {100});
+        Tensor sequence = TensorFactory.fromFlatArray(descriptor(3, 1), Optional.empty(), new float[] {2,4,8});
+        ScanResult scan = Scan.apply(List.of(initial, old), List.of(sequence), List.of(), body, false);
+        try (Engine engine = Engine.standard()) {
+            var values = engine.compute(scan.finalCarry());
+            System.out.println(values.get(0).bytes().getFloat()); // 15.0
+            System.out.println(values.get(1).bytes().getFloat()); // 7.0
+        }
+    }
+}
+```
+
+Storage-free formals describe one template; actual tensors supply data. `Scan.apply` binds both
+carried positions and the axis-zero sequence. Steps produce `(3,1)`, `(7,3)`, then `(15,7)`.
+The second final value is old h, not 15. Returned host values are detached snapshots. Reverse
+traversal instead produces `(9,1)`, `(13,9)`, `(15,13)`. The ordinary Engine compile/prepare/run
+path can also request explicit seeds and targets; Compiler builds the reverse sibling.
+
+### Entry, lifetime and validation
+
+After assignment, finalization realizes one schema-71 family with B segment parameters, optional
+scratch, a run-owned `long[] {T,N}`, and long start/end bounds. For staged entries N is the first
+carry's frame size, not a universal body domain: each generated stage has its own proved domain,
+so N=0 does not skip nonempty SUM or matrix results. Slots are B+5 plus one for scratch,
+at most 254 for Java 26 `findStatic`; the conservative positional limit stays 248 without scratch.
+Layouts, scalar invariants and geometry load outside time; carrier/base selection stays outside
+coordinates. Dense byte increments are constants and unused formal addresses do not advance.
+
+Canonical CpuKernelIr, including its family envelope, contains no extents, stride magnitudes,
+byte offsets or byte sizes. Stage topology, normalized axes, ranks/access categories, role/demand
+and storage decisions remain canonical. Every actually baked shaped geometry/resource fact is
+conditionally included in both existing `CpuKernelSpecialization` identity byte streams under
+the current `scan-shaped-v4`, or `scan-matmul-v5` when live matrix stages are present. The latter
+also binds both ordered operands and their derived storage facts. That existing specialization hash
+identifies binary names and weak/persisted cache entries. Compatible T with the same baked local
+geometry reuses identical code. Absent stages append nothing: global/family 71 and the original
+pointwise hashes remain unchanged, as do fixed and unrelated identities. Canonical shaped/MATMUL
+projections remain geometry-free v1. CPU0033 introduced F64 without changing staged v1 payloads
+or accepted F32 keys/bytes; existing arithmetic/boundary dtype and eight-byte magnitudes
+distinguished its typed variants. CPU0034 advanced only those baked payloads to v2 for both dtypes
+for coordinate/carry bytecode changes; CPU0035 advanced the same sole payloads to v3 for the
+factor/address/binding cleanup. CPU0036 advances them to v4 for top-tested loop control and
+dominating final-copy bases. Both identity streams, binary names, keys and staged class hashes
+advance. CPU0071 then advances only static MATMUL to v5 for invocation-bound strides; shaped v4,
+symbolic v3 and combined symbolic-length v9 remain unchanged. Historical v1/v2/v3/v4 MATMUL
+identities and class hashes remain provenance, not current-byte expectations.
+Actual v1/v2/v3 classes are rejected at definition and persisted-cache validation, including valid,
+checksummed stale classes under a current key; old-key entries remain unchanged. The v2 fixtures
+are unchanged CPU0034 production classes: F64 B4/H8 broadcast and F32 non-square MATMUL, with
+their different geometry and identity provenance retained. The v3 fixtures are unchanged actual
+CPU0035 classes for those same two cases, transported only by gzip/base64 with original source,
+class hashes and both identity-stream hashes recorded in `general-scan-v3-provenance.txt`.
+
+`CpuGeneralScanPreparedExecutable` retains primitive geometry and one typed MethodHandle spreader,
+not a graph. Cold binding checks typed capacity, alignment and access plus full selected
+write/scratch overlap, including tails; read/read aliases remain legal. Each invocation owns its
+arrays under the existing single RunState, rechecks liveness and calls each scan entry once.
+Cleanup, retry, concurrent-run isolation and result lifetime use existing Runtime/Engine owners.
+
+F64 binding independently enforces the exact dtype and eight-byte capacity/alignment for selected
+buffers and workspace; heap, native and mixed representations do not imply another dtype's
+capability. Individual and aggregate declared resource bytes and affine byte coefficients are
+checked before allocation/generation. F64 arithmetic, scalar attributes, temporaries and
+SUM/MATMUL accumulators stay double, with no F32 narrowing or arithmetic denormals-are-zero (DAZ)
+or flush-to-zero (FTZ). Raw movement, saved histories and state remain exact; arithmetic NaN
+payload/sign are unspecified, but a raw saved copy retains the actual stored bits. Finite
+arithmetic test tolerances are not runtime certificates or permission to relax these boundaries.
+
+`CpuGeneralScan*Test` covers whole queries, actual reverse closure, assigned-slot execution,
+raw/special and empty domains, temporal carry and frame reuse, Class-File inspection and
+instrumented counts of executed `MemorySegment.set`. `CpuGeneralScanCleanJavaOracle` uses the
+same specialized algorithm and MemorySegment carriers, including heap segments. Short opt-in
+CPU0030 timing used `(T,N)=(8,32),(64,256)`, forward and joint reverse, native and mixed inputs. It
+separates generation, class load, first entry, bound entry/preflight, kernels and per-step costs.
+The recorded diagnostic ran eight cases in one JVM with 6.121453917 seconds of measured workload.
+The small joint native case changed from roughly 29–32 microseconds to 4.13 microseconds in its
+last sample, versus roughly 3.7–4.2 microseconds for the direct oracle: a visible just-in-time (JIT)
+compilation/warmup confound. The small joint mixed-carrier case remained roughly 32.5 versus
+4.68 microseconds (about sevenfold). These are short-sample observations, not steady-state
+parity, a universal zero-overhead claim or a reason to launch a broader benchmark campaign.
+
+```bash
+./gradlew :backends:cpu:test --tests '*CpuGeneralScan*' --console=plain
+./gradlew :backends:cpu:test -Dsynaptik.cpu.generalScan.performance=true -Dsynaptik.cpu.generalScan.evidenceRoot=/private/tmp/synaptik-cpu0032-evidence --tests '*CpuGeneralScanTimingTest.matchedMatmulForwardAndActualReverse' --console=plain
+```
+
+Public Engine/unrolled-AD witnesses are in `EngineCpuGeneralScanIntegrationTest`. Model-only
+conformance and independent CPU/Metal low-type witnesses are in the existing conformance project
+and current v2 ledger, with no new Compiler edge there. The recorded integration owner runs the
+named checkpoints after independent code/documentation review.
+
+The CPU0031 short diagnostic compares actual generated broadcast-parameter reverse at
+`(T,B,H)=(8,2,8)` and `(8,64,128)` with the optimal specialized Java `broadcastReverse` oracle.
+Both use MemorySegment carriers, the same F32 sites, output-cell/selected-row traversal, direct
+old/new carry banks and demanded dSequence stores. There is no contribution/reduction staging.
+Generation, fresh class load, first entry, cold binding, complete bound forward/reverse pipeline
+and reverse-kernel/step samples are reported separately. Short samples may include interpretation
+and JIT transitions; they establish neither C2 status nor parity. The final Class-File inspection
+confirms shared contributor-coordinate and per-step frame-offset locals, with eleven long
+multiplications in the large entry, rather than the earlier thirty-four. No extra full-domain
+pass, contribution array or reduction buffer remains in these matched cases. This structural
+comparison does not explain the remaining timing gap. The recorded small generated samples were
+26.2–27.8 microseconds versus Java's 22.8–24.7 microseconds; the large samples were
+0.357–1.890 milliseconds versus Java's 119–132 microseconds, with a visible sample transition of
+unproved origin. These ranges do not establish steady-state performance or a JIT compilation tier.
+The old sevenfold small
+mixed-backward limitation remains unproved; it was not retimed because exact historical class
+bytes remained unchanged. The old diagnostic is available only with the separate explicit
+`synaptik.cpu.generalScan.pointwisePerformance=true` property.
+
+The historical CPU0031 source-matched worker run completed 216 suites with 1,148 tests, 33 skips and no failures
+or errors. Javadoc validation retained 94 baseline warnings from untouched compatibility
+constructors and incubator use; this is not a zero-warning claim. The task brief records the
+worker validation and timing outcome. Main's named conformance/integration/architecture checkpoint
+remains separate; worker tests and fixture compilation do not claim that checkpoint has passed.
+
+CPU0032's focused matrix evidence covers actual non-square multi-stage Compiler reverse against
+ordinary unrolled Tensor AD, both traversal directions, optimization on/off, final/emission/joint
+seeds, non-gradient initial carry, two carries, shared parameters, tied roles/reused templates and
+cross-occurrence sums. Empty contractions, saved/raw-special sites, internal views and method/
+resource budgets have focused witnesses. Conformance/Engine fixture compilation alone does not
+establish their named runtime checkpoint; final module/checkpoint evidence belongs to the task's
+recorded validation owners.
+
+The CPU0032 bounded native-MemorySegment diagnostic uses `next=emit=h+x@w` at
+`(T,M,K,N)=(4,2,3,4)` and `(4,16,24,32)`, forward and actual Compiler reverse. The specialized
+`matmulForward`/`matmulReverse` Java oracles match F32 contraction order, carriers, represented
+sites, bank and publication work. Inspected generated classes contain one time loop, direct FFM
+loads/stores and cursor-based contractions, with no allocation, boxing, reflection, operation
+lookup, Synaptik runtime helper or hidden fallback. T=3/257 reuses identical code. Forward feeds
+the represented product into ADD and the demanded next frame; reverse materializes incoming
+cotangent once for its two cross-coordinate consumers. Its necessary simultaneous old/new carry
+and parameter banks are 160 bytes small and 10,240 bytes larger, with no product array in these
+matched cases. Demanded saved products in other occurrences can still require storage.
+
+The r4 follow-up retained the same four class hashes as r3, warmed each generated specialization
+and oracle 1,200 times, then took three samples in one JVM (100 repetitions small, 20 larger).
+Small direct-kernel samples were 8.1–9.0 microseconds generated versus 8.6–9.1 Java forward,
+and 19.6–20.4 versus 19.9–20.2 reverse. Larger samples were 22.3–22.7 versus 21.8–22.7 forward,
+and 67.2–69.2 versus 73.1–75.2 reverse. These limited native-carrier observations are not an
+end-to-end, steady-state, universal or JIT-tier parity result. Earlier r3 larger-forward samples
+were 591–603 microseconds versus 21–25 Java after only 60 fresh-class warmup calls, while the
+shared oracle already had 1,200 small-case calls. Removing that observed gap is consistent with
+warmup, not proof of an exact compilation-tier cause. Full bound forward/reverse pipeline classes
+have different warmup history and retain millisecond samples; kernel observations do not explain
+those costs. Generation, class load, first entry, binding, pipeline and kernel/step costs remain
+separate, without subtraction estimates or a broader benchmark campaign.
+
+CPU0033's focused F64 evidence includes 72 source-built family/direction/optimization/seed
+comparisons of actual Compiler reverse with ordinary unrolled Tensor AD. Separate fixtures cover
+non-gradient initial carry, different carry/parameter shapes, tied roles and reused occurrences,
+saved activation/previous-carry bits, subnormal arithmetic/gradients, T=0, zero contractions,
+nonempty reductions after empty products, checked resource overflow and typed binding failures.
+Class-File verification and inspection check double loops, no F32 narrowing, and no hidden
+Synaptik arithmetic helper, operation dispatch or emitted allocation. This evidence is bounded
+to those occurrences, not all operations/layouts or all backend routes.
+
+The initial short F64 diagnostic and its one follow-up retain the same six class SHA-256 hashes
+for pointwise, shaped and MATMUL forward/actual-reverse pairs. The follow-up uses native
+MemorySegments, T=8, 32 pointwise cells, shaped `[4,8]` frames, and MATMUL `(M,K,N)=(4,6,8)`;
+each generated specialization and its Java oracle receive 8,000 warmup calls with alternating
+order, then three 100-repetition samples.
+Its shaped-forward samples are 27.949–29.247 microseconds generated versus 0.324–0.348 Java.
+That large gap remains unexplained. Pointwise reverse changes from about 25–26 microseconds to
+0.559, and MATMUL reverse from about 96–98 to 4.728; these samples are nonstationary. No
+compilation-tier telemetry was collected. Algorithm/dataflow inspection found no concrete extra
+logical work, but neither this inspection nor the timings establish a JIT-tier diagnosis,
+steady-state parity, universal speed or zero overhead.
+
+Generation, class load, first entry, direct kernel, cold recipe binding, already-bound pipeline
+and bind-plus-execute costs are recorded separately. The last two reuse an existing RunState;
+they exclude public Engine/RunState creation and materialization and are not public end-to-end
+latencies. The probe is opt-in, not a route selector or performance acceptance threshold.
+The following is the historical CPU0033 invocation, not a bounded-campaign launcher; its wildcard
+also matches the newer bounded method and must not be reused for a CPU0034/CPU0035 campaign:
+
+```bash
+./gradlew :backends:cpu:test --tests '*CpuGeneralScanTimingTest.*Float64*' -Dsynaptik.cpu.generalScan.performance=true -Dsynaptik.cpu.generalScan.evidenceRoot=build/cpu0033-f64-evidence
+```
+
+This command records diagnostics; it promises no timing ratio. Main's conformance, Engine,
+architecture and source-matched native-enabled root checkpoint remain separate acceptance gates.
+
+CPU0034's staged v2 classes do not inherit those staged v1 timing results. At its independent-review
+freeze, the prepared protocol used only F64 shaped forward `next=h+xStep*w`, T=8, B=4, H=8,
+against the unchanged
+`CpuGeneralScanCleanJavaOracle.broadcastForwardFloat64`. Both sides borrow the same shared
+native inputs and write separate nonaliasing shared native final/emission outputs, with zero
+workspace and the same represented multiply/add sites. Scope policy is recorded before samples.
+The timing class's `main` then invoked only that bounded case. The reviewed protocol called
+for exactly three valid fresh sequential measurement JVMs after the validation/review gates.
+Each generates and defines production v2 anew, then runs 100 warmup and 300 measured pairs of
+10,000 calls per side, alternating side order. No pilot, trial, forced C2 compilation or success
+rerun is part of it.
+The first approved launch completed warmup but stopped in optional `Compiler.codelist`
+diagnostics with zero measured pairs; children 2/3 never launched. Its original `fork-1` artifacts
+remain preserved as failed setup, not discarded timing samples. Both snapshot calls and their
+unused helper are removed, without adding a process-management layer or changing measured work.
+The one explicitly authorized recovery reserves the absent `measurement-v2` campaign directory
+and `measured-fork-1..3` children without overwriting any prior artifacts. Any further workload
+failure stops the campaign; there is no automatic extension or result-driven retry. The targeted
+harness compile/review refresh reuses the passed module/Javadoc and runtime checkpoints rather
+than rerunning unchanged production validation.
+
+Exact output checks bracket measurement. All paired samples, full-distribution and early/middle/
+late statistics, class bytes/hash/disassembly, identities, JDK flags and cold generation/
+definition/first-entry costs are retained. Java Flight Recorder (JFR) block/clock events and
+LogCompilation logs correlate measurement windows with the exact hidden entry and oracle, with
+no `Compiler.codelist` snapshot dependency; stack export uses depth 128 to avoid the default
+five-frame truncation. Inlining requires qualification
+of the containing compiled method; missing correlation or unstable compilation remains an
+explicit limitation. A guarded subset is supplementary, never a replacement for all 300 pairs.
+Recovery had not launched at that historical review freeze. The task's
+[Result](../planning/backends/cpu/tasks/0034-general-scan-coordinate-loops-and-carry-transition.md#result)
+records the eventual outcome and retained evidence. Results cannot establish public Engine/binding
+cost by subtraction,
+universal speed or parity, and limitations do not authorize additional timing runs.
+
+CPU0035's historical staged v3 probe introduced the test-only
+`CpuGeneralScanCleanJavaOracle.broadcastForwardFloat64B4H8`. B=4/H=8 are static in both sides;
+T is a runtime long read from the same borrowed geometry through the same five-segment entry ABI.
+Each source occurrence still qualifies static T; the reusable entry does not bake that count.
+The unchanged generic `broadcastForwardFloat64` remains available for other geometry and historical
+evidence; its runtime B/H parameters make it a different specialization comparator. The matched oracle
+preserves multiply-then-add order, direct unaligned native-order FP64 access, emission-backed carry
+and the complete 32-cell final copy, including exact initial bits at T=0. Structural comparison
+does not require byte-for-byte equality to javac or promise identical JIT machine code.
+
+The timing class's `main` now invokes only `boundedSharedFloat64ShapedForwardCpu0036`: production
+v4 versus that byte-unchanged, equally specialized oracle at runtime T=8, with identical shared
+native scope policies, distinct outputs and zero workspace. The bounded protocol remains three sequential
+fresh JVMs, each with 100 warmup/300 measured alternating pairs of 10,000 calls per side, full
+output checks and all samples retained. Cold generation, definition and first entry stay separate.
+The historical v3 campaign observed roughly 385 ns generated versus 125 ns oracle, an unexplained
+roughly threefold gap. Its cause was not diagnosed; loop-control changes are not a causal experiment.
+Earlier v1/v2/v3 timings do not qualify v4. The
+[CPU0035 result](../planning/backends/cpu/tasks/0035-general-scan-emission-cleanup-and-specialized-oracle.md#result)
+records that historical campaign and its JIT-evidence limitations.
+
+At CPU0036's code/documentation review freeze, the actual matched v4 entry has 312 code bytes,
+59 JVM local slots and 1420 total class bytes, versus v3's 297/61/1437. The unchanged specialized
+javac oracle remains 215 code bytes and 28 local slots. V4's class SHA-256 is
+`c93ce92071dca81af6e407a04886996a7c09b11e6a374121947ab742c8470200`; its key is
+`a341d9c9fbbb2eb4d6609f4b654c7afcf3e0b238aa7fcd45cf9a22c8c40286bd`.
+T=0/1/3/8 reuse identical bytes/key. Generated control now follows top-tested javac loop shape,
+but retains separate T=0/nonempty publication tails, a dominating final-frame initialization,
+ordinal-reserved sparse locals, typed operand stores/reloads and a reused address local instead
+of javac's operand-stack expression placement. These reflect retained inventory/dataflow and
+verifier/tail-shape choices; they add no new per-cell algebra or helper call and do not explain
+timing. Tail sharing, local compaction and expression-stack rewrites are outside this change.
+
+The source-matched final CPU module/Javadoc gate passed: 216 suites, 1176 executed tests,
+38 skips and zero failures/errors, with 94 baseline Javadoc warnings. Focused conformance and
+Engine checkpoints passed 7 and 17 tests respectively, without skips. One authorized campaign
+then completed in exactly three fresh sequential JVMs, without a pilot, retry or forced
+compilation. All 900 measured pairs remain primary; all 2400 warmup/measurement blocks reconcile
+with JFR, all generated class/identity bytes agree, and exact output checks pass before and after
+each fork. The matched oracle source and its 106-instruction, 215-byte method remain unchanged.
+
+Across the three forks, primary all-300-pair generated medians are 121.86–121.95 ns per call
+versus 119.76–120.20 ns for the oracle. Ratios of those medians are 1.014–1.018; median paired
+ratios are 1.014–1.018. These are narrow observed near-reference timings for this test-only
+prepared-entry workload, not universal speed or parity, or a causal comparison with v3.
+Cold generation, definition and first-entry values are retained separately; these warmed
+measurements establish no public Engine or binding cost.
+
+The unchanged analyzer reports `INSUFFICIENT STABLE EVIDENCE` for every fork. It finds 260/261/260
+guard-qualified measured pairs spanning 0.638468541/0.639898791/0.634660167 seconds, below its
+required one-second span. The remaining 40/39/40 pairs lack sufficient recorded tail, the sole
+measured-pair rejection reason; not all 300 pairs are guard-qualified. Ordinary non-OSR C2 entries
+for both methods are corroborated before measurement, with no observed target deoptimization or
+successful target inline. The span/tail limitation is not proof of unstable JIT execution.
+Supplementary guarded subsets do not replace primary samples, and the gate is neither relaxed
+nor reclassified. No replacement campaign is authorized.
+
+Raw structure and campaign evidence are retained under
+`/private/tmp/synaptik-cpu0036-evidence.EmcTYL/structure/` and `measurement/` respectively. The
+[CPU0036 result](../planning/backends/cpu/tasks/0036-general-scan-javac-loop-control.md#result)
+records per-fork statistics, compilation correlation, separate cold costs and evidence limits.
+
 ## Numerical semantics and capability
 
 CPU capability and preparation have no numerical-profile selector. They retain the true and false
@@ -4254,5 +5907,11 @@ certificate fact.
 
 Partition plans, generated-kernel specialization and artifacts, OpenBLAS workload identity, and
 local and complete-plan tuning compatibility retain their non-profile identity facts. Current
-generator schema 70 rejects schema-69 envelopes and class names as incompatible misses. Runtime,
-Trace, generated entry signatures, and hot loops remain numerical-policy-free.
+generator schema 71 rejects schema-70 and earlier envelopes and class names as incompatible misses.
+The current generated-coverage inventory was refreshed from actual canonical fixture executions:
+41,601 owners remain in the same order, with 41,336 generated and 265 rejected. Only evidence key,
+class SHA-256 and normalized-body key change for the generated rows; all other fields and rejected
+rows remain byte-identical. Current SHA joins and scalar goldens follow those current artifacts;
+schema-68 composition/post-terminal evidence and the immutable v1 low ledger remain historical,
+not rewritten or promoted. Runtime, Trace, generated entry signatures and hot loops remain
+numerical-policy-free.

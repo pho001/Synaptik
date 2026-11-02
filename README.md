@@ -1,9 +1,9 @@
 # Synaptik
 
-Synaptik is a modular Java foundation for compiling, preparing, and executing computational graphs
-across multiple backends. The project is under active development and currently provides a
-runnable public lifecycle with fixed CPU convenience and explicit single- or bounded mixed-owner
-CPU/Metal composition, plus backend-independent Tensor and compiler capabilities.
+Synaptik is a modular Java tensor and neural-network runtime for compiling, preparing and
+executing computational graphs across multiple backends. It provides a runnable public lifecycle
+with fixed CPU convenience and explicit single- or bounded mixed-owner CPU/Metal composition,
+plus backend-independent Tensor and compiler capabilities.
 
 [`ARCHITECTURE.md`](ARCHITECTURE.md) is the authoritative architecture root and sole authority
 index; it links the six incorporated scoped contracts. The contributor and agent workflow is
@@ -16,9 +16,18 @@ planned work.
 
 ## Current implementation status
 
-The current public surface includes Tensor expressions, graph compilation, reusable inference
-sessions that prepare once and run with isolated invocation state, detached host materialization,
-one-shot forward computation, and a bounded scalar-objective backward convenience.
+The current public surface includes Tensor expressions, graph compilation, reusable prepared
+executions with isolated per-run state, detached host materialization, one-shot forward
+computation, and a bounded scalar-objective backward convenience.
+The [first-production matrix and remaining gates](docs/backend-guide/production-support.md)
+declare equal Java CPU FLOAT32/FLOAT64 targets and required Metal support. Java BFLOAT16/FLOAT16
+numerical computation is temporarily locked, not removed; storage, explicit casts and exact/raw/
+discrete operations remain. General Scan composes ordinary CPU-supported PURE operations through
+the existing lowering/emitters in all-valid and length-aware modes, including actual selected
+backward, typed activity and static/qualified one-B geometry. Cold/wire and Metal Scan support
+remain independently bounded; component qualification is not a whole-release claim.
+The current distribution target is **private/internal**. No public project licence or
+redistribution grant is selected, and no public registry upload is part of this release.
 `Engine.standard()` owns a fixed
 CPU composition; `Engine.builder()` explicitly owns opened CPU and/or Metal integrations and
 executes non-empty single-owner plans or bounded mixed CPU/Metal plans through deterministic
@@ -29,19 +38,20 @@ domain includes unary operations, affine movement and canonicalization, indexing
 replacement/fold/aggregate operations, unsigned-32-bit-bounded stable ordering, top-K, numeric
 arg-extrema, and maximum pooling. `SORT`, `ARGSORT`, and `TOP_K` admit all seven carriers;
 `ARG_MIN` and `ARG_MAX` admit the six numeric carriers.
-`ACCELERATOR` additionally admits the documented arithmetic, scalar, reduction, scan, MATMUL,
-MSE, convolution, average-pooling, dropout, L1, ScatterAdd, and singleton-variance occurrences.
-Every supported homogeneous `FLOAT32` accelerator occurrence has corresponding `BFLOAT16` and
-`FLOAT16` ownership with `FLOAT32` working values and accumulators and one final ties-to-even
+The qualified floating domain additionally admits documented arithmetic, scalar, reduction,
+scan, MATMUL, MSE, convolution, average-pooling, dropout, L1, ScatterAdd and singleton-variance
+occurrences. Declared homogeneous FLOAT32 rows have independently queried BFLOAT16/FLOAT16
+counterparts with FLOAT32 working values/accumulators and one final ties-to-even
 narrowing. Direct mixed `BFLOAT16`/`FLOAT16` operations have no low-precision kernel; callers use
 explicit casts to `FLOAT32`. Every partition containing BFLOAT16 or FLOAT16 values uses
 `CUSTOM_PROGRAM`, including exact homogeneous no-gradient raw-preserving `RESHAPE`, simple
 `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`, `CONCAT`, and `TILE`. It exposes no MPSGraph,
 classic-MPS, MPP, CPU, retry, generated-pointwise, fusion, or fallback route.
 
-Canonical or authenticated local last-two-axis transpose MATMUL operands and exact local
-singleton-height Conv1d/Pool1d compositions are allowed. Existing rank-two FLOAT32 matrix products
-retain direct MPSGraph; newly admitted MATMUL forms and convolution/pooling rows use the fixed
+Exact zero-offset dense MATMUL operands (logical views or not), authenticated local last-two-axis
+transposes rooted in them, and exact local singleton-height Conv1d/Pool1d compositions are allowed.
+Existing rank-two FLOAT32 matrix products retain direct MPSGraph; newly admitted MATMUL forms
+and convolution/pooling rows use the fixed
 custom program. Gradient-bearing arithmetic, scalar, reduction, scan, dropout, non-overlapping
 maximum-pool, and other admitted differentiable rows retain the exact compiler-generated
 first-order and owned higher-order paths. Overlapping generated folds, Conv3d backward, attention,
@@ -50,11 +60,11 @@ fix their whole partition to one custom program with compact run-owned materiali
 direct targets; top-K publishes paired values and INT64 indices from one step. Deterministic
 generated Metal units continue to fuse only their qualified FLOAT32 chains; every BFLOAT16/FLOAT16
 partition is custom-program-only. ABI 7 exposes thirteen symbols; the route-bearing program image
-remains schema 19, data-type wires remain `1..7`, and backend-local route, workload, policy, and
-codec identities are version 29. Low-precision preparation trace reports the selected custom route,
-ordered logical dtype tuple, and profile; it has no accumulator or working-type field.
-Standard-Metal convenience, generic plugin registration/discovery, CUDA, broader optimizers,
-durable persistence, and generic graph/plan tuning remain planned.
+remains schema 20, data-type wires remain `1..7`, and backend-local route, workload, policy and
+codec identities are version 38. Low-precision preparation trace reports the selected custom route
+and ordered logical dtype tuple; tracing is diagnostic, not a numerical selector.
+Standard-Metal convenience, generic plugin discovery, CUDA and broader optimizers remain planned.
+Source-domain-bounded v1-v5 graph/Model persistence is available; it stores no optimizer/session continuation.
 Focused documentation identifies the exact current boundary for each area.
 
 ## Prerequisites

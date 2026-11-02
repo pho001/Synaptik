@@ -1,5 +1,36 @@
 # Compile API
 
+## Ordinary named-batch metadata binding
+
+`BatchBindingPlan.prepare(artifacts)` indexes final compiled caller positions, typed Shape
+obligations and logical layout intent without adding a component to `CompileArtifacts`.
+`bind(actualDescriptors)` accepts fully static descriptors in final caller-input order, derives
+one named B from every declared occurrence, and checks all obligations before storage is touched.
+An output-only/unknown symbol, inconsistent B, negative derived extent or arithmetic overflow
+rejects. The plan and each returned `Binding` are immutable and storage-free.
+
+`Binding.batchSize()` is actual non-negative B; `valueCount()` counts final value-list positions.
+`descriptor(valueIndex)` lazily resolves only that value, preserving generated gradient eligibility
+and source-view offsets/strides. Fixed caller descriptors remain exact. Symbolic caller positions
+require present canonical, zero-offset dense actual layouts; dense read views are legal.
+
+Metadata binding does not grant backend support for every representable expression. The ordinary
+Engine/CPU implementation is homogeneous FLOAT32, one named B, rank at most two and fixed features
+and parameters, including actual first-order MATMUL/MEAN backward. See the
+[public workflow](public-api.md#current-ordinary-explicit-composition-and-advanced-lifecycle) and
+[CPU qualification](../backend-guide/cpu-backend.md#ordinary-named-batch-cpu-execution).
+Symbolic Scan metadata admission is implemented by Compiler0014, independently reviewed and
+MAIN accepted after compatibility validation. The separately implemented CPU execution slice is
+homogeneous FLOAT32, generated scalar and single-range, with fixed time/features/state widths;
+[Prepare0014](../planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md) tracks final qualification.
+NN/Training reuse, cold acquisition and symbolic wire remain separate gates.
+
+For example, a compiled all-valid Scan with X `[3,B,2]` and state `[B,3]` binds actual B=40
+to X `[3,40,2]` and state `[40,3]`. Every final/emission/residual port, even a dead sibling,
+gets canonical non-view actual geometry. The original symbolic templates remain unresolved.
+Each call checks every scoped declaration and typed obligation afresh, including repeated B.
+Input-backed publications retain that call's supplied descriptor and `isView`; no binding is cached.
+
 ## Purpose and implementation status
 
 This reference separates the compile-time contracts implemented today from later Engine
@@ -124,6 +155,11 @@ not an execution promise.
 
 ## Current model contracts
 
+Model type support is independent of backend availability. The current Java CPU
+[temporary BFLOAT16/FLOAT16 arithmetic lock](../backend-guide/production-support.md#temporary-java-low-computation-lock)
+rejects numerical units with either low-precision input or output, including promoted results.
+Storage, casts, exact/discrete operations and retained low-type implementations are not removed.
+
 The `io.github.pho001.synaptik.model.operation`, `io.github.pho001.synaptik.model.tensor`, and
 `io.github.pho001.synaptik.model.graph` packages now provide compiler-neutral data that later
 compiler work can produce and consume:
@@ -220,15 +256,34 @@ retain ordinary capture rejection. Direct record construction also checks source
 input count/order, full descriptors, provenance absence and unique exact leaf references.
 
 `reconstructSource(graph, leaves)` snapshots positional substitutions and checks the complete
-source before creating a producer. Every value must have a fully static Shape and checked logical
+source and every contained body before creating any formal or producer. Every value must have a fully static Shape and checked logical
 element count; scalar and empty shapes remain valid. Every stored node, including dead work, must
-be FORWARD and use ADD/MUL/NEG/MATMUL/RELU/TANH/SIGMOID with `NoOperationAttrs.INSTANCE`, or rank-two PERMUTE with
-exact axes `[1,0]`. Existing family inference verifies promotion, broadcasting, MATMUL rank/batch
+be FORWARD and belong to the closed
+[flat source inventory](../architecture/contracts/compiler-autograd.md#compile-lifecycle):
+ADD/MUL/NEG/MATMUL/RELU/TANH/SIGMOID, rank-two PERMUTE `[1,0]`, and the selected floating SUB,
+CNN/static recurrent mappings and fixed scans listed there. All-valid general SCAN additionally carries
+an independently scoped body; its extra constructors remain body-only. Existing family inference
+verifies promotion, broadcasting, MATMUL rank/batch
 semantics, attributes and exact output descriptors, with no deferred obligations. Model owns
 structural closure, signature/attribute checks and layout geometry. Unsupported families fail
 closed; there is no generic constructor or registry. The three activations retain Model's
 floating-only guards across FLOAT64, FLOAT32, BFLOAT16 and FLOAT16; admission is not an execution
 capability claim for every occurrence.
+
+General bodies reuse the flat constructors except scans. Their bounded additions are tensor DIV
+and integral SUB; exact typed scalar ADD/SUB/MUL/DIV; full, single-axis, ordered multi-axis and
+target-Shape SUM; static EXPAND; scalar/empty RESHAPE; any normalized EXPAND_DIMS/SQUEEZE axis;
+CONTIGUOUS; and identity CAST. Model family guards and applicable dtypes remain authoritative:
+FLOAT16/BFLOAT16 TANH round-trip cold while Java low-type computation remains locked. Other PURE
+operations, cross-dtype casts, arbitrary permutations and nested scans remain unsupported here.
+See the [exact body inventory](../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction)
+for attributes and constructor restrictions. This is not an all-PURE copier or a persistence promise.
+
+Complete preflight includes dead outer scans, unused declarations and T=0 bodies. Raw bodies must
+have empty `demandedOutputIndices`, with graph outputs exactly the first-encounter-unique
+concatenation of next-carry, emission and residual roles, in that order. Ordinary compiled demand
+is not narrowed by these cold-only checks. Static element counts and descriptor-layout arithmetic
+are checked, not physical bytes, resource limits or CPU layout qualification.
 
 The supplied list must have the graph-input count and full `TensorDescriptor.equals` agreement,
 including resolved/unresolved layout and `requiresGrad`. Tensor IDs need not match the originals.
@@ -238,10 +293,16 @@ Repeated supplied references are explicit substitution and may yield repeated ou
 ordinary compile still rejects duplicate resolved outputs. Position is the association contract,
 so same-descriptor swaps are undetectable.
 
-After complete preflight, a call-local `ValueId`-to-Tensor table rebuilds each stored occurrence
-once through `add`, `mul`, `neg`, `matmul`, `permute(1,0)`, `relu`, `tanh` or `sigmoid`, retaining
+After complete preflight, separate call-local `ValueId`-to-Tensor tables rebuild each scope's stored occurrence
+once through its selected ordinary public family constructor, retaining
 canonical output wrappers and exact operation kinds rather than decomposing activations.
-The table is discarded on return/failure; immutable outputs retain only ordinary provenance.
+Each general occurrence creates fresh distinct canonical storage-free formals in declaration order,
+including unused positions, one `ScanBody` and one `Scan.apply`. Time count does not multiply body
+objects. Every final-carry, emission and latent residual port is mapped, including unrequested ports
+and repeated role bindings. Reusing an original template does not merge reconstructed scopes;
+local IDs never resolve against an outer table. Constants enter through explicit outer invariant
+bindings or scalar attributes, not hidden Tensor leaves. Tables are discarded on return/failure;
+immutable outputs retain only ordinary provenance, not original templates or formals.
 Zero-node pass-through, arbitrary graph IDs and unused inputs are valid source structure, not
 an Engine executability promise. No storage is read, allocated, rebound or owned, even when a
 borrowed leaf's storage is absent or dead. There is no close lifecycle or cache. Null arguments
@@ -279,6 +340,10 @@ elimination, publication, planning and final logical-layout closure. Parameterle
 remain layout-unresolved; PERMUTE keeps its constructor's resolved-view or unresolved descriptor.
 `CompileArtifacts.graph()` is not source: a closed output descriptor is rejected rather than
 stripped or forced into a fabricated Tensor. Ordinary `compile()` and autograd are unchanged.
+Checkpoint copy/rebind and NN acquisition consume the accepted bounded cold body inventory,
+including its static homogeneous FLOAT32/FLOAT64 length intersection. Persistence independently
+uses v4 for all-valid bodies and v5 for that length intersection; v1/v2/v3 remain body-free.
+Cold Compiler reconstruction itself grants no numerical workflow or wider wire admission.
 
 ### Current package-private verification inference
 
@@ -293,8 +358,8 @@ stored descriptor fails with node, operation-kind, output-position, and value co
 The pass covers every current forward operation-kind enum and accepted attributes variant in six
 cohesive families: elementwise, reduction/normalization/ordering, indexing,
 layout/composition/window, structured numeric/loss/RNG-state operations, and fixed recurrent
-scan. Dispatch is closed and typed. An unrecognized custom `OperationKind` fails rather than
-bypassing validation.
+scan, plus independently scoped general scan bodies. Dispatch is closed and typed. An unrecognized
+custom `OperationKind` fails rather than bypassing validation.
 
 Some model operations determine an exact output descriptor while leaving a Shape relationship
 undecidable. The compiler represents such a relationship as a package-private
@@ -321,6 +386,107 @@ transformation, concrete dimension binding, autograd, publication or planning or
 diagnostic aggregation, preparation, backend lowering, runtime work, or execution. The current
 canonicalization and optional optimization pipeline reuses it after mandatory canonicalization
 and after every changed graph candidate.
+
+### Current scoped scan capture and first-order AD
+
+Ordinary compilation accepts valid all-valid pure `ScanBody` source independently of backend support or
+the narrower AD inventory. Each scan occurrence receives its own `CompiledScanBody.graph()`, even
+when occurrences reuse one immutable source template. Local inputs contain all carry, step and
+invariant declarations in order, including unused ones. Ordered next-carry/emission/residual
+bindings may repeat a unique local graph output. Numeric local IDs never refer to outer values;
+producer/formal escape and sharing across different templates reject.
+
+Compiler0013 additionally supports Model's bounded
+[length-aware source subset](tensor-api.md#length-aware-source-only-construction). Independent
+inference validates the complete local-ID body, explicit row roles and terminal shared carries,
+including unused declarations and empty domains. The final non-gradient INT64 `[B]` lengths actual
+has no body formal and contributes nothing to outer gradient eligibility. ROW(0) identifies the
+leading batch coordinate; SHARED has no batch coordinate. Original-source AD
+requires every carry and every original sequence to be ROW(0), even unused/non-gradient positions;
+broader forward inference does not relax this restriction. Generated reverse histories/seeds
+may mix explicit ROW(0), rank-two ROW(1) and SHARED roles.
+
+Compiler0015 combines that length protocol with one named B and fixed T/features for homogeneous
+FLOAT32/FLOAT64 inference, actual first-order sibling AD and fresh scoped all-port binding. Every
+bind checks all actuals (including unused lengths), local obligations and latent ports; it reads
+descriptors only, never length storage or values. For h `[Rows,2]`, X `[4,Rows,3]` and INT64 L
+`[Rows]`, Rows=7 requires matching `[7,2]`, `[4,7,3]` and `[7]` descriptors, not seven valid-length
+values at compile/bind time. Compiler0015 is Complete. Its metadata-only fixtures establish
+Compiler admission, not runtime execution; Prepare/CPU/Engine qualify their actual combined
+execution domains independently. No new API, representation or execution owner is added.
+
+Cold capture/reconstruction additionally admits the fully static homogeneous FLOAT32/FLOAT64
+intersection of the existing constructor inventory and length row rules. Complete preflight
+checks every declaration/body value, role and exact descriptor, including late/dead/T=0 scans,
+before formal or producer allocation. Compatible repeated/opaque substitutions remain valid;
+new ROW/SHARED or differently mapped ties reject before IDs. Homogeneity and aliases are checked
+per occurrence. The final lengths actual is separate from c+s+i formals and invariant slicing;
+neither its storage nor values are read. Symbolic or wider per-value typed cold bodies remain
+unsupported. Checkpoint copy/rebind and inherited NN acquisition/cold forward use this same
+boundary. Checkpoint0014 implements separate static length-aware v5 encoding; NN0033 implements
+and qualifies the bounded public recurrent-composition workflow.
+
+Compiler0014 extends all-valid scoped inference to one named B, fixed T
+and fixed features, independently checking known PURE families and applicable dtypes. It retains
+numeric-domain predicates such as BatchNorm's contributor minimum for fresh binding, while rejecting
+unproved named-coordinate equality or mixing. Independent review and MAIN's named compatibility
+checkpoint passed. The initial Prepare/CPU/Engine symbolic layer qualified bounded FLOAT32;
+current ordinary CPU composition below supersedes that dtype-only execution summary.
+
+First-order Scan AD selects existing ordinary VJP owners for the exact requested output/input
+pairs and finite execution paths; it is not a fixed body-kind whitelist or captured-IR AD.
+Complete lexical source validation precedes derivative construction, including unused work and T=0.
+Primal-only paths may contain ordinary non-differentiable operations. Intentional ND roles cut
+cotangent paths; a required unsupported derivative route fails closed rather than losing a
+contribution. Ordinary dtype, attribute, layout and derivative guards remain authoritative.
+Residual differentiation and every Scan higher-order/createGraph request remain unsupported;
+non-Scan higher-order and fixed-scan/Conv3d rejection boundaries are unchanged.
+
+Selected final-carry and emission seeds jointly produce one opposite-traversal reverse sibling
+per original occurrence before the single combined capture. Structural absence is distinct from
+a present all-zero seed; activity plans preserve that distinction through shared carries and
+contribution merges, with explicit materialization across Scan boundaries.
+Public explicit/implicit seed guards are unchanged.
+Cotangents flow through false-flag internal carry values without changing their flags. Every primal
+operand binds to its exact residual, step or invariant reverse formal; saved TANH/SIGMOID outputs
+are never replayed. Scalar constants close through non-gradient invariant formals backed by
+registered outer splats. Length-mode row-shaped literals and disconnected zeros instead bind
+explicit non-gradient ROW sequences, without reading a primal or using `0*x`. Each incoming
+cotangent for an original SHARED value is normalized before contribution append/accumulation:
+ROW terms are batch-reduced, including intermediates at B=1; SHARED terms are not reduced again. For example, a
+direct ROW term for shared `q[1,H]` must explicitly SUM the singleton batch axis before adding a
+terminal-SHARED MATMUL term. Equal-shape sumToShape cannot erase that ROW identity.
+Each invariant gradient has one invariant-shaped shared carry and its own distinct
+`old.add(contribution)` site, not a B-by-parameter bank. Tied actual inputs, repeated roots and shared parameters accumulate once
+per position and occurrence using ordinary Tensor addition.
+
+Every outer graph rebuild preserves body attachments and local saved sites. Final
+`demandedOutputIndices` comes from outer publications and ordinary uses after optimization/layout
+closure, not retained siblings or internal body uses. Queries carry the complete validated body
+to one owner, not child-only or mixed-owner planning. This is metadata and first-order expression
+construction only: logical history records allocate no storage. Prepare separately validates
+projection and demand; CPU0030 executes the bounded FLOAT32 same-shape pointwise slice only when
+the actual forward and Compiler-generated reverse bodies independently qualify. CPU0031 adds
+homogeneous FLOAT32 broadcast, SUM/sumToShape and bounded shape/layout closure under that same
+independent qualification. CPU0032 adds static homogeneous FLOAT32 rank-two MATMUL under the
+same independent actual-forward/reverse body and binder qualification. CPU0033 implements
+homogeneous FLOAT64 across the complete bounded declared algebra and actual first-order reverse
+closure, without changing Compiler derivative rules or exact saved-value bindings. Low-type scan
+AD remains unsupported; CPU0042 separately qualifies fixed-geometry F32/F64 length execution.
+Static length cold support is distinct from symbolic cold and numerical qualification.
+
+The CPU0030–CPU0042 inventories above record the historical qualification layers, not a current
+finite operator whitelist. Current general Scan composes every ordinary CPU-supported PURE unit
+through the existing ordinary emitters with the same dtype, layout, attribute and derivative
+guards. All-valid values use WholeTensor semantics; length-aware execution proves ROW(axis)
+and SHARED roles, without limiting SHARED tensor rank. Original length-AD carries/sequences
+and emissions stay ROW(0); intermediate ROW axes follow the proved coordinate.
+Row-mixing requires materialized support with the same lengths, not Tensor identity.
+Forward and selected generated reverse bodies qualify independently.
+Java BFLOAT16/FLOAT16 computation remains locked; raw storage/casts/exact paths are separate.
+This widens neither cold/wire inventories nor NN workflow admission and grants no Metal Scan.
+Checkpoint v5 is implemented separately; NN0033 retains its own consumer acceptance. See the
+[scan explanation](../architecture/general-differentiable-scan.md) for a joint-seed walkthrough.
 
 ### Current package-private canonicalization and whole-graph optimization
 
@@ -478,11 +644,10 @@ materializing movement, linear-algebra, loss, normalization, ordering, pooling, 
 reduction, scan, and attention result families. Unknown future kinds remain unresolved. Exact
 unary NEG results are one ordinary allowlisted case, replacing the former NEG-only pass.
 
-Affine/view results are deliberately excluded: `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`,
-`SQUEEZE`, slice extraction, and scalar `SELECT` must retain a layout derived from their input
-offset and strides or remain unresolved. The earlier specialized convolution closure continues to
-derive the direct Conv1d squeeze view. This prevents canonical completion from changing an affine
-mapping, including offset or zero-stride geometry.
+Affine/view transforms are excluded from that family-wide classifier. Their supported views keep
+the exact input-derived offsets/strides, never a canonical replacement. The earlier specialized
+convolution closure continues to derive the direct Conv1d squeeze view. The second topological
+phase below also distinguishes a selected materializing RESHAPE from a proved view.
 
 After materialized results close, a topological view pass retries these transforms using the latest
 input descriptors. Scalar `SELECT` reuses indexing-family inference; coordinate `SLICE` and
@@ -493,6 +658,14 @@ A gate slice selecting columns 2 and 3 of a `[2,6]` projection keeps strides `[6
 not canonical `[2,1]` geometry. Later views in the same pass consume those exact descriptors.
 Negative-step and empty extraction, unknown input geometry, and other unproved layouts remain
 unresolved; this does not add signed-stride or empty-view support or choose a physical copy.
+
+After exact view inference, a validated fully static RESHAPE with a present noncontiguous source
+layout and no inferred supported view may select canonical non-view output geometry. For example,
+`[3,2]/[1,3] -> [6]` becomes a compact logical value, not an invented source alias. Scalar/empty
+Shapes retain ordinary checked stride arithmetic. Missing source layouts and dynamic Shapes stay
+unresolved; existing resolved/offset views remain exact. This final choice changes no raw Model,
+source/cold inference, derivative formula, node/identity/sidecar or wire record. CPU/Metal admission
+and actual physical copy remain independent backend obligations.
 
 Explicit compile-time splat graph inputs receive canonical logical geometry because they have no
 caller binding whose descriptor must remain exact. The pass preserves caller-bindable graph
@@ -609,6 +782,14 @@ selected outputs contribute a deterministic sum of vector-Jacobian products.
 may share that value. Results are ordered by derivative order and then stage-local target index.
 `DerivativeGraphMetadata` classifies final nodes as derivative order zero, one, or two while
 unchanged Model `GraphPhase` continues to distinguish only forward and backward nodes.
+
+The sidecar also retains `scanActivityByNode()`, an immutable map keyed by containing Scan node
+IDs. Each `ScanActivityPlan` names the exact independently scoped body graph, not a structurally
+equal graph or a body-local ID in the containing inventory. The three-argument
+`DerivativeGraphMetadata(graph, derivativeOrderByNode, scanActivityByNode)` constructor validates
+these associations. The two-argument form intentionally creates no activity annotations; graph
+rewrites and copies carrying annotated scans must preserve or explicitly remap them. This stays
+inside the existing eighth `CompileArtifacts` component, not an additional aggregate component.
 
 ### Functional-gradient examples
 
@@ -1215,10 +1396,12 @@ Current package-private capture preserves this model metadata structurally, and 
 package-private verification represents and proves or retains the Shape obligation. Adjoint
 construction is current only for the locally provable floating subset described in the autograd
 matrix above. The current fail-closed CPU path advertises, lowers, prepares, and executes only
-fully static, resolved-layout SUM_TO_SHAPE occurrences over FLOAT64, FLOAT32, BFLOAT16, FLOAT16,
+fully static, resolved-layout SUM_TO_SHAPE occurrences over FLOAT64, FLOAT32,
 INT32, or INT64 with exact source/result type, right-aligned target Shape, leading- and target-one-axis
 reduction, preserved equal axes, non-negative layouts, and an injective output. Binding-dependent
-inversion, dynamic binding, and other-backend execution remain planned.
+inversion outside the qualified [ordinary FLOAT32 named-B slice](#ordinary-named-batch-metadata-binding),
+general dynamic binding, and other-backend execution remain planned. That slice also executes
+SUM-to-Shape with actual B, including the raw point-copy case at B=1.
 `Tensor.matmul` currently constructs one fresh two-input MATMUL expression with a locally derived
 vector, matrix, or broadcast-batch Shape and same-category promoted numeric type. Unequal static
 contraction dimensions fail locally; unresolved contraction equality and the accepted
@@ -1228,9 +1411,11 @@ and conservative constraint proof are current. Current package-private autograd 
 role-aware floating MATMUL cotangents for all four vector/matrix rank pairings when the selected
 operand has the output type; integral and cross-floating selected roles remain unsupported. The
 current fail-closed CPU path advertises, lowers, prepares, and executes only the fully static,
-resolved-layout MATMUL subset with exact contraction and batch geometry, supported same-category
-promotion, non-negative layouts, and an injective output. Dynamic binding and other-backend
-execution remain planned.
+resolved-layout MATMUL subset over FLOAT32/FLOAT64 or integral operands with exact contraction
+and batch geometry, supported same-category promotion, non-negative layouts, and an injective output. The separate ordinary named-B slice
+also executes homogeneous FLOAT32 rank-two MATMUL and its actual first-order adjoints, with fixed
+features/parameters. General dynamic binding, wider dynamic types and other-backend execution
+remain planned.
 `Tensor.linear(weight)` and `Tensor.linear(weight, bias)` are also current model construction, but
 they add no LINEAR operation. Conventional `[outFeatures, inFeatures]` weight is explicitly
 transposed through PERMUTE `[1, 0]`, followed by MATMUL and optional exact rank-one
@@ -1258,7 +1443,7 @@ Package-private structural capture preserves this compiler-visible metadata, and
 verification revalidates it and proves or retains its typed Shape constraints. Legal decomposition
 and saved-value lifetime remain planned. The current fail-closed CPU path advertises, lowers,
 prepares, and executes only fully static, resolved-layout one- or two-output
-BFLOAT16/FLOAT16/FLOAT32/FLOAT64 attention occurrences with exact broadcast, mask, output-role,
+FLOAT32/FLOAT64 attention occurrences with exact broadcast, mask, output-role,
 positive-embedding, type-promotion, scratch, and injective-output constraints. Dynamic binding and other-
 backend execution remain planned. Current
 package-private first-order autograd supports both public outputs only for the explicit
@@ -1276,7 +1461,7 @@ spatial non-negativity remain obligations for future compiler validation or conc
 This metadata can be structurally captured, and package-private verification now represents and
 proves or retains its descriptor-only constraints. The current fail-closed CPU path advertises,
 lowers, prepares, and executes only the fully static, resolved-layout
-BFLOAT16/FLOAT16/FLOAT32/FLOAT64 grouped NCHW forward subset with exact group, channel, optional-
+FLOAT32/FLOAT64 grouped NCHW forward subset with exact group, channel, optional-
 bias, spatial, promoted-type, and injective-output relationships. Metal separately admits its
 occurrence-qualified homogeneous four-floating-type domain and documented promotions.
 This includes authenticated Conv1d singleton-height composition. Current package-private first-order autograd constructs every
@@ -1298,7 +1483,7 @@ includes this kind in the closed forward inventory. Independent inference and fi
 prove or retain its ordered channel and spatial obligations, and ordinary CSE, publication,
 diagnostics, and Planning handoff preserve the exact operation and ordered descriptors. The
 current fail-closed CPU path advertises, lowers, prepares, and executes only the fully static,
-resolved-layout BFLOAT16/FLOAT16/FLOAT32/FLOAT64 grouped NCDHW forward subset with exact group,
+resolved-layout FLOAT32/FLOAT64 grouped NCDHW forward subset with exact group,
 channel, optional-bias, spatial, promoted-type, and injective-output relationships. Metal
 separately admits its occurrence-qualified homogeneous four-floating-type domain and documented
 promotions. Draft
@@ -1313,7 +1498,7 @@ ceiling-grid window, even when the terminal window is all-padding; padding exclu
 infinity empty windows, NaN propagation, signed-zero ordering, and first-logical-sample ties are
 semantic metadata. Package-private structural capture and descriptor verification are current.
 The CPU backend executes the fully static resolved-layout non-gradient subset through its direct
-schema-70 generated route. Metal executes the fully static FLOAT64/FLOAT32/BFLOAT16/FLOAT16 subset
+schema-71 generated route. Metal executes the fully static FLOAT64/FLOAT32/BFLOAT16/FLOAT16 subset
 through its fixed custom program, preserving exact gradient metadata for later
 ownership decisions. Current package-private first-order autograd reconstructs the exact first
 eligible logical winner from the original input and the same-occurrence public output, including
@@ -1331,7 +1516,7 @@ BFLOAT16, FLOAT16, and FLOAT32, FLOAT64 accumulation/division for FLOAT64, one f
 documented NaN/infinity/signed-zero/all-padding policies. Dynamic spatial non-negativity remains a
 future compiler-validation or concrete-binding obligation. Package-private structural capture and
 descriptor verification are current. The CPU backend executes the fully static resolved-layout
-non-gradient subset through its direct schema-70 generated route. Metal executes fully static
+non-gradient FLOAT32/FLOAT64 subset through its direct schema-71 generated route. Metal executes fully static
 qualified FLOAT32 through its fixed custom program. Current package-private first-order autograd
 divides by a logical typed `kernelHeight * kernelWidth` count and routes every window position
 through public expansion and overlap-accumulating fold expressions. Explicit `contiguous()`
@@ -1361,7 +1546,7 @@ same-occurrence output. Its equality preserves dominant NaN, signed-zero orderin
 infinity, first-winner, and all-padding behavior before one-hot routing and `fold3d` accumulation.
 The maximum selector is a fixed non-differentiable mask for a later derivative stage, while the
 incoming branch remains differentiable. The CPU backend advertises and prepares only the fully
-static resolved-layout non-gradient BFLOAT16/FLOAT16/FLOAT32/FLOAT64 subset. Its schema-70 direct
+static resolved-layout non-gradient BFLOAT16/FLOAT16/FLOAT32/FLOAT64 subset. Its schema-71 direct
 generated body uses scalar compute, optionally distributes complete output-cell ranges through
 caller-owned workers, and declares zero workspace or materialization. Metal separately executes
 fully static maximum Pool3d for the same four carriers and qualified
@@ -1463,7 +1648,9 @@ autograd matrix remain separate from execution. The current fail-closed CPU path
 lowers, prepares, and executes only the fully static, resolved-layout ordinary SUM/MEAN/PROD/
 MIN/MAX/ALL/ANY subset with its exact family-specific type, attribute, Shape, selected-domain,
 carrier, and injective-output constraints. Gradient support remains limited to the closed matrix
-above. Dynamic binding and other-backend execution remain planned. Aggregate `MIN`/`MAX` remain
+above. Ordinary named-B FLOAT32 SUM/MEAN are the bounded dynamic exception, not PROD/MIN/MAX/
+ALL/ANY or wider types; general dynamic binding and other-backend execution remain planned.
+Aggregate `MIN`/`MAX` remain
 typed separately from the
 equally named two-input binary elementwise kinds.
 The masked `Tensor.sum(axis, mask)` and `Tensor.mean(axis, mask)` forms require floating input and
@@ -1476,7 +1663,7 @@ an all-false sum is zero and an all-false mean is NaN without a payload guarante
 construction does not align storage, inspect values, select elements, count true positions, or
 compute a result. Current compiler capture and floating autograd are described above. The current
 fail-closed CPU path advertises, lowers, prepares, and executes only fully static, resolved-layout
-floating masked SUM/MEAN occurrences with an exact non-gradient BOOL mask, right-aligned broadcast,
+FLOAT32/FLOAT64 masked SUM/MEAN occurrences with an exact non-gradient BOOL mask, right-aligned broadcast,
 axis-removing result Shape, and injective output. Dynamic binding and other-backend execution
 remain planned.
 `Tensor.all` and `Tensor.any` require exact BOOL input and construct full, axis-removing, or retained-axis
@@ -1497,7 +1684,7 @@ order negative zero below positive zero, and order infinities normally. Model co
 a statically empty selected axis, accepts an unselected zero axis and unbound selected extent, and
 does not compare values or select an index. Current compiler capture and verification remain
 separate. The current fail-closed CPU path advertises, lowers, prepares, and executes only the
-fully static, resolved-layout five-numeric-type ARG_MIN/ARG_MAX subset with a positive selected
+fully static, resolved-layout numeric ARG_MIN/ARG_MAX subset with a positive selected
 extent, exact keep/remove-Dimension Shape, fixed non-gradient INT64 result, tie policy, and
 injective output. The current Metal path separately admits the canonical dense subset under both
 profiles for ranks `1..16` whose positive geometry and logical indices fit unsigned 32 bits, using
@@ -1521,7 +1708,7 @@ compiler-visible requested meanings that current package-private capture preserv
 Current package-private verification revalidates operands and proves, rejects, or retains dynamic
 corrected-domain constraints; the closed floating first-order autograd matrix remains current.
 The current fail-closed CPU path advertises, lowers, prepares, and executes only fully static,
-resolved-layout BFLOAT16/FLOAT16/FLOAT32/FLOAT64 LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION,
+resolved-layout FLOAT32/FLOAT64 LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION,
 L1_NORM, and L2_NORM occurrences with exact ordered axes, retained/removed Shape, gradient eligibility,
 positive corrected statistical domain, and injective output. Gradient support remains limited to
 the closed matrix above. Dynamic corrected-domain binding and other-backend execution remain
@@ -1540,7 +1727,7 @@ Those model expressions are compiler-visible inputs to current package-private s
 verification, and the closed floating first-order autograd matrix, including the current product
 adjoint built from public prefix and suffix scans. The current fail-closed CPU path advertises,
 lowers, prepares, and executes only fully static, resolved-layout CUM_SUM/CUM_PROD occurrences over
-FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, or INT64 with a non-scalar Shape, exact input/output
+FLOAT64, FLOAT32, INT32, or INT64 with a non-scalar Shape, exact input/output
 type and Shape, normalized axis, inclusive/exclusive and forward/reverse mode, and injective output.
 Gradient support remains limited to the closed matrix above. Dynamic binding, saved-value policy,
 and other-backend execution remain planned.
@@ -1573,7 +1760,7 @@ provenance. Model construction does not read values, calculate probabilities or 
 select a numerical algorithm, or own a gradient rule or backend lowering. Package-private
 capture, verification, and the closed floating first-order autograd matrix are current. The
 current fail-closed CPU path advertises, lowers, prepares, and executes only fully static,
-resolved-layout BFLOAT16/FLOAT16/FLOAT32/FLOAT64 SOFTMAX/LOG_SOFTMAX occurrences with positive rank
+resolved-layout FLOAT32/FLOAT64 SOFTMAX/LOG_SOFTMAX occurrences with positive rank
 and selected-axis extent, exact Shape/type/gradient-eligibility preservation, non-negative layouts,
 and an injective output; CPU execution rejects non-finite represented inputs before output
 mutation. Dynamic binding, decomposition, and other-backend execution remain planned.
@@ -1585,7 +1772,7 @@ and no saved-statistic output. Local construction rejects known static mismatche
 unresolved trailing-dimension equality when output Shape is still exact. Package-private capture,
 verification, and the closed floating first-order autograd matrix are current. The current fail-
 closed CPU path advertises, lowers, prepares, and executes only fully static, resolved-layout
-BFLOAT16/FLOAT16/FLOAT32/FLOAT64 input-only or exact `[input, scale, bias]` LayerNorm occurrences
+FLOAT32/FLOAT64 input-only or exact `[input, scale, bias]` LayerNorm occurrences
 with a positive-rank static trailing Shape, ordered promotion, compatible epsilon metadata, and
 injective output. Gradient support remains limited to the closed matrix above. Dynamic binding, saved-
 statistic lifetime, decomposition, and other-backend execution remain planned.
@@ -1596,7 +1783,7 @@ result retains the exact input Shape; the scaled form requires scale Shape exact
 normalized Shape. Local construction rejects known static trailing mismatches and defers
 unresolved equality. Package-private capture, verification, and the closed floating first-order
 autograd matrix are current. The current fail-closed CPU path advertises, lowers, prepares, and
-executes only fully static, resolved-layout BFLOAT16/FLOAT16/FLOAT32/FLOAT64 input-only or exact
+executes only fully static, resolved-layout FLOAT32/FLOAT64 input-only or exact
 `[input, scale]` RMSNorm occurrences with a positive-rank static trailing Shape, ordered
 promotion, compatible epsilon metadata, and injective output. Gradient support remains limited to
 the closed matrix above. Dynamic binding, saved-value policy, decomposition, tolerance policy,
@@ -1610,7 +1797,7 @@ layout-neutral, and running variance is interpreted directly by the formula with
 the denominator square root. Package-private capture and verification are current, as is the
 closed floating first-order autograd matrix for all five input roles. The current fail-closed CPU
 path advertises, lowers, prepares, and executes only fully static, resolved-layout
-BFLOAT16/FLOAT16/FLOAT32/FLOAT64 five-input BatchNorm-inference occurrences with rank at least two,
+FLOAT32/FLOAT64 five-input BatchNorm-inference occurrences with rank at least two,
 exact channel-axis and `[C]` operand relationships, ordered promotion, compatible epsilon metadata,
 and an injective output. Gradient support remains limited to the closed matrix above. Dynamic binding,
 saved-value policy, decomposition, tolerance policy, and other-backend execution remain planned.
@@ -1625,7 +1812,7 @@ eligibility, and indexed provenance. Structural capture of every position and pa
 proof or retention of the `C == 0 || N >= 2` constraint are current; the closed first-order
 autograd matrix covers the supported public output roles. The current fail-closed CPU path
 advertises, lowers, prepares, and executes only fully static, resolved-layout
-BFLOAT16/FLOAT16/FLOAT32/FLOAT64 five-input/five-output BatchNorm-training occurrences with exact
+FLOAT32/FLOAT64 five-input/five-output BatchNorm-training occurrences with exact
 channel, promotion, compatible momentum and epsilon metadata, reduction-domain, output-role, and
 injective-output relationships. Gradient roots and stages outside that current matrix remain
 unsupported. Dynamic binding, saved-value/publication policy, cross-step statistic ownership, the
@@ -1642,11 +1829,11 @@ verification now revalidates it and proves or retains deferred equality. Current
 first-order autograd supports both prediction and target roles, restores `NONE`, `SUM`, and
 `MEAN` cotangents through logical Tensor counts, and uses exact typed scalar-operation
 coefficients `2` and `-2`. The current fail-closed CPU path advertises, lowers, prepares, and
-executes only fully static, resolved-layout BFLOAT16/FLOAT16/FLOAT32/FLOAT64 MSE occurrences with
+executes only fully static, resolved-layout FLOAT32/FLOAT64 MSE occurrences with
 exact equal prediction/target Shape, ordered promotion, reduction/result Shape, gradient eligibility,
 and injective output. Metal additionally owns the admitted homogeneous BFLOAT16/FLOAT16/FLOAT32
 canonical positive-rank forward MSE domain for all three reductions; the result gradient flag is
-the exact input OR, but generated backward nodes receive no Metal ownership. Dynamic binding,
+the exact input OR. Generated backward ownership requires each derived occurrence to qualify independently. Dynamic binding,
 training coordination, other carriers, mixed carriers, and all other Metal loss or normalization families remain
 fail-closed or planned.
 `Tensor.categoricalCrossEntropyWithLogits(target, classAxis, reduction)` is current one-output
@@ -1670,7 +1857,7 @@ target roles. It supports only the logits role for index targets, requires a pos
 depth, clamps ignored targets before one-hot construction, and excludes ignored rows through a
 final `where`; dynamic or zero class depth fails closed. The current fail-closed CPU path
 advertises, lowers, prepares, and executes only fully static, resolved-layout
-BFLOAT16/FLOAT16/FLOAT32/FLOAT64 categorical-loss occurrences with exact normalized class geometry,
+FLOAT32/FLOAT64 categorical-loss occurrences with exact normalized class geometry,
 dense-floating or INT32/INT64 index target roles, optional exact-typed ignore index,
 reduction/result Shape, gradient eligibility, and injective output. Gradient support remains
 limited to the exact dense- and index-target roles above. Dynamic binding, publication/training
@@ -1685,7 +1872,8 @@ closed CPU path advertises, lowers, prepares, and executes only fully static, re
 `CONTIGUOUS` occurrences with exact type/Shape preservation and canonical dense output, within a
 bounded one-through-eight-node affine unit. Metal also executes strict static positive-rank
 `FLOAT32` `CONTIGUOUS` when its input is canonical or a locally produced affine view. Dynamic
-binding and redundant-request canonicalization remain planned.
+binding outside the ordinary named-B FLOAT32 rank-two closure and redundant-request
+canonicalization remain planned. The qualified closure materializes actual logical counts.
 `Tensor.reshape(long...)` accepts all current data types, normalizes an empty request or one
 inferable `-1`, and rejects locally provable invalid counts. `Tensor.reshape(Shape)` retains an
 exact normalized target and defers count equality when either Shape is dynamic. Both overloads
@@ -1725,7 +1913,8 @@ materialization. The current fail-closed CPU path advertises, lowers, prepares, 
 fully static, resolved-layout `EXPAND` occurrences with the exact singleton-expansion Shape and
 zero-stride view relationship, within a bounded one-through-eight-node affine unit. Metal also
 executes that exact static `FLOAT32` relationship after a canonical or local affine producer.
-Dynamic binding and broader materialization remain planned.
+Ordinary named-B FLOAT32 EXPAND is also current within the qualified rank-two closure; general
+dynamic binding, wider dynamic types and broader materialization remain planned.
 `Tensor.permute(int...)` accepts every current data type, requires a complete output-to-input axis
 mapping, normalizes each negative axis once, and reorders exact Dimension references. Any resolved
 input layout produces a new same-offset view descriptor with exact reordered strides; unresolved
@@ -1737,7 +1926,8 @@ closed CPU path advertises, lowers, prepares, and executes only fully static, re
 `PERMUTE`/rank-two transpose occurrences with the exact same-offset reordered Shape/stride
 relationship, within a bounded one-through-eight-node affine unit. Metal also executes that strict
 static `FLOAT32` relationship after a canonical or local affine producer. Permutation
-canonicalization, dynamic binding, and broader materialization remain planned.
+canonicalization, dynamic binding outside the qualified ordinary named-B FLOAT32 rank-two
+PERMUTE closure, and broader materialization remain planned.
 `Tensor.expandDims(int)` inserts one static singleton at a caller position normalized against the
 result rank. `Tensor.squeeze(int)` instead normalizes an existing input axis and removes it only
 when its dimension is statically known as one. Both preserve exact type and gradient eligibility,
@@ -1750,7 +1940,9 @@ resolved-layout `EXPAND_DIMS`/`SQUEEZE` occurrences with the exact inserted/remo
 Shape and same-offset stride relationship, within a bounded one-through-eight-node affine unit.
 Metal also executes those exact static `FLOAT32` relationships after a canonical or local affine
 producer. Gradient support remains the exact current Compiler matrix above. Dynamic singleton
-solving, inverse-pair canonicalization, and broader materialization remain planned.
+solving, inverse-pair canonicalization, and broader materialization remain planned. The bounded
+ordinary named-B FLOAT32 closure independently supports EXPAND_DIMS with a fixed inserted one;
+this does not grant symbolic SQUEEZE or dynamic singleton solving.
 `Tensor.slice(long[], long[], int[], long[])` clones four parallel request arrays, normalizes raw
 axes and bounds against selected static dimensions, clamps bounds by step direction, derives a
 same-rank Shape, and records normalized start/length/axis/signed-step sequences in `SliceAttrs`.
@@ -1948,9 +2140,9 @@ one-input provenance. Package-private structural capture can preserve these occu
 compiler inference retains unresolved two-dimensional height/width domain constraints, and
 current floating autograd uses each exact public inverse or overlap-add transformation. The
 current fail-closed CPU path advertises, lowers, prepares, and executes only fully static,
-resolved-layout one-node UNFOLD_AXIS occurrences over all seven represented types, FOLD_AXIS over
-FLOAT64/FLOAT32/BFLOAT16/FLOAT16/INT32/INT64, and UNFOLD2D/FOLD2D over
-BFLOAT16/FLOAT16/FLOAT32/FLOAT64, with exact window, direct-zero or typed-padding, overlap-add,
+resolved-layout one-node UNFOLD_AXIS occurrences over all seven represented types and
+UNFOLD2D over BFLOAT16/FLOAT16/FLOAT32/FLOAT64; FOLD_AXIS over FLOAT64/FLOAT32/INT32/INT64
+and FOLD2D over FLOAT32/FLOAT64, with exact window, direct-zero or typed-padding, overlap-add,
 Shape, and distinct injective-output relationships. Metal independently admits canonical
 all-carrier UNFOLD_AXIS within its bounded rank/window domain. It also admits
 the static canonical four-floating-type UNFOLD2D/UNFOLD3D raw-movement forms and non-overlapping
@@ -2096,24 +2288,65 @@ scoring evaluation, and the aggregate remain planned.
 ## Current operation-capability contracts
 
 `io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery` describes one immutable
-operation occurrence for a compile-time capability question. Its exact ordered components are an
-`Operation`, a `List<TensorDescriptor>` of inputs, and a `List<TensorDescriptor>` of outputs. The
-canonical constructor checks the three top-level references, scans inputs in encounter order,
-snapshots input membership, scans outputs in encounter order, snapshots output membership, and
-then validates only the two counts against `operation.signature()`.
+operation occurrence for a compile-time capability question. Its exact ordered components are
+`Operation operation`, `List<TensorDescriptor> inputs`, `List<TensorDescriptor> outputs`,
+`Optional<CompiledScanBody> scanBody`, and `Optional<ScanActivityPlan> scanActivityPlan`.
+Body-bearing construction supplies both optionals explicitly; there is no four-argument
+constructor. The genuine three-argument ordinary/fixed-operation constructor supplies empty
+body and activity attachments. Missing-body Scan questions remain representable for provider
+rejection.
 
-The snapshots retain the exact descriptor element references and are immutable. Empty or repeated
-inputs are valid when the signature permits them, and repeated output descriptor references and
-valid multi-output occurrences are representable. Null failures identify the top-level component
-or first encountered element, such as `inputs[1]`; signature count failures retain the existing
-`OperationSignature` behavior. The query performs no operand compatibility, graph, availability,
-requirement, scoring, device, route, prepare, runtime, or execution validation.
+The canonical constructor checks operation and list references, scans and snapshots input
+membership, scans and snapshots output membership, and then validates both occurrence counts
+against `operation.signature()`. It next checks the body optional and restricts a present body to
+`ScanKind.SCAN`, then checks the activity optional. A present activity plan requires the exact
+attached body graph reference. Its declared numeric-carry, sequence-seed and temporal-accumulator
+positions, next-presence bindings and ordered temporal ADDs must apply to that body and header.
+These attachment checks do not infer ordinary descriptors, compute differentiation demand or
+establish backend support.
+
+The immutable snapshots retain exact descriptor element references, including repeated
+positions. The operation, optional containers and contained immutable body/activity references
+are retained exactly. All five components participate in record equality, hashing and diagnostic
+text; the text is not a wire format. Signature-valid header/body/descriptor mismatches not covered
+by attachment validation remain questions for independent provider rejection. IDs are never
+resolved across the containing and local graph scopes.
+
+`ScanActivityPlan` contains one exact local `CompiledGraphModel`, ordered `Carry` declarations,
+ordered seed-formal positions, scope memberships, complete node-to-scope associations, optional
+ordered `Merge` declarations and distinct temporal `Accumulator` declarations. Presence roots
+are carry slots followed by seed slots; tied numeric values do not merge their roots. A scope is
+the disjunction of its root memberships, and an empty scope is absent. Every executable body node,
+including primal-only work, has a scope. Optional ADD merges require identical operand/result
+types and Shapes: a sole present operand is copied by raw identity, not added to a numeric zero.
+Temporal accumulation remains a separate ordered ADD, rather than an optional list merge.
+The plan snapshots and validates intrinsic local structure; Compiler, Prepare and the selected
+backend independently validate its applicability. It is structural metadata, not a derivative
+formula, runtime value, executable callback or cross-operation sparse-gradient protocol.
 
 `BackendCapabilityProvider` names one stable non-null `BackendId` through `backendId()` and answers
 `supports(query)` for that same backend. For an immutable query and unchanged immutable provider
 configuration, the boolean answer is deterministic. Implementations reject a null query with
 `NullPointerException("query")`. `true` means only that the backend can semantically own the
 described occurrence; `false` carries no reason.
+
+For a general scan, true must qualify the complete header, every body occurrence and descriptor,
+ordered bindings, residual/demand requirements and generated topology together with the loop
+binder. Missing, malformed, unknown or unsupported semantics return false, including at zero steps
+or empty demand. Supported children alone do not establish support. `BackendOwnerPlanning`
+forwards the exact query unchanged and selects one owner for the whole scan, never mixed-owner
+body partitions. Transport and Compiler scoped capture, first-order AD and final body-bearing
+query/demand emission are implemented, as are Prepare scoped projection, static binding checks and
+complete-graph demand validation before analysis. CPU0030 supplies real backend support for a
+bounded FLOAT32 same-shape pointwise body and binder. The actual forward and Compiler-generated
+reverse bodies must each satisfy the predicate; a forward-only true answer is not an arbitrary
+backward guarantee. CPU0031 extends the bounded FLOAT32 predicate to broadcast, SUM/sumToShape and
+shape/layout closure, with the same independent actual-reverse check. CPU0032 adds static
+homogeneous FLOAT32 rank-two MATMUL under that check. CPU0033 extends the complete bounded
+declared algebra and actual first-order reverse closure to homogeneous FLOAT64, with static T,
+canonical boundaries and proved zero-offset all-zero-stride scalar reads. A true
+answer from a test provider is not a real-backend support claim. See the
+[bounded CPU route](../backend-guide/cpu-backend.md#bounded-float32-general-scan).
 
 The provider is supplied explicitly to compile-time planning. The public contract performs no
 registry, discovery, classpath scan, `ServiceLoader` lookup, availability or hard-requirement
@@ -2367,13 +2600,13 @@ planned.
 
 ## Example interpretation
 
-If a future graph contains a matrix multiplication followed by a small elementwise operation,
+For an explicitly composed graph containing a matrix multiplication and a small elementwise operation,
 capability analysis may find both CPU and Metal valid. Backend-neutral scoring may assign both
 nodes to Metal to avoid a transfer boundary. The artifact records only `owner = Metal`; it does
 not record MPSGraph or a custom Metal kernel. Metal prepare makes that later choice.
 
-The CPU portion of this scenario is current through the explicitly composed advanced lifecycle;
-the Metal ownership alternative remains conceptual because Metal has no lifecycle adapter.
+Both CPU and Metal lifecycle integrations are current through explicit `Engine.builder()`
+composition and exact occurrence ownership; no discovery, retry or CPU fallback is implied.
 Current `GraphCompilationPort` can invoke package-private `GraphCompiler` to construct and
 validate its bounded forward-only or combined first-order graph, query explicitly supplied
 providers, select backend ownership, derive partitions and logical memory, and return

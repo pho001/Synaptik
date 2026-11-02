@@ -70,6 +70,33 @@ colocated public owner-selection collaboration and widens only the existing part
 operations in their owning packages. Compiler retains graph-wide sequencing and owner-map
 assembly.
 
+## Dependency DAG and authorized frontier
+
+Planning0001–0007 Complete + accepted Model0034/0035 Complete → Planning0008 Complete → Compiler0011
+AD/capture Complete → Prepare0010 projection/resource handoff Complete → CPU0030 bounded F32 pointwise execution Complete.
+Authorized Planning frontier: the neutral carrier/query source slice of
+[Compiler0017 Ready](../compiler/tasks/0017-per-value-typed-length-scan-inference-and-ad.md),
+under the accepted coordinated root/scoped interface and exact common source. This is one new
+ScanActivityPlan in existing capability package and fifth query component, not AD ownership or
+a new dependency. Complete0008 retains its accepted historical body-query result.
+[Compiler0011 AD/capture](../compiler/tasks/0011-general-scan-capture-and-first-order-ad.md) is Complete,
+accepted by main 2026-10-22 after independent code/docs APPROVE and compatibility checkpoint.
+[Prepare0010](../prepare/tasks/0010-general-scan-projection-and-resource-handoff.md) is Complete:
+scoped projection/demand validation and resource handoff, main accepted 2026-10-22 after Huygens
+final Class C code/docs APPROVE and the exact compatibility checkpoint.
+At the old0008/CPU0030 checkpoint all listed frontiers were None; that historical bounded F32
+pointwise result remains Complete. The current coordinated all-PURE continuation is solely
+Compiler0017/CPU0081 Ready, with independent source scopes and MAIN integration; no NN/persistence
+or cost-model successor follows.
+
+Historical0008 common base: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus accepted uncommitted
+authority/Model0034/0035, Planning0008, Compiler0011, Prepare0010 and CPU0030 work. Parallel group None;
+no other writer/conflict active. Main confirms empty index,
+unchanged protected/Model snapshots at acceptance. Main owns shared documents and serial integration:
+clean implementation → independent clean code/docs APPROVE → main's named downstream compilation/
+architecture/provider-regression checkpoint, all complete. The brief records all seven integration
+fields and evidence; no root/native/performance campaign at this checkpoint.
+
 ## Task list
 
 | ID | Task | Status | Depends on | Summary |
@@ -81,6 +108,7 @@ assembly.
 | 0005 | [Logical materialization and memory requirements](tasks/0005-logical-materialization-and-memory-requirements.md) | Complete | 0004 | Added immutable per-value producer/consumer/output requirements and an architecture-named logical memory plan derived internally from the closed graph and ordered partitions, without physical sizing, allocation, transfers, publication binding, or runtime residency. |
 | 0006 | [Planning contract closure audit](tasks/0006-planning-contract-closure-audit.md) | Complete | 0001–0005 | Audited capability, ownership, partition, logical-memory, public/internal surfaces, documentation, dependencies, and the compiler/prepare handoff; the durable audit records a `CLOSED` verdict without executable changes. |
 | 0007 | [Capability provider status reconciliation](tasks/0007-capability-provider-status-reconciliation.md) | Complete | 0006; current CPU provider, Compiler SPI, and Engine composition | Corrected and independently reviewed the public guide/API status for the shipped CPU provider and current Engine compile consumer without changing capability or architecture. |
+| 0008 | [General-scan body-bearing capability query](tasks/0008-general-scan-body-capability-query.md) | Complete | 0001–0007; accepted Model0034/0035 | Optional compiled-body transport and old constructor retained; final independent APPROVE and main compatibility gates accepted 2026-10-22; no scan execution. |
 
 ## Milestones
 
@@ -90,7 +118,9 @@ assembly.
 
 ## Current status
 
-Complete after the `CLOSED` verdict in the
+Complete through0008. Current neutral activity/query frontier is the coupled Compiler0017 Ready
+slice above; source/actual capability remains pending.
+The baseline has the `CLOSED` verdict in the
 [planning contract closure audit](planning-contract-closure-audit.md). Tasks 0001–0002 remain
 Complete with the public query/provider boundary and package-private provider-ordered hard-
 eligibility result.

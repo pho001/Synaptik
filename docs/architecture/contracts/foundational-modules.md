@@ -125,7 +125,66 @@ ordered output descriptors, and the canonical exact `Tensor` wrapper for every o
 must return the retained wrapper for a slot rather than reconstructing an equal wrapper. This
 pre-capture model relationship is not graph IR, graph membership, or graph-local identity.
 
+The accepted general Scan continuation adds a context-qualified overload on the existing Model
+owner: `ScanBody.describeOrdinary(Operation, List<TensorDescriptor>, int, Optional<DynamicDimension>)`.
+It reuses ordinary inference and the same factored source/deferred symbolic proof with the exact
+declared symbol. The three-argument ordinary API keeps its deferred semantics. This is descriptor
+proof, not Compiler inference, ROW provenance, backend admission or a new public type; the
+[Scan owner](recurrent-scan.md#general-ordinary-unit-scan-cutover) defines its semantic obligations.
+
+The reviewed logical-layout prerequisite adds two metadata operations on the same existing owner:
+`ScanBody.closeOrdinaryLayouts(Operation, List<TensorDescriptor>, List<TensorDescriptor>)` and
+`ScanBody.hasCanonicalContiguousResults(Operation)`. The former completes eligible unresolved
+static computed results through the moved ordinary closure and existing family layout helpers;
+the latter preserves the exact generic materialization fact also consumed by Compiler symbolic
+binding. Specialized convolution completion does not widen that classifier. Neither operation
+changes ordinary construction, performs independent type/Shape inference or grants PURE/Scan/
+backend admission. Preserve resolved layouts, exact affine views and unresolved unproved cases.
+No new production type, Tensor/ID allocation or cross-module dependency edge is selected.
+
+The reviewed source-publication prerequisite renames the existing Prepare contribution owner
+to `ProducerlessPublishedValueResource`, retaining five components: stable value, logical
+requirement, backend owner, existing Runtime `ByteSize size`, and byte alignment. The migrated
+default assembler hook takes value, requirement and `Optional<ScalarValue>`: present only for
+an authenticated constant, empty only for an authenticated caller. Prepare owns complete source/
+publication roles and ordering; CPU owns physical geometry and fixed-unit compatibility.
+No Model mathematics, Runtime type/field, dependency edge or parallel contribution owner is added.
+
+The accepted bounded scan exception adds source-body containment on TensorProducer, distinct from
+the single compiled-body attachment on CompiledNode. The complete inventory, canonical residual
+port construction, formal/role binding and scoping semantics belong solely to the
+[scan semantic owner](recurrent-scan.md#general-differentiable-scan). Model0035 implements and
+validates these Java source/IR attachments. Planning0008 implements query transport, and
+Compiler0011 implements scoped capture/inference, first-order AD and final query/demand emission.
+Prepare0010 implements scoped projection and static binding/demand validation. CPU0030 implements
+the bounded FLOAT32 same-shape pointwise forward/actual-reverse execution slice. CPU0031 adds
+qualified FLOAT32 broadcast, SUM/sumToShape and bounded shape/layout closure, with actual reverse
+bodies independently qualified. CPU0032 adds static homogeneous FLOAT32 rank-two MATMUL and
+independently qualified actual reverse bodies. CPU0033 implements homogeneous FLOAT64 across
+the complete bounded declared algebra and actual first-order reverse closure; source admission
+still grants no generic backend capability. Preserve
+empty-attachment constructor compatibility. OperationAttrs remains Tensor/graph-free scalar
+semantic metadata; no body registry or source closure belongs in attrs.
+
 Device storage belongs to runtime/backend layers, not model.
+
+Model0038 implements the length-aware header, overload, bounded row-role source subset and outer/local
+count distinction defined only by the [scan owner](recurrent-scan.md#header-bindings-and-source-admission).
+Model construction/structural attachments do not grant Compiler, cold, AD or execution capability.
+Compiler0013 independently implements scoped length inference and bounded first-order reverse
+construction/query emission; cold, Prepare, CPU and encoding remain closed.
+The old all-valid PURE/type admission remains unchanged; no new production type or dependency is selected.
+
+`ScanBody.describeOrdinary` exposes descriptor-only checking through the same existing ordinary
+family guards used by Tensor construction. It returns all canonical output descriptors without
+creating Tensors, producers, storage or identifiers. This Model check is not independent Compiler
+inference and grants no row-coordinate, AD, execution or persistence capability.
+
+The separately accepted [Scan coordinate seam](recurrent-scan.md#bounded-row-role-analysis)
+recomputes per-canonical-output row/dependency/terminal semantics from independently checked
+descriptors. It is not descriptor inference or an admission certificate. Model0048 is implemented
+and source-qualified; source validation and raw Compiler use the same semantic owner while
+retaining independent ordinary descriptor guards and downstream support boundaries.
 
 ### Profile-free numerical semantics
 
@@ -255,6 +314,11 @@ through the exact/discrete, primitive, and aggregate sites. Saved outputs, stati
 indices are exact stored values. Opaque routes require the same occurrence-scoped exact, special,
 and finite test qualification as explicit routes; no operation name or sample grants support.
 
+General scan composition inherits these same family arithmetic and exact saved-value rules; it
+introduces no numerical selector, alternative derivative numerics or blanket dtype capability.
+The [scan owner](recurrent-scan.md#traversal-empty-domains-and-declared-qualification) defines its
+bounded algebra and qualification sequence, not a replacement family formula.
+
 The recursive sites for every current first-class composite formula are closed as follows. An
 exact typed attribute or stored input is an exact leaf. A formula-named real constant is rounded
 once to nearest-even `FLOAT32` before its first use and is not an approximation site.
@@ -302,10 +366,9 @@ a mixed-infinity slice. For example, `[-infinity, 1000]` at FLOAT32 has SOFTMAX 
 LOG_SOFTMAX `[-infinity, -infinity]` because the finite member's unshifted EXP overflows; this
 preserves the prior result classes. An all-negative-infinity nonempty slice produces NaN at
 every position. NaN payload and sign are unspecified. These are Model results, not a promise that
-every backend admits every represented value: CPU checks finite inputs and its dtype-specific
-shift limits before any consumer write. FLOAT32 admits finite inputs even when a working shift
-overflows; FLOAT64 and BFLOAT16 currently reject a non-finite working shift. FLOAT16 finite
-inputs cannot overflow a FLOAT32 shift.
+every backend admits every represented value. CPU's narrower runtime input domain belongs to
+[its finite-softmax admission owner](backend-execution.md#cpu0077-finite-softmax-admission-parity);
+it does not redefine this formula or let an incidental unshifted overflow change the result.
 
 Guarded attention's no-eligible, all-negative-infinity, and positive-infinity-tie cases retain
 their family-specific results rather than inheriting ordinary softmax's result by approximation.
@@ -464,6 +527,16 @@ Planning must not answer:
 Which concrete kernel, executable, BLAS route, MPSGraph route, or CUDA implementation should run it?
 ```
 
+For a general scan, Planning selects one owner for the complete body, never mixed-owner body
+partitions. Logical memory planning carries ordinary-use residual demand, not source Tensors or
+an opaque saved workspace. Complete scan semantics remain with the
+[scan owner](recurrent-scan.md#canonical-residual-ports-and-demand).
+
+Compiler0013 emits length-mode queries with the entire header, ordered row roles and body/demand
+without treating the extra lengths actual as a body formal. Existing transport and Compiler
+inference/AD alone grant no execution capability; providers reject until their complete binder/body is qualified under
+the [scan owner's gates](recurrent-scan.md#runtime-preflight-and-implementation-gates).
+
 ## Profile-free capability queries
 
 <a id="numerical-profile-transport"></a>
@@ -472,3 +545,63 @@ Profile transport is removed. `OperationCapabilityQuery`
 retains complete operation, attribute, ordered descriptor, and gradient facts, but no numerical
 profile. Its deterministic boolean provider answer cannot be inferred from a family formula,
 another dtype, device sample, or the removed selector.
+
+The accepted general-scan query extends OperationCapabilityQuery with
+`Optional<CompiledScanBody>` while retaining the three-argument empty-body construction. Compiler
+supplies the validated complete scoped body, role/port descriptors and demanded outer-port indices;
+queries remain Tensor-free. Propagate and revalidate demand after rewrites through Prepare.
+The deterministic provider boolean must qualify the header, every body occurrence/descriptor,
+residual and binding requirements, and generated topology together with the loop binder. Supported
+child queries are necessary but insufficient. Missing/malformed bodies or unsupported binders
+reject; Planning forwards semantic facts without interpreting backend routes or implementing AD.
+Planning0008 implements the optional-body transport and provider contract tests. Compiler0011
+implements body-bearing query emission, scoped capture/inference and first-order AD/demand propagation.
+Prepare0010 implements scoped projection and static binding/demand validation. CPU0030 adds a
+bounded FLOAT32 same-shape pointwise provider predicate; both the forward body and its actual
+Compiler-generated reverse must independently qualify. CPU0031 extends that predicate to
+homogeneous FLOAT32 broadcast, SUM/sumToShape and bounded shape/layout closure. CPU0032 adds static
+homogeneous FLOAT32 rank-two MATMUL under the same independent whole-body/binder proof for actual
+forward and reverse occurrences. CPU0033 extends the complete bounded declared algebra and actual
+first-order reverse closure to homogeneous FLOAT64 under that same independent qualification;
+Model source admission and other dtype/layout capability remain separate. See the
+[sole scan protocol](recurrent-scan.md#general-differentiable-scan).
+
+### General Scan activity transport
+
+Implemented coordinated Class C transport, accepted with Compiler0017/CPU0081 after independent
+authority/interface and exact-source implementation reviews and the affected integration gate.
+Planning owns only the immutable carrier/query transport, not derivative formulas/proof,
+physical storage or runtime control. The
+[Scan owner](recurrent-scan.md#general-ordinary-unit-scan-cutover) owns its semantic meaning.
+Exactly one new public Planning type in existing `planning.capability` is selected:
+
+```java
+public record ScanActivityPlan(
+        CompiledGraphModel graph, List<Carry> carries, List<Integer> seedFormals,
+        List<List<Integer>> scopes, Map<NodeId, Integer> nodeScopes,
+        Map<NodeId, Merge> merges, List<Accumulator> accumulators) {
+    public record Carry(int numericCarryPosition, boolean initialPresence, int nextScope) {}
+    public record Merge(int leftScope, int rightScope) {}
+    public record Accumulator(int numericSharedCarryPosition, int contributionScope) {}
+}
+```
+
+`graph` is the exact independently scoped compiled body. Root order is carries then seedFormals;
+scope lists are defensive immutable sorted unique root-index sets. Carry/seed/accumulator
+positions are declaration positions, not deduplicated actual identities. Every executable local
+node has a scope; merge keys identify actual local ordinary ADDs. Intrinsic constructor checks
+cover complete membership, root/scope ranges, unique positions, deterministic immutable maps and
+valid local merge shapes. Containing-occurrence consumers independently check header/formal/
+binding applicability, scopes/dataflow and ordinary predicates. No Tensor, producer, numerical
+cotangent, derivative formula, address, physical slot or mutable runtime object is retained.
+The carrier is strictly local: it contains no external presence/length references and does not
+transport activity through ordinary Tensor publications. Root initialization follows the
+Scan owner's materialized-boundary semantics; the selected record signatures remain unchanged.
+
+OperationCapabilityQuery becomes `(operation, inputs, outputs, Optional<CompiledScanBody> scanBody,
+Optional<ScanActivityPlan> scanActivityPlan)`. A plan applies only to a body-bearing Scan and
+names that exact body graph. Migrate every four-argument body-bearing caller; the meaningful
+three-argument ordinary empty-attachment constructor remains. Missing ordinary support or
+malformed applicable control still fails closed independently. No empty optional serialization
+field or identity suffix is added to old recipes, and no new numerical profile is introduced.
+
