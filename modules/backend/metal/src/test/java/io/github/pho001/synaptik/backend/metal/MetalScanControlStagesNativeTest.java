@@ -170,8 +170,9 @@ class MetalScanControlStagesNativeTest {
                     long max = left == DataType.INT32 ? Integer.MAX_VALUE : Long.MAX_VALUE;
                     try (var run = new MetalGeneralScanNativeTest.RawScan(integralMatmul(left, right, lengths, reverse, true), null)) {
                         byte[] l = represented(left, min, max), r = represented(right, -1, 2);
-                        run.bytes(0, concat(l, l)); run.bytes(1, concat(r, r));
-                        if (lengths) run.longs(2, 2, 0);
+                        run.bytes(0, represented(result, -17, 13));
+                        run.bytes(1, concat(l, l)); run.bytes(2, concat(r, r));
+                        if (lengths) run.longs(3, 2, 0);
                         run.execute();
                         byte[] expected = represented(result, lengths ? -min : -min + 2 * max);
                         assertArrayEquals(concat(expected, expected), run.outputBytes(0));
@@ -183,7 +184,8 @@ class MetalScanControlStagesNativeTest {
      * Builds ordinary integral MATMUL bodies, preserving the Model's promoted result type.
      * Feature contraction keeps ROW on the left matrix; terminal contraction matches both
      * vector ROW axes as admitted by Model's matmulRow and publishes a residual, not a
-     * forbidden terminal emission or a fabricated carry.
+     * forbidden terminal emission. An undemanded ROW carry passes through unchanged so the
+     * semantic header retains a carry without adding arithmetic to the contraction body.
      *
      * @param left signed left carrier
      * @param right signed right carrier
@@ -195,31 +197,32 @@ class MetalScanControlStagesNativeTest {
     private static OperationCapabilityQuery integralMatmul(DataType left, DataType right, boolean lengths,
             boolean reverse, boolean terminal) {
         var result = left == DataType.INT64 || right == DataType.INT64 ? DataType.INT64 : DataType.INT32;
-        int batch = lengths ? 2 : 1;
+        int batch = terminal || lengths ? 2 : 1;
         var h = new ValueId(0); var l = new ValueId(1); var r = new ValueId(2); var y = new ValueId(3);
         var ld = MetalScanPlanTest.descriptor(left, terminal ? new long[] {2} : new long[] {batch, 2});
         var rd = MetalScanPlanTest.descriptor(right, terminal ? new long[] {2} : new long[] {2, 1});
         var yd = MetalScanPlanTest.descriptor(result, terminal ? new long[0] : new long[] {batch, 1});
+        var carry = MetalScanPlanTest.descriptor(result, batch, 1);
         var values = new ArrayList<GraphValue>();
-        if (!terminal) values.add(new GraphValue(h, yd));
+        values.add(new GraphValue(h, carry));
         values.add(new GraphValue(l, ld)); values.add(new GraphValue(r, rd)); values.add(new GraphValue(y, yd));
         var op = new Operation(io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL, NoOperationAttrs.INSTANCE);
         var node = new CompiledNode(new NodeId(0), op, List.of(l, r), List.of(y));
-        var graph = new CompiledGraphModel(values, List.of(node), terminal ? List.of(l, r) : List.of(h, l, r),
-                List.of(y), Map.of(node.id(), GraphPhase.FORWARD));
-        var body = new CompiledScanBody(graph, terminal ? List.of() : List.of(y),
+        var graph = new CompiledGraphModel(values, List.of(node), List.of(h, l, r),
+                terminal ? List.of(h, y) : List.of(y), Map.of(node.id(), GraphPhase.FORWARD));
+        var body = new CompiledScanBody(graph, terminal ? List.of(h) : List.of(y),
                 terminal ? List.of() : List.of(y), terminal ? List.of(y) : List.of(),
-                terminal ? List.of(0) : List.of(0, 1));
-        int carries = terminal ? 0 : 1, sequences = terminal ? 2 : 1, invariants = terminal ? 0 : 1;
+                terminal ? List.of(1) : List.of(0, 1));
+        int carries = 1, sequences = terminal ? 2 : 1, invariants = terminal ? 0 : 1;
         var attrs = lengths ? new ScanAttrs(2, carries, sequences, invariants, terminal ? 0 : 1, terminal ? 1 : 0, reverse, true,
-                terminal ? 0 : 1, Collections.nCopies(sequences, OptionalInt.of(0)))
+                1, Collections.nCopies(sequences, OptionalInt.of(0)))
                 : new ScanAttrs(2, carries, sequences, invariants, terminal ? 0 : 1, terminal ? 1 : 0, reverse);
         var inputs = new ArrayList<TensorDescriptor>();
-        if (!terminal) inputs.add(yd);
+        inputs.add(carry);
         inputs.add(MetalScanPlanTest.descriptor(left, terminal ? new long[] {2, 2} : new long[] {2, batch, 2}));
         inputs.add(terminal ? MetalScanPlanTest.descriptor(right, 2, 2) : rd);
         if (lengths) inputs.add(MetalScanPlanTest.descriptor(DataType.INT64, terminal ? 2 : batch));
-        var outputs = terminal ? List.of(MetalScanPlanTest.descriptor(result, 2))
+        var outputs = terminal ? List.of(carry, MetalScanPlanTest.descriptor(result, 2))
                 : List.of(yd, MetalScanPlanTest.descriptor(result, 2, batch, 1));
         return new OperationCapabilityQuery(new Operation(ScanKind.SCAN, attrs), inputs, outputs, Optional.of(body), Optional.empty());
     }
