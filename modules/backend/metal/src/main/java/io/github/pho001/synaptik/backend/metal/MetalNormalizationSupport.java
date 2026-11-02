@@ -26,7 +26,8 @@ import java.util.List;
 
 /**
  * FLOAT32 normalization/loss admission, typed wire lowering and independent raw-node preflight.
- * Reads may have checked nonnegative affine strides; outputs must be canonical. No low-valued
+ * Reads reuse the existing positive nonoverlapping storage proof, or resolved zero-stride view
+ * rules; empty reads address no cells. Outputs must be canonical. No low-valued
  * occurrence is admitted, and canonical saved batch statistics retain their exact Compiler roles.
  */
 final class MetalNormalizationSupport {
@@ -261,6 +262,9 @@ final class MetalNormalizationSupport {
         require(layout.equals(LayoutDescriptor.of(Shape.of(dims), layout.strides(), layout.storageOffset(), layout.isView())));
         Math.multiplyExact(value.elementCount(), value.dataType().byteWidth());
         Math.multiplyExact(layout.referencedElementSpan(), value.dataType().byteWidth());
+        if (!output && value.elementCount() != 0) {
+            require(layout.hasZeroStride() ? layout.isView() : value.supportsStorageLayout(0));
+        }
         if (output) require(layout.equals(LayoutDescriptor.contiguous(Shape.of(dims))));
     }
 

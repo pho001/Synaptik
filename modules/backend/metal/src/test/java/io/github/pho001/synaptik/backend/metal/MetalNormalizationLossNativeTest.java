@@ -3,11 +3,18 @@ package io.github.pho001.synaptik.backend.metal;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
@@ -15,6 +22,7 @@ import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /** Device regressions for named normalization sites and guarded categorical-loss contributors. */
@@ -22,6 +30,26 @@ class MetalNormalizationLossNativeTest {
     private static final MetalMpsGraphProgram.AttributeKind AXIS = MetalMpsGraphProgram.AttributeKind.AXIS;
     private static final MetalMpsGraphProgram.AttributeKind NORMALIZED =
             MetalMpsGraphProgram.AttributeKind.NORMALIZED_SHAPE_EPSILON;
+
+    @Test
+    void admissionAndRawValidationRejectOverlappingPositiveStridesButAdmitTranspose() {
+        Shape shape = Shape.of(2, 2);
+        var output = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var operation = new Operation(SoftmaxKind.SOFTMAX, new SoftmaxAttrs(1));
+        var node = node(MetalMpsGraphProgram.NodeKind.SOFTMAX, new int[] {0}, new int[] {1}, AXIS, new long[] {1});
+        var overlap = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {1, 1}, 0, true)), false);
+        assertFalse(MetalNormalizationSupport.supports(operation, List.of(overlap), List.of(output)));
+        assertThrows(IllegalArgumentException.class, () -> MetalNormalizationSupport.validate(
+                node, List.of(MetalMpsGraphProgram.ValueDescriptor.from(overlap), MetalMpsGraphProgram.ValueDescriptor.from(output))));
+        var transpose = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {1, 2}, 0, true)), false);
+        assertTrue(MetalNormalizationSupport.supports(operation, List.of(transpose), List.of(output)));
+        MetalNormalizationSupport.validate(node, List.of(
+                MetalMpsGraphProgram.ValueDescriptor.from(transpose), MetalMpsGraphProgram.ValueDescriptor.from(output)));
+    }
+
     @Test
     void rawPreflightChecksEveryBatchGradientRoleAndRejectsLowAndMalformedScalars() {
         var node = node(MetalMpsGraphProgram.NodeKind.BATCH_NORM_TRAINING,
@@ -186,6 +214,24 @@ class MetalNormalizationLossNativeTest {
         near(5, results.get(2)[0]); near(6, results.get(2)[1]);
         near(3, results.get(3)[0]); near(5, results.get(3)[1]);
         near(1 / root, results.get(4)[0]); near(1 / root, results.get(4)[1]);
+    }
+
+    @Test
+    void batchNormTrainingPreservesActualContributorZeroSignsInSavedAndPublicMeans() {
+        var values = List.of(value(2, 1), value(1), value(1), value(1), value(1),
+                value(2, 1), value(1), value(1), value(1), value(1));
+        var node = node(MetalMpsGraphProgram.NodeKind.BATCH_NORM_TRAINING,
+                new int[] {0, 1, 2, 3, 4}, new int[] {5, 6, 7, 8, 9},
+                MetalMpsGraphProgram.AttributeKind.BATCH_NORM_TRAINING,
+                new long[] {1, 1, bits(0.5f), 1, bits(1)});
+        for (float first : new float[] {-0.0f, 0.0f}) for (float second : new float[] {-0.0f, 0.0f}) {
+            var results = execute(values, node, 5, new byte[][] {
+                floats(first, second), floats(1), floats(0), floats(-0.0f), floats(1)
+            });
+            int expectedBits = Float.floatToRawIntBits(first + second);
+            assertEquals(expectedBits, Float.floatToRawIntBits(results.get(3)[0]), "saved batch mean");
+            assertEquals(expectedBits, Float.floatToRawIntBits(results.get(1)[0]), "public next running mean");
+        }
     }
 
     @Test
