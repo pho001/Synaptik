@@ -16,6 +16,7 @@
  */
 static NSString *const SynaptikFloat32MathKernelSource =
 @"\n"
+"#pragma clang fp contract(off)\n"
 "inline float synaptik_f32_nan() { return as_type<float>(0x7fc00000u); }\n"
 "inline float synaptik_f32_exp(float x) {\n"
 "    if (isnan(x)) return x;\n"
