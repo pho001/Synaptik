@@ -20,7 +20,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-/** Cold checked lowering for static or one-named-batch NCDHW max and fixed-divisor average Pool3d. */
+/**
+ * Cold checked lowering for static or independently proved one-named-batch NCDHW pooling.
+ * FLOAT32/FLOAT64 retain matching gradient metadata and use the existing Compiler-generated
+ * window closure; low types retain their non-gradient forward domain and arithmetic lock.
+ * A numeric batch recipe does not itself grant ordinary public symbolic admission.
+ */
 public final class CpuPool3dLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
 
@@ -62,7 +67,10 @@ public final class CpuPool3dLowering {
                 || input.descriptor().dataType() == io.github.pho001.synaptik.model.datatype.DataType.BOOL
                 || input.descriptor().dataType() == io.github.pho001.synaptik.model.datatype.DataType.INT32
                 || input.descriptor().dataType() == io.github.pho001.synaptik.model.datatype.DataType.INT64
-                || (input.descriptor().requiresGrad() || output.descriptor().requiresGrad()))
+                || input.descriptor().requiresGrad() != output.descriptor().requiresGrad()
+                || input.descriptor().requiresGrad()
+                    && input.descriptor().dataType() != DataType.FLOAT32
+                    && input.descriptor().dataType() != DataType.FLOAT64)
             throw new IllegalArgumentException("Pool3d original type/rank/gradient facts disagree");
         sameAxis(input,0,output,0); sameAxis(input,1,output,1);
         if (fixed(output,2) != outputExtent(fixed(input,2),p.kd(),p.pd(),p.dd(),p.sd(),p.ceil())

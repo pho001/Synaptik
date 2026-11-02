@@ -64,10 +64,84 @@ public class CpuPool3dLoweringTest {
                 ()->assertEquals(0,lowered.pool3dGeometry().orElseThrow().outputCount()));
     }
 
+    @Test void gradientMetadataPreservesForwardGeometryIdentityAndWorkspace() {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (var kind : Pool3dKind.values()) {
+                OperationAttrs attrs = kind == Pool3dKind.MAX_POOL3D
+                        ? new MaxPool3dAttrs(2,2,2,1,2,2,1,1,1,2,1,1,true)
+                        : new AveragePool3dAttrs(2,2,2,1,2,2,1,1,1,2,1,1,true);
+                Shape input = Shape.of(1,2,3,4,5), output = Shape.of(1,2,3,3,4);
+                var ordinary = new CpuPool3dLowering().lower(context(kind, attrs, type, input, output));
+                var context = context(kind, attrs, type, input, output, true, true);
+                var gradient = new CpuPool3dLowering().lower(context);
+                assertEquals(ordinary.portableKernelIr().structuralKey(), gradient.portableKernelIr().structuralKey());
+                assertArrayEquals(ordinary.pool3dGeometry().orElseThrow().pack(0, 0),
+                        gradient.pool3dGeometry().orElseThrow().pack(0, 0));
+                var plan = new io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer()
+                        .analyze(context).plan();
+                assertTrue(plan.workspaceDeclaration().isEmpty());
+                assertTrue(plan.materializations().isEmpty());
+                assertThrows(IllegalArgumentException.class, () -> new CpuPool3dLowering().lower(
+                        context(kind, attrs, type, input, output, true, false)));
+                assertThrows(IllegalArgumentException.class, () -> new CpuPool3dLowering().lower(
+                        context(kind, attrs, type, input, output, false, true)));
+            }
+    }
+
+    @Test void qualifiedBatchGradientRecipesDoNotGrantOrdinarySymbolicPooling() {
+        var b = new io.github.pho001.synaptik.model.shape.DynamicDimension("B");
+        Shape input = Shape.ofDimensions(b, new io.github.pho001.synaptik.model.shape.StaticDimension(1),
+                new io.github.pho001.synaptik.model.shape.StaticDimension(3),
+                new io.github.pho001.synaptik.model.shape.StaticDimension(3),
+                new io.github.pho001.synaptik.model.shape.StaticDimension(3));
+        Shape output = Shape.ofDimensions(b, new io.github.pho001.synaptik.model.shape.StaticDimension(1),
+                new io.github.pho001.synaptik.model.shape.StaticDimension(2),
+                new io.github.pho001.synaptik.model.shape.StaticDimension(2),
+                new io.github.pho001.synaptik.model.shape.StaticDimension(2));
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (var kind : Pool3dKind.values()) {
+                OperationAttrs attrs = kind == Pool3dKind.MAX_POOL3D
+                        ? new MaxPool3dAttrs(2,2,2,1,1,1,0,0,0,1,1,1,false)
+                        : new AveragePool3dAttrs(2,2,2,1,1,1,0,0,0,1,1,1,false);
+                var context = context(kind, attrs, type, input, output, true, true);
+                assertFalse(new io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider().supports(
+                        new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(
+                                context.nodes().getFirst().operation(),
+                                List.of(context.values().getFirst().descriptor()),
+                                List.of(context.values().getLast().descriptor()))));
+                var recipe = new CpuPool3dLowering().lowerBatch(context).batchGeometry().orElseThrow();
+                for (long batch : new long[]{0, 1, 3}) {
+                    var resolved = recipe.bind(batch);
+                    var fixed = new CpuPool3dLowering().lower(context(kind, attrs, type,
+                            Shape.of(batch,1,3,3,3), Shape.of(batch,1,2,2,2), true, true));
+                    assertEquals(fixed.portableKernelIr().structuralKey(), resolved.portableKernelIr().structuralKey());
+                    assertArrayEquals(fixed.pool3dGeometry().orElseThrow().pack(0,0),
+                            resolved.pool3dGeometry().orElseThrow().pack(0,0));
+                }
+                assertThrows(IllegalArgumentException.class, () -> new CpuPool3dLowering().lowerBatch(
+                        context(kind, attrs, type, input, output, true, false)));
+                assertThrows(IllegalArgumentException.class, () -> new CpuPool3dLowering().lowerBatch(
+                        context(kind, attrs, type, input, output, false, true)));
+            }
+        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
+            assertThrows(IllegalArgumentException.class, () -> new CpuPool3dLowering().lowerBatch(
+                    context(Pool3dKind.MAX_POOL3D,
+                            new MaxPool3dAttrs(2,2,2,1,1,1,0,0,0,1,1,1,false),
+                            type, input, output, true, true)));
+    }
+
     public static PrepareContext<CpuPartitionAnalysisInputs> context(Pool3dKind kind,
             OperationAttrs attrs,DataType type,Shape inputShape,Shape outputShape){
-        var input=new TensorDescriptor(type,inputShape,Optional.of(LayoutDescriptor.contiguous(inputShape)),false);
-        var output=new TensorDescriptor(type,outputShape,Optional.of(LayoutDescriptor.contiguous(outputShape)),false);
+        return context(kind, attrs, type, inputShape, outputShape, false, false);
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> context(Pool3dKind kind,
+            OperationAttrs attrs, DataType type, Shape inputShape, Shape outputShape,
+            boolean inputGrad, boolean outputGrad) {
+        var input=new TensorDescriptor(type,inputShape,inputShape.isFullyStatic()
+                ? Optional.of(LayoutDescriptor.contiguous(inputShape)) : Optional.empty(),inputGrad);
+        var output=new TensorDescriptor(type,outputShape,outputShape.isFullyStatic()
+                ? Optional.of(LayoutDescriptor.contiguous(outputShape)) : Optional.empty(),outputGrad);
         return CpuScatterLoweringTest.context(new Operation(kind,attrs),List.of(0),List.of(input),output);
     }
 }

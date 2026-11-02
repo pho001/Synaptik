@@ -119,8 +119,14 @@ class CpuCapabilityProviderTest {
                         List.of(nonInjectiveInput),output)),
                 ()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,List.of(input),
                         descriptor(DataType.FLOAT32,Shape.of(1,2,4,4,3))))),
-                ()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
+                ()->assertTrue(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
                         List.of(gradientInput),gradientOutput))),
+                ()->assertTrue(provider.supports(query(Pool3dKind.AVERAGE_POOL3D,average,
+                        List.of(gradientInput),gradientOutput))),
+                ()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
+                        List.of(gradientInput),output))),
+                ()->assertFalse(provider.supports(query(Pool3dKind.AVERAGE_POOL3D,average,
+                        List.of(input),gradientOutput))),
                 ()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
                         List.of(input),nonInjective))),
                 ()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
@@ -128,6 +134,25 @@ class CpuCapabilityProviderTest {
                         descriptor(DataType.FLOAT32,Shape.of(1,2,4,4))))),
                 ()->assertThrows(IllegalArgumentException.class,()->query(Pool3dKind.MAX_POOL3D,
                         average,List.of(input),output)));
+    }
+
+    @Test void pool3dGradientMetadataAdmitsBothWorkingTypesWithoutUnlockingLowTypes() {
+        var provider = new CpuCapabilityProvider();
+        var max = new MaxPool3dAttrs(2,2,2,1,1,1,1,1,1,2,2,2,true);
+        var average = new AveragePool3dAttrs(2,2,2,1,1,1,1,1,1,2,2,2,true);
+        Shape shape = Shape.of(1,2,3,3,3);
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64,
+                DataType.BFLOAT16, DataType.FLOAT16)) {
+            var input = new TensorDescriptor(type, shape,
+                    Optional.of(LayoutDescriptor.contiguous(shape)), true);
+            var output = new TensorDescriptor(type, shape,
+                    Optional.of(LayoutDescriptor.contiguous(shape)), true);
+            boolean supported = type == DataType.FLOAT32 || type == DataType.FLOAT64;
+            assertEquals(supported, provider.supports(query(Pool3dKind.MAX_POOL3D, max,
+                    List.of(input), output)), type.toString());
+            assertEquals(supported, provider.supports(query(Pool3dKind.AVERAGE_POOL3D, average,
+                    List.of(input), output)), type.toString());
+        }
     }
 
     @Test void reportsExactlyStaticResolvedNumericMatmulOccurrences() {

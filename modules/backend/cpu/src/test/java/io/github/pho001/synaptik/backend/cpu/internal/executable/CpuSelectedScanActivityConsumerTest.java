@@ -246,6 +246,130 @@ public class CpuSelectedScanActivityConsumerTest {
             }
     }
 
+    @Test void conv3dPool3dLossExecutesActualInputAndWeightCotangents() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (boolean maximum : List.of(false, true)) {
+                Tensor input = leaf(type, true, 1,1,4,4,4), weight = leaf(type, true, 1,1,2,2,2);
+                Tensor convolution = input.conv3d(weight,
+                        io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs.defaults());
+                Tensor pooled = maximum
+                        ? convolution.maxPool3d(new io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs(
+                                2,2,2,1,1,1,0,0,0,1,1,1,false))
+                        : convolution.averagePool3d(new io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs(
+                                2,2,2,1,1,1,0,0,0,1,1,1,false));
+                Tensor target = leaf(type, false, 1,1,2,2,2), seed = leaf(type, false);
+                Tensor loss = pooled.meanSquaredError(target, LossReduction.MEAN);
+                double[] inputs = new double[64], weights = new double[8];
+                Arrays.fill(inputs, 1); Arrays.fill(weights, .125);
+                var actual = execute(compile(List.of(loss), List.of(loss), List.of(seed),
+                        List.of(input,weight), false),
+                        feeds(input,inputs,weight,weights,target,new double[8],seed,new double[]{1}));
+                assertArrayEquals(new double[]{1},actual.getFirst());
+                // Ordinary overlap multiplicities: convolution composes two adjacent windows.
+                int[] counts = maximum ? new int[]{1,2,1,0} : new int[]{1,3,3,1};
+                double scale = maximum ? .03125 : .00390625;
+                double[] expectedInput = new double[64], expectedWeight = new double[8];
+                for (int d = 0; d < 4; d++) for (int h = 0; h < 4; h++) for (int w = 0; w < 4; w++)
+                    expectedInput[(d * 4 + h) * 4 + w] = counts[d] * counts[h] * counts[w] * scale;
+                Arrays.fill(expectedWeight, 2);
+                assertArrayEquals(expectedInput,actual.get(1));
+                assertArrayEquals(expectedWeight,actual.get(2));
+            }
+    }
+
+    @Test void ordinaryPool3dSelectedBackwardAccumulatesOverlapsAndPreservesExactWinnerEligibility() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            Tensor input = leaf(type, true, 1,1,3,3,3);
+            Tensor average = input.averagePool3d(new io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs(
+                    2,2,2,1,1,1,0,0,0,1,1,1,false));
+            Tensor seed = leaf(type, false, 1,1,2,2,2);
+            double[] ones = new double[27], seeds = new double[8]; Arrays.fill(ones, 1); Arrays.fill(seeds, 1);
+            var averaged = execute(compile(List.of(average), List.of(average), List.of(seed),
+                    List.of(input), false), feeds(input, ones, seed, seeds));
+            assertArrayEquals(seeds, averaged.getFirst());
+            double[] expected = new double[27];
+            for (int d = 0; d < 3; d++) for (int h = 0; h < 3; h++) for (int w = 0; w < 3; w++)
+                expected[(d * 3 + h) * 3 + w] = (d == 1 ? 2 : 1) * (h == 1 ? 2 : 1) * (w == 1 ? 2 : 1) / 8d;
+            assertArrayEquals(expected, averaged.get(1));
+
+            Tensor special = leaf(type, true, 1,1,1,1,6);
+            Tensor max = special.maxPool3d(new io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs(
+                    1,1,3,1,1,1,0,0,3,1,1,1,false));
+            Tensor maxSeed = leaf(type, false, 1,1,1,1,10);
+            var selected = execute(compile(List.of(max), List.of(max), List.of(maxSeed), List.of(special), false),
+                    feeds(special, new double[]{Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, -0d, 0d, Double.NaN, Double.NaN},
+                            maxSeed, new double[]{512,1,2,4,8,16,32,64,128,1024}));
+            double[] forward = selected.getFirst();
+            assertArrayEquals(new double[]{Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY,
+                    Double.NEGATIVE_INFINITY, -0d, 0d, Double.NaN, Double.NaN, Double.NaN,
+                    Double.NaN, Double.NEGATIVE_INFINITY}, forward);
+            rawZero(-0d, forward[3]); rawZero(0d, forward[4]);
+            assertArrayEquals(new double[]{3,0,4,8,112,128}, selected.get(1));
+        }
+    }
+
+    @Test void lengthAwarePool3dBackwardIgnoresPoisonedInactiveRowsAndSeeds() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (boolean maximum : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
+                Tensor h = leaf(type, true, 3,1,3,3,3), x = leaf(type, true, 3,1,3,3,3);
+                Tensor pooled = pool3dSameShape(h.add(x), maximum);
+                Tensor initial = leaf(type, true, 3,1,3,3,3), sequence = leaf(type, true, 2,3,1,3,3,3);
+                Tensor lengths = leaf(DataType.INT64, false, 3);
+                var scan = bind(initial, List.of(sequence), List.of(), lengths,
+                        new ScanBody(List.of(h), List.of(x), List.of(), List.of(pooled), List.of(pooled)), reverse, true);
+                var roots = List.of(scan.finalCarry().getFirst(), scan.outputs().getFirst());
+                Tensor fs = leaf(type, false, 3,1,3,3,3), es = leaf(type, false, 2,3,1,3,3,3);
+                double[] init = new double[81], data = new double[162], seeds = new double[162], finalSeeds = new double[81];
+                Arrays.fill(data, Double.NaN); Arrays.fill(seeds, Double.NaN); Arrays.fill(finalSeeds, .125);
+                int[] valid = {2,1,0};
+                for (int i = 0; i < init.length; i++) init[i] = (i % 13 - 6) * .0625;
+                for (int t = 0; t < 2; t++) for (int row = 0; row < 3; row++) if (t < valid[row])
+                    for (int j = 0; j < 27; j++) {
+                        int i = (t * 3 + row) * 27 + j;
+                        data[i] = (i % 17 - 8) * .03125; seeds[i] = (j % 5 + 1) * .125;
+                    }
+                Tensor zero = leaf(type, false, 1,1,3,3,3);
+                var input = feeds(initial, init, sequence, data, lengths, new double[]{2,1,0},
+                        fs, finalSeeds, es, seeds, zero, new double[27]);
+                Tensor[] finals = new Tensor[3]; Tensor[][] history = new Tensor[2][3];
+                for (int row = 0; row < 3; row++) {
+                    Tensor state = initial.select(0,row).expandDims(0);
+                    for (int t = 0; t < 2; t++) history[t][row] = zero;
+                    for (int step = 0; step < valid[row]; step++) {
+                        int t = reverse ? valid[row] - 1 - step : step;
+                        state = pool3dSameShape(state.add(sequence.select(0,t).select(0,row).expandDims(0)), maximum);
+                        history[t][row] = state;
+                    }
+                    finals[row] = state;
+                }
+                var reference = List.of(Tensor.concat(0,finals), Tensor.stack(0,
+                        Tensor.concat(0,history[0]), Tensor.concat(0,history[1])));
+                var targets = List.of(initial,sequence);
+                var expected = execute(compile(reference,reference,List.of(fs,es),targets,false),referenceFeeds(input));
+                var actual = execute(compile(roots,roots,List.of(fs,es),targets,false),input);
+                compare(expected,actual,type == DataType.FLOAT64 ? 2e-13 : 3e-6,
+                        "Pool3d maximum=" + maximum + " reverse=" + reverse);
+                for (int t = 0; t < 2; t++) for (int row = 0; row < 3; row++) if (t >= valid[row])
+                    for (int j = 0; j < 27; j++) {
+                        rawZero(0d,actual.get(1)[(t * 3 + row) * 27 + j]);
+                        rawZero(0d,actual.get(3)[(t * 3 + row) * 27 + j]);
+                    }
+            }
+    }
+
+    /**
+     * Builds overlapping dilated, padded ceiling-grid pooling without changing the state shape.
+     * @param input floating NCDHW state
+     * @param maximum whether to select the exact maximum rather than the fixed-divisor mean
+     * @return the same-shaped ordinary Pool3d expression used by Scan and its unrolled reference
+     */
+    private static Tensor pool3dSameShape(Tensor input, boolean maximum) {
+        return maximum ? input.maxPool3d(new io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs(
+                2,2,2,1,1,1,1,1,1,2,2,2,true))
+                : input.averagePool3d(new io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs(
+                        2,2,2,1,1,1,1,1,1,2,2,2,true));
+    }
+
     private static Tensor guarded(Guard guard, Tensor x, Tensor aux) {
         return switch (guard) {
             case SOFTMAX -> x.softmax(1);

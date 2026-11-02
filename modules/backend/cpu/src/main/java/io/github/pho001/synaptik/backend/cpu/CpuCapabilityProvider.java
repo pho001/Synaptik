@@ -140,9 +140,11 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSpatialWindowG
  * {@code FOLD2D} and F32/F64 {@code FOLD3D}. Fold requires exact current static geometry, a distinct injective result,
  * canonical represented addition, and no implicit base, workspace, or padding value.</p>
  *
- * <p>The pooling matrix admits direct static NCHW Pool2d and non-gradient NCDHW Pool3d max and
- * fixed-divisor average occurrences for every floating type. Pool3d requires exact
- * floor/ceil output geometry, non-negative resolved layouts, and an injective output; its input
+ * <p>The pooling matrix admits direct static NCHW Pool2d and NCDHW Pool3d max and
+ * fixed-divisor average occurrences. Pool3d admits matching gradient metadata for FLOAT32 and
+ * FLOAT64 through the existing Compiler window adjoints; low types retain their non-gradient
+ * forward domain and arithmetic lock. Pool3d requires exact floor/ceil output geometry,
+ * non-negative resolved layouts, and an injective output; its input
  * may be non-injective because pooling only reads it. Pool1d remains three independently reported
  * affine/Pool2d components and is not a capability kind of its own.</p>
  *
@@ -1120,7 +1122,10 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             dd=a.dilationDepth(); dh=a.dilationHeight(); dw=a.dilationWidth(); ceil=a.ceilMode();
         } else return false;
         if (!windowFloating(input.dataType()) || output.dataType() != input.dataType()
-                || input.requiresGrad() || output.requiresGrad() || input.shape().rank() != 5
+                || output.requiresGrad() != input.requiresGrad()
+                || input.requiresGrad() && input.dataType() != DataType.FLOAT32
+                    && input.dataType() != DataType.FLOAT64
+                || input.shape().rank() != 5
                 || output.shape().rank() != 5 || !injective(output.shape().toLongArray(),
                         output.layout().orElseThrow().strides())) return false;
         long[] x=input.shape().toLongArray(), y=output.shape().toLongArray();
