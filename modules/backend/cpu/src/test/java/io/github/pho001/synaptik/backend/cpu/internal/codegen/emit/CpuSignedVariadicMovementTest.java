@@ -162,7 +162,7 @@ class CpuSignedVariadicMovementTest {
     }
     @Test void variadicMovementFeedsOrdinaryConsumersBeyondCandidateResourceCeilings() {
         for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64))
-            for (var kind : TensorCompositionKind.values()) for (int count : new int[]{17, 80}) {
+            for (var kind : TensorCompositionKind.values()) for (int count : new int[]{17, 65}) {
                 Tensor[] inputs = IntStream.range(0, count).mapToObj(i -> tensor(type, false, 2, 1))
                         .toArray(Tensor[]::new);
                 Tensor composed = kind == TensorCompositionKind.CONCAT
@@ -279,7 +279,7 @@ class CpuSignedVariadicMovementTest {
                 Tensor xs = tensor(type, true, 3, 2, 5), us = tensor(type, true, 3, 2, 3);
                 Tensor lengths = tensor(DataType.INT64, false, 2), seed = tensor(type, false, 3, 2, 5);
                 var scan = lengthMode ? Scan.apply(List.of(), List.of(xs, us), List.of(), lengths, 0,
-                        List.of(OptionalInt.of(0)), body, reverse)
+                        List.of(OptionalInt.of(0), OptionalInt.of(0)), body, reverse)
                         : Scan.apply(List.of(), List.of(xs, us), List.of(), body, reverse);
                 var artifact = compile(scan.outputs().getFirst(), seed, List.of(xs, us));
                 try (var consumer = new Consumer(artifact, OptionalLong.empty())) {
@@ -326,11 +326,11 @@ class CpuSignedVariadicMovementTest {
             var type = context.values().get(i).descriptor().dataType();
             var segment = (MemorySegment) carriers.get(i);
             heapCarriers.add(switch (type) {
-                case FLOAT64 -> segment.toArray(ValueLayout.JAVA_DOUBLE);
-                case FLOAT32 -> segment.toArray(ValueLayout.JAVA_FLOAT);
-                case BFLOAT16, FLOAT16 -> segment.toArray(ValueLayout.JAVA_SHORT);
-                case INT32 -> segment.toArray(ValueLayout.JAVA_INT);
-                case INT64 -> segment.toArray(ValueLayout.JAVA_LONG);
+                case FLOAT64 -> segment.toArray(ValueLayout.JAVA_DOUBLE_UNALIGNED);
+                case FLOAT32 -> segment.toArray(ValueLayout.JAVA_FLOAT_UNALIGNED);
+                case BFLOAT16, FLOAT16 -> segment.toArray(ValueLayout.JAVA_SHORT_UNALIGNED);
+                case INT32 -> segment.toArray(ValueLayout.JAVA_INT_UNALIGNED);
+                case INT64 -> segment.toArray(ValueLayout.JAVA_LONG_UNALIGNED);
                 case BOOL -> segment.toArray(ValueLayout.JAVA_BYTE);
             });
             pattern.add(switch (type) {

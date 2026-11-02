@@ -135,8 +135,7 @@ final class LayoutInference {
             if (kind == SliceKind.SLICE) {
                 TensorDescriptor output = new TensorDescriptor(
                         base.dataType(), attrs.targetShape(), Optional.empty(), base.requiresGrad());
-                return new CapturedGraphInference.InferenceResult(
-                        ScanBody.closeOrdinaryLayouts(operation, in, List.of(output)), constraints);
+                return new CapturedGraphInference.InferenceResult(List.of(output), constraints);
             }
             TensorDescriptor update = in.get(1);
             if (update.dataType() != base.dataType()

@@ -142,6 +142,13 @@ changes ordinary construction, performs independent type/Shape inference or gran
 backend admission. Preserve resolved layouts, exact affine views and unresolved unproved cases.
 No new production type, Tensor/ID allocation or cross-module dependency edge is selected.
 
+The user-authorized backend coverage completion extends that existing completion decision for
+validated fully static signed-step or empty SLICE extraction: when an exact nonnegative-stride
+view is unproved, select canonical non-view materialization. Raw family/source/wire inference
+remains unchanged, and no negative physical stride, sampled symbolic extent, new operation owner
+or coordinate normalization is introduced. Flat Compiler and containing-body physical closure
+consume the same decision; ordinary and Scan execution still qualify independently.
+
 The reviewed source-publication prerequisite renames the existing Prepare contribution owner
 to `ProducerlessPublishedValueResource`, retaining five components: stable value, logical
 requirement, backend owner, existing Runtime `ByteSize size`, and byte alignment. The migrated
