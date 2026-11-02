@@ -206,4 +206,91 @@ static BOOL synaptik_normalization_metadata(SynaptikMetalDecodedNode node,
     return YES;
 }
 
+/**
+ * Validates every eligible index target before any categorical-loss output write.
+ * Inputs/offsets are the step's ordered role buffers and their byte binding offsets,
+ * not a global value table. Metadata view offsets/strides remain element-addressed.
+ * The caller synchronizes a produced target before invoking this CPU read-only
+ * preflight; feed targets can be checked before the partition's first mutation.
+ * GeneralScan's authenticated host eligibility helper must be defined first.
+ * Dense targets remain a Model caller obligation, not a new rejection policy.
+ */
+static int32_t synaptik_normalization_preflight(
+        const SynaptikNormalizationLossMeta *m,
+        NSArray<id<MTLBuffer>> *inputs,
+        const NSUInteger *offsets,
+        const uint64_t *scanControl,
+        const SynaptikMetalScanStepControl *scanStep) {
+    if (m == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+    if (m->mode != 87U) return SYNAPTIK_METAL_STATUS_OK;
+    if (m->rank == 0U || m->rank > 16U || m->axis >= m->rank
+            || (m->indexType != 2U && m->indexType != 6U)
+            || m->reduction > 2U || (m->flags & ~4U) != 0U
+            || (scanControl != NULL && scanStep == NULL))
+        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+    uint64_t rows = 1U;
+    for (uint32_t axis = 0U; axis < m->rank; axis++) {
+        if (axis == m->axis) continue;
+        uint64_t extent = m->dims[axis];
+        if (extent != 0U && rows > UINT64_MAX / extent)
+            return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+        rows *= extent;
+    }
+    if (rows != m->rowCount || m->featureCount != m->dims[m->axis])
+        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+    if (scanControl != NULL && m->reduction != 0U && scanStep->rowAxis >= 0)
+        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+    uint64_t width = m->indexType == 2U ? 4U : 8U;
+    const uint8_t *targetBytes = NULL;
+    NSUInteger available = 0U;
+    for (uint64_t row = 0U; row < rows; row++) {
+        // CE NONE output coordinates are precisely the target's nonclass shape.
+        // Reduced CE is SHARED, so its eligibility is the same for every row.
+        if (scanControl != NULL && !synaptik_scan_control_output(
+                scanControl, scanStep, m->reduction == 0U ? row : 0U)) continue;
+        if (targetBytes == NULL) {
+            if (inputs == nil || inputs.count < 2U || offsets == NULL)
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            id<MTLBuffer> target = inputs[1];
+            const void *contents = target.contents;
+            if (target == nil || contents == NULL)
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            NSUInteger length = target.length;
+            if (offsets[1] > length) return SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS;
+            targetBytes = (const uint8_t *)contents + offsets[1];
+            available = length-offsets[1];
+        }
+        uint64_t remaining = row, address = m->views[1].offset;
+        for (uint32_t axis = m->rank; axis-- > 0U;) {
+            if (axis == m->axis) continue;
+            uint64_t extent = m->dims[axis];
+            if (extent == 0U) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            uint64_t coordinate = remaining % extent;
+            remaining /= extent;
+            uint32_t targetAxis = axis > m->axis ? axis-1U : axis;
+            uint64_t stride = m->views[1].strides[targetAxis];
+            if (coordinate != 0U && stride > (UINT64_MAX-address)/coordinate)
+                return SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS;
+            address += coordinate*stride;
+        }
+        if (address > NSUIntegerMax/width)
+            return SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS;
+        NSUInteger byteAddress = (NSUInteger)(address*width);
+        if (byteAddress > available || width > available-byteAddress)
+            return SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS;
+        const uint8_t *bytes = targetBytes + byteAddress;
+        int64_t selected;
+        if (m->indexType == 2U) {
+            int32_t narrow;
+            memcpy(&narrow, bytes, sizeof(narrow));
+            selected = narrow;
+        } else memcpy(&selected, bytes, sizeof(selected));
+        // Compare in the original exact signed carrier domain, before bounds.
+        if ((m->flags & 4U) != 0U && selected == m->ignoreIndex) continue;
+        if (selected < 0 || (uint64_t)selected >= m->featureCount)
+            return SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS;
+    }
+    return SYNAPTIK_METAL_STATUS_OK;
+}
+
 #endif

@@ -60,6 +60,18 @@ class MetalNormalizationLossNativeTest {
 
 
     @Test
+    void lateOutOfRangeIndexRejectsBeforeAnyLossOutputMutation() {
+        for (DataType type : List.of(DataType.INT32, DataType.INT64)) {
+            var values = List.of(value(2, 2), new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2}, false), value(2));
+            var node = node(MetalMpsGraphProgram.NodeKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
+                    new int[] {0, 1}, new int[] {2}, MetalMpsGraphProgram.AttributeKind.INDEX_CROSS_ENTROPY,
+                    new long[] {1, 1, 1, MetalMpsGraphProgram.dataTypeWire(type),
+                        type == DataType.INT32 ? 0xffff_ffffL : -1L});
+            execute(values, node, 2, new byte[][] {floats(1, 2, 3, 4), indices(type, 0, 2)}, true);
+        }
+    }
+
+    @Test
     void softmaxUsesFiniteMaximumShiftAndLiteralNonfiniteRules() {
         var shape = new long[] {2, 3};
         var finite = floats(1000, 1001, 1002, -1002, -1001, -1000);
@@ -261,6 +273,11 @@ class MetalNormalizationLossNativeTest {
     /** Executes one real native custom node with distinct owned value buffers and returns every sibling. */
     private static List<float[]> execute(List<MetalMpsGraphProgram.ValueDescriptor> values,
             MetalMpsGraphProgram.Node node, int inputCount, byte[][] inputs) {
+        return execute(values, node, inputCount, inputs, false);
+    }
+
+    private static List<float[]> execute(List<MetalMpsGraphProgram.ValueDescriptor> values,
+            MetalMpsGraphProgram.Node node, int inputCount, byte[][] inputs, boolean expectRejection) {
         String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
         assumeTrue(configured != null && !configured.isBlank(), "SYNAPTIK_METAL_TEST_LIBRARY is not set");
         MetalNativeApi api = MetalNativeApi.open(Path.of(configured).toAbsolutePath().normalize());
@@ -285,7 +302,16 @@ class MetalNormalizationLossNativeTest {
                 for (int i = 0; i < buffers.size(); i++) table.setAtIndex(ADDRESS, i, buffers.get(i).carrier());
                 MemorySegment outputs = arena.allocate(ADDRESS, targetIds.length);
                 for (int i = 0; i < targetIds.length; i++) outputs.setAtIndex(ADDRESS, i, buffers.get(targetIds[i]).carrier());
-                api.runExecutable(executable, values.size(), table, targetIds.length, outputs);
+                if (expectRejection) {
+                    for (int id : targetIds) {
+                        MemorySegment sentinel = arena.allocate(values.get(id).byteCount(), Float.BYTES);
+                        sentinel.fill((byte) 0x2a);
+                        api.upload(buffers.get(id), 0, sentinel, values.get(id).byteCount());
+                    }
+                    MetalNativeApi.Handle prepared = executable;
+                    assertThrows(MetalNativeApi.NativeFailure.class,
+                            () -> api.runExecutable(prepared, values.size(), table, targetIds.length, outputs));
+                } else api.runExecutable(executable, values.size(), table, targetIds.length, outputs);
                 var result = new ArrayList<float[]>();
                 for (int id : targetIds) {
                     int count = Math.toIntExact(values.get(id).elementCount());
@@ -294,6 +320,8 @@ class MetalNormalizationLossNativeTest {
                     ByteBuffer bytes = ByteBuffer.wrap(target.toArray(JAVA_BYTE)).order(ByteOrder.nativeOrder());
                     float[] decoded = new float[count];
                     for (int j = 0; j < count; j++) decoded[j] = bytes.getFloat();
+                    if (expectRejection) for (float value : decoded)
+                        assertEquals(0x2a2a2a2a, Float.floatToRawIntBits(value), "preflight must precede every loss write");
                     result.add(decoded);
                 }
                 return result;
