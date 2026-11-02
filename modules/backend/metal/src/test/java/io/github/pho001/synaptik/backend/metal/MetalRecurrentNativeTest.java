@@ -46,6 +46,36 @@ class MetalRecurrentNativeTest {
     }
 
     @Test
+    void singletonContractionsPreserveSignedZeroThroughEveryPublicSibling() {
+        for (var kind : KINDS) {
+            for (boolean reverse : List.of(false, true)) {
+                for (boolean biased : List.of(false, true)) {
+                    try (var fixture = new Fixture(kind, reverse, biased, 1, 1, -1, 1, 1)) {
+                        Arrays.fill(fixture.w, 1.0f);
+                        Arrays.fill(fixture.u, 1.0f);
+                        for (float zero : new float[] {0.0f, -0.0f}) {
+                            Arrays.fill(fixture.x, zero);
+                            Arrays.fill(fixture.h0, zero);
+                            Arrays.fill(fixture.c0, zero);
+                            Arrays.fill(fixture.bias, zero);
+                            fixture.assertRun(new long[] {1});
+                            if (kind == MetalMpsGraphProgram.NodeKind.RNN_TANH) {
+                                List<byte[]> actual = fixture.snapshot();
+                                for (int target : fixture.targets) {
+                                    assertEquals(Float.floatToRawIntBits(zero),
+                                            ByteBuffer.wrap(actual.get(target))
+                                                    .order(ByteOrder.nativeOrder()).getInt(),
+                                            "RNN singleton signed zero at public target " + target);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void inactiveRowsPreserveRawInitialStatesAndNeverReadPaddedNanInputs() {
         for (var kind : KINDS) {
             for (boolean reverse : List.of(false, true)) {
@@ -150,7 +180,7 @@ class MetalRecurrentNativeTest {
     private static final class Fixture implements AutoCloseable {
         final MetalMpsGraphProgram.NodeKind kind;
         final boolean reverse, biased;
-        final int time, batch, input = 2, hidden = 3, gates, readCount;
+        final int time, batch, input, hidden, gates, readCount;
         final float[] x, h0, c0, w, u, bias;
         final List<MetalMpsGraphProgram.ValueDescriptor> values = new ArrayList<>();
         final List<MetalNativeApi.Handle> buffers = new ArrayList<>();
@@ -160,6 +190,11 @@ class MetalRecurrentNativeTest {
 
         Fixture(MetalMpsGraphProgram.NodeKind kind, boolean reverse, boolean biased,
                 int time, int batch, int selectedOutput) {
+            this(kind, reverse, biased, time, batch, selectedOutput, 2, 3);
+        }
+
+        Fixture(MetalMpsGraphProgram.NodeKind kind, boolean reverse, boolean biased,
+                int time, int batch, int selectedOutput, int input, int hidden) {
             String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
             assumeTrue(configured != null && !configured.isBlank(),
                     "SYNAPTIK_METAL_TEST_LIBRARY is not set");
@@ -168,6 +203,8 @@ class MetalRecurrentNativeTest {
             this.biased = biased;
             this.time = time;
             this.batch = batch;
+            this.input = input;
+            this.hidden = hidden;
             gates = kind == MetalMpsGraphProgram.NodeKind.RNN_TANH ? 1
                     : kind == MetalMpsGraphProgram.NodeKind.GRU_RESET_AFTER ? 3 : 4;
             x = pattern(time * batch * input, 0.13f);
@@ -305,11 +342,14 @@ class MetalRecurrentNativeTest {
                 float[] a = new float[f.gates * f.hidden];
                 float[] b = new float[a.length];
                 for (int gate = 0; gate < a.length; gate++) {
-                    for (int k = 0; k < f.input; k++) {
+                    int inputBase = (time * f.batch + row) * f.input;
+                    a[gate] = f.x[inputBase] * f.w[gate * f.input];
+                    for (int k = 1; k < f.input; k++) {
                         a[gate] += f.x[(time * f.batch + row) * f.input + k]
                                 * f.w[gate * f.input + k];
                     }
-                    for (int k = 0; k < f.hidden; k++) {
+                    b[gate] = previous[0] * f.u[gate * f.hidden];
+                    for (int k = 1; k < f.hidden; k++) {
                         b[gate] += previous[k] * f.u[gate * f.hidden + k];
                     }
                     if (f.biased) a[gate] += f.bias[gate];
@@ -352,7 +392,7 @@ class MetalRecurrentNativeTest {
                     : lengths[i / f.hidden] == 0;
             String site = f.kind + " reverse=" + f.reverse + " bias=" + f.biased
                     + " output=" + output + " element=" + i;
-            if (exact) {
+            if (exact || expected[i] == 0.0f) {
                 assertEquals(Float.floatToRawIntBits(expected[i]), word, site);
             } else {
                 assertEquals(expected[i], Float.intBitsToFloat(word), 8.0e-6f, site);
