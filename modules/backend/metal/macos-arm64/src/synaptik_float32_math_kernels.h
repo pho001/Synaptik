@@ -14,7 +14,7 @@
  * Tensor POW buffers: left=0, right=1, output=2, BinaryMeta=3. Existing 3-D
  * linear grid, one canonical output cell per thread, no workspace or atomics.
  * Controlled variants append _scan to each ordinary entry name and add read-only
- * control buffer 28 plus the shared 80-byte ScanStepControl at buffer 29. Their
+ * control buffer 28 plus the shared ScanStepControl at buffer 29. Their
  * eligibility guard precedes every input load; inactive output cells are untouched.
  * These functions neither narrow to low storage nor authorize a low-domain route.
  */
