@@ -394,7 +394,7 @@ static NSString *synaptik_authenticated_fixed_source(void) {
                 "8217948f0c28d3df56c5f2edb5408306b588bf2c5e0b1f90a23463e295ac6b99")
             || !synaptik_source_digest_matches(
                 SynaptikTask0066DtypeLayoutKernelSource,
-                "520c56b03ea71e8a18bf731c63236d51a1345955891fb11bf1b981aae1ca5a0e")
+                "f68ea1319df98655ee701641da3fb8b1dd02f62a966e4513d014971e90bf29fe")
             || !synaptik_source_digest_matches(
                 SynaptikTask0071AnchorEpilogueKernelSource,
                 "e165612540f551ce547c145dde4fa48e46ff06e652b4729272b8bfabc75f0663"))
@@ -409,10 +409,10 @@ static NSString *synaptik_authenticated_fixed_source(void) {
     fixed = [[[fixed stringByAppendingString:SynaptikTask0065RngDropoutKernelSource]
             stringByAppendingString:SynaptikTask0066DtypeLayoutKernelSource]
             stringByAppendingString:SynaptikTask0071AnchorEpilogueKernelSource];
-    return [fixed lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 87905U
+    return [fixed lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 87929U
             && synaptik_source_digest_matches(
                     fixed,
-                    "d694925abca53629bf98312c8925927523ec065113a71d1db5f6eee9c91dfa9a")
+                    "c95d0c71b5ed603b4c5597b423fcfedfd6839e7b9a1c783069ec3fef7a9d93e9")
             ? fixed : nil;
 }
 
@@ -8302,12 +8302,12 @@ static NSData *synaptik_pointwise_manifest(
             fusion->step_count, fusion->member_count, fusion->binding_count,
             fusion->materialized_count, fusion->instruction_count];
     [text appendFormat:@"stop %u %u\n", rejected_node, cap_reason];
-    [text appendFormat:@"source %u 87905 %u\n",
+    [text appendFormat:@"source %u 87929 %u\n",
             fusion->expected_generated_bytes, fusion->expected_total_bytes];
     [text appendString:@"caps 32 256 16384 262144 1048576\n"];
     [text appendString:@"execution-caps 64 512\n"];
     [text appendString:@"source-size-table 1\n"];
-    [text appendString:@"fixed-corpus-bytes 87905\n"];
+    [text appendString:@"fixed-corpus-bytes 87929\n"];
     [text appendString:@"opcodes floor=1 ceil=2 sign=3 relu=4\n"];
     [text appendString:@"anchor-opcodes scalar-mul=1 add=2 relu=3 clamp=4\n"];
     [text appendString:@"pointmeta-abi size=32 align=8 elementCount=u64@0 gridWidth=u64@8 gridHeight=u64@16 scalar=u32@24 reserved=u32@28\n"];
