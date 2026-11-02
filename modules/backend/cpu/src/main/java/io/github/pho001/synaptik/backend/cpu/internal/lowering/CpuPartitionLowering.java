@@ -1504,8 +1504,8 @@ public final class CpuPartitionLowering {
 
     /**
      * Validates shared pointwise facts without admitting a backend route or binding layout.
-     * This bounded inventory preserves exact Dimensions, including named batch coordinates;
-     * ordinary callers keep their independent broader-family provider checks.
+     * This bounded inventory preserves exact Dimensions, including named batch coordinates,
+     * and Model numeric promotion; ordinary callers retain independent provider admission.
      * @param node non-null compiled tensor/scalar arithmetic, unary or raw-copy occurrence
      * @param inputs non-null ordered descriptors at semantic input positions
      * @param output non-null sole result descriptor
@@ -1526,7 +1526,12 @@ public final class CpuPartitionLowering {
         if (!binary && !scalar && !unary && !cast && !contiguous || inputs.size() != (binary ? 2 : 1))
             throw new IllegalArgumentException("unsupported shared pointwise facts");
         DataType type = output.dataType();
-        if (inputs.stream().anyMatch(input -> input.dataType() != type)
+        boolean typesAgree = binary
+                ? io.github.pho001.synaptik.model.datatype.DataTypePromotion.promoteNumeric(
+                        inputs.get(0).dataType(), inputs.get(1).dataType()) == type
+                    && (kind != BinaryArithmeticKind.DIV || type.isFloating())
+                : cast || inputs.stream().allMatch(input -> input.dataType() == type);
+        if (!typesAgree
                 || scalar && (!(attrs instanceof ScalarValueAttrs a) || a.value().dataType() != type)
                 || cast && (!(attrs instanceof io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs a)
                     || a.targetDataType() != type)
