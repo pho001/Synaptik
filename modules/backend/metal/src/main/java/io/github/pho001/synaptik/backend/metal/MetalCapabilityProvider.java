@@ -110,10 +110,11 @@ import java.util.Objects;
  * <p>This provider is immutable and performs no native loading, device discovery, allocation,
  * registration, or caching. The provider admits the exact seven-carrier movement, affine,
  * canonicalization, indexing, replacement, selection, ordering, state, predicate, cast, and
- * non-overlapping window occurrences declared below. Reads may use authenticated static affine or
+ * window occurrences declared below. Reads may use authenticated static affine or
  * transferred materialized layouts; outputs use the operation's exact logical view or canonical
- * materialization. External unsafe aliases, negative strides, overlap, empty or dynamic geometry,
- * and accumulation-requiring folds remain unsupported.</p>
+ * materialization. FLOAT32/FLOAT64 image folds accumulate overlapping contributors with one
+ * output writer; low image folds and FOLD_AXIS retain exact non-overlapping placement. External
+ * unsafe aliases, negative strides, storage overlap, and empty or dynamic geometry remain false.</p>
  *
  * <p>For homogeneous BFLOAT16 and FLOAT16 occurrences, this predicate first checks the original
  * descriptors, then tests an exact FLOAT32 descriptor/attribute proxy against the baseline
@@ -151,10 +152,10 @@ import java.util.Objects;
  *
  * <p>Stable SORT, ARGSORT, and positive-K TOP_K accept all seven carriers; ARG_MAX and ARG_MIN
  * accept the six numeric carriers. Convolution and pooling require fully static positive geometry,
- * exact layouts and result Shape, unsigned-32-bit bounds, and the pooling-kernel cap. Generated
- * input cotangents are admitted only for non-overlapping effective windows. Conv3d backward,
- * overlapping generated folds, attention, recurrent execution, and convolution transpose remain
- * unsupported.</p>
+ * exact layouts and result Shape, unsigned-32-bit bounds, and the pooling-kernel cap. FLOAT32
+ * Conv2d/Conv3d input cotangents may use overlapping image folds. Low convolution and pooling
+ * input cotangents still require non-overlapping effective windows. Attention, recurrent
+ * execution, and convolution transpose remain unsupported.</p>
  *
  * <p>INITIAL_STATE is no-gradient. DROPOUT preserves value
  * differentiability and publishes no-gradient mask/state roles. L1, ScatterAdd, and singleton
@@ -255,6 +256,15 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return false;
             }
         }
+        if (operation.kind() == WindowTransformKind.FOLD_AXIS
+                || operation.kind() == WindowTransformKind.FOLD2D
+                || operation.kind() == WindowTransformKind.FOLD3D) {
+            try {
+                return outputs.size() == 1 && supportsFold(operation, inputs, outputs.getFirst());
+            } catch (IllegalArgumentException | ArithmeticException incompatible) {
+                return false;
+            }
+        }
         if (supportsFrozenBaselineOccurrence(operation, inputs, outputs)) {
             return true;
         }
@@ -290,6 +300,14 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 inputs.stream().map(MetalCapabilityProvider::float32Proxy).toList();
         List<TensorDescriptor> proxyOutputs =
                 outputs.stream().map(MetalCapabilityProvider::float32Proxy).toList();
+        if ((operation.kind() == Conv2dKind.CONV2D || operation.kind() == Conv3dKind.CONV3D)
+                && proxyOutputs.size() == 1) {
+            try {
+                return supportsConvolution(proxy, proxyInputs, proxyOutputs.getFirst(), false);
+            } catch (IllegalArgumentException | ArithmeticException incompatible) {
+                return false;
+            }
+        }
         return supportsFrozenBaselineOccurrence(proxy, proxyInputs, proxyOutputs);
     }
 
@@ -370,7 +388,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             }
             if (operation.kind() == Conv2dKind.CONV2D
                     || operation.kind() == Conv3dKind.CONV3D) {
-                return supportsConvolution(operation, inputs, output);
+                return supportsConvolution(operation, inputs, output, true);
             }
             if (operation.kind() instanceof Pool2dKind
                     || operation.kind() instanceof Pool3dKind) {
@@ -379,11 +397,6 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             if (operation.kind() == WindowTransformKind.UNFOLD2D
                     || operation.kind() == WindowTransformKind.UNFOLD3D) {
                 return supportsImageUnfold(operation, inputs, output);
-            }
-            if (operation.kind() == WindowTransformKind.FOLD_AXIS
-                    || operation.kind() == WindowTransformKind.FOLD2D
-                    || operation.kind() == WindowTransformKind.FOLD3D) {
-                return supportsNonOverlappingFold(operation, inputs, output);
             }
             if (operation.kind() == AxisGatherKind.GATHER) {
                 return supportsGather(operation, inputs, output);
@@ -1252,7 +1265,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         return Arrays.equals(expected, updates.shape().toLongArray());
     }
 
-    private static boolean supportsNonOverlappingFold(
+    private static boolean supportsFold(
             Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
         if (inputs.size() != 1) return false;
         TensorDescriptor input = inputs.getFirst();
@@ -1295,10 +1308,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return false;
             }
             Window2dAttrs window = attrs.window();
-            if (!nonOverlapping(
+            if (type != DataType.FLOAT32 && type != DataType.FLOAT64
+                    && (!nonOverlapping(
                             window.kernelHeight(), window.dilationHeight(), window.strideHeight())
                     || !nonOverlapping(
-                            window.kernelWidth(), window.dilationWidth(), window.strideWidth())) {
+                            window.kernelWidth(), window.dilationWidth(), window.strideWidth()))) {
                 return false;
             }
             long kernelVolume =
@@ -1329,11 +1343,13 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         Window3dAttrs window = attrs.window();
-        if (!nonOverlapping(window.kernelDepth(), window.dilationDepth(), window.strideDepth())
+        if (type != DataType.FLOAT32 && type != DataType.FLOAT64
+                && (!nonOverlapping(
+                        window.kernelDepth(), window.dilationDepth(), window.strideDepth())
                 || !nonOverlapping(
                         window.kernelHeight(), window.dilationHeight(), window.strideHeight())
                 || !nonOverlapping(
-                        window.kernelWidth(), window.dilationWidth(), window.strideWidth())) {
+                        window.kernelWidth(), window.dilationWidth(), window.strideWidth()))) {
             return false;
         }
         long kernelVolume = Math.multiplyExact(
@@ -1752,7 +1768,8 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     private static boolean supportsConvolution(
             Operation operation,
             List<TensorDescriptor> inputs,
-            TensorDescriptor output) {
+            TensorDescriptor output,
+            boolean allowOverlappingInputGradient) {
         int spatial = operation.kind() == Conv2dKind.CONV2D ? 2 : 3;
         if (inputs.size() < 2 || inputs.size() > 3
                 || output.dataType() != DataType.FLOAT32
@@ -1839,7 +1856,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return false;
             }
             contributors = Math.multiplyExact(contributors, kernel[axis + 2]);
-            if (input.requiresGrad()
+            if (!allowOverlappingInputGradient && input.requiresGrad()
                     && !nonOverlapping(
                             kernel[axis + 2], dilation[axis], strides[axis])) {
                 return false;

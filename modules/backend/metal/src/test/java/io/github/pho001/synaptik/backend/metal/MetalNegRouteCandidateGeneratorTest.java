@@ -1175,8 +1175,8 @@ class MetalNegRouteCandidateGeneratorTest {
                     route.wireIdentity()).orElseThrow());
             assertArrayEquals(new byte[] {
                     0x4d, 0x4e, 0x43, 0x41,
-                    0x00, 0x00, 0x00, 0x26,
-                    0x00, 0x00, 0x00, 0x26,
+                    0x00, 0x00, 0x00, 0x27,
+                    0x00, 0x00, 0x00, 0x27,
                     0x00, 0x00, 0x00, (byte) route.wireIdentity()
             }, codec.encodeCandidate(candidate));
         }
@@ -1198,17 +1198,19 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(38, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(38, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(38, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(39, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(39, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(39, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(38, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(38, current.batch().compatibility().schemaVersion());
-            assertEquals(38, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(38, current.batch().compatibility().routePolicyVersion());
+            assertEquals(39, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(39, current.batch().compatibility().schemaVersion());
+            assertEquals(39, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(39, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
+            assertTrue(codec.decodeDecision(rewriteInt(first, Integer.BYTES, 38),
+                    current.batch()).isEmpty(), "identity 38 decisions are stale");
             assertTrue(codec.decodeDecision(rewriteInt(first, Integer.BYTES, 35),
                     current.batch()).isEmpty(), "identity 35 decisions are stale");
             assertTrue(codec.decodeDecision(rewriteInt(first, Integer.BYTES, 34),

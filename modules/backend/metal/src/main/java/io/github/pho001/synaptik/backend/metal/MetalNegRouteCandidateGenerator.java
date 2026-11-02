@@ -25,14 +25,14 @@ import java.util.Optional;
  * and the scalar-composition source wire, exact raw constant, rank-one {@code [1]} shape, operand
  * order, and primitive opcode. Graph-local identities, partition object identity, native handles,
  * measurements, and cache state are excluded. Generation is cold, thread-safe, deterministic, and
- * performs no native work. Version 38 binds occurrence-qualified view/materializing RESHAPE and
- * effective physical source addressing alongside exact dense-view MATMUL composition, rejecting
- * older compatibility without changing the program wire schema or routes.
+ * performs no native work. Version 39 binds deterministic FLOAT32/FLOAT64 image-fold overlap
+ * accumulation and the Conv3d training closure, retaining materializing RESHAPE and dense-view
+ * MATMUL composition. Older compatibility is rejected without changing the program schema or routes.
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 38;
-    private static final int EXACT_DEFAULT_POLICY = 38;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 39;
+    private static final int EXACT_DEFAULT_POLICY = 39;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.

@@ -355,6 +355,34 @@ class MetalCapabilityProviderTest {
     }
 
     @Test
+    void imageFoldOverlapIsAnOriginalCarrierCapabilityNotALowPrecisionProxyAnswer() {
+        var window2d = new Window2dAttrs(2, 2, 1, 1, 1, 1, 2, 1, true);
+        var window3d = new Window3dAttrs(2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 1, 1, true);
+        var fold2d = new Operation(WindowTransformKind.FOLD2D,
+                new Fold2dAttrs(Shape.of(1, 2, 3, 3), window2d));
+        var fold3d = new Operation(WindowTransformKind.FOLD3D,
+                new Fold3dAttrs(Shape.of(1, 2, 3, 3, 3), window3d));
+        for (DataType type : DataType.values()) {
+            boolean supported = type == DataType.FLOAT32 || type == DataType.FLOAT64;
+            for (boolean gradient : List.of(false, true)) {
+                if (gradient && !type.isFloating()) continue;
+                assertEquals(supported, provider.supports(new OperationCapabilityQuery(
+                        fold2d, List.of(typed(type, Shape.of(1, 8, 12), gradient)),
+                        List.of(typed(type, Shape.of(1, 2, 3, 3), gradient)))), type + " fold2d");
+                assertEquals(supported, provider.supports(new OperationCapabilityQuery(
+                        fold3d, List.of(typed(type, Shape.of(1, 16, 48), gradient)),
+                        List.of(typed(type, Shape.of(1, 2, 3, 3, 3), gradient)))), type + " fold3d");
+            }
+        }
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                fold3d, List.of(typed(DataType.FLOAT32, Shape.of(1, 16, 48), true)),
+                List.of(typed(DataType.FLOAT32, Shape.of(1, 2, 3, 3, 3), false)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                fold3d, List.of(typed(DataType.FLOAT32, Shape.of(1, 16, 47), false)),
+                List.of(typed(DataType.FLOAT32, Shape.of(1, 2, 3, 3, 3), false)))));
+    }
+
+    @Test
     void task0060AdvertisesOnlyExactReplacementNonoverlapAndLogicalAggregateDomains() {
         var scatterNone = new Operation(
                 ScatterNdKind.SCATTER_ND, new ScatterNdAttrs(0, ScatterReduction.NONE));

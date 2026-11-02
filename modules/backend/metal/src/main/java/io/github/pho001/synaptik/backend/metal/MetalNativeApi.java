@@ -29,7 +29,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * schema-twenty creator accepts zero feeds and compact materialized slots, while execution
  * still binds every ordered live slot buffer. Java preflight independently authenticates all seven
  * carriers, the 49 ordered casts, logical-versus-physical layouts, saved gradient roles, exact
- * replacement safety and fixed custom routing before native entry.
+ * replacement safety and fixed custom routing before native entry. FLOAT32/FLOAT64 image folds
+ * may accumulate overlap; low image folds and FOLD_AXIS require non-overlapping windows.
  * Every BFLOAT16/FLOAT16 value is custom-program-only. Native status failures are unchecked and
  * retain both the operation name and raw status value.
  */
@@ -1153,9 +1154,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 && (node.kind() == MetalMpsGraphProgram.NodeKind.FOLD_AXIS
                                         || node.kind() == MetalMpsGraphProgram.NodeKind.FOLD2D
                                         || node.kind() == MetalMpsGraphProgram.NodeKind.FOLD3D)
-                                && !task0060NonOverlappingFold(node)) {
+                                && !supportsFoldGeometry(
+                                        node, types[node.firstInputIndex()])) {
                             throw new IllegalArgumentException(
-                                    "custom FOLD requires non-overlapping windows");
+                                    "custom FOLD overlap requires a FLOAT32/FLOAT64 image fold");
                         }
                         if ((node.kind() == MetalMpsGraphProgram.NodeKind.SELECT
                                         || node.kind() == MetalMpsGraphProgram.NodeKind.SLICE)
@@ -1871,11 +1873,13 @@ abstract class MetalNativeApi implements AutoCloseable {
             return true;
         }
 
-        private static boolean task0060NonOverlappingFold(MetalMpsGraphProgram.Node node) {
+        private static boolean supportsFoldGeometry(
+                MetalMpsGraphProgram.Node node, ValueType type) {
             long[] words = node.attributeWords();
             if (node.kind() == MetalMpsGraphProgram.NodeKind.FOLD_AXIS) {
                 return words[2] >= words[1];
             }
+            if (type == ValueType.FLOAT32 || type == ValueType.FLOAT64) return true;
             int dimensions = node.kind() == MetalMpsGraphProgram.NodeKind.FOLD2D ? 2 : 3;
             int offset = dimensions + 3;
             try {

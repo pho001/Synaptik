@@ -385,6 +385,158 @@ class MetalRemainingElementwiseNativeTest {
     }
 
     @Test
+    void overlappingImageFoldsAccumulateOnlyInBoundsContributorsAcrossBatchesAndChannels() {
+        Path library = configuredLibrary();
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            assertImageFoldMatchesScatterOracle(library, type,
+                    new int[] {4, 5}, new int[] {3, 2}, new int[] {2, 1},
+                    new int[] {2, 1}, new int[] {1, 2}, true);
+            assertImageFoldMatchesScatterOracle(library, type,
+                    new int[] {4, 3, 5}, new int[] {2, 2, 2}, new int[] {2, 1, 2},
+                    new int[] {2, 1, 1}, new int[] {2, 1, 1}, true);
+            assertImageFoldMatchesScatterOracle(library, type,
+                    new int[] {3, 3, 3}, new int[] {2, 2, 2}, new int[] {1, 1, 1},
+                    new int[] {0, 0, 0}, new int[] {1, 1, 1}, false);
+        }
+    }
+
+    @Test
+    void overlappingFloat32FoldPreservesZeroSignsAndPropagatesNaNClasses() {
+        Path library = configuredLibrary();
+        var fold = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.FOLD2D, new int[] {0}, new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D,
+                new long[] {4, 4, 1, 1, 3, 1, 2, 1, 1, 0, 0, 1, 1, 0});
+        int[] columns = {
+                0x8000_0000, 0x8000_0000, 0x8000_0000, 0x7fa1_2345,
+                0x8000_0000, 0x0000_0000, 0x8000_0000, 0x7fa1_2345,
+                0x8000_0000, 0xff80_0000, 0x7f80_0000, 0x7fa1_2345,
+                0x8000_0000, 0x3f80_0000, 0x7fa1_2345, 0x7fa1_2345
+        };
+        byte[] result = executeCustomBytes(library, new MetalMpsGraphProgram(List.of(fold)),
+                List.of(typed(DataType.FLOAT32, 4, 2, 2), typed(DataType.FLOAT32, 4, 1, 1, 3)),
+                new int[] {0}, new int[] {1}, List.of(bytes32(columns))).getFirst();
+        ByteBuffer actual = ByteBuffer.wrap(result).order(ByteOrder.nativeOrder());
+        assertEquals(0x8000_0000, actual.getInt(Integer.BYTES));
+        assertEquals(0, actual.getInt(4 * Integer.BYTES));
+        assertTrue(Float.isNaN(actual.getFloat(7 * Integer.BYTES)));
+        assertTrue(Float.isNaN(actual.getFloat(10 * Integer.BYTES)));
+        for (int batch = 0; batch < 4; batch++) {
+            assertEquals(0x8000_0000, actual.getInt(batch * 3 * Integer.BYTES));
+            assertEquals(0x7fa1_2345, actual.getInt((batch * 3 + 2) * Integer.BYTES));
+        }
+    }
+
+    @Test
+    void overlappingFloat64FoldUsesBinary64AdditionIncludingGradualUnderflowAndSpecialValues() {
+        Path library = configuredLibrary();
+        var pairs = new ArrayList<long[]>();
+        pairs.add(new long[] {0x8000_0000_0000_0000L, 0x8000_0000_0000_0000L});
+        pairs.add(new long[] {0L, 0x8000_0000_0000_0000L});
+        pairs.add(new long[] {1L, 1L});
+        pairs.add(new long[] {0x0010_0000_0000_0000L, 0x800f_ffff_ffff_ffffL});
+        pairs.add(new long[] {0x8000_0000_0000_0001L, 0x8000_0000_0000_0001L});
+        pairs.add(new long[] {Double.doubleToRawLongBits(1), Double.doubleToRawLongBits(0x1.0p-53)});
+        pairs.add(new long[] {Double.doubleToRawLongBits(Math.nextUp(1.0)), Double.doubleToRawLongBits(0x1.0p-53)});
+        pairs.add(new long[] {Double.doubleToRawLongBits(1), Double.doubleToRawLongBits(-Math.nextDown(1.0))});
+        pairs.add(new long[] {Double.doubleToRawLongBits(Double.MAX_VALUE), Double.doubleToRawLongBits(Double.MAX_VALUE)});
+        pairs.add(new long[] {Double.doubleToRawLongBits(Double.POSITIVE_INFINITY), Double.doubleToRawLongBits(Double.NEGATIVE_INFINITY)});
+        pairs.add(new long[] {0x7ff0_0000_0000_1234L, Double.doubleToRawLongBits(1)});
+        pairs.add(new long[] {Double.doubleToRawLongBits(1), 1L});
+        var random = new java.util.Random(0x3d_f01dL);
+        for (int index = 0; index < 1024; index++) pairs.add(new long[] {random.nextLong(), random.nextLong()});
+        long[] input = new long[pairs.size() * 4];
+        for (int index = 0; index < pairs.size(); index++) {
+            input[index * 4] = 0x8000_0000_0000_0000L;
+            input[index * 4 + 1] = pairs.get(index)[1];
+            input[index * 4 + 2] = pairs.get(index)[0];
+            input[index * 4 + 3] = 0x7ff0_0000_0000_1234L;
+        }
+        var fold = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.FOLD2D, new int[] {0}, new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D,
+                new long[] {4, pairs.size(), 1, 1, 3, 1, 2, 1, 1, 0, 0, 1, 1, 0});
+        byte[] result = executeCustomBytes(library, new MetalMpsGraphProgram(List.of(fold)),
+                List.of(typed(DataType.FLOAT64, pairs.size(), 2, 2),
+                        typed(DataType.FLOAT64, pairs.size(), 1, 1, 3)),
+                new int[] {0}, new int[] {1}, List.of(bytes64(input))).getFirst();
+        ByteBuffer actual = ByteBuffer.wrap(result).order(ByteOrder.nativeOrder());
+        for (int index = 0; index < pairs.size(); index++) {
+            assertEquals(input[index * 4], actual.getLong(index * 3 * Long.BYTES),
+                    "single contributor retains raw -0");
+            long[] pair = pairs.get(index);
+            double expected = Double.longBitsToDouble(pair[0]) + Double.longBitsToDouble(pair[1]);
+            long actualWord = actual.getLong((index * 3 + 1) * Long.BYTES);
+            if (Double.isNaN(expected)) assertTrue(Double.isNaN(Double.longBitsToDouble(actualWord)));
+            else assertEquals(Double.doubleToRawLongBits(expected), actualWord, "binary64 pair " + index);
+            assertEquals(input[index * 4 + 3], actual.getLong((index * 3 + 2) * Long.BYTES),
+                    "single contributor retains raw NaN payload");
+        }
+    }
+
+    private static void assertImageFoldMatchesScatterOracle(
+            Path library, DataType type, int[] spatialShape, int[] kernel, int[] stride,
+            int[] padding, int[] dilation, boolean ceil) {
+        int dimensions = spatialShape.length, positions = 1, volume = 1, pixels = 1;
+        int[] positionShape = new int[dimensions];
+        long[] outputShape = new long[dimensions + 2];
+        outputShape[0] = 2; outputShape[1] = 2;
+        long[] words = new long[1 + outputShape.length + dimensions * 4 + 1];
+        words[0] = outputShape.length;
+        for (int spatial = 0; spatial < dimensions; spatial++) {
+            outputShape[spatial + 2] = spatialShape[spatial];
+            int numerator = spatialShape[spatial] + padding[spatial] * 2
+                    - (dilation[spatial] * (kernel[spatial] - 1) + 1);
+            positionShape[spatial] = numerator / stride[spatial]
+                    + (ceil && numerator % stride[spatial] != 0 ? 1 : 0) + 1;
+            positions *= positionShape[spatial]; volume *= kernel[spatial]; pixels *= spatialShape[spatial];
+            int base = 1 + outputShape.length;
+            words[base + spatial] = kernel[spatial];
+            words[base + dimensions + spatial] = stride[spatial];
+            words[base + dimensions * 2 + spatial] = padding[spatial];
+            words[base + dimensions * 3 + spatial] = dilation[spatial];
+        }
+        System.arraycopy(outputShape, 0, words, 1, outputShape.length);
+        words[words.length - 1] = ceil ? 1 : 0;
+        ByteBuffer input = ByteBuffer.allocate(4 * volume * positions * type.byteWidth()).order(ByteOrder.nativeOrder());
+        double[] sums = new double[4 * pixels];
+        for (int batchChannel = 0; batchChannel < 4; batchChannel++) {
+            for (int element = 0; element < volume; element++) {
+                for (int position = 0; position < positions; position++) {
+                    int elementRemaining = element, positionRemaining = position, pixel = 0, scale = 1;
+                    boolean inBounds = true;
+                    for (int spatial = dimensions - 1; spatial >= 0; spatial--) {
+                        int coordinate = (positionRemaining % positionShape[spatial]) * stride[spatial]
+                                - padding[spatial] + (elementRemaining % kernel[spatial]) * dilation[spatial];
+                        positionRemaining /= positionShape[spatial]; elementRemaining /= kernel[spatial];
+                        inBounds &= coordinate >= 0 && coordinate < spatialShape[spatial];
+                        pixel += coordinate * scale; scale *= spatialShape[spatial];
+                    }
+                    // Invalid padding and terminal ceil columns are poison, never zero contributors.
+                    double value = inBounds ? (element * positions + position + batchChannel * 3) % 17 - 8 : Double.NaN;
+                    if (type == DataType.FLOAT64 && inBounds) value += 0x1.0p40 + 0.25;
+                    if (type == DataType.FLOAT64) input.putDouble(value); else input.putFloat((float) value);
+                    if (inBounds) sums[batchChannel * pixels + pixel] += value;
+                }
+            }
+        }
+        var fold = MetalMpsGraphProgram.Node.generic(
+                dimensions == 2 ? MetalMpsGraphProgram.NodeKind.FOLD2D : MetalMpsGraphProgram.NodeKind.FOLD3D,
+                new int[] {0}, new int[] {1},
+                dimensions == 2 ? MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D
+                        : MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_3D, words);
+        byte[] actual = executeCustomBytes(library, new MetalMpsGraphProgram(List.of(fold)),
+                List.of(new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 2L * volume, positions}, true),
+                        new MetalMpsGraphProgram.ValueDescriptor(type, outputShape, true)),
+                new int[] {0}, new int[] {1}, List.of(input.array())).getFirst();
+        ByteBuffer expected = ByteBuffer.allocate(sums.length * type.byteWidth()).order(ByteOrder.nativeOrder());
+        for (double sum : sums) {
+            if (type == DataType.FLOAT64) expected.putDouble(sum); else expected.putFloat((float) sum);
+        }
+        assertArrayEquals(expected.array(), actual, type + " fold" + dimensions + "d");
+    }
+
+    @Test
     void task0060NonoverlapFoldsPreserveOnlyFloatingCarrierWords() {
         Path library = configuredLibrary();
         var program = new MetalMpsGraphProgram(List.of(

@@ -79,6 +79,38 @@ class MetalConvolutionPoolingCapabilityTest {
     }
 
     @Test
+    void groupedConv3dAdmitsEverySelectedFloat32GradientAndChecksTheExactFlagUnion() {
+        Operation convolution = new Operation(Conv3dKind.CONV3D, Conv3dAttrs.defaults());
+        for (boolean biased : List.of(false, true)) {
+            int inputCount = biased ? 3 : 2;
+            for (int mask = 0; mask < (1 << inputCount); mask++) {
+                TensorDescriptor input = descriptor(
+                        DataType.FLOAT32, Shape.of(2, 4, 3, 3, 3), (mask & 1) != 0);
+                TensorDescriptor weight = descriptor(
+                        DataType.FLOAT32, Shape.of(6, 4, 2, 2, 2), (mask & 2) != 0);
+                TensorDescriptor bias = descriptor(DataType.FLOAT32, Shape.of(6), (mask & 4) != 0);
+                List<TensorDescriptor> inputs = biased ? List.of(input, weight, bias) : List.of(input, weight);
+                TensorDescriptor output = descriptor(DataType.FLOAT32, Shape.of(2, 6, 2, 2, 2), mask != 0);
+                assertTrue(supports(convolution, inputs, output), "biased=" + biased + " mask=" + mask);
+                assertFalse(supports(convolution, inputs, withGradient(output, mask == 0)));
+            }
+        }
+        Operation grouped = new Operation(
+                Conv3dKind.CONV3D, new Conv3dAttrs(1, 1, 1, 0, 0, 0, 1, 1, 1, 2));
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            boolean float32 = type == DataType.FLOAT32;
+            assertTrue(supports(grouped,
+                    List.of(descriptor(type, Shape.of(1, 4, 3, 3, 3), false),
+                            descriptor(type, Shape.of(6, 2, 2, 2, 2), false)),
+                    descriptor(type, Shape.of(1, 6, 2, 2, 2), false)));
+            org.junit.jupiter.api.Assertions.assertEquals(float32, supports(grouped,
+                    List.of(descriptor(type, Shape.of(1, 4, 3, 3, 3), true),
+                            descriptor(type, Shape.of(6, 2, 2, 2, 2), true)),
+                    descriptor(type, Shape.of(1, 6, 2, 2, 2), true)));
+        }
+    }
+
+    @Test
     void maximumAndAveragePoolingKeepTheirQualifiedCarriers() {
         Operation max2d = new Operation(Pool2dKind.MAX_POOL2D,
                 new MaxPool2dAttrs(2, 3, 2, 2, 1, 1, 1, 1, true));

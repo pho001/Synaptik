@@ -5,10 +5,11 @@
  * occurrence matrix. The common domain covers represented-bit unary operations, seven-carrier
  * affine movement/canonicalization/indexing/replacement, all 49 casts, four-carrier floating
  * classification, BOOL logic, the fourteen non-mixed-low promoted WHERE signatures, stable
- * ordering/top-K/numeric arg-extrema, non-overlapping folds, stored comparisons, maximum pooling,
- * promoted integral MATMUL, and raw initial state. Authenticated affine views remain logical while
- * physical descriptors stay safe; unresolved, empty, unsafe-stride, overlapping, or over-limit
- * geometry remains false. Index roles accept INT32 or INT64 and replacement validates complete
+ * ordering/top-K/numeric arg-extrema, stored comparisons, maximum pooling, promoted integral MATMUL,
+ * raw initial state, and output-owned folds. FLOAT32/FLOAT64 image folds may accumulate overlap;
+ * low image folds and FOLD_AXIS remain non-overlapping. Authenticated affine views remain logical
+ * while physical descriptors stay safe; unresolved, empty, unsafe-stride, storage-overlapping, or
+ * over-limit geometry remains false. Index roles accept INT32 or INT64 and replacement validates complete
  * bounds and destination uniqueness before mutation.
  *
  * <p>The low-precision capability path checks homogeneous BFLOAT16 and FLOAT16 descriptors and
@@ -135,7 +136,10 @@
  * modular INT32/INT64 PROD, and canonical BOOL ALL/ANY. FOLD_AXIS also admits INT32/INT64;
  * BOOL FOLD_AXIS and integral or BOOL FOLD2D/FOLD3D remain false. Every
  * replacement validates all indices and destination uniqueness before writes; every admitted fold
- * has one output writer and skips conceptual padding. Empty reduction axes are point identities
+ * has one output writer and skips conceptual padding. FLOAT32/FLOAT64 image folds additionally
+ * accumulate all in-bounds overlapping contributors in their declared precision; binary64 addition
+ * uses integer carrier arithmetic without FLOAT32 narrowing or DAZ/FTZ. Non-overlapping folds retain
+ * exact raw placement, including uncovered carrier zero. Empty reduction axes are point identities
  * without admitting zero-dimensional extents. LOG_SUM_EXP, STANDARD_DEVIATION, and L2_NORM have
  * forceable structural recipes only and remain production-false. The exact bounded L1_NORM and
  * singleton VARIANCE occurrences described below instead use fixed source-owned custom programs.
@@ -165,8 +169,9 @@
  *
  * <p>Task 0064 adds one fixed custom-program route for {@code CONV2D}, {@code CONV3D}, {@code
  * MAX_POOL2D}, {@code AVERAGE_POOL2D}, {@code MAX_POOL3D}, and {@code AVERAGE_POOL3D}. P9 admits
- * homogeneous FLOAT32/BFLOAT16/FLOAT16 convolution and pooling wherever the
- * corresponding FLOAT32 occurrence is valid; maximum pooling additionally retains
+ * homogeneous FLOAT32/BFLOAT16/FLOAT16 convolution and pooling; low input cotangents retain the
+ * non-overlap restriction while FLOAT32 convolution input cotangents may accumulate overlapping
+ * windows. Maximum pooling additionally retains
  * FLOAT64. One-low-plus-FLOAT32 widening convolution remains no-gradient. All six kinds require
  * fully static positive geometry bounded to unsigned 32 bits, exact symmetric padding and fixed
  * layouts, and checked result geometry. Pooling additionally caps the product of kernel extents at
@@ -174,9 +179,9 @@
  * tensors. Conv1d and Pool1d enter only through authenticated local singleton-height affine views.
  * Maximum pooling fixes NaN-first, positive-zero-over-negative-zero, first-logical-winner raw-bit
  * publication; average pooling fixes a full-kernel divisor and conceptual positive-zero padding.
- * Conv3d gradients, direct mixed-low operations, and
- * overlap-accumulating generated folds remain fail-closed. Non-overlapping maximum-pool gradients
- * close through the compiler formula.
+ * FLOAT32 Conv3d gradients close through Compiler's grouped unfold/MATMUL/fold algebra.
+ * Direct mixed-low operations, overlapping low image folds, and overlapping FOLD_AXIS remain
+ * fail-closed. Non-overlapping maximum-pool gradients close through the compiler formula.
  *
  * <p>Task 0065 adds zero-input {@code INITIAL_STATE} and canonical
  * FLOAT32/BFLOAT16/FLOAT16 {@code DROPOUT}. INITIAL_STATE publishes one raw {@code INT64[2]}

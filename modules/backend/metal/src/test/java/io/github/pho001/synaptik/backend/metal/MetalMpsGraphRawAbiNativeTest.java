@@ -123,8 +123,8 @@ class MetalMpsGraphRawAbiNativeTest {
         malformed.add(digestForgery);
         malformed.add(rewriteManifest(
                 valid,
-                "fixed-corpus-bytes 84593\n",
-                "fixed-corpus-bytes 84594\n"));
+                "fixed-corpus-bytes 90671\n",
+                "fixed-corpus-bytes 90672\n"));
 
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(0, abi.create(valid, valid.length));
@@ -2861,6 +2861,97 @@ class MetalMpsGraphRawAbiNativeTest {
                     amplifiedPool3dWorkValues, new int[] {0}, new int[] {1},
                     "Pool3d kernel-position cap one past");
 
+        }
+    }
+
+    @Test
+    void imageFoldOverlapHasMatchingJavaAndNativeCarrierShapeGradientAndOverflowBoundaries()
+            throws Throwable {
+        Path library = configuredLibrary();
+        try (RawAbi abi = new RawAbi(library)) {
+            for (int dimensions : List.of(2, 3)) {
+                long[] shape = dimensions == 2 ? new long[] {1, 1, 3, 3} : new long[] {1, 1, 3, 3, 3};
+                long[] attributes = dimensions == 2
+                        ? new long[] {4, 1, 1, 3, 3, 2, 2, 1, 1, 0, 0, 1, 1, 0}
+                        : new long[] {5, 1, 1, 3, 3, 3, 2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0};
+                var program = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.generic(
+                        dimensions == 2 ? MetalMpsGraphProgram.NodeKind.FOLD2D : MetalMpsGraphProgram.NodeKind.FOLD3D,
+                        new int[] {0}, new int[] {1},
+                        dimensions == 2 ? MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D
+                                : MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_3D, attributes)));
+                int columns = 1 << dimensions;
+                for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16)) {
+                    for (boolean gradient : List.of(false, true)) {
+                        var values = List.of(
+                                new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {1, columns, columns}, gradient),
+                                new MetalMpsGraphProgram.ValueDescriptor(type, shape, gradient));
+                        if (type == DataType.FLOAT32 || type == DataType.FLOAT64) {
+                            assertTask0064AcceptedByJavaAndNative(
+                                    abi, program, values, new int[] {0}, new int[] {1}, type + " fold" + dimensions);
+                        } else {
+                            assertTask0064RejectedByJavaAndNative(
+                                    abi, program, values, new int[] {0}, new int[] {1}, type + " overlap");
+                        }
+                    }
+                }
+                var wrongColumns = List.of(descriptor(DataType.FLOAT32, 1, columns, columns - 1),
+                        new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, shape, false));
+                assertTask0064RejectedByJavaAndNative(
+                        abi, program, wrongColumns, new int[] {0}, new int[] {1}, "wrong column count");
+                var wrongGradient = List.of(
+                        new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {1, columns, columns}, true),
+                        new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, shape, false));
+                assertTask0064RejectedByJavaAndNative(
+                        abi, program, wrongGradient, new int[] {0}, new int[] {1}, "wrong gradient union");
+            }
+            var foldAxis = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.FOLD_AXIS, new int[] {0}, new int[] {1},
+                    MetalMpsGraphProgram.AttributeKind.WINDOW_AXIS, new long[] {0, 2, 1})));
+            for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16)) {
+                assertTask0064RejectedByJavaAndNative(abi, foldAxis,
+                        List.of(descriptor(type, 2, 2), descriptor(type, 3)),
+                        new int[] {0}, new int[] {1}, type + " FOLD_AXIS overlap");
+            }
+            var overflowingPadding = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.FOLD2D, new int[] {0}, new int[] {1},
+                    MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D,
+                    new long[] {4, 1, 1, 1, 1, 1, 1, Long.MAX_VALUE, 1, Long.MAX_VALUE, 0, 1, 1, 0})));
+            assertTask0064RejectedByJavaAndNative(abi, overflowingPadding,
+                    List.of(descriptor(DataType.FLOAT32, 1, 1, 1), descriptor(DataType.FLOAT32, 1, 1, 1, 1)),
+                    new int[] {0}, new int[] {1}, "signed image geometry overflow");
+        }
+    }
+
+    @Test
+    void groupedConv3dGradientFlagsMatchAllSelectedInputsInJavaAndNativeImages() throws Throwable {
+        Path library = configuredLibrary();
+        try (RawAbi abi = new RawAbi(library)) {
+            for (boolean biased : List.of(false, true)) {
+                int inputCount = biased ? 3 : 2;
+                var program = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.CONV3D,
+                        biased ? new int[] {0, 1, 2} : new int[] {0, 1}, new int[] {inputCount},
+                        MetalMpsGraphProgram.AttributeKind.CONV_3D,
+                        new long[] {1, 1, 1, 0, 0, 0, 1, 1, 1, 2})));
+                for (int mask = 0; mask < (1 << inputCount); mask++) {
+                    var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+                    values.add(new MetalMpsGraphProgram.ValueDescriptor(
+                            DataType.FLOAT32, new long[] {1, 2, 3, 3, 3}, (mask & 1) != 0));
+                    values.add(new MetalMpsGraphProgram.ValueDescriptor(
+                            DataType.FLOAT32, new long[] {2, 1, 2, 2, 2}, (mask & 2) != 0));
+                    if (biased) values.add(new MetalMpsGraphProgram.ValueDescriptor(
+                            DataType.FLOAT32, new long[] {2}, (mask & 4) != 0));
+                    values.add(new MetalMpsGraphProgram.ValueDescriptor(
+                            DataType.FLOAT32, new long[] {1, 2, 2, 2, 2}, mask != 0));
+                    int[] feeds = biased ? new int[] {0, 1, 2} : new int[] {0, 1};
+                    assertTask0064AcceptedByJavaAndNative(
+                            abi, program, values, feeds, new int[] {inputCount}, "Conv3d selected mask " + mask);
+                    values.set(inputCount, new MetalMpsGraphProgram.ValueDescriptor(
+                            DataType.FLOAT32, new long[] {1, 2, 2, 2, 2}, mask == 0));
+                    assertTask0064RejectedByJavaAndNative(
+                            abi, program, values, feeds, new int[] {inputCount}, "Conv3d false output flag");
+                }
+            }
         }
     }
 
