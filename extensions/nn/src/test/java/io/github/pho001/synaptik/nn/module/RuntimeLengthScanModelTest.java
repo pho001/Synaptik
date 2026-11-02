@@ -17,6 +17,8 @@ import io.github.pho001.synaptik.model.tensor.RecurrentScan;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.training.Sgd;
+import io.github.pho001.synaptik.training.TrainingSession;
 import java.lang.foreign.ValueLayout;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -106,7 +108,7 @@ final class RuntimeLengthScanModelTest {
     private static float tanh(float x) { return (float) Math.tanh(x); }
     private static float sigmoid(float x) { return (float) (1 / (1 + Math.exp(-x))); }
 
-    @ParameterizedTest @ValueSource(strings = {"rnn", "gru", "lstm", "rnn/rnn", "gru/gru", "lstm/lstm", "rnn/gru/lstm"})
+    @ParameterizedTest @ValueSource(strings = {"rnn", "gru", "lstm", "rnn/rnn", "gru/gru", "lstm/lstm", "rnn/gru/lstm", "gru/rnn", "lstm/rnn"})
     void everyDenseFinalAndLastOutputMatchesEquationsAndColdRoundtrip(String chain) throws Exception {
         String[] kinds = chain.split("/");
         for (String terminal : List.of("dense", "final", "last")) {
@@ -266,10 +268,83 @@ final class RuntimeLengthScanModelTest {
         }
     }
 
-    @ParameterizedTest @ValueSource(strings = {"rnn", "gru", "lstm"})
+    @Test void f32RnnBuilderTrainsRealRecurrentWeightsAndReusesOneSession() throws Exception {
+        try (var model = Model.builder().input(DataType.FLOAT32, 2, 1, 1).seed(31)
+                .rnnScan(1).finalHidden().buildWithLengths()) {
+            var state = field(model, "execution");
+            assertNull(field(state, "engine"));
+            Tensor target = values(false, new long[]{1, 1}, .3f);
+            AtomicInteger objectives = new AtomicInteger();
+            model.configureTraining(List.of(target), (p, t) -> {
+                objectives.incrementAndGet();
+                Tensor error = p.getFirst().sub(t.getFirst()); return error.mul(error).sum();
+            }, new Sgd(.01, .5, 0, false));
+            var session = (TrainingSession) field(state, "session");
+            Object preparation = field(session, "preparedExecution");
+            float[] momentum = new float[3];
+            for (int batch = 0; batch < 2; batch++) {
+                var weights = weights(model, 0);
+                float w = lanes(weights.get(0))[0], u = lanes(weights.get(1))[0], b = lanes(weights.get(2))[0];
+                float x0 = .2f + .1f * batch, x1 = -.15f;
+                float h0 = tanh(x0 * w + b), h1 = tanh((x1 * w + b) + h0 * u);
+                float d1 = 2 * (h1 - .3f) * (1 - h1 * h1);
+                float d0 = (d1 * u) * (1 - h0 * h0);
+                float[] gradient = {d0 * x0 + d1 * x1, d1 * h0, d0 + d1};
+                var step = model.train(List.of(values(false, new long[]{2, 1, 1}, x0, x1), lengths(2)), List.of(target));
+                assertEquals((h1 - .3f) * (h1 - .3f), step.objective().bytes().getFloat(), 2e-6f);
+                float[] before = {w, u, b};
+                for (int i = 0; i < 3; i++) {
+                    momentum[i] = .5f * momentum[i] + gradient[i];
+                    assertEquals(before[i] - .01f * momentum[i], lanes(weights.get(i))[0], 2e-6f);
+                }
+                assertSame(preparation, field(session, "preparedExecution"));
+                var snapshot = session.state();
+                assertThrows(IllegalArgumentException.class, () -> model.train(
+                        List.of(values(false, new long[]{2, 1, 1}, x0, x1), lengths(3)), List.of(target)));
+                var unchanged = session.state();
+                assertEquals(snapshot.executions(), unchanged.executions());
+                assertEquals(snapshot.optimizerSteps(), unchanged.optimizerSteps());
+                assertEquals(snapshot.accumulatedGradientRuns(), unchanged.accumulatedGradientRuns());
+                for (int i = 0; i < snapshot.parameters().size(); i++) {
+                    var a = snapshot.parameters().get(i); var z = unchanged.parameters().get(i);
+                    assertEquals(a.parameterBytes(), z.parameterBytes());
+                    assertEquals(a.masterParameterBytes(), z.masterParameterBytes());
+                    assertEquals(a.firstMomentBytes(), z.firstMomentBytes());
+                    assertEquals(a.accumulatedGradientBytes(), z.accumulatedGradientBytes());
+                    assertEquals(a.secondMomentBytes(), z.secondMomentBytes());
+                }
+            }
+            assertEquals(1, objectives.get());
+        }
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"rnn", "gru", "lstm", "gru/rnn", "rnn/gru", "lstm/rnn"})
+    void finalHiddenUsesTheActualProducerSemanticPort(String chain) throws Exception {
+        var builder = Model.builder().input(DataType.FLOAT32, 3, 1, 3);
+        for (String kind : chain.split("/")) scan(builder, kind, 2);
+        try (var model = builder.finalHidden().buildWithLengths()) {
+            Tensor output = source(model).outputs().getFirst();
+            var producer = output.provenance().orElseThrow().producer();
+            boolean general = chain.endsWith("rnn");
+            assertSame(output, producer.output(general ? 0 : 1));
+            assertEquals(general, producer.scanBody().isPresent());
+            assertEquals(Shape.of(1, 2), output.descriptor().shape());
+        }
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            try (var model = Model.builder().input(type, 3, 1, 3).rnnScan(2).finalHidden().buildWithLengths()) {
+                Tensor output = source(model).outputs().getFirst();
+                assertSame(output, output.provenance().orElseThrow().producer().output(1));
+                assertTrainingRejected(model);
+            }
+        }
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"gru", "lstm", "rnn/gru", "gru/rnn"})
     void trainingRejectsAllOverloadsBeforeSetupBeforeAfterComputeAndLoad(String kind) throws Exception {
         for (boolean head : List.of(false, true)) {
-            var builder = scan(Model.builder().input(DataType.FLOAT32, 2, 1, 1), kind, 1).finalHidden();
+            var builder = Model.builder().input(DataType.FLOAT32, 2, 1, 1);
+            for (String family : kind.split("/")) scan(builder, family, 1);
+            builder.finalHidden();
             if (head) builder.linear(1);
             Path file = directory.resolve("training-guard");
             try (var model = builder.buildWithLengths(); Engine borrowed = Engine.standard()) {

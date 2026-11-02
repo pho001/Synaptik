@@ -21,7 +21,8 @@ import java.util.Objects;
  * Call-local exact identity association around Compiler's raw source, not another graph model.
  * Normalized Model IDs put declared inputs first, unique named state second and captured nodes
  * last, retaining every canonical output port in order, including unused siblings. Only Compiler
- * ever maps ValueIds back to Tensors or constructs stored operations.
+ * ever maps ValueIds back to Tensors or constructs stored operations. General-scan attachments
+ * remain unchanged independent scopes: normalization remaps only the containing node's ports.
  */
 final class GraphSource {
     final GraphCheckpoint.Source source;
@@ -49,6 +50,8 @@ final class GraphSource {
 
     /**
      * Captures once and reconciles declared slots with first-encounter leaves by exact identity.
+     * Compiler preflights the complete outer graph and every body before host admission; body
+     * IDs and role bindings are retained without resolving them against the outer remap.
      * @param source non-null borrowed source, never mutated
      * @return normalized graph and bounded call-local association, never null
      * @throws IllegalArgumentException if names, roles, closure, source families or geometry fail
@@ -124,7 +127,7 @@ final class GraphSource {
             }
             NodeId nodeId = new NodeId(nodes.size());
             nodes.add(new CompiledNode(nodeId, node.operation(),
-                    node.inputs().stream().map(remap::get).toList(), outputs));
+                    node.inputs().stream().map(remap::get).toList(), outputs, node.scanBody()));
             phases.put(nodeId, GraphPhase.FORWARD);
         }
         var graph = new CompiledGraphModel(values, nodes, inputs,

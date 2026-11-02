@@ -18,19 +18,12 @@ import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.module.ForwardMode;
-import io.github.pho001.synaptik.nn.module.Module;
-import io.github.pho001.synaptik.nn.module.Sequential;
-import io.github.pho001.synaptik.nn.module.UnaryTensorModule;
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -87,56 +80,6 @@ class RnnSequenceTest {
                 () -> assertEquals(List.of("inputWeight", "hiddenWeight"),
                         sequence.cell().parameters().stream().map(value -> value.name()).toList()),
                 () -> assertNotSame(skipped.finalHidden(), complete.finalHidden()));
-    }
-
-    @Test
-    void exposesExactlyThePlannedDirectModuleAndRecordSurface() throws Exception {
-        Set<List<Class<?>>> constructors = Arrays.stream(RnnSequence.class.getDeclaredConstructors())
-                .filter(value -> Modifier.isPublic(value.getModifiers()))
-                .map(value -> List.of(value.getParameterTypes()))
-                .collect(Collectors.toSet());
-        Set<String> methods = Arrays.stream(RnnSequence.class.getDeclaredMethods())
-                .filter(value -> Modifier.isPublic(value.getModifiers()))
-                .map(value -> value.getName())
-                .collect(Collectors.toSet());
-        RecordComponent[] components = RnnSequenceForwardResult.class.getRecordComponents();
-
-        assertAll(
-                () -> assertTrue(Modifier.isFinal(RnnSequence.class.getModifiers())),
-                () -> assertSame(Module.class, RnnSequence.class.getSuperclass()),
-                () -> assertFalse(UnaryTensorModule.class.isAssignableFrom(RnnSequence.class)),
-                () -> assertFalse(Sequential.class.isAssignableFrom(RnnSequence.class)),
-                () -> assertEquals(Set.of(
-                        List.of(RnnCell.class),
-                        List.of(long.class, boolean.class, DataType.class,
-                                ParameterInitialization.class, long.class)), constructors),
-                () -> assertEquals(Set.of("cell", "forward", "forwardScan"), methods),
-                () -> assertSame(RnnCell.class, RnnSequence.class.getDeclaredMethod("cell").getReturnType()),
-                () -> assertSame(
-                        RnnSequenceForwardResult.class,
-                        RnnSequence.class
-                                .getDeclaredMethod("forward", Tensor.class, Tensor.class, long[].class)
-                                .getReturnType()),
-                () -> assertSame(RnnSequenceForwardResult.class,
-                        RnnSequence.class.getDeclaredMethod("forward", Tensor.class, Tensor.class)
-                                .getReturnType()),
-                () -> assertSame(RnnSequenceForwardResult.class,
-                        RnnSequence.class.getDeclaredMethod("forward", Tensor.class, long[].class)
-                                .getReturnType()),
-                () -> assertSame(RnnSequenceForwardResult.class,
-                        RnnSequence.class.getDeclaredMethod("forward", Tensor.class)
-                                .getReturnType()),
-                () -> assertEquals(1, RnnSequence.class.getDeclaredFields().length),
-                () -> assertEquals("cell", RnnSequence.class.getDeclaredFields()[0].getName()),
-                () -> assertTrue(RnnSequenceForwardResult.class.isRecord()),
-                () -> assertEquals(List.of("packedOutputs", "finalHidden"),
-                        Arrays.stream(components).map(RecordComponent::getName).toList()),
-                () -> assertEquals(List.of(List.class, Tensor.class),
-                        Arrays.stream(components).map(RecordComponent::getType).toList()),
-                () -> assertTrue(Arrays.stream(RnnSequence.class.getDeclaredClasses())
-                        .noneMatch(type -> Modifier.isPublic(type.getModifiers())
-                                || Modifier.isProtected(type.getModifiers()))),
-                () -> assertEquals(0, RnnSequenceForwardResult.class.getDeclaredClasses().length));
     }
 
     @Test

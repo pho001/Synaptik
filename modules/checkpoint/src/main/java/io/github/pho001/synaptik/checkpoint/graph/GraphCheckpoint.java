@@ -20,7 +20,18 @@ import java.util.Objects;
  * and fixed flat RNN/GRU/LSTM scans. All canonical ports are retained, with no scan execution,
  * backpropagation through time (BPTT) or Conv3d gradients implied. Cold source admission checks
  * GATHER index and scan length descriptors, never their values. Named index/length state, if any,
- * is still copied or saved under the ordinary named-leaf rules.
+ * is still copied under ordinary named-leaf rules, or saved when independently wire-eligible.
+ * Copy/rebind preserve general SCAN attachments in Compiler's bounded cold constructor slice,
+ * including static homogeneous FLOAT32/FLOAT64 length mode with explicit row roles and separate
+ * lengths. Rebind rejects incompatible new ROW/SHARED ties, including ties to retained named state.
+ * Each reconstructed occurrence has fresh body formals and all canonical ports; no time
+ * unrolling or backend support is implied. V4 save/load retains all-valid general scans;
+ * v5 adds the same static homogeneous length-mode cold intersection with ordered row roles.
+ * Both versions store scoped body metadata and latent residual ports, never runtime histories
+ * or external length values; v1/v2/v3 remain body-free.
+ * The bounded body-only additions include tensor/scalar arithmetic, SUM reductions, static
+ * shape/layout transforms and same-dtype CAST, not arbitrary PURE operations or nested scans.
+ * Cold dtype admission does not qualify execution or differentiation.
  * Named host values use native-order logical lanes; all represented bits are preserved.
  * Callers exclude mutation, storage rebinding and closure throughout each operation.
  * Old flexible NN model readers are separate APIs, not implicitly converted static graphs.
@@ -85,6 +96,8 @@ public final class GraphCheckpoint {
      * Acquires private mutable heap state once per exact identity and rebuilds ordinary provenance.
      * Input prototypes become storage-free; no original state graph or storage is retained.
      * Metadata and geometry precede all storage admission, then BOOL checks and raw copies.
+     * General scan bodies are fully preflighted by Compiler before state reads and rebuilt with
+     * fresh independent formals per occurrence, preserving canonical ports and template isolation.
      * @param source non-null borrowed source, quiescent with live accessible canonical host state
      * @return non-null independent source preserving descriptors, roles, aliases and root order
      * @throws NullPointerException if source is null
@@ -100,7 +113,11 @@ public final class GraphCheckpoint {
     /**
      * Saves without executing or persisting prototype input storage. Selects the smallest sufficient
      * format: original five kinds retain byte-identical v1, original eight kinds with activations
-     * retain byte-identical v2, and additional CNN/recurrent kinds use multi-output v3.
+     * retain byte-identical v2, additional CNN/recurrent kinds use multi-output v3, and only
+     * all-valid general SCAN selects v4. Length-aware general SCAN selects v5 without changing old
+     * records. Its bounded body inventory is the existing Compiler cold slice, not arbitrary PURE
+     * operations or a backend execution guarantee. Inline bodies preserve unused formals, tied
+     * roles and every canonical residual port without saving histories or external length values.
      * Complete metadata/bounds/storage/value/image validation precedes ArtifactFile publication:
      * forced and revalidated sibling file, then one atomic move, with no non-atomic fallback.
      * This is atomic live visibility, not authentication or portable power-loss durability.
@@ -122,7 +139,8 @@ public final class GraphCheckpoint {
 
     /**
      * Rereads and fully validates a graph file before importing state and publishing expressions.
-     * Accepts only exact graph-model.v1/v2/v3 kind, magic and version tuples and their closed opcodes.
+     * Accepts only exact graph-model.v1/v2/v3/v4/v5 kind, magic and version tuples and closed scoped opcodes.
+     * Complete outer/body preflight precedes host import and any body formal/producer allocation.
      * The returned ordinary mutable heap values need no arena or second ownership copy.
      * No Engine, saved batch, labels, compiled artifacts or runtime state is restored.
      * @param source non-null quiescent regular artifact path, not a symlink
@@ -144,6 +162,9 @@ public final class GraphCheckpoint {
      * Source metadata is checked before replacements; no state storage is accessed. Produced and
      * repeated substitutions retain opaque upstream provenance and may give repeated outputs,
      * which ordinary compile still rejects. Named state remains borrowed and unchanged.
+     * General scans preserve traversal and all canonical ports with fresh per-occurrence body
+     * formals; body-local IDs never resolve against outer inputs. Cold admission is independent
+     * of backend support; substitution grants no new execution or differentiation eligibility.
      * @param source non-null source with valid metadata, independent of storage readability
      * @param inputs non-null replacements in declared input order, with exact full descriptors
      * @return non-null immutable ordered ordinary outputs, potentially repeated exact references

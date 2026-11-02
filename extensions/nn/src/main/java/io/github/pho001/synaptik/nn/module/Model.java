@@ -34,12 +34,17 @@ import java.util.function.BiFunction;
  * <p>Generic Models are not thread-safe. Callers must coordinate forward construction with mode changes,
  * binding replacement, state loading, and other mutable Module operations when one consistent
  * view matters. {@link #builder()}, {@link #defineTensor} and {@link #graph} establish a private
- * static source for compute and, for supported scan-free sources, configured training;
+ * static source for compute and, for supported sources without fixed recurrent scans, configured training;
  * save additionally requires checkpoint admission.
  * Builder composition reuses existing layers; selected default CNN/static recurrent DAGs persist
- * through Checkpoint v3 without layer recipes. Explicit runtime-length scan Models support inference
- * through the same cached execution owners, but reject training before setup effects. Persistence
- * stores their cold semantic source, not executable state.
+ * through Checkpoint v3 without layer recipes. Explicit fixed runtime-length scan Models support inference
+ * through the same cached execution owners, but reject training before setup effects. General scans
+ * use bounded cold acquisition and the same owners for qualified FLOAT32/FLOAT64 compute and
+ * first-order training where the actual bodies and bindings qualify. Bounded all-valid bodies
+ * persist through Checkpoint v4; the static homogeneous FLOAT32/FLOAT64 length-aware intersection
+ * uses v5, independently of execution qualification. All-valid scans execute every static time
+ * step, without runtime lengths or padding. Persistence stores cold semantics
+ * and current named values, not executable state, histories or optimizer continuation.
  * Those Models serialize high-level operations
  * (competing calls fail busy), guard inherited mutable state, and close cached public Engine and
  * Training owners before their native storage. Inherited Module mutators still require caller
@@ -171,8 +176,12 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * Callbacks are discarded after acquisition. Caller Tensors/stores are never rebound or mutated;
      * callback effects themselves are not rollbackable. No Engine is created.
      * The static source uses {@link GraphCheckpoint}'s closed admission, including selected
-     * CNN/static recurrent compositions and cold fixed scans. Execution support remains
-     * occurrence-specific, with no Conv3d gradients or scan backpropagation through time.
+     * CNN/static recurrent compositions, cold fixed scans and bounded general-scan bodies.
+     * Cold signatures and dtypes are independent of execution support. Canonical static homogeneous
+     * FLOAT32/FLOAT64 general scans may compute and train when their actual bodies and bindings
+     * qualify through the existing cached owners. Fixed scans remain inference-only; bounded general
+     * bodies save/load through Checkpoint v4 without restoring objectives or optimizer state.
+     * No Conv3d gradients or fixed-scan backpropagation through time are implied.
      * @param inputSignature non-null fully static exact input descriptor
      * @param definition non-null one-shot definition; its adopted modules must not be mutated later
      * @return owned eval Model with private state and cold symbolic forward
@@ -218,9 +227,14 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Acquires external state exactly once and reconstructs a private ordinary source.
+     * Source containers are snapshotted before Checkpoint admission. Checkpoint and Compiler own
+     * bounded cold reconstruction, including general-scan bodies; NN adds no backend/dtype filter.
+     * General-body execution and first-order training remain occurrence-specific; persistence uses
+     * Checkpoint's bounded v4 cold inventory. Compute and train never reconstruct the source per batch.
      * @param inputs ordered unique static provenance-free prototypes, possibly unused
      * @param outputs nonempty distinct expressions using ADD/MUL/NEG/MATMUL, rank-two PERMUTE[1,0]
-     *     or another kind in Checkpoint's narrow CNN/static recurrent/fixed-scan source slice;
+     *     or another kind in the bounded CNN/static recurrent/fixed-scan source slice, including
+     *     general scans with constructor-supported bodies;
      *     ordinary family guards remain mandatory. Runtime-length prototypes are metadata only
      * @param namedLeaves complete reachable named state with explicit roles and canonical Module traversal order
      * @return owned eval list Model; constants remain outside stateDictionary
@@ -230,7 +244,8 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      */
     public static Model<List<Tensor>, List<Tensor>> graph(
             List<Tensor> inputs, List<Tensor> outputs, List<GraphCheckpoint.Leaf> namedLeaves) {
-        return new TensorListModel(GraphCheckpoint.copy(new GraphCheckpoint.Source(inputs, outputs, namedLeaves)));
+        var source = new GraphCheckpoint.Source(inputs, outputs, namedLeaves);
+        return new TensorListModel(GraphCheckpoint.copy(source));
     }
 
     /**
@@ -252,7 +267,7 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Loads a single-boundary graph using the six NN artifact ceilings, without creating an Engine.
-     * @param path non-null graph-model.v1/v2/v3 file, not an old flexible model artifact
+     * @param path non-null graph-model.v1/v2/v3/v4/v5 file, not an old flexible model artifact
      * @return owned eval Model adopting final loaded heap state without another copy
      * @throws IOException if reading or artifact validation fails
      * @throws IllegalArgumentException if boundaries require loadGraph or state order is noncanonical
@@ -308,7 +323,9 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Loads list boundaries under explicit artifact ceilings without creating an Engine.
-     * Closed graph-model.v1/v2/v3 sources are accepted without numerical conversion.
+     * Closed graph-model.v1/v2/v3/v4/v5 sources are accepted without numerical conversion.
+     * V4 retains bounded all-valid general bodies; v5 adds the static homogeneous FLOAT32/FLOAT64
+     * length-aware intersection. Load restores neither preparations nor objective/optimizer state.
      * @param path non-null graph artifact
      * @param limits non-null artifact bounds
      * @return owned eval Model adopting the final loaded leaves without another copy
@@ -342,7 +359,7 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * Selects an Engine on the same receiver before the first valid setup attempt.
      * Selected-Engine closure precedes Model closure/busy admission; freeze precedes candidate checks.
      * Invalid compute/configure arguments do not freeze; valid setup attempts do, including failure.
-     * Rejected scan training preserves the previous freeze status without attempting setup.
+     * Rejected fixed-scan training preserves the previous freeze status without attempting setup.
      * @param engine non-null open borrowed Engine; neither previous nor new selection is closed
      * @return this exact Model, with unchanged generic type, wrappers and working state
      * @throws UnsupportedOperationException if this Model has no owned tensor capability
@@ -421,12 +438,14 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * Configures one scalar objective and TrainingSession on the owned working weights.
      * Does not toggle Module mode. The pure builder runs once per explicit attempt and is discarded.
      * A successful configuration is final; failed setup may retry on the frozen Engine choice.
-     * Scan-containing sources reject after lifecycle/live-source admission, before arity, arguments,
+     * General scans use the same session and retain independent Compiler/backend admission;
+     * connected, nonempty parameter requirements still apply at zero time count.
+     * Fixed-scan-containing sources reject after lifecycle/live-source admission, before arity, arguments,
      * freeze, callback, Engine creation, inference-cache closure or native storage admission.
      * @param targetSignature non-null fully static target descriptor
      * @param objectiveBuilder non-null pure builder returning a scalar gradient-eligible FLOAT32/FLOAT64 expression
      * @param optimizer non-null immutable Training optimizer configuration
-     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a scan
+     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a fixed scan
      * @throws IllegalStateException if closed, busy, invalid, already configured or storage unusable
      * @throws IllegalArgumentException if boundaries, objective, native parameter or source admission rejects
      * @throws NullPointerException if an argument or objective result is null
@@ -440,12 +459,14 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * Configures a list-boundary objective against owned outputs and explicit target prototypes.
      * Heap parameters are admitted to a Model-owned shared Arena once, preserving Tensor identity;
      * inference preparations close before replacement. Training owns optimizer mathematics/atomicity.
-     * Scan-containing sources instead reject before argument checks or any setup effect, preserving
+     * General-scan objectives may consume final carry and emissions together; residual-root
+     * differentiation and unsupported body occurrences still reject through Compiler admission.
+     * Fixed-scan-containing sources instead reject before argument checks or any setup effect, preserving
      * state bytes, storage associations, inference caches and the existing Engine freeze status.
      * @param targetPrototypes non-null unique static provenance-free targets disjoint from source leaves
      * @param objectiveBuilder non-null pure one-attempt builder; arbitrary external leaves reject
      * @param optimizer non-null Training-owned immutable configuration
-     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a scan
+     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a fixed scan
      * @throws IllegalStateException if lifecycle, source, storage or repeated configuration rejects
      * @throws IllegalArgumentException if targets, objective or Training parameter admission rejects
      * @throws NullPointerException if an argument/element/objective is null
@@ -457,11 +478,11 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Performs RESET_AND_STEP on one configured batch and target without changing Module mode.
-     * Scan-containing sources reject after lifecycle/live-source admission and before arity or arguments.
+     * Fixed-scan-containing sources reject after lifecycle/live-source admission and before arity or arguments.
      * @param input non-null fresh stored exact-signature input borrowed through synchronous execution
      * @param target non-null fresh stored exact-signature target with no forbidden storage overlap
      * @return detached objective and committed step metadata, readable after all owners close
-     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a scan
+     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a fixed scan
      * @throws IllegalStateException if unconfigured, closed, busy, invalid or storage unusable
      * @throws IllegalArgumentException if boundary, descriptor or Training overlap admission rejects
      * @throws ArithmeticException if Training rejects nonfinite gradients, staged updates or optimizer arithmetic
@@ -471,11 +492,11 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Performs the same Training transaction for explicit ordered batch and target slots.
-     * Scan-containing sources reject after lifecycle/live-source admission without setup or mutation.
+     * Fixed-scan-containing sources reject after lifecycle/live-source admission without setup or mutation.
      * @param inputs non-null fresh stored inputs in declared order, including eliminated slots
      * @param targets non-null fresh stored targets in declared order
      * @return detached TrainingStep after internal result closure
-     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a scan
+     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a fixed scan
      * @throws IllegalStateException if lifecycle/configuration/source/storage rejects
      * @throws IllegalArgumentException if arity, descriptors or overlap reject
      * @throws ArithmeticException if Training rejects nonfinite transaction values
@@ -487,7 +508,7 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Saves the fixed source and current live owned leaves, even before first compute.
-     * Builder compositions outside the closed graph source slice reject before file work, without
+     * Bounded general bodies use Checkpoint v4. Compositions outside the closed wire slice reject before file work, without
      * freezing Engine selection or disabling subsequent compute/training.
      * Uses NN ceilings: 256 MiB file/aggregate, 4 MiB manifest, 16384 entries, 64-byte keys,
      * 64 MiB payload. Does not persist objective, optimizer, RNG, cursor or Java callback state.
@@ -502,6 +523,9 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Saves under explicit artifact ceilings without execution or source reconstruction.
+     * Bounded general bodies retain scoped source metadata and current named values in Checkpoint v4,
+     * before compute or after training. No objective, optimizer or runtime history is restored.
+     * Admission failure precedes file effects and does not freeze Engine selection or disable execution.
      * @param path non-null destination
      * @param limits non-null six artifact ceilings
      * @throws IOException if encoding/publication fails

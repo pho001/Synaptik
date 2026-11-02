@@ -42,10 +42,10 @@ final class PaddedNumericSequenceInferenceIntegrationTest {
                 assertTrue(output.descriptor().requiresGrad()); // Floating parameters, not counts.
                 assertFalse(prototype.descriptor().requiresGrad());
                 assertFalse(prototypeLengths.descriptor().requiresGrad());
-                assertTrue(output.descriptor().layout().isEmpty());
+                assertEquals(!family.equals("rnn"), output.descriptor().layout().isEmpty());
                 var producer = output.provenance().orElseThrow().producer();
-                assertSame(prototype, producer.inputs().get(0));
-                assertSame(prototypeLengths, producer.inputs().get(1));
+                assertSame(prototype, producer.inputs().get(family.equals("rnn") ? 1 : 0));
+                assertSame(prototypeLengths, producer.inputs().get(family.equals("rnn") ? producer.inputs().size() - 1 : 1));
                 var compiled = engine.compile(List.of(output));
                 // Capture public positional binding once; all remaining scan inputs are fixed leaves.
                 List<Tensor> bindings = compiled.inputs().stream().map(input -> producer.inputs().stream()

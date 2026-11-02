@@ -50,10 +50,13 @@ import java.util.random.RandomGeneratorFactory;
  *
  * <p>Explicit rnnScan/gruScan/lstmScan recipes share a canonical runtime lengths input and produce
  * dense time-major outputs while skipping only each scan's padded transitions. Finish with
- * {@link #buildWithLengths()}; {@link #build()} remains single-input and static. Scan Models are
- * inference-only. Each CPU scalar scan supports one common FLOAT32, FLOAT64, BFLOAT16 or FLOAT16
- * type and resolved nonnegative read layouts, with canonical outputs. This does not change the
- * builder's exact input descriptors or grant execution of every ordinary-step composition.
+ * {@link #buildWithLengths()}; {@link #build()} remains single-input and static. FLOAT32/FLOAT64
+ * rnnScan composes general Scan with canonical outputs, first-order training and v5 persistence
+ * in their qualified domains. General CPU actual reads require dense zero-offset layouts (including
+ * dense views) or the existing proved scalar broadcast case. Retained low RNN and all GRU/LSTM
+ * recipes remain fixed inference-only scans with their broader resolved read domain. Any fixed
+ * occurrence, including mixed fixed/general stacks, rejects training before setup. No implicit
+ * conversion, layout copy or backend fallback widens these occurrence-specific qualifications.
  * {@link #finalHidden()} selects the
  * immediately preceding scan's existing final state, whereas {@link #lastTimeStep()} selects a
  * dense time index. Ordinary bias and activations remain dense and do not acquire automatic
@@ -309,6 +312,8 @@ public final class ModelBuilder {
      * runtime lengths input; later scans must preserve T/B. Ordinary steps do not inherit masking.
      * Each row consumes its valid prefix, zero-pads the dense suffix, and returns zero final hidden
      * state for length zero. Geometry is checked at build; length values in [0,T] are checked at run.
+     * FLOAT32/FLOAT64 uses general Scan and its canonical output layouts, ordinary first-order
+     * training and v5 persistence; low types retain fixed inference-only composition.
      * @param hiddenSize positive hidden width; input at this step must be positive static TBF
      * @return this same builder; use buildWithLengths, not build, to finish a scan chain
      * @throws IllegalArgumentException if hiddenSize is not positive
@@ -415,7 +420,8 @@ public final class ModelBuilder {
      * Without a scan, rejection precedes supplied-state copying or layer construction. Each build
      * owns fresh private state. Exact descriptors include layout and gradient eligibility; the
      * lengths prototype is canonical contiguous, offset-zero and non-view. Saved Models use
-     * Model.loadGraph and the same compute path, without new input-role metadata or a new format.
+     * Model.loadGraph and the same compute path. General length-aware RNN sources select v5;
+     * retained fixed-only sources keep the old version selection and training rejection.
      * @return a non-null fresh owned eval Model with two ordered inputs and one chain result;
      *     caller closes it; compute returns detached values, while forward remains list-typed
      * @throws IllegalStateException if input or scan recipes are absent, or supplied storage is unavailable
@@ -633,7 +639,10 @@ public final class ModelBuilder {
          * @throws IllegalArgumentException if rank is not three
          */
         @Override public Tensor forward(Tensor input) {
-            if (finalHidden) return input.provenance().orElseThrow().producer().output(1);
+            if (finalHidden) {
+                var producer = input.provenance().orElseThrow().producer();
+                return producer.output(producer.scanBody().isPresent() ? 0 : 1);
+            }
             if (input.descriptor().shape().rank() != 3) {
                 throw new IllegalArgumentException("lastTimeStep requires rank-three TBF");
             }
@@ -659,7 +668,7 @@ public final class ModelBuilder {
             this.sequence = child("sequence", sequence); this.hiddenSize = hiddenSize;
         }
         /**
-         * Composes one fixed scan with explicit zero initial state; reads no length values.
+         * Composes general F32/F64 or retained low fixed scan from zero state; reads no lengths.
          * @param input positive TBF expression
          * @param lengths shared canonical INT64[B] expression
          * @return dense canonical scan outputs, retaining the finalHidden sibling
@@ -667,7 +676,10 @@ public final class ModelBuilder {
         private Tensor forwardScan(Tensor input, Tensor lengths) {
             Tensor zero = TensorFactory.zeros(Shape.of(extent(input, 1), hiddenSize),
                     input.descriptor().dataType(), Optional.empty(), false);
-            return sequence.forwardScan(input, lengths, zero, RecurrentDirection.FORWARD).outputs();
+            DataType type = input.descriptor().dataType();
+            return (type == DataType.FLOAT32 || type == DataType.FLOAT64
+                    ? sequence.forwardGeneralScan(input, lengths, zero, RecurrentDirection.FORWARD)
+                    : sequence.forwardScan(input, lengths, zero, RecurrentDirection.FORWARD)).outputs();
         }
         /**
          * Composes the existing all-valid sequence with fresh zero state and packs every output.

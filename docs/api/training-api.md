@@ -35,14 +35,20 @@ arbitrary external objective leaves reject. Configuration preserves eval mode an
 Failed setup permits explicit retry but Engine selection freezes before callback/native/preparation
 work, even on failure. Successful native admission is not repeated on retry.
 
-Scan-containing owned Models are inference-only, including builder, definition, graph and loaded
-sources with a scan behind an ordinary head or only a final-state root. Both configureTraining and
+Owned sources containing any fixed recurrent scan are inference-only, including mixed
+fixed/general sources behind a head or with only a final-state root. Both configureTraining and
 both train overload families throw `UnsupportedOperationException` after existing lifecycle and
 live-source admission, before arity/arguments, binding freeze, objective callbacks, Engine creation,
 inference-preparation closure or native parameter copy. For a valid source, rejection preserves
 state bytes, stores, inference caches, gradient flags and any preexisting freeze status, before or
 after compute/load. It does not rely on a late Compiler BPTT error. Live-source invalidation and
 closed/busy diagnostics still take precedence; configured static-unroll training is unchanged.
+
+Qualified general Scan sources are different: all-valid homogeneous F32/F64 and NN0033's static
+runtime-length F32/F64 RNN support first-order training through the same owners. The explicit
+F32/F64 `rnnScan` builder uses that general composition; GRU/LSTM, low RNN and old fixed files do
+not migrate. Configure a fresh objective/optimizer after v5 load; no session history is restored.
+
 
 `train(batch, target)` and the list form delegate `RESET_AND_STEP` to one TrainingSession.runValues.
 NN maps declared batch/target slots and owned buffers/constants to final session input order;
@@ -151,6 +157,10 @@ allocating its update buffers or the private seed, or compiling; earlier paramet
 have been captured. JVM-heap, read-only, thread-confined, strided/view,
 integral, BOOL, and device-only parameter storage are outside this domain. The caller grants the
 session exclusive use of the live source's membership, storage associations and parameter bytes until close.
+
+The CPU numerical lock does not remove low parameter storage or these F32 masters. A low
+parameter used in numerical graph work needs an explicit cast to FLOAT32 before that work;
+the optimizer master does not implicitly change graph dtypes or enable a low CPU kernel.
 
 ## Generic live parameter admission
 
@@ -634,9 +644,9 @@ export fail closed.
 
 The automatic recurrent-cell constructors similarly retain explicit hidden width, bias choice,
 floating parameter type, policy, and seed while reserving `inputWeight`, `hiddenWeight`, and
-optional `bias`. The first compatible represented cell call, or descriptor-valid `forwardScan`
-call on its owning Sequence, infers only a positive static input width. A scan binds even when
-time or batch is zero; static unrolling with no represented step still leaves the cell unbound.
+optional `bias`. The first compatible represented cell call, descriptor-valid `forwardScan`, or
+RNN `forwardGeneralScan` infers only a positive static input width. A scan binds even when time
+or batch is zero; static unrolling with no represented step still leaves the cell unbound.
 Sampling policies create one fresh standard `L64X128MixRandom` stream per attempt and draw
 the complete packed input matrix before the complete packed hidden matrix; each Shape derives its
 own fan values. Zero/one policies create no generator. Optional bias is layer-owned typed zero and
@@ -1074,10 +1084,20 @@ not roll back identifiers or allocations. Bound and strict-loaded cells never re
 Each scan reads current bindings once in declaration order and rechecks their exact schema;
 replacement affects later occurrences and remains caller-coordinated.
 
+RNN additionally exposes `forwardGeneralScan` with the same explicit arguments/result carrier,
+limited to configured homogeneous FLOAT32/FLOAT64. It shares ordinary cell mathematics and the
+existing initialization gate, but preflights canonical formals, emission and actual latent
+histories before initialization/body IDs, including overflowing empty-domain stride geometry.
+Its dense emission is general port 1, final carry port 0; fixed ordering stays 0/1.
+Both directions, bias modes and zero T/B are supported construction domains. Qualified CPU
+first-order forward/backward and v5 persistence are accepted under NN0033; execution still
+requires the actual general-Scan binder/read domain. No hidden state or downstream loss mask is added.
+
+
 One call returns the canonical ports of one producer regardless of time extent. Produced inputs,
 states, lengths and parameter bindings retain their provenance without copies or detach. Both
 train/eval modes preserve gradient eligibility, including trainable parameters in eval; this is
-not permission to differentiate the scan. The module retains no caller state or result. Pass
+not permission to differentiate a fixed forwardScan. The module retains no caller state or result. Pass
 LSTM `finalHidden()` and `finalCell()` explicitly to a later scan for symbolic carry; across
 separate runs, supply materialized state values with the next graph's exact descriptors.
 
@@ -1088,15 +1108,17 @@ explicit time-major input first. Each creates one flat multi-output producer wit
 output and explicit final states. The namespace is not an NN layer or module and does not read
 length values, statically unroll a cell, own parameters, or execute. Current package-private
 Compiler forward-only inference adopts the family, while both backward-capable modes reject it
-before derivative Tensor allocation. The current CPU route separately qualifies canonical fully
-static FLOAT32 forward scans, both directions and bias modes, with ordinary trainable NN parameter
-flags. Compile selected result Tensors through public Engine, prepare once, then use `runValues`
+before derivative Tensor allocation. The CPU scalar fixed route separately qualifies homogeneous
+static FLOAT32/FLOAT64 and resolved nonnegative read layouts, both directions/
+bias modes, with trainable NN parameter flags. Compile through public Engine, prepare once and runValues
 with fresh full-descriptor values in `compiled.inputs()` order, including parameters and states.
 Each run validates every length in `[0,time]` before writing scan results; invalid values may be
-repaired and the preparation reused. Expression validity for other floating types is not CPU
-execution coverage. Owned scan Models also compute through that existing cached Engine path;
-backpropagation through time (BPTT) and scan training remain unsupported. Training requests reject
-early as described under [owned Model training](#owned-model-training-convenience).
+repaired and the preparation reused. Fixed expression validity remains distinct from execution
+qualification. Owned fixed-scan-containing Models compute through that cached Engine path but
+reject BPTT/training early as described under [owned Model training](#owned-model-training-convenience).
+Low fixed-scan source/storage remains retained, while BF16/FP16 CPU numerical execution is
+temporarily locked; private F32 optimizer masters do not widen that fixed forward capability.
+NN0033's separate F32/F64 general RNN training is not subject to that fixed-only rejection.
 
 The additive scan method does not redirect any existing `forward` overload or bidirectional
 container. Their Java `long[]` construction-time lengths, compact per-step outputs, provenance
@@ -1105,11 +1127,13 @@ multidimensional recurrent facade, arbitrary direction collection, or configurab
 The current `ModuleFactory` constructs only the existing one-directional RNN, GRU, and LSTM Sequences; the
 concrete bidirectional constructors already expose their two seeds and no factory recipe is
 current. Existing builder `rnn/gru/lstm` steps remain statically unrolled and retain supported training.
-Explicit `rnnScan/gruScan/lstmScan` steps instead build inference-only two-input Models with shared
-runtime lengths, FORWARD biased transitions and independent zero states; `finalHidden` selects the
-immediately preceding scan's existing port. See the [runtime-length Model workflow](../user-guide/running-models.md#run-a-runtime-length-scan-model).
-No global padding mask, hidden state carry or Data dependency is introduced. Data integration and
-bidirectional scan migration are separate future work. The initialized `Embedding` remains eager.
+Explicit `rnnScan/gruScan/lstmScan` steps build two-input Models with shared runtime lengths,
+FORWARD biased transitions and independent zero states. F32/F64 RNN uses trainable general Scan;
+retained fixed families stay inference-only. `finalHidden` selects the actual producer's semantic
+port, not a universal index. See the [runtime-length Model workflow](../user-guide/running-models.md#run-a-runtime-length-scan-model)
+and [RNN training journey](../user-guide/running-models.md#train-a-runtime-length-rnn).
+No global padding mask, hidden state carry or NN-to-Data dependency is introduced. Data exports
+values/counts separately; bidirectional scan migration remains future. Initialized Embedding stays eager.
 
 ## Current NN parameter update contract
 

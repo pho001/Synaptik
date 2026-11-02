@@ -12,6 +12,9 @@ import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.Scan;
+import io.github.pho001.synaptik.model.tensor.ScanBody;
+import io.github.pho001.synaptik.engine.HostTensorValue;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.convolution.*;
 import io.github.pho001.synaptik.nn.layers.Linear;
@@ -29,6 +32,122 @@ import org.junit.jupiter.api.io.TempDir;
 /** Cold graph load joins the existing explicit Engine path, not a new Model or execution facade. */
 final class GraphCheckpointEngineIntegrationTest {
     @TempDir Path directory;
+
+    /**
+     * Cold body copy outlives native state and both direct bindings and rebind use public Engine.
+     * This bounded execution check promises neither low-type execution nor owned NN acquisition.
+     * @param type independently supported CPU FLOAT32 or FLOAT64 scan dtype
+     */
+    @ParameterizedTest
+    @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64"})
+    void generalScanCopyAndRebindMatchDirectEngineAfterNativeStateCloses(DataType type) {
+        try (Engine engine = Engine.standard()) {
+            for (int time : List.of(0, 3)) for (boolean reverse : List.of(false, true)) {
+                GraphCheckpoint.Source copied;
+                try (Arena arena = Arena.ofConfined()) {
+                    Tensor sequence = TensorFactory.create(scanDescriptor(type, Shape.of(time, 2)));
+                    Tensor initial = TensorFactory.create(scanDescriptor(type, Shape.of(2)));
+                    Tensor heapWeight = scanValue(type, Shape.of(2), .5, -.25);
+                    MemorySegment nativeBits = arena.allocate(2L * type.byteWidth(), type.byteWidth());
+                    nativeBits.copyFrom(heapWeight.hostStorage().orElseThrow().segment());
+                    Tensor weight = TensorFactory.create(heapWeight.descriptor(), Optional.empty(), Optional.of(
+                            new MemorySegmentStorage(type, 2, nativeBits)));
+                    var roots = scanRoots(initial, sequence, weight, reverse);
+                    copied = GraphCheckpoint.copy(new GraphCheckpoint.Source(List.of(sequence, initial), roots, List.of(
+                            new GraphCheckpoint.Leaf("weight", GraphCheckpoint.Role.PARAMETER, weight),
+                            new GraphCheckpoint.Leaf("tied", GraphCheckpoint.Role.PARAMETER, weight))));
+                }
+                Tensor ownedWeight = copied.leaves().getFirst().tensor();
+                assertSame(ownedWeight, copied.leaves().getLast().tensor());
+                assertFalse(ownedWeight.hostStorage().orElseThrow().segment().isNative());
+                assertTrue(copied.inputs().stream().allMatch(t -> t.hostStorage().isEmpty()));
+                var compiledCopy = engine.compile(copied.outputs());
+                try (var preparedCopy = engine.prepare(compiledCopy)) {
+                    for (double sign : List.of(1.0, -1.0)) {
+                        double[] values = new double[time * 2];
+                        for (int i = 0; i < values.length; i++) values[i] = sign * (i - 2) * .125;
+                        Tensor sequence = scanValue(type, Shape.of(time, 2), values);
+                        Tensor initial = scanValue(type, Shape.of(2), -0.0, .125);
+                        Tensor weight = scanValue(type, Shape.of(2), .5, -.25);
+                        var directRoots = scanRoots(initial, sequence, weight, reverse);
+                        var direct = engine.compile(directRoots);
+                        List<HostTensorValue> expected;
+                        var pool = List.of(initial, sequence, weight);
+                        var bindings = direct.inputs().stream().map(i -> pool.stream()
+                                .filter(t -> t.id().equals(i.tensorId())).findFirst().orElseThrow()).toList();
+                        try (var p = engine.prepare(direct); var r = engine.run(p, bindings)) {
+                            expected = r.publications().stream().map(publication -> r.materialize(publication, 1024)).toList();
+                        }
+                        // Compile the copied ordinary source once and substitute fresh values by its
+                        // public compiled input order, not by a hidden Checkpoint execution path.
+                        var copyBindings = compiledCopy.inputs().stream().map(i -> {
+                            if (i.tensorId().equals(copied.inputs().get(0).id())) return sequence;
+                            if (i.tensorId().equals(copied.inputs().get(1).id())) return initial;
+                            assertEquals(ownedWeight.id(), i.tensorId()); return ownedWeight;
+                        }).toList();
+                        try (var r = engine.runValues(preparedCopy, copyBindings)) {
+                            assertEquals(expected.size(), r.publications().size());
+                            for (int i = 0; i < expected.size(); i++)
+                                assertEquals(expected.get(i).bytes(), r.materialize(r.publications().get(i), 1024).bytes());
+                        }
+                        var rebound = GraphCheckpoint.rebind(copied, List.of(sequence, initial));
+                        for (int i = 0; i < rebound.size(); i++)
+                            assertEquals(expected.get(i).bytes(), engine.compute(rebound.get(i)).bytes());
+                        if (time == 0) {
+                            if (type == DataType.FLOAT32) assertEquals(0x80000000, expected.getFirst().bytes().getInt(0));
+                            else assertEquals(Long.MIN_VALUE, expected.getFirst().bytes().getLong(0));
+                            assertEquals(0, expected.get(1).bytes().remaining());
+                            assertEquals(0, expected.get(2).bytes().remaining());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Composes an independent ordinary scan whose retained carry history is publicly requested.
+     * @param initial canonical gradient-eligible two-lane initial carry
+     * @param sequence matching time-major gradient-eligible sequence
+     * @param weight matching two-lane invariant, borrowed without mutation
+     * @param reverse original-time traversal flag
+     * @return final carry, emission and pre-step carry residual in explicit root order
+     */
+    private static List<Tensor> scanRoots(Tensor initial, Tensor sequence, Tensor weight, boolean reverse) {
+        Tensor h = TensorFactory.create(initial.descriptor());
+        Tensor x = TensorFactory.create(initial.descriptor());
+        Tensor w = TensorFactory.create(weight.descriptor());
+        Tensor next = h.add(x.mul(w)).tanh();
+        var body = new ScanBody(List.of(h), List.of(x), List.of(w), List.of(next), List.of(next));
+        var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(weight), body, reverse);
+        int previousCarry = body.retainedValues().indexOf(h);
+        return List.of(scan.finalCarry().getFirst(), scan.outputs().getFirst(), scan.residuals().get(previousCarry));
+    }
+
+    /**
+     * Supplies canonical metadata without implying support for any other dtype or layout.
+     * @param type FLOAT32 or FLOAT64 logical dtype
+     * @param shape fully static shape
+     * @return exact canonical gradient-eligible descriptor
+     */
+    private static TensorDescriptor scanDescriptor(DataType type, Shape shape) {
+        return new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.contiguous(shape)), true);
+    }
+
+    /**
+     * Creates fresh heap values for the bounded typed Engine regression.
+     * @param type FLOAT32 or FLOAT64
+     * @param shape static shape matching the supplied lane count
+     * @param values finite represented lanes, including signed zero, never mutated
+     * @return fresh exact-descriptor stored Tensor
+     */
+    private static Tensor scanValue(DataType type, Shape shape, double... values) {
+        if (type == DataType.FLOAT64)
+            return TensorFactory.fromFlatArray(scanDescriptor(type, shape), Optional.empty(), values.clone());
+        float[] lanes = new float[values.length];
+        for (int i = 0; i < lanes.length; i++) lanes[i] = (float) values[i];
+        return TensorFactory.fromFlatArray(scanDescriptor(type, shape), Optional.empty(), lanes);
+    }
 
     @Test
     void linearLoadOutlivesSourceAndMatchesForwardAndOrdinaryAutogradForTwoFreshInputs() throws Exception {

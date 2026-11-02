@@ -2,6 +2,8 @@ package io.github.pho001.synaptik.testing.integration;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.pho001.synaptik.checkpoint.artifact.ArtifactFile;
+import io.github.pho001.synaptik.checkpoint.artifact.ArtifactLimits;
 import io.github.pho001.synaptik.checkpoint.graph.GraphCheckpoint;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
@@ -31,7 +33,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 final class RuntimeLengthScanModelIntegrationTest {
     @TempDir Path directory;
 
-    @ParameterizedTest @ValueSource(strings = {"rnn", "gru", "lstm", "rnn/rnn", "gru/gru", "lstm/lstm", "rnn/gru/lstm"})
+    @ParameterizedTest @ValueSource(strings = {"rnn", "gru", "lstm", "rnn/rnn", "gru/gru", "lstm/lstm", "rnn/gru/lstm", "gru/rnn", "lstm/rnn"})
     void freshOrderedLengthsDriveDenseFinalAndLastOutputsBeforeAndAfterColdLoad(String chain) throws Exception {
         for (String terminal : List.of("dense", "final", "last")) {
             String[] kinds = chain.split("/");
@@ -66,8 +68,10 @@ final class RuntimeLengthScanModelIntegrationTest {
                     assertArrayEquals(expected, floats(retained), 2e-6f);
                     assertArrayEquals(floats(retained), floats(loaded.compute(List.of(values, lengths)).getFirst()));
                     assertEquals(terminal.equals("dense") ? Shape.of(3, 3, 1) : Shape.of(3, 1), retained.shape());
-                    assertThrows(UnsupportedOperationException.class, () -> loaded.configureTraining((TensorDescriptor) null, null, null));
-                    assertThrows(UnsupportedOperationException.class, () -> loaded.train((List<Tensor>) null, null));
+                    if (Arrays.stream(kinds).anyMatch(kind -> !kind.equals("rnn"))) {
+                        assertThrows(UnsupportedOperationException.class, () -> loaded.configureTraining((TensorDescriptor) null, null, null));
+                        assertThrows(UnsupportedOperationException.class, () -> loaded.train((List<Tensor>) null, null));
+                    }
                 }
                 Tensor zero = floats(false, new long[]{3, 3, 1}, new float[9]);
                 assertThrows(IllegalArgumentException.class, () -> loaded.compute(zero, lengths(3, 4, 0)));
@@ -103,6 +107,8 @@ final class RuntimeLengthScanModelIntegrationTest {
                 new GraphCheckpoint.Leaf("weight", GraphCheckpoint.Role.PARAMETER, weight),
                 new GraphCheckpoint.Leaf("hidden", GraphCheckpoint.Role.PARAMETER, hidden),
                 new GraphCheckpoint.Leaf("bias", GraphCheckpoint.Role.PARAMETER, b)))) { model.save(file); }
+        assertEquals("graph-model.v3", ArtifactFile.read(file,
+                new ArtifactLimits(1048576, 1048576, 100, 64, 1048576, 1048576)).kind());
         try (var model = Model.loadGraph(file)) {
             float[] data = {.2f, .3f, Float.NaN, .4f, Float.NaN, Float.NaN, .6f, Float.NaN, Float.NaN};
             float[] state = {-.2f, .1f, -.0f};
@@ -113,11 +119,14 @@ final class RuntimeLengthScanModelIntegrationTest {
             var producer = output.provenance().orElseThrow().producer();
             assertSame(output, producer.output(1));
             assertEquals(family.equals("lstm") ? 3 : 2, producer.outputCount());
+            assertTrue(producer.scanBody().isEmpty());
             if (family.equals("lstm")) assertSame(producer.inputs().get(2), producer.inputs().get(3));
             float[] expected = oracle(family, data, new long[]{3, 1, 0}, state, state, List.of(w, u, bias), true).get(1);
             assertArrayEquals(expected, floats(model.compute(fresh).getFirst()), 2e-6f);
             assertEquals(Float.floatToRawIntBits(-.0f), Float.floatToRawIntBits(floats(model.compute(fresh).getFirst())[2]));
             assertThrows(UnsupportedOperationException.class, () -> model.configureTraining((List<Tensor>) null, null, null));
+            Path resaved = directory.resolve("fixed-resaved"); model.save(resaved);
+            assertArrayEquals(Files.readAllBytes(file), Files.readAllBytes(resaved));
         }
     }
 

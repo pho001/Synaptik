@@ -11,6 +11,16 @@ import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.Scan;
+import io.github.pho001.synaptik.model.tensor.ScanBody;
+import java.lang.classfile.ClassFile;
+import java.lang.classfile.ClassTransform;
+import java.lang.classfile.CodeBuilder;
+import java.lang.classfile.CodeElement;
+import java.lang.classfile.CodeTransform;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.MethodTypeDesc;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.lang.foreign.MemorySegment;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
@@ -28,6 +38,216 @@ import org.junit.jupiter.api.io.TempDir;
 final class GraphCheckpointTest {
     static final ArtifactLimits LIMITS = new ArtifactLimits(1_000_000, 100_000, 1000, 64, 100_000, 900_000);
     @TempDir Path directory;
+
+    @Test
+    void generalScanSaveReadsUniqueStateAndRejectsBeforeHostOrFileEffects() throws Exception {
+        runStorageReadProbe("generalScanSaveRejectionCases");
+    }
+
+    @Test
+    void generalScanCopyReadsEachStateOnceAndRebindAndLatePreflightReadNothing() throws Exception {
+        runStorageReadProbe("generalScanInMemoryCases");
+    }
+
+    @Test
+    void generalScanLoadPreflightsLateBodyBeforeAnyHostImportOrProducer() throws Exception {
+        runStorageReadProbe("generalScanLoadPreflightCases");
+    }
+
+    /**
+     * Uses independently authored stored-state bytes and the real segment-access spy.
+     * @param directory unused isolated fixture directory
+     * @throws Exception if wire authoring or decoding fails
+     */
+    private static void generalScanLoadPreflightCases(Path directory) throws Exception {
+        var fixture = GraphArtifactV4Test.fixture(1, new byte[0], true, 0, true);
+        byte[] bad = fixture.bytes().clone();
+        bad[fixture.offsets().get("formal") + 1] = 1;
+        var image = new io.github.pho001.synaptik.checkpoint.artifact.ArtifactEnvelope("graph-model.v4", List.of(
+                new io.github.pho001.synaptik.checkpoint.artifact.ArtifactEnvelope.Entry("schema", bad),
+                new io.github.pho001.synaptik.checkpoint.artifact.ArtifactEnvelope.Entry("state/00000000", raw(DataType.FLOAT32, 1))));
+        StorageReadProbe.reads.set(0);
+        Tensor before = prototype(DataType.BOOL, Shape.scalar(), false, true);
+        assertThrows(io.github.pho001.synaptik.checkpoint.artifact.ArtifactFormatException.class,
+                () -> GraphArtifactCodec.decode(image, LIMITS));
+        Tensor after = prototype(DataType.BOOL, Shape.scalar(), false, true);
+        assertEquals(3, after.id().value() - before.id().value(), "only two descriptor candidates, no earlier NEG or body producer");
+        assertEquals(0, StorageReadProbe.reads.get(), "late body preflight must precede host import");
+        var valid = new io.github.pho001.synaptik.checkpoint.artifact.ArtifactEnvelope("graph-model.v4", List.of(
+                new io.github.pho001.synaptik.checkpoint.artifact.ArtifactEnvelope.Entry("schema", fixture.bytes()),
+                new io.github.pho001.synaptik.checkpoint.artifact.ArtifactEnvelope.Entry("state/00000000", raw(DataType.FLOAT32, 1))));
+        var loaded = GraphArtifactCodec.decode(valid, LIMITS);
+        assertEquals(1, StorageReadProbe.reads.get(), "one final heap import, without a second copy");
+        assertEquals(1, loaded.inputs().size());
+        assertEquals(0xffc00123, loaded.leaves().getFirst().tensor().hostStorage().orElseThrow().segment()
+                .get(java.lang.foreign.ValueLayout.JAVA_INT_UNALIGNED, 0));
+        StorageReadProbe.reads.set(0);
+    }
+
+    /**
+     * Runs consumer cases against an instrumented real sealed storage implementation.
+     * @param method name of the isolated static case method taking a temporary directory
+     * @throws Exception if loader setup, reflection or a consumer case fails
+     */
+    private void runStorageReadProbe(String method) throws Exception {
+        // HostTensorStorage is sealed and MemorySegmentStorage final. An isolated test loader
+        // adds a counter only to segment(), keeping production classes and dependencies untouched.
+        StorageReadProbe.reads.set(0);
+        var parent = getClass().getClassLoader();
+        var isolated = new ClassLoader(parent) {
+            @Override protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                if (!name.startsWith("io.github.pho001.synaptik.") || name.equals(StorageReadProbe.class.getName()))
+                    return super.loadClass(name, resolve);
+                synchronized (getClassLoadingLock(name)) {
+                    Class<?> loaded = findLoadedClass(name);
+                    if (loaded == null) {
+                        try (var input = parent.getResourceAsStream(name.replace('.', '/') + ".class")) {
+                            if (input == null) throw new ClassNotFoundException(name);
+                            byte[] bytes = input.readAllBytes();
+                            if (name.equals(MemorySegmentStorage.class.getName())) {
+                                bytes = ClassFile.of().transformClass(ClassFile.of().parse(bytes),
+                                        ClassTransform.transformingMethodBodies(m -> m.methodName().equalsString("segment"),
+                                                new CodeTransform() {
+                                                    @Override public void atStart(CodeBuilder code) {
+                                                        var counter = ClassDesc.of(AtomicInteger.class.getName());
+                                                        code.getstatic(ClassDesc.of(StorageReadProbe.class.getName()), "reads", counter)
+                                                                .invokevirtual(counter, "incrementAndGet", MethodTypeDesc.ofDescriptor("()I"))
+                                                                .pop();
+                                                    }
+                                                    @Override public void accept(CodeBuilder code, CodeElement element) { code.with(element); }
+                                                }));
+                            }
+                            loaded = defineClass(name, bytes, 0, bytes.length);
+                        } catch (java.io.IOException failure) { throw new ClassNotFoundException(name, failure); }
+                    }
+                    if (resolve) resolveClass(loaded);
+                    return loaded;
+                }
+            }
+        };
+        var cases = isolated.loadClass(getClass().getName()).getDeclaredMethod(method, Path.class);
+        cases.setAccessible(true);
+        try { cases.invoke(null, directory); }
+        catch (java.lang.reflect.InvocationTargetException failure) { throw new AssertionError("isolated consumer regression", failure.getCause()); }
+        assertEquals(0, StorageReadProbe.reads.get(), "isolated cases reset the positive-control counter");
+    }
+
+    /** Test-only shared counter visible to the isolated instrumented storage class. */
+    public static final class StorageReadProbe {
+        public static final AtomicInteger reads = new AtomicInteger();
+        private StorageReadProbe() { }
+    }
+
+    /**
+     * Exercises real consumer entry points with otherwise valid source metadata and named state.
+     * Runs in an isolated loader whose storage accessor counts host-segment reads.
+     * @param directory trusted temporary target directory, initially empty
+     * @throws Exception if fixture setup or file checks fail
+     */
+    private static void generalScanSaveRejectionCases(Path directory) throws Exception {
+        Path target = directory.resolve("prior"), absent = directory.resolve("absent");
+        byte[] original = {7, 11, 23}; Files.write(target, original);
+        for (boolean reverse : List.of(false, true)) for (long time : List.of(0L, 3L)) {
+            Tensor initial = prototype(DataType.FLOAT32, Shape.of(2), true, true);
+            Tensor sequence = prototype(DataType.FLOAT32, Shape.of(time, 2), true, true);
+            Tensor state = tensor(DataType.FLOAT32, Shape.of(2), true, true, raw(DataType.FLOAT32, 2));
+            Tensor h = prototype(DataType.FLOAT32, Shape.of(2), true, true);
+            Tensor x = prototype(DataType.FLOAT32, Shape.of(2), true, true);
+            Tensor w = prototype(DataType.FLOAT32, Shape.of(2), true, true);
+            var body = new ScanBody(List.of(h), List.of(x), List.of(w), List.of(h.add(x).mul(w).tanh()), List.of(h));
+            var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(state), body, reverse);
+            for (Tensor root : List.of(scan.finalCarry().getFirst(), scan.residuals().getLast())) {
+                state.replaceHostStorage(new MemorySegmentStorage(DataType.FLOAT32, 2,
+                        MemorySegment.ofArray(new float[] {1, -0.0f})));
+                var source = new GraphCheckpoint.Source(List.of(sequence, initial), List.of(root),
+                        List.of(leaf("weights.main", GraphCheckpoint.Role.PARAMETER, state)));
+                // Fixture decoding above writes through segment(); measure consumer calls only.
+                StorageReadProbe.reads.set(0);
+                assertDoesNotThrow(() -> GraphCompilationPort.captureSource(source.outputs()));
+                GraphCheckpoint.save(target, source, LIMITS);
+                assertEquals(1, StorageReadProbe.reads.get(), "one segment snapshot per unique state");
+                byte[] good = Files.readAllBytes(target);
+                var invalidBody = new ScanBody(List.of(h), List.of(x), List.of(w), List.of(h), List.of(w.abs()));
+                var invalid = Scan.apply(List.of(initial), List.of(sequence), List.of(state), invalidBody, reverse);
+                var late = new GraphCheckpoint.Source(source.inputs(), List.of(initial.neg(),
+                        scan.finalCarry().getFirst(), invalid.finalCarry().getFirst()), source.leaves());
+                StorageReadProbe.reads.set(0);
+                Tensor before = prototype(DataType.BOOL, Shape.scalar(), false, true);
+                assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.save(target, late, LIMITS));
+                assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.save(absent, late, LIMITS));
+                Tensor after = prototype(DataType.BOOL, Shape.scalar(), false, true);
+                assertEquals(1, after.id().value() - before.id().value());
+                assertEquals(0, StorageReadProbe.reads.get());
+                assertArrayEquals(good, Files.readAllBytes(target)); assertFalse(Files.exists(absent));
+                state.clearHostStorage();
+                var impossible = new ArtifactLimits(48, 8, 0, 1, 0, 0);
+                assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.save(target, source, impossible));
+                assertEquals(0, StorageReadProbe.reads.get());
+                assertThrows(IllegalStateException.class, () -> GraphCheckpoint.save(target, source, LIMITS));
+                assertArrayEquals(good, Files.readAllBytes(target));
+
+            }
+        }
+        // Positive control: this is an actual segment-access spy, not an unconnected counter.
+        var storage = new MemorySegmentStorage(DataType.FLOAT32, 1, MemorySegment.ofArray(new float[] {1}));
+        storage.segment();
+        assertEquals(1, StorageReadProbe.reads.get());
+        StorageReadProbe.reads.set(0);
+    }
+
+    /**
+     * Proves copy's unique-state reads and metadata-only rebind/full late-body rejection.
+     * @param directory unused isolated temporary directory, matching the probe launcher
+     */
+    private static void generalScanInMemoryCases(Path directory) {
+        for (boolean reverse : List.of(false, true)) for (long time : List.of(0L, 3L)) {
+            Tensor initial = prototype(DataType.FLOAT32, Shape.of(2), true, true);
+            Tensor sequence = prototype(DataType.FLOAT32, Shape.of(time, 2), true, true);
+            Tensor state = tensor(DataType.FLOAT32, Shape.of(2), true, true, raw(DataType.FLOAT32, 2));
+            Tensor h = prototype(DataType.FLOAT32, Shape.of(2), true, true);
+            Tensor x = prototype(DataType.FLOAT32, Shape.of(2), true, true);
+            Tensor w = prototype(DataType.FLOAT32, Shape.of(2), true, true);
+            var body = new ScanBody(List.of(h), List.of(x), List.of(w), List.of(h.add(x).mul(w).tanh()), List.of(h));
+            var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(state), body, reverse);
+            var source = new GraphCheckpoint.Source(List.of(sequence, initial), scan.finalCarry(), List.of(
+                    leaf("weight", GraphCheckpoint.Role.PARAMETER, state), leaf("alias", GraphCheckpoint.Role.PARAMETER, state)));
+            StorageReadProbe.reads.set(0);
+            var copied = GraphCheckpoint.copy(source);
+            // One source segment snapshot plus one destination accessor: aliases cause neither again.
+            assertEquals(2, StorageReadProbe.reads.get());
+            assertSame(copied.leaves().getFirst().tensor(), copied.leaves().getLast().tensor());
+            for (int storageCase = 0; storageCase < 3; storageCase++) {
+                if (storageCase == 1) state.clearHostStorage();
+                if (storageCase == 2) {
+                    try (var arena = java.lang.foreign.Arena.ofConfined()) {
+                        state.replaceHostStorage(new MemorySegmentStorage(DataType.FLOAT32, 2, arena.allocate(8)));
+                    }
+                }
+                StorageReadProbe.reads.set(0);
+                var rebound = GraphCheckpoint.rebind(source, List.of(sequence, initial));
+                assertSame(state, rebound.getFirst().provenance().orElseThrow().inputs().getLast());
+                assertEquals(0, StorageReadProbe.reads.get());
+            }
+            // A valid early outer producer and scan cannot hide a late unsupported body emission,
+            // even at zero time or when only final carry is requested.
+            state.replaceHostStorage(new MemorySegmentStorage(DataType.FLOAT32, 2,
+                    MemorySegment.ofArray(new float[]{1, 2})));
+            var invalidBody = new ScanBody(List.of(h), List.of(x), List.of(w), List.of(h), List.of(w.abs()));
+            var invalid = Scan.apply(List.of(initial), List.of(sequence), List.of(state), invalidBody, reverse);
+            var late = new GraphCheckpoint.Source(source.inputs(), List.of(initial.neg(),
+                    scan.finalCarry().getFirst(), invalid.finalCarry().getFirst()), source.leaves());
+            StorageReadProbe.reads.set(0);
+            Tensor before = prototype(DataType.BOOL, Shape.scalar(), false, true);
+            assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.copy(late));
+            assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.rebind(late, null));
+            Tensor after = prototype(DataType.BOOL, Shape.scalar(), false, true);
+            assertEquals(1, after.id().value() - before.id().value(), "full preflight precedes reconstruction/allocation");
+            assertEquals(0, StorageReadProbe.reads.get());
+        }
+        new MemorySegmentStorage(DataType.FLOAT32, 1, MemorySegment.ofArray(new float[]{1})).segment();
+        assertEquals(1, StorageReadProbe.reads.get(), "real accessor positive control");
+        StorageReadProbe.reads.set(0);
+    }
 
     @Test
     void publicSurfaceContainsOnlyTheNamedBoundary() {

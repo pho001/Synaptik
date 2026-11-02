@@ -52,9 +52,9 @@ The following describes current ownership, including the completed NN0028 cutove
   NN0028 composes existing prepared/session owners under the bounded NN contract.
 - Random initialization uses explicit caller sources or an exactly selected per-layer algorithm
   and seed. NN owns no global, retained, or mutable random generator.
-- Current recurrent sequence APIs use static Java `long[]` valid lengths, explicit carried state,
-  compact outputs, and one cell parameter set across a fresh expression occurrence per represented
-  step. Runtime Tensor lengths require the accepted fixed scan and truthful backend execution.
+- Static recurrent `forward` APIs use Java `long[]` lengths, explicit carried state and compact
+  outputs, sharing one cell across represented steps. Runtime Tensor lengths use fixed forwardScan
+  or bounded F32/F64 RNN forwardGeneralScan with independently qualified backend execution.
 - `BatchNorm` buffer updates and `Dropout` graph-random state remain explicit forward contracts;
   they are not hidden runtime mutation.
 - Conv1d/2d/3d remain separate channels-first NCW, NCHW, and NCDHW layout layers for one, two, and
@@ -95,6 +95,27 @@ Complete [NN0022B](tasks/0022b-runtime-length-scan-model-workflow.md) delivers e
 finalHidden and list-typed buildWithLengths, plus generic two-input/one-output Model.compute convenience.
 New production types/packages: None. The user approved the exact API and Class C inference-only
 contract cutover on 2026-10-20; independent reviews and the coordinator root gate passed. No Data prerequisite.
+
+[NN0030 approved decision](tasks/0030-general-scan-owned-model-admission-decision.md) selects existing
+Model/Engine/Training/Checkpoint owners only; no new production type/package/API selected.
+[Compiler0012](../../modules/compiler/tasks/0012-general-scan-cold-source-reconstruction.md#result) is Complete
+after independent code/docs APPROVE and main's final gates (2026-10-23).
+[CP0012](../checkpoint/tasks/0012-general-scan-in-memory-copy-and-rebind.md#result) is Complete for
+attachment-preserving in-memory copy/rebind with body wire closed; its earlier root environment exception
+is historical. [NN0031](tasks/0031-general-scan-owned-model-workflow.md#result) is Complete after clean
+implementation, independent review, final NN module/Javadoc and main's configured native-enabled join.
+Model PURE-body validity/dtypes and exact cold reconstruction support stay independent of the
+initially tested F32/F64 CPU compute/train domain. No added production type/package/API or builder recipe.
+
+[NN0032 migration decision](tasks/0032-fluent-rnn-general-scan-migration.md) is Draft after source-grounded
+planning only. New/moved production types/packages/API: None; reuse existing RnnStep/sequence/cell,
+Scan body and owned Model execution owners. Persistence and backend/layout compatibility decisions
+must precede any fluent cutover; no new mode, provider selection or fallback is selected.
+Its confirmed advanced second-order CPU compile regression remains unresolved, not runtime Hessian
+proof or a first-order waiver. The separately authorized
+[Model0036](../../modules/model/tasks/0036-length-aware-general-scan-design.md) is Complete for
+[proposal delivery](../../length-aware-general-scan.md) only, after independent final APPROVE and MAIN acceptance. Its rowCarryCount/sequenceRowAxes,
+length overload and selective v5 are PROPOSED, not NN API/authority approval.
 
 ## Task list
 
@@ -141,8 +162,85 @@ Draft rows without links have no detailed task brief.
 | 0027 | Semantic recurrent description and reconstruction | Draft | NN0026/CP0005B Complete; P2 review and any separately selected recurrent scope | Held despite CP0005D planning completion; no bytes/versions or detailed brief. |
 | [0028](tasks/0028-owned-model-compute-training-and-persistence.md) | Owned ordinary tensor Model workflow | Complete | Engine0021; Training0007; Compiler0008; Checkpoint0008; Training0008 — Complete | Accepted 2026-10-19 after definitive independent approval and coordinator native-enabled root gate; evidence in brief. |
 | [0029](tasks/0029-fluent-model-builder-and-checkpoint-independent-execution.md) | Fluent Model builder and checkpoint-independent execution | Complete | NN0028; Checkpoint0009; CPU0025; Compiler0009 — Complete | Planck final APPROVE, zero findings; worker/integration evidence and main's source-matched native root gate passed (2026-10-19). |
+| [0030](tasks/0030-general-scan-owned-model-admission-decision.md) | General-scan owned Model admission decision | Complete | Low-level scan/root join and owned Model/source/Training baseline Complete | User-approved direction/planning only; cold prerequisites now Complete, NN0031 separately owns workflow qualification. |
+| [0031](tasks/0031-general-scan-owned-model-workflow.md#result) | General-scan owned Model workflow | Complete | NN0030; Compiler0012; CP0012; accepted CPU domain/low-level join and owned Model/Engine/Training baseline Complete | Bounded all-valid owned acquisition/compute/first-order train accepted after independent review, final module/Javadoc and configured native program join; no successor. |
+| [0032](tasks/0032-fluent-rnn-general-scan-migration.md) | Fluent RNN general-scan migration decision | Draft | Complete baseline; confirmed second-order CPU compile regression and remaining compatibility/fluent-authority gates held | No higher-order waiver; CONCAT-copy/mixed-engine gates remain; `.rnn` unchanged. |
+| [0033](tasks/0033-trainable-runtime-length-rnn-workflow.md#result) | Trainable runtime-length RNN Model workflow | Complete | Compiler0018 and Checkpoint0014 Complete; exact API/authority independently approved | Shared cell equation, general F32/F64 rnnScan and semantic ports; 620 affected tests/Javadocs, public numerical train/save/load/new-train and runnable example accepted. |
 
 ## Dependency DAG and authorized frontiers
+
+Current NN implementation frontier: **None**. MAIN owns serial shared integration, Parallel
+group None. Compiler0018, Checkpoint0014 and [NN0033](tasks/0033-trainable-runtime-length-rnn-workflow.md#result)
+are Complete after independent reviews and source-matched consumer proof. The additive
+RnnSequence.forwardGeneralScan/F32-F64 rnnScan cutover reuses the cell equation, initialization
+and Model/Engine/Training owners. Canonical result/read domains and exact general/fixed ports
+are explicit, without bootstrap fixed producers, synthetic layouts or a new carrier.
+The next product phase is capability audit/scope freeze, not an automatic NN successor.
+Ordinary static-unrolled `.rnn` is not migrated; NN0032 stays Draft with its second-order blocker.
+GRU/LSTM and low fixed paths remain unchanged. No new types/executors/provider-based cold gate,
+dtype expansion or higher-order/SIMD/performance work. Compiler0017 is deferred, not cancelled,
+behind this practical workflow. Scan-local padding does not define masked losses/MEAN behavior.
+After this workflow, the user's coarse priority is missing Java CPU capability audit → Metal
+completion → oneDNN backend; establish scope after audit, with no detailed successor tasks,
+new backend/build/tree/architecture cutover or claim that these capabilities are complete.
+
+Persistence prerequisite [CP0013 Complete](../checkpoint/tasks/0013-general-scan-graph-persistence-decision.md#result):
+selective v4/existing cold inventory, final Cicero APPROVE and main configured root accepted 2026-10-23.
+Audit demonstrates CPU F32/F64 Conv1d-prefix old-pass/Scan-reject and singleton-CONCAT reverse-seed
+dense view rejection; AD admission/forward smoke are not backward numeric proof. Old/new Metal-only
+probes both reject; mixed execution untested, no proved Metal regression. Separately approved
+[CPU0037](../../backends/cpu/tasks/0037-general-scan-dense-read-views.md#result) is Complete with actual-reverse
+numeric gradients; main accepted independent review and final gates on 2026-10-24.
+For the separate NN0032 ordinary `.rnn` migration, remaining gates are cold output descriptor/
+remaining compatibility → fluent authority → separately Ready migration; it is not the selected
+runtime-length target. Persistence completion alone authorizes no migration.
+Authorized NN frontier: **None**. MAIN retains shared integration and accepted dirty-source
+evidence. NN0032 and later GRU/LSTM migration remain Draft; completed NN0033 opens no other
+area's implementation frontier.
+
+The [general scan program](../../general-differentiable-scan.md) and
+[Model0034 decision](../../modules/model/tasks/0034-general-differentiable-scan-decision.md) record
+Model0034 authority decision/cutover Complete, accepted by main 2026-10-21 after final independent
+Class C APPROVE, zero blockers; the brief owns result evidence. Compiler0010 fixed-adjoint direction
+is Superseded. Serial chain: completed reviewed authority cutover → Model source/IR →
+Planning body query → Compiler AD → Prepare projection → complete bounded
+CPU0030 F32 pointwise → CPU0031 broadcast/SUM/layout → CPU0032 MATMUL → CPU0033 F64/domain closure
+→ low-level root/native join: all Complete. The subsequent
+[NN0030 approved decision](tasks/0030-general-scan-owned-model-admission-decision.md), planning Complete;
+all-valid NN admission is now qualified by NN0031 independently of padding and persistence. Base
+main=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`, Parallel group None, shared owner main.
+No new NN types/API authorized, no automatic executor; NN0031 completed qualification/cutover of
+general graph acquisition and training, not fixed rnnScan training or body save/load.
+Existing fixed/static routes and fixed-only rejection stay unchanged.
+Actual user approval (“ok, tak tedy pokracuj”) covers the concrete body/reverse-scan/residual proposal
+and authority cutover, not NN or all Java slices. The brief records Complete dependencies/base/inactive
+conflicts verified at launch on 2026-10-21. Authority/Model/NN/CPU frontiers None; CPU0030 bounded milestone Complete.
+[Model0035 source/IR](../../modules/model/tasks/0035-general-scan-source-and-compiled-body.md) is Complete,
+accepted by main 2026-10-22 after independent approval and its compatibility checkpoint.
+Planning0008 body query is Complete, accepted by main 2026-10-22 after final independent APPROVE and
+compatibility gates; Planning frontier None. [Compiler0011](../../modules/compiler/tasks/0011-general-scan-capture-and-first-order-ad.md)
+is Complete, accepted by main 2026-10-22 after independent code/docs APPROVE and compatibility checkpoint.
+[Prepare0010](../../modules/prepare/tasks/0010-general-scan-projection-and-resource-handoff.md) is Complete:
+scoped projection/demand validation and resource handoff, main accepted 2026-10-22 after Huygens
+final Class C code/docs APPROVE and the exact compatibility checkpoint.
+CPU/Prepare/Planning/Model/Compiler/NN frontiers: None; Compiler0012 is Complete. Bounded CPU F32 pointwise forward + actual
+automatic reverse [CPU0030](../../backends/cpu/tasks/0030-general-scan-f32-pointwise-vertical.md)
+is Complete, accepted by main 2026-10-22 after independent review and focused checkpoint PASS.
+Declared algebra/actual first-order closure in F32/F64 and the low-level join are Complete;
+[CPU0033 Result](../../backends/cpu/tasks/0033-general-scan-f64-domain-closure.md#result) owns evidence
+and unresolved timing limitations, not a parity/JIT-cause claim. No successor launch or NN
+train/padding/persistence grant. Current base includes accepted uncommitted
+authority/Model0034/0035, Planning0008, Compiler0011, Prepare0010 and CPU0030–0033 work.
+BF16/FP16 qualification remains CPU follow-up, not whole-model conversion.
+
+NN0030 direction/planning, Compiler0012 and CP0012 → NN0031 → configured native-enabled program join:
+all Complete. [NN0031 Result](tasks/0031-general-scan-owned-model-workflow.md#result) owns final evidence;
+its brief retains seven integration fields and historical launch verification at the same HEAD/origin
+plus 284 accepted dirty paths. Parallel group None; main retains integration ownership, with exclusive
+final docs/Javadoc delegation after source-writer yield. Clean implementation, independent Class C review,
+final worker NN test/Javadoc and main's single root all passed. CP0012's historical environment exception
+was resolved by explicit existing-library configuration, not native/test gating edits; required Metal
+training cases executed unskipped/pass. NN/Compiler/Checkpoint/CPU/other program frontiers None; no successor.
 
 Authorized NN frontier: None. [NN0022A](tasks/0022a-padded-numeric-sequence-inference.md) is Complete,
 accepted 2026-10-21 for numeric F32 sequences at base `6eabea0c1ebf77b9bd8382855c7131eb89b52e04`.
@@ -161,7 +259,7 @@ Completed NN0021A + Model0025E/0025F + Compiler0006A + CPU0027 + Engine0021 + CP
 → [NN0021B](tasks/0021b-fixed-recurrent-scan-implementation-program.md), all Complete.
 Main accepted independent approval and the final root gate on 2026-10-20; task briefs own evidence
 and base metadata. Parallel group None; main owns integration/shared documents.
-Current authorized NN/CPU/Data frontiers: None. Data0001–0003 are Complete in the
+At that completed scan checkpoint NN/Data/CPU frontiers were None; CPU0030 subsequently completed. Data0001–0003 are Complete in the
 [Data plan](../data/master-plan.md); Text0001 is Complete in the [Text plan](../text/master-plan.md). No new NN production type,
 Data/static-API migration or BPTT is authorized; CPU0028 records the delivered baseline and exclusions.
 
@@ -209,7 +307,8 @@ reviewed [Compiler0009](../../modules/compiler/tasks/0009-static-select-and-slic
 Main owns shared-document integration; the NN0029 brief owns exact metadata, signatures, acceptance,
 validation, frozen evidence and current resume verification. Main rechecked approval, completed/reviewed
 predecessors, unchanged authority/full dirty base and inactive conflicts with no other writer.
-Compiler frontier: None. NN acceptance/scope unchanged; no forced contiguous copies or new hierarchy.
+At that checkpoint Compiler frontier was None; Compiler0012 is now Complete, frontier None. NN acceptance/scope
+unchanged; no forced contiguous copies or new hierarchy.
 No Checkpoint widening or scan/Data/NN0027 prerequisite; earlier held streams remain Draft.
 
 ## Proposed whole-model checkpoint program
@@ -264,7 +363,7 @@ The [exact admission, errors and configureTraining timing](../../../design/decis
 are implemented in completed NN0028. compute(batch) returns detached HostTensorValue, not a request/wrapper;
 no Model methods or lifecycle are implemented by Training0007.
 
-NN0028 is Complete; current NN frontier: None. Engine0020's backend/native-only cutover is Complete after
+NN0028 is Complete; at its acceptance NN frontier was None. Engine0020's backend/native-only cutover is Complete after
 integration, independent review and combined validation. The user's later five choices are now
 accepted. Engine0021 delivered the thin-session removal, authority cutover and mechanical Training
 migration; independent Class C approval and the native-enabled test/Javadoc gate passed. Its brief
@@ -286,7 +385,7 @@ migration map live in the program; the [Training0007 brief](../training/tasks/00
 records final independent approval and successful coordinator validation; NN0028 is its completed successor.
 NN0027 owns only semantic description/reconstruction using existing static Rnn/Gru/Lstm capabilities;
 CP0005C owns explicit versioned recurrent definition wire/whole-save/load adoption. This is an owner split,
-not a hard dependency on optimized RecurrentScan/backend BPTT/Data. Current NN frontier: None.
+not a hard dependency on optimized RecurrentScan/backend BPTT/Data. At that completed program checkpoint NN frontier was None.
 NN0026's API/matrix and NN-only root/contract/explanation/ADR packet are accepted after final
 independent review; coordinator Ready verification is recorded in the brief. Downstream
 CP0005B's whole-model contract/API/wire/default packet is accepted after final independent approval
@@ -345,11 +444,15 @@ Exact metadata and 2026-10-14 dependency/base/contracts/review/conflict verifica
 - NN0027 is the earlier Draft recurrent follow-up, held with CP0005C/Training0006 held as an optional older proposal,
   not a prerequisite of NN0028; no scan/backend BPTT/Data gate.
 - NN0021B is accepted after CPU0028's independent approval and main's root gate (2026-10-20).
-  Current NN frontier: None; NN0022A, Data0001–0003 and Text0001 are Complete. Model 0032 is Complete; the [roadmap](../../roadmap.md)
+  At that completed checkpoint NN frontier was None; NN0022A, Data0001–0003 and Text0001 are Complete. Model 0032 is Complete; the [roadmap](../../roadmap.md)
   owns current cross-area frontiers.
 - Completed NN work used recorded roadmap interleaves. NN 0016/0017 were a bounded parallel pair,
   and 0025/0025A were an explicit out-of-order convolution branch ahead of unrelated Draft
   0021B–0024. Those historical exceptions authorize no further NN work.
+- Complete: [NN0031](tasks/0031-general-scan-owned-model-workflow.md#result), including independent review,
+  final NN module/Javadoc and main's configured native program join (2026-10-23).
+- Complete: [NN0033](tasks/0033-trainable-runtime-length-rnn-workflow.md#result), practical
+  F32/F64 runtime-length RNN workflow, independent reviews, 620 affected tests/Javadocs and public proof.
 
 Earlier prose that named CPU 0006D or tools/tuning 0002 as the global frontier, called 0010/0011
 or 0025A Draft/Ready, treated 0021A's planned Model surface as still wholly unpublished, or called
@@ -358,6 +461,28 @@ dependency plans, and roadmap above.
 
 ## Live gates, decisions, and risks
 
+- **Fluent RNN migration Draft:** [NN0032](tasks/0032-fluent-rnn-general-scan-migration.md) records
+  a confirmed advanced second-order CPU compile regression; no runtime Hessian proof or first-order
+  migration waiver. Model0036's length-aware proposal does not resolve that gate. CP0013 closes
+  all-valid persistence; Checkpoint0014 separately closes the static homogeneous v5 length wire,
+  not NN0032's remaining engine/layout compatibility. Genericity does not prove Metal availability; compare actual qualified
+  occurrences before claiming regression/parity. [CP0013](../checkpoint/tasks/0013-general-scan-graph-persistence-decision.md)
+  is Complete after final Cicero APPROVE/main configured gates. CPU0037's narrow read qualification
+  is Complete. Cold output descriptor, remaining compatibility and fluent authority for NN0032
+  remain held; existing `.rnn` is unchanged. NN0033's explicit runtime-length recipe is separate.
+- **Bounded all-valid owned scan Complete; padding separately gated:** Compiler0010 is Superseded, not pending fixed-adjoint approval.
+  Completed Model0034 authority and Model0035 source/IR establish the source/body/residual foundation;
+  Planning0008 transport and Compiler0011 scoped capture/inference, first-order AD and final
+  body queries/demand and Prepare0010 scoped projection/resource handoff are Complete;
+  [CPU0030](../../backends/cpu/tasks/0030-general-scan-f32-pointwise-vertical.md) bounded F32 pointwise
+  forward/actual automatic reverse and CPU0031–0033 declared F32/F64 closure/root join are Complete.
+  Generic first-order low-level support
+  cannot alone unlock Model.train. Arbitrary bodies may mix batch rows: per-row lengths need an approved
+  separability/branch-before-padded-arithmetic design. NN0030 separately approves all-valid owned
+  admission; NN0031 completed workflow qualification/lifecycle review without padding or wire support.
+  Source validity/cold-copy support
+  must not be gated by CPU qualification. Result masking is not skipping; static `.rnn()` training
+  and fixed scan inference remain.
 - **Nonblocking cold-prepare follow-up:** a development 3-step stacked-LSTM train was interrupted
   in active CPU topological preparation; reduced 2-step integration trains, and required 3-step RNN
   training/all-family 3-step stack numerics pass. Review found no acceptance gap, error or proved

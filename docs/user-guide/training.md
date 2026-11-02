@@ -106,6 +106,11 @@ Parameters may use `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16`; the scalar ob
 them an `Arena.ofShared()` lifetime. JVM-heap storage created by convenience Tensor factories is not
 an accepted parameter carrier in this lifecycle.
 
+For BF16/FP16 parameter storage on CPU, cast the parameter explicitly to FLOAT32 before
+numerical graph operations, for example `weight.cast(DataType.FLOAT32)`. The private F32
+optimizer master preserves update precision; it does not silently convert a low graph or
+bypass the [temporary numerical lock](../backend-guide/production-support.md#temporary-java-low-computation-lock).
+
 Each parameter must also fit the in-memory state format: its logical payload and its
 optimizer-width payload must each be no larger than `Integer.MAX_VALUE` bytes. The optimizer
 width is eight bytes per FLOAT64 element and four bytes per FLOAT32, BFLOAT16, or FLOAT16 element.

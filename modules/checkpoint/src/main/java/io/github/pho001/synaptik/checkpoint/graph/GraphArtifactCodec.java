@@ -5,6 +5,8 @@ import io.github.pho001.synaptik.checkpoint.artifact.ArtifactFormatException;
 import io.github.pho001.synaptik.checkpoint.artifact.ArtifactLimits;
 import io.github.pho001.synaptik.compiler.GraphCompilationPort;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
+import io.github.pho001.synaptik.model.graph.CompiledScanBody;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
@@ -24,6 +26,11 @@ import io.github.pho001.synaptik.model.operation.index.*;
 import io.github.pho001.synaptik.model.operation.layout.*;
 import io.github.pho001.synaptik.model.operation.pooling.*;
 import io.github.pho001.synaptik.model.operation.recurrent.*;
+import io.github.pho001.synaptik.model.operation.scan.ScanKind;
+import io.github.pho001.synaptik.model.operation.scan.ScanAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.*;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.*;
+import io.github.pho001.synaptik.model.operation.reduction.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -40,11 +47,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
- * Selective closed graph-model.v1/v2/v3 wire on the existing opaque envelope. IDs, flags and field order are
+ * Selective closed graph-model.v1/v2/v3/v4/v5 wire on the existing opaque envelope. IDs, flags and field order are
  * explicit and independent of Java enum ordinals. All parsing uses bounded views; only final
- * candidate leaves and Compiler reconstruction create Tensors, after complete stored validation.
+ * candidate leaves and Compiler reconstruction create Tensors. Complete metadata preflight precedes
+ * host import and every body formal/producer allocation. Inline bodies retain independent local
+ * IDs and latent residual metadata, never runtime histories or saved input storage.
  */
 final class GraphArtifactCodec {
     private static final long MAGIC = 0x53594e4752463031L;
@@ -53,15 +63,21 @@ final class GraphArtifactCodec {
     private static final String KIND_V2 = "graph-model.v2";
     private static final long MAGIC_V3 = 0x53594e4752463033L;
     private static final String KIND_V3 = "graph-model.v3";
+    private static final long MAGIC_V4 = 0x53594e4752463034L;
+    private static final String KIND_V4 = "graph-model.v4";
+    private static final long MAGIC_V5 = 0x53594e4752463035L;
+    private static final String KIND_V5 = "graph-model.v5";
 
     private GraphArtifactCodec() { }
 
     /**
      * Dry-sizes all metadata and six encoded bounds before storage admission or bulk copying.
+     * Independently rechecks length-mode cold eligibility through Compiler before dry sizing;
+     * a raw association is not a semantic admission credential.
      * @param source fully metadata-validated normalized source
      * @param limits explicit encoded ceilings
      * @return complete detached canonical image, ready for unchanged ArtifactFile publication
-     * @throws IllegalArgumentException if an encoded bound or BOOL lane is invalid
+     * @throws IllegalArgumentException if source cold admission, an encoded bound or BOOL lane is invalid
      * @throws ArithmeticException if checked sizing overflows
      * @throws IllegalStateException if named host state is absent/dead/inaccessible
      */
@@ -69,7 +85,12 @@ final class GraphArtifactCodec {
         int version = 1;
         for (CompiledNode node : source.graph.nodes()) {
             int op = opcode(node);
-            version = Math.max(version, op >= 9 ? 3 : op >= 6 ? 2 : 1);
+            version = Math.max(version, op == 33 ? 5 : op == 23 ? 4 : op >= 9 ? 3 : op >= 6 ? 2 : 1);
+        }
+        if (version == 5) {
+            var leaves = new ArrayList<Tensor>(Math.addExact(source.source.inputs().size(), source.states.size()));
+            leaves.addAll(source.source.inputs()); leaves.addAll(source.states);
+            new GraphCompilationPort.SourceCapture(source.graph, leaves);
         }
         Sink dry = new Sink(null);
         write(dry, source, version);
@@ -89,7 +110,8 @@ final class GraphArtifactCodec {
         for (int i = 0; i < source.states.size(); i++)
             entries.add(new ArtifactEnvelope.Entry(ordinal(i),
                     GraphValueStorage.encode(source.states.get(i).descriptor(), segments.get(i))));
-        return new ArtifactEnvelope(version == 1 ? KIND : version == 2 ? KIND_V2 : KIND_V3, entries);
+        return new ArtifactEnvelope(version == 1 ? KIND : version == 2 ? KIND_V2 : version == 3 ? KIND_V3
+                : version == 4 ? KIND_V4 : KIND_V5, entries);
     }
 
     /**
@@ -124,10 +146,11 @@ final class GraphArtifactCodec {
             throws ArtifactFormatException {
         try {
             int version = KIND.equals(envelope.kind()) ? 1 : KIND_V2.equals(envelope.kind()) ? 2
-                    : KIND_V3.equals(envelope.kind()) ? 3 : 0;
+                    : KIND_V3.equals(envelope.kind()) ? 3 : KIND_V4.equals(envelope.kind()) ? 4
+                    : KIND_V5.equals(envelope.kind()) ? 5 : 0;
             if (version == 0 || envelope.entries().isEmpty()
                     || !envelope.entries().getFirst().key().equals("schema"))
-                throw invalid("Expected graph-model.v1/v2/v3 schema");
+                throw invalid("Expected graph-model.v1/v2/v3/v4/v5 schema");
             long stateBytes = 0;
             for (int i = 1; i < envelope.entries().size(); i++) {
                 var entry = envelope.entries().get(i);
@@ -138,7 +161,9 @@ final class GraphArtifactCodec {
             preflight(envelope.entries().size() - 1, envelope.entries().getFirst().size(), stateBytes, limits);
             Reader reader = new Reader(envelope.entries().getFirst().payload());
             ByteBuffer in = reader.bytes;
-            if (in.getLong() != (version == 1 ? MAGIC : version == 2 ? MAGIC_V2 : MAGIC_V3) || in.getInt() != version)
+            if (in.getLong() != (version == 1 ? MAGIC : version == 2 ? MAGIC_V2 : version == 3 ? MAGIC_V3
+                    : version == 4 ? MAGIC_V4 : MAGIC_V5)
+                    || in.getInt() != version)
                 throw invalid("Mismatched graph kind/magic/version");
             int inputCount = reader.count(7);
             var values = new ArrayList<GraphValue>();
@@ -201,89 +226,8 @@ final class GraphArtifactCodec {
             for (String name : names)
                 for (int dot = name.indexOf('.'); dot >= 0; dot = name.indexOf('.', dot + 1))
                     if (uniqueNames.contains(name.substring(0, dot))) throw invalid("Leaf prefix collision");
-            int nodeCount = reader.count(13);
-            Math.addExact(boundary, nodeCount);
-            var nodes = new ArrayList<CompiledNode>(nodeCount);
-            var phases = new HashMap<NodeId, GraphPhase>();
-            for (int i = 0; i < nodeCount; i++) {
-                if (reader.u8() != 1) throw invalid("Unknown source phase");
-                int op = reader.u8();
-                if (op > (version == 1 ? 5 : version == 2 ? 8 : 22))
-                    throw invalid("Operation exceeds graph version");
-                int arity = switch (op) {
-                    case 1, 2, 4, 9, 14 -> 2;
-                    case 3, 5, 6, 7, 8, 10, 11, 12, 13, 15, 19 -> 1;
-                    case 17, 18 -> 3;
-                    case 16, 20, 21, 22 -> reader.count(4);
-                    default -> throw invalid("Unknown source operation");
-                };
-                if (arity == 0 || (op >= 20 && (arity < (op == 22 ? 6 : 5)
-                        || arity > (op == 22 ? 7 : 6)))) throw invalid("Invalid source input count");
-                var args = new ArrayList<ValueId>(arity);
-                int result = values.size();
-                for (int j = 0; j < arity; j++) args.add(reader.reference(result));
-                Operation operation = switch (op) {
-                    case 1 -> new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE);
-                    case 2 -> new Operation(BinaryArithmeticKind.MUL, NoOperationAttrs.INSTANCE);
-                    case 3 -> new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE);
-                    case 4 -> new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE);
-                    case 5 -> {
-                        if (in.getInt() != 2 || in.getInt() != 1 || in.getInt() != 0)
-                            throw invalid("Only rank-two PERMUTE[1,0] is supported");
-                        yield new Operation(AxisTransformKind.PERMUTE, new PermutationAttrs(List.of(1, 0)));
-                    }
-                    case 6 -> new Operation(UnaryElementwiseKind.RELU, NoOperationAttrs.INSTANCE);
-                    case 7 -> new Operation(UnaryElementwiseKind.TANH, NoOperationAttrs.INSTANCE);
-                    case 8 -> new Operation(UnaryElementwiseKind.SIGMOID, NoOperationAttrs.INSTANCE);
-                    case 9 -> new Operation(BinaryArithmeticKind.SUB, NoOperationAttrs.INSTANCE);
-                    case 10 -> {
-                        int rank = reader.count(8);
-                        long[] extents = new long[rank];
-                        for (int j = 0; j < rank; j++) extents[j] = in.getLong();
-                        yield new Operation(ShapeTransformKind.RESHAPE, new TargetShapeAttrs(Shape.of(extents)));
-                    }
-                    case 11, 12 -> new Operation(op == 11 ? AxisTransformKind.EXPAND_DIMS : AxisTransformKind.SQUEEZE,
-                            new AxisTransformAttrs(in.getInt()));
-                    case 13 -> new Operation(SelectKind.SELECT, new SelectAttrs(in.getInt(), in.getLong()));
-                    case 14 -> new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(in.getInt()));
-                    case 15 -> {
-                        if (reader.count(28) != 1) throw invalid("Only one slice entry is supported");
-                        yield new Operation(SliceKind.SLICE, new SliceAttrs(List.of(in.getLong()),
-                                List.of(in.getLong()), List.of(in.getInt()), List.of(in.getLong())));
-                    }
-                    case 16 -> new Operation(TensorCompositionKind.CONCAT, new CompositionAxisAttrs(in.getInt()));
-                    case 17 -> new Operation(Conv2dKind.CONV2D, new Conv2dAttrs(in.getLong(), in.getLong(),
-                            in.getLong(), in.getLong(), in.getLong(), in.getLong(), in.getLong()));
-                    case 18 -> new Operation(Conv3dKind.CONV3D, new Conv3dAttrs(in.getLong(), in.getLong(),
-                            in.getLong(), in.getLong(), in.getLong(), in.getLong(), in.getLong(),
-                            in.getLong(), in.getLong(), in.getLong()));
-                    case 19 -> new Operation(Pool2dKind.MAX_POOL2D, new MaxPool2dAttrs(in.getLong(), in.getLong(),
-                            in.getLong(), in.getLong(), in.getLong(), in.getLong(), in.getLong(),
-                            in.getLong(), reader.flag()));
-                    case 20, 21, 22 -> new Operation(op == 20 ? RecurrentScanKind.RNN_TANH
-                            : op == 21 ? RecurrentScanKind.GRU_RESET_AFTER : RecurrentScanKind.LSTM,
-                            switch (reader.u8()) {
-                                case 1 -> RecurrentDirection.FORWARD;
-                                case 2 -> RecurrentDirection.REVERSE;
-                                default -> throw invalid("Unknown recurrent direction");
-                            });
-                    default -> throw new AssertionError();
-                };
-                int count = version == 3 ? reader.count(7) : 1;
-                if (count != (op == 22 ? 3 : op >= 20 ? 2 : 1)) throw invalid("Invalid output count");
-                Math.addExact(result, count);
-                var results = new ArrayList<ValueId>(count);
-                for (int j = 0; j < count; j++) {
-                    ValueId id = new ValueId(Math.addExact(result, j));
-                    values.add(new GraphValue(id, reader.descriptor()));
-                    results.add(id);
-                }
-                NodeId nodeId = new NodeId(i);
-                var node = new CompiledNode(nodeId, operation, args, results);
-                opcode(node); // independently admit narrow attributes before any candidate/host import
-                nodes.add(node);
-                phases.put(nodeId, GraphPhase.FORWARD);
-            }
+            var nodes = reader.nodes(version, false, values);
+            var phases = phases(nodes);
             int outputCount = reader.count(4);
             if (outputCount == 0) throw invalid("Empty output boundary");
             var outputs = new ArrayList<ValueId>(outputCount);
@@ -355,6 +299,17 @@ final class GraphArtifactCodec {
     }
 
     /**
+     * Assigns only the source phase to metadata already checked by the node reader.
+     * @param nodes parsed occurrences in local canonical order
+     * @return complete local phase map, never null
+     */
+    private static HashMap<NodeId, GraphPhase> phases(List<CompiledNode> nodes) {
+        var phases = new HashMap<NodeId, GraphPhase>();
+        for (var node : nodes) phases.put(node.id(), GraphPhase.FORWARD);
+        return phases;
+    }
+
+    /**
      * Uses the exact same bounded field traversal for dry sizing and encoding.
      * @param out dry or previously bounded encoding sink
      * @param source normalized metadata-validated association
@@ -362,7 +317,8 @@ final class GraphArtifactCodec {
      * @throws IllegalArgumentException if an operation's kind, attributes, phase or arity is unsupported
      */
     private static void write(Sink out, GraphSource source, int version) {
-        out.i64(version == 1 ? MAGIC : version == 2 ? MAGIC_V2 : MAGIC_V3); out.i32(version);
+        out.i64(version == 1 ? MAGIC : version == 2 ? MAGIC_V2 : version == 3 ? MAGIC_V3
+                : version == 4 ? MAGIC_V4 : MAGIC_V5); out.i32(version);
         out.i32(source.source.inputs().size());
         for (Tensor input : source.source.inputs()) out.descriptor(input.descriptor());
         out.i32(source.states.size());
@@ -377,34 +333,115 @@ final class GraphArtifactCodec {
             out.name(source.source.leaves().get(i).name());
             out.i32(source.registrations.get(i));
         }
-        out.i32(source.graph.nodes().size());
-        for (var node : source.graph.nodes()) {
-            if (source.graph.nodePhases().get(node.id()) != GraphPhase.FORWARD)
+        writeNodes(out, source.graph, version, false);
+        out.references(source.graph.outputs());
+    }
+
+    /**
+     * Writes producer records in one scope; a general occurrence contains exactly one flat body.
+     * @param out dry or admitted destination with checked aggregate body counters
+     * @param graph normalized local graph, never flattened into its parent
+     * @param version selected outer format; bodies use its v3-style result records
+     * @param bodyScope whether only the bounded non-scan body inventory is permitted
+     * @throws IllegalArgumentException if phase, opcode, attachment or topology is unsupported
+     * @throws ArithmeticException if a contained aggregate budget overflows signed i32
+     */
+    private static void writeNodes(Sink out, CompiledGraphModel graph, int version, boolean bodyScope) {
+        canonicalTopology(graph, graph.inputs().size());
+        out.i32(graph.nodes().size());
+        for (var node : graph.nodes()) {
+            if (graph.nodePhases().get(node.id()) != GraphPhase.FORWARD)
                 throw invalid("Only FORWARD source phase is supported");
             out.u8(1);
-            int op = opcode(node);
+            int op = opcode(node, bodyScope);
             out.u8(op);
-            if (op == 16 || op >= 20) out.i32(node.inputs().size());
+            if (op == 16 || op >= 20 && op <= 23 || op == 33) out.i32(node.inputs().size());
             for (ValueId id : node.inputs()) out.i32(Math.toIntExact(id.value()));
             attributes(out, node, op);
-            if (version == 3) out.i32(node.outputs().size());
+            if (op == 23 || op == 33) {
+                var body = node.scanBody().orElseThrow();
+                var local = body.graph();
+                out.formals = Math.addExact(out.formals, local.inputs().size());
+                out.nodes = Math.addExact(out.nodes, local.nodes().size());
+                out.values = Math.addExact(out.values, local.values().size());
+                out.roles = Math.addExact(out.roles, Math.addExact(local.outputs().size(),
+                        ((ScanAttrs) node.operation().attrs()).outputCount()));
+                out.i32(local.inputs().size());
+                for (ValueId id : local.inputs())
+                    out.descriptor(local.values().get(Math.toIntExact(id.value())).descriptor());
+                writeNodes(out, local, version, true);
+                out.references(local.outputs());
+                out.references(body.nextCarry()); out.references(body.emissions()); out.references(body.residuals());
+                if (!body.demandedOutputIndices().isEmpty()) throw invalid("Cold scan demand must be empty");
+                out.i32(0);
+            }
+            if (version >= 3) out.i32(node.outputs().size());
             for (ValueId id : node.outputs())
-                out.descriptor(source.graph.values().get(Math.toIntExact(id.value())).descriptor());
+                out.descriptor(graph.values().get(Math.toIntExact(id.value())).descriptor());
         }
-        out.i32(source.graph.outputs().size());
-        for (ValueId id : source.graph.outputs()) out.i32(Math.toIntExact(id.value()));
     }
 
     /**
      * Admits the closed wire independently of Compiler admission, including during dry sizing.
      * @param node stored occurrence with exact Model attributes and admitted input/output counts
-     * @return explicit stable opcode 1..22, never an enum ordinal or fallback opcode
-     * @throws IllegalArgumentException if kind, attributes or arity cannot be represented exactly
+     * @return explicit stable outer opcode 1..23 or 33, never an enum ordinal or fallback opcode
+     * @throws IllegalArgumentException if a kind, attachment, attributes or arity
+     *     cannot be represented exactly by the closed wire, independently of cold copy admission
      */
     private static int opcode(CompiledNode node) {
+        return opcode(node, false);
+    }
+
+    /**
+     * Selects the explicit scope-specific inventory without widening outer admission.
+     * Compiler retains family inference and dtype/descriptor validation. Length mode has its own
+     * outer opcode and header; it never changes the all-valid seven-field record.
+     * Both scan opcodes retain nonempty carry; length opcode 33 additionally retains positive
+     * ROW carry, declared axes zero/one and rank-two ROW(1) declarations, including unused ones.
+     * Compiler's independent cold preflight retains the constructor/type/coordinate intersection.
+     * Broader source headers reject here before sizing or storage admission, and the reader
+     * applies the same scalar restrictions before body/role allocation. Mode is opcode-derived.
+     * @param node local occurrence with all canonical output ports
+     * @param bodyScope true only inside one general scan attachment
+     * @return stable wire opcode in 1..33
+     * @throws IllegalArgumentException if the exact scoped signature is not representable
+     */
+    private static int opcode(CompiledNode node, boolean bodyScope) {
         var kind = node.operation().kind();
+        if (node.scanBody().isPresent() != (kind == ScanKind.SCAN)
+                || bodyScope && (kind == ScanKind.SCAN || kind instanceof RecurrentScanKind))
+            throw invalid("Missing, extra or nested scan attachment");
+        if (kind == ScanKind.SCAN && node.operation().attrs() instanceof ScanAttrs scan
+                && (scan.carryCount() == 0 || scan.lengthAware() && scan.rowCarryCount() == 0)) {
+            throw invalid("Wire scan requires nonempty carry and positive ROW length mode");
+        }
+        if (kind == ScanKind.SCAN && node.operation().attrs() instanceof ScanAttrs scan
+                && scan.lengthAware()) {
+            var local = node.scanBody().orElseThrow().graph();
+            for (int i = 0; i < scan.sequenceCount(); i++) {
+                int axis = scan.sequenceRowAxes().get(i).orElse(-1);
+                if (axis > 1) throw invalid("Wire scan supports only sequence row axes zero/one");
+                if (axis == 1) {
+                    ValueId formal = local.inputs().get(Math.addExact(scan.carryCount(), i));
+                    for (GraphValue value : local.values())
+                        if (value.id().equals(formal) && value.descriptor().shape().rank() != 2)
+                            throw invalid("Wire scan requires rank-two ROW(1) declarations");
+                }
+            }
+        }
         int op;
-        if (kind == BinaryArithmeticKind.ADD) op = 1;
+        if (kind == ScanKind.SCAN) op = node.operation().attrs() instanceof ScanAttrs scan
+                && scan.lengthAware() ? 33 : 23;
+        else if (bodyScope && kind == BinaryArithmeticKind.DIV) op = 24;
+        else if (bodyScope && kind == ScalarElementwiseKind.ADD) op = 25;
+        else if (bodyScope && kind == ScalarElementwiseKind.SUB) op = 26;
+        else if (bodyScope && kind == ScalarElementwiseKind.MUL) op = 27;
+        else if (bodyScope && kind == ScalarElementwiseKind.DIV) op = 28;
+        else if (bodyScope && kind == AggregateReductionKind.SUM) op = 29;
+        else if (bodyScope && kind == ShapeTransformKind.EXPAND) op = 30;
+        else if (bodyScope && kind == ContiguousKind.CONTIGUOUS) op = 31;
+        else if (bodyScope && kind == CastKind.CAST) op = 32;
+        else if (kind == BinaryArithmeticKind.ADD) op = 1;
         else if (kind == BinaryArithmeticKind.MUL) op = 2;
         else if (kind == UnaryElementwiseKind.NEG) op = 3;
         else if (kind == MatmulKind.MATMUL) op = 4;
@@ -430,9 +467,9 @@ final class GraphArtifactCodec {
         var a = node.operation().attrs();
         boolean attrs = switch (op) {
             case 5 -> a instanceof PermutationAttrs p && p.axes().equals(List.of(1, 0));
-            case 10 -> a instanceof TargetShapeAttrs t && t.targetShape().isFullyStatic()
-                    && java.util.Arrays.stream(t.targetShape().toLongArray()).allMatch(n -> n > 0);
-            case 11, 12 -> a instanceof AxisTransformAttrs axis && axis.axis() == 2;
+            case 10, 30 -> a instanceof TargetShapeAttrs t && t.targetShape().isFullyStatic()
+                    && (bodyScope || java.util.Arrays.stream(t.targetShape().toLongArray()).allMatch(n -> n > 0));
+            case 11, 12 -> a instanceof AxisTransformAttrs axis && (bodyScope || axis.axis() == 2);
             case 13 -> a instanceof SelectAttrs select && select.axis() == 0;
             case 14 -> a instanceof IndexAxisAttrs axis && axis.axis() == 0;
             case 15 -> a instanceof SliceAttrs s && s.axes().equals(List.of(1))
@@ -444,18 +481,25 @@ final class GraphArtifactCodec {
                     && p.strideWidth() == p.kernelWidth() && p.paddingHeight() == 0 && p.paddingWidth() == 0
                     && p.dilationHeight() == 1 && p.dilationWidth() == 1 && !p.ceilMode();
             case 20, 21, 22 -> a instanceof RecurrentDirection;
+            case 23, 33 -> a instanceof ScanAttrs;
+            case 25, 26, 27, 28 -> a instanceof ScalarValueAttrs;
+            case 29 -> a == NoOperationAttrs.INSTANCE || a instanceof AxisReductionAttrs
+                    || a instanceof MultiAxisReductionAttrs || a instanceof SumToShapeAttrs;
+            case 32 -> a instanceof CastAttrs;
             default -> a == NoOperationAttrs.INSTANCE;
         };
         int arity = switch (op) {
-            case 1, 2, 4, 9, 14 -> 2;
+            case 1, 2, 4, 9, 14, 24 -> 2;
             case 17, 18 -> 3;
-            case 16, 20, 21, 22 -> node.inputs().size();
+            case 16, 20, 21, 22, 23, 33 -> node.inputs().size();
             default -> 1;
         };
-        boolean variable = op == 16 ? arity > 0 : op >= 20
+        boolean variable = op == 23 || op == 33 ? a instanceof ScanAttrs scan && arity == scan.inputCount()
+                : op == 16 ? arity > 0 : op >= 20 && op <= 22
                 ? arity >= (op == 22 ? 6 : 5) && arity <= (op == 22 ? 7 : 6) : true;
         if (!attrs || !variable || node.inputs().size() != arity
-                || node.outputs().size() != (op == 22 ? 3 : op >= 20 ? 2 : 1))
+                || node.outputs().size() != (op == 23 || op == 33 ? ((ScanAttrs) a).outputCount()
+                        : op == 22 ? 3 : op == 20 || op == 21 ? 2 : 1))
             throw invalid("Unsupported source attributes/arity");
         return op;
     }
@@ -470,11 +514,7 @@ final class GraphArtifactCodec {
         var attrs = node.operation().attrs();
         switch (op) {
             case 5 -> { out.i32(2); out.i32(1); out.i32(0); }
-            case 10 -> {
-                var shape = ((TargetShapeAttrs) attrs).targetShape();
-                out.i32(shape.rank());
-                for (long extent : shape.toLongArray()) out.i64(extent);
-            }
+            case 10, 30 -> out.shape(((TargetShapeAttrs) attrs).targetShape());
             case 11, 12 -> out.i32(((AxisTransformAttrs) attrs).axis());
             case 13 -> { var a = (SelectAttrs) attrs; out.i32(a.axis()); out.i64(a.index()); }
             case 14 -> out.i32(((IndexAxisAttrs) attrs).axis());
@@ -505,6 +545,33 @@ final class GraphArtifactCodec {
                 out.u8(a.ceilMode() ? 1 : 0);
             }
             case 20, 21, 22 -> out.u8(attrs == RecurrentDirection.FORWARD ? 1 : 2);
+            case 23, 33 -> {
+                var a = (ScanAttrs) attrs;
+                out.i64(a.timeCount()); out.i32(a.carryCount()); out.i32(a.sequenceCount());
+                out.i32(a.invariantCount()); out.i32(a.emissionCount()); out.i32(a.residualCount());
+                out.u8(a.reverse() ? 1 : 0);
+                if (op == 33) {
+                    out.i32(a.rowCarryCount()); out.i32(a.sequenceRowAxes().size());
+                    for (OptionalInt axis : a.sequenceRowAxes()) {
+                        out.u8(axis.isPresent() ? 1 : 0);
+                        if (axis.isPresent()) out.i32(axis.getAsInt());
+                    }
+                }
+            }
+            case 25, 26, 27, 28 -> out.scalar(((ScalarValueAttrs) attrs).value());
+            case 29 -> {
+                if (attrs == NoOperationAttrs.INSTANCE) out.u8(0);
+                else if (attrs instanceof AxisReductionAttrs a) {
+                    out.u8(1); out.i32(a.axis()); out.u8(a.keepDimensions() ? 1 : 0);
+                } else if (attrs instanceof MultiAxisReductionAttrs a) {
+                    out.u8(2); out.i32(a.axes().size());
+                    for (int axis : a.axes()) out.i32(axis);
+                    out.u8(a.keepDimensions() ? 1 : 0);
+                } else {
+                    out.u8(3); out.shape(((SumToShapeAttrs) attrs).targetShape());
+                }
+            }
+            case 32 -> out.dtype(((CastAttrs) attrs).targetDataType());
             default -> { /* parameterless admitted kind */ }
         }
     }
@@ -530,6 +597,264 @@ final class GraphArtifactCodec {
     /** Bounded-view wire reader; no raw length controls allocation without a remaining-byte check. */
     private static final class Reader {
         private final ByteBuffer bytes;
+
+        private int formals, nodes, values, roles;
+
+        /**
+         * Parses one scope as metadata, byte-bounding allocations and checking cumulative IDs.
+         * @param version exact enclosing version
+         * @param bodyScope whether only the non-scan body inventory is permitted
+         * @param localValues boundary descriptors, extended by every canonical producer port
+         * @return local occurrences without host values or Tensor reconstruction tables
+         * @throws IllegalArgumentException if scoped wire, counts or attributes are invalid
+         * @throws ArithmeticException if local or aggregate budgets overflow signed i32
+         */
+        List<CompiledNode> nodes(int version, boolean bodyScope, ArrayList<GraphValue> localValues) {
+            int count = count(13);
+            Math.addExact(localValues.size(), count);
+            if (bodyScope) nodes = Math.addExact(nodes, count);
+            var result = new ArrayList<CompiledNode>(count);
+            for (int i = 0; i < count; i++) {
+                if (u8() != 1) throw invalid("Unknown source phase");
+                int op = u8();
+                if (op < 1 || op > (version == 1 ? 5 : version == 2 ? 8 : version == 3 ? 22 : version == 4 ? 32 : 33)
+                        || bodyScope && (op >= 20 && op <= 23 || op == 33)
+                        || !bodyScope && op >= 24 && op <= 32)
+                    throw invalid("Operation exceeds graph version/scope");
+                int arity = switch (op) {
+                    case 1, 2, 4, 9, 14, 24 -> 2;
+                    case 17, 18 -> 3;
+                    case 16, 20, 21, 22, 23, 33 -> count(4);
+                    default -> 1;
+                };
+                if (arity == 0 || arity > bytes.remaining() / 4
+                        || op >= 20 && op <= 22 && (arity < (op == 22 ? 6 : 5)
+                        || arity > (op == 22 ? 7 : 6))) throw invalid("Invalid source input count");
+                var args = new ArrayList<ValueId>(arity);
+                int first = localValues.size();
+                for (int j = 0; j < arity; j++) args.add(reference(first));
+                Operation operation = operation(op, arity);
+                Optional<CompiledScanBody> body = Optional.empty();
+                if (op == 23 || op == 33) {
+                    var attrs = (ScanAttrs) operation.attrs();
+                    if (arity != attrs.inputCount()) throw invalid("Scan actual count mismatch");
+                    body = Optional.of(body(attrs));
+                }
+                int outputs = version >= 3 ? count(7) : 1;
+                int expected = op == 23 || op == 33 ? ((ScanAttrs) operation.attrs()).outputCount()
+                        : op == 22 ? 3 : op == 20 || op == 21 ? 2 : 1;
+                if (outputs != expected) throw invalid("Invalid output count");
+                Math.addExact(first, outputs);
+                if (bodyScope) values = Math.addExact(values, outputs);
+                var ids = new ArrayList<ValueId>(outputs);
+                for (int j = 0; j < outputs; j++) {
+                    var id = new ValueId(Math.addExact(first, j));
+                    localValues.add(new GraphValue(id, descriptor()));
+                    ids.add(id);
+                }
+                var node = new CompiledNode(new NodeId(i), operation, args, ids, body);
+                opcode(node, bodyScope);
+                result.add(node);
+            }
+            return result;
+        }
+
+        /**
+         * Reads a depth-one attachment with local IDs and exact ordered role cardinalities.
+         * Lengths is an outer actual only; formals always count carry, step and invariant positions.
+         * Compiler subsequently verifies derived residual order and family descriptors.
+         * @param attrs checked scalar header
+         * @return complete attachment with empty demand
+         * @throws IllegalArgumentException if counts, topology, roots or demand are invalid
+         * @throws ArithmeticException if contained aggregate counters overflow signed i32
+         */
+        CompiledScanBody body(ScanAttrs attrs) {
+            int count = count(7);
+            if (count != Math.addExact(Math.addExact(attrs.carryCount(), attrs.sequenceCount()), attrs.invariantCount()))
+                throw invalid("Scan formal count mismatch");
+            formals = Math.addExact(formals, count);
+            values = Math.addExact(values, count);
+            var localValues = new ArrayList<GraphValue>(count);
+            var inputs = new ArrayList<ValueId>(count);
+            for (int i = 0; i < count; i++) {
+                var id = new ValueId(i);
+                inputs.add(id);
+                localValues.add(new GraphValue(id, descriptor()));
+            }
+            var localNodes = nodes(4, true, localValues);
+            var roots = references(localValues.size(), -1, Math.min(localValues.size(), attrs.outputCount()));
+            var carry = references(localValues.size(), attrs.carryCount(), attrs.carryCount());
+            var emissions = references(localValues.size(), attrs.emissionCount(), attrs.emissionCount());
+            var residuals = references(localValues.size(), attrs.residualCount(), attrs.residualCount());
+            if (count(4) != 0) throw invalid("Cold scan demand must be empty");
+            var ordered = new java.util.LinkedHashSet<>(carry);
+            ordered.addAll(emissions); ordered.addAll(residuals);
+            if (!roots.equals(List.copyOf(ordered))) throw invalid("Noncanonical body role roots");
+            var graph = new CompiledGraphModel(localValues, localNodes, inputs, roots, phases(localNodes));
+            canonicalTopology(graph, count);
+            return new CompiledScanBody(graph, carry, emissions, residuals, List.of());
+        }
+
+        /**
+         * Bounds local root/role lists before allocation, retaining repeated roles.
+         * @param preceding available local value count
+         * @param expected exact count, or -1 for unique roots
+         * @param maximum intrinsic header/value ceiling
+         * @return ordered local references
+         * @throws IllegalArgumentException if cardinality or a local ID is invalid
+         * @throws ArithmeticException if aggregate role-reference count overflows
+         */
+        List<ValueId> references(int preceding, int expected, int maximum) {
+            int count = count(4);
+            if (count > maximum || expected >= 0 && count != expected)
+                throw invalid("Invalid body role/root count");
+            roles = Math.addExact(roles, count);
+            var ids = new ArrayList<ValueId>(count);
+            for (int i = 0; i < count; i++) ids.add(reference(preceding));
+            return ids;
+        }
+
+        /**
+         * Decodes wire attributes into metadata only; Compiler owns Tensor constructors.
+         * @param op scope/version-admitted stable opcode
+         * @param arity already parsed actual input count, checked against the length header before role allocation
+         * @return exact immutable operation
+         * @throws IllegalArgumentException if an attribute tag, flag or value is invalid
+         * @throws ArithmeticException if checked scan header cardinalities overflow
+         */
+        Operation operation(int op, int arity) {
+            return switch (op) {
+                case 1 -> new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE);
+                case 2 -> new Operation(BinaryArithmeticKind.MUL, NoOperationAttrs.INSTANCE);
+                case 3 -> new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE);
+                case 4 -> new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE);
+                case 5 -> {
+                    if (bytes.getInt() != 2 || bytes.getInt() != 1 || bytes.getInt() != 0)
+                        throw invalid("Only rank-two PERMUTE[1,0] is supported");
+                    yield new Operation(AxisTransformKind.PERMUTE, new PermutationAttrs(List.of(1, 0)));
+                }
+                case 6 -> new Operation(UnaryElementwiseKind.RELU, NoOperationAttrs.INSTANCE);
+                case 7 -> new Operation(UnaryElementwiseKind.TANH, NoOperationAttrs.INSTANCE);
+                case 8 -> new Operation(UnaryElementwiseKind.SIGMOID, NoOperationAttrs.INSTANCE);
+                case 9 -> new Operation(BinaryArithmeticKind.SUB, NoOperationAttrs.INSTANCE);
+                case 10 -> new Operation(ShapeTransformKind.RESHAPE, new TargetShapeAttrs(shape()));
+                case 11, 12 -> new Operation(op == 11 ? AxisTransformKind.EXPAND_DIMS : AxisTransformKind.SQUEEZE,
+                        new AxisTransformAttrs(bytes.getInt()));
+                case 13 -> new Operation(SelectKind.SELECT, new SelectAttrs(bytes.getInt(), bytes.getLong()));
+                case 14 -> new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(bytes.getInt()));
+                case 15 -> {
+                    if (count(28) != 1) throw invalid("Only one slice entry is supported");
+                    yield new Operation(SliceKind.SLICE, new SliceAttrs(List.of(bytes.getLong()),
+                            List.of(bytes.getLong()), List.of(bytes.getInt()), List.of(bytes.getLong())));
+                }
+                case 16 -> new Operation(TensorCompositionKind.CONCAT, new CompositionAxisAttrs(bytes.getInt()));
+                case 17 -> new Operation(Conv2dKind.CONV2D, new Conv2dAttrs(bytes.getLong(), bytes.getLong(),
+                        bytes.getLong(), bytes.getLong(), bytes.getLong(), bytes.getLong(), bytes.getLong()));
+                case 18 -> new Operation(Conv3dKind.CONV3D, new Conv3dAttrs(bytes.getLong(), bytes.getLong(),
+                        bytes.getLong(), bytes.getLong(), bytes.getLong(), bytes.getLong(), bytes.getLong(),
+                        bytes.getLong(), bytes.getLong(), bytes.getLong()));
+                case 19 -> new Operation(Pool2dKind.MAX_POOL2D, new MaxPool2dAttrs(bytes.getLong(), bytes.getLong(),
+                        bytes.getLong(), bytes.getLong(), bytes.getLong(), bytes.getLong(), bytes.getLong(),
+                        bytes.getLong(), flag()));
+                case 20, 21, 22 -> new Operation(op == 20 ? RecurrentScanKind.RNN_TANH
+                        : op == 21 ? RecurrentScanKind.GRU_RESET_AFTER : RecurrentScanKind.LSTM,
+                        switch (u8()) {
+                            case 1 -> RecurrentDirection.FORWARD;
+                            case 2 -> RecurrentDirection.REVERSE;
+                            default -> throw invalid("Unknown recurrent direction");
+                        });
+                case 23, 33 -> {
+                    var header = new ScanAttrs(bytes.getLong(), bytes.getInt(), bytes.getInt(), bytes.getInt(),
+                            bytes.getInt(), bytes.getInt(), flag());
+                    if (header.carryCount() == 0) throw invalid("Wire scan requires nonempty carry");
+                    if (op == 23) yield new Operation(ScanKind.SCAN, header);
+                    if (Math.addExact(header.inputCount(), 1) != arity) throw invalid("Scan actual count mismatch");
+                    int rowCarry = bytes.getInt();
+                    if (rowCarry <= 0 || rowCarry > header.carryCount()) throw invalid("Invalid row carry count");
+                    int count = count(1);
+                    if (count != header.sequenceCount()) throw invalid("Scan sequence axis count mismatch");
+                    var axes = new ArrayList<OptionalInt>(count);
+                    for (int i = 0; i < count; i++) {
+                        if (!flag()) axes.add(OptionalInt.empty());
+                        else {
+                            int axis = bytes.getInt();
+                            if (axis < 0 || axis > 1) throw invalid("Unsupported sequence row axis");
+                            axes.add(OptionalInt.of(axis));
+                        }
+                    }
+                    yield new Operation(ScanKind.SCAN, new ScanAttrs(header.timeCount(), header.carryCount(), header.sequenceCount(), header.invariantCount(), header.emissionCount(), header.residualCount(), header.reverse(), true, rowCarry, axes));
+                }
+                case 24 -> new Operation(BinaryArithmeticKind.DIV, NoOperationAttrs.INSTANCE);
+                case 25, 26, 27, 28 -> new Operation(switch (op) {
+                    case 25 -> ScalarElementwiseKind.ADD; case 26 -> ScalarElementwiseKind.SUB;
+                    case 27 -> ScalarElementwiseKind.MUL; default -> ScalarElementwiseKind.DIV;
+                }, new ScalarValueAttrs(scalar()));
+                case 29 -> new Operation(AggregateReductionKind.SUM, switch (u8()) {
+                    case 0 -> NoOperationAttrs.INSTANCE;
+                    case 1 -> new AxisReductionAttrs(bytes.getInt(), flag());
+                    case 2 -> {
+                        int count = count(4);
+                        var axes = new ArrayList<Integer>(count);
+                        for (int i = 0; i < count; i++) axes.add(bytes.getInt());
+                        yield new MultiAxisReductionAttrs(axes, flag());
+                    }
+                    case 3 -> new SumToShapeAttrs(shape());
+                    default -> throw invalid("Unknown SUM tag");
+                });
+                case 30 -> new Operation(ShapeTransformKind.EXPAND, new TargetShapeAttrs(shape()));
+                case 31 -> new Operation(ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE);
+                case 32 -> new Operation(CastKind.CAST, new CastAttrs(dtype()));
+                default -> throw invalid("Unknown source operation");
+            };
+        }
+
+        /**
+         * Reads a static shape with byte-bounded rank and checked element count.
+         * @return exact static shape, including scalar and empty shapes
+         * @throws IllegalArgumentException if rank or extents are invalid
+         * @throws ArithmeticException if element count overflows
+         */
+        Shape shape() {
+            int rank = count(8);
+            long[] extents = new long[rank];
+            for (int i = 0; i < rank; i++) {
+                extents[i] = bytes.getLong();
+                if (extents[i] < 0) throw invalid("Negative extent");
+            }
+            var shape = Shape.of(extents);
+            shape.knownElementCount();
+            return shape;
+        }
+
+        /**
+         * Reads the explicit dtype namespace shared by descriptors and attributes.
+         * @return exact Model dtype
+         * @throws IllegalArgumentException if the wire ID is unknown
+         */
+        DataType dtype() {
+            return switch (u8()) {
+                case 1 -> DataType.FLOAT64; case 2 -> DataType.FLOAT32; case 3 -> DataType.BFLOAT16;
+                case 4 -> DataType.INT32; case 5 -> DataType.INT64; case 6 -> DataType.BOOL;
+                case 7 -> DataType.FLOAT16; default -> throw invalid("Unknown dtype ID");
+            };
+        }
+
+        /**
+         * Reads scalar raw bits without conversion or NaN canonicalization.
+         * @return exact typed scalar
+         * @throws IllegalArgumentException if dtype or BOOL bits are invalid
+         */
+        ScalarValue scalar() {
+            return switch (dtype()) {
+                case FLOAT64 -> ScalarValue.float64(Double.longBitsToDouble(bytes.getLong()));
+                case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(bytes.getInt()));
+                case BFLOAT16 -> ScalarValue.bfloat16Bits(bytes.getShort());
+                case FLOAT16 -> ScalarValue.float16Bits(bytes.getShort());
+                case INT32 -> ScalarValue.int32(bytes.getInt());
+                case INT64 -> ScalarValue.int64(bytes.getLong());
+                case BOOL -> ScalarValue.bool(flag());
+            };
+        }
 
         /**
          * Borrows schema bytes through a private cursor without copying or trusting them.
@@ -605,11 +930,7 @@ final class GraphArtifactCodec {
          * @throws ArithmeticException if checked Model geometry overflows
          */
         TensorDescriptor descriptor() {
-            DataType type = switch (u8()) {
-                case 1 -> DataType.FLOAT64; case 2 -> DataType.FLOAT32; case 3 -> DataType.BFLOAT16;
-                case 4 -> DataType.INT32; case 5 -> DataType.INT64; case 6 -> DataType.BOOL;
-                case 7 -> DataType.FLOAT16; default -> throw invalid("Unknown dtype ID");
-            };
+            DataType type = dtype();
             boolean grad = flag();
             int rank = bytes.getInt();
             if (rank < 0 || 8L * rank + 1 > bytes.remaining()) throw invalid("Rank exceeds remaining bytes");
@@ -638,6 +959,7 @@ final class GraphArtifactCodec {
     private static final class Sink {
         private final ByteBuffer bytes;
         private long size;
+        private int formals, nodes, values, roles;
 
         /**
          * Selects dry counting or writing to a destination already admitted by the same traversal.
@@ -660,6 +982,58 @@ final class GraphArtifactCodec {
          */
         void i64(long value) { size = Math.addExact(size, 8); if (bytes != null) bytes.putLong(value); }
 
+        /**
+         * Preserves a count-prefixed local reference list without deduplicating roles.
+         * @param ids ordered canonical references in the current scope
+         */
+        void references(List<ValueId> ids) {
+            i32(ids.size());
+            for (ValueId id : ids) i32(Math.toIntExact(id.value()));
+        }
+
+        /**
+         * Writes a fully static shape shared by layout and reduction attributes.
+         * @param shape exact nonnegative static target, including scalar/empty
+         * @throws IllegalArgumentException if the shape is unresolved
+         * @throws ArithmeticException if its element count overflows
+         */
+        void shape(Shape shape) {
+            if (!shape.isFullyStatic()) throw invalid("Unresolved attribute shape");
+            shape.knownElementCount();
+            i32(shape.rank());
+            for (long extent : shape.toLongArray()) i64(extent);
+        }
+
+        /**
+         * Uses stable explicit IDs, not enum ordinals, at every dtype site.
+         * @param type exact Model dtype
+         */
+        void dtype(DataType type) {
+            u8(switch (type) {
+                case FLOAT64 -> 1; case FLOAT32 -> 2; case BFLOAT16 -> 3; case INT32 -> 4;
+                case INT64 -> 5; case BOOL -> 6; case FLOAT16 -> 7;
+            });
+        }
+
+        /**
+         * Preserves typed scalar attribute bits, including signed zero and NaN payloads.
+         * @param value exact immutable scalar, never converted through another dtype
+         */
+        void scalar(ScalarValue value) {
+            dtype(value.dataType());
+            switch (value.dataType()) {
+                case FLOAT64 -> i64(Double.doubleToRawLongBits(value.float64Value()));
+                case FLOAT32 -> i32(Float.floatToRawIntBits(value.float32Value()));
+                case INT64 -> i64(value.int64Value());
+                case INT32 -> i32(value.int32Value());
+                case BFLOAT16, FLOAT16 -> {
+                    short bits = value.dataType() == DataType.BFLOAT16 ? value.bfloat16Bits() : value.float16Bits();
+                    u8(bits >>> 8); u8(bits);
+                }
+                case BOOL -> u8(value.booleanValue() ? 1 : 0);
+            }
+        }
+
         /** Counts strict UTF-8 before allocating its encoded bytes in the bounded writing pass.
          * @param name already grammar-validated exact UTF-8 registration name
          */
@@ -671,12 +1045,12 @@ final class GraphArtifactCodec {
 
         /** Preserves every descriptor field with explicit wire IDs and optional layout geometry.
          * @param descriptor exact checked Model metadata, including unresolved-layout presence
+         * @throws IllegalArgumentException if shape is not fully static
+         * @throws ArithmeticException if logical byte/stride geometry overflows
          */
         void descriptor(TensorDescriptor descriptor) {
-            u8(switch (descriptor.dataType()) {
-                case FLOAT64 -> 1; case FLOAT32 -> 2; case BFLOAT16 -> 3; case INT32 -> 4;
-                case INT64 -> 5; case BOOL -> 6; case FLOAT16 -> 7;
-            });
+            GraphValueStorage.bytes(descriptor);
+            dtype(descriptor.dataType());
             u8(descriptor.requiresGrad() ? 1 : 0);
             i32(descriptor.shape().rank());
             for (long extent : descriptor.shape().toLongArray()) i64(extent);

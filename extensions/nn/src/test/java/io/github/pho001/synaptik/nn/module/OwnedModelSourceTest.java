@@ -12,6 +12,7 @@ import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.RecurrentScan;
+import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.layers.Linear;
@@ -63,6 +64,7 @@ final class OwnedModelSourceTest {
         final Parameter weight;
         Weight(Tensor tensor) { weight = parameter("weight", tensor); }
     }
+
 
     @Test void definitionIsOneShotEvalAndClosureCapturedWeightIsAcquired() throws Exception {
         Tensor external = scalar(2, true);
@@ -281,6 +283,97 @@ final class OwnedModelSourceTest {
                     assertNull(field(field(loaded, "execution"), "engine"));
                     loaded.save(resaved);
                     assertArrayEquals(java.nio.file.Files.readAllBytes(file), java.nio.file.Files.readAllBytes(resaved));
+                }
+            }
+    }
+
+    @Test void staticLengthGraphAcquisitionAndExplicitForwardStayEngineFree() throws Exception {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (long batch : List.of(0L, 1L, 3L)) for (long time : List.of(0L, 3L))
+                for (boolean reverse : List.of(false, true)) {
+                    Tensor h = TensorFactory.create(scanDescriptor(type, false, batch, 2));
+                    Tensor x = TensorFactory.create(scanDescriptor(type, false, batch, 2));
+                    Tensor w = TensorFactory.create(scanDescriptor(type, true, 2));
+                    Tensor initial = TensorFactory.create(h.descriptor());
+                    Tensor sequence = TensorFactory.create(scanDescriptor(type, false, time, batch, 2));
+                    Tensor lengths;
+                    MemorySegmentStorage control;
+                    try (var arena = java.lang.foreign.Arena.ofConfined()) {
+                        control = new MemorySegmentStorage(DataType.INT64, batch, arena.allocate(batch * 8, 8));
+                        lengths = TensorFactory.create(scanDescriptor(DataType.INT64, false, batch),
+                                Optional.empty(), Optional.of(control));
+                    }
+                    Tensor weight = type == DataType.FLOAT32
+                            ? TensorFactory.fromFlatArray(w.descriptor(), Optional.empty(),
+                                    new float[]{Float.intBitsToFloat(0xffc00123), -0.0f})
+                            : TensorFactory.fromFlatArray(w.descriptor(), Optional.empty(),
+                                    new double[]{Double.longBitsToDouble(0xfff8000000000123L), -0.0});
+                    byte[] raw = weight.hostStorage().orElseThrow().segment().toArray(ValueLayout.JAVA_BYTE);
+                    var body = new io.github.pho001.synaptik.model.tensor.ScanBody(List.of(h), List.of(x), List.of(w),
+                            List.of(h.add(x).add(w).tanh()), List.of(h));
+                    var scan = io.github.pho001.synaptik.model.tensor.Scan.apply(List.of(initial), List.of(sequence),
+                            List.of(weight), lengths, 1, List.of(java.util.OptionalInt.of(0)), body, reverse);
+                    var roots = new java.util.ArrayList<>(scan.finalCarry());
+                    roots.addAll(scan.outputs()); roots.addAll(scan.residuals());
+                    try (var model = Model.graph(List.of(sequence, lengths, initial), roots,
+                            List.of(parameter("a.weight", weight), parameter("b.weight", weight)))) {
+                        assertNull(field(field(model, "execution"), "engine"));
+                        var source = (GraphCheckpoint.Source) field(field(field(model, "execution"), "owned"), "source");
+                        assertTrue(source.inputs().stream().allMatch(t -> t.hostStorage().isEmpty()));
+                        Tensor owned = source.leaves().getFirst().tensor();
+                        assertNotSame(weight, owned); assertSame(owned, source.leaves().getLast().tensor());
+                        assertArrayEquals(raw, owned.hostStorage().orElseThrow().segment().toArray(ValueLayout.JAVA_BYTE));
+                        Tensor fresh = TensorFactory.create(sequence.descriptor()), freshLengths = TensorFactory.create(lengths.descriptor());
+                        Tensor freshInitial = TensorFactory.create(initial.descriptor());
+                        var rebound = model.forward(List.of(fresh, freshLengths, freshInitial));
+                        var p = rebound.getFirst().provenance().orElseThrow().producer();
+                        assertSame(freshInitial, p.inputs().getFirst()); assertSame(fresh, p.inputs().get(1));
+                        assertSame(owned, p.inputs().get(2)); assertSame(freshLengths, p.inputs().getLast());
+                        assertEquals(scan.finalCarry().getFirst().descriptor(), rebound.getFirst().descriptor());
+                        for (int port = 0; port < p.outputCount(); port++) assertSame(p.output(port), rebound.get(port));
+                        assertNull(field(field(model, "execution"), "engine"));
+                    }
+                    assertSame(control, lengths.hostStorage().orElseThrow()); assertFalse(control.isAlive());
+                    assertArrayEquals(raw, weight.hostStorage().orElseThrow().segment().toArray(ValueLayout.JAVA_BYTE));
+                }
+    }
+
+    @Test void staticLengthDefinitionAcquiresNamedControlsAndAliasesOnceWithoutEngine() throws Exception {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (long time : List.of(0L, 3L)) for (boolean reverse : List.of(false, true)) {
+                Tensor h = TensorFactory.create(scanDescriptor(type, false, 1, 2));
+                Tensor x = TensorFactory.create(h.descriptor()), w = TensorFactory.create(scanDescriptor(type, true, 2));
+                Tensor initial = TensorFactory.allocate(h.descriptor());
+                Tensor lengths = TensorFactory.fromFlatArray(scanDescriptor(DataType.INT64, false, 1),
+                        Optional.empty(), new long[]{Long.MAX_VALUE});
+                Tensor weight = type == DataType.FLOAT32
+                        ? TensorFactory.fromFlatArray(w.descriptor(), Optional.empty(), new float[]{-0.0f, 2})
+                        : TensorFactory.fromFlatArray(w.descriptor(), Optional.empty(), new double[]{-0.0, 2});
+                var body = new io.github.pho001.synaptik.model.tensor.ScanBody(List.of(h), List.of(x), List.of(w),
+                        List.of(h.add(x).add(w).tanh()), List.of());
+                AtomicInteger definitions = new AtomicInteger(), forwards = new AtomicInteger();
+                try (var model = Model.defineTensor(scanDescriptor(type, false, time, 1, 2), topology -> {
+                    definitions.incrementAndGet();
+                    topology.addModule("a", new Weight(weight)); topology.addModule("b", new Weight(weight));
+                    return input -> {
+                        forwards.incrementAndGet();
+                        return io.github.pho001.synaptik.model.tensor.Scan.apply(List.of(initial), List.of(input),
+                                List.of(weight), lengths, 1, List.of(java.util.OptionalInt.of(0)), body, reverse)
+                                .finalCarry().getFirst();
+                    };
+                })) {
+                    Tensor fresh = TensorFactory.create(scanDescriptor(type, false, time, 1, 2));
+                    Tensor result = model.forward(fresh);
+                    var p = result.provenance().orElseThrow().producer();
+                    assertSame(fresh, p.inputs().get(1));
+                    assertNotSame(initial, p.inputs().getFirst()); assertNotSame(weight, p.inputs().get(2));
+                    assertNotSame(lengths, p.inputs().getLast());
+                    assertEquals(Long.MAX_VALUE, p.inputs().getLast().hostStorage().orElseThrow().segment()
+                            .get(ValueLayout.JAVA_LONG_UNALIGNED, 0));
+                    var entries = model.stateDictionary().entries();
+                    assertSame(entries.get(0).value(), entries.get(1).value());
+                    assertEquals(1, definitions.get()); assertEquals(1, forwards.get());
+                    assertNull(field(field(model, "execution"), "engine"));
                 }
             }
     }

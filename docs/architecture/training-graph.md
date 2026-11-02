@@ -17,6 +17,13 @@ no new backward pipeline. `train(batch, targets)` uses `RESET_AND_STEP` through 
 values; it neither rebuilds forward nor toggles Module mode. Parameters keep their identities
 through one explicit native admission, and inference and save observe subsequent same-store updates.
 Objective callbacks, optimizer history and random/input progress are not model-file contents.
+The implemented all-valid general-scan owned-Model workflow reuses this same path for qualified
+static canonical homogeneous FLOAT32/FLOAT64 occurrences. Its graph/definition acquisition uses
+bounded Compiler cold reconstruction through Checkpoint attachment-preserving copy/rebind, not a
+CPU support predicate. All-valid means every static time step participates, not arbitrary body
+support. Fixed scan-training rejection stays intact. All-valid body persistence uses Checkpoint
+v4; static homogeneous length-mode cold/persistence uses Compiler0018/Checkpoint v5. NN0033
+separately implements and qualifies the recurrent-composition numerical/lifecycle journey.
 See the [NN ownership contract](contracts/extensions-training.md#owned-tensor-models) and
 [training workflow](../user-guide/training.md#train-an-owned-static-model).
 
@@ -123,7 +130,7 @@ The current Model fixed recurrent scan is an ordinary flat multi-output forward 
 a nested training graph. Model task 0025E owns only its fixed forward meanings, descriptor
 construction, and canonical outputs. Generic capture preserves one producer as one node, and
 current Compiler forward-only inference independently revalidates its fully static descriptors.
-Both backward-capable modes reject any complete forward inventory containing recurrence before
+Both backward-capable modes reject any complete forward inventory containing fixed recurrence before
 any derivative Tensor is allocated.
 
 Backpropagation through time (BPTT) therefore remains unsupported even though output gradient
@@ -136,8 +143,95 @@ This decision selects no saved-gate outputs, tape, checkpointing policy, recompu
 backward operation, derivative formula, or physical saved-state representation. A later Compiler
 architecture and implementation task must choose those contracts after the forward executable
 path is stable. Current `FORWARD_ONLY` compilation is the only compile mode that adopts the family
-until BPTT is designed. See
+until that family's BPTT is separately designed. The accepted generic-body decision below does
+not add its fixed adjoint. See
 [ADR 0012](../design/decisions/0012-fixed-recurrent-scan-without-regions.md).
+
+<a id="accepted-general-body-ad-not-current-capability"></a>
+
+## General-body first-order AD, not execution support
+
+The [sole scan semantic owner](contracts/recurrent-scan.md#general-differentiable-scan) now accepts
+fixed-count scan over ordinary Tensor body algebra, not arbitrary regions or while loops. Current
+Java implements the Model source/IR foundation, Planning body transport and Compiler scoped
+capture/inference, reverse-scan first-order AD and final body-bearing demand queries. Compiler0013
+extends this compile-time path to the bounded length mode. Prepare0011 projects its static
+bindings and demand through the existing resource handoff; CPU0042 separately qualifies fixed-geometry
+FLOAT32/FLOAT64 length execution. The implementation follows the existing pre-capture boundary:
+
+```text
+original scan wrappers + source Tensor body
+  -> preflight, joint output cotangents and exact primal bindings
+  -> ordinary reverse sibling Scan, traversing in the opposite direction
+  -> one combined capture, with independent body scopes
+  -> saved-value edges and demand -> planning -> separately qualified one-owner preparation
+```
+
+Read downward: derivative construction precedes capture; Runtime never sees derivative rules.
+Residual ports are canonical metadata reserved by original immutable producer construction, not
+allocated memory. Only publication/downstream consumption creates live history. The reverse scan
+consumes exact saved histories and explicit step/invariant inputs; its own unused residual ports
+allocate/store no history and impose no residual fusion restriction. Internal body uses need only
+step temporaries. This is Synaptik's producer design choice, not a requirement on other frameworks.
+
+Selected existing Compiler rule entry points accept an explicit original-primal-Tensor binding function.
+For a TANH step, its derivative uses the exact saved TANH output, not a fresh tanh expression.
+Contribution identities remain original Tensors. Joint final-carry/emission seeds combine once
+per occurrence; repeated roles and shared parameters contribute once per position, then ordinary
+Tensor.add sums tied actual identities across roles/occurrences. TANH/SIGMOID oneLike constants
+become explicit invariant formals bound to registered outer splats, not free leaves. Registered
+outer zeros initialize seed/accumulator roles through the appropriate carry/invariant formals.
+
+Length-mode original-source AD requires every carry and every original sequence to be ROW(0),
+including unused/non-gradient positions. Its opposite-traversal sibling retains the same discrete
+lengths actual, with no formal or cotangent for it. Generated seeds and exact retained primals
+have explicit ROW(0), ROW(1) or SHARED roles pruned with their sequence bindings. Row-shaped
+literal/zero seeds close through declared non-gradient sequences; scalar constants remain
+invariants. Each incoming cotangent for a SHARED value is normalized before accumulation,
+including shared intermediates at B=1. Invariant-shaped suffix carries use one distinct
+`old.add(contribution)` each, without a per-row parameter bank. This is graph construction only;
+CPU0042 separately qualifies fixed-geometry FLOAT32/FLOAT64 forward and actual reverse execution.
+Static homogeneous FLOAT32/FLOAT64 length-mode cold reconstruction and Checkpoint copy/rebind
+are implemented and accepted under Compiler0018. Checkpoint0014 adds v5 persistence and loaded
+generic Model numerical proof; NN0033 completes bounded recurrent composition. Prepare preserves
+the actual reverse's mixed roles and exact saved ports without applying the restricted
+original-source AD rule to that generated sibling or executing its body.
+
+The user-approved [Model0044 source foundation](../planning/modules/model/tasks/0044-symbolic-length-scan-source-foundation.md)
+combines the existing length overload with one named B, retaining static T/features and true row
+provenance. Source support is Complete under the authority accepted on 2026-10-26; independent
+source/docs review and MAIN's root test/Javadoc checkpoint passed, with MAIN acceptance on 2026-10-26.
+For example, h `[Rows,2]` and X `[4,Rows,3]` can be described with INT64 L `[Rows]` and fixed
+weights, without choosing a numeric Rows or reading L.
+[Compiler0015](contracts/recurrent-scan.md#runtime-preflight-and-implementation-gates) implements
+independent FLOAT32/FLOAT64 inference, actual first-order sibling AD and complete fresh scoped
+all-port binding together for that fixed-T/features one-B source; the Compiler-only task is Complete.
+For example, binding Rows=7 inspects descriptors for h `[7,2]`, X `[4,7,3]` and
+INT64 L `[7]`, not L's seven values. Changed storage/length payloads at the same Rows are numerical
+oracle cases, not metadata-binding inputs. Compiler admission is therefore not runtime support.
+Original-source ROW(0) restrictions and generated mixed roles remain unchanged; Prepare still
+rejects before numeric extent access/analyzers, and combined CPU/Engine execution, cold/copy/wire
+and NN/Training remain closed. No resource, arithmetic or activity algorithm changes. The
+[source admission contract](contracts/recurrent-scan.md#header-bindings-and-source-admission)
+owns exact dimension and layout rules; no new body representation or execution owner is added.
+
+For example, the [conceptual forward/residual/reverse walkthrough](general-differentiable-scan.md#conceptual-forward-and-reverse-example)
+uses two steps of `h + x*w`: final `6` and emissions `[2,6]` jointly seeded with ones produce
+dInitialCarry `3`, dSequence `[6,4]` and dWeight `7`. Seeding each port through separate repeated
+scan AD would duplicate work/contributions. Saved-output replay would additionally break exact
+rounding sites for nonlinear bodies.
+
+Residual-root differentiation and every scan higher-order/createGraph request reject before
+derivative allocation. Unsupported body occurrences in unrelated original scans also reject before
+allocation. The ordinary two-stage request boundary elsewhere does not grant scan higher order. General-body
+first-order Compiler inventory includes DIV and the whole required reduction/expand/view/contiguous/
+constant/cast closure, not only handwritten forward operators. Internal carry cotangents traverse
+false-flag source values without changing public flags or seed guards. Bounded test-only numerical
+evaluation for all-valid scans compares the reverse topology with unrolled existing gradients in both directions;
+it is not a production runner or execution qualification. A complete bounded F32 vertical
+capability precedes F32/F64 declared-domain completion; padding and
+persistence remain separate. Existing fixed scans and NN static unrolling retain their contracts.
+See [ADR 0045](../design/decisions/0045-general-differentiable-scan.md) for the decision and costs.
 
 ## Optimizer as a backend-agnostic step
 

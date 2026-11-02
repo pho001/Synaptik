@@ -10,6 +10,14 @@ import io.github.pho001.synaptik.checkpoint.artifact.ArtifactLimits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.graph.*;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.scan.*;
+import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
@@ -23,6 +31,229 @@ import org.junit.jupiter.api.io.TempDir;
 /** Fixed wire IDs, preallocation bounds and malformed topology tests with explicit encoded fixtures. */
 final class GraphArtifactCodecTest {
     @TempDir Path directory;
+
+    @Test void codecLocalAdmissionRejectsNewTopologiesWithoutCompilerOrSizing() throws Exception {
+        // Invoke the existing semantic admission predicate, not Compiler or the writer. Without
+        // the codec-local topology guard it returns an opcode and this regression must fail.
+        var admission = GraphArtifactCodec.class.getDeclaredMethod("opcode", CompiledNode.class);
+        admission.setAccessible(true);
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (long time : new long[] {0, 1}) for (long batch : new long[] {0, 1})
+                for (boolean reverse : List.of(false, true)) for (int topology = 0; topology < 3; topology++) {
+                    var raw = sourceOnlyScanFixture(type, time, batch, reverse, topology);
+                    Tensor before = prototype(type, Shape.scalar(), false, true);
+                    var failure = assertThrows(java.lang.reflect.InvocationTargetException.class,
+                            () -> admission.invoke(null, raw.graph.nodes().getFirst()));
+                    assertInstanceOf(IllegalArgumentException.class, failure.getCause());
+                    assertEquals(before.id().value() + 1, prototype(type, Shape.scalar(), false, true).id().value());
+                }
+    }
+
+    @Test void rawEncoderRejectsNewTopologiesWithCompleteSourceBoundaries() throws Exception {
+        // End-to-end rejection is separate evidence: these graphs have reachable Scan outputs,
+        // contiguous input IDs before produced IDs, and the exact matching source boundary.
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (long time : new long[] {0, 1}) for (long batch : new long[] {0, 1})
+                for (boolean reverse : List.of(false, true)) for (int topology = 0; topology < 3; topology++) {
+                    var raw = sourceOnlyScanFixture(type, time, batch, reverse, topology);
+                    Tensor before = prototype(type, Shape.scalar(), false, true);
+                    assertThrows(IllegalArgumentException.class, () -> GraphArtifactCodec.encode(raw, LIMITS));
+                    assertThrows(IllegalArgumentException.class, () -> GraphArtifactCodec.encode(raw, new ArtifactLimits(48, 8, 0, 1, 0, 0)));
+                    assertEquals(before.id().value() + 1, prototype(type, Shape.scalar(), false, true).id().value());
+                }
+    }
+
+    @Test void declaredHistoryWideningDoesNotChangeColdOrWireAdmissionEvenWhenUnused() throws Exception {
+        var admission = GraphArtifactCodec.class.getDeclaredMethod("opcode", CompiledNode.class);
+        admission.setAccessible(true);
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (long time : new long[] {0, 1}) for (long batch : new long[] {0, 1, 2})
+                for (boolean reverse : List.of(false, true))
+                    for (int[] geometry : List.of(new int[] {2, 0}, new int[] {2, 1},
+                            new int[] {3, 0}, new int[] {3, 1}, new int[] {3, 2}, new int[] {4, 3})) {
+                        int rank = geometry[0], row = geometry[1];
+                        var raw = declaredHistoryFixture(type, time, batch, reverse, rank, row);
+                        boolean retained = row == 0 || row == 1 && rank == 2;
+                        Tensor before = prototype(type, Shape.scalar(), false, true);
+                        if (retained) {
+                            new io.github.pho001.synaptik.compiler.GraphCompilationPort.SourceCapture(
+                                    raw.graph, raw.source.inputs());
+                            assertEquals("graph-model.v5", GraphArtifactCodec.encode(raw, LIMITS).kind());
+                        } else {
+                            assertThrows(IllegalArgumentException.class, () ->
+                                    new io.github.pho001.synaptik.compiler.GraphCompilationPort.SourceCapture(
+                                            raw.graph, raw.source.inputs()));
+                            assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.copy(raw.source));
+                            assertThrows(IllegalArgumentException.class, () -> GraphArtifactCodec.encode(raw, LIMITS));
+                            assertThrows(IllegalArgumentException.class, () -> GraphArtifactCodec.encode(raw,
+                                    new ArtifactLimits(48, 8, 0, 1, 0, 0)));
+                            var failure = assertThrows(java.lang.reflect.InvocationTargetException.class,
+                                    () -> admission.invoke(null, raw.graph.nodes().getFirst()));
+                            assertInstanceOf(IllegalArgumentException.class, failure.getCause());
+                        }
+                        assertEquals(before.id().value() + 1,
+                                prototype(type, Shape.scalar(), false, true).id().value());
+                    }
+    }
+
+    /**
+     * Associates a Model-valid unused history declaration with independently authored raw metadata.
+     * The sole root is an identity ROW carry; no ordinary operation can mask a header rejection.
+     * @param type ordinary homogeneous floating dtype retained by old cold source
+     * @param time static time, including zero
+     * @param batch exact static B, including empty and coincident feature extents
+     * @param reverse original-time traversal direction
+     * @param rank positive step rank
+     * @param row valid identified step axis, not inferred from equal extents
+     * @return complete raw source association without invoking cold admission
+     * @throws ReflectiveOperationException if the existing raw association cannot be constructed
+     */
+    private static GraphSource declaredHistoryFixture(DataType type, long time, long batch,
+            boolean reverse, int rank, int row) throws ReflectiveOperationException {
+        long[] extents = new long[rank]; Arrays.fill(extents, 2); extents[row] = batch;
+        long[] stacked = new long[rank + 1]; stacked[0] = time;
+        System.arraycopy(extents, 0, stacked, 1, rank);
+        Tensor h = prototype(type, Shape.of(batch, 2), false, true);
+        Tensor step = prototype(type, Shape.of(extents), false, true);
+        var template = new io.github.pho001.synaptik.model.tensor.ScanBody(
+                List.of(h), List.of(step), List.of(), List.of(h), List.of());
+        Tensor initial = prototype(type, h.descriptor().shape(), false, true);
+        Tensor sequence = prototype(type, Shape.of(stacked), false, true);
+        Tensor lengths = prototype(DataType.INT64, Shape.of(batch), false, true);
+        var result = io.github.pho001.synaptik.model.tensor.Scan.apply(List.of(initial), List.of(sequence),
+                List.of(), lengths, 1, List.of(OptionalInt.of(row)), template, reverse);
+        var producer = result.finalCarry().getFirst().provenance().orElseThrow().producer();
+        ValueId localH = new ValueId(0), localStep = new ValueId(1);
+        var local = new CompiledGraphModel(List.of(new GraphValue(localH, h.descriptor()),
+                new GraphValue(localStep, step.descriptor())), List.of(),
+                List.of(localH, localStep), List.of(localH), Map.of());
+        var body = new CompiledScanBody(local, List.of(localH), List.of(), List.of(localH), List.of());
+        var values = new ArrayList<GraphValue>(); var inputs = new ArrayList<ValueId>();
+        for (Tensor actual : producer.inputs()) {
+            ValueId id = new ValueId(values.size()); inputs.add(id);
+            values.add(new GraphValue(id, actual.descriptor()));
+        }
+        var outputs = new ArrayList<ValueId>();
+        for (TensorDescriptor descriptor : producer.outputDescriptors()) {
+            ValueId id = new ValueId(values.size()); outputs.add(id);
+            values.add(new GraphValue(id, descriptor));
+        }
+        var node = new CompiledNode(new NodeId(0), producer.operation(), inputs, outputs, Optional.of(body));
+        var graph = new CompiledGraphModel(values, List.of(node), inputs, List.of(outputs.getFirst()),
+                Map.of(node.id(), GraphPhase.FORWARD));
+        var source = new GraphCheckpoint.Source(producer.inputs(), result.finalCarry(), List.of());
+        var constructor = GraphSource.class.getDeclaredConstructors()[0]; constructor.setAccessible(true);
+        return (GraphSource) constructor.newInstance(source, graph, List.of(), List.of(), List.of());
+    }
+
+    /**
+     * Authors canonical raw Scan metadata and its matching Model-valid source without cold capture.
+     * @param type homogeneous floating body dtype
+     * @param time fixed T, including zero
+     * @param batch fixed B, including zero
+     * @param reverse original-time traversal direction
+     * @param topology zero for carry-free all-valid, one for carry-free length, two for SHARED-only length
+     * @return raw encoder association with complete boundaries and a reachable semantic root
+     * @throws ReflectiveOperationException if construction of the existing raw association fails
+     */
+    private static GraphSource sourceOnlyScanFixture(DataType type, long time, long batch,
+            boolean reverse, int topology) throws ReflectiveOperationException {
+        boolean shared = topology == 2, length = topology != 0;
+        Shape shape = shared ? Shape.of(2) : Shape.of(batch, 2);
+        Shape sequence = shared ? Shape.of(time, 2) : Shape.of(time, batch, 2);
+        java.util.function.BiFunction<DataType, Shape, TensorDescriptor> descriptor = (dtype, s) ->
+                new TensorDescriptor(dtype, s, Optional.of(LayoutDescriptor.contiguous(s)), false);
+        ValueId x = new ValueId(0), y = new ValueId(1), sum = new ValueId(2);
+        var localValues = new ArrayList<GraphValue>(); localValues.add(new GraphValue(x, descriptor.apply(type, shape)));
+        var formals = new ArrayList<ValueId>(); formals.add(x);
+        var localNodes = new ArrayList<CompiledNode>();
+        if (shared) {
+            formals.add(y); localValues.add(new GraphValue(y, descriptor.apply(type, shape)));
+            localValues.add(new GraphValue(sum, descriptor.apply(type, shape)));
+            localNodes.add(new CompiledNode(new NodeId(0), new Operation(
+                    io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind.ADD,
+                    io.github.pho001.synaptik.model.operation.NoOperationAttrs.INSTANCE), List.of(x, y), List.of(sum)));
+        }
+        ValueId root = shared ? sum : x;
+        var local = new CompiledGraphModel(localValues, localNodes, formals, shared ? List.of(root, x) : List.of(root),
+                shared ? Map.of(new NodeId(0), GraphPhase.FORWARD) : Map.of());
+        var body = new CompiledScanBody(local, shared ? List.of(root) : List.of(),
+                shared ? List.of() : List.of(root), shared ? List.of(x, root) : List.of(), List.of());
+        var values = new ArrayList<GraphValue>();
+        var inputs = new ArrayList<ValueId>();
+        if (shared) {
+            var id = new ValueId(values.size()); inputs.add(id); values.add(new GraphValue(id, descriptor.apply(type, shape)));
+        }
+        var seq = new ValueId(values.size()); inputs.add(seq); values.add(new GraphValue(seq, descriptor.apply(type, sequence)));
+        if (length) {
+            var id = new ValueId(values.size()); inputs.add(id);
+            values.add(new GraphValue(id, descriptor.apply(DataType.INT64, Shape.of(batch))));
+        }
+        var out = new ValueId(values.size()); values.add(new GraphValue(out, descriptor.apply(type, shared ? shape : sequence)));
+        var outputs = new ArrayList<ValueId>(); outputs.add(out);
+        if (shared) for (int r = 0; r < 2; r++) {
+            var id = new ValueId(values.size()); outputs.add(id);
+            values.add(new GraphValue(id, descriptor.apply(type, sequence)));
+        }
+        var attrs = new ScanAttrs(time, shared ? 1 : 0, 1, 0, shared ? 0 : 1, shared ? 2 : 0,
+                reverse, length, 0, length ? List.of(shared ? OptionalInt.empty() : OptionalInt.of(0)) : List.of());
+        var node = new CompiledNode(new NodeId(0), new Operation(ScanKind.SCAN, attrs), inputs, outputs, Optional.of(body));
+        var graph = new CompiledGraphModel(values, List.of(node), inputs, List.of(out), Map.of(node.id(), GraphPhase.FORWARD));
+        Tensor h = io.github.pho001.synaptik.model.tensor.TensorFactory.create(descriptor.apply(type, shape));
+        Tensor step = io.github.pho001.synaptik.model.tensor.TensorFactory.create(descriptor.apply(type, shape));
+        var sourceBody = new io.github.pho001.synaptik.model.tensor.ScanBody(shared ? List.of(h) : List.of(), List.of(step),
+                List.of(), shared ? List.of(h.add(step)) : List.of(), shared ? List.of() : List.of(step));
+        var actuals = inputs.stream().map(id -> io.github.pho001.synaptik.model.tensor.TensorFactory.create(
+                values.get(Math.toIntExact(id.value())).descriptor())).toList();
+        int carryEnd = shared ? 1 : 0;
+        var result = length ? io.github.pho001.synaptik.model.tensor.Scan.apply(actuals.subList(0, carryEnd),
+                List.of(actuals.get(carryEnd)), List.of(), actuals.getLast(), 0, attrs.sequenceRowAxes(), sourceBody, reverse)
+                : io.github.pho001.synaptik.model.tensor.Scan.apply(List.of(), actuals, List.of(), sourceBody, reverse);
+        var source = new GraphCheckpoint.Source(actuals, shared ? result.finalCarry() : result.outputs(), List.of());
+        var constructor = GraphSource.class.getDeclaredConstructors()[0]; constructor.setAccessible(true);
+        return (GraphSource) constructor.newInstance(source, graph, List.of(), List.of(), List.of());
+    }
+
+    @Test
+    void directCodecDeadLengthOccurrenceRejectsBeforeStorageEvenWithoutColdPreflight() throws Exception {
+        for (boolean symbolic : List.of(false, true)) for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+                for (long time : List.of(0L, 3L)) {
+            var captured = GraphSource.capture(scalar());
+            var batch = symbolic ? new io.github.pho001.synaptik.model.shape.DynamicDimension("Customers")
+                    : new io.github.pho001.synaptik.model.shape.StaticDimension(2);
+            var width = new io.github.pho001.synaptik.model.shape.StaticDimension(2);
+            Shape row = Shape.ofDimensions(batch, width), seq = Shape.ofDimensions(
+                    new io.github.pho001.synaptik.model.shape.StaticDimension(time), batch, width), lengths = Shape.ofDimensions(batch);
+            java.util.function.BiFunction<DataType, Shape, TensorDescriptor> descriptor = (dtype, shape) -> new TensorDescriptor(
+                    dtype, shape, shape.isFullyStatic() ? Optional.of(LayoutDescriptor.contiguous(shape)) : Optional.empty(), false);
+            var h = descriptor.apply(type, row); var x = descriptor.apply(type, seq); var l = descriptor.apply(DataType.INT64, lengths);
+            var local = new CompiledGraphModel(List.of(new GraphValue(new ValueId(0), h), new GraphValue(new ValueId(1), h)),
+                    List.of(), List.of(new ValueId(0), new ValueId(1)), List.of(new ValueId(0)), Map.of());
+            var body = new CompiledScanBody(local, List.of(new ValueId(0)), List.of(), List.of(new ValueId(0)), List.of());
+            int base = captured.graph.values().size();
+            var inputs = List.of(new ValueId(base), new ValueId(base + 1), new ValueId(base + 2));
+            var outputs = List.of(new ValueId(base + 3), new ValueId(base + 4));
+            var n = new CompiledNode(new NodeId(1), new Operation(ScanKind.SCAN,
+                    new ScanAttrs(time, 1, 1, 0, 0, 1, false, true, 1, List.of(OptionalInt.of(0)))), inputs, outputs, Optional.of(body));
+            var values = new ArrayList<>(captured.graph.values());
+            values.add(new GraphValue(inputs.get(0), h)); values.add(new GraphValue(inputs.get(1), x));
+            values.add(new GraphValue(inputs.get(2), l)); values.add(new GraphValue(outputs.get(0), h));
+            values.add(new GraphValue(outputs.get(1), x));
+            var nodes = new ArrayList<>(captured.graph.nodes()); nodes.add(n);
+            var graphInputs = new ArrayList<>(captured.graph.inputs()); graphInputs.addAll(inputs);
+            var phases = new java.util.HashMap<>(captured.graph.nodePhases()); phases.put(n.id(), GraphPhase.FORWARD);
+            // Keep the length scan dead and late: codec admission must inspect the stored inventory.
+            var graph = new CompiledGraphModel(values, nodes, graphInputs, captured.graph.outputs(), phases);
+            var constructor = GraphSource.class.getDeclaredConstructors()[0]; constructor.setAccessible(true);
+            var injected = (GraphSource) constructor.newInstance(captured.source, graph, captured.states, captured.roles, captured.registrations);
+            captured.states.getFirst().clearHostStorage();
+            Tensor probe = io.github.pho001.synaptik.model.tensor.TensorFactory.create(h);
+            for (ArtifactLimits limits : List.of(LIMITS, new ArtifactLimits(48, 8, 0, 1, 0, 0))) {
+                assertThrows(IllegalArgumentException.class, () -> GraphArtifactCodec.encode(injected, limits));
+            }
+            assertEquals(probe.id().value() + 1, io.github.pho001.synaptik.model.tensor.TensorFactory.create(h).id().value());
+        }
+    }
 
     @Test
     void scalarWireHasExactFixedFieldsAndIndependentGoldenBytes() throws Exception {
@@ -137,8 +368,7 @@ final class GraphArtifactCodecTest {
         var injected = (GraphSource) constructor.newInstance(captured.source, graph, captured.states,
                 captured.roles, captured.registrations);
         captured.states.getFirst().clearHostStorage();
-        assertTrue(assertThrows(IllegalArgumentException.class,
-                () -> GraphArtifactCodec.encode(injected, LIMITS)).getMessage().contains("Unknown source operation"));
+        assertThrows(IllegalArgumentException.class, () -> GraphArtifactCodec.encode(injected, LIMITS));
     }
 
     /**

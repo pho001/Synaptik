@@ -18,8 +18,10 @@ import java.util.Objects;
 /**
  * Cold acquisition and live identity guards for one privately owned ordinary Tensor source.
  * Constants belong only to the source; Module wrappers remain the sole parameter/buffer registry.
- * Scan presence is cached from immutable ordinary provenance for every acquisition route, not
- * inferred from input types or saved role metadata. It adds no per-run traversal or execution path.
+ * Fixed-scan presence is cached from immutable ordinary provenance for every acquisition route,
+ * not inferred from input types or saved role metadata. General-scan acquisition delegates its
+ * bounded cold body inventory to Checkpoint and Compiler, independently of execution support.
+ * It does not widen the fixed-only training guard or add per-run provenance traversal.
  * Callers serialize all access through ModelExecutionState and exclude inherited Module mutation.
  */
 final class OwnedModelSource {
@@ -76,11 +78,15 @@ final class OwnedModelSource {
 
     /**
      * Inventories ordinary provenance, acquires external leaves once and installs final wrappers.
+     * Checkpoint owns source/storage admission and delegates general bodies to Compiler's exact
+     * cold constructor inventory. Body formals are not registered state, and no CPU predicate is
+     * consulted here. The callback's prototype expression is not retained after private reconstruction.
      * @param root eval-mode defined tree after its single prototype forward
      * @param input declared storage-free prototype
      * @param output callback's exact output expression
      * @return owned source with no retained callback or original state graph
      * @throws IllegalArgumentException if source/state cannot be represented by GraphCheckpoint
+     * @throws IllegalStateException if named state storage is absent, dead or inaccessible
      */
     static OwnedModelSource acquireDefinition(Module root, Tensor input, Tensor output) {
         List<Leaf> leaves = inventory(root, List.of(input), List.of(output), false);

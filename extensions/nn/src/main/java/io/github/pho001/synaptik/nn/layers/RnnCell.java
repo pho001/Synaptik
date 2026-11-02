@@ -50,9 +50,10 @@ import java.util.random.RandomGeneratorFactory;
  * training and evaluation mode and creates Model expression metadata only. It does not execute
  * values, define gradients, capture a graph, lower operations, or select a backend.</p>
  *
- * <p>The owning {@link RnnSequence#forwardScan} also initializes an unbound automatic cell
- * from a complete scan descriptor, without a dummy step or reading length values. Unlike static
- * unrolling, even empty time/batch extents require parameter inputs and bind the complete group.
+ * <p>The owning {@link RnnSequence#forwardScan} and {@link RnnSequence#forwardGeneralScan} also
+ * initialize an unbound automatic cell from a complete scan descriptor, without a dummy step or
+ * reading length values. Unlike static unrolling, even empty time/batch extents require parameter
+ * inputs and bind the complete group.
  * It reuses the same monitor and publication gate as ordinary forward; strict-loaded or bound
  * cells never reinitialize. Scan construction requires exact homogeneous configured floating
  * types rather than ordinary forward's numeric promotion. It preserves provenance and gradient
@@ -357,28 +358,46 @@ public final class RnnCell extends Module {
         Tensor currentHiddenWeight = hiddenWeight().value();
         Optional<Tensor> currentBias = bias().map(Parameter::value);
 
-        DataType inputProductType = validateProjection(
-                suppliedInput, currentInputWeight, "input");
-        DataType inputProjectionType = currentBias
+        return composeStep(suppliedInput, suppliedHidden,
+                currentInputWeight, currentHiddenWeight, currentBias);
+    }
+
+    /**
+     * Composes the stateless cell equation for actual Tensors or scoped scan formals.
+     * Both projections and their ADD broadcast are validated before any expression is created;
+     * bias remains on the input projection, before the hidden projection is added.
+     *
+     * @param input non-null floating input with compatible final feature dimension
+     * @param hidden non-null floating hidden state with compatible final hidden dimension
+     * @param inputWeight exact input projection binding
+     * @param hiddenWeight exact hidden projection binding
+     * @param bias non-null optional shared bias binding
+     * @return the ordinary next-hidden TANH expression, also usable as an emission
+     * @throws IllegalArgumentException if either projection or their broadcast is incompatible
+     */
+    static Tensor composeStep(
+            Tensor input, Tensor hidden, Tensor inputWeight, Tensor hiddenWeight,
+            Optional<Tensor> bias) {
+        DataType inputProductType = validateProjection(input, inputWeight, "input");
+        DataType inputProjectionType = bias
                 .map(value -> DataTypePromotion.promoteNumeric(
                         inputProductType, value.descriptor().dataType()))
                 .orElse(inputProductType);
-        DataType hiddenProjectionType = validateProjection(
-                suppliedHidden, currentHiddenWeight, "hidden");
-        Shape inputProjectionShape = projectionShape(suppliedInput, currentInputWeight);
-        Shape hiddenProjectionShape = projectionShape(suppliedHidden, currentHiddenWeight);
+        DataType hiddenProjectionType = validateProjection(hidden, hiddenWeight, "hidden");
+        Shape inputProjectionShape = projectionShape(input, inputWeight);
+        Shape hiddenProjectionShape = projectionShape(hidden, hiddenWeight);
         DataTypePromotion.promoteNumeric(inputProjectionType, hiddenProjectionType);
         ShapeBroadcast.broadcast(inputProjectionShape, hiddenProjectionShape);
 
-        Tensor projectedInput = currentBias.isPresent()
-                ? suppliedInput.linear(currentInputWeight, currentBias.orElseThrow())
-                : suppliedInput.linear(currentInputWeight);
-        Tensor projectedHidden = suppliedHidden.linear(currentHiddenWeight);
+        Tensor projectedInput = bias.isPresent()
+                ? input.linear(inputWeight, bias.orElseThrow())
+                : input.linear(inputWeight);
+        Tensor projectedHidden = hidden.linear(hiddenWeight);
         return projectedInput.add(projectedHidden).tanh();
     }
 
     /**
-     * Validates a complete fixed-scan descriptor and binds an automatic parameter group if needed.
+     * Validates a complete scan descriptor and binds an automatic parameter group if needed.
      *
      * <p>No Tensor or expression is created during validation. A valid descriptor binds even
      * for empty time/batch extents; runtime length values are never read. Initialization uses
@@ -404,12 +423,12 @@ public final class RnnCell extends Module {
         Objects.requireNonNull(validLengths, "validLengths");
         Objects.requireNonNull(initialHidden, "initialHidden");
         Objects.requireNonNull(direction, "direction");
-        AutomaticInput prospective = validateScanInput(input, validLengths, initialHidden);
+        AutomaticInput prospective = new AutomaticInput(validateScanInput(input, validLengths, initialHidden));
         if (automaticConfiguration != null && !parameterReservationsBound()) {
             validateJavaArrayLimit(prospective.inputWeightShape);
             synchronized (this) {
                 if (!parameterReservationsBound()) {
-                    prospective = validateScanInput(input, validLengths, initialHidden);
+                    prospective = new AutomaticInput(validateScanInput(input, validLengths, initialHidden));
                     validateJavaArrayLimit(prospective.inputWeightShape);
                     initializeAutomatically(prospective);
                 }
@@ -417,7 +436,18 @@ public final class RnnCell extends Module {
         }
     }
 
-    private AutomaticInput validateScanInput(
+    /**
+     * Validates scan actual metadata without allocating Tensor identities or binding parameters.
+     * The general composition uses this same descriptor admission before checking its own
+     * canonical formal/result geometry; initialization remains owned by the existing gate.
+     *
+     * @param input non-null static time-major actual with the configured type
+     * @param validLengths non-null non-gradient INT64 vector matching the batch
+     * @param initialHidden non-null configured-type state matching batch and hidden width
+     * @return prospective input-weight shape, without creating or replacing a binding
+     * @throws IllegalArgumentException if any actual descriptor violates the scan contract
+     */
+    Shape validateScanInput(
             Tensor input, Tensor validLengths, Tensor initialHidden) {
         Shape inputShape = input.descriptor().shape();
         if (input.descriptor().dataType() != parameterType
@@ -436,7 +466,7 @@ public final class RnnCell extends Module {
         }
         Shape stateShape = Shape.of(batch, hiddenSize);
         requireScanTensor(initialHidden, parameterType, stateShape, "initialHidden");
-        return new AutomaticInput(Shape.of(hiddenSize, inputSize));
+        return Shape.of(hiddenSize, inputSize);
     }
 
     private static void requireScanTensor(

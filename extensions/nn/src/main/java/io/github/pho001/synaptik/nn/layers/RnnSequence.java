@@ -10,6 +10,9 @@ import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.RecurrentScan;
 import io.github.pho001.synaptik.model.tensor.RecurrentScanResult;
+import io.github.pho001.synaptik.model.tensor.Scan;
+import io.github.pho001.synaptik.model.tensor.ScanBody;
+import io.github.pho001.synaptik.model.tensor.ScanResult;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
@@ -21,9 +24,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
- * Composes time-major vanilla-RNN sequences by static unrolling or a fixed runtime-length scan.
+ * Composes time-major vanilla-RNN sequences by static unrolling, fixed scan or general Scan.
  *
  * <p>The container permanently owns one {@link RnnCell}. For input Shape
  * {@code [time, batch, inputSize]}, initial-hidden Shape {@code [batch, hiddenSize]}, and one
@@ -41,8 +45,9 @@ import java.util.Optional;
  * <p>Lengths are validated from the caller array and, when at least one step is represented,
  * cloned immediately before traversal; no array is retained. They are Java construction metadata,
  * not Tensor values. Callers must coordinate writes throughout validation and any snapshot.
- * Runtime-dependent lengths use {@link #forwardScan}, not static unrolling or dense masking.
- * Both paths are mode-insensitive and retain no
+ * Runtime-dependent lengths use {@link #forwardScan} for fixed inference or
+ * {@link #forwardGeneralScan} for ordinary differentiable Scan composition. All paths are
+ * mode-insensitive and retain no
  * input, state, index, length, or result. Parameter replacement and multi-step construction are
  * not one atomic snapshot; callers must coordinate them when a consistent binding set is
  * required.</p>
@@ -234,6 +239,138 @@ public final class RnnSequence extends Module {
                         inputWeight, hiddenWeight, bias.orElseThrow(), direction)
                 : RecurrentScan.rnn(input, validLengths, initialHidden,
                         inputWeight, hiddenWeight, direction);
+    }
+
+    /**
+     * Composes a homogeneous FLOAT32/FLOAT64 runtime-length RNN through ordinary general Scan.
+     *
+     * <p>Descriptor and exact canonical formal/output/latent-history geometry validation precede
+     * the existing cell-local initialization gate and body construction, including for zero time
+     * or batch. Eager, supplied and strict-loaded cells
+     * are reused without initialization. Current weights are snapshotted once in declaration
+     * order; replacement affects later occurrences only and requires caller coordination.
+     * The body shares ordinary forward's exact projection, bias, ADD and TANH equation.
+     * Storage-free canonical formals preserve actual dtype and gradient flags. No actual
+     * storage or length value is inspected, and produced actuals retain their provenance.</p>
+     *
+     * <p>The single next hidden state serves as both carry and emission. Traversal visits each
+     * row's valid prefix in the requested direction, retaining original-time emission order.
+     * Inactive transitions are skipped: emissions are positive zero and final state for an empty
+     * row preserves initial represented bits. Length values are validated at execution. Padding
+     * does not mask a downstream objective. First-order differentiation, execution and persistence
+     * use their existing owners and independently qualified domains; this method creates no Engine.
+     * General CPU reads require canonical dense zero-offset geometry (dense views and proved
+     * scalar broadcasts have their existing exceptions), not fixed scan's broader read layouts.
+     * No conversion, copy or backend fallback is inserted.</p>
+     *
+     * @param input non-null configured FLOAT32/FLOAT64 static {@code [T,B,F]}, with T/B
+     *     nonnegative and F positive; borrowed without mutation or detachment
+     * @param validLengths non-null non-gradient INT64 {@code [B]}, with runtime values in
+     *     {@code [0,T]}; values are not read during composition
+     * @param initialHidden non-null exact configured-type {@code [B,H]} initial state
+     * @param direction non-null forward or reverse valid-prefix traversal
+     * @return semantic dense outputs at general producer emission port 1 and final hidden at
+     *     carry port 0, with canonical layouts, intentionally unlike fixed unresolved layouts
+     * @throws NullPointerException if an argument is null, checked in signature order
+     * @throws IllegalArgumentException if dtype, geometry, length flag or parameter binding is invalid
+     * @throws ArithmeticException if checked initialization or descriptor arithmetic overflows
+     * @throws IllegalStateException if Tensor identifiers are exhausted
+     * @throws RuntimeException if automatic initialization sampling fails before publication
+     * @throws OutOfMemoryError if parameter or expression allocation fails
+     */
+    public RecurrentScanResult forwardGeneralScan(
+            Tensor input, Tensor validLengths, Tensor initialHidden,
+            RecurrentDirection direction) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(validLengths, "validLengths");
+        Objects.requireNonNull(initialHidden, "initialHidden");
+        Objects.requireNonNull(direction, "direction");
+        DataType type = cell.configuredDataType();
+        if (type != DataType.FLOAT32 && type != DataType.FLOAT64) {
+            throw new IllegalArgumentException("general RNN scan requires configured FLOAT32 or FLOAT64");
+        }
+        validateGeneralScanGeometry(input, validLengths, initialHidden);
+        cell.initializeForScanIfNeeded(input, validLengths, initialHidden, direction);
+        Tensor inputWeight = cell.inputWeight().value();
+        Tensor hiddenWeight = cell.hiddenWeight().value();
+        Optional<Tensor> bias = cell.bias().map(Parameter::value);
+        long batch = extent(input.descriptor().shape(), 1);
+        long features = extent(input.descriptor().shape(), 2);
+        if (!inputWeight.descriptor().shape().equals(
+                Shape.of(cell.configuredHiddenSize(), features))) {
+            throw new IllegalArgumentException("scan input feature size must match inputWeight");
+        }
+
+        Tensor carry = scanFormal(initialHidden.descriptor(), initialHidden.descriptor().shape());
+        Tensor step = scanFormal(input.descriptor(), Shape.of(batch, features));
+        Tensor w = scanFormal(inputWeight.descriptor(), inputWeight.descriptor().shape());
+        Tensor u = scanFormal(hiddenWeight.descriptor(), hiddenWeight.descriptor().shape());
+        Optional<Tensor> b = bias.map(value -> scanFormal(value.descriptor(), value.descriptor().shape()));
+        List<Tensor> actualWeights = bias.isPresent()
+                ? List.of(inputWeight, hiddenWeight, bias.orElseThrow())
+                : List.of(inputWeight, hiddenWeight);
+        List<Tensor> formalWeights = b.isPresent()
+                ? List.of(w, u, b.orElseThrow()) : List.of(w, u);
+        Tensor next = RnnCell.composeStep(step, carry, w, u, b);
+        ScanBody body = new ScanBody(
+                List.of(carry), List.of(step), formalWeights, List.of(next), List.of(next));
+        ScanResult result = Scan.apply(List.of(initialHidden), List.of(input), actualWeights,
+                validLengths, 1, List.of(OptionalInt.of(0)), body,
+                direction == RecurrentDirection.REVERSE);
+        return new RecurrentScanResult(result.outputs().getFirst(), result.finalCarry().getFirst());
+    }
+
+    /**
+     * Checks the exact general composition's formal and canonical port geometry before
+     * initialization or body identities. Both linear projections retain their produced
+     * weight transposes: their latent histories are [T,F,H] and [T,H,H], not row histories.
+     * Every other retained value (including previous carry) and the emission is [T,B,H].
+     * Step/invariant leaves are not latent histories. Counts and canonical stride arithmetic
+     * remain delegated to Model, including when a zero extent makes a logical count empty.
+     *
+     * @param input non-null prospective time-major actual; its layout is never changed
+     * @param validLengths non-null lengths actual, validated without reading values
+     * @param initialHidden non-null prospective carry actual
+     * @throws IllegalArgumentException if shared descriptor validation fails
+     * @throws ArithmeticException if actual, formal or canonical port geometry overflows
+     */
+    private void validateGeneralScanGeometry(Tensor input, Tensor validLengths, Tensor initialHidden) {
+        Shape inputWeightShape = cell.validateScanInput(input, validLengths, initialHidden);
+        Shape inputShape = input.descriptor().shape();
+        long time = extent(inputShape, 0);
+        long batch = extent(inputShape, 1);
+        long features = extent(inputShape, 2);
+        long hidden = cell.configuredHiddenSize();
+        inputShape.knownElementCount();
+        validateCanonicalGeometry(Shape.of(batch, features));
+        validateCanonicalGeometry(initialHidden.descriptor().shape());
+        validateCanonicalGeometry(inputWeightShape);
+        validateCanonicalGeometry(Shape.of(hidden, hidden));
+        if (cell.configuredBias()) validateCanonicalGeometry(Shape.of(hidden));
+        validateCanonicalGeometry(Shape.of(time, batch, hidden));
+        validateCanonicalGeometry(Shape.of(time, features, hidden));
+        validateCanonicalGeometry(Shape.of(time, hidden, hidden));
+    }
+
+    /**
+     * Uses Model's checked count and canonical layout rules without allocating a Tensor.
+     * @param shape exact static formal or port shape
+     * @throws ArithmeticException if its element count or required canonical geometry overflows
+     */
+    private static void validateCanonicalGeometry(Shape shape) {
+        shape.knownElementCount();
+        LayoutDescriptor.contiguous(shape);
+    }
+
+    /**
+     * Creates a canonical storage-free formal without changing actual metadata.
+     * @param actual descriptor supplying exact dtype and gradient eligibility
+     * @param shape static formal shape, with time removed for the sequence step
+     * @return fresh provenance-free formal with canonical geometry
+     */
+    private static Tensor scanFormal(TensorDescriptor actual, Shape shape) {
+        return TensorFactory.create(new TensorDescriptor(actual.dataType(), shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), actual.requiresGrad()));
     }
 
     private SequenceSchema validateInputForDefaults(Tensor input) {

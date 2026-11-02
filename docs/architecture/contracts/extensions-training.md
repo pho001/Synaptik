@@ -218,6 +218,37 @@ persistence signatures below remain supported. Model must not depend on NN.
 
 ### Owned tensor Models
 
+The accepted symbolic-batch contract is future capability, not current owned-Model admission.
+Dynamic external signatures require separate qualification over public Engine with one owned
+parameter state and, for training, one optimizer state. Preserve exclusion, Arena lifetime,
+source guards, cached owners and transactions; do not rebuild a graph or mutate prototypes per B.
+Symbolic `Model.graph`/`defineTensor` acquisition additionally needs Compiler cold reconstruction
+and Checkpoint copy support; symbolic save/load needs separate wire qualification. Builder
+acquisition qualifies independently rather than inheriting cold or execution support. These
+NN/cold/wire/builder gates do not block ordinary low-level Engine+CPU forward/actual-backward
+qualification. All current static saved Models/readers and fixed/general-scan policies remain.
+
+All-valid [general-scan](recurrent-scan.md#general-differentiable-scan) owned Models use existing
+`Model.graph`/`defineTensor`, `compute` and `configureTraining`/`train`, one private state set and
+existing Engine/TrainingSession owners. The implemented compute/first-order training workflow
+qualifies canonical static homogeneous FLOAT32/FLOAT64 occurrences; source validity and bounded
+cold reconstruction preserve applicable Model dtypes independently of CPU capability. All-valid
+means every static time step participates, not support for arbitrary PURE bodies. No public API,
+type, dependency or execution/AD layer is added. Graph and definition acquisition delegate the
+exact cold body inventory to Checkpoint and Compiler, not CPU dtype, operation or layout predicates.
+Public graph acquisition retains Source list/null snapshots. A definition's one prototype forward
+still precedes acquisition; callback effects are not rolled back. Fixed-only scan detection and
+its training policy below are unchanged, including mixed fixed/general sources. Padding/row
+skipping remains excluded from the qualified execution workflow. Compiler0018 consumer
+qualification covers inherited static homogeneous length-mode graph/definition acquisition and
+explicit cold forward through Checkpoint. V5 persistence and loaded generic Model numerical
+proof are separately accepted under Checkpoint0014; NN0033 implements and qualifies the public
+runtime-length RNN composition/lifecycle journey. Existing Model.graph/list compute/configureTraining/
+train/save/loadGraph owners remain the only workflow; cold admission itself adds no builder API,
+fluent migration, second-order waiver or implicit head/loss mask.
+Body persistence uses implemented [v4](#canonical-graph-model-version-4) for all-valid bodies and
+[v5](#canonical-graph-model-version-5) for the static homogeneous length intersection.
+
 Model remains abstract and generic and implements AutoCloseable. Generic/custom/declarative
 forward behavior is unchanged; unsupported tensor operations throw UnsupportedOperationException
 before Engine or file work, and default close is a no-op. defineTensor returns `Model<Tensor,Tensor>`;
@@ -272,13 +303,39 @@ ModelBuilder finalHidden();
 Model<List<Tensor>, List<Tensor>> buildWithLengths();
 ```
 
-Each scan recipe delegates to the existing matching Sequence.forwardScan, with FORWARD direction,
-bias enabled, positive hidden width and existing initialization/seed rules. The first scan requires
+Retained fixed recipes delegate to the matching Sequence.forwardScan; NN0033's bounded F32/F64
+RNN exception below instead composes general Scan. All use FORWARD direction, bias enabled,
+positive hidden width and existing initialization/seed rules. The first scan requires
 positive static TBF `[T,B,F]` and establishes one storage-free canonical non-gradient INT64 `[B]`
 length prototype. All scans share that input; later scans require exact T/B alignment and infer
 only F. Each owns independent parameters and zero initial h (and c for LSTM), never hidden carry.
 Runtime lengths include zero. Advanced graph/list boundaries retain explicit initial/final states,
 both directions, bias forms and the scan contract's zero T/B extents.
+
+The production program authorizes this additive `RnnSequence` composition:
+```java
+public RecurrentScanResult forwardGeneralScan(
+        Tensor input, Tensor validLengths, Tensor initialHidden, RecurrentDirection direction);
+```
+It accepts configured homogeneous FLOAT32/FLOAT64, static input [T,B,F], initial hidden [B,H],
+non-gradient INT64[B] lengths, T/B >= 0, F/H > 0, bias on/off and both directions. Unsupported
+dtype/geometry rejects before initialization or body construction. Reuse the existing descriptor-only
+atomic cell initialization and the same cell equation as ordinary forward, preserving its
+prevalidation and bias/ADD order. Read no actual storage/length values and retain no runtime state.
+Snapshot current weights once; bind them as ordered outer invariants to canonical storage-free
+carry, step and parameter formals. One ordinary next state is both next carry and emission;
+Scan.apply uses rowCarryCount=1 and sequenceRowAxes=[ROW(0)] with the selected traversal.
+
+RecurrentScanResult names semantic components, not universal producer indices: fixed RNN/GRU
+keeps outputs/finalHidden slots 0/1; this single-carry general RNN uses emission/carry slots 1/0.
+The F32/F64 `rnnScan` recipe selects this general composition and its canonical result layouts;
+retained low RNN, GRU/LSTM and direct fixed forwardScan remain fixed. Final-hidden selection
+must follow the actual producer's declared roles. Do not insert copies or erase view metadata to
+imitate old fixed result layouts. General backend/layout qualification remains independent.
+NN0033 is implemented and MAIN accepted after independent reviews, affected gates and public
+F32/F64 repeated train/save/close/load/fresh-training proof. Exact canonical formal/emission/latent
+geometry preflight precedes initialization and IDs. Mixed sources containing any fixed scan retain
+pre-setup training rejection. Ordinary `.rnn` is not migrated and NN0032 compatibility is not waived.
 
 `buildWithLengths()` requires at least one scan and declares `[values, validLengths]` in that order,
 with one chain output. Existing `build()` retains `Model<Tensor,Tensor>` and rejects scan recipes;
@@ -322,14 +379,17 @@ Module traversal order. Dotted namespaces contain no forward recipe. Constants a
 GraphCheckpoint.copy acquires each external identity once and reconstructs against private leaves;
 strict state installation preserves wrappers, paths and aliases without mutating caller Tensors or stores.
 Load adopts final heap state without another copy. Callback side effects are not rolled back.
-Definition/graph/load source admission is the same closed static FORWARD
-[Compiler slice](compiler-autograd.md#compile-lifecycle), including the selected fixed flat scans.
+Implemented definition/graph acquisition uses the closed static FORWARD
+[Compiler slice](compiler-autograd.md#compile-lifecycle), including selected fixed flat scans and
+the bounded general-body exception. Its implemented persistence counterpart is
+[graph-model v4](#canonical-graph-model-version-4), through the same save/load APIs, with no NN wire.
+V1/v2/v3 file admission stays body-free.
 The list boundary may declare sequence, non-gradient INT64 runtime lengths and initial states as
 unique provenance-free inputs, disjoint from named state. Their prototype storage is never copied
 or saved; copy/load recreate storage-free prototypes and cold forward accepts fresh exact full
 descriptors. Explicit scan recipes and graph/load scan sources may compute through existing cached
 public Engine execution; static recipes and sequence containers are not redirected. Scan-containing
-Models remain inference-only. Raw persistence supports seven dtypes,
+Models with fixed recurrent scans remain inference-only. Raw persistence supports seven dtypes,
 independently of execution. Old model.v1/whole-model.v1 readers and flexible forward remain separate.
 
 `HostTensorValue Model.compute(Tensor firstInput, Tensor secondInput)` is a generic convenience for
@@ -356,9 +416,9 @@ copy, compile or prepare, even on failure; same-Engine rebinding then rejects. W
 setup lazily creates a model-owned CPU-only Engine.standard, with no discovery/global Engine.
 Construction/load/save/cold forward never create an Engine.
 
-Scan presence is cached from ordinary source provenance at acquisition for builder, definition,
+Fixed recurrent scan presence is cached from ordinary source provenance at acquisition for builder, definition,
 graph and load, including scans behind ordinary heads or rooted only at a final-state port.
-Both configureTraining and both train overload families reject scan-containing sources with
+Both configureTraining and both train overload families reject fixed-scan-containing sources with
 UnsupportedOperationException after existing lifecycle/live-source admission and before binding
 freeze, objective callbacks, Engine creation, inference-owner closure or native parameter copy.
 This rejection preserves state bytes, stores, caches and any preexisting freeze status, including
@@ -772,6 +832,15 @@ adapter build gate; 0006 remains Draft.
 
 ## `modules/training`
 
+Accepted future dynamic external admission composes the same public Engine and one existing
+parameter/optimizer state; it adds no dependency or execution owner. It must qualify independently
+after ordinary CPU forward and actual first-order backward. Parameters/private seeds remain
+fixed-shaped. Accumulation is a SUM of supplied gradients, not implicit sample weighting across
+different B. Existing nonempty overlap rejection, parameter/optimizer transactions and finite
+objective/gradient guards stay: empty-MEAN training rejects transactionally, while a qualified
+empty SUM may supply zero gradients. No automatic step skip, masking, sample weighting or
+dynamic support claim follows from this authority cutover; current matching remains static.
+
 `modules/training` (unchanged Gradle project `:extensions:training` and Java packages) owns generic
 live parameter admission, optimizer algorithms and training orchestration independently of NN.
 
@@ -835,6 +904,33 @@ dependency is permitted, including tests. NN alone consumes both generic Checkpo
 for owned Model composition and the relocated old persistence APIs; other inward modules do not depend on Checkpoint.
 
 ### Generic graph source and values
+
+Ordinary symbolic-B Engine execution grants no cold acquisition or graph wire support.
+Current static source/copy/rebind/save/load admission below remains unchanged; symbolic
+Compiler cold reconstruction/Checkpoint copy and symbolic wire qualification are separate gates.
+Old static saved Models/readers remain supported. None is a prerequisite for the ordinary
+low-level Engine+CPU dynamic vertical; no new Checkpoint dependency or reconstruction owner is added.
+
+General-scan **in-memory** copy/rebind is implemented for the exact
+[bounded Compiler cold inventory](compiler-autograd.md#bounded-general-scan-cold-reconstruction),
+not every Model-valid PURE body. Normalization retains each immutable CompiledScanBody attachment
+unchanged while remapping only outer node/value IDs. Body IDs and ordered role bindings remain
+local to that attachment, even when their numbers coincide with outer IDs. Compiler alone
+preflights and reconstructs fresh formals and one body per occurrence, including unused formals,
+all canonical ports and latent residuals; no reconstruction table or body copier belongs in
+Checkpoint. Applicable Model dtypes remain independent of backend capability.
+Compiler0018 implements and qualifies the same in-memory path for the static homogeneous
+FLOAT32/FLOAT64 length-mode cold intersection. Checkpoint retains ordinary copy/rebind semantics;
+no extra Compiler flag or provider qualification gate is introduced. Existing NN graph/definition
+acquisition and explicit cold forward inherit this accepted admission. Cold qualification alone
+is not evidence of complete numerical execution or training.
+
+Implemented [graph-model v4](#canonical-graph-model-version-4) persists the all-valid portion of
+that bounded cold inventory. [V5](#canonical-graph-model-version-5) adds the static homogeneous
+length intersection under Checkpoint0014; neither extension changes v1/v2/v3's body-free bytes.
+Unsupported bodies reject before host admission/copy or file effects.
+Model constructors still reject malformed/missing attachments. NN's [owned workflow](#owned-tensor-models) consumes the same cold boundary for
+acquisition and persistence without adding an execution or reconstruction owner.
 
 GraphCheckpoint is a final cold facade with only nested Source(inputs, outputs, leaves),
 Leaf(name, role, tensor), Role { PARAMETER, BUFFER, CONSTANT }, and copy(Source),
@@ -951,6 +1047,11 @@ version 3. No intermediate one-output v3 or separate scan format is defined. It 
 fields, descriptor/role/dtype IDs, raw payloads and envelope framing. The node section alone
 changes as specified below; all integers remain big-endian with no padding or trailing fields.
 
+In version 3, scan wire records mean only the existing fixed RNN/GRU/LSTM family. General scan
+source/compiled body attachments and residual protocols are not encodable by v1/v2/v3. Low-level
+AD or in-memory cold-copy acceptance grants no new opcode, field, version or Model.save/load
+capability. The wire inventory stays closed independently of Compiler source admission.
+
 | Node record order | Exact fields |
 |---|---|
 | Prefix | u8 phase=1, u8 opcode. Explicit opcodes 1..8 retain their version-1/2 meanings. |
@@ -1003,7 +1104,7 @@ distinct occurrences and normalized recapture equality before returning a loaded
 example, a graph rooted only at LSTM finalCell retains one producer and all three output
 descriptors; it neither creates three scans nor treats the other two ports as dead nodes.
 
-Select the smallest sufficient version: zero-node and original five-kind sources retain
+For body-free sources, select the smallest sufficient version: zero-node and original five-kind sources retain
 byte-identical v1; sources using only the original eight kinds and at least one activation retain
 byte-identical v2; any opcode 9..22 selects v3. Load accepts only exact kind/magic/version tuples:
 v1 admits 1..5, v2 1..8, v3 1..22 with their own exact records. A v3 containing only older kinds
@@ -1026,6 +1127,138 @@ source, mutates no source binding and retains the existing ArtifactFile target/c
 This is cold semantic graph persistence, not serialized CompileArtifacts, prepared execution,
 native/backend/runtime state or saved input batches. It grants no scan execution, BPTT, Conv3d
 gradients, optimizer resume or automatic exact training continuation.
+
+### Canonical graph-model version 4
+
+This successor persists ordinary general `Scan` source and named raw values, not a
+compiled executable or runtime history. The codec is implemented with focused wire, cold-source
+and consumer evidence; main accepted final module/Javadoc, integration, architecture and configured
+root gates in [CP0013](../../planning/extensions/checkpoint/tasks/0013-general-scan-graph-persistence-decision.md#result).
+It adds no public API, production type, dependency, ArtifactLimits default or execution grant.
+NN's existing `Model.save`/`load`/`loadGraph` delegate to this same cold graph boundary. Save before
+compute or after training uses current owned values; load creates no Engine and adopts final heap
+state without another ownership copy. Objectives/optimizer state must be configured anew, not restored.
+
+Outer admission is exactly version 3 plus all-valid general SCAN. Contained body admission is exactly the
+[existing bounded Compiler cold inventory](compiler-autograd.md#bounded-general-scan-cold-reconstruction):
+flat constructors minus scans, with its body-only arithmetic, SUM, layout and same-dtype CAST
+overrides/additions and unchanged narrow indexing/CNN/MATMUL guards. This is neither an RNN-only
+subset nor arbitrary PURE serialization. Applicable low/integral/BOOL Model signatures remain
+eligible independently of CPU FLOAT32/FLOAT64 execution; cross-dtype CAST remains unsupported.
+Compiler retains all family inference and constructor ownership; Scan semantics remain with
+[their sole owner](recurrent-scan.md#general-differentiable-scan).
+
+ArtifactFile v1 kind is `graph-model.v4`, with eight ASCII bytes `SYNGRF04` and i32 version 4.
+Retain version-3 section order, descriptors, registrations, raw state payloads and opcodes 1..22.
+Only general SCAN selects v4; otherwise save selects the smallest sufficient byte-identical old
+version. Accept exact kind/magic/version tuples only: v1/v2/v3 keep their own exact records and
+closed opcode sets. Old readers reject v4. A valid body-free v4 re-saves as v1/v2/v3 as appropriate.
+No old field mutation, public selector, enum-ordinal encoding, class name or registry is permitted.
+
+The following records extend the v3 node format; body-local IDs never resolve in an outer scope.
+
+| Record | Fields in wire order and interpretation |
+|---|---|
+| General SCAN | u8 phase=1, u8 opcode=23, i32 actual count and ordered outer input IDs; ScanAttrs fields i64 T, i32 carry/sequence/invariant/emission/residual counts, u8 reverse; inline body; positive i32 Q and all canonical outer output descriptors. Only opcode 23 has a body. |
+| Inline body | i32 formal count and ordered descriptors (carry, step, invariant); i32 node count and ordinary v3-style node records; count-prefixed unique graph roots and ordered nextCarry/emissions/residual local-ID lists; i32 demand count=0. No state, nested body or cross-scope reference. |
+| Implicit IDs | For J body formals, input IDs 0..J−1, NodeIds 0..N−1, output IDs J+sum(previous Q)+port. Outer IDs retain the I+S boundary. Actual-input order is not local numeric identity. Retain unused formals and every canonical sibling descriptor. |
+| Body-only opcodes | Append 24=tensor DIV; 25/26/27/28=scalar ADD/SUB/MUL/DIV; 29=SUM; 30=EXPAND; 31=CONTIGUOUS; 32=same-dtype CAST. Arity 2 for 24, otherwise 1; all Q=1. Forbid 24..32 outside bodies and 20..23 inside bodies. |
+| Added attributes | DIV/CONTIGUOUS: none. Scalar: u8 dtype and raw width bits. SUM: u8 tag 0=none, 1=i32 axis+u8 keep, 2=i32 count+ordered i32 axes+u8 keep, 3=target shape. EXPAND: target shape. CAST: u8 dtype. Shape: i32 rank and i64 extents. |
+
+All integers/raw bits remain big-endian, dtype IDs remain 1..7 and flags exactly 0/1. Existing
+attribute fields apply to body opcodes 1..19; body 9/10/11/12 retain their fields with Compiler's
+cold-body semantic overrides. Other mappings retain old guards. Unknown opcodes/tags/flags/attrs,
+derivative-only attributes, nonempty demand, padding and trailing bytes reject.
+
+Apply the existing producer-aware canonical topology independently in each scope, retaining unused
+formals/sibling ports but rejecting dead producers; neither flatten scopes nor merge occurrences.
+
+Ordered role lists may repeat IDs. Unique graph roots must be exactly the first-occurrence union
+of nextCarry, emissions and residuals, in that order. Preserve sharing, tied actual positions,
+distinct occurrences and distinct canonical outer wrappers even for tied body roles. Residual
+bindings/descriptors are required source metadata, not saved history payloads. Validate their
+derived order with existing Compiler rules; never trim latent ports or persist post-compile demand.
+Retain accepted cold residual edges/roots without widening public derivative/residual-root AD.
+
+There is one inline body per SCAN, at most one per outer node, depth one. Before count-proportional
+allocation, bound every count/rank/arity/root/role/residual array by remaining schema bytes and
+checked JVM arithmetic, not a backend rank-16 ceiling. For header counts c/s/i/e/r, check formal
+count=c+s+i, Q=c+e+r, nextCarry=c, emissions=e and residuals=r (canonical unique inventory).
+Unique roots cannot exceed local values or c+e+r. Each scope's boundary+sum(Q) and contained
+aggregate formal/node/value/role-reference counts must fit signed i32 budgets. Validate static
+geometry and every output descriptor, including unused siblings and zero-time bodies.
+
+Dry Sink must count every body field before schema allocation, host admission or copying.
+Schema D includes all inline bodies and remains within maxPayloadBytes and the existing JVM ceiling.
+For unique state bytes B and count S retain M=72+58*S, aggregate=D+B, file=48+M+D+B, entries=1+S
+and kind/key ceiling≥14; all six ArtifactLimits and individual payload bounds apply. These bound
+encoded size, not peak heap. No time-unrolling allowance or new limits/defaults are introduced.
+
+Decode complete wire, keys, aliases, BOOL, descriptors and topology before host import. Reject dead
+producers, duplicate definitions/roots, forward/dangling/cyclic/cross-scope references, nested scans,
+free leaves, missing/extra attachments and malformed roles/residuals. Descriptor-only candidate
+leaves feed existing Compiler SourceCapture preflight for the complete outer graph/every body
+before import and before any body formal or producer identifier allocation, even after valid outer
+work or at T=0. Checkpoint must not gain a Tensor reconstruction table or Tensor-constructor/reconstruction
+dispatcher. Wire opcode-to-Operation metadata parsing remains codec-owned.
+
+Invoke existing Compiler reconstruction once for the outer source. It constructs every scoped body
+and node once with fresh canonical formals and Scan.apply per occurrence, including T=0; no unrolling.
+Normalized full recapture equality must precede publication. Copy/rebind retain their current
+behavior. Source/semantic/bounds failures mutate no source/state/target and return no partial result;
+retain existing exception translation, ArtifactFile uncertain-move/failure/cleanup and atomic-live
+publication semantics, not a new durability guarantee.
+
+Acceptance must include valid last records and late-invalid bodies, zero time/empty dimensions,
+multiple occurrences/template reuse, unused formals, repeated roles/actuals, all ports/aliases/raw
+bits and applicable cold dtypes. Exact/one-below bounds and malformed fixtures with storage/ID probes
+must establish rejection before copy/import and formal/producer construction. Consumer proof saves
+before compute/after training, closes the source, cold-loads/composes, computes/trains fresh batches
+and re-saves FLOAT32/FLOAT64 against independent unrolled oracles. Preserve static-RNN/old-format
+tests. Other dtype cold roundtrips do not qualify execution or exact Training continuation.
+
+### Canonical graph-model version 5
+
+Implemented under Checkpoint0014 after Compiler0018 acceptance. Only length-aware sources
+select ArtifactFile v1 kind `graph-model.v5`, eight ASCII magic bytes `SYNGRF05`, i32 version 5.
+New **outer opcode 33** extends the previous closed inventory ending at 32 for the changed
+length-mode header/actual roles. Never extend opcode 23's seven-field layout in place. Preserve
+v4 inline-body inventory and independent scopes, no nested scans or new constructor inventory.
+The [scan owner](recurrent-scan.md#header-bindings-and-source-admission) owns header/role meaning;
+Checkpoint owns exact wire encoding, dry sizing, bounds, decoding and publication.
+
+Outer opcode 33 retains phase/opcode and the count-prefixed ordered actual IDs, including the
+final lengths reference exactly once. Write the old seven fields unchanged: i64 timeCount,
+i32 carryCount, sequenceCount, invariantCount, emissionCount, residualCount, then u8 reverse.
+Append i32 rowCarryCount, i32 sequence-axis count equal to sequenceCount, then one u8 presence
+flag per ordered sequence (0=SHARED, 1=ROW), with an i32 step axis only when present. Current
+row geometry admits axes zero and one. Continue with the unchanged v4 inline body, Q and every
+canonical output descriptor. Body formal count is checked c+s+i, never inputCount including lengths.
+Require positive rowCarryCount <= carryCount and checked actual count c+s+i+1. Validate old
+scalar domains and checked actual/formal/output cardinalities, including parsed actual arity,
+before reading/allocating axis roles. Bound axis count by sequenceCount and remaining bytes;
+reject other flags, negative/out-of-domain axes, truncated entries and descriptor/role mismatches.
+
+Length **values** supplied as external inputs are runtime batch payloads, not serialized snapshots.
+Ordinary named state still follows the existing named-value rules. Preserve canonical ports,
+positional aliases, descriptors and raw named values; persist no histories, prepared state or code.
+
+Sources needing no length mode continue selecting byte-identical v1–v4 with exact old tuples,
+opcodes and header interpretation. New readers default old Scan records to all-valid; old readers
+reject v5. Existing ArtifactLimits/defaults and atomic-live-publication/failure behavior remain.
+Extend complete dry-size/count/descriptor/role checks before allocation/import, including
+late/dead/T=0 occurrences; cold reconstruction must first support the same roles without unrolling.
+The exact encoding and implementation have independent APPROVE under
+[Checkpoint0014](../../planning/extensions/checkpoint/tasks/0014-length-aware-general-scan-v5.md#result),
+with source-matched module/Javadoc and public loaded F32/F64 Model proof. V5 may contain both outer
+opcodes 23 and 33; neither is legal in a contained body, whose existing inventory is unchanged.
+Wire version and CPU canonical/specialization versioning are independent obligations.
+
+V5 encoding independently rechecks static homogeneous length-mode cold eligibility through
+Compiler `SourceCapture` before dry sizing, schema allocation, storage admission or payload copy.
+A raw association is not an admission credential; earlier public capture rejection alone is
+insufficient. Never serialize length mode through seven-field opcode 23. Structural Model
+support does not independently deliver cold, wire or owned numerical workflow capability.
 
 ## `extensions/onnx`
 

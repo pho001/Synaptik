@@ -29,8 +29,11 @@ Hold NN0027/CP0005C/Training/adapter expansion; completed closed-NN v1 stays sup
 - Owning [extensions contract](../../../architecture/contracts/extensions-training.md):
   extensions/nn, extensions/training, extensions/checkpoint and Optimizer/training lifecycle.
 - Historical CP0005B execution base/accepted packet remains in its completed brief.
-- Current successor planning base: `8d5357e9a8698721a2252cb2ca3cb94150e705e8`; future cutovers
-  require independent review and coordinator verification, not prior-v1 approval.
+- CP0012 common base: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus
+  274 accepted dirty paths; historical Ready verification, baseline and scoped acceptance are in its brief.
+- [CP0013](tasks/0013-general-scan-graph-persistence-decision.md) base: same HEAD/origin plus
+  292 accepted dirty paths (291-path baseline + ADR0047), empty index (2026-10-23).
+  Historical verified launch base; implementation, final Cicero APPROVE and main gates now accepted.
 - [Whole-model contract](../../../architecture/contracts/extensions-training.md#whole-model-definition-and-composition)
   accepts CP0005B API/wire/defaults/failures/preflight; no dependency changes.
 - Current published values-only `model.v1` and ArtifactFile v1 remain unchanged.
@@ -112,11 +115,26 @@ to modules/checkpoint and nine NN glue classes to extensions/nn under nn.checkpo
 no NN/Training/Engine edge. NN owns old Engine-materializing ModelCheckpoint behavior and readers.
 The new GraphCheckpoint Source/Leaf/Role boundary carries ordinary Tensor sources, not a runner.
 Host-only values allow cold copy/save/load without Engine; owned loaded values are adopted once.
-Current graph codecs cover ADD/MUL/NEG/MATMUL/PERMUTE[1,0]/RELU/TANH/SIGMOID with selective v1/v2,
+The original selective v1/v2 codecs covered ADD/MUL/NEG/MATMUL/PERMUTE[1,0]/RELU/TANH/SIGMOID.
+Accepted v3-v5 successors below add selected flat CNN/recurrent and bounded general-scan sources,
 not an all-family codec campaign.
 Exact APIs, ownership and source guards live in current root/scoped authority; program/ADR explain them.
 
-Authorized Checkpoint frontier: None; 0009 is Complete. CP0005B is Complete after final independent code/docs review,
+Current Checkpoint source frontier: **None**. [CP0013 Result](tasks/0013-general-scan-graph-persistence-decision.md#result)
+is Complete, accepted by main 2026-10-23 after final independent Cicero APPROVE and module/Javadoc,
+named consumer, architecture and one configured root PASS. User-approved selective v4/existing cold
+inventory is delivered; no new API/type/dependency. The brief owns exact evidence, historical launch
+facts and all seven fields. Serial, Parallel group None; main owns integration, no successor launch.
+NN0032 remains Draft at its independent backend/layout gate. CP0012's environment exception stays historical.
+
+[Checkpoint0014](tasks/0014-length-aware-general-scan-v5.md#result) is Complete under continuous
+production delivery after accepted Compiler0018. Independent exact-wire/final code review,
+619 affected tests/Javadocs and public loaded F32/F64 Model numerical proof passed. Selective
+v5/opcode33 preserves old records; direct encoder preflight reuses Compiler before sizing/storage.
+MAIN retains the frozen base/integration evidence; NN0033 owns the next recurrent-composition slice.
+[NN0031 Result](../nn/tasks/0031-general-scan-owned-model-workflow.md#result) records later Complete
+owned acquisition/compute/train qualification and the successful configured native program join;
+body persistence is now separately delivered by CP0013. CP0005B is Complete after final independent code/docs review,
 57 module tests, final Javadoc and coordinator architecture/3-test integration gates. Contract approval and
 2026-10-14 coordinator base/dependency/contract/frontier/conflict verification are recorded in its
 brief. NN0027/CP0005C remain Draft rows only (no speculative briefs).
@@ -137,8 +155,17 @@ with [CP0011 scan supplement](tasks/0011-flat-recurrent-scan-persistence.md), on
 CP0010/CP0011 Complete together on 2026-10-20: bounded CNN/static recurrence and cold scan v3
 persistence accepted after independent APPROVE and main's focused/native root gates;
 [CP0010 Result](tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md#result) owns evidence.
-Authorized Checkpoint/Compiler/NN frontiers: None; no successor authorized. Parallel group None,
-main integration; no scan execution/BPTT capability or independent Compiler/NN task.
+NN0030 approved decision + Compiler0012 + CP0008–0011/low-level join Complete →
+[CP0012 Complete](tasks/0012-general-scan-in-memory-copy-and-rebind.md#result), accepted 2026-10-23:
+in-memory copy/rebind, independent disk rejection and then-temporary compatibility-only NN early guards.
+Clean implementation/independent code/docs review and module/required consumer gates passed;
+main accepted scoped completion with unrelated missing-native-environment root failures, not a green
+unrestricted root at that checkpoint. Its brief preserves that evidence. Later
+[NN0031](../nn/tasks/0031-general-scan-owned-model-workflow.md#result) completed the separate owned
+workflow gate, removed those temporary guards and passed the single configured native join using
+the existing library; no native/gating code or build changed. The explicit library environment is
+still required. At that join all frontiers were None; CP0013 has now separately completed body
+persistence and its final configured root gate. Current frontiers None; no successor.
 
 Completed rows preserve published API history; unfinished rows describe future capability only.
 
@@ -160,9 +187,12 @@ Completed rows preserve published API history; unfinished rows describe future c
 | [0009](tasks/0009-owned-model-activation-source-and-persistence.md) | Owned Model activation source and persistence | Complete | Compiler0008; Checkpoint0008; Training0008; NN0028 Complete | Eight-kind/selective-v2 capability accepted 2026-10-19 after Archimedes final APPROVE and main's integration/native root gates; evidence in brief. |
 | [0010](tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md) | Fluent CNN/static recurrence and joint v3 foundation | Complete | Completed Compiler/Checkpoint/Training/NN predecessors; joint approval accepted | Joint CP0011 acceptance after independent APPROVE and main's focused/native root gates; evidence in brief. |
 | [0011](tasks/0011-flat-recurrent-scan-persistence.md) | Flat scan persistence supplement to CP0010 | Complete | Same packet/predecessors plus completed Model0025E/0025F/Compiler0006A | Cold-only scans accepted jointly with CP0010; shared evidence in CP0010 Result. |
+| [0012](tasks/0012-general-scan-in-memory-copy-and-rebind.md) | General-scan in-memory copy and rebind | Complete | NN0030 approved decision; Compiler0012; CP0008–0011 and accepted low-level join Complete | Scoped acceptance with historical native-environment root exception; later [NN0031](../nn/tasks/0031-general-scan-owned-model-workflow.md#result) qualified owned acquisition/training and passed configured native join. Body wire stays closed. |
+| [0013](tasks/0013-general-scan-graph-persistence-decision.md#result) | Bounded general-scan graph persistence | Complete | Compiler0012; CP0010/0011/0012; NN0031/CPU0030–0036/joins Complete; user proposal/authority accepted | Selective v4, scoped cold bodies and loaded consumer proof; final Cicero APPROVE/main module/Javadoc, consumer, architecture and configured root PASS. No successor. |
+| [0014](tasks/0014-length-aware-general-scan-v5.md#result) | Length-aware general Scan v5 | Complete | Compiler0018 and CP0013 Complete; independently approved exact wire/implementation | Selective opcode33, bounded pre-import validation, 619 affected tests/Javadocs and public loaded F32/F64 Model training proof. |
 
 Exact conflict/base/order/validation metadata live in briefs. Checkpoint0008/0009 are Complete;
-CP0010/CP0011 are jointly Complete; current authorized frontier None.
+CP0010–CP0014 are Complete; current Checkpoint source frontier is None.
 0008 had Parallel group None; completed serial order Engine0021 → Training0007 → Compiler0008
 → Checkpoint0008 → Training0008 → NN0028. Shared root/owning-contract/NN-state/Checkpoint-wire writes
 conflict; main model-execution coordinator owns shared documents with exclusive-writer delegation.
