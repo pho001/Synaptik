@@ -372,10 +372,18 @@ final class MetalDeviceContext implements AutoCloseable {
         }
     }
 
+    /**
+     * Allocates a child token before publishing its lifetime, so allocation failure admits none.
+     *
+     * @return a fresh provisional child lease retaining this open context
+     * @throws IllegalStateException if this context is closed
+     * @throws OutOfMemoryError if the token cannot be allocated; no child lifetime is retained
+     */
     private synchronized ChildLease acquireChildLease() {
         requireOpen();
+        ChildLease lease = new ChildLease(this);
         childLeases++;
-        return new ChildLease(this);
+        return lease;
     }
 
     /** One exactly-once provisional or adopted context child lease. */

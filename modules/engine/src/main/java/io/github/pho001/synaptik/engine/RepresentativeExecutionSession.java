@@ -30,7 +30,8 @@ import java.util.Objects;
  * <p>The session is deliberately package-private and single-threaded. Its Engine admission begins
  * before owner or representative-input inspection and spans all trial executions, reverse-order
  * wrapper cleanup, and the final selected or fallback preparation. Engine closure therefore waits
- * for that entire admitted operation. Caller storage remains caller-owned and must stay live,
+ * for that entire admitted operation. Ownership follows sequential caller handoffs; this does not
+ * permit concurrent session use. Caller storage remains caller-owned and must stay live,
  * accessible, and unmodified until session cleanup completes. A correctness reference is opaque,
  * owned by this session, and usable only while the same session remains open and healthy. Any
  * execution, canonical-copy, or cleanup failure invalidates the session and prevents both
@@ -52,6 +53,7 @@ final class RepresentativeExecutionSession implements AutoCloseable {
     private boolean poisoned;
     private boolean inputsCleanupAttempted;
     private boolean admissionReleased;
+    private Thread admissionThread = Thread.currentThread();
     private Throwable retainedCleanupFailure;
     private Throwable representativeExecutionFailure;
     private RepresentativePlanCorrectness.Reference correctnessReference;
@@ -454,6 +456,7 @@ final class RepresentativeExecutionSession implements AutoCloseable {
      * @throws Error if wrapper cleanup first reported an error
      */
     synchronized void cleanupForProductionPreparation() {
+        retainAdmissionOnCurrentThread();
         if (poisoned) {
             rethrow(retainedCleanupFailure);
             throw new IllegalStateException("representative execution session is poisoned");
@@ -483,6 +486,7 @@ final class RepresentativeExecutionSession implements AutoCloseable {
      * @throws Error if ordinary preparation reports a fatal failure
      */
     synchronized PreparedExecution prepareOrdinaryFallback() {
+        retainAdmissionOnCurrentThread();
         if (admissionReleased || state != State.CLOSED || poisoned
                 || retainedCleanupFailure != null) {
             throw new IllegalStateException(
@@ -516,8 +520,13 @@ final class RepresentativeExecutionSession implements AutoCloseable {
             throw new IllegalStateException(
                     "representative execution session admission is released");
         }
+        retainAdmissionOnCurrentThread();
         admissionReleased = true;
-        return lifecycleOwner.finishRepresentativePreparation(preparedExecution);
+        try {
+            return lifecycleOwner.finishRepresentativePreparation(preparedExecution, admissionThread);
+        } finally {
+            admissionThread = null;
+        }
     }
 
     /**
@@ -531,6 +540,7 @@ final class RepresentativeExecutionSession implements AutoCloseable {
      */
     synchronized PreparedExecution prepareCpuProduction(
             io.github.pho001.synaptik.prepare.PartitionPreparation<?, ?> preparation) {
+        retainAdmissionOnCurrentThread();
         Objects.requireNonNull(preparation, "preparation");
         if (!(composition instanceof CpuEngineBackendComposition cpu)) {
             throw new IllegalStateException("representative session is not CPU-composed");
@@ -553,8 +563,13 @@ final class RepresentativeExecutionSession implements AutoCloseable {
             throw new IllegalStateException(
                     "representative execution session admission is released");
         }
+        retainAdmissionOnCurrentThread();
         admissionReleased = true;
-        return lifecycleOwner.finishRepresentativePreparation(result);
+        try {
+            return lifecycleOwner.finishRepresentativePreparation(result, admissionThread);
+        } finally {
+            admissionThread = null;
+        }
     }
 
     /**
@@ -564,7 +579,9 @@ final class RepresentativeExecutionSession implements AutoCloseable {
     synchronized void releaseAdmission() {
         if (admissionReleased) return;
         admissionReleased = true;
-        if (lifecycleOwner != null) lifecycleOwner.finishRepresentativeOperation();
+        Thread releasedThread = admissionThread;
+        admissionThread = null;
+        lifecycleOwner.finishRepresentativeOperation(releasedThread);
     }
 
     /**
@@ -577,6 +594,9 @@ final class RepresentativeExecutionSession implements AutoCloseable {
      */
     @Override
     public synchronized void close() {
+        retainAdmissionOnCurrentThread();
+        Thread releasedThread = admissionReleased ? null : admissionThread;
+        admissionReleased = true;
         try {
             if (state == State.OPEN) {
                 state = State.CLOSED;
@@ -586,13 +606,23 @@ final class RepresentativeExecutionSession implements AutoCloseable {
             }
             rethrow(retainedCleanupFailure);
         } finally {
-            releaseAdmission();
+            admissionThread = null;
+            if (releasedThread != null) lifecycleOwner.finishRepresentativeOperation(releasedThread);
         }
     }
 
     private void requireOpen() {
+        retainAdmissionOnCurrentThread();
         if (state != State.OPEN) {
             throw new IllegalStateException("representative execution session is not open");
+        }
+    }
+
+    /** Retains the same admission across a sequential handoff, without another token or count. */
+    private void retainAdmissionOnCurrentThread() {
+        if (!admissionReleased && admissionThread != Thread.currentThread()) {
+            lifecycleOwner.transferRepresentativeOperation(admissionThread);
+            admissionThread = Thread.currentThread();
         }
     }
 

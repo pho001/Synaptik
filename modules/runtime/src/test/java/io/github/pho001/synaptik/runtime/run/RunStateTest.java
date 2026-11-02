@@ -358,7 +358,7 @@ class RunStateTest {
     }
 
     @Test
-    void closePreservesRuntimeExceptionAndErrorFailuresInEncounterOrder() {
+    void failedReverseCleanupPreservesCountsGeometryAndNonReplayingClosedAccess() {
         List<String> closeOrder = new ArrayList<>();
         RuntimeException first = new RuntimeException("workspace1");
         AssertionError second = new AssertionError("workspace0");
@@ -374,6 +374,8 @@ class RunStateTest {
                         memoryPlan(2, 2),
                         List.of(List.of(owned(buffer0)), List.of(owned(buffer1))),
                         List.of(workspace0, workspace1));
+        var geometry = state.geometry();
+        var plan = state.memoryPlan();
 
         RuntimeException thrown = assertThrows(RuntimeException.class, state::close);
 
@@ -383,6 +385,16 @@ class RunStateTest {
                 () -> assertEquals(
                         List.of("workspace1", "workspace0", "buffer1", "buffer0"), closeOrder),
                 () -> assertTrue(state.isClosed()),
+                () -> assertSame(plan, state.memoryPlan()),
+                () -> assertSame(geometry, state.geometry()),
+                () -> assertEquals(2, state.bufferSlotCount()),
+                () -> assertEquals(1, state.bufferRepresentationCount(0)),
+                () -> assertEquals(1, state.bufferRepresentationCount(1)),
+                () -> assertEquals(2, state.workspaceSlotCount()),
+                () -> assertFailure(IllegalStateException.class, "run state is closed",
+                        () -> state.bufferRepresentation(-1, -1)),
+                () -> assertFailure(IllegalStateException.class, "run state is closed",
+                        () -> state.workspaceRepresentation(-1)),
                 () -> assertDoesNotThrow(state::close),
                 () -> assertEquals(1, workspace1.closeCount),
                 () -> assertEquals(1, workspace0.closeCount),

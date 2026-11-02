@@ -680,7 +680,13 @@ public final class Engine implements AutoCloseable {
      * advanced prepared handles in reverse preparation-publication order, and the backend
      * composition. Repeated and concurrent callers wait for that attempt and observe its exact
      * retained first failure, if any.
+     * A synchronous caller holding an operation admission to this exact Engine is rejected before
+     * any lifecycle change or waiting, even if another closer is already waiting. Closing an
+     * unrelated Engine is allowed. Recursive close by the thread performing this Engine's cleanup
+     * is an idempotent no-op. Other callers wait uninterruptibly, restoring their interrupt status.
+     * A callback must not wait for another thread to close the Engine whose operation it serves.
      *
+     * @throws IllegalStateException if the calling thread holds an admission to this Engine
      * @throws RuntimeException if owned cleanup reports an unchecked failure
      * @throws Error if owned cleanup reports a fatal failure
      */

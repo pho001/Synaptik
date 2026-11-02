@@ -13,9 +13,11 @@ import java.util.OptionalInt;
  *
  * <p>Every publication occurrence remains distinct even when occurrences select the same inward
  * representation. Closing the result releases the Runtime lease and Engine-created non-owning
- * input wrappers but never caller storage. Prepared-handle close does not
- * close an already returned result. Immutable metadata remains readable after closure. While both
- * result and Engine are open, an exact occurrence may be copied explicitly into a detached
+ * input wrappers but never caller storage. Closure also drops the Engine/Runtime owners' direct
+ * references to fresh invocation payloads even when cleanup fails. Prepared-handle close does not
+ * close an already returned result. Immutable metadata remains readable after closure without
+ * retaining those payload references. While both result and Engine are open, an exact occurrence
+ * may be copied explicitly into a detached
  * {@link HostTensorValue}; host storage, physical alias identity, and backend representations are
  * never exposed. Caller storage captured for this run must remain usable until this result
  * closes.</p>
@@ -172,6 +174,9 @@ public final class RunResult implements AutoCloseable {
 
     /**
      * Closes the registered Runtime lease and its Engine-owned borrow wrappers exactly once.
+     * Drops direct invocation-payload references even if cleanup fails, without closing caller
+     * storage or invalidating immutable publication metadata. Repeated/concurrent close retains
+     * the exact first cleanup failure and does not repeat cleanup.
      *
      * @throws RuntimeException if cleanup reports an unchecked failure
      * @throws Error if cleanup reports a fatal failure

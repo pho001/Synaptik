@@ -238,17 +238,32 @@ class RunResultTest {
     }
 
     @Test
-    void closePropagatesExactExistingCleanupFailureAndRemainsClosed() {
+    void failedCleanupPreservesPublishedAliasCountsAndClosedAccessWithoutFailureReplay() {
         RuntimeException failure = new RuntimeException("cleanup failed");
         PreparedMemoryPlan plan = plan(1);
         TrackingBuffer owned = new TrackingBuffer(failure);
         RunState state = state(plan, owned(owned));
-        RunResult result = new RunResult(state, List.of());
+        state.setBufferRepresentationValid(0, 0, true);
+        BoundPublication first = publication(state, 0);
+        BoundPublication alias = publication(state, 1);
+        first.publish();
+        alias.publish();
+        RunResult result = new RunResult(state, List.of(first, alias));
+        assertSame(result.publicationRepresentation(0), result.publicationRepresentation(1));
 
         RuntimeException observed = assertThrows(RuntimeException.class, result::close);
         assertAll(
                 () -> assertSame(failure, observed),
                 () -> assertTrue(result.isClosed()),
+                () -> assertEquals(2, result.resultCount()),
+                () -> assertSame(plan, state.memoryPlan()),
+                () -> assertEquals(1, state.bufferRepresentationCount(0)),
+                () -> assertFailure(IllegalStateException.class, "run state is closed",
+                        () -> result.publicationRepresentation(-1)),
+                () -> assertFailure(IllegalStateException.class, "run state is closed",
+                        () -> result.publicationRepresentation(0)),
+                () -> assertFailure(IllegalStateException.class, "run state is closed",
+                        () -> result.publicationRepresentation(2)),
                 () -> assertEquals(1, owned.closeCount),
                 () -> assertDoesNotThrow(result::close),
                 () -> assertEquals(1, owned.closeCount));

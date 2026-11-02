@@ -31,9 +31,10 @@ import java.util.Objects;
  *
  * <p>{@link #close()} marks the logical state closed before physical cleanup, skips borrowed
  * buffers, and attempts every owned representation once in deterministic reverse order. Closing
- * is idempotent. Representation access is unavailable after closure, while immutable plan and
- * count inspection remains available. A prepared executable may cold-bind direct typed
- * references from this state while it is open. A resulting bound invocation retains this exact
+ * is idempotent. Borrowed/owned binding and workspace reference cells are released after their
+ * cleanup handling, even on failure. Representation access is unavailable after closure, while
+ * immutable plan, geometry and count inspection remains available. A prepared executable may
+ * cold-bind direct typed references from this state while it is open. A resulting bound invocation retains this exact
  * state and rejects execution after closure; neither object acquires ownership of the state or
  * its representations.
  *
@@ -365,6 +366,9 @@ public final class RunState implements AutoCloseable {
      * same exact primary object, it is not self-suppressed, does not replace the primary, and
      * does not interrupt the remaining cleanup. A repeated call performs no cleanup and does
      * not rethrow a prior failure.
+     * Each workspace and borrowed/owned binding reference cell is cleared after its cleanup
+     * handling, including when cleanup fails. Array dimensions, counts, plan and geometry remain
+     * available; borrowed caller representations are never closed by this state.
      *
      * <p>Callers must not race this method with access, another close, or future mutation.
      *
@@ -395,6 +399,8 @@ public final class RunState implements AutoCloseable {
                 } else if (firstFailure != failure) {
                     firstFailure.addSuppressed(failure);
                 }
+            } finally {
+                workspaceRepresentations[workspaceIndex] = null;
             }
         }
 
@@ -405,6 +411,7 @@ public final class RunState implements AutoCloseable {
                     representationIndex--) {
                 BufferRepresentationBinding binding = representations[representationIndex];
                 if (binding.ownership() == RunResourceOwnership.BORROWED) {
+                    representations[representationIndex] = null;
                     continue;
                 }
                 try {
@@ -415,6 +422,8 @@ public final class RunState implements AutoCloseable {
                     } else if (firstFailure != failure) {
                         firstFailure.addSuppressed(failure);
                     }
+                } finally {
+                    representations[representationIndex] = null;
                 }
             }
         }

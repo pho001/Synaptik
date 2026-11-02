@@ -54,6 +54,131 @@ final class AdvancedEngineLifecycleTest {
     private static final BackendId BACKEND = new BackendId("test");
 
     @Test
+    void nestedOperationsKeepTheirOuterAdmissionAndRejectOnlyTheirOwnEngineClose() throws Exception {
+        var executor = Executors.newSingleThreadExecutor(Thread.ofPlatform().daemon().factory());
+        try {
+            executor.submit(() -> {
+                AtomicReference<AdvancedEngine> owner = new AtomicReference<>();
+                List<String> order = new ArrayList<>();
+                RecordingComposition unrelatedComposition = new RecordingComposition(emptyExecution());
+                AdvancedEngine unrelated = new AdvancedEngine(
+                        unrelatedComposition, unrelatedComposition::prepare);
+                RecordingComposition composition = new RecordingComposition(
+                        createdBufferExecution((bytes, alignment) -> {
+                            AdvancedEngine engine = owner.get();
+                            assertThrows(IllegalStateException.class, engine::close);
+                            assertFalse(engine.isClosed());
+                            compile(engine, leaf().abs());
+                            assertThrows(NullPointerException.class, () -> engine.prepare(null));
+                            assertThrows(IllegalStateException.class, engine::close);
+                            assertFalse(engine.isClosed());
+                            unrelated.close();
+                            assertTrue(unrelated.isClosed());
+                            return new TestBuffer(null, order, "result");
+                        }));
+                try (AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare)) {
+                    owner.set(engine);
+                    try (var result = engine.run(
+                            engine.prepare(compile(engine, leaf().neg())), List.of())) {
+                        assertFalse(result.isClosed());
+                    }
+                    assertEquals(List.of("result"), order);
+                    assertFalse(engine.isClosed());
+                }
+                return null;
+            }).get(10, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void admittedSelfCloseRejectsEvenWhileAnotherCloserWaits() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch attemptClose = new CountDownLatch(1);
+        AtomicReference<AdvancedEngine> owner = new AtomicReference<>();
+        RecordingComposition composition = new RecordingComposition(createdBufferExecution(
+                (bytes, alignment) -> {
+                    entered.countDown();
+                    try {
+                        assertTrue(attemptClose.await(10, TimeUnit.SECONDS));
+                    } catch (InterruptedException failure) {
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError(failure);
+                    }
+                    assertThrows(IllegalStateException.class, owner.get()::close);
+                    return new TestBuffer(null, new ArrayList<>(), "result");
+                }));
+        AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
+        owner.set(engine);
+        var prepared = engine.prepare(compile(engine, leaf().neg()));
+        var executor = Executors.newFixedThreadPool(2, Thread.ofPlatform().daemon().factory());
+        try {
+            var run = executor.submit(() -> engine.run(prepared, List.of()));
+            assertTrue(entered.await(10, TimeUnit.SECONDS));
+            var close = executor.submit(() -> { engine.close(); return null; });
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (!engine.isClosed() && System.nanoTime() < deadline) Thread.onSpinWait();
+            assertTrue(engine.isClosed());
+            assertFalse(close.isDone());
+            attemptClose.countDown();
+            var failure = assertThrows(java.util.concurrent.ExecutionException.class,
+                    () -> run.get(10, TimeUnit.SECONDS));
+            assertTrue(failure.getCause() instanceof IllegalStateException);
+            close.get(10, TimeUnit.SECONDS);
+        } finally {
+            attemptClose.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void cleanupOwnerRecursionReturnsButOtherClosersWaitAndReplayFailure() throws Exception {
+        AtomicReference<AdvancedEngine> owner = new AtomicReference<>();
+        CountDownLatch recursiveCloseReturned = new CountDownLatch(1);
+        CountDownLatch finishCleanup = new CountDownLatch(1);
+        RuntimeException expected = new RuntimeException("prepared cleanup");
+        PreparedResource resource = () -> {
+            owner.get().close();
+            recursiveCloseReturned.countDown();
+            try {
+                assertTrue(finishCleanup.await(10, TimeUnit.SECONDS));
+            } catch (InterruptedException failure) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(failure);
+            }
+            throw expected;
+        };
+        RecordingComposition composition = new RecordingComposition(resourceExecution(resource));
+        AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
+        owner.set(engine);
+        engine.prepare(compile(engine, leaf().neg()));
+        var executor = Executors.newFixedThreadPool(2, Thread.ofPlatform().daemon().factory());
+        try {
+            var first = executor.submit(() -> assertSame(expected,
+                    assertThrows(RuntimeException.class, engine::close)));
+            assertTrue(recursiveCloseReturned.await(10, TimeUnit.SECONDS));
+            CountDownLatch otherStarted = new CountDownLatch(1);
+            var other = executor.submit(() -> {
+                Thread.currentThread().interrupt();
+                otherStarted.countDown();
+                assertSame(expected, assertThrows(RuntimeException.class, engine::close));
+                assertTrue(Thread.currentThread().isInterrupted());
+                Thread.interrupted();
+            });
+            assertTrue(otherStarted.await(10, TimeUnit.SECONDS));
+            assertFalse(other.isDone());
+            finishCleanup.countDown();
+            first.get(10, TimeUnit.SECONDS);
+            other.get(10, TimeUnit.SECONDS);
+            assertSame(expected, assertThrows(RuntimeException.class, engine::close));
+        } finally {
+            finishCleanup.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void compileDelegatesOnceInExactOrderAndPreservesFailures() {
         RecordingComposition composition = new RecordingComposition(emptyExecution());
         try (AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare)) {
@@ -123,6 +248,42 @@ final class AdvancedEngineLifecycleTest {
             close.get(10, TimeUnit.SECONDS);
         }
         assertEquals(1, owned.closeCount.get());
+        assertEquals(1, composition.closeCount.get());
+    }
+
+    @Test
+    void failedAdvancedResultPublicationRollsBackAndReleasesAdmission() throws Exception {
+        List<String> order = new ArrayList<>();
+        Error publicationFailure = new AssertionError("advanced result publication");
+        RuntimeException cleanupFailure = new RuntimeException("result cleanup");
+        TestBuffer buffer = new TestBuffer(cleanupFailure, order, "result");
+        TestPreparedResource resource = new TestPreparedResource(null, order, "prepared");
+        RecordingComposition composition = new RecordingComposition(
+                resourceAndCreatedBufferExecution(resource,
+                        (requestedBytes, requestedAlignment) -> buffer));
+        composition.closeOrder = order;
+        AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
+        AdvancedPreparedExecution prepared = engine.prepare(compile(engine, leaf().neg()));
+        replaceField(engine, "openResults", rejectingPublications(publicationFailure));
+
+        assertSame(publicationFailure, assertThrows(AssertionError.class,
+                () -> engine.run(prepared, List.of())));
+        assertArrayEquals(new Throwable[] {cleanupFailure}, publicationFailure.getSuppressed());
+        assertEquals(List.of("result"), order);
+        assertEquals(1, buffer.closeCount.get());
+
+        // Do not close in teardown: the unfixed publication path strands Engine admission.
+        // A daemon closer also bounds a regression that cleans up but still strands admission.
+        var closer = Executors.newSingleThreadExecutor(Thread.ofPlatform().daemon().factory());
+        try {
+            closer.submit(() -> { engine.close(); return null; }).get(10, TimeUnit.SECONDS);
+        } finally {
+            closer.shutdownNow();
+        }
+        assertTrue(engine.isClosed());
+        assertEquals(List.of("result", "prepared", "backend"), order);
+        assertEquals(1, buffer.closeCount.get());
+        assertEquals(1, resource.closeCount.get());
         assertEquals(1, composition.closeCount.get());
     }
 
@@ -349,6 +510,37 @@ final class AdvancedEngineLifecycleTest {
         assertEquals(1, resource.closeCount.get());
         engine.close();
         assertEquals(1, resource.closeCount.get());
+    }
+
+    /**
+     * Replaces the publication collection at the existing test-local transaction seam.
+     *
+     * @param target non-null fixture owner with the named declared field
+     * @param name exact declared field name
+     * @param value test replacement, not a production mutation API
+     * @throws AssertionError if reflective fixture setup fails
+     */
+    private static void replaceField(Object target, String name, Object value) {
+        try {
+            var field = target.getClass().getDeclaredField(name);
+            field.setAccessible(true);
+            field.set(target, value);
+        } catch (ReflectiveOperationException failure) {
+            throw new AssertionError(failure);
+        }
+    }
+
+    /**
+     * Rejects registration after execution has produced a result requiring rollback.
+     *
+     * @param failure exact fatal publication failure
+     * @param <T> publication owner type
+     * @return empty collection rejecting additions while permitting cleanup/removal
+     */
+    private static <T> ArrayList<T> rejectingPublications(Error failure) {
+        return new ArrayList<>() {
+            @Override public boolean add(T value) { throw failure; }
+        };
     }
 
     private static void awaitBlocked(Thread thread) {

@@ -111,7 +111,9 @@ public final class AdvancedEngine implements AutoCloseable {
     private final ArrayList<AdvancedRunResult> openResults = new ArrayList<>();
     private final ArrayList<AutoCloseable> openPreparations = new ArrayList<>();
     private Lifecycle lifecycle = Lifecycle.OPEN;
-    private int activeOperations;
+    // The sole admission record: nested calls retain separate identity-matched occurrences.
+    private final ArrayList<Thread> operationThreads = new ArrayList<>();
+    private Thread cleanupThread;
     private Throwable closeFailure;
 
     /** Narrow typed cold-tuning seam implemented by supported production backends and tests. */
@@ -428,8 +430,7 @@ public final class AdvancedEngine implements AutoCloseable {
         }
         synchronized (lifecycleLock) {
             if (lifecycle == Lifecycle.OPEN) {
-                activeOperations--;
-                lifecycleLock.notifyAll();
+                releaseOperation(Thread.currentThread());
                 return result;
             }
         }
@@ -452,6 +453,9 @@ public final class AdvancedEngine implements AutoCloseable {
      * A call begun after closure first fails the lifecycle gate, before argument, owner, or inward
      * Runtime validation. Closing the handle before Runtime lease admission rejects the run;
      * closing it after admission does not wait and lets that run complete under Runtime's lease.
+     * Wrapper construction and Engine registration belong to the same publication transaction:
+     * failure closes the completed Runtime result or its constructed wrapper, never both, and
+     * releases Engine admission even if rollback fails. Cleanup runs outside the lifecycle lock.
      *
      * @param preparedExecution non-null prepared handle created by this exact Engine
      * @param callerInputs non-null dense ordered caller-owned representations in the prepared
@@ -462,14 +466,15 @@ public final class AdvancedEngine implements AutoCloseable {
      * @throws IllegalArgumentException if the handle belongs to another Engine or Runtime rejects
      *     binding
      * @throws IllegalStateException if closure has begun or Runtime state/action validation fails
-     * @throws RuntimeException if Runtime work reports another unchecked failure
-     * @throws Error if Runtime work reports a fatal failure
+     * @throws RuntimeException if Runtime work or result publication reports an unchecked failure
+     * @throws Error if Runtime work or result publication reports a fatal failure
      */
     public AdvancedRunResult run(
             AdvancedPreparedExecution preparedExecution,
             List<BufferRepresentation> callerInputs) {
         beginOperation();
-        io.github.pho001.synaptik.runtime.run.RunResult delegate;
+        io.github.pho001.synaptik.runtime.run.RunResult delegate = null;
+        AdvancedRunResult result = null;
         try {
             Objects.requireNonNull(preparedExecution, "preparedExecution");
             Objects.requireNonNull(callerInputs, "callerInputs");
@@ -478,29 +483,24 @@ public final class AdvancedEngine implements AutoCloseable {
                 Objects.requireNonNull(callerInputs.get(index), "callerInputs[" + index + "]");
             }
             delegate = runner.run(preparedExecution.execution(), callerInputs);
+            result = new AdvancedRunResult(this, delegate);
+            synchronized (lifecycleLock) {
+                if (lifecycle == Lifecycle.OPEN) {
+                    openResults.add(result);
+                    releaseOperation(Thread.currentThread());
+                    return result;
+                }
+            }
+            throw closedFailure();
         } catch (RuntimeException | Error failure) {
-            finishFailure();
+            try {
+                if (result != null) closeWithSuppression(result, failure);
+                else if (delegate != null) closeWithSuppression(delegate, failure);
+            } finally {
+                finishFailure();
+            }
             throw failure;
         }
-        AdvancedRunResult result = new AdvancedRunResult(this, delegate);
-        synchronized (lifecycleLock) {
-            if (lifecycle == Lifecycle.OPEN) {
-                openResults.add(result);
-                activeOperations--;
-                lifecycleLock.notifyAll();
-                return result;
-            }
-        }
-        IllegalStateException closed = closedFailure();
-        try {
-            result.close();
-        } catch (RuntimeException | Error rollbackFailure) {
-            if (rollbackFailure != closed) {
-                closed.addSuppressed(rollbackFailure);
-            }
-        }
-        finishFailure();
-        throw closed;
     }
 
     CompiledGraph compileOrdinary(Engine owner, List<Tensor> forwardOutputs) {
@@ -636,8 +636,7 @@ public final class AdvancedEngine implements AutoCloseable {
             if (lifecycle == Lifecycle.OPEN) {
                 try {
                     openResults.add(ordinaryRun.owner());
-                    activeOperations--;
-                    lifecycleLock.notifyAll();
+                    releaseOperation(Thread.currentThread());
                     return ordinaryRun.result();
                 } catch (RuntimeException | Error failure) {
                     publicationFailure = failure;
@@ -699,41 +698,57 @@ public final class AdvancedEngine implements AutoCloseable {
     /**
      * Completes the exact admission retained by one representative session.
      * This may release an Engine close that is waiting for the synchronous session.
+     *
+     * @param admissionThread exact thread currently owning the session admission
      */
-    void finishRepresentativeOperation() {
-        finishFailure();
+    void finishRepresentativeOperation(Thread admissionThread) {
+        synchronized (lifecycleLock) {
+            releaseOperation(admissionThread);
+        }
+    }
+
+    /**
+     * Moves a single-threaded session's existing admission to its next synchronous caller.
+     *
+     * @param admissionThread exact thread previously owning the session admission
+     */
+    void transferRepresentativeOperation(Thread admissionThread) {
+        synchronized (lifecycleLock) {
+            operationThreads.set(operationIndex(admissionThread), Thread.currentThread());
+        }
     }
 
     /**
      * Publishes one final representative-session recipe under the retained admission.
      *
      * @param execution non-null fresh selected or fallback production recipe
+     * @param admissionThread exact thread currently owning the session admission
      * @return the exact recipe if Engine closure has not begun
      * @throws NullPointerException if {@code execution} is null
      * @throws IllegalStateException if Engine closure won the final publication race
      */
     io.github.pho001.synaptik.runtime.execution.PreparedExecution
             finishRepresentativePreparation(
-                    io.github.pho001.synaptik.runtime.execution.PreparedExecution execution) {
+                    io.github.pho001.synaptik.runtime.execution.PreparedExecution execution,
+                    Thread admissionThread) {
         Objects.requireNonNull(execution, "execution");
         synchronized (lifecycleLock) {
             if (lifecycle == Lifecycle.OPEN) {
-                activeOperations--;
-                lifecycleLock.notifyAll();
+                releaseOperation(admissionThread);
                 return execution;
             }
         }
         IllegalStateException closed = closedFailure();
         closeWithSuppression(execution, closed);
-        finishFailure();
+        finishRepresentativeOperation(admissionThread);
         throw closed;
     }
 
     /** Publishes a complete public autotuning result through one retained admission. */
     ModelAutotuningPreparation finishRepresentativePreparation(
-            ModelAutotuningPreparation preparation) {
+            ModelAutotuningPreparation preparation, Thread admissionThread) {
         Objects.requireNonNull(preparation, "preparation");
-        finishPreparedHandle(preparation.preparedExecution());
+        finishPreparedHandle(preparation.preparedExecution(), admissionThread);
         return preparation;
     }
 
@@ -1855,7 +1870,10 @@ public final class AdvancedEngine implements AutoCloseable {
      * finish, with deferred prepared-resource cleanup performed when its last lease releases.
      * Concurrent and repeated Engine-close callers wait for the first attempt and rethrow its
      * exact retained first cleanup failure, if any.
+     * A caller holding an admission to this Engine fails before any lifecycle change or wait.
+     * Recursive close by the thread performing Engine cleanup is an idempotent no-op.
      *
+     * @throws IllegalStateException if the calling thread holds an Engine operation admission
      * @throws RuntimeException if result, prepared-handle, or composition cleanup first
      *     reports one
      * @throws Error if result, prepared-handle, or composition cleanup first reports one
@@ -1864,6 +1882,11 @@ public final class AdvancedEngine implements AutoCloseable {
     public void close() {
         boolean interrupted = false;
         synchronized (lifecycleLock) {
+            Thread caller = Thread.currentThread();
+            if (operationIndex(caller) >= 0) {
+                throw new IllegalStateException("cannot close an engine from its admitted operation");
+            }
+            if (cleanupThread == caller) return;
             if (lifecycle != Lifecycle.OPEN) {
                 while (lifecycle == Lifecycle.CLOSING) {
                     try {
@@ -1879,13 +1902,14 @@ public final class AdvancedEngine implements AutoCloseable {
                 return;
             }
             lifecycle = Lifecycle.CLOSING;
-            while (activeOperations != 0) {
+            while (!operationThreads.isEmpty()) {
                 try {
                     lifecycleLock.wait();
                 } catch (InterruptedException ignored) {
                     interrupted = true;
                 }
             }
+            cleanupThread = caller;
         }
 
         Throwable failure = null;
@@ -1908,6 +1932,7 @@ public final class AdvancedEngine implements AutoCloseable {
         } finally {
             synchronized (lifecycleLock) {
                 closeFailure = failure;
+                cleanupThread = null;
                 lifecycle = Lifecycle.CLOSED;
                 lifecycleLock.notifyAll();
             }
@@ -1941,19 +1966,19 @@ public final class AdvancedEngine implements AutoCloseable {
         }
     }
 
+    /** Publishes admission only after reusable tracking storage has accepted the calling thread. */
     private void beginOperation() {
         synchronized (lifecycleLock) {
             if (lifecycle != Lifecycle.OPEN) {
                 throw closedFailure();
             }
-            activeOperations++;
+            operationThreads.add(Thread.currentThread());
         }
     }
 
     private <T> T finishHandle(T handle) {
         synchronized (lifecycleLock) {
-            activeOperations--;
-            lifecycleLock.notifyAll();
+            releaseOperation(Thread.currentThread());
             if (lifecycle != Lifecycle.OPEN) {
                 throw closedFailure();
             }
@@ -1962,6 +1987,10 @@ public final class AdvancedEngine implements AutoCloseable {
     }
 
     private <T extends AutoCloseable> T finishPreparedHandle(T handle) {
+        return finishPreparedHandle(handle, Thread.currentThread());
+    }
+
+    private <T extends AutoCloseable> T finishPreparedHandle(T handle, Thread admissionThread) {
         Throwable publicationFailure = null;
         synchronized (lifecycleLock) {
             if (lifecycle == Lifecycle.OPEN) {
@@ -1971,8 +2000,7 @@ public final class AdvancedEngine implements AutoCloseable {
                     publicationFailure = failure;
                 }
                 if (publicationFailure == null) {
-                    activeOperations--;
-                    lifecycleLock.notifyAll();
+                    releaseOperation(admissionThread);
                     return handle;
                 }
             } else {
@@ -1980,16 +2008,42 @@ public final class AdvancedEngine implements AutoCloseable {
             }
         }
         closeWithSuppression(handle, publicationFailure);
-        finishFailure();
+        finishRepresentativeOperation(admissionThread);
         rethrow(publicationFailure);
         throw new AssertionError("prepared publication failed without an unchecked throwable");
     }
 
     private void finishFailure() {
         synchronized (lifecycleLock) {
-            activeOperations--;
-            lifecycleLock.notifyAll();
+            releaseOperation(Thread.currentThread());
         }
+    }
+
+    /**
+     * Releases one identity-matched occurrence while the existing lifecycle lock is held.
+     *
+     * @param admissionThread exact thread whose one operation has completed
+     */
+    private void releaseOperation(Thread admissionThread) {
+        int index = operationIndex(admissionThread);
+        if (index < 0) throw new IllegalStateException("Engine operation admission is not held");
+        int last = operationThreads.size() - 1;
+        operationThreads.set(index, operationThreads.get(last));
+        operationThreads.remove(last);
+        lifecycleLock.notifyAll();
+    }
+
+    /**
+     * Finds an admission without invoking equality on a potentially subclassed Thread.
+     *
+     * @param admissionThread exact thread identity to find
+     * @return an occurrence index, or -1 when this Engine holds no admission for that thread
+     */
+    private int operationIndex(Thread admissionThread) {
+        for (int index = operationThreads.size() - 1; index >= 0; index--) {
+            if (operationThreads.get(index) == admissionThread) return index;
+        }
+        return -1;
     }
 
     private void requireOwner(AdvancedEngine owner) {

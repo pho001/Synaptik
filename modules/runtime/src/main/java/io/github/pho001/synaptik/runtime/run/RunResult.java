@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.runtime.run;
 
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -17,6 +18,8 @@ import java.util.Objects;
  * <p>This class is not thread-safe. After successful construction callers close the leased state
  * only through this result and must not race closure with other state activity. Borrowed
  * representations remain caller-owned for the complete result lifetime.
+ * Closure drops publication references even when state cleanup fails, while the immutable result
+ * count remains readable. Repeated close does not replay a previous state cleanup failure.
  */
 public final class RunResult implements AutoCloseable {
     private final RunState runState;
@@ -115,12 +118,18 @@ public final class RunResult implements AutoCloseable {
 
     /**
      * Delegates idempotent cleanup of all resources still owned by the leased run state.
+     * Publication reference cells are cleared even if cleanup fails; aliases add no cleanup
+     * occurrences and the result count remains available. Repeated close does not replay failure.
      *
      * @throws RuntimeException if state cleanup reports an unchecked failure
      * @throws Error if state cleanup reports an error
      */
     @Override
     public void close() {
-        runState.close();
+        try {
+            runState.close();
+        } finally {
+            Arrays.fill(representations, null);
+        }
     }
 }

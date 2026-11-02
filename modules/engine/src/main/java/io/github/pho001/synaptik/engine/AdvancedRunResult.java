@@ -12,13 +12,14 @@ import java.util.Objects;
  * representations are deliberately inaccessible. Closing is thread-safe and idempotent,
  * delegates to the exact Runtime result at most once, then closes any ordinary-run wrappers in
  * reverse borrow order, and unregisters this result from its Engine even when cleanup fails.
- * Wrapper cleanup never closes caller-owned host storage. The owning Engine also closes an open
- * result during Engine shutdown.</p>
+ * Wrapper cleanup never closes caller-owned host storage. The first closer drops this owner's
+ * borrow-wrapper references before cleanup; immutable metadata survives even if cleanup fails.
+ * The owning Engine also closes an open result during Engine shutdown.</p>
  */
 public final class AdvancedRunResult implements AutoCloseable {
     private final AdvancedEngine owner;
     private final RunResult delegate;
-    private final List<BufferRepresentation> ownedBorrowedInputs;
+    private List<BufferRepresentation> ownedBorrowedInputs;
     private final List<EngineBackendComposition> publicationAdapters;
     private final int resultCount;
     private boolean closed;
@@ -153,6 +154,8 @@ public final class AdvancedRunResult implements AutoCloseable {
      * its exact retained failure without invoking Runtime cleanup again. Waiting is
      * uninterruptible; an interrupted waiting thread has its interrupt status restored before
      * this method returns or rethrows the retained failure.
+     * The first closer transfers the borrow-wrapper snapshot to its local cleanup scope and clears
+     * this owner's reference before invoking any cleanup, including cleanup that reports failure.
      *
      * @throws RuntimeException if Runtime cleanup reports an unchecked failure
      * @throws Error if Runtime cleanup reports a fatal failure
@@ -160,6 +163,7 @@ public final class AdvancedRunResult implements AutoCloseable {
     @Override
     public void close() {
         boolean interrupted = false;
+        List<BufferRepresentation> borrowedInputs;
         synchronized (this) {
             if (closed) {
                 while (!cleanupComplete) {
@@ -176,12 +180,14 @@ public final class AdvancedRunResult implements AutoCloseable {
                 return;
             }
             closed = true;
+            borrowedInputs = ownedBorrowedInputs;
+            ownedBorrowedInputs = null;
         }
         Throwable failure = null;
         try {
             failure = closeAndAccumulate(delegate, failure);
-            for (int index = ownedBorrowedInputs.size() - 1; index >= 0; index--) {
-                failure = closeAndAccumulate(ownedBorrowedInputs.get(index), failure);
+            for (int index = borrowedInputs.size() - 1; index >= 0; index--) {
+                failure = closeAndAccumulate(borrowedInputs.get(index), failure);
             }
         } finally {
             owner.unregister(this);

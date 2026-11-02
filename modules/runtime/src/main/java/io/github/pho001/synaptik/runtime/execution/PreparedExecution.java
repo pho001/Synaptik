@@ -121,17 +121,20 @@ public final class PreparedExecution implements AutoCloseable {
      * active-run count and returns a fresh opaque lease. The runner must close that lease after
      * its complete synchronous call; lease closure is idempotent and may perform deferred
      * resource cleanup when it releases the last admitted run.
+     * Token allocation failure leaves the active-run count unchanged.
      *
      * @return a non-null opaque lease for exactly one admitted run
      * @throws IllegalStateException if close has begun, with message
      *     {@code prepared execution is closed}
+     * @throws OutOfMemoryError if the lease cannot be allocated; no run is admitted
      */
     public synchronized RunLease acquireRunLease() {
         if (closed) {
             throw new IllegalStateException("prepared execution is closed");
         }
+        RunLease lease = new RunLease(this);
         activeRunCount++;
-        return new RunLease(this);
+        return lease;
     }
 
     /**

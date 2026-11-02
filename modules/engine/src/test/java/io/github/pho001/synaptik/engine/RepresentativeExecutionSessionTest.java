@@ -56,6 +56,87 @@ import org.junit.jupiter.api.io.TempDir;
 final class RepresentativeExecutionSessionTest {
     private static final BackendId BACKEND = new BackendId("representative-test");
 
+    @Test
+    void sequentialHandoffKeepsAdmissionThroughTrialAndFinalPreparation() throws Exception {
+        RecordingComposition composition = new RecordingComposition();
+        composition.lifecycleOwner = new AdvancedEngine(composition, artifacts -> {
+            assertThrows(IllegalStateException.class, composition.ordinaryOwner::close);
+            assertFalse(composition.ordinaryOwner.isClosed());
+            return executionWithBytes(1, composition.closeOrder, new byte[8]);
+        });
+        Engine engine = new Engine(composition.lifecycleOwner);
+        composition.ordinaryOwner = engine;
+        Tensor input = leaf(1, 2);
+        CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+        RepresentativeExecutionSession session = openSession(composition, compiled, List.of(input));
+        var executor = Executors.newFixedThreadPool(2, Thread.ofPlatform().daemon().factory());
+        try {
+            executor.submit(() -> {
+                session.execute(execution(1, 1, (bytes, alignment) -> {
+                    assertThrows(IllegalStateException.class, engine::close);
+                    engine.compile(List.of(input.abs()));
+                    assertThrows(IllegalStateException.class, engine::close);
+                    assertFalse(engine.isClosed());
+                    return new TestBuffer("trial", null, composition.closeOrder);
+                }));
+                try (var prepared = AdvancedEngine.prepareAfterRecoverableTuningFailure(
+                        session, new RuntimeException("recoverable tuning"), true)) {
+                    assertFalse(prepared.isClosed());
+                }
+                session.close();
+                return null;
+            }).get(10, TimeUnit.SECONDS);
+            executor.submit(() -> { engine.close(); return null; }).get(10, TimeUnit.SECONDS);
+            assertTrue(engine.isClosed());
+            assertEquals(List.of("trial", "borrow-0"), composition.closeOrder);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void terminalRollbackRetainsHandedOffAdmissionUntilRecipeCleanupFinishes() throws Exception {
+        RecordingComposition composition = new RecordingComposition();
+        CountDownLatch preparing = new CountDownLatch(1);
+        CountDownLatch finishPreparation = new CountDownLatch(1);
+        CountDownLatch rollbackCleaned = new CountDownLatch(1);
+        composition.lifecycleOwner = new AdvancedEngine(composition, artifacts -> {
+            preparing.countDown();
+            await(finishPreparation);
+            return execution(1, 1,
+                    (bytes, alignment) -> new TestBuffer("unused", null, composition.closeOrder),
+                    () -> {
+                        assertThrows(IllegalStateException.class, composition.ordinaryOwner::close);
+                        rollbackCleaned.countDown();
+                    });
+        });
+        Engine engine = new Engine(composition.lifecycleOwner);
+        composition.ordinaryOwner = engine;
+        Tensor input = leaf(1, 2);
+        var compiled = engine.compile(List.of(input.contiguous()));
+        var session = openSession(composition, compiled, List.of(input));
+        var executor = Executors.newFixedThreadPool(2, Thread.ofPlatform().daemon().factory());
+        try {
+            var fallback = executor.submit(() -> AdvancedEngine.prepareAfterRecoverableTuningFailure(
+                    session, new RuntimeException("tuning"), true));
+            assertTrue(preparing.await(10, TimeUnit.SECONDS));
+            var closer = executor.submit(() -> { engine.close(); return null; });
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (!engine.isClosed() && System.nanoTime() < deadline) Thread.onSpinWait();
+            assertTrue(engine.isClosed());
+            assertFalse(closer.isDone());
+            finishPreparation.countDown();
+            var failure = assertThrows(java.util.concurrent.ExecutionException.class,
+                    () -> fallback.get(10, TimeUnit.SECONDS));
+            assertTrue(failure.getCause() instanceof IllegalStateException);
+            assertTrue(rollbackCleaned.await(10, TimeUnit.SECONDS));
+            closer.get(10, TimeUnit.SECONDS);
+        } finally {
+            finishPreparation.countDown();
+            executor.shutdownNow();
+        }
+    }
+
 
     @Test
     void admissionAndOwnershipPrecedeRepresentativeInspection() {

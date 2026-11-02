@@ -56,12 +56,73 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /** Exercises real CPU-free Metal and mixed CPU/Metal public Engine composition. */
 final class EngineExplicitCompositionMetalIntegrationTest {
+    @Test
+    void observerSelfCloseFailsWithoutChangingEngineLifecycleOrNestedAdmission() throws Exception {
+        Path library = configuredMetalLibrary();
+        var executor = Executors.newSingleThreadExecutor(Thread.ofPlatform().daemon().factory());
+        try {
+            executor.submit(() -> {
+                AtomicReference<Engine> owner = new AtomicReference<>();
+                AtomicReference<Throwable> callbackFailure = new AtomicReference<>();
+                AtomicBoolean observed = new AtomicBoolean();
+                try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
+                    Tensor input = nativeTensorBits(descriptor(Shape.of(2)), arena,
+                            Float.floatToRawIntBits(1.0f), Float.floatToRawIntBits(-2.0f));
+                    MetalTraceObserver observer = event -> {
+                        observed.set(true);
+                        try {
+                            Engine engine = owner.get();
+                            assertThrows(IllegalStateException.class, engine::close);
+                            assertFalse(engine.isClosed());
+                            engine.compile(List.of(input.abs()));
+                            assertThrows(IllegalStateException.class, engine::close);
+                            assertFalse(engine.isClosed());
+                        } catch (Throwable failure) {
+                            // Metal may contain callback failures; assert them outside the observer.
+                            callbackFailure.compareAndSet(null, failure);
+                        }
+                    };
+                    builder.takeOwnership(MetalBackendIntegration.open(
+                            new MetalBackendConfiguration(library), observer));
+                    try (Engine engine = builder.build()) {
+                        owner.set(engine);
+                        var compiled = engine.compile(List.of(input.neg()));
+                        try (PreparedExecution prepared = engine.prepare(compiled)) {
+                            assertTrue(observed.get());
+                            if (callbackFailure.get() != null) {
+                                throw new AssertionError("observer lifecycle assertion", callbackFailure.get());
+                            }
+                            for (int run = 0; run < 2; run++) {
+                                try (var result = engine.run(prepared, List.of(input))) {
+                                    assertRawBits(result.materialize(
+                                            result.publications().getFirst(), 8L).bytes(),
+                                            new int[] {Float.floatToRawIntBits(-1.0f),
+                                                    Float.floatToRawIntBits(2.0f)});
+                                }
+                            }
+                            if (callbackFailure.get() != null) {
+                                throw new AssertionError("observer lifecycle assertion", callbackFailure.get());
+                            }
+                            assertFalse(engine.isClosed());
+                        }
+                    }
+                }
+                return null;
+            }).get(10, TimeUnit.SECONDS);
+        } finally {
+            // A regressed synchronous self-wait must not hold the test process or suite teardown.
+            executor.shutdownNow();
+        }
+    }
+
     @Test
     void publicEngineLifecycleCollectorObservesPreparationAndRepeatedInvocations() {
         Path library = configuredMetalLibrary();
