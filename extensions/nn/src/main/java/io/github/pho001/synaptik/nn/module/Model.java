@@ -42,7 +42,8 @@ import java.util.function.BiFunction;
  * use bounded cold acquisition and the same owners for qualified FLOAT32/FLOAT64 compute and
  * first-order training where the actual bodies and bindings qualify. Bounded all-valid bodies
  * persist through Checkpoint v4; the static homogeneous FLOAT32/FLOAT64 length-aware intersection
- * uses v5, independently of execution qualification. All-valid scans execute every static time
+ * uses v5; maximum/average Pool3d occurrences select append-only v6, including inside otherwise
+ * qualified bodies. Persistence is independent of execution qualification. All-valid scans execute every static time
  * step, without runtime lengths or padding. Persistence stores cold semantics
  * and current named values, not executable state, histories or optimizer continuation.
  * Those Models serialize high-level operations
@@ -180,7 +181,8 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * Cold signatures and dtypes are independent of execution support. Canonical static homogeneous
      * FLOAT32/FLOAT64 general scans may compute and train when their actual bodies and bindings
      * qualify through the existing cached owners. Fixed scans remain inference-only; bounded general
-     * bodies save/load through Checkpoint v4 without restoring objectives or optimizer state.
+     * bodies save/load through the smallest sufficient Checkpoint version (v4/v5, or v6 for Pool3d)
+     * without restoring objectives or optimizer state.
      * Persistence does not itself grant backend support or fixed-scan backpropagation through time.
      * @param inputSignature non-null fully static exact input descriptor
      * @param definition non-null one-shot definition; its adopted modules must not be mutated later
@@ -230,7 +232,8 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * Source containers are snapshotted before Checkpoint admission. Checkpoint and Compiler own
      * bounded cold reconstruction, including general-scan bodies; NN adds no backend/dtype filter.
      * General-body execution and first-order training remain occurrence-specific; persistence uses
-     * Checkpoint's bounded v4 cold inventory. Compute and train never reconstruct the source per batch.
+     * Checkpoint's bounded cold inventory, with v6 for maximum/average Pool3d. Compute and train
+     * never reconstruct the source per batch.
      * @param inputs ordered unique static provenance-free prototypes, possibly unused
      * @param outputs nonempty distinct expressions using ADD/MUL/NEG/MATMUL, rank-two PERMUTE[1,0]
      *     or another kind in the bounded CNN/static recurrent/fixed-scan source slice, including
@@ -267,7 +270,7 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Loads a single-boundary graph using the six NN artifact ceilings, without creating an Engine.
-     * @param path non-null graph-model.v1/v2/v3/v4/v5 file, not an old flexible model artifact
+     * @param path non-null graph-model.v1/v2/v3/v4/v5/v6 file, not an old flexible model artifact
      * @return owned eval Model adopting final loaded heap state without another copy
      * @throws IOException if reading or artifact validation fails
      * @throws IllegalArgumentException if boundaries require loadGraph or state order is noncanonical
@@ -323,9 +326,10 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Loads list boundaries under explicit artifact ceilings without creating an Engine.
-     * Closed graph-model.v1/v2/v3/v4/v5 sources are accepted without numerical conversion.
+     * Closed graph-model.v1/v2/v3/v4/v5/v6 sources are accepted without numerical conversion.
      * V4 retains bounded all-valid general bodies; v5 adds the static homogeneous FLOAT32/FLOAT64
-     * length-aware intersection. Load restores neither preparations nor objective/optimizer state.
+     * length intersection; v6 adds typed maximum/average Pool3d, also in otherwise-qualified bodies.
+     * Load restores neither preparations nor objective/optimizer state.
      * @param path non-null graph artifact
      * @param limits non-null artifact bounds
      * @return owned eval Model adopting the final loaded leaves without another copy
@@ -508,7 +512,8 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Saves the fixed source and current live owned leaves, even before first compute.
-     * Bounded general bodies use Checkpoint v4. Compositions outside the closed wire slice reject before file work, without
+     * Selects the smallest sufficient Checkpoint version, including v6 for maximum/average Pool3d.
+     * Compositions outside the closed wire slice reject before file work, without
      * freezing Engine selection or disabling subsequent compute/training.
      * Uses NN ceilings: 256 MiB file/aggregate, 4 MiB manifest, 16384 entries, 64-byte keys,
      * 64 MiB payload. Does not persist objective, optimizer, RNG, cursor or Java callback state.
@@ -523,7 +528,8 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Saves under explicit artifact ceilings without execution or source reconstruction.
-     * Bounded general bodies retain scoped source metadata and current named values in Checkpoint v4,
+     * Bounded general bodies retain scoped source metadata and current named values, using v4/v5
+     * or v6 when maximum/average Pool3d occurs,
      * before compute or after training. No objective, optimizer or runtime history is restored.
      * Admission failure precedes file effects and does not freeze Engine selection or disable execution.
      * @param path non-null destination

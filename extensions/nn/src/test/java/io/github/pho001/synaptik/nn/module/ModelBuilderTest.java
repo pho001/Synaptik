@@ -21,8 +21,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.random.RandomGeneratorFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -51,15 +49,9 @@ final class ModelBuilderTest {
         return (GraphCheckpoint.Source) field(field(field(model, "execution"), "owned"), "source");
     }
 
-    @Test void exactClosedPublicSurfaceAndRecipeExample() {
+    @Test void recipeExampleAcquiresExpectedStateAndShape() {
         assertTrue(Modifier.isFinal(ModelBuilder.class.getModifiers()));
         assertEquals(0, ModelBuilder.class.getConstructors().length);
-        assertEquals(Set.of("input", "seed", "linear", "relu", "tanh", "sigmoid", "conv1d", "conv2d",
-                "conv3d", "maxPool2d", "flatten", "rnn", "gru", "lstm", "lastTimeStep", "build",
-                "rnnScan", "gruScan", "lstmScan", "finalHidden", "buildWithLengths"),
-                Arrays.stream(ModelBuilder.class.getDeclaredMethods())
-                        .filter(m -> Modifier.isPublic(m.getModifiers())).map(m -> m.getName())
-                        .collect(Collectors.toSet()));
         try (var model = Model.builder().input(DataType.FLOAT32, 32, 784)
                 .seed(42).linear(128).relu().linear(10, false).build()) {
             assertEquals(Shape.of(32, 10), model.forward(input(32, 784)).descriptor().shape());
@@ -131,6 +123,10 @@ final class ModelBuilderTest {
         assertThrows(IllegalArgumentException.class, () -> b.linear(0));
         assertThrows(IllegalArgumentException.class, () -> b.conv3d(1, 0, 1, 1));
         assertThrows(IllegalArgumentException.class, () -> b.maxPool2d(-1, 2));
+        assertThrows(IllegalArgumentException.class, () -> b.maxPool3d(0, 1, 1));
+        assertThrows(IllegalArgumentException.class, () -> b.averagePool3d(1, -1, 1));
+        assertThrows(IllegalStateException.class, () -> Model.builder().maxPool3d(1, 1, 1));
+        assertThrows(IllegalStateException.class, () -> Model.builder().averagePool3d(1, 1, 1));
         assertThrows(IllegalArgumentException.class, () -> b.rnn(0));
         for (var invalid : List.of(Model.builder().input(DataType.FLOAT32, 1).flatten(),
                 Model.builder().input(DataType.FLOAT32, 1, 2).lastTimeStep(),

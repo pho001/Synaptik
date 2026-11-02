@@ -16,7 +16,7 @@ import java.util.Objects;
  * (positive-target reshape, singleton axis 2, rank-three axis-zero selection/concatenation,
  * rank-two axis-zero gather with a non-gradient INT64 vector, nonempty rank-two last-axis
  * step-one slice, biased default Conv2d/3d and floor MaxPool2d with stride equal to kernel,
- * zero padding and unit dilation)
+ * zero padding and unit dilation), full typed MaxPool3d/AveragePool3d geometry,
  * and fixed flat RNN/GRU/LSTM scans. All canonical ports are retained, with no scan execution,
  * backpropagation through time (BPTT) or Conv3d gradients implied. Cold source admission checks
  * GATHER index and scan length descriptors, never their values. Named index/length state, if any,
@@ -27,7 +27,8 @@ import java.util.Objects;
  * Each reconstructed occurrence has fresh body formals and all canonical ports; no time
  * unrolling or backend support is implied. V4 save/load retains all-valid general scans;
  * v5 adds the same static homogeneous length-mode cold intersection with ordered row roles.
- * Both versions store scoped body metadata and latent residual ports, never runtime histories
+ * V6 adds MaxPool3d/AveragePool3d in outer graphs and otherwise-qualified bodies. These versions
+ * store scoped body metadata and latent residual ports, never runtime histories
  * or external length values; v1/v2/v3 remain body-free.
  * The bounded body-only additions include tensor/scalar arithmetic, SUM reductions, static
  * shape/layout transforms and same-dtype CAST, not arbitrary PURE operations or nested scans.
@@ -114,8 +115,9 @@ public final class GraphCheckpoint {
      * Saves without executing or persisting prototype input storage. Selects the smallest sufficient
      * format: original five kinds retain byte-identical v1, original eight kinds with activations
      * retain byte-identical v2, additional CNN/recurrent kinds use multi-output v3, and only
-     * all-valid general SCAN selects v4. Length-aware general SCAN selects v5 without changing old
-     * records. Its bounded body inventory is the existing Compiler cold slice, not arbitrary PURE
+     * all-valid general SCAN selects v4. Length-aware general SCAN selects v5; maximum/average
+     * Pool3d anywhere in the source selects append-only v6 without changing old records.
+     * Its bounded body inventory is the existing Compiler cold slice, not arbitrary PURE
      * operations or a backend execution guarantee. Inline bodies preserve unused formals, tied
      * roles and every canonical residual port without saving histories or external length values.
      * Complete metadata/bounds/storage/value/image validation precedes ArtifactFile publication:
@@ -139,7 +141,7 @@ public final class GraphCheckpoint {
 
     /**
      * Rereads and fully validates a graph file before importing state and publishing expressions.
-     * Accepts only exact graph-model.v1/v2/v3/v4/v5 kind, magic and version tuples and closed scoped opcodes.
+     * Accepts only exact graph-model.v1/v2/v3/v4/v5/v6 kind, magic and version tuples and closed scoped opcodes.
      * Complete outer/body preflight precedes host import and any body formal/producer allocation.
      * The returned ordinary mutable heap values need no arena or second ownership copy.
      * No Engine, saved batch, labels, compiled artifacts or runtime state is restored.

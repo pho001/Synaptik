@@ -4,6 +4,9 @@ import io.github.pho001.synaptik.checkpoint.graph.GraphCheckpoint;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
+import java.util.function.UnaryOperator;
 import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -255,7 +258,41 @@ public final class ModelBuilder {
     public ModelBuilder maxPool2d(long kernelHeight, long kernelWidth) {
         MaxPool2dAttrs attrs = new MaxPool2dAttrs(kernelHeight, kernelWidth,
                 kernelHeight, kernelWidth, 0, 0, 1, 1, false);
-        return append((type, stepSeed, copies) -> new MaxPoolStep(attrs));
+        return append((type, stepSeed, copies) -> new PoolStep(input -> input.maxPool2d(attrs)));
+    }
+
+    /**
+     * Appends floor NCDHW maximum pooling, stride equal to kernel, zero padding and unit dilation.
+     * The ordinary Tensor occurrence is retained by cold acquisition and v6 graph persistence;
+     * training requires backend support for the complete Compiler-derived gradient closure.
+     * @param kernelDepth positive depth window extent
+     * @param kernelHeight positive vertical window extent
+     * @param kernelWidth positive horizontal window extent
+     * @return this same builder
+     * @throws IllegalArgumentException if a window extent is not positive
+     * @throws IllegalStateException if input has not been declared
+     */
+    public ModelBuilder maxPool3d(long kernelDepth, long kernelHeight, long kernelWidth) {
+        var attrs = new MaxPool3dAttrs(kernelDepth, kernelHeight, kernelWidth,
+                kernelDepth, kernelHeight, kernelWidth, 0, 0, 0, 1, 1, 1, false);
+        return append((type, stepSeed, copies) -> new PoolStep(input -> input.maxPool3d(attrs)));
+    }
+
+    /**
+     * Appends floor NCDHW fixed-count average pooling with stride equal to kernel, no padding
+     * and unit dilation. Uses Model's ordinary average and Compiler's existing gradient formulas;
+     * cold persistence stores the Tensor occurrence, not this recipe or optimizer state.
+     * @param kernelDepth positive depth window extent
+     * @param kernelHeight positive vertical window extent
+     * @param kernelWidth positive horizontal window extent
+     * @return this same builder
+     * @throws IllegalArgumentException if a window extent is not positive
+     * @throws IllegalStateException if input has not been declared
+     */
+    public ModelBuilder averagePool3d(long kernelDepth, long kernelHeight, long kernelWidth) {
+        var attrs = new AveragePool3dAttrs(kernelDepth, kernelHeight, kernelWidth,
+                kernelDepth, kernelHeight, kernelWidth, 0, 0, 0, 1, 1, 1, false);
+        return append((type, stepSeed, copies) -> new PoolStep(input -> input.averagePool3d(attrs)));
     }
 
     /**
@@ -587,20 +624,20 @@ public final class ModelBuilder {
         UnaryTensorModule create(DataType type, long seed, IdentityHashMap<Tensor, Tensor> copies);
     }
 
-    /** Stateless maximum-pool adapter; geometry is immutable and mode-independent. */
-    private static final class MaxPoolStep extends UnaryTensorModule {
-        private final MaxPool2dAttrs attrs;
+    /** Stateless pooling adapter; the constructor and immutable geometry are mode-independent. */
+    private static final class PoolStep extends UnaryTensorModule {
+        private final UnaryOperator<Tensor> pooling;
         /**
-         * Retains fixed pooling geometry without storing inputs or execution state.
-         * @param attrs immutable complete pooling geometry
+         * Retains the ordinary family constructor without inputs or execution state.
+         * @param pooling immutable-geometry Model pooling constructor
          */
-        private MaxPoolStep(MaxPool2dAttrs attrs) { this.attrs = attrs; }
+        private PoolStep(UnaryOperator<Tensor> pooling) { this.pooling = pooling; }
         /**
          * Constructs one ordinary pooling occurrence without retaining input or result state.
-         * @param input NCHW expression accepted by Model pooling, never mutated
-         * @return ordinary maximum-pool expression
+         * @param input NCHW or NCDHW expression accepted by the selected Model pooling family
+         * @return ordinary maximum- or average-pool expression
          */
-        @Override public Tensor forward(Tensor input) { return input.maxPool2d(attrs); }
+        @Override public Tensor forward(Tensor input) { return pooling.apply(input); }
     }
 
     /** Reshape adapter preserving the first axis rather than guessing batch/time semantics. */

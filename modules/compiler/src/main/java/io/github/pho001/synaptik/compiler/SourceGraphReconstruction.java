@@ -45,10 +45,10 @@ import java.util.OptionalInt;
  * stored facts, every independently scoped body and positional substitutions pass. ValueId-to-Tensor
  * tables are call-local and separate for each scope after preflight; nothing caches them or attaches
  * them to returned expressions.</p>
- * <p>The closed slice includes the narrow default CNN/static recurrent compositions and fixed
- * flat scans, plus general scans with a bounded body-only constructor closure. All-valid bodies
- * retain applicable Model dtypes; length bodies require the static homogeneous FLOAT32/FLOAT64
- * old constructor/rank/role/attribute intersection, independently of broader forward coordinates.
+ * <p>The closed slice includes the narrow default CNN/static recurrent compositions, exact typed
+ * maximum/average Pool3d geometry and fixed flat scans, plus general scans with a bounded body-only
+ * constructor closure. All-valid bodies retain applicable Model dtypes; length bodies require
+ * static homogeneous FLOAT32/FLOAT64 and the retained rank/role/attribute intersection.
  * Reconstruction creates fresh canonical formals for every declaration, invokes each public
  * family constructor once per occurrence and retains all canonical
  * ports, without time unrolling. New substitution ties are checked per occurrence before IDs.
@@ -177,8 +177,8 @@ final class SourceGraphReconstruction {
     }
 
     /**
-     * Retains the effective pre-coordinate-cutover length cold inventory. Shared semantic facts
-     * are recomputed for the independently preflighted body; this predicate restricts
+     * Retains the pre-coordinate-cutover length cold inventory plus exact typed Pool3d constructors.
+     * Shared semantic facts are recomputed for the independently preflighted body; this predicate restricts
      * declarations and representability, not contributor mathematics. In particular, unused
      * sequence declarations still require ROW(0) or rank-two ROW(1), independently of the
      * broader source header. The containing occurrence is validated once by the existing
@@ -215,7 +215,8 @@ final class SourceGraphReconstruction {
                     || kind == UnaryElementwiseKind.NEG || kind == UnaryElementwiseKind.TANH
                     || kind == UnaryElementwiseKind.SIGMOID || kind == ContiguousKind.CONTIGUOUS
                     || kind == CastKind.CAST || kind == AggregateReductionKind.SUM
-                    || kind instanceof ShapeTransformKind || kind instanceof AxisTransformKind;
+                    || kind instanceof ShapeTransformKind || kind instanceof AxisTransformKind
+                    || kind == Pool3dKind.MAX_POOL3D || kind == Pool3dKind.AVERAGE_POOL3D;
             if (kind == MatmulKind.MATMUL)
                 supported = node.inputs().stream().allMatch(id -> descriptors.get(id).shape().rank() == 2);
             if (!supported || attrs instanceof MaskedReductionAttrs) throw coldLengthFailure();
@@ -275,7 +276,7 @@ final class SourceGraphReconstruction {
     }
 
     /**
-     * Admits only the selected builder geometry and fixed scan signatures, without storage access.
+     * Admits selected builder geometry, full typed Pool3d geometry and fixed scans without storage access.
      * @param node structurally validated occurrence
      * @param descriptors complete static descriptor index
      * @return whether the occurrence belongs to the additional closed source slice
@@ -317,6 +318,8 @@ final class SourceGraphReconstruction {
             return pool.strideHeight() == pool.kernelHeight() && pool.strideWidth() == pool.kernelWidth()
                     && pool.paddingHeight() == 0 && pool.paddingWidth() == 0
                     && pool.dilationHeight() == 1 && pool.dilationWidth() == 1 && !pool.ceilMode();
+        if (kind == Pool3dKind.MAX_POOL3D) return attrs instanceof MaxPool3dAttrs;
+        if (kind == Pool3dKind.AVERAGE_POOL3D) return attrs instanceof AveragePool3dAttrs;
         return kind instanceof RecurrentScanKind && attrs instanceof RecurrentDirection;
     }
 
@@ -493,6 +496,10 @@ final class SourceGraphReconstruction {
                         (Conv3dAttrs) node.operation().attrs());
             } else if (kind == Pool2dKind.MAX_POOL2D) {
                 output = first.maxPool2d((MaxPool2dAttrs) node.operation().attrs());
+            } else if (kind == Pool3dKind.MAX_POOL3D) {
+                output = first.maxPool3d((MaxPool3dAttrs) node.operation().attrs());
+            } else if (kind == Pool3dKind.AVERAGE_POOL3D) {
+                output = first.averagePool3d((AveragePool3dAttrs) node.operation().attrs());
             } else if (kind == ScanKind.SCAN) {
                 List<Tensor> ports = reconstructScan(node, tensors);
                 for (int j = 0; j < ports.size(); j++) tensors.put(node.outputs().get(j), ports.get(j));

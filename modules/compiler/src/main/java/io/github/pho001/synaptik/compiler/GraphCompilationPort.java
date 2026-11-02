@@ -63,7 +63,7 @@ public final class GraphCompilationPort {
      * rank-three axis-zero SELECT/CONCAT, rank-two axis-zero GATHER with non-gradient INT64
      * vector indices, one nonempty step-one last-axis rank-two SLICE, biased default
      * CONV2D/CONV3D, nonoverlapping floor MAX_POOL2D with stride equal to kernel, no padding
-     * and unit dilation,
+     * and unit dilation, MAX_POOL3D/AVERAGE_POOL3D with their complete typed Model geometry,
      * and the six biased/unbiased fixed scan signatures in either direction. General SCAN is
      * additionally admitted with independently scoped bodies in the bounded constructor closure
      * described below; body-only families do not widen this flat inventory.
@@ -82,6 +82,8 @@ public final class GraphCompilationPort {
      * All-valid bodies retain every applicable Model dtype. Length bodies require homogeneous
      * FLOAT32/FLOAT64 across every declaration, actual and interior, with separate non-gradient
      * INT64[B] lengths and the existing ROW(0), rank-two ROW(1), SHARED and terminal-SHARED rules.
+     * Pool3d retains those same length-mode coordinate rules, including unchanged row axes;
+     * no other formerly excluded length-body constructor is admitted by this addition.
      * Bodies require empty raw demand and graph outputs equal to first-encounter-unique
      * next-carry, emission and residual roles in that order. Inference success alone is not cold
      * admission. Consumers retain independent persistence, execution and AD gates.</p>
@@ -97,6 +99,21 @@ public final class GraphCompilationPort {
      */
     public static SourceCapture captureSource(List<Tensor> forwardOutputs) {
         return GraphCapture.captureSource(forwardOutputs);
+    }
+
+    /**
+     * Validates complete cold-source metadata before a consumer allocates candidate Tensor leaves.
+     * Uses the same static FORWARD constructor, exact descriptor, scoped body and length-role
+     * checks as {@link #captureSource(List)} and {@link SourceCapture}; this method constructs
+     * no Tensor identities, reads no storage and grants no execution or persistence capability.
+     * Leaf identity/substitution validation still belongs to acquisition or reconstruction.
+     * @param graph non-null raw source graph, including all stored nodes and body attachments
+     * @throws NullPointerException if graph is null
+     * @throws IllegalArgumentException if any source metadata is invalid or outside the closed
+     *     cold inventory; checked geometry overflow is retained with its existing context
+     */
+    public static void validateSource(CompiledGraphModel graph) {
+        SourceGraphReconstruction.preflight(graph);
     }
 
     /**

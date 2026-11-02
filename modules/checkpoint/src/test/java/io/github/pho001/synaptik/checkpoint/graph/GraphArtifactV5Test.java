@@ -29,10 +29,10 @@ final class GraphArtifactV5Test {
                     var f = fixture(type, time, batch, 0, reverse, false, true, false);
                     byte[] noCarry = Arrays.copyOf(f.bytes(), f.offsets().get("reverse") + 1);
                     ByteBuffer.wrap(noCarry).putInt(f.offsets().get("carryCount"), 0);
-                    assertInstanceOf(IllegalArgumentException.class, rejected(image(noCarry), 0).getCause());
+                    assertInstanceOf(IllegalArgumentException.class, rejected(image(noCarry)).getCause());
                     byte[] noRows = Arrays.copyOf(f.bytes(), f.offsets().get("rowCarryCount") + 4);
                     ByteBuffer.wrap(noRows).putInt(f.offsets().get("rowCarryCount"), 0);
-                    assertInstanceOf(IllegalArgumentException.class, rejected(image(noRows), 0).getCause());
+                    assertInstanceOf(IllegalArgumentException.class, rejected(image(noRows)).getCause());
                 }
     }
 
@@ -231,59 +231,59 @@ final class GraphArtifactV5Test {
         for (var mutation : mutations.entrySet()) {
             byte[] bad = fixture.bytes().clone();
             ByteBuffer.wrap(bad).putInt(fixture.offsets().get(mutation.getKey()), mutation.getValue());
-            rejected(image(bad), 0);
+            rejected(image(bad));
         }
         for (int count : new int[]{-1, 0, 2}) {
             byte[] bad = fixture.bytes().clone(); ByteBuffer.wrap(bad).putInt(fixture.offsets().get("axisCount"), count);
-            rejected(image(bad), 0);
+            rejected(image(bad));
         }
         for (int row : new int[]{-1, 2, Integer.MAX_VALUE}) {
             byte[] bad = fixture.bytes().clone(); ByteBuffer.wrap(bad).putInt(fixture.offsets().get("rowCarryCount"), row);
-            rejected(image(bad), 0);
+            rejected(image(bad));
         }
         byte[] negativeAxis = fixture.bytes().clone(); ByteBuffer.wrap(negativeAxis).putInt(fixture.offsets().get("axis"), -1);
-        rejected(image(negativeAxis), 0);
+        rejected(image(negativeAxis));
         for (String flag : List.of("phase", "reverse", "presence")) {
-            byte[] bad = fixture.bytes().clone(); bad[fixture.offsets().get(flag)] = 2; rejected(image(bad), 0);
+            byte[] bad = fixture.bytes().clone(); bad[fixture.offsets().get(flag)] = 2; rejected(image(bad));
         }
         for (int op : new int[]{20, 21, 22, 23, 33, 255}) {
             byte[] bad = fixture.bytes().clone(); bad[fixture.offsets().get("bodyOpcode")] = (byte) op;
-            rejected(image(bad), 0);
+            rejected(image(bad));
         }
         for (int length = 0; length < fixture.bytes().length; length++)
-            rejected(image(Arrays.copyOf(fixture.bytes(), length)), 0);
-        rejected(image(Arrays.copyOf(fixture.bytes(), fixture.bytes().length + 1)), 0);
+            rejected(image(Arrays.copyOf(fixture.bytes(), length)));
+        rejected(image(Arrays.copyOf(fixture.bytes(), fixture.bytes().length + 1)));
         for (int version = 1; version <= 4; version++) {
-            rejected(new ArtifactEnvelope("graph-model.v" + version, image(fixture.bytes()).entries()), 0);
+            rejected(new ArtifactEnvelope("graph-model.v" + version, image(fixture.bytes()).entries()));
             for (int opcode : new int[]{23, 33}) {
                 byte[] old = fixture.bytes().clone(); old[7] = (byte) ('0' + version);
                 ByteBuffer.wrap(old).putInt(8, version); old[fixture.offsets().get("opcode")] = (byte) opcode;
                 rejected(new ArtifactEnvelope("graph-model.v" + version,
-                        List.of(new ArtifactEnvelope.Entry("schema", old))), 0);
+                        List.of(new ArtifactEnvelope.Entry("schema", old))));
             }
         }
         for (int opcode : new int[]{23, 24, 32, 34}) {
             byte[] bad = fixture.bytes().clone(); bad[fixture.offsets().get("opcode")] = (byte) opcode;
-            rejected(image(bad), 0);
+            rejected(image(bad));
         }
-        rejected(new ArtifactEnvelope("graph-model.v6", image(fixture.bytes()).entries()), 0);
+        rejected(new ArtifactEnvelope("graph-model.v6", image(fixture.bytes()).entries()));
         for (int offset : new int[]{fixture.offsets().get("lengthDescriptor"), fixture.offsets().get("lengthDescriptor") + 1}) {
             byte[] bad = fixture.bytes().clone(); bad[offset] = (byte) (offset == fixture.offsets().get("lengthDescriptor") ? 4 : 1);
-            rejected(image(bad), offset == fixture.offsets().get("lengthDescriptor") ? 3 : 0);
+            rejected(image(bad));
         }
         for (String field : List.of("time", "outerResult")) {
             byte[] bad = fixture.bytes().clone();
             if (field.equals("time")) ByteBuffer.wrap(bad).putLong(fixture.offsets().get(field), -1);
             else ByteBuffer.wrap(bad).putLong(fixture.offsets().get(field) + 6, 4);
-            rejected(image(bad), field.equals("time") ? 0 : 3);
+            rejected(image(bad));
         }
         byte[] wrongBatch = fixture.bytes().clone();
         ByteBuffer.wrap(wrongBatch).putLong(fixture.offsets().get("lengthDescriptor") + 6, 4);
-        rejected(image(wrongBatch), 3);
+        rejected(image(wrongBatch));
         byte[] wrongRole = fixture.bytes().clone(); ByteBuffer.wrap(wrongRole).putInt(fixture.offsets().get("axis"), 1);
-        rejected(image(wrongRole), 3);
+        rejected(image(wrongRole));
         byte[] wrongLengths = fixture.bytes().clone(); ByteBuffer.wrap(wrongLengths).putInt(fixture.offsets().get("lengthReference"), 0);
-        rejected(image(wrongLengths), 3);
+        rejected(image(wrongLengths));
     }
 
     @Test void scalarDomainsAndActualCardinalityRejectBeforeReadingOrAllocatingRoles() throws Exception {
@@ -296,31 +296,30 @@ final class GraphArtifactV5Test {
             byte[] bad = header.clone();
             for (var entry : mutation.entrySet())
                 ByteBuffer.wrap(bad).putInt(fixture.offsets().get(entry.getKey()), entry.getValue());
-            assertInstanceOf(IllegalArgumentException.class, rejected(image(bad), 0).getCause());
+            assertInstanceOf(IllegalArgumentException.class, rejected(image(bad)).getCause());
         }
         byte[] negativeTime = header.clone();
         ByteBuffer.wrap(negativeTime).putLong(fixture.offsets().get("time"), -1);
-        assertInstanceOf(IllegalArgumentException.class, rejected(image(negativeTime), 0).getCause());
+        assertInstanceOf(IllegalArgumentException.class, rejected(image(negativeTime)).getCause());
         for (var mutation : List.of(Map.of("carryCount", Integer.MAX_VALUE, "sequenceCount", 1_000_000),
                 Map.of("emissionCount", Integer.MAX_VALUE),
                 Map.of("carryCount", Integer.MAX_VALUE - 1, "emissionCount", 0, "residualCount", 0))) {
             byte[] bad = header.clone();
             for (var entry : mutation.entrySet())
                 ByteBuffer.wrap(bad).putInt(fixture.offsets().get(entry.getKey()), entry.getValue());
-            assertInstanceOf(ArithmeticException.class, rejected(image(bad), 0).getCause());
+            assertInstanceOf(ArithmeticException.class, rejected(image(bad)).getCause());
         }
     }
 
     /**
-     * Allows only descriptor-only boundary candidates, never body formals or producers.
+     * Requires complete invalid-metadata rejection before any candidate, formal or producer Tensor.
      * @param image invalid independent envelope
-     * @param candidates exact permitted candidate count
      * @return retained format failure for optional cause-based ordering assertions
      */
-    private static ArtifactFormatException rejected(ArtifactEnvelope image, int candidates) {
+    private static ArtifactFormatException rejected(ArtifactEnvelope image) {
         Tensor before = f(DataType.FLOAT32);
         var failure = assertThrows(ArtifactFormatException.class, () -> GraphArtifactCodec.decode(image, LIMITS));
-        assertEquals(candidates + 1, f(DataType.FLOAT32).id().value() - before.id().value());
+        assertEquals(1, f(DataType.FLOAT32).id().value() - before.id().value());
         return failure;
     }
 
@@ -337,7 +336,7 @@ final class GraphArtifactV5Test {
             byte[] bad = fixture.bytes().clone(); bad[fixture.offsets().get("formal") + 1] = 1;
             var image = new ArtifactEnvelope("graph-model.v5", List.of(new ArtifactEnvelope.Entry("schema", bad),
                     new ArtifactEnvelope.Entry("state/00000000", raw(DataType.FLOAT32, 4))));
-            rejected(image, 3);
+            rejected(image);
         }
     }
 

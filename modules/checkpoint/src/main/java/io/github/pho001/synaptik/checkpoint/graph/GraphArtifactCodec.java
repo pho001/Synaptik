@@ -50,11 +50,14 @@ import java.util.Optional;
 import java.util.OptionalInt;
 
 /**
- * Selective closed graph-model.v1/v2/v3/v4/v5 wire on the existing opaque envelope. IDs, flags and field order are
+ * Selective closed graph-model.v1/v2/v3/v4/v5/v6 wire on the existing opaque envelope. IDs, flags and field order are
  * explicit and independent of Java enum ordinals. All parsing uses bounded views; only final
  * candidate leaves and Compiler reconstruction create Tensors. Complete metadata preflight precedes
  * host import and every body formal/producer allocation. Inline bodies retain independent local
  * IDs and latent residual metadata, never runtime histories or saved input storage.
+ * V6 appends only 34=MAX_POOL3D and 35=AVERAGE_POOL3D, each with twelve i64 geometry fields
+ * (kernel, stride, padding, dilation; depth/height/width within each), then one ceil-mode flag.
+ * The smallest sufficient version is selected across outer and contained occurrences.
  */
 final class GraphArtifactCodec {
     private static final long MAGIC = 0x53594e4752463031L;
@@ -67,12 +70,14 @@ final class GraphArtifactCodec {
     private static final String KIND_V4 = "graph-model.v4";
     private static final long MAGIC_V5 = 0x53594e4752463035L;
     private static final String KIND_V5 = "graph-model.v5";
+    private static final long MAGIC_V6 = 0x53594e4752463036L;
+    private static final String KIND_V6 = "graph-model.v6";
 
     private GraphArtifactCodec() { }
 
     /**
      * Dry-sizes all metadata and six encoded bounds before storage admission or bulk copying.
-     * Independently rechecks length-mode cold eligibility through Compiler before dry sizing;
+     * Independently rechecks v5/v6 cold eligibility through Compiler before dry sizing;
      * a raw association is not a semantic admission credential.
      * @param source fully metadata-validated normalized source
      * @param limits explicit encoded ceilings
@@ -85,9 +90,13 @@ final class GraphArtifactCodec {
         int version = 1;
         for (CompiledNode node : source.graph.nodes()) {
             int op = opcode(node);
-            version = Math.max(version, op == 33 ? 5 : op == 23 ? 4 : op >= 9 ? 3 : op >= 6 ? 2 : 1);
+            version = Math.max(version, op >= 34 ? 6 : op == 33 ? 5 : op == 23 ? 4 : op >= 9 ? 3 : op >= 6 ? 2 : 1);
+            if (node.scanBody().isPresent()) {
+                for (CompiledNode local : node.scanBody().orElseThrow().graph().nodes())
+                    if (opcode(local, true) >= 34) version = 6;
+            }
         }
-        if (version == 5) {
+        if (version >= 5) {
             var leaves = new ArrayList<Tensor>(Math.addExact(source.source.inputs().size(), source.states.size()));
             leaves.addAll(source.source.inputs()); leaves.addAll(source.states);
             new GraphCompilationPort.SourceCapture(source.graph, leaves);
@@ -111,7 +120,7 @@ final class GraphArtifactCodec {
             entries.add(new ArtifactEnvelope.Entry(ordinal(i),
                     GraphValueStorage.encode(source.states.get(i).descriptor(), segments.get(i))));
         return new ArtifactEnvelope(version == 1 ? KIND : version == 2 ? KIND_V2 : version == 3 ? KIND_V3
-                : version == 4 ? KIND_V4 : KIND_V5, entries);
+                : version == 4 ? KIND_V4 : version == 5 ? KIND_V5 : KIND_V6, entries);
     }
 
     /**
@@ -147,10 +156,10 @@ final class GraphArtifactCodec {
         try {
             int version = KIND.equals(envelope.kind()) ? 1 : KIND_V2.equals(envelope.kind()) ? 2
                     : KIND_V3.equals(envelope.kind()) ? 3 : KIND_V4.equals(envelope.kind()) ? 4
-                    : KIND_V5.equals(envelope.kind()) ? 5 : 0;
+                    : KIND_V5.equals(envelope.kind()) ? 5 : KIND_V6.equals(envelope.kind()) ? 6 : 0;
             if (version == 0 || envelope.entries().isEmpty()
                     || !envelope.entries().getFirst().key().equals("schema"))
-                throw invalid("Expected graph-model.v1/v2/v3/v4/v5 schema");
+                throw invalid("Expected graph-model.v1/v2/v3/v4/v5/v6 schema");
             long stateBytes = 0;
             for (int i = 1; i < envelope.entries().size(); i++) {
                 var entry = envelope.entries().get(i);
@@ -162,7 +171,7 @@ final class GraphArtifactCodec {
             Reader reader = new Reader(envelope.entries().getFirst().payload());
             ByteBuffer in = reader.bytes;
             if (in.getLong() != (version == 1 ? MAGIC : version == 2 ? MAGIC_V2 : version == 3 ? MAGIC_V3
-                    : version == 4 ? MAGIC_V4 : MAGIC_V5)
+                    : version == 4 ? MAGIC_V4 : version == 5 ? MAGIC_V5 : MAGIC_V6)
                     || in.getInt() != version)
                 throw invalid("Mismatched graph kind/magic/version");
             int inputCount = reader.count(7);
@@ -235,7 +244,8 @@ final class GraphArtifactCodec {
             if (in.hasRemaining()) throw invalid("Trailing graph schema bytes");
             var graph = new CompiledGraphModel(values, nodes, inputIds, outputs, phases);
             canonicalTopology(graph, inputCount);
-            // Candidate leaves are final objects, still storage-free during complete Compiler preflight.
+            GraphCompilationPort.validateSource(graph);
+            // Candidate leaves are final storage-free objects; all graph metadata already passed.
             var leaves = new ArrayList<Tensor>(boundary);
             for (int i = 0; i < boundary; i++) leaves.add(TensorFactory.create(values.get(i).descriptor()));
             new GraphCompilationPort.SourceCapture(graph, leaves);
@@ -318,7 +328,7 @@ final class GraphArtifactCodec {
      */
     private static void write(Sink out, GraphSource source, int version) {
         out.i64(version == 1 ? MAGIC : version == 2 ? MAGIC_V2 : version == 3 ? MAGIC_V3
-                : version == 4 ? MAGIC_V4 : MAGIC_V5); out.i32(version);
+                : version == 4 ? MAGIC_V4 : version == 5 ? MAGIC_V5 : MAGIC_V6); out.i32(version);
         out.i32(source.source.inputs().size());
         for (Tensor input : source.source.inputs()) out.descriptor(input.descriptor());
         out.i32(source.states.size());
@@ -384,7 +394,7 @@ final class GraphArtifactCodec {
     /**
      * Admits the closed wire independently of Compiler admission, including during dry sizing.
      * @param node stored occurrence with exact Model attributes and admitted input/output counts
-     * @return explicit stable outer opcode 1..23 or 33, never an enum ordinal or fallback opcode
+     * @return explicit stable outer opcode 1..23 or 33..35, never an enum ordinal or fallback opcode
      * @throws IllegalArgumentException if a kind, attachment, attributes or arity
      *     cannot be represented exactly by the closed wire, independently of cold copy admission
      */
@@ -403,7 +413,7 @@ final class GraphArtifactCodec {
      * applies the same scalar restrictions before body/role allocation. Mode is opcode-derived.
      * @param node local occurrence with all canonical output ports
      * @param bodyScope true only inside one general scan attachment
-     * @return stable wire opcode in 1..33
+     * @return stable wire opcode in 1..35
      * @throws IllegalArgumentException if the exact scoped signature is not representable
      */
     private static int opcode(CompiledNode node, boolean bodyScope) {
@@ -463,6 +473,8 @@ final class GraphArtifactCodec {
         else if (kind == RecurrentScanKind.RNN_TANH) op = 20;
         else if (kind == RecurrentScanKind.GRU_RESET_AFTER) op = 21;
         else if (kind == RecurrentScanKind.LSTM) op = 22;
+        else if (kind == Pool3dKind.MAX_POOL3D) op = 34;
+        else if (kind == Pool3dKind.AVERAGE_POOL3D) op = 35;
         else throw invalid("Unknown source operation: " + kind);
         var a = node.operation().attrs();
         boolean attrs = switch (op) {
@@ -486,6 +498,8 @@ final class GraphArtifactCodec {
             case 29 -> a == NoOperationAttrs.INSTANCE || a instanceof AxisReductionAttrs
                     || a instanceof MultiAxisReductionAttrs || a instanceof SumToShapeAttrs;
             case 32 -> a instanceof CastAttrs;
+            case 34 -> a instanceof MaxPool3dAttrs;
+            case 35 -> a instanceof AveragePool3dAttrs;
             default -> a == NoOperationAttrs.INSTANCE;
         };
         int arity = switch (op) {
@@ -572,6 +586,22 @@ final class GraphArtifactCodec {
                 }
             }
             case 32 -> out.dtype(((CastAttrs) attrs).targetDataType());
+            case 34 -> {
+                var a = (MaxPool3dAttrs) attrs;
+                out.i64(a.kernelDepth()); out.i64(a.kernelHeight()); out.i64(a.kernelWidth());
+                out.i64(a.strideDepth()); out.i64(a.strideHeight()); out.i64(a.strideWidth());
+                out.i64(a.paddingDepth()); out.i64(a.paddingHeight()); out.i64(a.paddingWidth());
+                out.i64(a.dilationDepth()); out.i64(a.dilationHeight()); out.i64(a.dilationWidth());
+                out.u8(a.ceilMode() ? 1 : 0);
+            }
+            case 35 -> {
+                var a = (AveragePool3dAttrs) attrs;
+                out.i64(a.kernelDepth()); out.i64(a.kernelHeight()); out.i64(a.kernelWidth());
+                out.i64(a.strideDepth()); out.i64(a.strideHeight()); out.i64(a.strideWidth());
+                out.i64(a.paddingDepth()); out.i64(a.paddingHeight()); out.i64(a.paddingWidth());
+                out.i64(a.dilationDepth()); out.i64(a.dilationHeight()); out.i64(a.dilationWidth());
+                out.u8(a.ceilMode() ? 1 : 0);
+            }
             default -> { /* parameterless admitted kind */ }
         }
     }
@@ -617,7 +647,8 @@ final class GraphArtifactCodec {
             for (int i = 0; i < count; i++) {
                 if (u8() != 1) throw invalid("Unknown source phase");
                 int op = u8();
-                if (op < 1 || op > (version == 1 ? 5 : version == 2 ? 8 : version == 3 ? 22 : version == 4 ? 32 : 33)
+                if (op < 1 || op > (version == 1 ? 5 : version == 2 ? 8 : version == 3 ? 22
+                        : version == 4 ? 32 : version == 5 ? 33 : 35)
                         || bodyScope && (op >= 20 && op <= 23 || op == 33)
                         || !bodyScope && op >= 24 && op <= 32)
                     throw invalid("Operation exceeds graph version/scope");
@@ -638,7 +669,7 @@ final class GraphArtifactCodec {
                 if (op == 23 || op == 33) {
                     var attrs = (ScanAttrs) operation.attrs();
                     if (arity != attrs.inputCount()) throw invalid("Scan actual count mismatch");
-                    body = Optional.of(body(attrs));
+                    body = Optional.of(body(attrs, version));
                 }
                 int outputs = version >= 3 ? count(7) : 1;
                 int expected = op == 23 || op == 33 ? ((ScanAttrs) operation.attrs()).outputCount()
@@ -664,11 +695,12 @@ final class GraphArtifactCodec {
          * Lengths is an outer actual only; formals always count carry, step and invariant positions.
          * Compiler subsequently verifies derived residual order and family descriptors.
          * @param attrs checked scalar header
+         * @param version enclosing closed wire version, also bounding body opcodes
          * @return complete attachment with empty demand
          * @throws IllegalArgumentException if counts, topology, roots or demand are invalid
          * @throws ArithmeticException if contained aggregate counters overflow signed i32
          */
-        CompiledScanBody body(ScanAttrs attrs) {
+        CompiledScanBody body(ScanAttrs attrs, int version) {
             int count = count(7);
             if (count != Math.addExact(Math.addExact(attrs.carryCount(), attrs.sequenceCount()), attrs.invariantCount()))
                 throw invalid("Scan formal count mismatch");
@@ -681,7 +713,7 @@ final class GraphArtifactCodec {
                 inputs.add(id);
                 localValues.add(new GraphValue(id, descriptor()));
             }
-            var localNodes = nodes(4, true, localValues);
+            var localNodes = nodes(version, true, localValues);
             var roots = references(localValues.size(), -1, Math.min(localValues.size(), attrs.outputCount()));
             var carry = references(localValues.size(), attrs.carryCount(), attrs.carryCount());
             var emissions = references(localValues.size(), attrs.emissionCount(), attrs.emissionCount());
@@ -804,6 +836,16 @@ final class GraphArtifactCodec {
                 case 30 -> new Operation(ShapeTransformKind.EXPAND, new TargetShapeAttrs(shape()));
                 case 31 -> new Operation(ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE);
                 case 32 -> new Operation(CastKind.CAST, new CastAttrs(dtype()));
+                case 34 -> new Operation(Pool3dKind.MAX_POOL3D, new MaxPool3dAttrs(
+                        bytes.getLong(), bytes.getLong(), bytes.getLong(),
+                        bytes.getLong(), bytes.getLong(), bytes.getLong(),
+                        bytes.getLong(), bytes.getLong(), bytes.getLong(),
+                        bytes.getLong(), bytes.getLong(), bytes.getLong(), flag()));
+                case 35 -> new Operation(Pool3dKind.AVERAGE_POOL3D, new AveragePool3dAttrs(
+                        bytes.getLong(), bytes.getLong(), bytes.getLong(),
+                        bytes.getLong(), bytes.getLong(), bytes.getLong(),
+                        bytes.getLong(), bytes.getLong(), bytes.getLong(),
+                        bytes.getLong(), bytes.getLong(), bytes.getLong(), flag()));
                 default -> throw invalid("Unknown source operation");
             };
         }

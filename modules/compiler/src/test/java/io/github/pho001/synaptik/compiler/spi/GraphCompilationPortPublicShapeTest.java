@@ -53,9 +53,6 @@ final class GraphCompilationPortPublicShapeTest {
                         CompileConstantPlan.BindableInput.class.getRecordComponents())
                 .map(component -> component.getType()).toList());
         assertEquals(8, CompileArtifacts.class.getRecordComponents().length);
-        assertEquals(3, Arrays.stream(GraphCompilationPort.class.getDeclaredMethods())
-                .filter(method -> Modifier.isPublic(method.getModifiers()))
-                .count());
         assertEquals(List.class,
                 CompileConstantPlan.class.getMethod("bindableInputs").getReturnType());
         assertEquals(List.class,

@@ -42,6 +42,8 @@ import io.github.pho001.synaptik.model.operation.scan.ScanAttrs;
 import io.github.pho001.synaptik.model.operation.layout.*;
 import io.github.pho001.synaptik.model.operation.convolution.*;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import java.util.ArrayList;
@@ -53,6 +55,78 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class SourceGraphReconstructionTest {
+    @Test
+    void pool3dPreservesEveryTypedGeometryFieldWithoutWideningOtherPoolingFamilies() {
+        var maximum = new MaxPool3dAttrs(2, 3, 2, 1, 2, 1, 1, 0, 2, 2, 1, 2, true);
+        var average = new AveragePool3dAttrs(3, 2, 2, 2, 1, 3, 0, 2, 1, 1, 2, 1, false);
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (boolean gradient : List.of(false, true)) {
+                Tensor volume = leaf(type, Shape.of(2, 1, 5, 6, 7), gradient);
+                var outputs = List.of(volume.maxPool3d(maximum), volume.averagePool3d(average));
+                assertRoundTrip(outputs);
+                var captured = GraphCompilationPort.captureSource(outputs);
+                var substitutions = List.of(volume.abs());
+                var rebuilt = GraphCompilationPort.reconstructSource(captured.graph(), substitutions);
+                assertEquals(maximum, rebuilt.getFirst().provenance().orElseThrow().operation().attrs());
+                assertEquals(average, rebuilt.getLast().provenance().orElseThrow().operation().attrs());
+                assertSame(substitutions.getFirst(), rebuilt.getFirst().provenance().orElseThrow().inputs().getFirst());
+                assertEquals(gradient, rebuilt.getLast().descriptor().requiresGrad());
+            }
+            Tensor image = formal(type, 1, 1, 4, 4);
+            Tensor unsupported = image.maxPool2d(new MaxPool2dAttrs(2, 2, 1, 1, 0, 0, 1, 1, false));
+            assertColdFailureWithoutIds(() -> GraphCompilationPort.captureSource(List.of(unsupported)));
+        }
+    }
+
+    @Test
+    void pool3dRoundTripsInsideAllValidAndLengthBodiesWithExistingRowRoles() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (boolean reverse : List.of(false, true)) for (long time : List.of(0L, 2L)) {
+                Tensor carry = formal(type, 2, 1, 1, 1, 1);
+                Tensor step = formal(type, 2, 1, 2, 2, 2);
+                Tensor maximum = step.maxPool3d(new MaxPool3dAttrs(2, 2, 2, 2, 2, 2,
+                        0, 0, 0, 1, 1, 1, false));
+                Tensor average = step.averagePool3d(new AveragePool3dAttrs(2, 2, 2, 2, 2, 2,
+                        0, 0, 0, 1, 1, 1, false));
+                var body = new ScanBody(List.of(carry), List.of(step), List.of(),
+                        List.of(carry.add(average)), List.of(maximum, average, maximum));
+                assertColdBodyRoundTrip(body, time, reverse);
+                Tensor initial = TensorFactory.create(carry.descriptor());
+                Tensor sequence = formal(type, time, 2, 1, 2, 2, 2);
+                Tensor lengths = formal(DataType.INT64, 2);
+                var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(), lengths,
+                        1, List.of(java.util.OptionalInt.of(0)), body, reverse);
+                var roots = new ArrayList<>(scan.finalCarry()); roots.addAll(scan.outputs());
+                assertRoundTrip(roots);
+                var captured = GraphCompilationPort.captureSource(roots);
+                var local = captured.graph().nodes().getFirst().scanBody().orElseThrow();
+                assertEquals(local.emissions().getFirst(), local.emissions().getLast());
+                assertEquals(1, ((ScanAttrs) captured.graph().nodes().getFirst().operation().attrs()).rowCarryCount());
+            }
+    }
+
+    @Test
+    void metadataOnlyColdPreflightRejectsLatePoolDescriptorWithoutAllocatingAnyTensor() {
+        Tensor volume = formal(DataType.FLOAT32, 1, 1, 3, 3, 3);
+        Tensor maximum = volume.maxPool3d(new MaxPool3dAttrs(2, 2, 2, 1, 1, 1,
+                0, 0, 0, 1, 1, 1, false));
+        Tensor average = volume.averagePool3d(new AveragePool3dAttrs(2, 2, 2, 1, 1, 1,
+                0, 0, 0, 1, 1, 1, false));
+        var graph = GraphCompilationPort.captureSource(List.of(maximum, average)).graph();
+        Tensor marker = formal(DataType.BOOL);
+        GraphCompilationPort.validateSource(graph);
+        assertEquals(marker.id().value() + 1, formal(DataType.BOOL).id().value());
+        var values = new ArrayList<>(graph.values());
+        GraphValue last = values.getLast();
+        values.set(values.size() - 1, new GraphValue(last.id(),
+                descriptor(DataType.FLOAT32, Shape.of(1, 1, 3, 2, 2), false)));
+        var bad = new CompiledGraphModel(values, graph.nodes(), graph.inputs(), graph.outputs(), graph.nodePhases());
+        assertColdFailureWithoutIds(() -> GraphCompilationPort.validateSource(bad));
+        var unsupported = GraphCapture.capture(List.of(volume.abs()));
+        assertColdFailureWithoutIds(() -> GraphCompilationPort.validateSource(unsupported));
+        assertThrows(NullPointerException.class, () -> GraphCompilationPort.validateSource(null));
+    }
+
     @Test
     void generalBodiesRoundTripTheWholeSelectedArithmeticReductionAndLayoutInventory() {
         for (DataType type : DataType.values()) {
@@ -117,7 +191,9 @@ final class SourceGraphReconstructionTest {
                 invariants.addAll(List.of(image, kernel, bias, volume, kernel3));
                 emissions.addAll(List.of(image.conv2d(kernel, bias, Conv2dAttrs.defaults()),
                         volume.conv3d(kernel3, bias, Conv3dAttrs.defaults()),
-                        image.maxPool2d(new MaxPool2dAttrs(2, 2, 2, 2, 0, 0, 1, 1, false))));
+                        image.maxPool2d(new MaxPool2dAttrs(2, 2, 2, 2, 0, 0, 1, 1, false)),
+                        volume.maxPool3d(new MaxPool3dAttrs(2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, true)),
+                        volume.averagePool3d(new AveragePool3dAttrs(2, 2, 2, 2, 2, 2, 0, 0, 0, 1, 1, 1, false))));
             }
             assertColdBodyRoundTrip(new ScanBody(List.of(h), List.of(x), invariants, List.of(h), emissions), 2, true);
         }
@@ -309,6 +385,7 @@ final class SourceGraphReconstructionTest {
                         source.graph().outputs(), source.graph().nodePhases());
                 for (CompiledGraphModel graph : List.of(bad, withOutputs(bad, List.of(bad.outputs().getFirst())))) {
                     assertColdFailureWithoutIds(() -> GraphCompilationPort.reconstructSource(graph, source.leaves()));
+                    assertColdFailureWithoutIds(() -> GraphCompilationPort.validateSource(graph));
                     assertColdFailureWithoutIds(() -> new GraphCompilationPort.SourceCapture(graph, source.leaves()));
                 }
             }

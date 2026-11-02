@@ -71,7 +71,7 @@ final class GraphCheckpointTest {
         assertThrows(io.github.pho001.synaptik.checkpoint.artifact.ArtifactFormatException.class,
                 () -> GraphArtifactCodec.decode(image, LIMITS));
         Tensor after = prototype(DataType.BOOL, Shape.scalar(), false, true);
-        assertEquals(3, after.id().value() - before.id().value(), "only two descriptor candidates, no earlier NEG or body producer");
+        assertEquals(1, after.id().value() - before.id().value(), "complete late-body validation precedes even candidate leaves");
         assertEquals(0, StorageReadProbe.reads.get(), "late body preflight must precede host import");
         var valid = new io.github.pho001.synaptik.checkpoint.artifact.ArtifactEnvelope("graph-model.v4", List.of(
                 new io.github.pho001.synaptik.checkpoint.artifact.ArtifactEnvelope.Entry("schema", fixture.bytes()),

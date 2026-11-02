@@ -383,38 +383,37 @@ final class GraphArtifactV4Test {
         mutations.put("residual", 2); mutations.put("demand", 1); mutations.put("q", Integer.MAX_VALUE);
         for (var mutation : mutations.entrySet()) {
             byte[] bad = f.bytes().clone(); ByteBuffer.wrap(bad).putInt(f.offsets().get(mutation.getKey()), mutation.getValue());
-            assertRejected(bad, mutation.getKey().equals("residual") ? 2 : 0, mutation.getKey());
+            assertRejected(bad, mutation.getKey());
         }
         for (String field : List.of("phase", "reverse", "bodyPhase")) {
-            byte[] bad = f.bytes().clone(); bad[f.offsets().get(field)] = 2; assertRejected(bad, 0, field);
+            byte[] bad = f.bytes().clone(); bad[f.offsets().get(field)] = 2; assertRejected(bad, field);
         }
         for (int op : new int[]{0, 24, 25, 29, 32, 33, 255}) {
             byte[] bad = f.bytes().clone(); bad[f.offsets().get("opcode")] = (byte) op;
-            assertRejected(bad, 0, "outer opcode " + op);
+            assertRejected(bad, "outer opcode " + op);
         }
         for (int op : new int[]{0, 20, 21, 22, 23, 33, 255}) {
             byte[] bad = f.bytes().clone(); bad[f.offsets().get("bodyOpcode")] = (byte) op;
-            assertRejected(bad, 0, "body opcode " + op);
+            assertRejected(bad, "body opcode " + op);
         }
         for (int length = 0; length < f.bytes().length; length++)
-            assertRejected(Arrays.copyOf(f.bytes(), length), 0, "truncation " + length);
-        assertRejected(Arrays.copyOf(f.bytes(), f.bytes().length + 1), 0, "trailing");
-        // Header-valid metadata with a wrong canonical formal flag reaches only descriptor candidates.
+            assertRejected(Arrays.copyOf(f.bytes(), length), "truncation " + length);
+        assertRejected(Arrays.copyOf(f.bytes(), f.bytes().length + 1), "trailing");
+        // Header-valid metadata with a wrong canonical formal flag still allocates no Tensor.
         byte[] semantic = f.bytes().clone(); semantic[f.offsets().get("formal") + 1] = 1;
-        assertRejected(semantic, 2, "late semantic formal mismatch");
+        assertRejected(semantic, "late semantic formal mismatch");
     }
 
     /**
-     * Probes the allocation boundary: candidates may exist, but no body or outer producer may.
+     * Probes complete metadata validation before any candidate, body formal or producer Tensor.
      * @param bytes malformed independent schema
-     * @param candidates permitted descriptor-only outer candidate count
      * @param label diagnostic mutation label
      */
-    private static void assertRejected(byte[] bytes, int candidates, String label) {
+    private static void assertRejected(byte[] bytes, String label) {
         Tensor before = f();
         assertThrows(ArtifactFormatException.class, () -> GraphArtifactCodec.decode(image(bytes), LIMITS), label);
         Tensor after = f();
-        assertEquals(1 + candidates, after.id().value() - before.id().value(), label);
+        assertEquals(1, after.id().value() - before.id().value(), label);
     }
 
     @Test void exactTuplesOldOpcodeClosureAndBodyFreeV4DowngradeAreSelective() throws Exception {
@@ -454,44 +453,44 @@ final class GraphArtifactV4Test {
         }
         assertEquals(0, cursor.getInt()); assertEquals(0, cursor.getInt()); assertEquals(1, cursor.getInt());
         cursor.position(cursor.position() + 14); integralSub[cursor.position()] = 4;
-        assertRejected(integralSub, 2, "numeric body SUB must not widen outer floating SUB");
+        assertRejected(integralSub, "numeric body SUB must not widen outer floating SUB");
     }
 
     @Test void bodyAttributesRanksGeometryAndWrongDerivedResidualsFailClosed() throws Exception {
         var scalar = fixture(25, new byte[]{2, 0, 0, 0, 0}, true, 0);
         for (int dtype : new int[]{0, 8, 255}) {
             byte[] bad = scalar.bytes().clone(); bad[scalar.offsets().get("attrs")] = (byte) dtype;
-            assertRejected(bad, 0, "scalar dtype " + dtype);
+            assertRejected(bad, "scalar dtype " + dtype);
         }
         var sum = fixture(29, new byte[]{0}, true, 0);
         byte[] tag = sum.bytes().clone(); tag[sum.offsets().get("attrs")] = 4;
-        assertRejected(tag, 0, "SUM tag");
+        assertRejected(tag, "SUM tag");
         // Scalar input has no legal reduction axis; complete metadata is parsed before preflight.
         var axis = fixture(29, new byte[]{1, 0, 0, 0, 0, 0}, true, 0);
-        assertRejected(axis.bytes(), 2, "SUM scalar axis");
+        assertRejected(axis.bytes(), "SUM scalar axis");
         byte[] flag = axis.bytes().clone(); flag[axis.offsets().get("attrs") + 5] = 2;
-        assertRejected(flag, 0, "SUM keep flag");
+        assertRejected(flag, "SUM keep flag");
         var axes = fixture(29, new byte[]{2, 127, -1, -1, -1, 0}, true, 0);
-        assertRejected(axes.bytes(), 0, "SUM count before axes allocation");
+        assertRejected(axes.bytes(), "SUM count before axes allocation");
         var reshape = fixture(10, new byte[]{127, -1, -1, -1}, true, 0);
-        assertRejected(reshape.bytes(), 0, "target rank");
+        assertRejected(reshape.bytes(), "target rank");
         var cast = fixture(32, new byte[]{1}, true, 0);
-        assertRejected(cast.bytes(), 2, "cross-dtype CAST");
+        assertRejected(cast.bytes(), "cross-dtype CAST");
         var good = fixture(1, new byte[0], true, 0);
         for (int rank : new int[]{-1, Integer.MAX_VALUE}) {
             byte[] bad = good.bytes().clone(); ByteBuffer.wrap(bad).putInt(good.offsets().get("formal") + 2, rank);
-            assertRejected(bad, 0, "formal rank " + rank);
+            assertRejected(bad, "formal rank " + rank);
         }
         byte[] layout = good.bytes().clone(); ByteBuffer.wrap(layout).putLong(good.offsets().get("formal") + 7, Long.MAX_VALUE);
-        assertRejected(layout, 0, "overflowing formal geometry");
+        assertRejected(layout, "overflowing formal geometry");
         byte[] residual = good.bytes().clone();
         ByteBuffer.wrap(residual).putInt(good.offsets().get("residual") + 4, 0);
-        assertRejected(residual, 2, "duplicate derived residual");
+        assertRejected(residual, "duplicate derived residual");
         // The body producer remains in the wire but no root can reach it.
         byte[] dead = good.bytes().clone();
         ByteBuffer.wrap(dead).putInt(good.offsets().get("root") + 4, 1)
                 .putInt(good.offsets().get("emit"), 1).putInt(good.offsets().get("residual") + 4, 1);
-        assertRejected(dead, 0, "dead contained producer");
+        assertRejected(dead, "dead contained producer");
     }
 
     @Test void scalarAttributesPreserveEveryApplicableRawDtypeWithoutCpuQualification() throws Exception {
