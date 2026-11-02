@@ -9,20 +9,27 @@ The Cephes notice below applies only to the error-function (ERF) coefficient tab
 piecewise rational approximation in:
 
 - `modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuScalarEmitter.java`
+- `modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuVectorMath.java`
 - `modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/reference/CpuScalarReferenceKernel.java`
+- `modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuOrdinaryPointwiseCastCleanJavaOracle.java`
+- `modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuActivationDirectOracle.java`
+- `modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuBFloat16PointwisePerformanceTest.java`
 
-Synaptik's Java implementations are adapted realizations of that approximation. No Cephes source
-file or third-party dependency is included.
+Synaptik's Java implementations are adapted realizations of that approximation. Generated scalar
+class bytes and test-only generated Java can incorporate the same coefficients and dataflow;
+absence of a runtime helper dependency does not remove their provenance. No standalone Cephes
+source file or Cephes library is bundled.
 
 ## Cephes provenance
 
-The six exact coefficient tables and the ERF/ERFC branch structure match Stephen L. Moshier's
+The coefficient tables and piecewise ERF/ERFC approximation are derived from Stephen L. Moshier's
 Cephes `ndtr.c`. The original [Netlib Cephes documentation](https://netlib.org/cephes/doubldoc.html)
 identifies the ERF and complementary error function (ERFC) routines and their rational
 approximations. The current [SciPy XSF `ndtr` source](https://github.com/scipy/xsf/blob/main/include/xsf/cephes/ndtr.h)
 retains the same coefficients, algorithm family, and original Cephes source header. XSF's
 [bundled-license inventory](https://github.com/scipy/xsf/blob/main/LICENSES_bundled.txt) publishes
-the permission and notice reproduced below.
+the permission and notice reproduced below and identifies its Cephes distribution as
+`BSD-3-Clause`, distributed with the author's permission.
 
 Synaptik commit `9dec4cb7` first introduced the tables and reference ERF realization. Commit
 `73ecd053` explicitly identified them as Cephes `ndtr.c` coefficients. Commit `949b8413` adopted
@@ -71,3 +78,23 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
+
+## Distribution responsibilities
+
+CPU binaries and source distributions containing the material above must carry the Cephes notice,
+conditions and disclaimer. Independently redistributed generated `.class` or persistent `.artifact`
+outputs, or exported oracle/evidence sources, require accompanying notice materials too. A local
+generated-code cache is not a standalone redistribution policy; its binary schema is unchanged.
+
+Current native Metal ERF/GELU use Apple's MPSGraph implementation, not the retained CPU Cephes
+approximation. The native package does not bundle Apple frameworks, an OpenBLAS implementation or
+a JDK. Their installed runtime distributions have their own applicable terms. This distinction
+does not supply a project-wide license for Synaptik's own Java/native/shader material.
+
+## Gradle wrapper
+
+The incorporated `gradlew` and `gradlew.bat` scripts retain their original-author copyright and
+Apache License 2.0 headers. `gradle/wrapper/gradle-wrapper.jar` includes the complete Apache
+License 2.0 text in `META-INF/LICENSE`; preserve that embedded material when distributing the
+wrapper. The Gradle distribution is downloaded separately and is not bundled in the application.
+Those tooling licenses do not select a license for Synaptik itself.

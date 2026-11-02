@@ -1,3 +1,16 @@
+import org.apache.tools.ant.DirectoryScanner
+import org.apache.tools.ant.types.selectors.SelectorUtils
+
+// Gradle's default excludes also affect explicit CopySpecs. Only reviewed source paths override them.
+val admittedReleaseSources = providers.fileContents(
+    layout.settingsDirectory.file("gradle/release-source-paths.txt")
+).asText.get().lineSequence().filter { it.isNotBlank() && !it.startsWith("#") }.toList()
+for (pattern in DirectoryScanner.getDefaultExcludes()) {
+    if (admittedReleaseSources.any { SelectorUtils.matchPath(pattern, it) }) {
+        DirectoryScanner.removeDefaultExclude(pattern)
+    }
+}
+
 rootProject.name = "synaptik"
 
 include(

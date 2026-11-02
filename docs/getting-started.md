@@ -1,9 +1,9 @@
-# Getting started as a contributor
+# Getting started
 
 ## Outcome
 
-This guide gets a new contributor from a fresh checkout to a verified build and one runnable
-CPU-only Engine computation. The current public lifecycle is:
+Build from a checkout or install a versioned local candidate, then run a CPU-only Engine
+computation. The current public lifecycle is:
 
 ```text
 Tensor expression -> compile -> prepare -> run -> materialize
@@ -23,6 +23,90 @@ java -version
 
 Import the repository as a Gradle project in IntelliJ IDEA and select a Java 26 SDK. The project
 uses the checked-in Gradle wrapper, so a separate Gradle installation is not required.
+
+## Install a versioned local candidate
+
+The owner selected **private/internal distribution** for the first production target. No public
+project licence or redistribution grant is selected; do not publish these artifacts to public
+registries. Current archives remain qualification candidates until the final all-PURE/source-matched
+technical gate passes. No official signing or bundled third-party native implementation is implied.
+Java CPU BF16/FP16 numerical arithmetic remains locked; raw storage, casts and the documented
+exact/discrete domain remain separate. Metal requires the explicitly configured Apple-silicon
+package and its documented supported operation/type occurrences.
+
+### Produce and verify the archives
+
+From the source root, supply the actual base revision and the existing verified Metal package:
+
+```bash
+./gradlew releaseDistribution \
+  -PreleaseVersion=0.1.0 \
+  -PreleaseBaseRevision=<actual-base-revision> \
+  -PsynaptikMetalNativePackage=/absolute/path/to/macos-arm64
+```
+
+`releaseBaseRevision` is mandatory for source provenance; it has no built-in revision fallback.
+The reviewed `gradle/release-source-paths.txt` selects the exact current working-tree bytes,
+including accepted dirty source, wrapper, build scripts, tests and documentation. It excludes
+historical evidence, build/cache/IDE files and secrets. Update that reviewed inventory when
+accepted source files are added or removed; the build does not discover arbitrary local files.
+`source-provenance.json` records the version, base revision and each selected path/SHA256, both
+beside the archives and inside the extracted source root. A base revision alone is not the source.
+
+Outputs live under `build/release/0.1.0/`:
+
+| Archive | Contents |
+|---|---|
+| `synaptik-0.1.0-sources.zip` | Buildable selected source and provenance; Unix executable modes retained |
+| `synaptik-0.1.0-repository.zip` | Standard local Maven repository, binary/source/Javadoc artifacts and third-party notices |
+| `synaptik-0.1.0-bin.zip` | Java binaries, the same Maven repository, verified inner Metal ZIP and notices |
+
+Verify `SHA256SUMS` from that output directory before extraction (`shasum -a 256 -c SHA256SUMS`
+on macOS). Preserve executable file modes when extracting source; `ditto -x -k archive.zip target`
+does so on macOS. An extracted source root builds without `.git`; ordinary `./gradlew test` does
+not require release properties. Recreating a source archive still requires its recorded base
+revision. The native package retains its separate backend-owned verification:
+[Metal package instructions](../modules/backend/metal/macos-arm64/README.md).
+
+### Consume only the installed repository
+
+Extract the repository ZIP outside the checkout. In a separate Gradle project, use its absolute
+`repository` directory and the ordinary Java toolchain:
+
+```kotlin
+plugins { java }
+repositories { maven { url = uri("/absolute/path/to/repository") } }
+dependencies { implementation("io.github.pho001.synaptik:nn:0.1.0") }
+java { toolchain { languageVersion.set(JavaLanguageVersion.of(26)) } }
+```
+
+For Maven, put these sections inside the consumer's `pom.xml`; the standard compiler plugin must
+support Java 26:
+
+```xml
+<properties><maven.compiler.release>26</maven.compiler.release></properties>
+<repositories>
+  <repository><id>synaptik-local</id><url>file:///absolute/path/to/repository</url></repository>
+</repositories>
+<dependencies>
+  <dependency>
+    <groupId>io.github.pho001.synaptik</groupId><artifactId>nn</artifactId><version>0.1.0</version>
+  </dependency>
+</dependencies>
+<build><plugins><plugin>
+  <groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId>
+  <version>3.14.0</version>
+</plugin></plugins></build>
+```
+
+Choose `engine` for the low-level Engine API or `nn` for owned Models; add `text` only when using
+the Text extension. Their published metadata supplies the supported dependency closure. Do not
+add checkout JARs, internal modules, a fat JAR or a manual hidden-transitive classpath.
+Use the complete [MLP, CNN and runtime-length RNN workflows](user-guide/running-models.md).
+Launch Engine-based Java consumers with `--enable-native-access=ALL-UNNAMED`, including the
+standard CPU composition's optional OpenBLAS probe. Metal also requires the installed verified
+library's absolute path in MetalBackendConfiguration, with no discovery or automatic backend fallback. See the [production support matrix](backend-guide/production-support.md)
+before selecting operations and dtypes.
 
 ## Verify the checkout
 
@@ -67,32 +151,44 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
-HostTensorValue retained;
-try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
-    Shape shape = Shape.of(2);
-    TensorDescriptor descriptor = new TensorDescriptor(
-            DataType.FLOAT32,
-            shape,
-            Optional.of(LayoutDescriptor.contiguous(shape)),
-            false);
-    MemorySegment source = MemorySegment.ofArray(new float[] {1.5f, -2.25f});
-    MemorySegment storage = arena.allocate(source.byteSize(), Float.BYTES);
-    MemorySegment.copy(source, 0, storage, 0, source.byteSize());
-    Tensor input = TensorFactory.create(
-            descriptor,
-            Optional.empty(),
-            Optional.of(new MemorySegmentStorage(DataType.FLOAT32, 2, storage)));
+public final class GettingStartedExample {
+    public static void main(String[] args) {
+        HostTensorValue retained;
+        try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+            Shape shape = Shape.of(2);
+            TensorDescriptor descriptor = new TensorDescriptor(
+                    DataType.FLOAT32,
+                    shape,
+                    Optional.of(LayoutDescriptor.contiguous(shape)),
+                    false);
+            MemorySegment source = MemorySegment.ofArray(new float[] {1.5f, -2.25f});
+            MemorySegment storage = arena.allocate(source.byteSize(), Float.BYTES);
+            MemorySegment.copy(source, 0, storage, 0, source.byteSize());
+            Tensor input = TensorFactory.create(
+                    descriptor,
+                    Optional.empty(),
+                    Optional.of(new MemorySegmentStorage(DataType.FLOAT32, 2, storage)));
 
-    retained = engine.compute(input.contiguous(), 2L * Float.BYTES);
+            retained = engine.compute(input.contiguous(), 2L * Float.BYTES);
+        }
+
+        assert retained.bytes().getFloat(0) == 1.5f;
+        assert retained.bytes().getFloat(Float.BYTES) == -2.25f;
+    }
 }
-
-assert retained.bytes().getFloat(0) == 1.5f;
-assert retained.bytes().getFloat(Float.BYTES) == -2.25f;
 ```
 
 The input storage remains owned by the caller and must stay live through synchronous computation.
 The `HostTensorValue` owns an immutable canonical copy, so it remains readable after both the
 Engine and arena close. Every `compute(...)` call compiles and prepares afresh.
+
+Save the complete Java block as `GettingStartedExample.java` and use the installed Engine runtime
+classpath. Run with assertions enabled so the retained-value checks actually execute:
+
+```bash
+java --enable-native-access=ALL-UNNAMED -ea \
+  --class-path "<installed-engine-runtime-classpath>" GettingStartedExample.java
+```
 
 ## Common setup problems
 

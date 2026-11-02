@@ -1,55 +1,79 @@
-# Release process status
+# Private release process
 
-## What you will learn
+## Scope and ownership
 
-Synaptik does not currently define or automate a public release process. This page records the safe contributor boundary so a local build is not mistaken for a published release.
+The first-production distribution is **private/internal**. The standard local packaging
+mechanism is implemented and independently qualified by
+[Engine0024](../planning/modules/engine/tasks/0024-versioned-local-distribution.md#result).
+That component acceptance is not a successful final release gate or permission to upload.
+No public project licence, redistribution grant, registry, publisher signing identity or
+notarization credential has been selected.
 
-## Current verification
+Use the exercised [installation commands](../getting-started.md#install-a-versioned-local-candidate)
+and [support matrix](../backend-guide/production-support.md), rather than inventing another
+packager or dependency list. Ordinary development defaults to `0.1.0-SNAPSHOT`; the explicit
+first candidate version is `0.1.0`. These coordinates do not establish a future compatibility
+or semantic-versioning guarantee.
 
-Before sharing a development change, run the checks required by its task. The broad repository checks are:
+## Candidate outputs
 
-```bash
-./gradlew test
-./gradlew build
-git diff --check
-```
+The root `releaseDistribution` task uses ordinary Gradle Java/Maven publications for eighteen
+implemented products. Each has binary, source and Javadoc artifacts in the versioned local
+Maven repository. Grouping, test, benchmark, CUDA, ONNX and CLI marker projects are not supported
+publications. Their retained source is not silently promoted into the release API.
 
-For a Java module with public API changes, also generate that module's Javadoc; for example:
+The task creates source, repository and binary ZIPs below `build/release/<version>/`, plus
+`source-provenance.json` and `SHA256SUMS`. The binary ZIP contains the same Java repository and
+the backend-owned, independently verified Metal local ZIP. There is no shading, fat JAR,
+remote upload, credential discovery, automatic native installation or runtime library discovery.
 
-```bash
-./gradlew :modules:model:javadoc
-```
+`releaseBaseRevision` and the absolute `synaptikMetalNativePackage` directory are explicit
+inputs. Build, ad-hoc sign and verify that native package using the
+[Metal-owned process](../../modules/backend/metal/macos-arm64/README.md#build-prerequisites-and-local-package).
+The release task reuses that verifier; it does not build or repair native bytes. Preserve
+permissions during extraction, verify again, retain the installed directory for the Engine
+lifetime and pass the dylib's absolute path to `MetalBackendConfiguration`.
 
-These commands verify the checkout and documentation formatting. They do not assign a version, publish artifacts, create a tag, generate a changelog, sign output, or establish compatibility.
+## Exact source and notices
 
-## Opt-in Metal local archive
+`gradle/release-source-paths.txt` is the reviewed, sorted exact-path inventory shared by source
+archiving and provenance. It selects current bytes, including accepted dirty changes, without
+requiring Git during the build. Update it when accepted source adds, removes or renames a file.
+Do not substitute a HEAD-only archive or an unchecked recursive checkout copy.
 
-`:backends:metal:metalNativeLocalZip` accepts only an explicitly supplied absolute path to the
-reviewed macOS-arm64 local package, reruns its verifier, and writes the fixed unversioned
-`synaptik-metal-macos-arm64-local.zip` below that module's ignored `build/distributions/`
-directory. The task is not connected to ordinary Gradle lifecycle work and performs no native
-build, signing, installation, extraction, discovery, publication, or upload.
+Provenance records the base revision, product version and every selected relative path/SHA256.
+The base revision alone does not identify a dirty build. Archive order/timestamps are fixed and
+executable modes retained. `SHA256SUMS` is outside the artifacts it hashes. These accompanying
+hashes detect corruption; they do not authenticate hostile replacement or establish publisher
+identity. Native signatures/rebuilds are not promised bit-identical.
 
-This ZIP remains an unauthenticated local development transport. Its self-contained hashes detect
-corruption but not hostile replacement, and its ad-hoc signature establishes no publisher identity
-or Apple trust. Callers own permission-preserving extraction, reverification, retention, and the
-explicit absolute dylib path supplied to Metal. The archive defines no release version,
-coordinates, provenance, redistribution rights, or legal notice policy.
+Preserve the complete root `THIRD_PARTY_NOTICES.md` in applicable CPU artifacts and outer
+distributions, including the Cephes conditions and disclaimer. Preserve the Gradle wrapper's
+embedded Apache licence. Those notices grant no rights to Synaptik's own code.
 
-## Not yet defined
+## Final qualification
 
-Versioning policy, compatibility guarantees, artifact coordinates, repositories, signing, provenance, release notes, CI promotion, rollback, and support policy require explicit future planning. Contributors must not infer them from Gradle project names or create ad hoc publication credentials and workflows.
+Freeze a candidate only after the required CPU/Metal changes are integrated. Record exact source
+and artifact identities, actual commands, failures and recovery runs. Then:
 
-## Typical mistakes
+1. Run the affected and final repository/architecture checks and public Javadocs with the declared
+   JDK/native inputs. Record every skip, observer limitation and unsupported domain honestly.
+2. Verify all archive/checksum/provenance entries and published dependency closures.
+3. Extract source outside any checkout and compile with the build cache disabled and tasks rerun;
+   do not mistake checkout classes or cached outputs for a clean installation.
+4. Resolve only the extracted repository from fresh external Maven and Gradle consumers. Compile
+   the documented public examples and execute the required CPU/Metal compute, gradient, repeated
+   training, save/close/load and newly configured training journeys.
+5. Record relevant performance observations and independent code/evidence review before marking
+   the candidate accepted. Numerical correctness does not imply universal speed or zero allocation.
 
-| Symptom | Cause | Correction |
-|---|---|---|
-| `build` success is called a release | Verification and publication were conflated. | Describe it as a verified development build. |
-| A guide promises semantic versioning | No policy has been accepted. | Wait for a focused release plan and decision. |
-| Credentials appear in repository files | Publication was improvised. | Stop and design a secure release workflow before adding secrets. |
+The production matrix owns the current acceptance status. A successful packaging task, local
+archive, ad-hoc native signature or earlier component gate must never be relabeled as a complete
+production release. Public distribution, trusted signing, CI promotion and rollback policy need
+separate owner decisions; they are not hidden prerequisites for this private local candidate.
 
 ## Related documentation
 
+- [Production target](../planning/production-release-goal.md)
 - [Public API status](../api/public-api.md)
-- [Planning guide](../planning/planning-guide.md)
 - [Documentation rules](documentation-rules.md)

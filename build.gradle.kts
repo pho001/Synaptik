@@ -7,9 +7,14 @@ plugins {
     base
 }
 
+val productVersion = providers.gradleProperty("releaseVersion").orElse("0.1.0-SNAPSHOT").get()
+require(productVersion.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]*"))) {
+    "releaseVersion must be a non-empty Maven/file-safe version"
+}
+
 allprojects {
     group = "io.github.pho001.synaptik"
-    version = "0.1.0-SNAPSHOT"
+    version = productVersion
 
     repositories {
         mavenCentral()
@@ -40,3 +45,5 @@ subprojects {
         useJUnitPlatform()
     }
 }
+
+apply(from = "gradle/release.gradle.kts")
