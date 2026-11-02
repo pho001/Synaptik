@@ -32,6 +32,40 @@ class MetalNormalizationLossNativeTest {
             MetalMpsGraphProgram.AttributeKind.NORMALIZED_SHAPE_EPSILON;
 
     @Test
+    void genuineEmptyNormalizationDomainsRetainZeroExtentsAndCanonicalPorts() {
+        for (var kind : List.of(MetalMpsGraphProgram.NodeKind.LAYER_NORM, MetalMpsGraphProgram.NodeKind.RMS_NORM)) {
+            assertEquals(0, unary(kind, NORMALIZED, normalized(2, 1), new long[] {0, 2}, floats()).length);
+            assertEquals(0, unary(kind, NORMALIZED, normalized(0, 1), new long[] {2, 0}, floats()).length);
+        }
+        var inference = node(MetalMpsGraphProgram.NodeKind.BATCH_NORM_INFERENCE,
+                new int[] {0, 1, 2, 3, 4}, new int[] {5},
+                MetalMpsGraphProgram.AttributeKind.BATCH_NORM_INFERENCE, new long[] {1, 1, bits(1)});
+        assertEquals(0, execute(List.of(value(0, 2), value(2), value(2), value(2), value(2), value(0, 2)),
+                inference, 5, new byte[][] {floats(), floats(1, 1), floats(0, 0), floats(0, 0), floats(1, 1)})
+                .getFirst().length);
+        var training = node(MetalMpsGraphProgram.NodeKind.BATCH_NORM_TRAINING,
+                new int[] {0, 1, 2, 3, 4}, new int[] {5, 6, 7, 8, 9},
+                MetalMpsGraphProgram.AttributeKind.BATCH_NORM_TRAINING,
+                new long[] {1, 1, bits(0.5f), 1, bits(1)});
+        var results = execute(List.of(value(2, 0), value(0), value(0), value(0), value(0),
+                        value(2, 0), value(0), value(0), value(0), value(0)),
+                training, 5, new byte[][] {floats(), floats(), floats(), floats(), floats()});
+        assertEquals(5, results.size());
+        for (float[] result : results) assertEquals(0, result.length);
+    }
+
+    @Test
+    void trainingRejectsZeroPopulationWhenChannelsRemainNonempty() {
+        var training = node(MetalMpsGraphProgram.NodeKind.BATCH_NORM_TRAINING,
+                new int[] {0, 1, 2, 3, 4}, new int[] {5, 6, 7, 8, 9},
+                MetalMpsGraphProgram.AttributeKind.BATCH_NORM_TRAINING,
+                new long[] {1, 1, bits(0.5f), 1, bits(1)});
+        assertThrows(IllegalArgumentException.class, () -> MetalNormalizationSupport.validate(
+                training, List.of(value(0, 2), value(2), value(2), value(2), value(2),
+                        value(0, 2), value(2), value(2), value(2), value(2))));
+    }
+
+    @Test
     void admissionAndRawValidationRejectOverlappingPositiveStridesButAdmitTranspose() {
         Shape shape = Shape.of(2, 2);
         var output = new TensorDescriptor(DataType.FLOAT32, shape,
