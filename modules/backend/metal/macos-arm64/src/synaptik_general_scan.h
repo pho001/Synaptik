@@ -23,11 +23,22 @@ typedef struct {
     uint32_t reserved[2];
     int32_t inputRowAxes[4];
     uint64_t inputRowInner[4];
+    int32_t outputRowAxes[5];
+    uint32_t outputScopes[5];
+    uint64_t outputRowInner[5];
+    uint64_t outputElements[5];
+    uint32_t outputCount;
+    uint32_t outputReserved;
 } SynaptikMetalScanStepControl;
-_Static_assert(sizeof(SynaptikMetalScanStepControl) == 80, "ScanStepControl size");
+_Static_assert(sizeof(SynaptikMetalScanStepControl) == 208, "ScanStepControl size");
 _Static_assert(_Alignof(SynaptikMetalScanStepControl) == 8, "ScanStepControl alignment");
 _Static_assert(offsetof(SynaptikMetalScanStepControl, inputRowAxes) == 32, "Scan input axes offset");
 _Static_assert(offsetof(SynaptikMetalScanStepControl, inputRowInner) == 48, "Scan input inner offset");
+_Static_assert(offsetof(SynaptikMetalScanStepControl, outputRowAxes) == 80, "Scan output axes offset");
+_Static_assert(offsetof(SynaptikMetalScanStepControl, outputScopes) == 100, "Scan output scopes offset");
+_Static_assert(offsetof(SynaptikMetalScanStepControl, outputRowInner) == 120, "Scan output inner offset");
+_Static_assert(offsetof(SynaptikMetalScanStepControl, outputElements) == 160, "Scan output elements offset");
+_Static_assert(offsetof(SynaptikMetalScanStepControl, outputCount) == 200, "Scan output count offset");
 
 /* Host preflights use the same authenticated control words as shaders. Null controls are only
  * the existing ordinary non-Scan path; controlled callers always supply both pointers. */
@@ -69,6 +80,23 @@ static BOOL synaptik_scan_control_operand(const uint64_t *control,
     return synaptik_scan_control_row(control, step->scope,
             (linear / step->inputRowInner[role]) % control[1]);
 }
+static BOOL synaptik_scan_control_output_at(const uint64_t *control,
+        const SynaptikMetalScanStepControl *step, uint32_t output, uint64_t linear) {
+    if (control == NULL || step == NULL) return YES;
+    if (output >= step->outputCount || output >= 5U || linear >= step->outputElements[output]) return NO;
+    if (step->outputRowAxes[output] < 0) return synaptik_scan_control_any(control, step->outputScopes[output]);
+    if (control[1] == 0U || step->outputRowInner[output] == 0U) return NO;
+    return synaptik_scan_control_row(control, step->outputScopes[output],
+            (linear / step->outputRowInner[output]) % control[1]);
+}
+static BOOL synaptik_scan_control_any_output(const uint64_t *control,
+        const SynaptikMetalScanStepControl *step) {
+    if (control == NULL || step == NULL) return YES;
+    for (uint32_t output = 0U; output < step->outputCount && output < 5U; output++)
+        if (step->outputElements[output] != 0U && synaptik_scan_control_any(control, step->outputScopes[output])) return YES;
+    return NO;
+}
+
 /* Independent of DataMeta and all floating helpers; assemble before controlled components.
 
  * scan_control_output uses a canonical logical output ordinal, never a physical address.
@@ -78,7 +106,7 @@ static BOOL synaptik_scan_control_operand(const uint64_t *control,
  * an empty declared scope is absent. For all-valid bodies rowCount is one even for empty tensors.
  */
 static NSString *const SynaptikGeneralScanKernelSource =
-@"\nstruct ScanStepControl { ulong rowInner; uint scope; uint leftScope; uint rightScope; int rowAxis; uint reserved[2]; int inputRowAxes[4]; ulong inputRowInner[4]; };\n"
+@"\nstruct ScanStepControl { ulong rowInner; uint scope; uint leftScope; uint rightScope; int rowAxis; uint reserved[2]; int inputRowAxes[4]; ulong inputRowInner[4]; int outputRowAxes[5]; uint outputScopes[5]; ulong outputRowInner[5]; ulong outputElements[5]; uint outputCount; uint outputReserved; };\n"
 "inline bool scan_control_row(device const ulong *control, uint scope, ulong row) {\n"
 "  if (row >= control[9]) return false;\n"
 "  if (control[8] != 0ul && (row >= control[1] || control[0] >= control[control[7] + row])) return false;\n"
@@ -97,6 +125,16 @@ static NSString *const SynaptikGeneralScanKernelSource =
 "  if (step.rowAxis < 0) return scan_control_any(control, scope);\n"
 "  if (control[1] == 0ul || step.rowInner == 0ul) return false;\n"
 "  return scan_control_row(control, scope, (linear / step.rowInner) % control[1]);\n"
+"}\n"
+"inline bool scan_control_output_at(device const ulong *control, constant ScanStepControl &step, uint output, ulong linear) {\n"
+" if(output>=step.outputCount||output>=5u||linear>=step.outputElements[output])return false;\n"
+" if(step.outputRowAxes[output]<0)return scan_control_any(control,step.outputScopes[output]);\n"
+" if(control[1]==0ul||step.outputRowInner[output]==0ul)return false;\n"
+" return scan_control_row(control,step.outputScopes[output],(linear/step.outputRowInner[output])%control[1]);\n"
+"}\n"
+"inline bool scan_control_any_output(device const ulong *control, constant ScanStepControl &step) {\n"
+" for(uint output=0u;output<step.outputCount&&output<5u;++output)if(step.outputElements[output]!=0ul&&scan_control_any(control,step.outputScopes[output]))return true;\n"
+" return false;\n"
 "}\n"
 "inline bool scan_control_output(device const ulong *control, constant ScanStepControl &step, ulong linear) { return scan_control_output_scope(control, step, step.scope, linear); }\n"
 "inline bool scan_control_contributor(device const ulong *control, constant ScanStepControl &step, ulong row) { return scan_control_row(control, step.scope, row); }\n"
