@@ -56,18 +56,20 @@ custom program. Gradient-bearing arithmetic, scalar, reduction, scan, dropout, n
 low/FLOAT64 window paths and other admitted differentiable rows retain compiler-generated
 first-order and owned higher-order paths. Shared grouped Conv2d/Conv3d AD now supports
 qualified static CPU FLOAT32/FLOAT64 and Metal FLOAT32 training, including input, weight and
-bias gradients and overlapping image folds. Metal overlap-add is FLOAT32-only; CPU Pool3d's
-independent no-gradient gate remains unchanged. See the [production support matrix](docs/backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary).
+bias gradients and overlapping image folds. Maximum and average Pool3d now support qualified
+static CPU FLOAT32/FLOAT64 and Metal FLOAT32 training, including overlapping windows.
+Metal overlap-add remains FLOAT32-only; low/FLOAT64 Metal non-overlap restrictions remain.
+See the [production support matrix](docs/backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary).
 Attention, convolution transpose and every other unlisted Metal occurrence remain fail-closed. Exact custom nodes
 fix their whole partition to one custom program with compact run-owned materialized slots and
 direct targets; top-K publishes paired values and INT64 indices from one step. Deterministic
 generated Metal units continue to fuse only their qualified FLOAT32 chains; every BFLOAT16/FLOAT16
 partition is custom-program-only. ABI 7 exposes thirteen symbols; the route-bearing program image
 remains schema 20, data-type wires remain `1..7`, and backend-local route, workload, policy and
-codec identities are version 39. Low-precision preparation trace reports the selected custom route
+codec identities are version 40. Low-precision preparation trace reports the selected custom route
 and ordered logical dtype tuple; tracing is diagnostic, not a numerical selector.
 Standard-Metal convenience, generic plugin discovery, CUDA and broader optimizers remain planned.
-Source-domain-bounded v1-v5 graph/Model persistence is available; it stores no optimizer/session continuation.
+Source-domain-bounded v1-v6 graph/Model persistence is available; it stores no optimizer/session continuation.
 Focused documentation identifies the exact current boundary for each area.
 
 ## Prerequisites

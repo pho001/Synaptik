@@ -3510,12 +3510,13 @@ create fresh private state, and load adopts final heap values directly. This is 
 executor. Builder construction/compute/train are independent of serialization admission.
 Definition/graph acquisition uses the bounded
 [Compiler source slice](architecture/contracts/compiler-autograd.md#compile-lifecycle), including
-selected default CNN/static recurrent graphs, cold fixed scans and the general-body exception.
-Bounded general-body save/load uses
+selected default CNN/static recurrent graphs, complete typed Pool3d, cold fixed scans and the
+general-body exception. Bounded general-body save/load uses
 [graph-model.v4](architecture/contracts/extensions-training.md#canonical-graph-model-version-4)
-through existing APIs, with focused implementation evidence and main's accepted final gates.
-V1/v2/v3 remain body-free. Added body-free kinds select graph-model.v3;
-sources wholly within the original eight kinds retain byte-identical v1/v2. Unsupported builder
+for all-valid sources without Pool3d, v5 for qualified length mode without Pool3d, and v6 for
+outer or contained Pool3d. V4/v5 retain their pre-Pool3d opcode sets.
+V1/v2/v3 remain body-free. Their selected added body-free kinds use v3; sources wholly within
+the original eight kinds retain byte-identical v1/v2. Unsupported builder
 saves touch no file and do not disable execution. Scan inference uses the same cached public Engine
 path, including after load for qualified occurrences, independently of cold persistence. Fixed-scan
 training remains unsupported;
@@ -3540,7 +3541,8 @@ all-port binding. Prepare0015 separately implements combined one-B/fixed-T/featu
 Prepare/CPU/Engine execution, with root validation and the sole bounded probe completed (evidence and limits:
 [Prepare0015 Result](planning/modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result) ); final
 MAIN acceptance remains pending in that task record. Static length-aware persistence and the
-separately qualified owned RNN workflow use the bounded v5 inventory, not all PURE bodies. See the
+separately qualified owned RNN workflow use bounded v5 without Pool3d, or v6 for outer/body Pool3d,
+not all PURE bodies. See the
 [source-construction example](api/tensor-api.md#length-aware-source-only-construction),
 [changing-B execution example](user-guide/running-models.md#symbolic-length-scan-with-changing-batch-size)
 and [combined CPU scope](backend-guide/cpu-backend.md#symbolic-length-scan-cpu-execution).
@@ -3551,9 +3553,9 @@ are distinct admissions. The implemented all-valid owned-Model workflow adds no 
 Compiler's [cold inventory](architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction)
 is not a CPU dtype predicate. Checkpoint now preserves that bounded body inventory for in-memory
 copy/rebind; NN graph/definition acquisition uses that inventory independently of CPU support.
-General-body persistence is implemented under
-[v4 requirements](architecture/contracts/extensions-training.md#canonical-graph-model-version-4),
-using that same bounded inventory, not arbitrary PURE bodies or a new execution grant.
+General-body persistence uses v4 for its pre-Pool3d all-valid inventory, v5 for the qualified
+static homogeneous length intersection, and v6 for outer/body Pool3d, not arbitrary PURE bodies
+or a new execution grant. See the [wire contract](architecture/contracts/extensions-training.md#canonical-graph-model-version-6).
 
 The accepted fixed-count scan over ordinary Tensor body algebra, with explicit carry, sequence-step
 and invariant inputs and final-carry/emission results. Compiler builds an ordinary reverse sibling
@@ -7206,11 +7208,16 @@ and differentiate both signatures through ordinary public Tensor expressions. Av
 uses its fixed logical kernel divisor and overlap fold. Maximum Pool3d reconstructs an explicit
 eligible first winner from the same-occurrence output, preserving padding exclusion, NaN,
 signed-zero, real-negative-infinity, and all-padding distinctions; that selector is fixed for a
-later derivative stage. The current CPU backend executes the fully static, resolved non-negative-
-layout, non-gradient BFLOAT16/FLOAT16/FLOAT32/FLOAT64 subset with one direct schema-71 generated
-scalar body and optional caller-owned parallel output-cell ranges. It uses zero workspace and
-materialization. This does not imply dynamic geometry, Pool3d gradients, `UNFOLD3D`/`FOLD3D`
-execution, pooling fusion, vector/native routes, or cross-backend performance. See
+later derivative stage. CPU raw forward execution retains fully static resolved non-negative
+layouts and schema-71 generated scalar bodies for BFLOAT16/FLOAT16/FLOAT32/FLOAT64. Qualified
+matching CPU FLOAT32/FLOAT64 gradient metadata and lowering now reuse ordinary pooling rules and
+UNFOLD3D/FOLD3D; CPU low arithmetic remains locked. Qualified Metal FLOAT32 Pool2d/Pool3d
+training permits overlap, while FLOAT64/low non-overlap and original-carrier checks remain.
+Coordinated Metal route/workload/policy/codec identity is40; schema20/ABI7 remain unchanged.
+These grants do not imply dynamic/named-B pooling, Metal Scan, pooling fusion or cross-backend
+performance. Fluent maximum/average Pool3d steps use kernel stride, zero padding, unit dilation
+and floor geometry. Cold sources retain complete typed geometry and select graph-model.v6,
+including otherwise-qualified all-valid/length bodies; no optimizer/session state is persisted. See
 [NCDHW Pool3d expressions](api/tensor-api.md#ncdhw-pool3d-expressions).
 
 ## Common distinctions
@@ -7364,8 +7371,9 @@ IDs while normalizing outer IDs. Compiler alone reconstructs fresh body formals 
 ports per occurrence within its bounded cold inventory, independently of backend support.
 The closed v1/v2/v3 wire remains body-free; NN's implemented owned graph/definition workflow uses
 the bounded cold inventory independently of execution qualification. Selective
-[v4](architecture/contracts/extensions-training.md#canonical-graph-model-version-4) persists
-that inventory through the same APIs, without runtime histories or a Checkpoint reconstruction owner.
+[v4](architecture/contracts/extensions-training.md#canonical-graph-model-version-4) persists its
+pre-Pool3d all-valid subset; v5 adds qualified length mode and v6 adds outer/body Pool3d through
+the same APIs, without runtime histories or a Checkpoint reconstruction owner.
 
 A **generic graph checkpoint source** is GraphCheckpoint.Source: borrowed ordered input prototypes,
 ordinary Tensor output expressions and named PARAMETER/BUFFER/CONSTANT leaves, not another graph
@@ -7373,5 +7381,11 @@ intermediate representation or executable owner. Input descriptors are fully sta
 remain signature entries with no saved batches. Exact Tensor identity defines state aliases;
 equal bytes or overlapping physical storage do not. Copy/load return private mutable heap state
 and rebuilt ordinary provenance, without retaining original state or owning an Engine. Rebind is
-cold symbolic substitution, not execution. Selective graph-model.v1/v2/v3/v4 formats are distinct from NN's old
-flexible model.v1/whole-model.v1 readers. See the [graph API](api/graph-checkpoint-api.md).
+cold symbolic substitution, not execution. Selective graph-model.v1/v2/v3/v4/v5/v6 formats are distinct
+from NN's old flexible model.v1/whole-model.v1 readers. V5 persists the static homogeneous
+FLOAT32/FLOAT64 length intersection. V6 adds maximum/average Pool3d (`SYNGRF06`, version6,
+opcodes34/35, twelve i64 kernel/stride/padding/dilation fields in depth/height/width order followed
+by canonical ceil flag), including contained occurrences. Unchanged sources retain byte-identical
+smallest v1–v5 bytes. All-version decode invokes metadata-only `GraphCompilationPort.validateSource`
+before any candidate Tensor, without Tensor identities or host copying.
+See the [graph API](api/graph-checkpoint-api.md).

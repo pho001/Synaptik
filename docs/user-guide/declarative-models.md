@@ -84,6 +84,32 @@ load fresh value Tensors through the same fully bound target. Once values are lo
 construct a forward expression and use the ordinary
 [compile, prepare and run workflow](running-models.md#compile-and-prepare-once).
 
+## Pool3d in the fluent Tensor Model builder
+
+The separate fluent `ModelBuilder` supports `maxPool3d(kd,kh,kw)` and
+`averagePool3d(kd,kh,kw)` on rank-five NCDHW input. Kernel extents are positive and ordered
+depth, height, width; stride equals kernel, padding is zero, dilation is one and mode is floor.
+These steps delegate to ordinary Model Tensor operations, not new pooling mathematics.
+They do not add Pool3d to the closed `ModelSpecification` layer inventory below.
+
+For an existing builder declared with FLOAT32 volume input `[2,1,4,8,8]`, a conceptual chain is:
+
+```java
+builder.conv3d(2, 1, 1, 1)
+        .maxPool3d(2, 2, 2)
+        .averagePool3d(1, 2, 2)
+        .flatten()
+        .linear(3);
+```
+
+The pools produce `[2,2,2,4,4]` then `[2,2,2,2,2]`; flatten produces `[2,16]` and Linear
+produces `[2,3]`, preserving batch rows. Qualified static CPU FLOAT32/FLOAT64 and Metal FLOAT32
+support first-order training. Nonpositive kernels or incompatible input rank fail Model guards.
+Save/load uses existing owned Model APIs and `graph-model.v6` when Pool3d occurs, even only
+inside an otherwise-qualified Scan body. Load restores values, not optimizer/session history;
+configure training anew. Direct Tensor cold sources additionally retain full typed Pool3d
+stride, symmetric padding, dilation and floor/ceil geometry beyond these builder defaults.
+
 ## Compatibility, sharing and failures
 
 Supported steps are nested Sequential, Linear, affine LayerNorm, Embedding,

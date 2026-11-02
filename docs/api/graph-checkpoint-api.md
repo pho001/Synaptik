@@ -8,8 +8,9 @@ substitutes inputs symbolically. None creates an Engine, prepared execution or n
 Copy/rebind support bounded all-valid general-scan bodies and the static homogeneous
 FLOAT32/FLOAT64 length-aware cold intersection. [V4 persistence](../architecture/contracts/extensions-training.md#canonical-graph-model-version-4)
 retains the all-valid portion; [v5](../architecture/contracts/extensions-training.md#canonical-graph-model-version-5)
-adds that static length-aware intersection. Older formats remain body-free. Cold and wire
-admissions do not imply numerical execution support.
+adds that static length-aware intersection. [V6](../architecture/contracts/extensions-training.md#canonical-graph-model-version-6)
+adds maximum and average Pool3d in outer graphs and otherwise-qualified bodies. V1–v3 remain
+body-free. Cold and wire admissions do not imply numerical execution support.
 The [owning contract](../architecture/contracts/extensions-training.md#generic-graph-source-and-values)
 defines the capability, [original wire](../architecture/contracts/extensions-training.md#canonical-graph-model-version-1)
 and [selective activation wire](../architecture/contracts/extensions-training.md#canonical-graph-model-version-2).
@@ -18,11 +19,12 @@ extends the same APIs to selected convolutional neural network (CNN), static rec
 flat-scan sources. Persistence adds no execution capability, scan backpropagation through time
 (BPTT), or optimizer resume. Existing default biased Conv3d sources can use
 [qualified backend training](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary)
-after load with a fresh training configuration; constructor and wire inventories are unchanged.
+after load with a fresh training configuration. Pool3d similarly supports qualified CPU
+FLOAT32/FLOAT64 and Metal FLOAT32 training; it does not restore optimizer history.
 
 ```text
 borrowed Source -> copy -> private state + reconstructed ordinary provenance
-borrowed Source -> save -> graph-model.v1/v2/v3/v4/v5 -> load -> private heap state + ordinary provenance
+borrowed Source -> save -> graph-model.v1/v2/v3/v4/v5/v6 -> load -> private heap state + ordinary provenance
 Source + replacement inputs -> rebind -> ordinary outputs -> explicit caller Engine
 ```
 
@@ -48,8 +50,8 @@ list/null snapshots; definitions perform one prototype forward before acquisitio
 static canonical homogeneous FLOAT32/FLOAT64 occurrences can compute/train through existing
 Engine/Training owners. All-valid means every static time step participates, not arbitrary body
 support. Fixed recurrent training rejection stays unchanged. All-valid general-body Model
-save/load uses Checkpoint v4; static homogeneous length-aware bodies use v5 through the same APIs,
-without another NN wire, execution path or optimizer-resume promise.
+save/load uses Checkpoint v4; static homogeneous length-aware bodies use v5, unless an outer or
+body Pool3d occurrence selects v6. The same APIs add no NN wire, execution path or optimizer resume.
 
 ## Inputs, outputs and identity
 
@@ -96,6 +98,8 @@ Symbolic cold and newly Model-valid mixed/low/discrete length bodies remain unsu
 V5 save independently rechecks the same length-mode cold eligibility through Compiler before
 dry sizing, schema allocation or named storage admission; a raw association is not an admission
 credential. Cold support alone does not qualify arbitrary numerical execution or training.
+Pool3d adds only MAX_POOL3D and AVERAGE_POOL3D to the narrow length constructor whitelist;
+static homogeneous FLOAT32/FLOAT64, ROW/SHARED, axis and terminal-SHARED restrictions remain.
 
 Normalization changes only outer IDs. The immutable compiled-body attachment keeps its own local
 IDs and ordered role bindings; equal numeric IDs in different scopes never identify the same value.
@@ -120,6 +124,11 @@ general-body source selects v4: v1/v2/v3 contain no body opcode or attachment fi
 Use an explicitly composed Engine only where its whole occurrence qualifies;
 this cold API itself grants no execution support. NN's separately implemented owned workflow is
 described above uses the same cold persistence boundary.
+
+Complete decoded metadata passes `GraphCompilationPort.validateSource(CompiledGraphModel)`
+before any candidate Tensor is created, for all supported versions. This metadata-only Compiler
+seam checks every stored node/body without Tensor identities, host reads/copies or tensor-storage
+allocation. Normal leaf association and reconstruction checks still follow.
 
 ## Selective graph format versions
 
@@ -181,11 +190,13 @@ rejects multiple boundaries. Do not call compute/train to validate this cold wor
 ### Bounded general-scan persistence
 
 The [single owning v4 contract](../architecture/contracts/extensions-training.md#canonical-graph-model-version-4)
-adds all-valid general SCAN to the outer v3 inventory and admits exactly the existing bounded cold body
-inventory, not arbitrary PURE operations or only RNN algebra. Existing `save(Path, Source,
+adds all-valid general SCAN to the outer v3 inventory and admits the pre-Pool3d subset of the
+bounded cold body inventory (opcodes at most32), not arbitrary PURE operations or only RNN algebra.
+Existing `save(Path, Source,
 ArtifactLimits)` and `load(Path, ArtifactLimits)` signatures and failures remain; there is no
-version selector or new public type. All-valid general-body sources select `graph-model.v4`; all
-body-free writes retain their smallest sufficient exact v1/v2/v3 encoding. Old readers reject v4.
+version selector or new public type. All-valid general-body sources without Pool3d select
+`graph-model.v4`; body-free sources without Pool3d retain smallest sufficient exact v1/v2/v3.
+Pool3d in either scope selects v6; old v4/v5 reject opcodes34/35. Old readers reject v4.
 
 For the three-step FLOAT32 `[2]` carry / `[3,2]` sequence example above, save with the named `[2]`
 invariant weight, release the caller-owned storage, then load and
@@ -207,9 +218,9 @@ records focused evidence and main's final gate/capability acceptance.
 
 [Checkpoint v5](../architecture/contracts/extensions-training.md#canonical-graph-model-version-5)
 adds the static homogeneous FLOAT32/FLOAT64 length-aware cold intersection without changing v4
-records or widening the constructor inventory. Only a source needing length mode selects
-`graph-model.v5`; an image can contain both all-valid and length-aware occurrences. Older
-sources keep their byte-identical smallest sufficient v1-v4 format.
+records or widening its pre-Pool3d constructor inventory. A source needing length mode without
+Pool3d selects `graph-model.v5`; an image can contain both all-valid and length-aware occurrences.
+Sources needing neither length mode nor Pool3d keep byte-identical smallest sufficient v1-v4.
 
 Save/load retain ordered ROW/SHARED roles, positional aliases, unused formals, both traversal
 directions and every canonical final/emission/residual port. Lengths is a separate outer actual,
@@ -227,6 +238,24 @@ lengths, repeated SGD, save, close, loadGraph, fresh inference and newly configu
 The codec does not migrate fixed RNN files or resume optimizer history. The separate
 [NN0033 Result](../planning/extensions/nn/tasks/0033-trainable-runtime-length-rnn-workflow.md#result)
 accepts the public recurrent-composition workflow; its completion does not widen the wire inventory.
+
+### Complete Pool3d geometry in v6
+
+`graph-model.v6` uses eight ASCII magic bytes `SYNGRF06` and i32 version 6. It appends
+34=MAX_POOL3D and 35=AVERAGE_POOL3D, each with one input/output and exact typed Model attributes.
+The attribute record contains twelve big-endian i64 values: kernel depth/height/width, stride
+depth/height/width, symmetric padding depth/height/width, dilation depth/height/width; then one
+canonical u8 ceil flag (0=floor, 1=ceil). Invalid flags reject. Positive kernel/stride/dilation,
+nonnegative padding and literal floor/ceil geometry retain Model guards, including nondefault
+anisotropic geometry. CONV2D/CONV3D and MAX_POOL2D keep their previous narrow cold bounds.
+
+An outer or contained-body Pool3d occurrence selects v6, including otherwise-qualified all-valid
+and length-aware bodies. No nested scans or other constructor widening is implied. Without
+Pool3d, save retains the byte-identical smallest sufficient v1–v5 format; old readers reject v6.
+Existing section order, roles, aliases, raw state bytes, bounds and import/publication ordering
+remain unchanged. No optimizer, executable or Engine/session state is saved; load supports
+ordinary fresh execution and newly configured training, not training continuation.
+
 
 
 ## Complete cold example

@@ -247,7 +247,8 @@ runtime-length RNN composition/lifecycle journey. Existing Model.graph/list comp
 train/save/loadGraph owners remain the only workflow; cold admission itself adds no builder API,
 fluent migration, second-order waiver or implicit head/loss mask.
 Body persistence uses implemented [v4](#canonical-graph-model-version-4) for all-valid bodies and
-[v5](#canonical-graph-model-version-5) for the static homogeneous length intersection.
+[v5](#canonical-graph-model-version-5) for the static homogeneous length intersection when neither
+contains Pool3d; outer or contained Pool3d selects [v6](#canonical-graph-model-version-6).
 
 Model remains abstract and generic and implements AutoCloseable. Generic/custom/declarative
 forward behavior is unchanged; unsupported tensor operations throw UnsupportedOperationException
@@ -278,9 +279,11 @@ composition or reconstruction per batch. All live guards, exclusion, native admi
 below apply unchanged. Definition/graph/load acquisition and cold reconstruction remain unchanged.
 
 Builder steps are Linear (automatic or supplied weight/optional bias), RELU/TANH/SIGMOID,
-Conv1d/2d/3d, MaxPool2d, flatten, RNN/GRU/LSTM and lastTimeStep. Automatic layers use existing
-L64X128MixRandom algorithms with Glorot uniform and exact zero bias enabled by default. Default seed
-is zero; the last seed selected before build applies to all steps. Zero-based appended step i
+Conv1d/2d/3d, MaxPool2d, MaxPool3d, AveragePool3d, flatten, RNN/GRU/LSTM and lastTimeStep.
+`maxPool3d(kd,kh,kw)` and `averagePool3d(kd,kh,kw)` append ordinary Model operations
+through the same private pooling adapter as MaxPool2d, not a second mathematical implementation.
+Automatic layers use existing L64X128MixRandom algorithms with Glorot uniform and exact zero bias
+enabled by default. Default seed is zero; the last seed selected before build applies to all steps. Zero-based appended step i
 (including activations/transforms) uses `seed + 0x9E3779B97F4A7C15L * i` with Java long wraparound
 and a fresh transient generator; recurrent matrix order/fans remain the existing cell's.
 Linear infers the last feature extent. Convolutions use NCW/NCHW/NCDHW, stride/dilation/groups one,
@@ -381,8 +384,9 @@ strict state installation preserves wrappers, paths and aliases without mutating
 Load adopts final heap state without another copy. Callback side effects are not rolled back.
 Implemented definition/graph acquisition uses the closed static FORWARD
 [Compiler slice](compiler-autograd.md#compile-lifecycle), including selected fixed flat scans and
-the bounded general-body exception. Its implemented persistence counterpart is
-[graph-model v4](#canonical-graph-model-version-4), through the same save/load APIs, with no NN wire.
+the bounded general-body exception. Persistence uses the same save/load APIs, with no NN wire:
+[v4](#canonical-graph-model-version-4) for pre-Pool3d all-valid bodies, v5 for qualified length
+mode without Pool3d, and [v6](#canonical-graph-model-version-6) for outer or contained Pool3d.
 V1/v2/v3 file admission stays body-free.
 The list boundary may declare sequence, non-gradient INT64 runtime lengths and initial states as
 unique provenance-free inputs, disjoint from named state. Their prototype storage is never copied
@@ -908,6 +912,14 @@ for owned Model composition and the relocated old persistence APIs; other inward
 
 ### Generic graph source and values
 
+The user-authorized Pool3d completion extends the existing fluent Tensor Model builder and cold
+graph source boundary with ordinary maximum and average Pool3d expressions. Their mathematical
+and gradient owners remain Model and Compiler. A new append-only graph-model.v6 wire admits these
+two exact typed operation kinds/attributes, including qualified body placement through the existing
+bounded Scan protocol. Preserve every already accepted v1-v5 file and choose the smallest sufficient
+format for sources without the new operations. A v6 marker must not admit unrelated constructors,
+change stored roles/aliases/payloads, restore optimizer/runtime state or bypass cold metadata checks.
+
 Ordinary symbolic-B Engine execution grants no cold acquisition or graph wire support.
 Current static source/copy/rebind/save/load admission below remains unchanged; symbolic
 Compiler cold reconstruction/Checkpoint copy and symbolic wire qualification are separate gates.
@@ -928,9 +940,10 @@ no extra Compiler flag or provider qualification gate is introduced. Existing NN
 acquisition and explicit cold forward inherit this accepted admission. Cold qualification alone
 is not evidence of complete numerical execution or training.
 
-Implemented [graph-model v4](#canonical-graph-model-version-4) persists the all-valid portion of
-that bounded cold inventory. [V5](#canonical-graph-model-version-5) adds the static homogeneous
-length intersection under Checkpoint0014; neither extension changes v1/v2/v3's body-free bytes.
+Implemented [graph-model v4](#canonical-graph-model-version-4) persists the pre-Pool3d all-valid
+portion of that bounded cold inventory. [V5](#canonical-graph-model-version-5) adds its static
+homogeneous length intersection under Checkpoint0014; [v6](#canonical-graph-model-version-6)
+adds Pool3d in either scope. None changes v1/v2/v3's body-free bytes.
 Unsupported bodies reject before host admission/copy or file effects.
 Model constructors still reject malformed/missing attachments. NN's [owned workflow](#owned-tensor-models) consumes the same cold boundary for
 acquisition and persistence without adding an execution or reconstruction owner.
@@ -1143,10 +1156,11 @@ NN's existing `Model.save`/`load`/`loadGraph` delegate to this same cold graph b
 compute or after training uses current owned values; load creates no Engine and adopts final heap
 state without another ownership copy. Objectives/optimizer state must be configured anew, not restored.
 
-Outer admission is exactly version 3 plus all-valid general SCAN. Contained body admission is exactly the
-[existing bounded Compiler cold inventory](compiler-autograd.md#bounded-general-scan-cold-reconstruction):
-flat constructors minus scans, with its body-only arithmetic, SUM, layout and same-dtype CAST
-overrides/additions and unchanged narrow indexing/CNN/MATMUL guards. This is neither an RNN-only
+Outer v4 admission is exactly version 3 plus all-valid general SCAN. Contained body admission is
+the pre-Pool3d subset of the
+[bounded Compiler cold inventory](compiler-autograd.md#bounded-general-scan-cold-reconstruction):
+flat constructors minus scans and Pool3d, with body-only arithmetic, SUM, layout and same-dtype CAST
+overrides/additions, opcodes at most32 and unchanged narrow indexing/CNN/MATMUL guards. This is neither an RNN-only
 subset nor arbitrary PURE serialization. Applicable low/integral/BOOL Model signatures remain
 eligible independently of CPU FLOAT32/FLOAT64 execution; cross-dtype CAST remains unsupported.
 Compiler retains all family inference and constructor ownership; Scan semantics remain with
@@ -1154,8 +1168,10 @@ Compiler retains all family inference and constructor ownership; Scan semantics 
 
 ArtifactFile v1 kind is `graph-model.v4`, with eight ASCII bytes `SYNGRF04` and i32 version 4.
 Retain version-3 section order, descriptors, registrations, raw state payloads and opcodes 1..22.
-Only general SCAN selects v4; otherwise save selects the smallest sufficient byte-identical old
-version. Accept exact kind/magic/version tuples only: v1/v2/v3 keep their own exact records and
+All-valid general SCAN without Pool3d or length mode selects v4; otherwise sources needing neither
+general Scan nor Pool3d select the smallest sufficient byte-identical old version. Length mode
+without Pool3d requires v5; Pool3d in either scope requires v6.
+Accept exact kind/magic/version tuples only: v1/v2/v3 keep their own exact records and
 closed opcode sets. Old readers reject v4. A valid body-free v4 re-saves as v1/v2/v3 as appropriate.
 No old field mutation, public selector, enum-ordinal encoding, class name or registry is permitted.
 
@@ -1200,11 +1216,12 @@ encoded size, not peak heap. No time-unrolling allowance or new limits/defaults 
 
 Decode complete wire, keys, aliases, BOOL, descriptors and topology before host import. Reject dead
 producers, duplicate definitions/roots, forward/dangling/cyclic/cross-scope references, nested scans,
-free leaves, missing/extra attachments and malformed roles/residuals. Descriptor-only candidate
-leaves feed existing Compiler SourceCapture preflight for the complete outer graph/every body
-before import and before any body formal or producer identifier allocation, even after valid outer
-work or at T=0. Checkpoint must not gain a Tensor reconstruction table or Tensor-constructor/reconstruction
-dispatcher. Wire opcode-to-Operation metadata parsing remains codec-owned.
+free leaves, missing/extra attachments and malformed roles/residuals. Invoke Compiler's
+`GraphCompilationPort.validateSource(CompiledGraphModel)` on complete decoded metadata before
+creating any candidate Tensor in every supported version. This shares the complete cold preflight
+without Tensor identities, host reads/copies or tensor-storage allocation; ordinary source
+association checks still follow. Checkpoint must not gain a Tensor reconstruction table or
+Tensor-constructor/reconstruction dispatcher. Wire opcode-to-Operation metadata parsing remains codec-owned.
 
 Invoke existing Compiler reconstruction once for the outer source. It constructs every scoped body
 and node once with fresh canonical formals and Scan.apply per occurrence, including T=0; no unrolling.
@@ -1223,8 +1240,8 @@ tests. Other dtype cold roundtrips do not qualify execution or exact Training co
 
 ### Canonical graph-model version 5
 
-Implemented under Checkpoint0014 after Compiler0018 acceptance. Only length-aware sources
-select ArtifactFile v1 kind `graph-model.v5`, eight ASCII magic bytes `SYNGRF05`, i32 version 5.
+Implemented under Checkpoint0014 after Compiler0018 acceptance. Length-aware sources without
+Pool3d select ArtifactFile v1 kind `graph-model.v5`, eight ASCII magic bytes `SYNGRF05`, i32 version 5.
 New **outer opcode 33** extends the previous closed inventory ending at 32 for the changed
 length-mode header/actual roles. Never extend opcode 23's seven-field layout in place. Preserve
 v4 inline-body inventory and independent scopes, no nested scans or new constructor inventory.
@@ -1247,8 +1264,9 @@ Length **values** supplied as external inputs are runtime batch payloads, not se
 Ordinary named state still follows the existing named-value rules. Preserve canonical ports,
 positional aliases, descriptors and raw named values; persist no histories, prepared state or code.
 
-Sources needing no length mode continue selecting byte-identical v1–v4 with exact old tuples,
-opcodes and header interpretation. New readers default old Scan records to all-valid; old readers
+Sources needing neither length mode nor Pool3d continue selecting byte-identical v1–v4 with exact
+old tuples, opcodes and header interpretation. Pool3d in either scope requires v6; v4/v5 reject
+opcodes34/35. New readers default old Scan records to all-valid; old readers
 reject v5. Existing ArtifactLimits/defaults and atomic-live-publication/failure behavior remain.
 Extend complete dry-size/count/descriptor/role checks before allocation/import, including
 late/dead/T=0 occurrences; cold reconstruction must first support the same roles without unrolling.
@@ -1263,6 +1281,32 @@ Compiler `SourceCapture` before dry sizing, schema allocation, storage admission
 A raw association is not an admission credential; earlier public capture rejection alone is
 insufficient. Never serialize length mode through seven-field opcode 23. Structural Model
 support does not independently deliver cold, wire or owned numerical workflow capability.
+
+### Canonical graph-model version 6
+
+Implemented Pool3d persistence appends ArtifactFile v1 kind `graph-model.v6`, eight ASCII magic
+bytes `SYNGRF06` and i32 version 6. Append only opcode 34=MAX_POOL3D and 35=AVERAGE_POOL3D;
+each has one input and one output and exact `MaxPool3dAttrs` / `AveragePool3dAttrs`.
+Its attribute record is twelve big-endian i64 fields: kernel depth/height/width, stride
+depth/height/width, symmetric padding depth/height/width, then dilation depth/height/width;
+one canonical u8 ceil flag follows (0=floor, 1=ceil; all other values reject).
+Positive kernel/stride/dilation, nonnegative padding and literal floor/ceil output geometry remain
+Model-owned, checked through exact Compiler inference; this is not a default-geometry restriction.
+
+These two opcodes are legal in the outer graph and otherwise-qualified all-valid or length-aware
+inline bodies. Length bodies add only these two constructors to their whitelist and retain static
+homogeneous FLOAT32/FLOAT64, ROW/SHARED, terminal-SHARED and all existing role/axis restrictions.
+No nested Scan, other CNN constructor expansion, dtype expansion or Metal Scan grant follows.
+Version selection examines outer and contained occurrences: either Pool3d opcode selects v6 even
+when it occurs only inside a body. Unchanged sources retain the byte-identical smallest sufficient
+v1–v5 format; old exact tuples, opcodes and Scan records are unchanged. Old readers reject v6.
+
+Retain section order, independent body scopes, canonical ports/roles, positional aliases, raw named
+state bytes, checked dry sizing and all ArtifactLimits/import/publication ordering. Complete decoded
+metadata passes `GraphCompilationPort.validateSource` before any candidate Tensor allocation in
+all versions. Reconstruct through the existing Compiler owner, then require normalized recapture
+equality. Save no optimizer, executable, Engine/session state or training history; loaded Models
+use fresh caller-configured training.
 
 ## `extensions/onnx`
 

@@ -131,9 +131,12 @@ class MetalPoolingGradientNativeTest {
         Tensor input = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)), true));
         Tensor output = pool.apply(input);
+        Shape seedShape = output.descriptor().shape();
+        Tensor seed = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, seedShape,
+                Optional.of(LayoutDescriptor.contiguous(seedShape)), false));
         var request = new FunctionalGradientRequest(List.of(new FunctionalGradientRequest.Stage(
                 List.of(new FunctionalGradientRequest.ForwardTensorReference(output)),
-                List.of(Optional.empty()), List.of(input), false,
+                List.of(Optional.of(seed)), List.of(input), false,
                 FunctionalGradientRequest.DisconnectedPolicy.ERROR)));
         var availability = new BackendAvailabilitySnapshot(MetalCapabilityProvider.METAL_BACKEND_ID,
                 Map.of(new BackendDeviceId(MetalCapabilityProvider.METAL_BACKEND_ID, "default"),
@@ -143,14 +146,15 @@ class MetalPoolingGradientNativeTest {
                 BackendIntent.unconstrained(), PartitionScoringConfig.neutral(),
                 List.of(new MetalCapabilityProvider()), List.of(availability));
         assertEquals(1, artifacts.partitions().size(), "the full primal/adjoint closure stays on Metal");
-        assertEquals(1, artifacts.constants().bindableInputs().size());
+        assertEquals(2, artifacts.constants().bindableInputs().size());
         List<ValueId> publications = new ArrayList<>();
         artifacts.publication().forwardBindings().forEach(binding -> publications.add(binding.valueId()));
         artifacts.publication().gradientBindings().forEach(binding -> publications.add(binding.valueId()));
         assertEquals(2, publications.size());
         try (MetalDeviceContext context = MetalDeviceContext.open(Path.of(library));
                 Arena arena = Arena.ofConfined();
-                MetalBufferRepresentation inputBuffer = context.createBuffer((long) inputValues.length * Float.BYTES)) {
+                MetalBufferRepresentation inputBuffer = context.createBuffer((long) inputValues.length * Float.BYTES);
+                MetalBufferRepresentation seedBuffer = context.createBuffer((long) expectedForward.length * Float.BYTES)) {
             var analyzed = new AtomicReference<MetalNegPreparationPlan>();
             var preparer = new MetalNegPartitionPreparer();
             var preparation = new PartitionPreparation<>(new MetalNegAnalysisInputs(context),
@@ -165,7 +169,11 @@ class MetalPoolingGradientNativeTest {
                 assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, analyzed.get().route());
                 var host = arena.allocateFrom(JAVA_FLOAT, inputValues);
                 inputBuffer.upload(0, host, 0, host.byteSize());
-                try (var result = new PreparedExecutionRunner().run(execution, List.of(inputBuffer))) {
+                float[] seedValues = new float[expectedForward.length];
+                Arrays.fill(seedValues, 1);
+                var seedHost = arena.allocateFrom(JAVA_FLOAT, seedValues);
+                seedBuffer.upload(0, seedHost, 0, seedHost.byteSize());
+                try (var result = new PreparedExecutionRunner().run(execution, List.of(inputBuffer, seedBuffer))) {
                     assertRawFloats(expectedForward,
                             (MetalBufferRepresentation) result.publicationRepresentation(0), arena);
                     assertRawFloats(expectedGradient,

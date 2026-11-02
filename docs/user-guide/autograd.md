@@ -73,6 +73,21 @@ occurrences. Direct prepared-handle ownership remains available through the lowe
 lifecycle. A successful compile does not by itself promise that every planned owner and transfer
 is registered and supported or that each backend can prepare its partitions.
 
+### Pool3d first-order training
+
+Maximum and average Pool3d use ordinary Compiler gradient expressions and shared unfold/fold
+owners. Qualified static CPU FLOAT32/FLOAT64 and Metal FLOAT32 execute forward and explicitly
+seeded input gradients, including overlapping windows. Conv3d → pooling → flatten → Linear
+training uses the same owners for parameter gradients; there is no separate NN derivative path.
+CPU BFLOAT16/FLOAT16 arithmetic remains locked. Metal FLOAT64/low overlap, Metal Scan and
+ordinary public CPU named-B convolution/pooling expansion are not granted by this capability.
+
+Cold source copying and `graph-model.v6` save/load preserve exact Pool3d geometry but are separate
+from execution qualification. Loaded Models require a fresh training configuration: optimizer,
+executable and session state are not restored. The
+[support matrix](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary)
+defines the backend occurrence limits.
+
 ## Build a bounded functional request
 
 `FunctionalGradientRequest` contains exactly one or two ordered reverse-mode stages:

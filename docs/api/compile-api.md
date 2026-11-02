@@ -255,6 +255,12 @@ output order and distinct producer occurrences survive. Empty, null or duplicate
 retain ordinary capture rejection. Direct record construction also checks source admission,
 input count/order, full descriptors, provenance absence and unique exact leaf references.
 
+`GraphCompilationPort.validateSource(CompiledGraphModel)` runs the same complete metadata-only
+cold preflight without creating a Tensor or consuming Tensor IDs, reading/copying host storage,
+or allocating tensor storage. It checks all stored nodes and bodies, including dead work and T=0,
+but leaves leaf identity/substitution checks to capture or reconstruction. Checkpoint decode calls
+it before any candidate Tensor in every supported version; it is not an execution capability query.
+
 `reconstructSource(graph, leaves)` snapshots positional substitutions and checks the complete
 source and every contained body before creating any formal or producer. Every value must have a fully static Shape and checked logical
 element count; scalar and empty shapes remain valid. Every stored node, including dead work, must
@@ -278,6 +284,13 @@ FLOAT16/BFLOAT16 TANH round-trip cold while Java low-type computation remains lo
 operations, cross-dtype casts, arbitrary permutations and nested scans remain unsupported here.
 See the [exact body inventory](../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction)
 for attributes and constructor restrictions. This is not an all-PURE copier or a persistence promise.
+
+MAX_POOL3D and AVERAGE_POOL3D admit exact typed Model attributes with positive kernel/stride/dilation,
+nonnegative symmetric padding and literal floor/ceil geometry, not just builder defaults.
+They also enter otherwise-qualified all-valid bodies and add only these two constructors to
+the length whitelist. Static homogeneous FLOAT32/FLOAT64, ROW/SHARED, axis and terminal-SHARED
+restrictions remain. CONV2D/CONV3D still require biased defaults; MAX_POOL2D keeps its narrow
+kernel-stride, zero-padding, unit-dilation floor boundary.
 
 Complete preflight includes dead outer scans, unused declarations and T=0 bodies. Raw bodies must
 have empty `demandedOutputIndices`, with graph outputs exactly the first-encounter-unique
@@ -342,7 +355,8 @@ remain layout-unresolved; PERMUTE keeps its constructor's resolved-view or unres
 stripped or forced into a fabricated Tensor. Ordinary `compile()` and autograd are unchanged.
 Checkpoint copy/rebind and NN acquisition consume the accepted bounded cold body inventory,
 including its static homogeneous FLOAT32/FLOAT64 length intersection. Persistence independently
-uses v4 for all-valid bodies and v5 for that length intersection; v1/v2/v3 remain body-free.
+uses v4 for all-valid bodies and v5 for that length intersection, or v6 when an outer/body Pool3d
+occurrence requires it; unchanged sources retain smallest v1–v5 bytes. V1/v2/v3 remain body-free.
 Cold Compiler reconstruction itself grants no numerical workflow or wider wire admission.
 
 ### Current package-private verification inference
@@ -729,8 +743,10 @@ one-input/one-output signatures and rank-five NCDHW descriptors. Complete Compil
 and 0006B2 adopt both signatures, together with the three Model-current
 `UNFOLD3D`/`FOLD3D` signatures, in ordinary forward verification and first-order differentiation.
 CPU 0008G1 originally implemented the fully static resolved-layout non-gradient Pool3d subset.
-Separate current UNFOLD3D/FOLD3D execution supports Conv3d gradients without changing that
-Pool3d gradient-flag gate.
+Current matching CPU FLOAT32/FLOAT64 gradient metadata and qualified lowering reuse ordinary
+PoolingGradientRules and UNFOLD3D/FOLD3D for Pool3d training; qualified Metal FLOAT32 supports
+overlap through the same derivative expressions. This grants neither CPU low arithmetic nor
+ordinary named-B convolution/pooling expansion, Metal FLOAT64/low overlap or Metal Scan.
 Compiler task 0005E closed that matrix against the production Model inventory at its checkpoint:
 37 operation-kind enum families, 107 constants, and 128 complete
 kind/attributes/input-range/output-range fingerprints. The checkpoint includes both
@@ -1491,8 +1507,9 @@ separately admits its occurrence-qualified forward domain. First-order Conv3d us
 group-preserving formula described above, with `unfold3d`/`fold3d`; no backward-only kind or
 duplicated rank-specific derivative is added. Actual static CPU F32/F64 and Metal F32
 all-role and selected-target execution is qualified in the production matrix. Compiler retains
-symbolic Dimensions, but ordinary public named-B Conv3d admission is not widened. Pool3d's
-independent CPU `requiresGrad=false` gate and Scan higher-order restrictions remain unchanged.
+symbolic Dimensions, but ordinary public named-B Conv3d admission is not widened. Pool3d now
+supports qualified static CPU FLOAT32/FLOAT64 and Metal FLOAT32 first-order training;
+CPU low arithmetic and Scan higher-order restrictions remain unchanged.
 `Tensor.maxPool2d(attrs)` is current first-class NCHW maximum-pooling model construction. One
 `MAX_POOL2D` occurrence records exact ordered input `[input]`, `MaxPool2dAttrs`, one output at
 index zero, the unchanged floating type and gradient request, exact batch/channel Dimensions, and
@@ -1507,9 +1524,9 @@ through its fixed custom program, preserving exact gradient metadata for later
 ownership decisions. Current package-private first-order autograd reconstructs the exact first
 eligible logical winner from the original input and the same-occurrence public output, including
 padding exclusion and the specified NaN and signed-zero equality, then routes through public
-one-hot and overlap-accumulating fold expressions. It adds no saved-index output. Current Metal
-generated maximum-pool backward remains fail-closed. Dynamic binding and other algorithms remain
-separately owned.
+one-hot and overlap-accumulating fold expressions. It adds no saved-index output. Qualified
+Metal FLOAT32 maximum-pool backward supports overlapping windows; FLOAT64/low overlap remains
+unsupported. Dynamic binding and other algorithms remain separately owned.
 `Tensor.averagePool2d(attrs)` is current first-class NCHW average-pooling model construction. One
 `AVERAGE_POOL2D` occurrence records exact ordered input `[input]`, `AveragePool2dAttrs`, one output
 at index zero, the unchanged floating type and gradient request, exact batch/channel Dimensions,
@@ -1526,8 +1543,9 @@ divides by a logical typed `kernelHeight * kernelWidth` count and routes every w
 through public expansion and overlap-accumulating fold expressions. Explicit `contiguous()`
 materializations make the expanded divisor, seed, and columns canonical. The final Pool2d fold
 descriptor becomes canonical in the compiler's static-result logical-layout closure; the formula
-does not append an expression-level final `contiguous()`. Metal owns only non-overlapping generated
-folds. Dynamic binding, overlap accumulation, and other algorithms remain separately owned.
+does not append an expression-level final `contiguous()`. Metal FLOAT32 generated folds support
+overlap; FLOAT64/low folds retain non-overlap placement. Dynamic binding and other algorithms
+remain separately owned.
 `Tensor.maxPool3d(attrs)` and `Tensor.averagePool3d(attrs)` are current Model construction for
 first-class rank-five NCDHW metadata. Each records exact ordered input `[input]`, its family-
 specific thirteen-field attrs reference, one output at index zero, the unchanged floating type
@@ -1549,15 +1567,15 @@ negative-infinity candidates, a separate direct-positive-zero in-bounds mask, an
 same-occurrence output. Its equality preserves dominant NaN, signed-zero ordering, real negative
 infinity, first-winner, and all-padding behavior before one-hot routing and `fold3d` accumulation.
 The maximum selector is a fixed non-differentiable mask for a later derivative stage, while the
-incoming branch remains differentiable. The CPU backend advertises and prepares only the fully
-static resolved-layout non-gradient BFLOAT16/FLOAT16/FLOAT32/FLOAT64 subset. Its schema-71 direct
-generated body uses scalar compute, optionally distributes complete output-cell ranges through
-caller-owned workers, and declares zero workspace or materialization. Metal separately executes
-fully static maximum Pool3d for the same four carriers and qualified
-homogeneous low/FLOAT32 average
-Pool3d through its fixed custom program. Explicit gradient-formula materialization produces
-canonical columns and results; Metal owns only non-overlapping average Pool3d cotangents and no
-generated maximum Pool3d backward. Dynamic binding and other algorithms remain separately owned.
+incoming branch remains differentiable. CPU raw forward schema-71 execution retains the fully
+static resolved-layout BFLOAT16/FLOAT16/FLOAT32/FLOAT64 domain, scalar compute, optional
+caller-owned complete output-cell ranges and zero workspace/materialization. Qualified matching
+FLOAT32/FLOAT64 gradient metadata and lowering now reuse ordinary pooling rules and
+UNFOLD3D/FOLD3D; CPU BFLOAT16/FLOAT16 arithmetic remains locked.
+Metal retains its qualified raw forward carrier domains and now executes qualified FLOAT32
+maximum and average Pool3d gradients, including overlap. Explicit gradient-formula materialization
+produces canonical columns/results; FLOAT64/low folds retain non-overlap restrictions and
+original-carrier validation. Dynamic binding and Metal Scan are not expanded.
 Pool3d constructibility preflight compares the materialized result's semantic type, Shape, and
 gradient eligibility with the requested input descriptor; canonical layout belongs to the explicit
 final `contiguous()` node rather than being required of the original affine input.

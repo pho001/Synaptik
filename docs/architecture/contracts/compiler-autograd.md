@@ -589,11 +589,13 @@ apply; an operation outside these attributes or arities is unsupported, even if 
 | CONCAT | Positive input count, rank-three inputs; `CompositionAxisAttrs`, axis 0; one output. | `Tensor.concat(axis,inputs)` |
 | CONV2D / CONV3D | Exactly three inputs in input/weight/bias order; `Conv2dAttrs.defaults()` / `Conv3dAttrs.defaults()` geometry only; one output. | `input.conv2d(weight,bias,attrs)` / `input.conv3d(weight,bias,attrs)` |
 | MAX_POOL2D | One input; `MaxPool2dAttrs` with positive kernels, stride=kernel, padding 0, dilation 1, floor mode; one output, no index port. | `a.maxPool2d(attrs)` |
+| MAX_POOL3D / AVERAGE_POOL3D | One input; exact MaxPool3dAttrs / AveragePool3dAttrs, positive kernel/stride/dilation, nonnegative symmetric padding and literal floor/ceil geometry under existing Model guards; one output. | `a.maxPool3d(attrs)` / `a.averagePool3d(attrs)` |
 | RNN_TANH / GRU_RESET_AFTER / LSTM | Exactly the six biased/unbiased fixed signatures and two directions in the [recurrent contract](recurrent-scan.md#fixed-family-and-current-model-surface); two outputs for RNN/GRU, three for LSTM. | Call `RecurrentScan.rnn/gru/lstm` once, direction last; retain every returned canonical component. |
 
 CONV1D is not a new kind: the selected composition expands input/weight at axis 2, uses biased
-default CONV2D and squeezes axis 2. Unbiased convolutions and other convolution/pooling geometry
-are not admitted by this source slice. Fixed scans remain one flat producer, never static
+default CONV2D and squeezes axis 2. Unbiased/nondefault convolutions and MAX_POOL2D geometry
+outside the row above remain unsupported. Pool3d alone admits the complete typed geometry above.
+Fixed scans remain one flat producer, never static
 unrolling, a body, callback or region. Their static time and batch may be zero; feature/hidden
 sizes remain positive. Cold admission reads no GATHER indices or scan valid-length values;
 execution owns their value bounds. Cold admission itself grants no execution or gradients;
@@ -646,6 +648,9 @@ declarations, dead interiors and intermediates hidden by casts. Only identity CA
 The separate final non-gradient INT64[B] lengths actual has no body formal; no length value is read.
 Reject symbolic geometry, heterogeneous/low/discrete body values and deferred obligations here,
 without narrowing the existing all-valid cold inventory or querying a backend.
+The length constructor whitelist additionally admits only MAX_POOL3D and AVERAGE_POOL3D with
+their exact typed attributes. This does not relax static homogeneous FLOAT32/FLOAT64, ROW/SHARED,
+terminal-SHARED, role/axis or no-deferred-obligation restrictions, nor admit other CNN constructors.
 
 Before any formal or producer allocation, validate positional substitutions against each
 length occurrence's outer ROW/SHARED roles. Newly tied actuals must denote the same outer row
@@ -685,6 +690,13 @@ All stored nodes, including dead nodes, and all values
 must pass static checked geometry, family inference, exact descriptor validation, and absence of
 deferred obligations before reconstruction creates any producer. Model constructors continue to
 own structural closure, attributes/signatures, and layout geometry.
+
+`GraphCompilationPort.validateSource(CompiledGraphModel)` exposes this same complete metadata
+preflight without creating any Tensor or consuming Tensor identities, reading/copying host storage,
+or allocating tensor storage. It validates all stored nodes and contained bodies before consumers
+create candidate leaves; it does not validate leaf identity/substitution associations or grant
+execution/persistence capability. Checkpoint decode must call it for every wire version before
+creating any candidate Tensor, then retain ordinary acquisition/reconstruction association checks.
 
 Use raw `CapturedGraphInference`, not `StaticResultLogicalLayoutClosure` or an optimized graph.
 SELECT and SLICE derive views only from present input layouts; CONCAT and fixed-scan outputs remain

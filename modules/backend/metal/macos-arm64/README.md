@@ -42,8 +42,10 @@ Convolution preserves grouped term/bias order. Maximum pooling selects raw words
 positive-zero-over-negative-zero, first-logical-winner order with negative-infinity padding.
 Average pooling uses the full kernel-position divisor and conceptual positive-zero padding.
 Current static FLOAT32 Conv3d executes compiler-generated input/weight/bias cotangents through
-the shared grouped convolution rule. FLOAT32 FOLD2D/FOLD3D additionally accumulate overlap;
-low/FLOAT64 image folds and FOLD_AXIS retain non-overlap. See the
+the shared grouped convolution rule. FLOAT32 FOLD2D/FOLD3D additionally accumulate overlap,
+closing matching-gradient Max/AveragePool2d/3d through existing shared pooling adjoints.
+Original-carrier Java and raw-native checks retain FLOAT64/low pooling non-overlap boundaries;
+low/FLOAT64 image folds and FOLD_AXIS also retain non-overlap. See the
 [production support matrix](../../../../docs/backend-guide/production-support.md#metal-production-target)
 for the actual Metal-only finite-difference and NN train/save/load/new-train evidence and limits.
 
@@ -98,7 +100,7 @@ add, and final-store sites plus NaN, signed-zero, infinity, subnormal DAZ/FTZ, a
 
 The remaining 27 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 39. Java
+rather than masquerading as malformed input. Candidate and route identity are version 40. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
 shared custom-program wire 3. Schema 20 embeds wire 2 or 3 in each graph image; every other
 schema or route value fails closed. The exhaustive Java
@@ -125,8 +127,11 @@ may precede the internal FLOAT32 MPSGraph step in the same custom partition. Sch
 wires 2/3, native ABI 7, and the existing operation and attribute wires retain their allocations;
 Task 0077 used coordinated compatibility identity 34; Task 0078 advanced it to 35 and Task 0079
 to 36 for corrected standalone scalar admission. Tasks 0080/0081 advanced it through 37 to 38;
-the Conv3d training extension advances the current identity to 39 for FLOAT32 image-fold overlap,
-without changing ABI 7 or schema 20. Older session tuning decisions are incompatible.
+the Conv3d training extension advanced identity to 39 for FLOAT32 image-fold overlap.
+Current identity 40 admits shared FLOAT32 Pool2d/Pool3d overlap through the existing Compiler
+pooling/window closure, with original-carrier checks retaining FLOAT64/low non-overlap bounds.
+No standalone backward kernel, fallback, low arithmetic expansion or Metal Scan follows.
+ABI 7 and schema 20 are unchanged. Older session tuning decisions are incompatible.
 
 Task 0079 removes the obsolete anchor-membership prerequisite for rank-zero RELU and scalar MUL
 in Java and the native decoder. Matching canonical scalar input/output Shapes still contain one
@@ -171,12 +176,12 @@ grant blanket sign freedom. Exact paths preserve zero bits; MIN chooses negative
 SIGN preserves a zero's sign, RELU maps negative zero to positive zero, and average pooling
 preserves negative zero only when every contributor is negative zero and none is padding.
 
-For admitted nodes, the version-39 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-40 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, complete encoded logical storage-layout
 geometry, independently safe physical materialization, and the canonical schema-20 execution
 extension. Native decoding requires schema 20; the Java session tuning codec separately requires
-identity 39. Neither has a compatibility reader or migration alias for stale inputs.
+identity 40. Neither has a compatibility reader or migration alias for stale inputs.
 The fixed source-bound native corpus is 87,929 bytes; ABI 7 and program schema 20 are unchanged.
 
 ```text

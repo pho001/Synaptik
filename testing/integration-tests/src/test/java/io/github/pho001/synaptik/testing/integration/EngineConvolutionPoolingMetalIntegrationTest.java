@@ -182,7 +182,7 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
     }
 
     @Test
-    void generatedAveragePoolBackwardRetainsItsNonOverlappingPoolCapability() {
+    void generatedAveragePoolBackwardAccumulatesOverlappingAndDisjointWindows() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
             builder.takeOwnership(MetalBackendIntegration.open(
@@ -228,12 +228,14 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                 Tensor overlapping = overlappingInput.averagePool2d(
                         new AveragePool2dAttrs(2, 2, 1, 1, 0, 0, 1, 1, false));
                 Tensor overlappingSeed = tensor(
-                        arena, Shape.of(1, 1, 2, 2), false, 1, 1, 1, 1);
-                assertThrows(IllegalStateException.class,
-                        () -> engine.compile(
-                                List.of(overlapping),
-                                List.of(overlappingSeed),
-                                List.of(overlappingInput)));
+                        arena, Shape.of(1, 1, 2, 2), false, 1, 2, 3, 4);
+                var overlappingCompiled = engine.compile(
+                        List.of(overlapping), List.of(overlappingSeed), List.of(overlappingInput));
+                try (var session = engine.prepare(overlappingCompiled)) {
+                    assertResults(engine.run(session, List.of(overlappingInput, overlappingSeed)), List.of(
+                            floats(3, 4, 6, 7),
+                            floats(0.25f, 0.75f, 0.5f, 1, 2.5f, 1.5f, 0.75f, 1.75f, 1)));
+                }
             }
         }
     }

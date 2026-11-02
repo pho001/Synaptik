@@ -76,8 +76,45 @@ three-step training/save/load/new-training proof passed. MAIN accepted root test
 and fresh Maven/no-Git source consumers after independent reviews.
 Raw UNFOLD3D preserves F32/F64/BF16/F16 values; arithmetic FOLD3D is F32/F64 only. General Scan
 composes complete Conv3d forward/reverse bodies in both types, modes and traversal directions.
-Existing Pool3d `requiresGrad=false`, exact legacy carrier boundaries and the low-arithmetic lock
-are unchanged; no general trainable Conv3d-to-Pool3d CPU chain or performance promise follows.
+Exact legacy carrier boundaries and the low-arithmetic lock remain unchanged.
+
+The authorized **Pool3d training completion is implemented and locally runtime-qualified**,
+superseding its Ready frontier. CPU FLOAT32/FLOAT64 matching-gradient MaxPool3d/AveragePool3d
+reuse existing forward kernels, Compiler pooling adjoints and 3D windows; no standalone backward
+kernel or fallback was added. Actual public consumers passed both pools' forward and explicit
+cotangent gradients against independent spatial scatter and per-output finite differences,
+including batch/channel overlap, anisotropic geometry and literal ceil mode. Conv3d → either
+pool → flatten → linear passed every parameter role against independent parameter finite
+differences, three SGD steps, and save/close/load with bit-exact state and fresh configured SGD.
+The same actual consumer scope passed Metal-only FLOAT32; shared Metal Pool2d/Pool3d overlap
+uses coordinated identity 40 while FLOAT64/low non-overlap boundaries remain.
+
+CPU Scan qualification covers FLOAT32/FLOAT64 × max/average × all-valid/runtime-length ×
+forward/reverse: independent forward and actual backward input-role finite differences plus
+save/close/load/fresh execution passed. This uses qualified existing `lowerBatch` closure, not
+wider ordinary named-B admission or Metal Scan support. CPU BF16/F16 arithmetic remains locked.
+These are local implementation/runtime results, not a joined release gate or newly published
+candidate acceptance. The subsequently requested comprehensive CPU/Metal operation audit and
+gap filling remain separate, incomplete work; no broader coverage or performance claim follows.
+
+### Audit-driven CPU coverage completion — Ready
+
+The user's subsequent comprehensive CPU/Metal audit authorizes completing the confirmed
+Model-valid CPU gaps: promoted pointwise operand tuples, signed-step materializing SLICE and
+its existing SLICE_UPDATE pullback, variadic CONCAT/STACK beyond the old sixteen-input guard,
+and sound injectivity proofs for supported large physical outputs. Reuse the existing typed
+IR, scalar/conversion/comparison emitters and movement/layout owners; no second evaluator,
+operation registry, runtime fallback or implicit low arithmetic is authorized.
+
+Implementation must retain exact mixed stored-value comparisons, Model promotion and original
+cotangent carrier conversion, checked signed logical coordinates without negative storage
+strides, and checked classfile/resource limits. Extend conservative physical proofs soundly;
+never accept a possibly overlapping output. Ordinary named-B remains independently bounded.
+The CPU0078 low-computation lock and Compiler's three deferred fixed-recurrent BPTT signatures
+remain unchanged. Actual before/after public execution, every affected derivative role, all
+seven applicable raw movement carriers, inactive Scan rows and independent Class C review
+are acceptance gates; provider answers alone are not completion.
+
 
 ## Stable invariants
 

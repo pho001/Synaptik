@@ -140,7 +140,7 @@ Metal uses ABI 7 with thirteen exports and one bounded schema-20 route-bearing p
 Operation wires `1..115`, attribute wires `0..41`, and type wires `1..7` cover current structural
 vocabulary. The custom-program image authenticates compact materialized slots, deterministic
 pointwise units, and qualified MATMUL/Conv2d anchor epilogues. Metal-local workload,
-exact-policy, candidate, compatibility, route-policy, and session codec identities are version 39;
+exact-policy, candidate, compatibility, route-policy, and session codec identities are version 40;
 every other identity fails closed rather than falling back. Model remains the sole semantic owner
 of numerical meaning.
 
@@ -8151,7 +8151,8 @@ positive-zero `unfold3d` overload. Typed padding is immutable configuration rath
 differentiable input. CPU separately executes fully static resolved-layout UNFOLD3D raw movement
 for FLOAT32/FLOAT64/BFLOAT16/FLOAT16 and FOLD3D overlap arithmetic for FLOAT32/FLOAT64;
 low arithmetic remains locked. Metal FOLD2D/FOLD3D overlap is FLOAT32-only, while its other
-floating image folds retain non-overlap. CPU Pool3d's independent no-gradient gate is unchanged.
+floating image folds retain non-overlap. CPU F32/F64 and Metal F32 Pool3d training now reuse the
+shared pooling adjoints and these 3D windows; CPU low arithmetic remains locked.
 These capabilities require concrete backend admission; constructing metadata alone supplies no
 materialized result or performance guarantee. See the
 [production matrix](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary).
@@ -9462,13 +9463,20 @@ uses its fixed logical kernel divisor and overlap-accumulating `fold3d`. Maximum
 exact same-occurrence output and an explicit in-bounds eligibility mask so dominant NaN,
 signed-zero ordering, real negative infinity, first-winner, and all-padding behavior remain
 distinguishable; its selected mask is fixed for a later derivative stage. Current Model owns the
-general `unfold3d`/`fold3d` algebra. The CPU backend now supports direct non-gradient Pool3d
-execution only for fully static Shapes, resolved non-negative layouts, injective output layouts,
-BFLOAT16/FLOAT16/FLOAT32/FLOAT64 MAX carriers or FLOAT32/FLOAT64 AVERAGE carriers, and representable checked geometry. Its scalar or
-caller-parallel generated schema-70 body owns complete output cells and uses zero workspace or
-materialization. This is backend-internal prepared execution, not value evaluation by the Model
-call, general Pool3d support for dynamic geometry, Pool3d gradients, or a vector/native/fused
-pooling route. Separate UNFOLD3D/FOLD3D support does not remove the CPU Pool3d gradient-flag gate.
+general `unfold3d`/`fold3d` algebra. CPU FLOAT32/FLOAT64 now admit matching input/output gradient
+flags and actual Pool3d backward closure through these existing shared rules and window families.
+Direct forward execution retains fully static Shapes, resolved non-negative layouts, injective
+output layouts and checked geometry. BFLOAT16/FLOAT16 maximum-pool forward retains its existing
+exact domain only; CPU low pooling gradients and average arithmetic remain locked. Existing
+scalar/caller-parallel forward emission owns complete output cells with zero workspace or
+materialization; no standalone backward kernel or vector/native/fused pooling route was added.
+Qualified CPU all-valid/runtime-length Scan composes both pools and their actual reverse bodies
+in homogeneous FLOAT32/FLOAT64 and both traversal directions, under existing complete-body,
+static-window and terminal restrictions. Ordinary public named-B admission is unchanged.
+Metal FLOAT32 admits overlapping Pool2d/Pool3d gradient-bearing windows through the same
+closure; original-carrier Java/raw-native checks retain FLOAT64/low non-overlap restrictions.
+No low arithmetic expansion, Metal Scan or fallback follows. These are locally runtime-qualified
+capabilities, not joined-release acceptance; construction itself still performs no evaluation.
 
 ### Matrix-multiplication semantic kind
 

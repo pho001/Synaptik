@@ -4,6 +4,23 @@
 
 ### Added
 
+- Maximum and average Pool3d training on qualified static CPU FLOAT32/FLOAT64 and Metal FLOAT32,
+  including overlapping windows through existing gradient/unfold/fold owners. Metal low/FLOAT64
+  non-overlap and CPU BFLOAT16/FLOAT16 arithmetic restrictions remain unchanged.
+- Fluent `ModelBuilder.maxPool3d(kd,kh,kw)` and `averagePool3d(kd,kh,kw)`, with kernel stride,
+  zero padding, unit dilation and floor geometry; ordinary Conv3d/pooling/linear Model training
+  and save/load continue through existing owners with freshly configured training.
+- Complete typed Pool3d cold geometry, including otherwise-qualified all-valid and static
+  homogeneous FLOAT32/FLOAT64 length-aware Scan bodies. Only these two constructors are added
+  to the narrow length whitelist; existing role, axis and terminal restrictions remain.
+- Append-only `graph-model.v6` (`SYNGRF06`, version 6), opcodes 34/35 for maximum/average Pool3d,
+  twelve i64 geometry fields and a canonical ceil flag. Contained Pool3d also selects v6;
+  unchanged sources keep byte-identical smallest v1–v5 encoding and no optimizer/session state.
+- Metadata-only `GraphCompilationPort.validateSource` shares complete cold preflight without
+  Tensor identities or host copying. Decode now rejects invalid metadata before creating any
+  candidate Tensor for every supported version.
+- Coordinated Metal route/workload/policy/codec identity advances to40; schema20/ABI7 remain.
+
 - Static homogeneous FLOAT32/FLOAT64 runtime-length general Scan cold capture and reconstruction,
   including Checkpoint in-memory copy/rebind and inherited NN acquisition/cold-forward paths.
   Reconstruction preserves explicit row roles, aliases and canonical ports without time unrolling
@@ -39,8 +56,9 @@
   including biased grouped anisotropic and unbiased depthwise cases, plus real NN training,
   bit-exact parameter save/close/load and newly configured training. CPU general Scan composes
   the complete Conv3d forward/reverse body in both types, modes and traversal directions.
-  CPU Pool3d still requires no-gradient occurrences; ordinary public CPU named-B Conv3d,
-  CPU low arithmetic, Metal Scan and cold/persistence inventories are not widened.
+  At that checkpoint CPU Pool3d required no-gradient occurrences; the Pool3d addition above
+  supersedes that gate. Ordinary public CPU named-B Conv3d, CPU low arithmetic and Metal Scan
+  are not widened by either backend change.
 
 ### Changed
 
@@ -105,8 +123,8 @@
 - Metal dense logical views now compose with MATMUL and its actual original-typed gradients.
   Selected materializing RESHAPE reuses exact_move_unary_0066 and an ordinary distinct target;
   physical source addressing is authenticated once. No consumer copy, shader, fallback or broad
-  storage relaxation is added. That composition advanced identity to38; current Conv3d image-fold
-  identity is39. ABI7/schema20 remain unchanged.
+  storage relaxation is added. That composition advanced identity to38; Conv3d image-fold
+  identity advanced to39, followed by the Pool3d identity40 addition above. ABI7/schema20 remain unchanged.
 - Engine rejects synchronous self-close from an admitted calling thread before shutdown/wait;
   cleanup-owner recursion stays idempotent and other closers retain completion/failure replay.
   Runtime/Metal lease tokens allocate before count publication, preventing phantom ownership on OOM.
@@ -122,8 +140,9 @@
 
 ### Compatibility
 
-- Sources needing no length mode retain byte-identical smallest v1-v4 encoding. V5 adds outer
-  opcode 33 without changing old Scan records or expanding cold constructor/dtype admission.
+- Sources needing neither length mode nor Pool3d retain byte-identical smallest v1-v4 encoding.
+  V5 adds outer opcode33 without changing old Scan records or its pre-Pool3d constructor/dtype
+  admission. Pool3d in either scope selects v6; v4/v5 still reject opcodes34/35.
   Existing fixed recurrent sources remain fixed, including old v3 files. Only new explicit F32/F64
   rnnScan recipes use general Scan; ordinary .rnn, direct fixed, GRU/LSTM and low source construction
   remain fixed. CPU low numerical availability independently follows the temporary lock above.

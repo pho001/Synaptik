@@ -162,6 +162,26 @@ Only the current frontier and gates after the table authorize new work.
 | 0081 | [Materializing RESHAPE production composition](tasks/0081-materializing-reshape-composition.md#result) | Complete | Reviewed0080; CompleteCompiler0019; owning authority/ADR0062 | Metal identity/schema writers; MAIN shared docs/ledger | RELEASE-RESHAPE | Exact reviewed layeredbytes → rebuilt cleaninstalledpackage → actual consumers → currentledger | All7raw carriers, all15typed graphs, fullpublicMLP/CNN, current306rows/78conformance; finalAPPROVE0 | Existing0066copy only; no shader/consumercopy/fallback; exact source/evidence/docs accepted. |
 | 0082 | [Native host-copy autorelease boundaries](tasks/0082-host-copy-autorelease-boundaries.md#result) | Complete | Complete0080/0081/Engine0023; actual controlled raw host-copy growth evidence | Native .m/source-package writers; MAIN shared receipts | RELEASE-METAL82 | Exact reviewed one-file integration → rebuilt clean native install → unchanged actual consumers → final evidence/docs APPROVE0 | 426 GPU/public integration passes/10 observer skips; unchanged public MLP/CNN/raw movement and category-specific raw/mixed before-after proof | Host-copy IOAccelerator growth repaired without Java caller-pool workaround or ABI/schema/identity/kernel changes; final independent approval has zero P1/P2. |
 
+## Audit-driven production coverage completion — Ready
+
+The user's comprehensive audit found ordinary-kind witnesses insufficient to establish actual
+FLOAT32 forward/adjoint closure. The [authorized contract extension](../../../architecture/contracts/backend-execution.md#authorized-audit-driven-backend-completion)
+grants complete elementary/activation, shaped/masked/statistical reduction, arithmetic scatter
+and Gather-adjoint, normalization/softmax/loss, attention and fixed-recurrent forward work,
+plus an authenticated native general-Scan binder through existing compiled body/activity
+owners. Independently qualify exact raw FLOAT64/integral operations without software FP64.
+Do not expand low numerics, fixed recurrent BPTT or public symbolic domains by implication.
+
+MAIN owns shared Java/native admission, schema/compatibility/resource integration and final
+authentication. Numeric components reuse existing typed metadata/helpers or declare focused
+POD/kernel interfaces; they do not independently rewrite shared decoder/binding semantics.
+Shared owners integrate after the disjoint components, followed by one source-matched native
+build/package and unchanged actual public forward/AD and trained-model consumers. Qualify
+special values, cancellation, masks, duplicate indices, all canonical roots, inactive/empty
+Scan behavior and original-carrier boundaries; provider truth is not runtime evidence.
+Old profile-era experiments remain historical. Every new capability requires independent
+Class C source review and the joined repository/release checkpoint before completion.
+
 ## Dependency DAG and authorized frontier
 
 `Model 0032 + Metal 0069/0073 → 0074A → 0074 → 0075A → 0075 → 0076 → 0077 → 0078 → 0079`

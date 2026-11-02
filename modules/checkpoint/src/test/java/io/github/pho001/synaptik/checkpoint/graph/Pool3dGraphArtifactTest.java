@@ -60,7 +60,7 @@ final class Pool3dGraphArtifactTest {
                 assertNotSame(state, restored.leaves().getFirst().tensor());
                 var encoded = GraphArtifactCodec.encode(GraphSource.capture(restored), LIMITS);
                 for (int ordinal = 1; ordinal <= 3; ordinal++) assertArrayEquals(raw, payload(encoded, ordinal));
-                Tensor replacement = prototype(type, input.descriptor().shape(), false, true).abs();
+                Tensor replacement = prototype(type, input.descriptor().shape(), false, true).abs().contiguous();
                 var rebound = GraphCheckpoint.rebind(restored, List.of(replacement));
                 assertEquals(MAX, rebound.getFirst().provenance().orElseThrow().operation().attrs());
                 assertEquals(AVG, rebound.getLast().provenance().orElseThrow().operation().attrs());
@@ -159,7 +159,7 @@ final class Pool3dGraphArtifactTest {
 
         var source = flat(false);
         var image = GraphArtifactCodec.encode(GraphSource.capture(source), LIMITS);
-        long schema = image.entries().getFirst().size();
+        int schema = Math.toIntExact(image.entries().getFirst().size());
         var exact = new ArtifactLimits(48 + 72 + schema, 72, 1, 14, schema, schema);
         sameImage(image, GraphArtifactCodec.encode(GraphSource.capture(source), exact));
         var below = new ArtifactLimits(48 + 72 + schema, 72, 1, 14, schema - 1, schema);
@@ -172,7 +172,7 @@ final class Pool3dGraphArtifactTest {
                 List.of(volume.add(state).averagePool3d(AVG)),
                 List.of(leaf("weight", GraphCheckpoint.Role.PARAMETER, state)));
         var namedImage = GraphArtifactCodec.encode(GraphSource.capture(named), LIMITS);
-        long namedSchema = namedImage.entries().getFirst().size();
+        int namedSchema = Math.toIntExact(namedImage.entries().getFirst().size());
         state.clearHostStorage();
         var namedBelow = new ArtifactLimits(1_000_000, 100_000, 1000, 64, namedSchema - 1, 900_000);
         // Missing storage would throw IllegalStateException if bounds were checked too late.

@@ -98,3 +98,9 @@ resume. There is no cross-process no-replace or concurrent-target-mutation promi
 The artifact package and `:extensions:checkpoint` project ID are unchanged; sources now live in
 `modules/checkpoint`. Its separate [generic graph API](graph-checkpoint-api.md) stores cold Tensor
 sources and host values without NN or Engine. Existing opaque file bytes/publication are unchanged.
+The graph codec now selects `graph-model.v1` through `graph-model.v6`; v6 adds maximum/average
+Pool3d (`SYNGRF06`, opcodes 34/35), including otherwise-qualified inline bodies. This is a
+graph-schema extension, not a change to opaque ArtifactFile v1 framing, bounds or publication.
+Unchanged graph sources keep their smallest byte-identical v1–v5 format. See the
+[graph API's v6 record](graph-checkpoint-api.md#complete-pool3d-geometry-in-v6) for geometry and
+metadata-preflight details. No optimizer or session state is stored.

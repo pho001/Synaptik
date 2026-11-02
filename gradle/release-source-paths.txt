@@ -963,6 +963,7 @@ extensions/nn/src/test/java/io/github/pho001/synaptik/nn/module/OwnedModelLifecy
 extensions/nn/src/test/java/io/github/pho001/synaptik/nn/module/OwnedModelSourceTest.java
 extensions/nn/src/test/java/io/github/pho001/synaptik/nn/module/OwnedModelTrainingTest.java
 extensions/nn/src/test/java/io/github/pho001/synaptik/nn/module/ParameterAndBufferTest.java
+extensions/nn/src/test/java/io/github/pho001/synaptik/nn/module/Pool3dModelWorkflowTest.java
 extensions/nn/src/test/java/io/github/pho001/synaptik/nn/module/RuntimeLengthScanModelTest.java
 extensions/nn/src/test/java/io/github/pho001/synaptik/nn/module/SequentialTest.java
 extensions/nn/src/test/java/io/github/pho001/synaptik/nn/module/StateDictionaryTest.java
@@ -1645,6 +1646,7 @@ modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/Meta
 modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalOrderingPreflightTest.java
 modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalPointwiseDispatchObserverNativeTest.java
 modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalPointwiseFusionPlannerTest.java
+modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalPoolingGradientNativeTest.java
 modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalPublicShapeTest.java
 modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalRandomDropoutCapabilityTest.java
 modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalRandomDropoutNativeTest.java
@@ -1694,6 +1696,7 @@ modules/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/graph/Grap
 modules/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpointGeneralScanTest.java
 modules/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpointTest.java
 modules/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/graph/GraphValueStorageTest.java
+modules/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/graph/Pool3dGraphArtifactTest.java
 modules/compiler/build.gradle.kts
 modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/AttentionGradientRules.java
 modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/AutogradPreflight.java
@@ -2461,6 +2464,7 @@ testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integr
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineModelAutotuningIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineNumericalSemanticsIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineOrderingMetalIntegrationTest.java
+testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EnginePool3dTrainingIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineScalarMetalIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineSigmoidMetalIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineStandardCompositionIntegrationTest.java
