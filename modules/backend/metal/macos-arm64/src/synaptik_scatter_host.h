@@ -356,16 +356,22 @@ static int32_t synaptik_scatter_scan_preflight_raw(
     if (!synaptik_scan_control_any(control, step->scope))
         return SYNAPTIK_METAL_STATUS_OK;
     uint64_t update_count = 1U;
-    for (uint32_t role = 0U; role < 3U; ++role) {
+    for (uint32_t role = 0U; role < 3U; ++role)
         if (meta->roleRanks[role] > 16U) return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
-        for (uint32_t axis = 0U; axis < meta->roleRanks[role]; ++axis)
-            if (meta->roleDims[role][axis] == 0U) return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
-    }
+    /* Empty updates have no index demand, even when the retained base is empty.
+     * A nonempty active update into an empty indexed extent must instead reach
+     * the ordinary bound-zero check, not be rejected as malformed geometry. */
+    for (uint32_t axis = 0U; axis < meta->roleRanks[2]; ++axis)
+        if (meta->roleDims[2][axis] == 0U) return SYNAPTIK_METAL_STATUS_OK;
     for (uint32_t axis = 0U; axis < meta->roleRanks[2]; ++axis) {
         uint64_t extent = meta->roleDims[2][axis];
         if (update_count > UINT64_MAX / extent) return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
         update_count *= extent;
     }
+    /* Nonempty updates imply nonempty logical indices under the checked Model
+     * shape equations. Keep this guard before coordinate projection/division. */
+    for (uint32_t axis = 0U; axis < meta->roleRanks[1]; ++axis)
+        if (meta->roleDims[1][axis] == 0U) return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
     __unsafe_unretained id<MTLBuffer> indices = role_inputs[1];
     for (uint64_t ordinal = 0U; ordinal < update_count; ++ordinal) {
         BOOL eligible;
