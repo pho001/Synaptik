@@ -100,6 +100,28 @@ class MetalExactSupportTest {
                         encoded(DataType.FLOAT64, false, 2))));
     }
 
+    @Test
+    void exactComparisonsHaveNondifferentiableBoolResultsAndIndependentPromotionChecks() {
+        var operation = new Operation(
+                io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind.EQUAL,
+                NoOperationAttrs.INSTANCE);
+        var left = descriptor(DataType.FLOAT64, true, 2, 1);
+        var right = descriptor(DataType.FLOAT16, true, 3);
+        var output = descriptor(DataType.BOOL, false, 2, 3);
+        assertTrue(MetalExactSupport.supports(operation, List.of(left, right), List.of(output)));
+        var node = MetalExactSupport.lower(operation, new int[] {0, 1}, new int[] {2},
+                List.of(left, right), List.of(output));
+        assertDoesNotThrow(() -> MetalExactSupport.validate(node, List.of(
+                encoded(DataType.FLOAT64, true, 2, 1), encoded(DataType.FLOAT16, true, 3),
+                encoded(DataType.BOOL, false, 2, 3))));
+        assertThrows(IllegalArgumentException.class, () -> MetalExactSupport.validate(node, List.of(
+                encoded(DataType.FLOAT64, true, 2, 1), encoded(DataType.INT64, false, 3),
+                encoded(DataType.BOOL, false, 2, 3))));
+        assertThrows(IllegalArgumentException.class, () -> MetalExactSupport.validate(node, List.of(
+                encoded(DataType.FLOAT64, true, 2, 1), encoded(DataType.FLOAT16, true, 3),
+                encoded(DataType.FLOAT64, false, 2, 3))));
+    }
+
     private static TensorDescriptor descriptor(DataType type, boolean grad, long... dims) {
         Shape shape = Shape.of(dims);
         return new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.contiguous(shape)), grad);

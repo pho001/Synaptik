@@ -68,6 +68,8 @@ static NSString *const SynaptikExactKernelSource =
  * All counts and offsets are in elements, all scalar attributes are raw words.
  * Binary: input/auxiliary descriptor fields describe broadcast operands;
  * sourceType/reserved/targetType are left/right/result types.
+ * Comparisons use the same binary metadata with BOOL targetType; numeric
+ * promotion is derived from the input types without narrowing integral values.
  * Scalar: sourceType/reserved/targetType are input/scalar/result types;
  * attrs[0] is the candidate (CLAMP additionally has attrs[1] as upper bound).
  * Unary: input/result are FLOAT64, operation is NEG/ABS/FLOOR/CEIL/SIGN/RELU.
@@ -78,8 +80,8 @@ static NSString *const SynaptikExactKernelSource =
  * output element. No workspace, atomics, host arithmetic or intermediate copy.
  * Admission must independently prove Model type promotion, operation/attribute
  * grammar, broadcast geometry, checked physical spans and gradient relations.
- * In particular, no BOOL, cross-category promotion, FP64 numerical arithmetic,
- * or new low-arithmetic occurrence is admitted by these raw helpers.
+ * In particular, no BOOL operand, cross-category promotion, FP64 numerical
+ * arithmetic, or new low-arithmetic occurrence is admitted by these raw helpers.
  */
 static NSString *const SynaptikExactTypedKernelSource =
 @"\n"
@@ -173,6 +175,22 @@ static NSString *const SynaptikExactTypedKernelSource =
 "    if (linear >= m.elementCount) return;\n"
 "    ulong offset = logical_storage(linear, m.inDims, m.inputStrides, m.inputRank, m.inputOffset);\n"
 "    store_word(output, linear, 8u, exact_f64_unary(load_word(input, offset, 8u), m.operation));\n"
+"}\n"
+"kernel void exact_numeric_compare(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) {\n"
+"    ulong linear = data_linear_id(gid, m);\n"
+"    if (linear >= m.elementCount) return;\n"
+"    ulong lo, ro; exact_numeric_offsets(linear, m, lo, ro);\n"
+"    uint type = (m.sourceType == 2u || m.sourceType == 6u)\n"
+"            ? ((m.sourceType == 6u || m.reserved == 6u) ? 6u : 2u) : 4u;\n"
+"    ulong l = exact_numeric_convert(load_word(left, lo, exact_numeric_width(m.sourceType)), m.sourceType, type);\n"
+"    ulong r = exact_numeric_convert(load_word(right, ro, exact_numeric_width(m.reserved)), m.reserved, type);\n"
+"    bool equal = exact_numeric_equal(l, r, type);\n"
+"    bool result = m.operation == 20u ? exact_numeric_less(r, l, type)\n"
+"            : m.operation == 21u ? (exact_numeric_less(r, l, type) || equal)\n"
+"            : m.operation == 22u ? exact_numeric_less(l, r, type)\n"
+"            : m.operation == 23u ? (exact_numeric_less(l, r, type) || equal)\n"
+"            : m.operation == 24u ? equal : !equal;\n"
+"    output[linear] = uchar(result);\n"
 "}\n"
 "kernel void exact_numeric_binary(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) {\n"
 "    ulong linear = data_linear_id(gid, m);\n"

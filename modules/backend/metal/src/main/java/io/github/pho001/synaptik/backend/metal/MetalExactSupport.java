@@ -7,6 +7,7 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
@@ -22,7 +23,8 @@ import java.util.List;
  * <p>Only original FLOAT64 and integral occurrences are selected. Floating extrema widen within
  * their Model category; integral arithmetic and extrema never use a floating proxy. Existing
  * FLOAT32 and low routes retain their independent admission. Outputs are canonical; reads may be
- * positive affine or explicit zero-stride views. No FP64 numerical arithmetic is introduced.</p>
+ * positive affine or explicit zero-stride views. Comparisons publish exact nondifferentiable BOOL
+ * results even when floating inputs require gradients. No FP64 numerical arithmetic is introduced.</p>
  */
 final class MetalExactSupport {
     private MetalExactSupport() {}
@@ -59,7 +61,7 @@ final class MetalExactSupport {
             }
             TensorDescriptor left = inputs.getFirst();
             boolean grad = inputs.stream().anyMatch(TensorDescriptor::requiresGrad);
-            if (output.requiresGrad() != grad) return false;
+            if (output.requiresGrad() != (!comparison(kind) && grad)) return false;
             if (unary(kind)) return inputs.size() == 1 && operation.attrs() == NoOperationAttrs.INSTANCE
                     && left.dataType() == DataType.FLOAT64 && output.dataType() == DataType.FLOAT64
                     && left.shape().equals(output.shape());
@@ -68,7 +70,7 @@ final class MetalExactSupport {
                 TensorDescriptor right = inputs.get(1);
                 DataType promoted = DataTypePromotion.promoteNumeric(left.dataType(), right.dataType());
                 return allowedBinary(kind, left.dataType(), right.dataType(), promoted)
-                        && output.dataType() == promoted
+                        && output.dataType() == (comparison(kind) ? DataType.BOOL : promoted)
                         && Arrays.equals(broadcast(left.shape().toLongArray(), right.shape().toLongArray()),
                                 output.shape().toLongArray());
             }
@@ -147,7 +149,8 @@ final class MetalExactSupport {
                 if (value.requiresGrad() && !value.dataType().isDifferentiable()) throw invalid();
                 grad |= value.requiresGrad();
             }
-            if (output.requiresGrad() != grad || grad && !output.dataType().isDifferentiable()) throw invalid();
+            if (output.requiresGrad() != (!comparison(node.kind()) && grad)
+                    || output.requiresGrad() && !output.dataType().isDifferentiable()) throw invalid();
             var left = values.get(inputs[0]);
             long[] attrs = node.attributeWords();
             if (unary(node.kind())) {
@@ -159,7 +162,7 @@ final class MetalExactSupport {
                 DataType promoted = DataTypePromotion.promoteNumeric(left.dataType(), right.dataType());
                 if (node.attributeKind() != MetalMpsGraphProgram.AttributeKind.NONE || attrs.length != 0
                         || !allowedBinary(node.kind(), left.dataType(), right.dataType(), promoted)
-                        || output.dataType() != promoted
+                        || output.dataType() != (comparison(node.kind()) ? DataType.BOOL : promoted)
                         || !Arrays.equals(broadcast(left.dimensions(), right.dimensions()), output.dimensions())) throw invalid();
             } else {
                 boolean clamp = node.kind() == MetalMpsGraphProgram.NodeKind.CLAMP;
@@ -210,7 +213,7 @@ final class MetalExactSupport {
 
     private static boolean exactCarrier(DataType type) { return type == DataType.FLOAT64 || type.isIntegral(); }
     private static boolean allowedBinary(MetalMpsGraphProgram.NodeKind kind, DataType left, DataType right, DataType promoted) {
-        if (kind == MetalMpsGraphProgram.NodeKind.TENSOR_MIN || kind == MetalMpsGraphProgram.NodeKind.TENSOR_MAX)
+        if (comparison(kind) || kind == MetalMpsGraphProgram.NodeKind.TENSOR_MIN || kind == MetalMpsGraphProgram.NodeKind.TENSOR_MAX)
             return promoted.isIntegral() || promoted == DataType.FLOAT64;
         return left.isIntegral() && right.isIntegral() && promoted.isIntegral();
     }
@@ -223,7 +226,10 @@ final class MetalExactSupport {
         return switch (kind) { case NEG, ABS, FLOOR, CEIL, SIGN, RELU -> true; default -> false; };
     }
     private static boolean binary(MetalMpsGraphProgram.NodeKind kind) {
-        return switch (kind) { case ADD, SUB, MUL, TENSOR_MIN, TENSOR_MAX -> true; default -> false; };
+        return comparison(kind) || switch (kind) { case ADD, SUB, MUL, TENSOR_MIN, TENSOR_MAX -> true; default -> false; };
+    }
+    private static boolean comparison(MetalMpsGraphProgram.NodeKind kind) {
+        return switch (kind) { case GT, GE, LT, LE, EQ, NE -> true; default -> false; };
     }
     private static boolean scalar(MetalMpsGraphProgram.NodeKind kind) {
         return switch (kind) { case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_MIN, SCALAR_MAX, CLAMP -> true; default -> false; };
@@ -234,6 +240,14 @@ final class MetalExactSupport {
             case FLOOR -> MetalMpsGraphProgram.NodeKind.FLOOR; case CEIL -> MetalMpsGraphProgram.NodeKind.CEIL;
             case SIGN -> MetalMpsGraphProgram.NodeKind.SIGN; case RELU -> MetalMpsGraphProgram.NodeKind.RELU;
             default -> null;
+        };
+        if (operation.kind() instanceof BinaryComparisonKind kind) return switch (kind) {
+            case GREATER_THAN -> MetalMpsGraphProgram.NodeKind.GT;
+            case GREATER_OR_EQUAL -> MetalMpsGraphProgram.NodeKind.GE;
+            case LESS_THAN -> MetalMpsGraphProgram.NodeKind.LT;
+            case LESS_OR_EQUAL -> MetalMpsGraphProgram.NodeKind.LE;
+            case EQUAL -> MetalMpsGraphProgram.NodeKind.EQ;
+            case NOT_EQUAL -> MetalMpsGraphProgram.NodeKind.NE;
         };
         if (operation.kind() instanceof BinaryArithmeticKind kind) return switch (kind) {
             case ADD -> MetalMpsGraphProgram.NodeKind.ADD; case SUB -> MetalMpsGraphProgram.NodeKind.SUB;

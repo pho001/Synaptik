@@ -231,6 +231,81 @@ class MetalExactNumericNativeTest {
         }
     }
 
+    @Test
+    void exactComparisonsRetainIntegralPrecisionAndFloatingSpecialPredicatesUnderBroadcast() {
+        for (DataType left : List.of(DataType.INT32, DataType.INT64)) {
+            for (DataType right : List.of(DataType.INT32, DataType.INT64)) {
+                long[] a = left == DataType.INT32
+                        ? new long[] {Integer.MIN_VALUE, -1, Integer.MAX_VALUE}
+                        : new long[] {Long.MIN_VALUE, 9007199254740993L, Long.MAX_VALUE};
+                long[] b = right == DataType.INT32
+                        ? new long[] {-1, 0, Integer.MAX_VALUE}
+                        : new long[] {-1, 9007199254740992L, Long.MAX_VALUE};
+                checkComparisons(left, right, a, b, null, null);
+            }
+        }
+        for (DataType right : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            long unit = switch (right) {
+                case FLOAT64 -> ONE;
+                case FLOAT32 -> 0x3f800000L;
+                case BFLOAT16 -> 0x3f80L;
+                case FLOAT16 -> 0x3c00L;
+                default -> throw new AssertionError();
+            };
+            long negativeZero = right == DataType.FLOAT64 ? SIGN : right == DataType.FLOAT32 ? 0x80000000L : 0x8000L;
+            long nan = switch (right) {
+                case FLOAT64 -> 0x7ff0000000001234L;
+                case FLOAT32 -> 0x7f800123L;
+                case BFLOAT16 -> 0x7f81L;
+                case FLOAT16 -> 0x7c01L;
+                default -> throw new AssertionError();
+            };
+            checkComparisons(DataType.FLOAT64, right,
+                    new long[] {SIGN, 1, SIGN | ONE, 0x7ff0000000000000L, 0x7ff8000000001234L},
+                    new long[] {negativeZero, 0, unit, nan},
+                    new double[] {-0.0, Double.MIN_VALUE, -1.0, Double.POSITIVE_INFINITY, Double.NaN},
+                    new double[] {-0.0, 0.0, 1.0, Double.NaN});
+        }
+    }
+
+    private static void checkComparisons(DataType left, DataType right, long[] a, long[] b,
+            double[] floatingA, double[] floatingB) {
+        var kinds = List.of(MetalMpsGraphProgram.NodeKind.GT, MetalMpsGraphProgram.NodeKind.GE,
+                MetalMpsGraphProgram.NodeKind.LT, MetalMpsGraphProgram.NodeKind.LE,
+                MetalMpsGraphProgram.NodeKind.EQ, MetalMpsGraphProgram.NodeKind.NE);
+        var nodes = new ArrayList<MetalMpsGraphProgram.Node>();
+        var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+        values.add(typed(left, a.length, 1)); values.add(typed(right, b.length));
+        int[] targets = new int[kinds.size()];
+        for (int k = 0; k < kinds.size(); k++) {
+            targets[k] = k + 2; nodes.add(node(kinds.get(k), new int[] {0, 1}, k + 2));
+            values.add(typed(DataType.BOOL, a.length, b.length));
+        }
+        var outputs = execute(new MetalMpsGraphProgram(nodes), values, new int[] {0, 1}, targets,
+                raw(left, a), raw(right, b));
+        for (int k = 0; k < kinds.size(); k++) {
+            byte[] expected = new byte[a.length * b.length];
+            for (int i = 0; i < expected.length; i++) {
+                int x = i / b.length, y = i % b.length;
+                boolean equal, less, greater;
+                if (floatingA == null) {
+                    int comparison = Long.compare(a[x], b[y]);
+                    equal = comparison == 0; less = comparison < 0; greater = comparison > 0;
+                } else {
+                    equal = floatingA[x] == floatingB[y];
+                    less = floatingA[x] < floatingB[y]; greater = floatingA[x] > floatingB[y];
+                }
+                boolean result = switch (k) {
+                    case 0 -> greater; case 1 -> greater || equal;
+                    case 2 -> less; case 3 -> less || equal; case 4 -> equal; case 5 -> !equal;
+                    default -> throw new AssertionError();
+                };
+                expected[i] = result ? (byte) 1 : 0;
+            }
+            assertArrayEquals(expected, outputs.get(k), left + "/" + right + "/" + kinds.get(k));
+        }
+    }
+
     private static void assertDouble(double expected, long actual) {
         if (Double.isNaN(expected)) assertTrue(Double.isNaN(Double.longBitsToDouble(actual)));
         else assertEquals(Double.doubleToRawLongBits(expected), actual);

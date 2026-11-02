@@ -20,7 +20,7 @@ static BOOL synaptik_exact_unary(uint32_t operation) {
 
 static BOOL synaptik_exact_binary(uint32_t operation) {
     return operation == 2U || operation == 3U || operation == 4U
-            || operation == 26U || operation == 27U;
+            || (operation >= 20U && operation <= 27U);
 }
 
 static BOOL synaptik_exact_scalar(uint32_t operation) {
@@ -132,13 +132,15 @@ static BOOL synaptik_exact_metadata(
         BOOL integral = synaptik_exact_integral(left_type) && synaptik_exact_integral(right_type);
         BOOL floating = task0066_is_floating(left_type) && task0066_is_floating(right_type);
         BOOL extreme = node.operation == 26U || node.operation == 27U;
+        BOOL comparison = node.operation >= 20U && node.operation <= 25U;
         uint8_t promoted = integral
                 ? (left_type == SYNAPTIK_METAL_TYPE_INT64 || right_type == SYNAPTIK_METAL_TYPE_INT64
                         ? SYNAPTIK_METAL_TYPE_INT64 : SYNAPTIK_METAL_TYPE_INT32)
                 : SYNAPTIK_METAL_TYPE_FLOAT64;
-        if (!node_has_no_attributes(node) || (!integral && !(extreme && floating
+        if (!node_has_no_attributes(node) || (!integral && !((extreme || comparison) && floating
                     && (left_type == SYNAPTIK_METAL_TYPE_FLOAT64 || right_type == SYNAPTIK_METAL_TYPE_FLOAT64)))
-                || target != promoted || output.count != MAX(left.count, right.count)) return NO;
+                || target != (comparison ? SYNAPTIK_METAL_TYPE_BOOL : promoted)
+                || output.count != MAX(left.count, right.count)) return NO;
         meta->auxiliaryRank = (uint32_t)right.count; meta->reserved = right_type;
         if (!synaptik_exact_physical(right, node.second_input, right_type, NO, strides, offsets, states,
                     meta->auxiliaryStrides, &meta->auxiliaryOffset)) return NO;
