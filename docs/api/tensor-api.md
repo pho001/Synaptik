@@ -140,7 +140,7 @@ Metal uses ABI 7 with thirteen exports and one bounded schema-20 route-bearing p
 Operation wires `1..115`, attribute wires `0..41`, and type wires `1..7` cover current structural
 vocabulary. The custom-program image authenticates compact materialized slots, deterministic
 pointwise units, and qualified MATMUL/Conv2d anchor epilogues. Metal-local workload,
-exact-policy, candidate, compatibility, route-policy, and session codec identities are version 36;
+exact-policy, candidate, compatibility, route-policy, and session codec identities are version 39;
 every other identity fails closed rather than falling back. Model remains the sole semantic owner
 of numerical meaning.
 
@@ -8148,10 +8148,13 @@ their canonical descriptors and spatial obligations. Complete Compiler 0006B2 co
 three adjoints through the same public API: either unfold form maps its cotangent through
 `fold3d` into the exact original input Shape, and fold maps its cotangent through the direct
 positive-zero `unfold3d` overload. Typed padding is immutable configuration rather than a
-differentiable input. The current CPU Pool3d implementation does not execute `UNFOLD3D` or
-`FOLD3D`; those remain separate operation families. No backend capability, Runtime behavior,
-materialized result, numerical output, or performance property for either transform follows from
-constructing it.
+differentiable input. CPU separately executes fully static resolved-layout UNFOLD3D raw movement
+for FLOAT32/FLOAT64/BFLOAT16/FLOAT16 and FOLD3D overlap arithmetic for FLOAT32/FLOAT64;
+low arithmetic remains locked. Metal FOLD2D/FOLD3D overlap is FLOAT32-only, while its other
+floating image folds retain non-overlap. CPU Pool3d's independent no-gradient gate is unchanged.
+These capabilities require concrete backend admission; constructing metadata alone supplies no
+materialized result or performance guarantee. See the
+[production matrix](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary).
 
 #### Complete window-transform expression example
 
@@ -9008,10 +9011,13 @@ Each successful call creates one fresh canonical output at producer index zero. 
 unlabeled and storage-free, has unresolved layout, retains the exact derived Shape and promoted
 type, and combines the input gradient-request metadata with logical OR. Provenance retains the
 exact `Conv3dAttrs` reference and ordered inputs `[input, weight]` or
-`[input, weight, bias]`. Current Model construction reads no tensor values. Complete Compiler task
-0006B now independently infers and final-validates these descriptors and their deferred channel
-and spatial relations for forward-only compilation. Conv3d gradients remain separate Draft
-Compiler 0006C work, and no execution or capability-provider support follows from that adoption.
+`[input, weight, bias]`. Current Model construction reads no tensor values. Compiler independently
+infers and final-validates these descriptors and deferred channel/spatial relations. Its shared
+Conv2d/Conv3d first-order rule retains groups through unfold/MATMUL/fold/reductions, restores
+each selected input/weight/bias target's exact Shape/type, and accumulates overlapping input
+contributions through the public fold. Actual execution is qualified for static CPU FLOAT32/FLOAT64
+and Metal FLOAT32, not ordinary dynamic/named-B Conv3d, low CPU arithmetic or arbitrary layouts;
+see the [production training boundary](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary).
 
 ### NCW Pool1d composition
 
@@ -9461,8 +9467,8 @@ execution only for fully static Shapes, resolved non-negative layouts, injective
 BFLOAT16/FLOAT16/FLOAT32/FLOAT64 MAX carriers or FLOAT32/FLOAT64 AVERAGE carriers, and representable checked geometry. Its scalar or
 caller-parallel generated schema-70 body owns complete output cells and uses zero workspace or
 materialization. This is backend-internal prepared execution, not value evaluation by the Model
-call, general Pool3d support for dynamic geometry, execution of `unfold3d`/`fold3d`, or a
-vector/native/fused route.
+call, general Pool3d support for dynamic geometry, Pool3d gradients, or a vector/native/fused
+pooling route. Separate UNFOLD3D/FOLD3D support does not remove the CPU Pool3d gradient-flag gate.
 
 ### Matrix-multiplication semantic kind
 

@@ -80,10 +80,13 @@ logic; all 14 floating `WHERE` signatures other than the two direct mixed-low si
 exact seven-carrier affine, indexing, replacement, ordering, and movement occurrences. Exact index
 roles accept INT32 or INT64. `FOLD_AXIS` admits the six numeric carriers but not BOOL;
 `UNFOLD2D`/`FOLD2D` and `UNFOLD3D`/`FOLD3D` admit all four floating carriers. Replacement scatter
-remains `NONE` only, and window folds remain non-overlapping. The bounded generated-gradient
-closure covers floating casts, inverse affine movement, exact replacement, saved condition/index
-roles, and non-overlapping window adjoints without inferring arithmetic reductions, additive
-scatter, overlap accumulation, or dynamic or empty geometry.
+remains `NONE` only. `FOLD_AXIS` and FLOAT64/low image folds retain non-overlap placement; FLOAT32
+image folds additionally accumulate overlap with one output-owned deterministic traversal and no
+atomics, scratch or host fallback. Shared Compiler convolution adjoints now qualify Conv3d
+training on CPU FLOAT32/FLOAT64 and Metal FLOAT32; support requires the entire generated topology,
+not merely the forward convolution. CPU raw `UNFOLD3D` also preserves BFLOAT16/FLOAT16 bits,
+without unlocking low fold/convolution arithmetic. CPU Pool3d's existing no-gradient admission
+is unchanged, so this is not a general trainable Conv3d-to-Pool3d CPU chain.
 The current provider additionally admits no-gradient INT32/INT64 MATMUL with INT64-dominant promotion and
 exact modular result arithmetic, exact maximum pooling over all four floating carriers, and raw
 INT64 initial state. In the frozen ACCELERATOR provider baseline, supported homogeneous FLOAT32 occurrences have

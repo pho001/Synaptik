@@ -54,10 +54,18 @@ route wires 1..3. Current representative-kind audit: capability 88/27, structura
 103/12, MPSGraph catalog 74/36/5, custom catalog 73/42/0. These counts are not universal occurrence,
 dtype, layout, gradient, or performance coverage.
 
-Metal0077/0078/0079, Model0032 and Metal0080/0081 are Complete. Integrated source is identity38,
-with the unchanged84,593-byte fixed source corpus, ABI7/schema20/header124/thirteen exports.
-Actual source-matched build/cleanZIP/GPU, unchanged all15typed gradient graphs, full F32 MLP/CNN
-journeys, current306-row conformance78 and final independent source/evidence/docs review passed.
+Metal0077/0078/0079, Model0032 and Metal0080/0081 are Complete. Their identity38 composition
+checkpoint passed source-matched build/cleanZIP/GPU, all15 unchanged typed gradient graphs, full
+F32 MLP/CNN journeys, 306-row conformance78 and final independent review.
+The coupled [Compiler0006C Conv3d training extension](../../modules/compiler/master-plan.md)
+now uses identity39 and an 87,929-byte fixed source corpus, retaining ABI7/schema20/header124/
+thirteen exports. Only FLOAT32 image folds gain output-owned overlap accumulation; FLOAT64/low
+image folds and FOLD_AXIS retain non-overlap. Metal-only Engine every-role finite differences and
+real NN train/save/close/load/new-train passed a freshly built, ad-hoc-signed, package-verified
+source-matched native. An initial shader compile failed on reserved identifier `kernel`; source
+rename, reauthentication and rebuild preceded the passing device proof. Independent source review
+APPROVE0, source-matched root test/build/distribution and fresh Maven/no-Git-source consumer
+qualification are complete. Hosted CI and official prebuilts remain separately unavailable.
 
 ## Package map
 
@@ -161,7 +169,7 @@ Only the current frontier and gates after the table authorize new work.
 Tasks 0078/0079 and Engine 0019 are Complete. Independent reviews and the final source-matched
 repository checkpoint passed, including genuine CPU/Metal transfer and scalar publication.
 Integrated [Metal0080](tasks/0080-dense-view-matmul-composition.md#result) and
-[Metal0081](tasks/0081-materializing-reshape-composition.md#result) source now binds identity38.
+[Metal0081](tasks/0081-materializing-reshape-composition.md#result) source bound identity38 at that checkpoint.
 All unchanged typed/raw/public consumers, current conformance and final independent
 source/evidence/documentation review passed; no Metal0080/0081 component frontier remains.
 Engine0023 is Complete for its separate Java lifetime correction.
@@ -179,9 +187,10 @@ production checkpoint; verified local source-build installation does not establi
 - Optional new operations need a fresh compact brief against current Model semantics and actual
   provider gaps. Old strict/profile-common probe failures do not mean their later custom
   successors are absent, nor do structural catalog entries imply executable capability.
-- Recurrent scan, unsupported normalization/attention families, mixed BF16/F16 arithmetic,
-  overlapping folds and unsupported gradient domains remain explicit limitations. BPTT and
-  Conv3d adjoints belong to Compiler, not Metal.
+- General Scan, unsupported normalization/attention families, direct mixed BF16/F16 arithmetic,
+  overlapping FOLD_AXIS and FLOAT64/low image folds, and unsupported gradient domains remain
+  explicit limitations. Conv3d adjoints belong to Compiler's shared formula; Metal qualifies the
+  complete ordinary FLOAT32 generated topology. Fixed recurrent BPTT remains unsupported.
 - Preserve the source-bound review evidence that still checks current code. Do not treat retired
   schema/profile certificates as current authority or remove useful bounds/dispatch tests by name.
 

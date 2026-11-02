@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
+import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
 import io.github.pho001.synaptik.engine.RunResult;
@@ -31,8 +33,12 @@ import io.github.pho001.synaptik.nn.module.StateKind;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.FloatBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 /** Proves strict-loaded NN dimensional convolutions through the public Engine boundary. */
@@ -156,14 +162,39 @@ final class NnConvolutionEngineIntegrationTest {
     }
 
     @Test
-    void executesStrictLoadedGroupedConv3dAndRejectsBackward() {
+    void executesStrictLoadedGroupedConv3dAndDifferentiatesEveryRole() {
+        try (Engine engine = Engine.standard()) {
+            assertGroupedConv3dGradients(engine);
+        }
+    }
+
+    @Test
+    void groupedConv3dGradientsMatchFiniteDifferencesWithoutACpuBackend() {
+        String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
+        Assumptions.assumeTrue(configured != null && !configured.isBlank(),
+                "SYNAPTIK_METAL_TEST_LIBRARY is required for real Metal integration");
+        Path library = Path.of(configured).toAbsolutePath().normalize();
+        assertTrue(Files.isRegularFile(library), "configured Metal library must exist: " + library);
+        try (Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                assertGroupedConv3dGradients(engine);
+            }
+        }
+    }
+
+    private static void assertGroupedConv3dGradients(Engine engine) {
         float[] inputValues = pattern(240, 17, 8, 0.0625f);
         float[] weightValues = pattern(64, 13, 6, 0.03125f);
+        float[] biasValues = BIAS.clone();
+        Supplier<float[]> forward = () -> conv3d(inputValues, weightValues, biasValues,
+                1, 4, 3, 4, 5, 4, 2, 2, 2,
+                1, 2, 1, 1, 0, 1, 1, 1, 2, 2);
         HostTensorValue detached;
-        try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
-            Tensor input = tensor(arena, Shape.of(1, 4, 3, 4, 5), false, inputValues);
+        try (Arena arena = Arena.ofShared()) {
+            Tensor input = tensor(arena, Shape.of(1, 4, 3, 4, 5), true, inputValues);
             Tensor weight = tensor(arena, Shape.of(4, 2, 2, 2, 2), true, weightValues);
-            Tensor bias = tensor(arena, Shape.of(4), true, BIAS);
+            Tensor bias = tensor(arena, Shape.of(4), true, biasValues);
             Conv3d layer = new Conv3d(
                     4, 2, 2, 2, 1, 2, 1, 1, 0, 1, 1, 1, 2, 2, true,
                     DataType.FLOAT32, ParameterInitialization.zeros(), 303L);
@@ -175,26 +206,54 @@ final class NnConvolutionEngineIntegrationTest {
             Tensor output = layer.forward(input);
             assertStorageBoundary(output, input, weight, bias);
             assertEquals(Shape.of(1, 4, 4, 2, 5), output.descriptor().shape());
-            float[] expected = conv3d(inputValues, weightValues, BIAS,
-                    1, 4, 3, 4, 5, 4, 2, 2, 2,
-                    1, 2, 1, 1, 0, 1, 1, 1, 2, 2);
+            float[] expected = forward.get();
 
             detached = engine.compute(output);
             assertValue(detached, Shape.of(1, 4, 4, 2, 5), expected);
-            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
-                    () -> engine.backward(output.sum(), List.of(weight), Long.MAX_VALUE));
-            assertTrue(failure.getMessage().contains("CONV3D"), failure::getMessage);
-            assertTrue(failure.getMessage().endsWith(
-                    "Conv3d is forward-only until Compiler task 0006C closes its gradients"),
-                    failure::getMessage);
+            List<Tensor> targets = List.of(input, weight, bias);
+            var backward = engine.backward(output.sum(), targets, Long.MAX_VALUE);
+            List<float[]> roles = List.of(inputValues, weightValues, biasValues);
+            for (int role = 0; role < targets.size(); role++) {
+                assertValue(backward.gradients().get(role), targets.get(role).descriptor().shape(),
+                        finiteDifferences(roles.get(role), forward));
+            }
             assertFalse(engine.isClosed());
             assertValue(engine.compute(output), Shape.of(1, 4, 4, 2, 5), expected);
             assertCallerStorageAlive(input, weight, bias);
         }
-        assertValue(detached, Shape.of(1, 4, 4, 2, 5), conv3d(
-                inputValues, weightValues, BIAS,
-                1, 4, 3, 4, 5, 4, 2, 2, 2,
-                1, 2, 1, 1, 0, 1, 1, 1, 2, 2));
+        assertValue(detached, Shape.of(1, 4, 4, 2, 5), forward.get());
+    }
+
+    /**
+     * Differentiates the independent direct-loop scalar sum, restoring every perturbed value.
+     * Binary fixtures and a binary step keep each forward contraction exactly representable.
+     *
+     * @param values non-null mutable caller-local role values, restored before returning
+     * @param forward non-null independent convolution oracle reading those values
+     * @return one central-difference cotangent per original role element
+     */
+    private static float[] finiteDifferences(float[] values, Supplier<float[]> forward) {
+        float[] gradient = new float[values.length];
+        float step = 0.125f;
+        for (int lane = 0; lane < values.length; lane++) {
+            float original = values[lane];
+            try {
+                values[lane] = original + step;
+                double upper = sum(forward.get());
+                values[lane] = original - step;
+                double lower = sum(forward.get());
+                gradient[lane] = (float) ((upper - lower) / (2 * step));
+            } finally {
+                values[lane] = original;
+            }
+        }
+        return gradient;
+    }
+
+    private static double sum(float[] values) {
+        double total = 0;
+        for (float value : values) total += value;
+        return total;
     }
 
     private static void assertState(

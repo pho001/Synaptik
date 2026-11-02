@@ -135,8 +135,9 @@ Tree limits protect cold description/reconstruction, not runtime shape sizes or 
 
 No arbitrary `Model.define` capture, branches, recurrence, BatchNorm, Dropout,
 wire codec, file I/O, optimizer state or runtime runner is provided. Metadata checks
-do not admit a backend route or widen Conv3d gradient support. Empty trees return
-the exact input semantically, without a generic zero-operation Engine guarantee.
+do not admit a backend route or widen the
+[qualified Conv3d training domain](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary).
+Empty trees return the exact input semantically, without a generic zero-operation Engine guarantee.
 NN reconstruction itself still has no codec or file I/O. Downstream Checkpoint now offers
 [whole-model save and automatic load](../api/model-checkpoint-api.md#whole-model-save-and-automatic-load)
 for this same closed matrix: it stores canonical configuration, exact identity groups and detached

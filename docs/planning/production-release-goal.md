@@ -79,12 +79,12 @@ repeated `train`, save and load through the existing Model, Engine, Training and
 owners. Loaded models must compute and train with new configuration on restored weights,
 without promising exact optimizer/session continuation.
 
-CNN training is mandatory. The [reviewed rank decision](../backend-guide/production-support.md#explicit-cnn-rank-decision)
-selects Conv1d/2d and Max/AveragePool1d/2d training for v1, retaining bounded 3D forward-only.
-Both CPU dtypes passed actual convolution/pooling backward and whole owned CNN train/save/load/
-new-train journeys. Conv3d backward remains globally rejected, and Pool3d independently requires
-non-gradient descriptors; neither is advertised as trainable or removed. This explicitly resolves
-the delegated 3D choice, not the broader geometry/strategy and final release qualification gates.
+CNN training is mandatory. The user's explicit Conv3d completion request supersedes the earlier
+1D/2D-only release choice. The [qualified convolution matrix](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary)
+includes Conv1d/2d/3d; static Conv3d input/weight/bias gradients and owned train/save/load/new-train
+passed CPU FLOAT32/FLOAT64 and Metal-only FLOAT32 programs. Shared grouped convolution and window
+owners implement the extension. CPU Pool3d independently retains its non-gradient descriptor gate;
+Conv3d support does not implicitly admit a trainable Conv3d-to-Pool3d chain.
 
 The practical RNN target uses runtime valid lengths L through the existing general Scan, which
 repeats an ordinary tensor body while carrying state between steps. Reuse the
@@ -159,7 +159,7 @@ Unchecked items are not yet accepted against the frozen scope.
   including applicable strategies and whole generated derivative closure. Java CPU F32/F64 have
   equal declared support; audit the temporary CPU low-arithmetic lock separately from retained
   implementation, shared types, storage/transfer/conversion and discrete semantics. Freeze CNN
-  ranks and the explicit 3D decision, and qualify Metal's separate production support matrix.
+  ranks through Conv3d under explicit dtype/geometry predicates, and qualify Metal's separate production support matrix.
 - [ ] Verify BF16/FP16 floating computation is locked on Java CPU without deleting its existing
   implementation or disabling retained storage/raw transfers/conversions and discrete semantics.
   No implicit low-precision CPU fallback or expansion of the locked capability is permitted.

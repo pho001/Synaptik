@@ -182,7 +182,7 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
     }
 
     @Test
-    void generatedAveragePoolBackwardIsOwnedOnlyForNonOverlappingFoldGeometry() {
+    void generatedAveragePoolBackwardRetainsItsNonOverlappingPoolCapability() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
             builder.takeOwnership(MetalBackendIntegration.open(
@@ -330,7 +330,7 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
     }
 
     @Test
-    void generatedMaximumPoolBackwardClosesWhileConv3dRemainsCompilerFailClosed() {
+    void generatedMaximumPoolBackwardCloses() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
             builder.takeOwnership(MetalBackendIntegration.open(
@@ -352,19 +352,6 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                             List.of(floats(4), floats(0, 0, 0, 1)));
                 }
 
-                Tensor convInput = tensor(
-                        arena, Shape.of(1, 1, 1, 1, 1), true, 2);
-                Tensor convWeight = tensor(
-                        arena, Shape.of(1, 1, 1, 1, 1), false, 3);
-                Tensor convolution = convInput.conv3d(convWeight, Conv3dAttrs.defaults());
-                Tensor convSeed = tensor(
-                        arena, Shape.of(1, 1, 1, 1, 1), false, 1);
-                IllegalArgumentException failure = assertThrows(
-                        IllegalArgumentException.class,
-                        () -> engine.compile(
-                                List.of(convolution), List.of(convSeed), List.of(convInput)));
-                assertTrue(failure.getMessage().contains(
-                        "Conv3d is forward-only until Compiler task 0006C closes its gradients"));
             }
         }
     }

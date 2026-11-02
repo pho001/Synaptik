@@ -258,22 +258,6 @@ final class ModelBuilderExecutionTest {
         }
     }
 
-    @Test void conv1dAndConv3dExecuteButConv3dBackwardRemainsRejected() {
-        try (var one = Model.builder().input(DataType.FLOAT32, 1, 1, 4).conv1d(2, 2).build();
-                var three = Model.builder().input(DataType.FLOAT32, 1, 1, 3, 3, 3).conv3d(2, 2, 2, 2).build();
-                Engine engine = Engine.standard()) {
-            Tensor x = values(false, new long[]{1, 1, 4}, 1, -2, 3, .5f);
-            var w = copyWeights(one);
-            sameValues(engine.compute(x.conv1d(w.get(0), w.get(1), new Conv1dAttrs(1, 0, 1, 1))), one.compute(x), 1e-5f);
-            float[] lanes = new float[27]; for (int i = 0; i < 27; i++) lanes[i] = (i - 13) * .1f;
-            Tensor volume = values(false, new long[]{1, 1, 3, 3, 3}, lanes);
-            w = copyWeights(three);
-            sameValues(engine.compute(volume.conv3d(w.get(0), w.get(1),
-                    new Conv3dAttrs(1, 1, 1, 0, 0, 0, 1, 1, 1, 1))), three.compute(volume), 1e-5f);
-            assertThrows(IllegalArgumentException.class, () -> three.configureTraining(descriptor(false, 1, 2, 2, 2, 2),
-                    ModelBuilderExecutionTest::objective, new Sgd(.01)));
-        }
-    }
 
     /**
      * Checks closed-before-load recurrence against independent full-batch Tensor equations and SGD.
@@ -324,23 +308,39 @@ final class ModelBuilderExecutionTest {
      * Verifies fresh loaded CNN training, every parameter update and persisted trained raw values.
      * @throws Exception if supported persistence or execution fails
      */
-    @Test void coldReloadedConv1dAndPooledConv2dTrainAllParametersAndResaveCurrentValues() throws Exception {
-        for (boolean two : List.of(false, true)) {
-            var builder = two ? Model.builder().input(DataType.FLOAT32, 1, 1, 4, 4).seed(31)
-                    .conv2d(1, 2, 2).maxPool2d(2, 2).flatten().linear(1)
-                    : Model.builder().input(DataType.FLOAT32, 1, 1, 4).seed(31).conv1d(1, 2).flatten().linear(1);
+    @Test void coldReloadedDimensionalCnnsTrainAllParametersAndResaveCurrentValues() throws Exception {
+        for (int spatialRank : new int[]{1, 2, 3}) {
+            var builder = switch (spatialRank) {
+                case 1 -> Model.builder().input(DataType.FLOAT32, 1, 1, 4).seed(31)
+                        .conv1d(1, 2).flatten().linear(1);
+                case 2 -> Model.builder().input(DataType.FLOAT32, 1, 1, 4, 4).seed(31)
+                        .conv2d(1, 2, 2).maxPool2d(2, 2).flatten().linear(1);
+                case 3 -> Model.builder().input(DataType.FLOAT32, 1, 1, 3, 3, 3).seed(31)
+                        .conv3d(1, 2, 2, 2).flatten().linear(1);
+                default -> throw new AssertionError(spatialRank);
+            };
             Path file = directory.resolve("cnn"); List<Tensor> w;
             try (var original = builder.build()) { w = copyWeights(original); original.save(file); }
             try (var model = Model.load(file); Engine engine = Engine.standard()) {
                 Tensor target = values(false, new long[]{1, 1}, .2f);
                 model.configureTraining(target.descriptor(), ModelBuilderExecutionTest::objective, new Sgd(.01));
                 for (float sign : new float[]{1, -1}) {
-                    float[] lanes = new float[two ? 16 : 4];
+                    long[] axes = switch (spatialRank) {
+                        case 1 -> new long[]{1, 1, 4};
+                        case 2 -> new long[]{1, 1, 4, 4};
+                        case 3 -> new long[]{1, 1, 3, 3, 3};
+                        default -> throw new AssertionError(spatialRank);
+                    };
+                    float[] lanes = new float[spatialRank == 1 ? 4 : spatialRank == 2 ? 16 : 27];
                     for (int i = 0; i < lanes.length; i++) lanes[i] = sign * (i + 1) * .07f;
-                    Tensor batch = values(false, two ? new long[]{1, 1, 4, 4} : new long[]{1, 1, 4}, lanes);
-                    Tensor expected = two ? batch.conv2d(w.get(0), w.get(1), Conv2dAttrs.defaults())
-                            .maxPool2d(new MaxPool2dAttrs(2, 2, 2, 2, 0, 0, 1, 1, false)).reshape(1, 1)
-                            : batch.conv1d(w.get(0), w.get(1), Conv1dAttrs.defaults()).reshape(1, 3);
+                    Tensor batch = values(false, axes, lanes);
+                    Tensor expected = switch (spatialRank) {
+                        case 1 -> batch.conv1d(w.get(0), w.get(1), Conv1dAttrs.defaults()).reshape(1, 3);
+                        case 2 -> batch.conv2d(w.get(0), w.get(1), Conv2dAttrs.defaults())
+                                .maxPool2d(new MaxPool2dAttrs(2, 2, 2, 2, 0, 0, 1, 1, false)).reshape(1, 1);
+                        case 3 -> batch.conv3d(w.get(0), w.get(1), Conv3dAttrs.defaults()).reshape(1, 8);
+                        default -> throw new AssertionError(spatialRank);
+                    };
                     expected = expected.linear(w.get(2), w.get(3));
                     sameValues(engine.compute(expected), model.compute(batch), 2e-5f);
                     compareStep(engine, model, expected, batch, target, w, .01f);

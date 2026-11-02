@@ -1135,6 +1135,7 @@ modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuScanLowering.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuScatterLowering.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuSoftmaxLowering.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuSpatialWindowGeometry.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuSpecializedSubgraphRecognizer.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuTrailingNormalizationLowering.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuUnitTopology.java
@@ -1333,6 +1334,7 @@ modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuSoftmaxBackwardGeneratedKernelTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuSoftmaxGeneratedKernelTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuSoftmaxV2PerformanceDiagnosticTest.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuSpatialWindowCleanJavaOracle.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuSpecializedGeneratedMatrixTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuSpecializedSemanticClosureInventory.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuStableReductionAttentionStageATest.java
@@ -1434,6 +1436,7 @@ modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuScatterLoweringTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuSoftmaxBackwardLoweringTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuSoftmaxLoweringTest.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuSpatialWindowLoweringTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuSpecializedSubgraphRecognizerTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuStaticTypedOneCountFoldingTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuTrailingNormalizationLoweringTest.java

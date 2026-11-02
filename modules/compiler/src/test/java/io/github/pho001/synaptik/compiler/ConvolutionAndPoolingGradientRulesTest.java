@@ -165,24 +165,6 @@ final class ConvolutionAndPoolingGradientRulesTest {
         }
     }
 
-    @Test
-    void conv3dInsideScanUsesTheSameOrdinaryGradientClosure() {
-        Tensor carry = tensor(Shape.of(1, 4, 3, 3, 3));
-        Tensor step = tensor(Shape.of(1, 4, 3, 3, 3));
-        Tensor kernel = tensor(Shape.of(4, 2, 3, 3, 3));
-        Tensor next = carry.add(step.conv3d(
-                kernel, new Conv3dAttrs(1, 1, 1, 1, 1, 1, 1, 1, 1, 2)));
-        var body = new io.github.pho001.synaptik.model.tensor.ScanBody(
-                List.of(carry), List.of(step), List.of(kernel), List.of(next), List.of());
-        Tensor initial = tensor(carry.descriptor().shape());
-        Tensor sequence = tensor(Shape.of(2, 1, 4, 3, 3, 3));
-        Tensor weight = tensor(kernel.descriptor().shape());
-        var scan = io.github.pho001.synaptik.model.tensor.Scan.apply(
-                List.of(initial), List.of(sequence), List.of(weight), body, false);
-        Tensor objective = scan.finalCarry().getFirst().sum();
-        assertCompiles(objective, sequence);
-        assertCompiles(objective, weight);
-    }
 
     @Test
     void averageAndMaximumPoolingBothFoldToTheExactInputShape() {

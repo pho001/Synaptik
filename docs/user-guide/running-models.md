@@ -136,7 +136,8 @@ They return **every hidden step**, including LSTM; there is no implicit final-st
 Each composition starts with zero hidden state (and zero cell state for LSTM). Cached compute/train
 reuse fixed zero constants, never carry state across batches, and do not rebuild the graph per call.
 Static unrolling uses existing constituent-operation adjoints; it is not scan backpropagation through
-time (BPTT), streaming state, or runtime-length support. Conv3d backward remains unsupported.
+time (BPTT), streaming state, or runtime-length support. Conv3d uses shared grouped convolution
+adjoints in the [qualified static CPU F32/F64 and Metal F32 domains](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary).
 
 `flatten()` requires rank at least two and preserves axis 0: `[axis0, product of other extents]`.
 For CNNs axis 0 is batch; for TBF `[T,B,H]` it is time, so flatten gives `[T,B*H]`.
@@ -148,8 +149,9 @@ Tensor graphs, not layer recipes. Save before compute, close the original Model,
 above retains `[32,1,28,28]` input and `[32,10]` output, while the stacked LSTM retains `[20,32,8]`
 input and `[32,10]` output.
 Its zero initial-state and row-index constants are saved as reachable CONSTANT leaves, not layer
-recipes. Configure a fresh objective/optimizer after load to train Conv1d/2d or static recurrence
-where current adjoints permit; Conv3d remains inference-only. Saving trained values still does not
+recipes. Configure a fresh objective/optimizer after load to train Conv1d/2d/3d or static recurrence
+where current adjoints and backend predicates permit. Default biased Conv3d save/load/new-train
+is qualified; arbitrary convolution checkpoint geometry is not. Saving trained values still does not
 resume optimizer history, RNG or data progress. Any selected added operation chooses v3 even if
 the graph also contains RELU/TANH/SIGMOID.
 

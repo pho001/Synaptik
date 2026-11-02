@@ -181,7 +181,7 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * FLOAT32/FLOAT64 general scans may compute and train when their actual bodies and bindings
      * qualify through the existing cached owners. Fixed scans remain inference-only; bounded general
      * bodies save/load through Checkpoint v4 without restoring objectives or optimizer state.
-     * No Conv3d gradients or fixed-scan backpropagation through time are implied.
+     * Persistence does not itself grant backend support or fixed-scan backpropagation through time.
      * @param inputSignature non-null fully static exact input descriptor
      * @param definition non-null one-shot definition; its adopted modules must not be mutated later
      * @return owned eval Model with private state and cold symbolic forward

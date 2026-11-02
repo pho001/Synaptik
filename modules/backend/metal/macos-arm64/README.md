@@ -41,8 +41,11 @@ product at 65,536. Exact local singleton-height affine inputs authenticate Conv1
 Convolution preserves grouped term/bias order. Maximum pooling selects raw words by NaN-first,
 positive-zero-over-negative-zero, first-logical-winner order with negative-infinity padding.
 Average pooling uses the full kernel-position divisor and conceptual positive-zero padding.
-Non-overlapping maximum-pool backward closes; overlap accumulation and Conv3d backward remain
-fail-closed.
+Current static FLOAT32 Conv3d executes compiler-generated input/weight/bias cotangents through
+the shared grouped convolution rule. FLOAT32 FOLD2D/FOLD3D additionally accumulate overlap;
+low/FLOAT64 image folds and FOLD_AXIS retain non-overlap. See the
+[production support matrix](../../../../docs/backend-guide/production-support.md#metal-production-target)
+for the actual Metal-only finite-difference and NN train/save/load/new-train evidence and limits.
 
 Task 0065 adds custom-only `101=DROPOUT` and `102=INITIAL_STATE`. INITIAL_STATE writes one
 canonical raw INT64[2] key/counter output. Homogeneous
@@ -95,7 +98,7 @@ add, and final-store sites plus NaN, signed-zero, infinity, subnormal DAZ/FTZ, a
 
 The remaining 27 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 38. Java
+rather than masquerading as malformed input. Candidate and route identity are version 39. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
 shared custom-program wire 3. Schema 20 embeds wire 2 or 3 in each graph image; every other
 schema or route value fails closed. The exhaustive Java
@@ -121,8 +124,9 @@ sign guard, one FLOAT32 exponent, and one final low narrowing. An explicit low-t
 may precede the internal FLOAT32 MPSGraph step in the same custom partition. Schema 20, route
 wires 2/3, native ABI 7, and the existing operation and attribute wires retain their allocations;
 Task 0077 used coordinated compatibility identity 34; Task 0078 advanced it to 35 and Task 0079
-to 36 for corrected standalone scalar admission. Tasks 0080/0081 advance the current identity
-through 37 to 38 without changing ABI 7 or schema 20. Older session tuning decisions are incompatible.
+to 36 for corrected standalone scalar admission. Tasks 0080/0081 advanced it through 37 to 38;
+the Conv3d training extension advances the current identity to 39 for FLOAT32 image-fold overlap,
+without changing ABI 7 or schema 20. Older session tuning decisions are incompatible.
 
 Task 0079 removes the obsolete anchor-membership prerequisite for rank-zero RELU and scalar MUL
 in Java and the native decoder. Matching canonical scalar input/output Shapes still contain one
@@ -167,12 +171,13 @@ grant blanket sign freedom. Exact paths preserve zero bits; MIN chooses negative
 SIGN preserves a zero's sign, RELU maps negative zero to positive zero, and average pooling
 preserves negative zero only when every contributor is negative zero and none is padding.
 
-For admitted nodes, the version-38 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-39 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, complete encoded logical storage-layout
 geometry, independently safe physical materialization, and the canonical schema-20 execution
 extension. Native decoding requires schema 20; the Java session tuning codec separately requires
-identity 38. Neither has a compatibility reader or migration alias for stale inputs.
+identity 39. Neither has a compatibility reader or migration alias for stale inputs.
+The fixed source-bound native corpus is 87,929 bytes; ABI 7 and program schema 20 are unchanged.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
@@ -390,12 +395,15 @@ every positive static window that fits the selected extent.
 
 Task 0060 custom replacement and signed slice update preserve all seven carriers. Scatter accepts
 canonical INT32/INT64 indices and preflights every tuple's bounds plus global destination
-uniqueness before copying or replacement. FOLD_AXIS accepts every non-BOOL carrier; FOLD2D/FOLD3D
-accept FLOAT64/FLOAT32/BFLOAT16/FLOAT16 when every stride is at least the effective dilated kernel.
-Their output-centric kernels give each output cell one writer, copy its sole in-bounds contributor,
-skip conceptual padding, and otherwise write exact carrier zero. INT32/INT64 PROD uses stable
-row-major modular multiplication; BOOL ALL/ANY uses exact zero/one identities. Empty axes are point
-identities and never imply zero-extent support.
+uniqueness before copying or replacement. FOLD_AXIS accepts every non-BOOL carrier with
+non-overlapping windows. FOLD2D/FOLD3D accept FLOAT64/FLOAT32/BFLOAT16/FLOAT16 when every
+stride is at least the effective dilated kernel; only FLOAT32 also admits overlap. Non-overlap
+copies the sole in-bounds contributor or exact carrier zero. Overlapping FLOAT32 image folds
+instead give each output cell one writer, start at positive zero and deterministically sum its
+in-range column contributors, excluding conceptual padding. No atomics, scratch, host fallback,
+repair or software FLOAT64 are introduced. INT32/INT64 PROD uses stable row-major modular
+multiplication; BOOL ALL/ANY uses exact zero/one identities. Empty axes are point identities
+and never imply zero-extent support.
 
 Task 0064's six kernels are output-cell-owned and require no scratch, atomics, host calculation,
 repair, retry, or fallback. Convolution iterates groups and every kernel-position/channel term in
@@ -549,7 +557,7 @@ capability narrowing, tuning, fallback, or a performance claim.
 Any schema-20 program containing an exact custom node or a MATMUL outside the retained
 all-FLOAT32 rank-two MPSGraph slice uses one retained custom-program handle. Creation authenticates
 the frozen SHA-256 values of all ten reviewed fixed-kernel components and their ordered
-84,593-byte total. The sole production pointwise emitter first traverses a structured
+87,929-byte total. The sole production pointwise emitter first traverses a structured
 no-allocation count sink, validates unit, instruction, per-function, generated, and total caps,
 allocates the exact byte count, traverses the same emitter once for compiler input, independently
 authenticates the assembled source, and only then compiles with `MTLMathModeSafe` and
@@ -762,9 +770,13 @@ widening execution, maximum raw NaN/signed-zero/tie/infinity ordering, fixed ave
 all-padding windows. Java/native malformed-image parity rejects bad types, ranks, attributes,
 Shapes, gradient metadata, external affine layouts, and one-past unsigned-32-bit facts before resource creation. CPU-free public Engine evidence covers forward reuse,
 separate and joint Conv2d cotangents, non-overlapping average-pool cotangents, and
-FLOAT32/BFLOAT16/FLOAT16 non-overlapping maximum-pool cotangents. Overlap accumulation,
-Conv3d backward, attention, and convolution transpose reject before
-native execution.
+FLOAT32/BFLOAT16/FLOAT16 non-overlapping maximum-pool cotangents. The Conv3d extension
+additionally passed static FLOAT32 all-role and selected weight-only finite differences,
+including grouped biased anisotropic geometry/overlap and unbiased depthwise cases, and real
+NN training/save/close/load/fresh training without any CPU backend. See the
+[bounded evidence](../../../../docs/backend-guide/production-support.md#metal-production-target),
+including the initial reserved-identifier shader failure and corrected source-matched rebuild.
+Attention and convolution transpose still reject before native execution.
 
 ## Boundaries
 
@@ -781,10 +793,11 @@ address their physical source directly. There is no tiling, atomics, autotuning,
 selection, retry, or fallback. Generated floating gradients use the same admitted
 domain without implying unrestricted training.
 
-Conv3d backward, overlap accumulation, attention,
-convolution transpose, asymmetric padding, unsafe layouts, dynamic/empty geometry, scratch,
-atomics, and host repair remain unavailable. Portable/configurable RNG, entropy or
-random-quality claims, host/eager distribution, and recurrent execution also remain unavailable.
+Non-FLOAT32 overlapping image folds, overlapping FOLD_AXIS, attention, convolution transpose,
+asymmetric padding, unsafe layouts, dynamic/empty geometry, scratch, atomics and host repair
+remain unavailable. Conv3d training is qualified for static FLOAT32, not low/FLOAT64 training,
+Metal Scan or arbitrary layouts. Portable/configurable RNG, entropy or random-quality claims,
+host/eager distribution and recurrent execution also remain unavailable.
 RNN, GRU, and LSTM reject both directions, bias forms, zero-length/no-work cases, and every
 gradient.
 

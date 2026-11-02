@@ -53,15 +53,18 @@ transposes rooted in them, and exact local singleton-height Conv1d/Pool1d compos
 Existing rank-two FLOAT32 matrix products retain direct MPSGraph; newly admitted MATMUL forms
 and convolution/pooling rows use the fixed
 custom program. Gradient-bearing arithmetic, scalar, reduction, scan, dropout, non-overlapping
-maximum-pool, and other admitted differentiable rows retain the exact compiler-generated
-first-order and owned higher-order paths. Overlapping generated folds, Conv3d backward, attention,
-convolution transpose, and every other unlisted occurrence remain fail-closed. Exact custom nodes
+low/FLOAT64 window paths and other admitted differentiable rows retain compiler-generated
+first-order and owned higher-order paths. Shared grouped Conv2d/Conv3d AD now supports
+qualified static CPU FLOAT32/FLOAT64 and Metal FLOAT32 training, including input, weight and
+bias gradients and overlapping image folds. Metal overlap-add is FLOAT32-only; CPU Pool3d's
+independent no-gradient gate remains unchanged. See the [production support matrix](docs/backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary).
+Attention, convolution transpose and every other unlisted Metal occurrence remain fail-closed. Exact custom nodes
 fix their whole partition to one custom program with compact run-owned materialized slots and
 direct targets; top-K publishes paired values and INT64 indices from one step. Deterministic
 generated Metal units continue to fuse only their qualified FLOAT32 chains; every BFLOAT16/FLOAT16
 partition is custom-program-only. ABI 7 exposes thirteen symbols; the route-bearing program image
 remains schema 20, data-type wires remain `1..7`, and backend-local route, workload, policy and
-codec identities are version 38. Low-precision preparation trace reports the selected custom route
+codec identities are version 39. Low-precision preparation trace reports the selected custom route
 and ordered logical dtype tuple; tracing is diagnostic, not a numerical selector.
 Standard-Metal convenience, generic plugin discovery, CUDA and broader optimizers remain planned.
 Source-domain-bounded v1-v5 graph/Model persistence is available; it stores no optimizer/session continuation.

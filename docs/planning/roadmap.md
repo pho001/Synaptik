@@ -107,12 +107,12 @@ after Euclid's final APPROVE and main's root gate; NN0028 is Complete under the 
 | [Config](modules/config/master-plan.md) | Compile leaves and two-phase tuning policy delivered. Cost consumer/aggregate/run configuration Draft; no numerical-profile API. |
 | [Planning](modules/planning/master-plan.md) | Complete0008 body-bearing query baseline. Current neutral ScanActivityPlan/fifth-query source is the coupled Compiler0017 Ready slice under accepted frozen authority/APIs, not new AD ownership/execution or cost-model work. |
 | [Runtime](modules/runtime/master-plan.md) | Complete through0016 and Engine0022 closed-payload repair. [Engine0023 Complete](modules/engine/tasks/0023-reentrant-close-and-lease-admission.md#result) repairs reproduced lease-token allocation rollback and reentrant shutdown after independent final approval and unchanged actual OOM/GPU consumers; no new lease protocol. |
-| [Compiler](modules/compiler/master-plan.md) | Capture/AD/binding,0018 cold,0017A/B lexical/shared checked construction and0019 RESHAPE are Complete. Full all-valid/length typed selected-proof/activity0017 is Ready after both independent authority/interface APPROVE0 reviews and exact disjoint-source admission withCPU0081; implementation/actual qualification pending. |
+| [Compiler](modules/compiler/master-plan.md) | Capture/AD/binding,0018 cold,0017A/B lexical/shared checked construction and0019 RESHAPE are Complete. General Scan0017 composes ordinary selected-proof/activity semantics withCPU0081. Conv3d0006C is Complete after CPU F32/F64 and Metal F32 numerical/train/persist proof, independent reviews, root test/build/distribution and fresh Maven/no-Git-source consumers. |
 | [Prepare](modules/prepare/master-plan.md) | Complete0011–0015 includes accepted static/named-B F32/F64 length projection/execution in its recorded domain. Current neutral activity/context-copy/typed projection is the coupled CPU0081 Ready slice under accepted APIs and exact common source; no new executor or implemented wider capability. |
 | [OpenBLAS provider](backends/openblas-provider/master-plan.md) | 0001–0003 Complete. Optional direct BF16 0004 Blocked on ABI and one-final-narrowing evidence; F32/F64 unaffected. |
-| [CPU](backends/cpu/master-plan.md) | CPU0077/0078/0079/0080 finite-softmax, retained low lock, raw RESHAPE and same-class emission are Complete. Full ordinary-unit general Scan0081 is Ready withCompiler0017 under accepted authority/frozen APIs/exact dirty contexts; no implemented broader capability or identity/low-policy waiver. |
+| [CPU](backends/cpu/master-plan.md) | CPU0077/0078/0079/0080 finite-softmax, retained low lock, raw RESHAPE and same-class emission are Complete. General Scan0081 composes ordinary units under Compiler0017. Coupled Conv3d0006C is Complete: F32/F64 training and full-body Scan forward/reverse, raw four-floating-carrier UNFOLD3D and F32/F64 FOLD3D passed final root and installed/source consumers. Ordinary named-B and low-policy boundaries are unchanged. |
 | [Engine](modules/engine/master-plan.md) | Engine0021/0022/0023/0024 Complete in recorded scope: lifecycle/OOM/GPU fixes and standard18-product binary/source/Javadoc plus exact-source distribution mechanism. Clean extracted Maven/Gradle consumers train CPU/Metal and persist. Owner selected private/internal distribution without a public licence/upload; final all-PURE artifact freeze and technical acceptance remain. |
-| [Metal](backends/metal/master-plan.md) | 0080/0081 identity38 composition and0082 host-copy lifetime repair are Complete after source-matched clean native install, unchanged typed/raw/MLP/CNN consumers, actual finite memory-category observations and final independent approval. Current306-row v2/conformance accepted. Hosted GPU CI0047 remains blocked; no official trusted prebuilt release. |
+| [Metal](backends/metal/master-plan.md) | 0080/0081 identity38 composition and0082 host-copy lifetime repair are Complete in recorded scope. Current identity39 qualifies FLOAT32 overlapping image folds and Conv3d0006C training after source-matched build/package, Metal-only numerical/train/save/load/new-train, independent review, root gate and fresh artifact/source consumers. Hosted GPU CI0047 remains blocked; no official trusted prebuilt release. |
 | [CUDA](backends/cuda/master-plan.md) | Marker/native scaffold only; no executable CUDA backend. 0001 Draft. |
 | [ONNX](extensions/onnx/master-plan.md) | Marker only; no importer/exporter. Area Draft; first mapping task not yet defined. |
 | [Data](extensions/data/master-plan.md) | 0001–0003 Complete; [0003 shared padded representation and INT64 batching](extensions/data/tasks/0003-padded-integral-sequence-batching.md) accepted after final independent APPROVE and module/architecture-consumer gates, 2026-10-20; Text program root join complete, 2026-10-21. Frontier None; broader batching Draft, no runtime binding. |
@@ -293,9 +293,28 @@ root/scoped acceptance. Exact dirty-source/disjoint contexts and integration met
 [Compiler0017A Complete](modules/compiler/tasks/0017a-ordinary-lexical-primal-binding.md#result)
 completes existing ordinary primal binding under unchanged authority/eligibility after independent
 source review, affected gates and actual lexical/ordinary numerical proof. No new Scan admission.
-Metal0080/0081 source is integrated at38 with unchanged real typed-backward and full F32 MLP/CNN
-GPU proof; actual combined v2 preserves all290previous rows and adds16original-typed witnesses.
-Final acceptance remains separate. oneDNN stays later work, not a v1 build/performance grant.
+The earlier Metal0080/0081 identity38 checkpoint passed unchanged real typed-backward and full F32
+MLP/CNN GPU proof; its combined v2 preserved all290previous rows and added16original-typed witnesses.
+Current identity39 adds the coupled Conv3d training closure below. oneDNN stays later work,
+not a v1 build/performance grant.
+
+[Compiler0006C](modules/compiler/master-plan.md) is Complete, coupled to the existing
+[CPU](backends/cpu/master-plan.md) generated movement/fold owners
+and [Metal](backends/metal/master-plan.md) FLOAT32 image folds. One grouped convolution formula
+handles Conv2d/Conv3d direct and checked metadata construction, selected targets and ordinary
+two-stage composition. First-order coverage is39/112/134; only fixed RNN/GRU/LSTM remain deferred.
+Actual programs passed independent every-role finite differences for CPU F32/F64 and Metal-only
+F32, including grouped anisotropic/overlap and depthwise geometry, three training steps, bit-exact
+save/close/load and a fresh oracle-checked SGD step. CPU general Scan passed complete Conv3d
+forward/reverse finite differences in both types, all-valid/length-aware modes and both directions.
+Independent CPU/AD and Metal source reviews returned APPROVE0. MAIN's full root test/build/
+distribution gate and fresh Maven/no-Git-source runtime consumers passed.
+Metal identity39/schema20/ABI7 is source-matched freshly built, ad-hoc signed and package verified.
+The initial reserved-identifier shader compile failure was corrected by source rename and a
+reauthenticated rebuild before passing Metal execution; this is not hosted CI or a released prebuilt.
+Ordinary public CPU named-B Conv3d, the CPU low-arithmetic lock, Pool3d's no-gradient CPU gate,
+Metal F64/low/FOLD_AXIS overlap restrictions, Metal Scan and all cold/wire inventories remain
+unchanged. No new op, dependency, ownership or ABI shape, ADR or performance promise is introduced.
 
 Model source frontier: [0046 Ready](modules/model/tasks/0046-empty-carry-scan-and-explicit-length-mode.md).
 Its accepted empty-carry/explicit-mode source direction has an authenticated frozen33-file

@@ -71,11 +71,11 @@ FLOAT32 step inside a low-containing `CUSTOM_PROGRAM` partition without changing
 Metal ABI 7 exposes thirteen native functions. Its bounded route-bearing program image is schema
 20 with a 124-byte header, data-type wires `1..7`, operation wires `1..115`, attribute wires `0..41`, route wires
 `1..3`, and backend-local candidate, compatibility, route-policy, workload, codec, and default-
-decision identities at version 36 (30 is the historical profile-free cutover value; 31 is the
-superseded FLOAT32 `EXP` value; 32 is the superseded low-`EXP` value; 33 is the superseded
-FLOAT32 `SIGMOID` value; 34 is the superseded low-`SIGMOID` value; 35 is the superseded
-native-boundary and exact low-value repair value). Version 36 corrects standalone scalar
-admission without changing the advertised provider domain. Structural
+decision identities at version 39. Prior identities are stale: 30 was the profile-free cutover;
+31/32 added FLOAT32/low `EXP`; 33/34 added FLOAT32/low `SIGMOID`; 35 repaired native/exact-low
+boundaries; 36 corrected standalone scalar admission; 37 added dense-view MATMUL; and 38 added
+materializing RESHAPE. Current 39 adds FLOAT32 overlapping image folds for Conv3d training
+without changing ABI 7 or schema 20. Structural
 coverage is `103 / 12`; production capability is `88 / 27` over operation kinds. Canonical typed
 host ingress/publication and CPU/Metal transfer support all seven carriers. Cross-owner values
 may use exact rank-0..16 static canonical or positive-stride
@@ -1395,8 +1395,10 @@ inputs for cold persistence/rebind. Prototypes are descriptor-only; their bytes 
 nor saved. A scan remains one multi-output producer with canonical sibling identities, even when
 only a final-state port is a root. Cold persistence executes nothing; owned fixed-scan compute separately
 uses public Engine's qualified canonical FLOAT32 CPU forward route. Fixed-scan training and
-backpropagation through time (BPTT) remain unsupported. Persistence adds no Conv3d gradients or optimizer
-resume. Single `load` still rejects multiple boundaries.
+backpropagation through time (BPTT) remain unsupported. Persistence adds no execution capability
+or optimizer resume. Existing default biased Conv3d can train after reload in its
+[qualified backend domain](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary)
+with a fresh training configuration. Single `load` still rejects multiple boundaries.
 
 ### NN runtime-length recurrent composition
 
@@ -1509,7 +1511,8 @@ invalidating execution. Only sources wholly within the original five/eight-kind 
 byte-identical graph-model.v1/v2 saves; any selected added body-free kind chooses v3, including CNN+RELU.
 See the [single owning wire contract](../architecture/contracts/extensions-training.md#canonical-graph-model-version-3).
 Execution still requires actual Engine capability;
-static unrolling adds no scan BPTT, runtime lengths, streaming state or Conv3d adjoint.
+static unrolling adds no scan BPTT, runtime lengths or streaming state. Conv3d separately uses
+the shared grouped convolution adjoints within its qualified backend domain.
 
 For runtime lengths, append `rnnScan`, `gruScan` or `lstmScan` with a positive hidden width and end
 with `buildWithLengths()`, returning `Model<List<Tensor>,List<Tensor>>`. The two inputs are
@@ -1703,11 +1706,15 @@ Java/native invocation. Existing MPSGraph-compatible nodes may remain nested in 
 is no per-node fallback. Other supported partitions use one typed whole-partition MPSGraph
 executable. The general qualified FLOAT32 MATMUL domain also executes Compiler-generated
 explicitly seeded gradients for both operands through authenticated local last-two-axis
-transposes. Task-0064's primitive-closed cases additionally execute separately selected
-all-FLOAT32 Conv2d input, weight, or bias cotangents and non-overlapping FLOAT32 average
-Pool2d/Pool3d cotangents. Joint or mixed convolution gradients, overlap-accumulating folds,
-generated Conv3d or maximum-pool gradients, attention, and convolution transpose reject before
-preparation. This does not add implicit seeding or unrestricted Metal training support.
+transposes. Primitive-closed static FLOAT32 Conv2d/Conv3d graphs execute selected or joint
+input, weight and bias cotangents through the shared convolution rule. FOLD2D/FOLD3D
+overlap-add is FLOAT32-only, deterministic and output-owned, with no atomics, scratch or host
+fallback/repair; FLOAT64/BFLOAT16/FLOAT16 image folds and FOLD_AXIS retain non-overlap.
+Pooling gradients close only where every generated occurrence is admitted; their low image
+folds remain non-overlapping. Attention and convolution transpose still reject before preparation.
+See the [production support matrix](../backend-guide/production-support.md#metal-production-target)
+for actual GPU Conv3d all-role and NN training/persistence evidence. No implicit seeding,
+Metal Scan support, software FLOAT64, or unrestricted training support follows.
 
 `MetalLocalWorkloadTuning` publicly exposes opaque candidates, session compatibility, identities,
 decision encode/decode, and trial/selected `PartitionPreparation` for the exact two-route

@@ -66,10 +66,18 @@ runtime-length Model trains repeatedly with fresh lengths in both types. Explici
 requests retain their policy; no kernel, numerical or specialization identity changed. See
 the [runtime prerequisites](../../../user-guide/running-models.md#jvm-prerequisites).
 
-The [reviewed first-release matrix](../../../backend-guide/production-support.md) freezes static
-F32/F64 scope and actual-closure evidence. CNN1d/2d training passed both types; 3D remains bounded
-forward-only by explicit reviewed decision. CPU0077 is Complete: 45 passing tests/Javadocs and
-actual public F32/F64 softmax/backward proof. CPU0078 low lock and CPU0079 raw reshape are Complete.
+The [reviewed first-release matrix](../../../backend-guide/production-support.md) records static
+F32/F64 scope and actual-closure evidence. CNN1d/2d and now Conv3d training passed both types;
+the coupled [Compiler0006C](../../modules/compiler/master-plan.md) extension adds generated 3D
+windows without widening ordinary named-B convolution admission. CPU0077 is Complete: 45 passing
+tests/Javadocs and actual public F32/F64 softmax/backward proof. CPU0078 low lock and CPU0079 raw
+reshape are Complete. Conv3d shared-source reviews APPROVE0 and actual every-role numerical,
+three-step training/save/load/new-training proof passed. MAIN accepted root test/build/distribution
+and fresh Maven/no-Git source consumers after independent reviews.
+Raw UNFOLD3D preserves F32/F64/BF16/F16 values; arithmetic FOLD3D is F32/F64 only. General Scan
+composes complete Conv3d forward/reverse bodies in both types, modes and traversal directions.
+Existing Pool3d `requiresGrad=false`, exact legacy carrier boundaries and the low-arithmetic lock
+are unchanged; no general trainable Conv3d-to-Pool3d CPU chain or performance promise follows.
 
 ## Stable invariants
 

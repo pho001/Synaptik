@@ -340,6 +340,7 @@ final class CpuGeneratedCoverageEvidenceRegistry {
             case CpuDataMovementIr.StackPlan ignored -> "STACK";
             case CpuDataMovementIr.UnfoldAxisPlan ignored -> "UNFOLD_AXIS";
             case CpuDataMovementIr.Unfold2dPlan ignored -> "UNFOLD2D";
+            case CpuDataMovementIr.Unfold3dPlan ignored -> "UNFOLD3D";
             case CpuDataMovementIr.SliceUpdatePlan ignored -> "SLICE_UPDATE";
         };
         if (ir instanceof CpuIndexingIr indexing) return indexing.family().name();

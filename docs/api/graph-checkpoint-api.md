@@ -15,8 +15,10 @@ defines the capability, [original wire](../architecture/contracts/extensions-tra
 and [selective activation wire](../architecture/contracts/extensions-training.md#canonical-graph-model-version-2).
 The [v3 contract](../architecture/contracts/extensions-training.md#canonical-graph-model-version-3)
 extends the same APIs to selected convolutional neural network (CNN), static recurrent and fixed
-flat-scan sources. Persistence adds no scan execution, backpropagation through time (BPTT),
-Conv3d gradients or optimizer resume.
+flat-scan sources. Persistence adds no execution capability, scan backpropagation through time
+(BPTT), or optimizer resume. Existing default biased Conv3d sources can use
+[qualified backend training](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary)
+after load with a fresh training configuration; constructor and wire inventories are unchanged.
 
 ```text
 borrowed Source -> copy -> private state + reconstructed ordinary provenance

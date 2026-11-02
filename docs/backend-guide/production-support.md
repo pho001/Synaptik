@@ -32,8 +32,8 @@ dimension or mixed-floating backward parity; ordinary family and selected-VJP pr
 | MATMUL/linear | Vector/matrix rank cases and broadcast batches; direct/tiled scalar, eligible N-vector and range parallelism | Ordinary rank edits, transpose and SUM-to-Shape derivatives. Homogeneous MLP/RNN paths passed; optional qualified OpenBLAS is not proof of portable Java coverage. |
 | Conv1d/Conv2d | NCW/NCHW; bias/no bias, groups/depthwise, stride/padding/dilation, family-qualified noncanonical reads | Actual dX/dW/db passed 16 public cases across both types, grouped/dilated/strided, depthwise multiplier and asymmetric geometry. Both ranks passed complete owned Model journeys. |
 | Max/AveragePool1d/2d | Exact floor/literal-ceil grids, padding/dilation, fixed average divisor, overlap | Actual backward passed 24 public cases: finite overlap, dilated ceil tails, NaN, signed zero, real -infinity and all-padding windows. Uses existing winner/fold rules, not a new derivative. |
-| Conv3d | Existing NCDHW grouped/bias/stride/padding/dilation forward domain | **No v1 training.** Any Conv3d in original forward inventory rejects backward, even for another requested target. See the explicit rank decision below. |
-| Max/AveragePool3d | Existing NCDHW forward domain, only input/output requiresGrad=false | **No v1 training.** Gradient-bearing pooling can reject even forward composition. Volumetric windows lack a CPU owner; formula construction alone is not execution. |
+| Conv3d | Fully static resolved-layout NCDHW; bias/no bias, groups/depthwise, stride/padding/dilation and overlapping windows | Shared Conv2d/Conv3d AD; actual dX/dW/db and selected weight-only gradients passed independent direct-loop central finite differences in both types. Grouped biased batch-two anisotropic and unbiased depthwise cases passed; both types also passed three-step parameter training/save/close/load/new-train. See the bounded volumetric qualification below. |
+| Max/AveragePool3d | Existing NCDHW forward domain, only input/output requiresGrad=false | **No CPU training.** The independent Pool3d gradient-flag gate is unchanged and can reject even forward composition. New volumetric window execution does not remove that gate. |
 | SUM/MEAN/PROD/MIN/MAX and SUM-to-Shape | Full/single/multiple axes, exact keep/remove axes and target shape | Both types passed actual axis SUM/MEAN/PROD gradients, including zero products. MIN/MAX tie/other geometry qualification remains separate; generated cumulative/layout closure is not inferred. |
 | Masked/statistical reductions | Masked SUM/MEAN, LOG_SUM_EXP, variance/std, L1/L2; correction/domain guards | Both types passed actual masked SUM/MEAN, LOG_SUM_EXP, corrected variance/std and L1/L2 against independent scalar forward/derivative oracles. BOOL masks have no cotangent; wider domains remain qualified separately. |
 | Cumulative operations | Axis, direction and inclusive/exclusive CUM_SUM/CUM_PROD | Both types passed all inclusive/exclusive x forward/reverse combinations with nonuniform cotangents and zero-product inputs. Uses ordinary rules; not a universal layout/strategy claim. |
@@ -41,7 +41,7 @@ dimension or mixed-floating backward parity; ordinary family and selected-VJP pr
 | LayerNorm/RMSNorm | Static trailing normalized shape, typed epsilon and optional affine roles | Actual both-type affine LayerNorm three-role and RMSNorm two-role gradients passed independent scalar oracles. Wider normalized shapes/layouts retain family predicates. |
 | BatchNorm inference/training | Exact channel geometry; training contributor minimum and five output roles | Both types passed all five input-role gradients for inference and the joint three public training roots (normalized output/next mean/next variance). Saved auxiliaries remain invalid independent derivative roots. |
 | MSE and dense/index cross entropy | NONE/SUM/MEAN, exact target signatures, ignore/exclusion guards | Both types passed actual MSE/dense CE data+target gradients, including nonunit dense target sums, and index CE with ignore control. Integral targets are nondifferentiable; other reductions/domains retain their own qualification. |
-| Affine/movement/windows | Declared reshape/rank edits/permute, SELECT/positive SLICE, PAD/TILE/CONCAT/STACK/replacement, UNFOLD_AXIS/2D and FOLD_AXIS/2D | Existing inverse views, crop/update, SUM and matching fold rules. CPU0079 additionally passed all-seven-carrier public noncontiguous ordinary RESHAPE raw-bit/order proof through the existing copy. No implicit UNFOLD3D/FOLD3D promise. |
+| Affine/movement/windows | Declared reshape/rank edits/permute, SELECT/positive SLICE, PAD/TILE/CONCAT/STACK/replacement, UNFOLD_AXIS/2D/3D and FOLD_AXIS/2D/3D | Existing inverse views, crop/update, SUM and matching fold rules. CPU UNFOLD3D preserves raw F32/F64/BF16/F16 words; FOLD3D arithmetic is qualified for F32/F64. CPU0079 additionally passed all-seven-carrier public noncontiguous ordinary RESHAPE raw-bit/order proof through the existing copy. Low arithmetic remains locked. |
 | Gather/scatter/one-hot | Exact index shape and INT32/INT64 bounds; declared NONE/ADD/MUL/MIN/MAX modes | Both types passed gather/gatherElements/gatherNd and all five scatterElements/scatterNd modes, data/update roles, duplicates and zero products. Bounds/uniqueness pre-write tests remain independent; no index cotangent. |
 | Ordering and extrema | Stable SORT/ARGSORT/TOP_K and exact tie/index behavior | Both types passed actual SORT/TOP_K value gradients against scalar oracles; indices have no cotangent. Tie/special/other geometry qualification is not inferred from separated-value cases. |
 | Attention | Rank>=2 Q/K/V, exact contraction and broadcast batches, optional BOOL/causal mask and normalized weights | Both types passed joint output/weights gradients for all Q/K/V roles, masked and unmasked. Ordinary AD requires canonical two-output form; one-output constructor is forward-only for AD. Masks have no cotangent, weights no V route; guarded semantics remain separate. |
@@ -54,19 +54,28 @@ Finite tolerances do not replace exact discrete, special-value, saved-value or p
 Current exact predicates remain in CpuCapabilityProvider and the CPU lowerers; a family row is not
 a declaration that arbitrary partitions or every possible backward target are eligible.
 
-## Explicit CNN rank decision
+## Conv3d training and independent Pool3d boundary
 
-The first release trains **Conv1d/2d and Max/AveragePool1d/2d**, with the declared geometries and
-actual whole-backward qualification. It retains **3D forward-only**, precisely as bounded above;
-it does not promise trainable Conv3d or a gradient-bearing Conv3d -> Pool3d inference chain.
-This is an explicit product-scope choice under the delegated release decisions, not removal of
-existing code or a claim that 3D training works.
+The user's explicit Conv3d training request supersedes the earlier 1D/2D-only release-rank
+decision. Conv1d/2d and Conv3d train through existing public Tensor algebra; this is not a
+guard-only unlock. The shared convolution rule retains groups in every matrix contraction:
+input gradients use transposed weights and overlap-add fold, weight gradients use unfold,
+matrix multiplication and batch reduction, and bias gradients reduce batch and all spatial
+axes. Each selected gradient returns to its target's exact Shape and data type.
 
-Reason: Conv3d AD is globally closed; Pool3d gradient flags independently narrow forward support;
-CPU UNFOLD3D/FOLD3D are absent. Opening only a guard would be incorrect. A proper later 3D training
-extension needs the existing grouped convolution/window mathematics generalized with resource
-and performance proof, not a copied 2D algorithm. CNN training is already a mandatory, exercised
-1D/2D feature; volumetric training is not required to satisfy that declared first-release rank scope.
+Public CPU F32/F64 proof covers every input/weight/bias role for grouped biased batch-two
+Conv3d with anisotropic stride, symmetric padding, dilation and overlap, plus unbiased
+depthwise groups-two geometry and selected weight-only gradients. Both types trained every
+weight/bias for three steps, saved, closed and loaded bit-exact parameters, then configured
+fresh training and passed another independent oracle-checked SGD step. CPU general Scan also
+composed actual Conv3d forward and reverse in eight independent finite-difference cases:
+all-valid/length-aware, both traversal directions, and F32/F64. There is no new 3D blacklist;
+complete body/binder qualification and Scan higher-order restrictions still apply.
+
+These are bounded static CPU and Metal F32 training capabilities, not ordinary public named-B
+Conv3d admission, arbitrary layouts, low-arithmetic unlock, Metal Scan, universal performance,
+or broader checkpoint constructors. CPU Pool3d still requires `requiresGrad=false`; a
+trainable Conv3d -> Pool3d CPU chain is not thereby supported.
 
 ## Temporary Java low-computation lock
 
@@ -94,10 +103,10 @@ remain; retained generated rows are literal, historical v1 and Metal unchanged b
 
 ## Owned source and persistence boundaries
 
-MLP, default persistable CNN1d/2d and runtime-length tanh RNN support compute, one configured
-training session, repeated fresh batches, save, close, load and newly configured training.
-The unchanged independent final-source consumers passed both CPU types; Metal F32 MLP/CNN
-also passed actual-GPU forward/parameter updates/save/load/fresh training without CPU fallback.
+MLP, default persistable CNN1d/2d/3d and runtime-length tanh RNN support compute, one configured
+training session, repeated fresh batches, save, close, load and newly configured training in
+their qualified CPU domains. Metal F32 MLP/CNN1d/2d/3d also passed actual-GPU
+forward/parameter updates/save/load/fresh training without CPU fallback.
 
 Tensor-level numerical support is broader than cold acquisition/serialization. Existing bounded
 flat/all-valid/length constructor inventories select the smallest v1-v5 format. Arbitrary PURE
@@ -112,9 +121,9 @@ or operation parity. F64 neural MATMUL, general Scan/runtime RNN, attention and 
 occurrences remain explicit exclusions, not CPU fallback paths. Exact domains stay with the
 [Metal owner](../architecture/contracts/backend-execution.md#metal-backend).
 
-The integrated Metal identity38 source passes unchanged full F32 MLP/CNN scalar-oracle compute,
-all-parameter SGD/save/close/load/new training on the actual GPU without CPU fallback. All fifteen
-original-typed F32/BF16/F16 five-form forward/both-generated-gradient graphs now pass unchanged,
+The integrated Metal identity39 source passes full F32 MLP/CNN scalar-oracle compute,
+all-parameter SGD/save/close/load/new training on the actual GPU without CPU fallback.
+All fifteen original-typed F32/BF16/F16 five-form forward/both-generated-gradient graphs now pass unchanged,
 including transpose-of-dense materializing RESHAPE. Public raw reshape additionally passed all
 seven carriers. [Metal0081](../planning/backends/metal/tasks/0081-materializing-reshape-composition.md#result)
 retains exact source, package, device/skip and before-failure evidence; this is not arbitrary backward closure.
@@ -129,6 +138,17 @@ flat across repeated windows, including 3,288 retained closed handles. Full-proc
 which includes warmup and retained Java metadata, is not claimed constant. This finite observation
 is not universal allocation proof. Final independent source/evidence/docs review accepted Metal0082
 with zero P1/P2 findings; the component is Complete.
+
+The Conv3d extension additionally passed the grouped/bias/depthwise all-role finite-difference
+and real NN training/persistence program in a Metal-only Engine containing no CPU backend.
+Overlapping FOLD2D/FOLD3D is FLOAT32-only, output-owned and deterministic; each output sums
+its contributors without atomics, scratch, host fallback/repair or software FLOAT64.
+FLOAT64/BFLOAT16/FLOAT16 image folds and FOLD_AXIS retain non-overlapping admission.
+The current native fixed corpus is 87,929 bytes, with identity39/schema20/ABI7.
+The first source-matched native attempt failed shader compilation because `kernel` was a
+reserved identifier. After the source rename, reauthentication, rebuild, ad-hoc signing and
+package verification, the actual Metal program passed. This is local source-build evidence,
+not an official prebuilt, CI/GPU-runner claim, or a measured speedup.
 
 The exact new native source was built, ad-hoc signed, ZIP-extracted outside checkout and
 reverified before the GPU gate. The supported reproducible local source-build installation uses

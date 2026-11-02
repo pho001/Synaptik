@@ -258,13 +258,10 @@ final class GraphCheckpointEngineIntegrationTest {
                             new double[][]{toDouble(weights), new double[]{.2f}}, dimension);
                     var actual = engine.compute(output).bytes();
                     for (int j = 0; j < expected.length; j++) assertEquals(expected[j], actual.getFloat(j * 4), 2e-5);
-                    if (dimension != 3) {
-                        Tensor w = heapValue(Shape.of(kernelAxes), weights), b = heapValue(Shape.of(1), .2f);
-                        var direct = engine.backward(convolution(x, w, b, dimension).sum(), List.of(w, b), 1000);
-                        var restored = engine.backward(output.sum(), loaded.leaves().stream().map(GraphCheckpoint.Leaf::tensor).toList(), 1000);
-                        for (int p = 0; p < 2; p++) assertEquals(direct.gradients().get(p).bytes(), restored.gradients().get(p).bytes());
-                    } else assertThrows(IllegalArgumentException.class,
-                            () -> engine.backward(output.sum(), List.of(loaded.leaves().getFirst().tensor()), 1000));
+                    Tensor w = heapValue(Shape.of(kernelAxes), weights), b = heapValue(Shape.of(1), .2f);
+                    var direct = engine.backward(convolution(x, w, b, dimension).sum(), List.of(w, b), 1000);
+                    var restored = engine.backward(output.sum(), loaded.leaves().stream().map(GraphCheckpoint.Leaf::tensor).toList(), 1000);
+                    for (int p = 0; p < 2; p++) assertEquals(direct.gradients().get(p).bytes(), restored.gradients().get(p).bytes());
                 }
             }
         }

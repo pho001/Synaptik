@@ -63,11 +63,11 @@ This mechanism does not redesign `BackendCapabilityProvider`. The separate ident
 ledger records historical allocations: Model `DataType.FLOAT16` ordinal 6, CPU generator schema
 68, Metal type wire 7, program schema 19, backend identities 29, and native ABI 7. Current CPU
 generator schema is 70; current Metal program schema is 20 with a 124-byte header and tuning
-identity 36 (identity 30 was the profile-free cutover value, 31 the FLOAT32 `EXP` value, 32
-the low-`EXP` value, 33 the FLOAT32 `SIGMOID` value, 34 the low-`SIGMOID` value, and 35 the
-native-boundary and exact low-value repair value). Identity 36 corrects admission of existing
-scalar occurrences; CPU schema 70 corrects activation generation. Neither expands provider
-admission. Native ABI remains 7. The ledger is not a current-schema certificate.
+identity 39 (30 was the profile-free cutover; 31/32 added FLOAT32/low `EXP`; 33/34 added
+FLOAT32/low `SIGMOID`; 35 repaired native/exact-low boundaries; 36 corrected standalone scalar
+admission; 37 added dense-view MATMUL; 38 added materializing RESHAPE). Current 39 qualifies
+FLOAT32 image-fold overlap for Conv3d training; no low-type admission follows from that addition.
+Native ABI remains 7. The ledger is not a current-schema certificate.
 
 ## Current shared identity, availability, and requirement vocabulary
 
@@ -294,8 +294,12 @@ arg-extrema, maximum-pool, initial-state, and promoted integral MATMUL rows.
 All 49 ordered casts, FLOAT64/FLOAT32/BFLOAT16/FLOAT16 classification, scalar and right-aligned
 BOOL logic, the 14 floating `WHERE` signatures other than direct BFLOAT16/FLOAT16 mixing, exact
 seven-carrier movement, INT32/INT64 index parity, `FOLD_AXIS` over all six numeric carriers, and
-2D/3D unfold/fold over all four floating carriers are complete. Replacement scatter remains
-`NONE`, folds remain non-overlapping, and every admitted Shape/layout is fully static and checked.
+2D/3D unfold/fold over all four floating carriers are admitted within their exact predicates.
+Replacement scatter remains `NONE`. FOLD_AXIS and FLOAT64/BFLOAT16/FLOAT16 image folds remain
+non-overlapping; FLOAT32 FOLD2D/FOLD3D additionally accumulate overlap with one output writer.
+Every admitted Shape/layout is fully static and checked. This closes qualified static FLOAT32
+Conv3d training through Compiler's shared grouped window/MATMUL/reduction algebra, not backend
+autograd or Metal Scan. See the [production matrix](production-support.md#metal-production-target).
 `SORT`, `ARGSORT`, and positive-K `TOP_K` admit all seven carriers; `ARG_MAX` and `ARG_MIN` admit
 the six numeric carriers over canonical dense ranks `1..16` with unsigned-32-bit-bounded geometry.
 
@@ -323,7 +327,7 @@ uses a qualified typed custom step without an implicit cast. Low-precision parti
 MPSGraph, classic-MPS, MPP, CPU, retry,
 or fallback whole-partition route.
 Capability distinguishes logical affine layouts from their independently authenticated physical
-spans and rejects dynamic/empty geometry, zero or negative external strides, overlap, every other
+spans and rejects dynamic/empty geometry, zero or negative external strides, physical storage overlap, every other
 additive scatter, reduction-dependent adjoints, and every other unlisted occurrence before route
 selection.
 

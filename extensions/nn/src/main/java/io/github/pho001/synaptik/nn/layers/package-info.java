@@ -18,7 +18,8 @@
  * initialization uses the actual per-group fan-in and fan-out. Strict complete state loading can
  * bind the exact parameter references without initializer or random-source work, while a failed
  * first binding publishes no partial state and remains retryable. These layers construct
- * expressions only; current Conv3d backward-capable compilation remains fail-closed.</p>
+ * expressions only; Compiler owns their grouped convolution cotangents, and execution requires
+ * backend support for the complete generated topology.</p>
  *
  * <p>{@link io.github.pho001.synaptik.nn.layers.Linear},
  * {@link io.github.pho001.synaptik.nn.layers.LayerNorm}, and

@@ -98,10 +98,10 @@ and every external read is an ordinary declared buffer. One pointwise unit may t
 multiple ordered output stores. A static affine unit remains one connected one-input/one-output
 chain of at most eight resolved-layout view occurrences. A static movement unit is exactly one
 resolved-layout PAD, TILE, CONCAT, STACK,
-UNFOLD_AXIS, or UNFOLD2D occurrence. It declares each distinct input once in first-occurrence
+UNFOLD_AXIS, UNFOLD2D or UNFOLD3D occurrence. It declares each distinct input once in first-occurrence
 order plus one distinct injective output while preserving every semantic composition occurrence.
-UNFOLD_AXIS copies all seven represented types; UNFOLD2D copies FLOAT64, FLOAT32, BFLOAT16, and
-FLOAT16 under the Model's canonical NCHW columns contract.
+UNFOLD_AXIS copies all seven represented types; UNFOLD2D/UNFOLD3D copy FLOAT64, FLOAT32,
+BFLOAT16 and FLOAT16 under the Model's canonical NCHW/NCDHW columns contract.
 The fourth family is exactly one resolved-layout `GATHER`, `GATHER_ELEMENTS`, `GATHER_ND`, or
 `ONE_HOT` occurrence. It validates every logical INT32/INT64 index deterministically before any
 output write and then uses scalar or parallel-scalar generated output ranges. The movement family
@@ -113,10 +113,11 @@ The fifth family is exactly one resolved-layout functional scatter occurrence:
 ordered `[data, indices, updates]`, validate before writing, and create a fresh data-shaped result
 without mutating inputs. Scalar and parallel-scalar execution own disjoint output coordinates.
 The sixth family is exactly one resolved-layout overlap fold occurrence: general-axis
-`FOLD_AXIS`, or canonical columns-to-NCHW `FOLD2D`. Every result coordinate begins at represented
-positive zero and accumulates its logical input contributions in canonical input row-major order.
-Both families accept FLOAT64, FLOAT32, BFLOAT16, and FLOAT16; `FOLD_AXIS` additionally accepts
-INT32 and INT64. `FOLD2D` excludes symmetric-padding and ceil-tail positions outside the unpadded result.
+`FOLD_AXIS`, canonical columns-to-NCHW `FOLD2D`, or columns-to-NCDHW `FOLD3D`. Every result
+coordinate begins at represented positive zero and accumulates its logical input contributions
+in canonical input row-major order. Current image-fold arithmetic accepts FLOAT64/FLOAT32;
+retained BFLOAT16/FLOAT16 arithmetic remains locked. `FOLD_AXIS` additionally accepts INT32
+and INT64. Image folds exclude padded and ceil-tail positions outside the unpadded result.
 Schema-26 generated fold entries embed the selected family mapping, represented addition, and
 typed array or native-order segment access. Dense heap arrays use integer loop/address state;
 general layouts and segment or mixed carriers normally use long addressing. Schema 35 adds one
@@ -1644,8 +1645,16 @@ represented positive zero outside the source. `Unfold2dAttrs` instead uses its e
 FLOAT64, FLOAT32, BFLOAT16, or FLOAT16 padding bits, including signed zero and NaN payloads. Integral and
 BOOL two-dimensional unfold remain unsupported because the Model contract is floating-only.
 
+`UNFOLD3D` extends the same movement owner to fully static resolved-layout NCDHW input and
+canonical columns `[N, C * KD * KH * KW, OD * OH * OW]`. Channel/kernel-depth/kernel-height/
+kernel-width and output-depth/output-height/output-width flatten in that order, width fastest.
+Direct `Window3dAttrs` supplies represented positive zero; `Unfold3dAttrs` supplies exact matching
+typed padding, including raw signed-zero and NaN bits. All four floating carriers remain raw
+movement, not low arithmetic. Kernel/stride/symmetric-padding/dilation and floor/literal-ceil
+geometry are checked before execution, with the existing layout/span/output-injectivity guards.
+
 The generated artifact records the window family, rank/access structure, carrier/type facts, and
-exact two-dimensional padding bits. Extents, layout magnitudes, axis and window parameters,
+exact 2D/3D padding bits. Extents, layout magnitudes, axis and window parameters,
 spatial grid, and arbitrary-range start coordinates remain compact cold geometry. Compatible
 cold geometry can therefore reuse the same class bytes. Generated loops advance output and
 window coordinates with carry/reset odometers; division and remainder are confined to cold range
@@ -1899,8 +1908,8 @@ production tuning input. The broader frozen comparison still has one unresolved 
 
 ### Current overlap fold family
 
-The ordinary portable fold family accepts one fully static, resolved-layout `FOLD_AXIS` or
-`FOLD2D` occurrence with one read-only input and one distinct writable output. A selected F32/F64
+The ordinary portable fold family accepts one fully static, resolved-layout `FOLD_AXIS`,
+`FOLD2D` or `FOLD3D` occurrence with one read-only input and one distinct writable output. A selected F32/F64
 raw-repetition chain can instead feed compact stored input to that same fold emitter, as described
 below. Both forms create a fresh
 result rather than mutating or aliasing the input. Every output coordinate begins at represented
@@ -1917,7 +1926,14 @@ are supported.
 window coordinates. It adds the value only when the corresponding unpadded height and width are
 inside `[0, H)` and `[0, W)`. Leading or trailing symmetric-padding positions and terminal
 ceil-grid positions outside the unpadded output are excluded geometrically; there is no padding
-scalar to compare or add. This family supports FLOAT64, FLOAT32, BFLOAT16, and FLOAT16 only.
+scalar to compare or add. FLOAT64/FLOAT32 arithmetic is active; retained BFLOAT16/FLOAT16
+arithmetic is frozen behind the temporary low-computation lock.
+
+`FOLD3D` uses the same fold owner with canonical columns
+`[N, C * KD * KH * KW, OD * OH * OW]` and explicit NCDHW target `[N,C,D,H,W]`.
+It excludes out-of-target padded and literal-ceil-tail coordinates and sums overlapping
+in-range contributions. Current arithmetic qualification is FLOAT32/FLOAT64; retained low
+arithmetic paths remain locked, not silently widened by the raw UNFOLD3D capability.
 
 For each output coordinate, scalar generated execution visits contributing logical input
 positions in canonical flattened row-major order. FLOAT64 and FLOAT32 perform sequential
@@ -3366,10 +3382,11 @@ there is no Conv1d operation, generated body, workspace, materialization, or gra
 Conv3d is instead one first-class `CONV3D` occurrence. The direct CPU route accepts fully static,
 resolved-layout NCDHW input `[N, C_in, D, H, W]`, weight
 `[C_out, C_in/groups, K_d, K_h, K_w]`, optional intrinsic bias `[C_out]`, and output
-`[N, C_out, D_out, H_out, W_out]`. FLOAT64, FLOAT32, BFLOAT16, and FLOAT16 boundaries promote in
-semantic input order. Groups may be one, intermediate, or depthwise; stride and dilation are positive;
-symmetric padding is non-negative. Legal layouts may have arbitrary non-negative offsets and
-strides, but the output must be injective.
+`[N, C_out, D_out, H_out, W_out]`. FLOAT64/FLOAT32 computation is active; retained
+BFLOAT16/FLOAT16 numerical code remains subject to the temporary low-arithmetic lock.
+Groups may be one, intermediate or depthwise; stride and dilation are positive; symmetric padding
+is non-negative. Legal layouts may have arbitrary non-negative offsets and strides, but the
+output must be injective; complete generated-gradient admission may be narrower.
 
 Generated Conv3d work owns a half-open range of complete output cells in logical
 `N, C_out, D_out, H_out, W_out` order. Each cell traverses its group-local input channels, then
@@ -3415,11 +3432,21 @@ bounded evidence for the retained forms and environment, not a universal speedup
 
 The Conv3d epilogue boundary is exact: only the occurrence's intrinsic rank-one bias is admitted.
 An external ADD, activation, clamp, fan-out, or other Conv3d-led suffix fails this specialized
-path and cannot select the Conv2d-only fused or materialized-suffix forms. Backward/training
-execution, general partition-DAG decomposition, external Conv3d epilogues, pooling,
-attention, losses, native convolution, packing, autotuning, dynamic or symbolic Shapes,
-unresolved layouts, generic or mixed-backend Engine composition, and cross-backend bitwise
-identity remain outside this current CPU capability.
+path and cannot select the Conv2d-only fused or materialized-suffix forms. This limits direct
+convolution fusion, not ordinary Compiler-generated Conv3d training. Shared grouped Conv2d/Conv3d
+AD now closes selected or joint input, weight and bias gradients through public window,
+MATMUL and reduction operations, including overlapping FOLD3D, for the qualified static
+FLOAT32/FLOAT64 domain. The
+[production matrix](production-support.md#conv3d-training-and-independent-pool3d-boundary)
+records independent all-role finite differences and real NN train/save/load/new-train proof.
+
+The compiler retains symbolic Dimensions, but public ordinary named-B Conv3d admission is
+unchanged. Proved general-Scan body lowering composes Conv3d forward and reverse in
+all-valid/length-aware modes and both traversal directions for F32/F64; the complete body/binder
+and higher-order gates still apply. CPU Pool3d independently requires `requiresGrad=false`.
+No low-arithmetic unlock, arbitrary-layout closure, broader cold constructor inventory,
+new epilogue fusion, native convolution, packing, autotuning or cross-backend bitwise promise
+follows from this extension.
 
 ### Current portable MATMUL family
 

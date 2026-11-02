@@ -775,8 +775,10 @@ occurrences.
 
 The current Metal provider uses one profile-free predicate over fully static descriptors. Its
 exact domain includes seven-carrier unary, affine, movement, indexing, replacement, selection,
-ordering, state, predicate and cast occurrences; strict comparisons; non-overlapping windows;
-maximum pooling; and promoted INT32/INT64 MATMUL. It also admits qualified homogeneous
+ordering, state, predicate and cast occurrences; strict comparisons; qualified window extraction
+and folds; maximum pooling; and promoted INT32/INT64 MATMUL. FLOAT32 image folds include
+output-owned overlap accumulation; FLOAT64/low image folds and FOLD_AXIS remain non-overlapping.
+It also admits qualified homogeneous
 FLOAT32/BFLOAT16/FLOAT16 arithmetic, scalar, reduction, scan, MATMUL, MSE, convolution, pooling,
 dropout, L1, ScatterAdd, and singleton-variance occurrence. Direct BFLOAT16/FLOAT16 mixed-low
 operations remain false except explicit CAST. Every partition containing BFLOAT16 or FLOAT16
@@ -2590,10 +2592,11 @@ Conv2d meaning by one spatial axis without introducing `ConvNd`. Stored kernels 
 Each effective kernel extent is `dilation * (kernel - 1) + 1`; static spatial and grouped-channel
 relations are checked locally, while unresolved relations remain visible in exact descriptors and
 attributes. Floating promotion, conceptual positive-zero padding, and accumulation policy are
-part of the Model meaning. Complete Compiler task 0006B independently infers and final-validates
-that descriptor contract for forward-only compilation, retaining unresolved channel and spatial
-relations as ordered constraints. Draft Compiler 0006C separately owns gradient closure, and later
-CPU work owns execution. See
+part of the Model meaning. Compiler independently infers and final-validates that descriptor
+contract, retaining unresolved channel and spatial relations as ordered constraints. Its shared
+grouped convolution rules derive input, weight and optional bias cotangents through public window,
+matrix and reduction operations. Static CPU FLOAT32/FLOAT64 and Metal FLOAT32 training are
+qualified; source construction alone does not grant a backend or persistence domain. See
 [grouped NCDHW Conv3d expressions](api/tensor-api.md#grouped-ncdhw-conv3d-expressions).
 
 ### Data type / `DataType`
@@ -5143,7 +5146,7 @@ allocation, executable construction, slot assignment, scheduling, or Runtime exe
 CPU and Metal modules implement this collaboration internally for their supported complete
 partitions. Each receives complete occurrence facts without a numerical selector. Metal's exact
 domain includes seven-carrier unary, affine, movement,
-indexing, replacement, ordering, predicate, cast, non-overlapping window, maximum-pool, and promoted
+indexing, replacement, ordering, predicate, cast, qualified window, maximum-pool, and promoted
 integral MATMUL occurrences. Metal also admits qualified homogeneous
 FLOAT32/BFLOAT16/FLOAT16 arithmetic, scalar, reduction, scan, MATMUL, MSE, convolution, pooling,
 dropout, and narrow L1/ScatterAdd/variance rows. Direct BFLOAT16/FLOAT16 mixed-low operations are
@@ -5328,7 +5331,7 @@ implements the transactional finalizer handoff.
 
 The current Metal backend's package-private shape-specialized Runtime recipe for one complete
 maximal Metal-owned partition. Its exact domain admits seven-carrier movement,
-indexing, ordering, predicate, cast, non-overlapping window, maximum-pool, promoted integral
+indexing, ordering, predicate, cast, qualified window, maximum-pool, promoted integral
 MATMUL, and raw INITIAL_STATE occurrences. It also admits qualified
 homogeneous FLOAT32/BFLOAT16/FLOAT16 arithmetic, reduction, scan, MATMUL, MSE, convolution,
 average-pool, dropout, L1, ScatterAdd, singleton-variance, and independently qualified bounded

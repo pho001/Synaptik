@@ -110,15 +110,18 @@ raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`, `SLICE`,
 bounded generated units. ABI 7 exports thirteen symbols and consumes one bounded schema-20 program
 image with type wires `1..7`, operation wires `1..115`, attributes `0..41`, and route wires `1..3`.
 Workload, exact-policy, candidate, compatibility, route-policy, and session-codec identities are
-version 34; earlier identities, including historical cutover 30 and superseded 31, 32, and 33, fail
+version 39; earlier identities, including historical cutover 30 and superseded 31 through 38, fail
 closed. Registry presence does not widen capability; unsupported operations fail closed.
 
 Model construction leaves Conv2d and Conv3d result layouts unresolved; Compiler closes
 only eligible fully static final convolution
 descriptors before CPU
 Planning capability admission. Dynamic or partially
-dynamic convolution results remain unresolved. Conv3d forward execution is current on CPU, but
-Conv3d gradients are not.
+dynamic convolution results remain unresolved. Qualified static CPU FLOAT32/FLOAT64 and Metal
+FLOAT32 Conv3d execute shared input, weight and bias gradients, including overlap. This does
+not admit ordinary named-B Conv3d or unlock low CPU arithmetic. CPU Pool3d independently
+retains its `requiresGrad=false` gate; consult the
+[production support matrix](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary).
 
 ## Related documentation
 

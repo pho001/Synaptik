@@ -181,7 +181,7 @@ final class LowPrecisionCapabilityLedgerTest {
                 "BATCH_NORM_INFERENCE", "BATCH_NORM_TRAINING", "MEAN_SQUARED_ERROR",
                 "DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS", "INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS",
                 "SCALED_DOT_PRODUCT_ATTENTION", "DROPOUT", "SCATTER_ADD", "FOLD_AXIS",
-                "FOLD2D", "RNN_TANH", "GRU_RESET_AFTER", "LSTM").contains(query.operation().kind().name());
+                "FOLD2D", "FOLD3D", "RNN_TANH", "GRU_RESET_AFTER", "LSTM").contains(query.operation().kind().name());
     }
 
 

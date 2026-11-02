@@ -227,7 +227,7 @@ public final class ModelBuilder {
 
     /**
      * Appends NCDHW convolution with unit strides/dilations/groups, zero padding and zero bias.
-     * Existing Conv3d backward rejection is unchanged.
+     * Compiler derives grouped 3D cotangents; training requires backend support for their full closure.
      * @param outChannels positive output-channel count
      * @param kernelDepth positive depth kernel extent
      * @param kernelHeight positive vertical kernel extent

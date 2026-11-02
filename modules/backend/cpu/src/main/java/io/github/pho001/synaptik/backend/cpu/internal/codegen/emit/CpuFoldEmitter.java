@@ -32,11 +32,13 @@ import java.lang.constant.MethodTypeDesc;
  * kernel coordinate in ascending ky/kx order, with no expanded-input scan or allocation. A
  * complete invocation-entry int proof includes inverse numerators and physical carrier bases;
  * failed int proofs retain the checked long algorithm, not ordinary all-columns scanning.
- * Ordinary folds retain the pre-existing shared geometry-generic traversal; repairing low
+ * Legacy FOLD_AXIS/FOLD2D retain the pre-existing shared geometry-generic traversal; repairing low
  * arithmetic does not introduce a dtype-specific mapping algorithm. That traversal can contain
  * hoistable repeated coordinate decoding. Its retention preserves mapping/order and nonlow
  * ClassFiles; only the changed decode/add/final-conversion dataflow is qualified against the
  * primitive Java arithmetic oracle, not whole-loop optimality or performance parity.
+ * FOLD3D instead inverse-gathers the checked in-bounds contributor for each spatial kernel
+ * coordinate, retaining canonical occurrence order without scanning unrelated columns.
  *
  * <p>Controlled folds guard output cells by their full logical boundary ordinal and contributors
  * by the input boundary's own proved ROW provenance. Inactive outputs retain positive zero;

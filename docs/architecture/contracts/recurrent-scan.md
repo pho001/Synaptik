@@ -1323,8 +1323,12 @@ carry updates retain exact own descriptors. Intermediate proved ROW(axis) histor
 sequence/formal support at every valid axis/rank, not only rank-two ROW(1). Complete canonical-B
 and fixed-feature proofs remain; no equal-extent, empty-domain, sampled-B or B=1 shortcut.
 Original length-AD sources still require all original carries and sequences ROW(0); broader
-generated histories do not broaden those source bindings. Existing fixed/Conv3d-backward,
-residual-root and higher-order exclusions remain independent.
+generated histories do not broaden those source bindings. Fixed recurrent, residual-root and
+higher-order exclusions remain independent. Conv3d uses the shared ordinary convolution adjoints,
+not a Scan-specific exclusion or derivative. CPU F32/F64 full-body forward and actual first-order
+reverse composition is qualified for all-valid and length-aware scans in both traversal directions;
+ordinary body geometry, row proof and complete backend-closure checks still apply. This does not
+widen ordinary public named-B Conv3d admission or grant Metal Scan execution.
 
 Validate the entire original lexical inventory before derivative allocation, including unused
 and unrelated branches. Separate source validity from selected derivative constructibility.

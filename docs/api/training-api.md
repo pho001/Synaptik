@@ -840,11 +840,14 @@ four values are all `-3.5f`. Caller storage is never transferred to the Engine.
 For repeated execution, selective publication copies, or explicit input ordering, use the
 [reusable compile, session, run, and materialize workflow](runtime-api.md#current-ordinary-engine-boundary).
 
-The current boundary is deliberately forward-oriented. These NN layers do not compile, prepare,
-select a backend, execute values, or expose Engine behavior. Existing compiler rules cover the
-visible Conv1d composition and Conv2d; backward-capable compilation still rejects first-class
-Conv3d. `Conv3d` therefore remains forward-only, and Compiler 0006C remains Draft.
-Gradient-eligible Conv3d parameters do not imply Conv3d training support.
+These NN layers construct forward expressions; they do not compile, prepare, select a backend
+or execute values. Compiler derives selected input, weight and bias gradients through the shared
+grouped Conv2d/Conv3d rule and the visible Conv1d composition. Static CPU FLOAT32/FLOAT64
+and Metal FLOAT32 Conv3d training, including overlap and save/load/new training for the existing
+default biased cold source, are qualified in the
+[production support matrix](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary).
+Low CPU arithmetic remains locked, and CPU Pool3d still requires `requiresGrad=false`;
+gradient-eligible parameter flags alone never prove a backend can execute a complete graph.
 `ModuleFactory.standard()` supplies matching stateless `conv1d`, `conv2d`, and `conv3d` recipes,
 but each direct or factory-created layer has the same state, validation, and forwarding contract.
 

@@ -393,6 +393,21 @@ compiler creates no gradient-only tolerance or alternate numerical policy. Saved
 indices, statistics, and state remain the exact stored values named by the derivative formula. A
 backend is eligible only if it supports the entire generated topology as queried.
 
+The implemented Conv3d training extension uses the existing convolution formula owner for
+both grouped NCHW and NCDHW cross-correlation. Flatten only the kernel and output-position axes;
+retain the group axis in every contraction. Input cotangents use weight-transpose MATMUL followed
+by the matching public overlap-add fold; weight cotangents use the matching public unfold,
+MATMUL and batch reduction; bias cotangents reduce batch and every spatial axis. Restore each
+selected target's exact Shape and data type through the existing normalization. No new operation
+kind, backward-only kernel, duplicated 2D formula, or backend-owned derivative is introduced.
+Checked metadata construction, ordinary Tensor construction, first-order coverage, higher-order
+composition and selected-target pruning must agree on this common formula.
+First-order coverage is 39 families, 112 constants and 134 signatures; the forward inventory stays
+40/115/137. Only the three fixed RNN/GRU/LSTM signatures remain deferred. Symbolic dimensions in
+the formula do not widen ordinary public CPU named-B convolution admission. General Scan uses
+this same ordinary formula and independently qualifies every generated body occurrence; Conv3d
+is not a separate Scan backward exclusion.
+
 Before constructing any backward expression, the compiler must inventory every
 backward-reachable operation occurrence and its exact attributes and derivative policies. Any
 unsupported or ambiguous occurrence fails closed. Full inference and validation still occur only
@@ -581,7 +596,8 @@ default CONV2D and squeezes axis 2. Unbiased convolutions and other convolution/
 are not admitted by this source slice. Fixed scans remain one flat producer, never static
 unrolling, a body, callback or region. Their static time and batch may be zero; feature/hidden
 sizes remain positive. Cold admission reads no GATHER indices or scan valid-length values;
-execution owns their value bounds. It grants no backend scan execution, BPTT or Conv3d gradients.
+execution owns their value bounds. Cold admission itself grants no execution or gradients;
+those require independent Compiler AD and complete backend-closure qualification.
 
 ### Bounded general-scan cold reconstruction
 

@@ -378,19 +378,6 @@ final class SelectedScanDemandTest {
         }
     }
 
-    @Test void conv3dRemainsAWholeLexicalExclusionEvenOnAnUnselectedEmptyBranch() {
-        for (boolean reverse : List.of(false, true)) for (int time : new int[] {0, 1}) {
-            Tensor x = tensor(DataType.FLOAT64, true, 1, 1, 2, 2, 2), w = tensor(DataType.FLOAT64, false, 1, 1, 1, 1, 1);
-            Tensor convolution = x.conv3d(w, io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs.defaults());
-            var body = new ScanBody(List.of(), List.of(x), List.of(w), List.of(), List.of(x.add(x), convolution));
-            Tensor sequence = tensor(DataType.FLOAT64, true, time, 1, 1, 2, 2, 2);
-            var scan = Scan.apply(List.of(), List.of(sequence), List.of(tensor(DataType.FLOAT64, false, 1, 1, 1, 1, 1)), body, reverse);
-            Tensor selected = scan.outputs().getFirst();
-            var req = ScanGradientRulesTest.request(List.of(selected), List.of(SymbolicScanCompilerTest.fresh(selected, false)), List.of(sequence));
-            assertThrows(IllegalArgumentException.class, () -> SymbolicScanCompilerTest.compile(scan.outputs(),
-                    Optional.of(req), GraphOptimizationConfig.disabled()));
-        }
-    }
 
     @Test void carryFreeLengthReverseUsesLengthsBatchAndOnlyTheSelectedEmissionSeed() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) for (boolean reverse : List.of(false, true)) {

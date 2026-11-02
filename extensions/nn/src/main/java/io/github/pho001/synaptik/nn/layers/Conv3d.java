@@ -30,8 +30,9 @@ import java.util.Optional;
  * zero and one policies create no source, and bias is always exact typed zero. A failed attempt
  * publishes no parameter wrapper and may be retried. Publication is synchronized only for this
  * layer's first binding; other inherited module mutation and traversal still require caller
- * coordination. The layer constructs forward expressions only; backward-capable compilation of
- * Conv3d remains fail-closed, and this layer executes no work.</p>
+ * coordination. The layer constructs ordinary forward expressions only. Compiler derives input,
+ * weight and bias cotangents through shared grouped convolution algebra; execution requires a
+ * backend supporting the complete generated topology. This layer executes no work.</p>
  */
 public final class Conv3d extends UnaryTensorModule {
     /**

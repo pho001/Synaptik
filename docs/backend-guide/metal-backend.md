@@ -4,15 +4,16 @@
 
 The Metal backend executes one whole maximal Metal-owned partition. Its active protocol is
 native ABI 7, program schema 20 with a 124-byte header, data-type wires `1..7`, operation wires
-`1..115`, attribute wires `0..41`, route wires `1..3`, and coordinated backend-local identity 38.
+`1..115`, attribute wires `0..41`, route wires `1..3`, and coordinated backend-local identity 39.
 Schema 19 and identity 29 are historical pre-cutover allocations; identity 30 is the historical
 profile-free cutover value, identity 31 is the superseded FLOAT32 `EXP` value, and identity 32 is
 the superseded low-`EXP` value. Identity 33 is the superseded FLOAT32 `SIGMOID` value and identity
 34 is the superseded low-`SIGMOID` value. Identity 35 bound rank-16 false-branch WHERE geometry,
 raw unaddressed low ScatterAdd words, first-contributor low scan seeds, and exact native
 creating-context checks. Identity 36 bound corrected standalone scalar RELU/MUL admission;
-37 added dense-view MATMUL and 38 adds selected materializing RESHAPE. Prior tuning identities
-are stale. The program wire schema remains 20.
+37 added dense-view MATMUL; 38 added selected materializing RESHAPE; 39 adds FLOAT32
+overlap-add image folds and qualified Conv3d training closure. Prior tuning identities are stale.
+The program wire schema remains 20, and the fixed native corpus is 87,929 bytes.
 
 Zero-offset canonical-row-major MATMUL operands may be truthful dense logical views. Exact local
 last-two-axis transposes must remain authenticated against their dense source and actual physical
@@ -36,8 +37,9 @@ operation's Model contract permits them. In particular:
   preserve exact branch-gradient OR metadata;
 - `SORT`, `ARGSORT`, and positive-K `TOP_K` accept all seven carriers, while `ARG_MIN` and
   `ARG_MAX` accept the six numeric carriers and publish INT64;
-- `FOLD_AXIS` accepts every non-BOOL carrier, and image unfold/fold accepts
-  FLOAT64/FLOAT32/BFLOAT16/FLOAT16; admitted folds are non-overlapping;
+- `FOLD_AXIS` accepts every non-BOOL carrier with non-overlapping windows. Image unfold/fold
+  accepts FLOAT64/FLOAT32/BFLOAT16/FLOAT16; FLOAT32 FOLD2D/FOLD3D additionally sum overlap,
+  while FLOAT64 and low image folds retain non-overlap;
 - maximum Pool2d/Pool3d accepts FLOAT64 plus every homogeneous FLOAT32/BFLOAT16/FLOAT16 occurrence;
   and
 - no-gradient INT32/INT64 MATMUL uses INT64-dominant promotion and modular result arithmetic.
@@ -46,7 +48,7 @@ Every Shape is fully static within the operation-specific rank domain. Selected 
 their logical Shape, positive strides, and storage offset. Java preparation and native preflight
 independently derive and authenticate physical spans, unsigned-32-bit geometry, index bounds, and
 replacement destination uniqueness before resource creation or mutation. Zero extents, unresolved
-layouts, unsafe external strides, overlap, out-of-span descriptors, and byte overflow fail closed.
+layouts, unsafe external strides, writable storage overlap, out-of-span descriptors, and byte overflow fail closed.
 BOOL validation visits logical elements only.
 
 The supported homogeneous FLOAT32 occurrences preserved at the profile-free cutover retain their
@@ -131,16 +133,19 @@ Generated backward graphs reuse the same admitted occurrence predicates. Floatin
 affine movement, broadcast sum-to-Shape, arithmetic/scalar/reduction/scan formulas, saved-mask
 dropout, stable ordering/top-K value paths, replacement scatter, and non-overlapping window
 adjoints close for BFLOAT16 and FLOAT16 exactly as for FLOAT32. Compiler-generated first order and
-owned higher order therefore remain on Metal for admitted differentiable rows. Maximum-pool
-backward is admitted only when every stride is at least the effective dilated kernel. Overlapping
-window accumulation and Conv3d backward remain compiler/backend fail-closed.
+owned higher order therefore remain on Metal for admitted differentiable rows. FLOAT32
+FOLD2D/FOLD3D additionally accumulate overlapping windows in deterministic output-owned kernels.
+FLOAT64/BFLOAT16/FLOAT16 image folds and FOLD_AXIS retain non-overlap. Complete generated
+topology admission still governs every pooling and convolution gradient.
 
 Convolution and pooling validate exact symmetric padding, stride, dilation, groups, result geometry,
 and a 65,536-position pooling-kernel bound before resource creation. Conv1d/Pool1d affine views must
 be authenticated local singleton-height compositions. Maximum pooling uses NaN-first,
 positive-zero-over-negative-zero, first-logical-winner order with negative-infinity padding.
-Average pooling includes conceptual positive-zero padding in the full-kernel divisor. Conv3d is
-forward-only until its compiler gradient owner exists.
+Average pooling includes conceptual positive-zero padding in the full-kernel divisor.
+Static FLOAT32 Conv3d training now uses the shared grouped Conv2d/Conv3d rule, including
+selected or joint input, weight and bias gradients; see
+[production evidence and limits](production-support.md#conv3d-training-and-independent-pool3d-boundary).
 
 `INITIAL_STATE` is canonical no-gradient INT64[2]. Metal dropout accepts
 canonical rank `0..16`, publishes the value, canonical BOOL saved mask, and next state, and advances
@@ -309,7 +314,7 @@ distinct non-physical identities. The first is an abstract availability slot, th
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
 claim. No mapping among them is implied. ABI 7 and the thirteen native exports are fixed. The
 route-bearing image is schema 20 with a 124-byte header, and every workload/exact-policy/candidate/compatibility/
-route/codec identity is version 38; prior identities 30 through 37 and every other stale identity fail closed.
+route/codec identity is version 39; prior identities 30 through 38 and every other stale identity fail closed.
 Tuning remains session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
@@ -395,7 +400,8 @@ attribute, and gradient relations. GATHER/GATHER_ELEMENTS/GATHER_ND and replacem
 SCATTER_ELEMENTS/SCATTER_ND accept INT32 or INT64 indices; replacement requires
 `ScatterReduction.NONE`. Complete index bounds and destination-uniqueness validation precede
 mutation. `UNFOLD_AXIS` accepts all seven carriers; `FOLD_AXIS` accepts the six numeric carriers and
-rejects BOOL; 2D/3D unfold/fold accepts FLOAT64/FLOAT32/BFLOAT16/FLOAT16 and requires non-overlap.
+rejects BOOL and requires non-overlap. 2D/3D unfold/fold accepts all four floating carriers;
+image folds admit overlap only for FLOAT32. Unfold extraction itself may overlap.
 SELECT/SLICE/Crop can produce scalar or positive-rank logical views. Capability recomputes exact
 positive strides, storage offset, and referenced span and rejects unresolved, empty, unsafe, or
 out-of-span geometry.
@@ -415,8 +421,8 @@ Convolution requires rank-four NCHW/OIHW or rank-five NCDHW/OIDHW, exact grouped
 relationships, symmetric nonnegative padding, positive stride/dilation/groups/dimensions, exact
 floor output geometry, and canonical output. Maximum and average pooling require exact
 rank-four/rank-five geometry, matching input/output gradient metadata, and at most 65,536 kernel
-positions. Generated data cotangents require non-overlapping effective windows. The exact
-singleton-height Conv1d/Pool1d forms remain authenticated local compositions. Availability and hard
+positions. Generated data cotangents may accumulate image-window overlap only for FLOAT32.
+The exact singleton-height Conv1d/Pool1d forms remain authenticated local compositions. Availability and hard
 backend requirements remain separate Planning facts.
 
 Generated pointwise units and anchor epilogues require a partition whose complete value table
@@ -491,7 +497,7 @@ consuming a caller position. Existing shared `GraphPreparation` tests independen
 chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, typed node records, and the
-canonical execution plan are known, analysis creates a version-thirty-eight candidate batch and
+canonical execution plan are known, analysis creates a version-thirty-nine candidate batch and
 workload fingerprint. Every partition containing BFLOAT16/FLOAT16 values or a selected
 Task-0066/Task-0069 occurrence forces the fixed `CUSTOM_PROGRAM` production candidate; the batch
 rejects a selected-node MPSGraph route before native allocation. Other FLOAT32 partitions retain
@@ -500,14 +506,14 @@ rank-two FLOAT32 MATMUL where no selected custom-only node requires the whole-pr
 Package-private structural forcing remains available only for a route already present in the fresh
 authenticated batch.
 
-The version-thirty-eight canonical workload fingerprint covers the schema-twenty route-bearing program
+The version-thirty-nine canonical workload fingerprint covers the schema-twenty route-bearing program
 image and authenticated execution extension, ordered
 input and output references, all typed attributes, logical and physical value states,
 authenticated local provenance, complete tensor descriptors and storage layouts, compact
 materialized and target sets, exact scalar/splat bits, logical-boundary roles,
 policy/candidate/route schemas, and ABI version. It encodes structural positions rather than graph
 object identity. Target compatibility also contains a fresh private nonce from the exact
-`MetalDeviceContext`; only identity 38 is accepted, while prior identities 30 through 37 and every other stale
+`MetalDeviceContext`; only identity 39 is accepted, while prior identities 30 through 38 and every other stale
 decision fail closed.
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. Every supplied handoff is accepted only when the exact
@@ -533,15 +539,15 @@ exposes this test seam.
 
 ### Session decision codec and limitations
 
-The package-private version-thirty-eight Metal codec produces bounded canonical compatibility,
+The package-private version-thirty-nine Metal codec produces bounded canonical compatibility,
 candidate, and checksummed decision bytes. Decode rejects wrong magic, schema, session scope,
 malformed or truncated content, trailing or corrupt bytes, changed workload or
 context, and unknown or pruned candidates. The bytes contain no native handle or executable. Only
-identity 38 is accepted; prior identities 30 through 37 and every other stale decision fail closed even when its
+identity 39 is accepted; prior identities 30 through 38 and every other stale decision fail closed even when its
 trailing checksum is otherwise valid.
 
 The public `MetalLocalWorkloadTuning` retained by `MetalBackendIntegration` wraps this codec and
-candidate generator without changing their version-thirty-eight bytes. It returns a handoff only
+candidate generator without changing their version-thirty-nine bytes. It returns a handoff only
 for an exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
 `MetalCompletePlanTuning` authenticates the exact Phase-1 association and exposes one complete-plan
 candidate fixed to that selected route. Both collaborations use opaque exact-owner/batch values,
@@ -556,7 +562,7 @@ device/library fingerprint.
 
 Schema-twenty workload bytes and workload compatibility include the fixed route,
 canonical execution extension, and manifest digest. Candidate and decision bytes retain route
-wires `1..3`, route-policy version thirty-eight, and the target session.
+wires `1..3`, route-policy version thirty-nine, and the target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
 session)` rather than a workload digest alone. The repository has no persistent Metal executable
@@ -836,16 +842,26 @@ dominates negative zero, and the first logical coordinate wins a tie. Average po
 entire dilated kernel rectangle/box, supplies positive zero for out-of-bounds positions, divides
 once by the full kernel-position count, and applies the specified all-negative-zero rule.
 
-Compiler-generated FLOAT32/BFLOAT16/FLOAT16 Conv2d gradients are owned when the
-requested roles and geometry form a primitive-closed partition. Explicit `CONTIGUOUS` nodes
-materialize group reshapes/permutations, matrix operands/results, unfolded columns, and fold inputs.
-The input cotangent requires a non-overlapping `FOLD2D`. Average-pool and maximum-pool cotangents
-similarly close only for non-overlapping effective windows; maximum pooling reconstructs the exact
-first winning candidate and materializes its final permute before reshape/fold. Pool3d
-constructibility compares semantic type/Shape/gradient metadata after final materialization rather
-than requiring the original input layout to be canonical. Conv3d gradients and every
-overlap-accumulating fold remain fail-closed. These bounded cases add no implicit seed, backend
-autograd, or unrestricted training ownership.
+Compiler owns the shared grouped Conv2d/Conv3d formula: input cotangents contract transposed
+weights then fold into the exact source Shape; weight cotangents unfold inputs, contract and
+reduce batch; bias cotangents reduce batch and all spatial axes. Groups remain isolated and
+each selected target regains its exact Shape/type. Explicit `CONTIGUOUS` nodes materialize
+group reshapes/permutations, matrix operands/results, unfolded columns and fold inputs.
+
+Static FLOAT32 Conv3d all-role and selected weight-only gradients, including grouped biased
+anisotropic stride/padding/dilation/overlap and unbiased depthwise cases, passed independent
+finite differences in a Metal-only Engine. Real NN parameter training/save/close/load/fresh
+training also passed. Detailed proof and the initial shader-compile failure are retained in the
+[production matrix](production-support.md#metal-production-target); no CPU fallback was installed.
+
+FLOAT32 FOLD2D/FOLD3D give each output cell one writer and sum in-range column contributors
+deterministically from positive zero. No atomics, scratch, host repair/fallback or software
+FLOAT64 are used. FLOAT64/BFLOAT16/FLOAT16 image folds and FOLD_AXIS remain non-overlapping;
+low Conv2d/pooling gradients still require their complete primitive-closed topology.
+Maximum pooling reconstructs its exact first winning candidate and materializes its final
+permute before reshape/fold. Pool3d compares semantic type/Shape/gradient metadata after
+materialization rather than requiring the original source layout to be canonical.
+These cases add no implicit seed, backend autograd, Metal Scan or unrestricted training ownership.
 
 ### Exact GATHER and ONE_HOT
 
@@ -1091,9 +1107,9 @@ relation, whose permitted set is proved unique. The source certificate authentic
 integer-size planner/image writer, native parser and sole source emitter, compact slot mapping,
 strongest available reflection, and test-only dispatch observation site. At that checkpoint,
 native validated frozen SHA-256 values for all ten fixed components and their ordered 84,541-byte
-total, then validated the assembled total independently before compiler entry. The current
-source-bound corpus is 84,593 bytes after the Task-0078 WHERE metadata repair; the historical count
-is not its authentication target.
+total, then validated the assembled total independently before compiler entry. The Task-0078
+WHERE metadata repair later used 84,593 bytes. The current source-bound corpus is 87,929 bytes
+after the FLOAT32 image-fold overlap extension; historical counts are not its authentication target.
 One structured sink implements both a
 no-allocation count traversal and the exact byte traversal: production validates all five caps
 before allocating the counted byte size and emits once for compile. A standalone native fixture includes that exact
@@ -1229,7 +1245,7 @@ persistent Metal splat binding is accepted only as a Metal read source; it canno
 destination. Runtime executes only the resulting direct prepared references.
 
 For one exact singleton NEG Metal plan, public `prepareTuned(...)` measures the complete two-route
-local batch, authenticates the selected version-thirty-eight decision, then correctness-checks and
+local batch, authenticates the selected version-thirty-nine decision, then correctness-checks and
 times one complete-plan candidate fixed to that route. The returned production recipe is freshly
 prepared after representative cleanup. Metal policy, producer, and decision-codec identities are
 adapter-owned and distinct from CPU identities; existing CPU bytes and behavior remain unchanged.
@@ -1267,7 +1283,7 @@ The low-precision closure adds no generic cross-carrier or layout promise beyond
 occurrence predicates. It admits all 49 casts, seven-carrier raw movement, exact
 classification/BOOL/WHERE rows, and the indexed/fold subsets above. Dynamic or empty geometry,
 unresolved or unsafe external strides, arithmetic scatter, duplicate replacement destinations,
-overlapping folds, Conv3d backward, and every production-false kind remain rejected. Variadic
+non-FLOAT32 overlapping image folds, overlapping FOLD_AXIS, and every production-false kind remain rejected. Variadic
 support is limited to one-through-sixteen CONCAT/STACK. Rank zero is a real one-element value in
 the admitted cast, affine, movement, predicate/WHERE, publication, and generated-gradient
 compositions; it never means an empty buffer.
@@ -1284,9 +1300,10 @@ persistent route cache, alias promise, portable RNG stream, entropy source, rand
 or performance claim. Immutable source-owned splat buffers persist only within their exact
 `PreparedExecution`; mutable outputs, masks, next-state values, and workspaces remain fresh per
 run. Executable backward and higher-order paths include explicitly seeded homogeneous floating
-MATMUL, bounded Conv2d/pooling formulas, primitive-closed dropout, floating casts, inverse affine
-movement, broadcast reduction, arithmetic/scalar/reduction/scan formulas, exact replacement,
-saved-role, and non-overlapping window closure. They add no implicit seeding or inferred operation
+MATMUL, primitive-closed Conv2d/pooling and qualified FLOAT32 Conv3d formulas, dropout, floating
+casts, inverse affine movement, broadcast reduction, arithmetic/scalar/cumulative-scan formulas,
+exact replacement and saved-role/window closure. Only FLOAT32 image folds add overlap.
+These paths add no implicit seeding or inferred operation
 ownership. RNN, GRU, and LSTM remain unavailable under the current profile-free contract, including zero-length/no-work
 special cases and all gradients.
 

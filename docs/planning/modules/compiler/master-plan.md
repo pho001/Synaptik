@@ -55,8 +55,8 @@ backend-specific lowering, generated JVM bytecode, or concrete kernel selection.
   must not merge occurrences. Backpropagation through time (BPTT) requires a separate explicit
   decision.
 - Conv3d remains one ordinary flat CSE-eligible batch/channel/depth/height/width (NCDHW) node.
-  Forward compilation is complete, but backward-capable requests remain fail-closed until task
-  0006C proves and implements its exact adjoints.
+  Shared grouped Conv2d/Conv3d adjoints now use public unfold, MATMUL, overlap-add fold and
+  reductions, restoring each selected target's exact Shape/type. Backend closure is independent.
 - Compiler owns graph-candidate semantics and validity. Tuning may measure bounded complete
   candidates but may not construct or reinterpret them.
 - The supported public boundary stays narrow: immutable compile/publication contracts, the
@@ -140,7 +140,7 @@ accepted 2026-10-25 after the scoped-binding compatibility checkpoint; it enable
 | 0006B9 | [Compile-artifacts contract reconciliation](tasks/0006b9-compile-artifacts-contract-reconciliation.md) | Complete | 0006B8; completed Engine 0012; current `CompileArtifacts` source, test, and API references | Reconciled and independently reviewed the normative block against the exact public eight-component compile-time recipe. |
 | 0006B10 | [Compile integration status reconciliation](tasks/0006b10-compile-integration-status-reconciliation.md) | Complete | 0006B9; completed Planning 0007 review; current Engine and Compiler integration source/API references | Reconciled and independently reviewed the integration SPI and shared compile status against current fixed CPU-only Engine composition. |
 | 0006B11 | [Static-result logical-layout closure for public CPU execution](tasks/0006b11-static-result-logical-layout-closure-for-public-cpu-execution.md) | Complete | 0006B5–0006B10; current CPU complete-partition lowering; public Engine lifecycle | Completed canonical layouts only for explicitly proven materialized results and splats, preserved affine/view mappings, and restored public CPU compute and reusable prepared execution. |
-| 0006C | Conv3d adjoint expressibility and gradient closure | Draft | 0006B; current public Tensor algebra; any separately selected Model prerequisite | Prove exact grouped NCDHW input/weight/bias adjoints; implement only if current public algebra closes every required case, otherwise select the smallest Model prerequisite. |
+| 0006C | Conv3d adjoint expressibility and gradient closure | Complete | 0006B; existing public 3D unfold/fold algebra; explicit user selection | Shared grouped Conv2d/Conv3d formula, checked metadata, selected-role and two-stage closure; CPU F32/F64 and Metal-only F32 numerical gradients, persisted NN training and full-body CPU Scan passed. Independent reviews APPROVE0, root test/build/distribution and fresh Maven/no-Git source consumers passed. |
 | 0006D | [Autograd audit correctness repairs](tasks/0006d-autograd-audit-correctness-repairs.md) | Complete | 0006/0006B11; project review | Repair batched matrix/vector gradients and reject required fail-closed sibling paths; no new derivative capability. |
 | 0007 | Exact constant identities under profile-free semantics | Draft | 0006; explicit legality proof under current Model semantics | Reassess exact identities without broadening constant evidence or using test tolerances as rewrite permission. |
 | 0008 | [Cold source capture and reconstruction](tasks/0008-cold-source-capture-and-reconstruction.md) | Complete | Approved P2/ADR0039; completed capture/inference/integration boundaries; Training0007 serial base only | Bounded raw-source API and authority cutover implemented; final independent code/docs APPROVE and coordinator Class C checkpoint passed. |
@@ -338,8 +338,9 @@ the brief records final review/gate evidence and all seven integration fields. N
   independent review and the coordinator checkpoint.
 - Complete: 0009, the SELECT/coordinate-SLICE exact logical-view repair, accepted after final
   independent APPROVE, zero findings, and main's native root gate (2026-10-19). At that checkpoint Compiler/NN frontiers: None.
-- 0006C and 0007 remain `Draft`, have no detailed task brief, and are independent side branches;
-  0006B11 grants neither implementation authorization.
+- 0006C is Complete under explicit user authorization. Shared formulas and coupled CPU/Metal
+  execution passed numerical/train/persist programs, root test/build/distribution and fresh
+  Maven/no-Git source consumers after independent APPROVE0. 0007 remains Draft and unauthorized.
 - 0011 is Complete, accepted by main 2026-10-22 after independent code/docs APPROVE and compatibility checkpoint.
   Prepare0010 projection/resource handoff and CPU0030 bounded execution also Complete; CPU/NN/Checkpoint frontiers None;
   later domain-completion, low-level join, NN and persistence gates unchanged.
@@ -353,10 +354,13 @@ the brief records final review/gate evidence and all seven integration fields. N
 
 ## Live gates and risks
 
-- **Conv3d adjoints:** 0006C must prove group isolation, dilation/padding, overlap accumulation,
-  symbolic Shape behavior, and higher-order formula closure through the current public Tensor
-  algebra. If any part is inexpressible, select the smallest prerequisite in the
-  [Model plan](../model/master-plan.md) first and keep Conv3d fail-closed.
+- **Conv3d qualification:** 0006C implements group-isolated adjoints, stride/padding/dilation,
+  overlap, symbolic Shape retention, selected roles and ordinary two-stage formula closure.
+  First-order inventory is 39/112/134; only three fixed recurrent signatures remain deferred.
+  CPU F32/F64 general Scan full-body forward/reverse composition passed all-valid/length-aware
+  and both-direction numerical cases. This does not widen ordinary public CPU named-B Conv3d,
+  CPU low arithmetic, Metal Scan or persistence inventories. MAIN accepted the source-matched root
+  gate and fresh installed-artifact/no-Git-source runtime proof.
 - **Recurrent differentiation:** 0006A covers forward compilation only. The exact RNN, GRU, and
   LSTM signatures remain outside gradient coverage. CPU0028/CPU0029 and
   [NN0021B](../../extensions/nn/tasks/0021b-fixed-recurrent-scan-implementation-program.md) are Complete
@@ -370,9 +374,10 @@ the brief records final review/gate evidence and all seven integration fields. N
   `SQRT` or infer Tensor constants from storage or factory history. Historical Config 0006 was
   removed by Model 0032; it is not a pending permission switch. A rewrite outside current Model
   semantics requires an explicit architecture decision; hardware or measurement never grants it.
-- **Backend boundary:** completed [CPU Conv3d execution](../../backends/cpu/master-plan.md) does not
-  prove Conv3d adjoints or BPTT. Compiler must not absorb lowering, route selection, generated-code
-  construction, physical layout/materialization, or execution ownership.
+- **Backend boundary:** the coupled [CPU](../../backends/cpu/master-plan.md) and
+  [Metal](../../backends/metal/master-plan.md) Conv3d training closure implements Compiler's
+  ordinary formulas; forward admission alone is still no derivative proof. Compiler absorbs no
+  lowering, route, generated-code, physical storage or execution ownership. Fixed-scan BPTT stays closed.
 - **Structural risks:** do not merge recurrent occurrences, split graph-local ID assignment across
   captures, merge CSE across phases, construct partial backward expressions before preflight,
   reconstruct canonical sibling outputs, or turn logical saved edges into a runtime tape.

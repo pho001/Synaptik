@@ -478,8 +478,11 @@ requires all lazy parameters already bound; it does not run forward to initializ
 seeds, source labels/layouts/provenance and modes are not reconstruction configuration: selected
 steps are mode-insensitive, reconstructed models start in evaluation mode, and state values load
 separately. BatchNorm, Dropout, recurrence, branches, reused execution nodes and custom I/O are out.
-An empty/activation-only tree is semantically eligible; NN promises neither generic zero-operation
-Engine execution nor a newly admitted backend route, dtype, layout or gradient (including Conv3d).
+An empty/activation-only tree is semantically eligible; reconstruction itself promises neither
+generic zero-operation Engine execution nor a newly admitted backend route, dtype, layout or gradient.
+Existing biased Conv3d recipes may train after reload when Compiler AD and the complete backend
+closure qualify: current production proof covers CPU FLOAT32/FLOAT64 and Metal FLOAT32. This
+changes no definition or graph-model inventory/version, optimizer persistence or exact-resume contract.
 
 The public boundary is ModelSpecification and final DeclarativeModel extending Model<Tensor,Tensor>
 in nn.module. A specification has one closed Sequence root, immutable typed step records and
@@ -1125,8 +1128,9 @@ producer reconstruction; normalized recapture precedes publication. Failure retu
 source, mutates no source binding and retains the existing ArtifactFile target/cleanup semantics.
 
 This is cold semantic graph persistence, not serialized CompileArtifacts, prepared execution,
-native/backend/runtime state or saved input batches. It grants no scan execution, BPTT, Conv3d
-gradients, optimizer resume or automatic exact training continuation.
+native/backend/runtime state or saved input batches. It itself grants no execution or gradients,
+optimizer resume or automatic exact training continuation; independent current Compiler/backend
+qualification determines whether a reconstructed graph may train.
 
 ### Canonical graph-model version 4
 

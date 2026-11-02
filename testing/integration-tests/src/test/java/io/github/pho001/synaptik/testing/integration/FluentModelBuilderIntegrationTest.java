@@ -104,8 +104,7 @@ final class FluentModelBuilderIntegrationTest {
     }
 
     /**
-     * Checks all three convolution dimensions against scalar arithmetic and supported SGD updates.
-     * Conv3d persistence remains inference-only and its training request must reject.
+     * Checks cold-loaded 1D/2D/3D convolution against scalar arithmetic and every SGD update.
      * @throws Exception if supported cold persistence or execution fails
      */
     @Test void allSmallConvolutionsColdRoundtripAndSupportedAdjointsMatchScalarSgdOracle() throws Exception {
@@ -131,15 +130,9 @@ final class FluentModelBuilderIntegrationTest {
                 targetShape[0] = 1; targetShape[1] = 1;
                 float[] targets = new float[expected.length]; java.util.Arrays.fill(targets, .13f);
                 Tensor target = values(false, targetShape, targets);
-                if (dimension == 3) {
-                    assertThrows(IllegalArgumentException.class, () -> loaded.configureTraining(target.descriptor(),
-                            FluentModelBuilderIntegrationTest::objective, new Sgd(.01)));
-                    same(expected, loaded.compute(input));
-                } else {
-                    loaded.configureTraining(target.descriptor(), FluentModelBuilderIntegrationTest::objective, new Sgd(.01));
-                    step(loaded, input, target, weights, w -> convolution(batch, w, dims), targets);
-                    same(convolution(batch, weights, dimension), loaded.compute(input));
-                }
+                loaded.configureTraining(target.descriptor(), FluentModelBuilderIntegrationTest::objective, new Sgd(.01));
+                step(loaded, input, target, weights, w -> convolution(batch, w, dims), targets);
+                same(convolution(batch, weights, dimension), loaded.compute(input));
                 loaded.save(file);
             }
             try (var trained = Model.load(file)) {

@@ -21,6 +21,57 @@ import org.junit.jupiter.api.Test;
  * unused declared scan inputs are checked separately on the actual scan publications.
  */
 final class EngineCpuGeneralScanIntegrationTest {
+    /**
+     * Verifies 3D overlap cotangents and shared-weight reduction across only active Scan rows.
+     * The direct coverage-count oracle is independent of ordinary convolution or unrolled AD.
+     */
+    @Test void lengthAwareConv3dScanAccumulatesOnlyActiveSpatialContributors() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            for (boolean reverse : List.of(false, true)) {
+                Tensor x = formal(type, true, Shape.of(2, 1, 3, 3, 3));
+                Tensor w = formal(type, true, Shape.of(1, 1, 2, 2, 2));
+                Tensor b = formal(type, true, Shape.of(1));
+                Tensor y = x.conv3d(w, b,
+                        io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs.defaults());
+                var body = new ScanBody(List.of(), List.of(x), List.of(w, b), List.of(), List.of(y));
+                Tensor sequence = value(type, true, Shape.of(3, 2, 1, 3, 3, 3), 1);
+                Tensor weight = value(type, true, Shape.of(1, 1, 2, 2, 2), 1);
+                Tensor bias = value(type, true, Shape.of(1), .5);
+                Tensor rawLengths = lengthValue(type, 3, 1);
+                var scan = Scan.apply(List.of(), List.of(sequence), List.of(weight, bias),
+                        rawLengths.cast(DataType.INT64), 0, List.of(OptionalInt.of(0)), body, reverse);
+                Tensor output = scan.outputs().getFirst();
+                Tensor seed = value(type, false, Shape.of(3, 2, 1, 2, 2, 2), 1);
+                double[] expectedOutput = new double[48], expectedInput = new double[162];
+                for (int time = 0; time < 3; time++) for (int row = 0; row < 2; row++) {
+                    if (time >= (row == 0 ? 3 : 1)) continue;
+                    Arrays.fill(expectedOutput, (time * 2 + row) * 8, (time * 2 + row + 1) * 8, 8.5);
+                    for (int depth = 0; depth < 3; depth++) {
+                        for (int height = 0; height < 3; height++) for (int width = 0; width < 3; width++) {
+                            int index = (((time * 2 + row) * 3 + depth) * 3 + height) * 3 + width;
+                            expectedInput[index] = (depth == 1 ? 2 : 1)
+                                    * (height == 1 ? 2 : 1) * (width == 1 ? 2 : 1);
+                        }
+                    }
+                }
+                double[] expectedWeight = new double[8];
+                Arrays.fill(expectedWeight, 32);
+                try (Engine engine = Engine.builder().takeOwnership(CpuBackendIntegration.open()).build()) {
+                    var compiled = engine.compile(List.of(output), List.of(seed), List.of(sequence, weight, bias));
+                    try (var prepared = engine.prepare(compiled);
+                            var result = engine.run(prepared, List.of(sequence, weight, bias, rawLengths, seed))) {
+                        var actual = materializeValues(result);
+                        assertEquals(4, actual.size());
+                        assertArrayEquals(expectedOutput, actual.get(0), 0);
+                        assertArrayEquals(expectedInput, actual.get(1), 0);
+                        assertArrayEquals(expectedWeight, actual.get(2), 0);
+                        assertArrayEquals(new double[]{32}, actual.get(3), 0);
+                    }
+                }
+            }
+        }
+    }
+
     @Test void symbolicLengthProducedControlFiveRunSequenceUsesSamePublicPreparation() {
         for (DataType type : List.of(DataType.FLOAT32,DataType.FLOAT64)) for (boolean reverse : List.of(false,true)) {
             var b = new io.github.pho001.synaptik.model.shape.DynamicDimension("B");

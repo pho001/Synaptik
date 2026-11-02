@@ -440,7 +440,7 @@ Primal-only paths may contain ordinary non-differentiable operations. Intentiona
 cotangent paths; a required unsupported derivative route fails closed rather than losing a
 contribution. Ordinary dtype, attribute, layout and derivative guards remain authoritative.
 Residual differentiation and every Scan higher-order/createGraph request remain unsupported;
-non-Scan higher-order and fixed-scan/Conv3d rejection boundaries are unchanged.
+non-Scan higher-order and fixed-recurrent-scan rejection boundaries are unchanged.
 
 Selected final-carry and emission seeds jointly produce one opposite-traversal reverse sibling
 per original occurrence before the single combined capture. Structural absence is distinct from
@@ -716,22 +716,21 @@ does not see `CONV1D`, `ConvNd`, or a Conv1d attributes value. Existing rank-edi
 inference and first-order gradient rules apply to those ordinary nodes without a new Compiler
 inventory entry or formula. This structural reuse is a current compiler fact, not a fusion,
 lowering, backend-capability, execution, or performance claim.
-Model task 0025H adds one first-class grouped NCDHW `CONV3D` kind with two or three ordered inputs,
-one output, and `Conv3dAttrs`. Complete Compiler task 0006B adopts that signature only for
-`FORWARD_ONLY` compilation. Compiler inference independently derives the promoted type, rank-five
-result descriptor, and depth/height/width geometry, then final validation compares that result
-with the captured descriptor. It proves or retains ordered obligations for input-channel
-divisibility, output-channel divisibility, weight channels per group, optional bias length, and
-non-negative depth, height, then width numerators. Every backward-capable request whose complete
-original forward inventory contains `CONV3D` fails before seed validation or derivative Tensor
-allocation. Draft task 0006C remains the separate gradient-closure decision and has no detailed
-specification.
+Model `CONV3D` records one first-class grouped NCDHW occurrence with two or three ordered inputs,
+one output, and `Conv3dAttrs`. Compiler forward verification and first-order differentiation
+adopt this signature. Independent inference derives the promoted type, rank-five result and
+depth/height/width geometry, then final validation compares that result with the captured
+descriptor. It proves or retains ordered obligations for input-channel divisibility,
+output-channel divisibility, weight channels per group, optional bias length, and non-negative
+depth, height, then width numerators. Conv3d uses the shared Conv2d/Conv3d gradient owner,
+not a global backward rejection or a new backend-owned derivative.
 Model task 0025J adds first-class `MAX_POOL3D` and `AVERAGE_POOL3D` Model metadata with exact
 one-input/one-output signatures and rank-five NCDHW descriptors. Complete Compiler tasks 0006B1
 and 0006B2 adopt both signatures, together with the three Model-current
 `UNFOLD3D`/`FOLD3D` signatures, in ordinary forward verification and first-order differentiation.
-Complete CPU 0008G1 separately implements the fully static resolved-layout non-gradient Pool3d
-execution subset; it does not add Compiler behavior or execute the 3D window-transform family.
+CPU 0008G1 originally implemented the fully static resolved-layout non-gradient Pool3d subset.
+Separate current UNFOLD3D/FOLD3D execution supports Conv3d gradients without changing that
+Pool3d gradient-flag gate.
 Compiler task 0005E closed that matrix against the production Model inventory at its checkpoint:
 37 operation-kind enum families, 107 constants, and 128 complete
 kind/attributes/input-range/output-range fingerprints. The checkpoint includes both
@@ -740,9 +739,9 @@ constants, and three exact signatures. Compiler forward verification now adopts 
 but the first-order gradient inventory intentionally does not. Before Model 0025J, the complete
 inventory was 39 families, 111 constants, and 132 signatures, all covered by Compiler forward
 verification. Complete 0006B1 expands current Compiler forward verification to the complete Model
-inventory of exactly 40 families, 115 constants, and 137 signatures. Complete 0006B2 expands the
-supported production first-order Compiler inventory to exactly 38 families, 111 constants, and
-133 signatures. Its exact four-signature deferred partition is RNN, GRU, LSTM, and Conv3d.
+inventory of exactly 40 families, 115 constants, and 137 signatures. The current supported
+production first-order Compiler inventory contains exactly 39 families, 112 constants, and
+134 signatures. Its exact three-signature deferred partition is fixed RNN, GRU and LSTM.
 
 Current Compiler forward inference independently derives the `UNFOLD3D` and `FOLD3D` descriptors
 as canonical columns
@@ -1108,7 +1107,7 @@ is intentionally explicit:
 | Classification | Current deferred or rejected families |
 |---|---|
 | Structured fail-closed boundaries | One-output attention lacks canonical same-occurrence weights and is rejected; index-target categorical cross-entropy rejects a dynamic or zero class depth; batch-training saved auxiliary cotangent paths are rejected, including beside connected sibling paths |
-| Current source-backed closure | The supported production first-order inventory contains exactly 38 families, 111 constants, and 133 signature fingerprints. Current Compiler forward verification covers the complete Model inventory of 40 families, 115 constants, and 137 signatures. Its exact four-signature deferred partition comprises RNN, GRU, LSTM, and Conv3d; both backward-capable modes reject those signatures before seed validation and derivative Tensor allocation. Both Pool3d signatures, both `UNFOLD3D` attribute variants, and `FOLD3D` are supported through ordinary public Tensor expressions. Every currently supported legal output/input role has a `D`, `ND`, or `FC` disposition, and generated formula edges remain inside the same classified Tensor algebra. |
+| Current source-backed closure | The supported production first-order inventory contains exactly 39 families, 112 constants, and 134 signature fingerprints. Current Compiler forward verification covers the complete Model inventory of 40 families, 115 constants, and 137 signatures. Its exact three-signature deferred partition comprises fixed RNN, GRU and LSTM; both backward-capable modes reject those signatures before seed validation and derivative Tensor allocation. Conv3d, both Pool3d signatures, both `UNFOLD3D` attribute variants, and `FOLD3D` use ordinary public Tensor expressions. Every currently supported legal output/input role has a `D`, `ND`, or `FC` disposition, and generated formula edges remain inside the same classified Tensor algebra. Backend execution still requires complete generated-topology admission. |
 | Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, one-hot and other index roles, ordering indices, dropout masks, padding constants, select coordinates, and graph RNG state |
 
 Unknown/custom kinds, wrong attribute classes or cardinalities, missing canonical outputs, and
@@ -1464,14 +1463,17 @@ lowers, prepares, and executes only the fully static, resolved-layout
 FLOAT32/FLOAT64 grouped NCHW forward subset with exact group, channel, optional-
 bias, spatial, promoted-type, and injective-output relationships. Metal separately admits its
 occurrence-qualified homogeneous four-floating-type domain and documented promotions.
-This includes authenticated Conv1d singleton-height composition. Current package-private first-order autograd constructs every
-selected input, weight, and optional bias cotangent for grouped convolution through exact-group
-`unfold2d`, matrix contraction, reduction, and overlap-accumulating `fold2d`. It places explicit
-`contiguous()` materializations at the canonical-only contraction and fold boundaries without
-changing values, Shapes, types, or derivative semantics. Metal owns only separately selected
-all-FLOAT32 roles whose complete generated partition stays inside its primitive domain and whose
-input fold is non-overlapping. Legal decomposition, saved values, dynamic binding, other algorithms,
-joint or mixed gradients, and overlap accumulation remain planned in their owning layers.
+This includes authenticated Conv1d singleton-height composition. Current first-order autograd
+constructs selected input, weight, and optional bias cotangents through the shared grouped
+Conv2d/Conv3d rule. Matching unfold/fold operations preserve stride, symmetric padding,
+dilation and the original target Shape. Input gradients contract transposed grouped weights
+with the output cotangent and overlap-add the columns; weight gradients contract unfolded
+inputs with that cotangent and reduce batch; bias gradients reduce batch and every spatial axis.
+Explicit `contiguous()` nodes materialize canonical-only contraction and fold boundaries.
+The rule restores every selected target's exact Shape and floating type. CPU F32/F64 and
+Metal F32 execute their qualified static complete generated topologies, including overlapping
+image folds. This does not broaden ordinary dynamic admission or mixed/low gradient capability;
+see the [production support matrix](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary).
 `Tensor.conv3d(weight, attrs)` and `Tensor.conv3d(weight, bias, attrs)` are current Model
 construction for one first-class grouped NCDHW `CONV3D` occurrence. Input, weight, optional bias,
 and result Shapes are `[N, C_in, D, H, W]`,
@@ -1485,10 +1487,12 @@ diagnostics, and Planning handoff preserve the exact operation and ordered descr
 current fail-closed CPU path advertises, lowers, prepares, and executes only the fully static,
 resolved-layout FLOAT32/FLOAT64 grouped NCDHW forward subset with exact group,
 channel, optional-bias, spatial, promoted-type, and injective-output relationships. Metal
-separately admits its occurrence-qualified homogeneous four-floating-type domain and documented
-promotions. Draft
-0006C remains separate: backward-capable requests containing `CONV3D` fail before derivative
-allocation. Dynamic binding, Conv3d gradients and adjoints, and other algorithms remain planned.
+separately admits its occurrence-qualified forward domain. First-order Conv3d uses the same
+group-preserving formula described above, with `unfold3d`/`fold3d`; no backward-only kind or
+duplicated rank-specific derivative is added. Actual static CPU F32/F64 and Metal F32
+all-role and selected-target execution is qualified in the production matrix. Compiler retains
+symbolic Dimensions, but ordinary public named-B Conv3d admission is not widened. Pool3d's
+independent CPU `requiresGrad=false` gate and Scan higher-order restrictions remain unchanged.
 `Tensor.maxPool2d(attrs)` is current first-class NCHW maximum-pooling model construction. One
 `MAX_POOL2D` occurrence records exact ordered input `[input]`, `MaxPool2dAttrs`, one output at
 index zero, the unchanged floating type and gradient request, exact batch/channel Dimensions, and
@@ -2141,15 +2145,18 @@ compiler inference retains unresolved two-dimensional height/width domain constr
 current floating autograd uses each exact public inverse or overlap-add transformation. The
 current fail-closed CPU path advertises, lowers, prepares, and executes only fully static,
 resolved-layout one-node UNFOLD_AXIS occurrences over all seven represented types and
-UNFOLD2D over BFLOAT16/FLOAT16/FLOAT32/FLOAT64; FOLD_AXIS over FLOAT64/FLOAT32/INT32/INT64
-and FOLD2D over FLOAT32/FLOAT64, with exact window, direct-zero or typed-padding, overlap-add,
-Shape, and distinct injective-output relationships. Metal independently admits canonical
-all-carrier UNFOLD_AXIS within its bounded rank/window domain. It also admits
-the static canonical four-floating-type UNFOLD2D/UNFOLD3D raw-movement forms and non-overlapping
-FLOAT64/FLOAT32/BFLOAT16/FLOAT16 FOLD_AXIS/FOLD2D/FOLD3D forms. These forward
-routes preserve represented bits; folds write exact represented zero to uncovered output cells.
-Gradient support remains the exact current Compiler matrix above. Dynamic binding, overlapping
-Metal folds, and every other unlisted Metal window route remain unsupported.
+UNFOLD2D/UNFOLD3D over BFLOAT16/FLOAT16/FLOAT32/FLOAT64; FOLD_AXIS over
+FLOAT64/FLOAT32/INT32/INT64 and FOLD2D/FOLD3D over FLOAT32/FLOAT64, with exact
+window, direct-zero or typed-padding, overlap-add, Shape and distinct injective-output
+relationships. CPU low arithmetic remains locked.
+Metal independently admits canonical all-carrier UNFOLD_AXIS within its bounded rank/window
+domain and static canonical four-floating-type UNFOLD2D/UNFOLD3D raw movement.
+FOLD_AXIS and FLOAT64/BFLOAT16/FLOAT16 image folds require non-overlap; FLOAT32
+FOLD2D/FOLD3D additionally accumulate overlapping contributors deterministically with one
+output writer, no atomics, scratch or host fallback/repair. Raw routes preserve represented
+bits; folds write represented positive zero to uncovered output cells. Gradient support
+requires the entire generated topology; dynamic and other unlisted Metal window routes remain
+unsupported. See the [backend-qualified production matrix](../backend-guide/production-support.md).
 That origin metadata is now traversed by the package-private structural capture described above.
 The internal step observes that two result Tensors belong to the same expression occurrence only
 when their provenance carries the same exact `TensorProducer` reference. Different output indices
@@ -2504,7 +2511,7 @@ CompiledGraph graph = engine.compile(List.of(output));
   preserving the original one-output family and adding an explicit same-producer output/weights
   family, plus grouped NCHW Conv2d construction with optional bias and exact geometry/group
   attributes, plus Model-current grouped NCDHW Conv3d construction with current Compiler
-  forward-only inference and validation, plus NCHW maximum- and
+  forward inference, validation and shared first-order differentiation, plus NCHW maximum- and
   average-pooling construction with operation-specific attributes and exact floor/ceil spatial
   expressions, plus Model-current NCDHW maximum- and average-pooling metadata with current
   forward-only Compiler inference and validation, plus static-resolved or
