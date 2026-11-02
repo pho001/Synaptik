@@ -20,6 +20,7 @@ typedef struct {
     SynaptikMetalScanStepControl control;
     int32_t accumulator;
     uint32_t contraction;
+    uint32_t firstStage, stageCount, semanticScatterReduction;
     uint64_t scratchOffset, scratchBytes;
 } SynaptikMetalScanUnitBinding;
 
@@ -53,16 +54,17 @@ static BOOL synaptik_scan_scope(uint64_t scope, uint64_t count) {
     return scope == UINT64_MAX || scope < count;
 }
 
-/* The ordinary builder validates its existing operation/type/shape/attribute contract and selects
- * its controlled source variant. It never re-enters Scan lowering. These are private functions in
- * the existing .m owner, not callbacks retained in the plan and not public/native ABI exports.
+/* The plan validates the ordinary contract before appending its complete controlled stage
+ * sequence. These private hooks never re-enter Scan lowering and are not callbacks retained
+ * in the plan or public/native ABI exports.
  */
-static SynaptikMetalProgramStep *synaptik_build_scan_ordinary_step(
+static BOOL synaptik_append_scan_ordinary_steps(
         SynaptikMetalDecodedNode node, NSArray<MPSShape *> *shapes, const uint8_t *types,
         const uint64_t *strides, const uint64_t *offsets, const uint8_t *states,
         id<MTLDevice> device, id<MTLLibrary> library, id<MTLLibrary> lowLibrary,
         const SynaptikMetalScanStepControl *control, const int32_t *allValueRowAxes,
-        const uint64_t *allValueRowInner);
+        const uint64_t *allValueRowInner, uint32_t semanticScatterReduction,
+        NSMutableArray<SynaptikMetalProgramStep *> *sink);
 static int32_t synaptik_encode_scan_step(SynaptikMetalProgramStep *step,
         id<MTLComputeCommandEncoder> encoder, id<MTLBuffer> __unsafe_unretained const *buffers,
         uint32_t bufferCount, const NSUInteger *offsets);
@@ -71,9 +73,14 @@ static int32_t synaptik_validate_scan_step(SynaptikMetalProgramStep *step,
         uint32_t bufferCount, const NSUInteger *offsets,
         const uint64_t *control, const SynaptikMetalScanStepControl *stepControl);
 static BOOL synaptik_decode_scan_ordinary_attributes(SynaptikMetalDecodedNode *node,
-        const uint8_t *rawWords, uint32_t rawWordCount, const uint8_t *types);
+        const uint8_t *rawWords, uint32_t rawWordCount, const uint8_t *types,
+        uint32_t *semanticScatterReduction);
 static BOOL synaptik_scan_validate_gradient_flags(SynaptikMetalDecodedNode node,
         const uint8_t *allTypes, const uint8_t *allValueGradFlags);
+static BOOL synaptik_scan_validate_ordinary(SynaptikMetalDecodedNode node, NSArray<MPSShape *> *shapes,
+        const uint8_t *types, const uint64_t *strides, const uint64_t *offsets, const uint8_t *states);
+static BOOL synaptik_scan_prove_coordinates(SynaptikMetalDecodedNode node, NSArray<MPSShape *> *shapes,
+        const int32_t *rows, const uint8_t *terminals, uint64_t batch);
 
 static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, uint32_t wordCount,
         id<MTLDevice> device, id<MTLLibrary> library, id<MTLLibrary> lowLibrary) {
@@ -104,17 +111,20 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
     NSMutableData *typeData = [NSMutableData dataWithLength:valueCount];
     NSMutableData *stateData = [NSMutableData dataWithLength:valueCount];
     NSMutableData *gradientData = [NSMutableData dataWithLength:valueCount];
+    NSMutableData *terminalData = [NSMutableData dataWithLength:valueCount];
     NSMutableData *strideData = [NSMutableData dataWithLength:(NSUInteger)valueCount * 16U * sizeof(uint64_t)];
     NSMutableData *offsetData = [NSMutableData dataWithLength:(NSUInteger)valueCount * sizeof(uint64_t)];
     NSMutableData *rowAxesData = [NSMutableData dataWithLength:(NSUInteger)valueCount * sizeof(int32_t)];
     NSMutableData *rowInnerData = [NSMutableData dataWithLength:(NSUInteger)valueCount * sizeof(uint64_t)];
     if (valueData == nil || unitData == nil || scopeData == nil || availabilityData == nil || typeData == nil
-            || stateData == nil || gradientData == nil || strideData == nil || offsetData == nil || rowAxesData == nil || rowInnerData == nil) return nil;
+            || stateData == nil || gradientData == nil || terminalData == nil || strideData == nil || offsetData == nil
+            || rowAxesData == nil || rowInnerData == nil) return nil;
     SynaptikMetalScanValueBinding *values = valueData.mutableBytes;
     SynaptikMetalScanUnitBinding *units = unitData.mutableBytes;
     uint32_t *valueScopes = scopeData.mutableBytes;
     uint8_t *available = availabilityData.mutableBytes, *types = typeData.mutableBytes, *states = stateData.mutableBytes;
     uint8_t *gradients = gradientData.mutableBytes;
+    uint8_t *allValueTerminals = terminalData.mutableBytes;
     uint64_t *strides = strideData.mutableBytes, *offsets = offsetData.mutableBytes;
     int32_t *allValueRowAxes = rowAxesData.mutableBytes;
     uint64_t *allValueRowInner = rowInnerData.mutableBytes;
@@ -128,7 +138,8 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
                 || synaptik_scan_width(r[1]) == 0U || r[3] > 1U || (r[3] != 0U && r[1] != 1U)
                 || r[4] != 1U || r[5] != 0U || r[10] > 1U || r[12] != 0U) return nil;
         int64_t row = (int64_t)r[9];
-        if (row < -1 || row >= (int64_t)rank || (!lengthAware && row != -1)) return nil;
+        if (row < -1 || row >= (int64_t)rank || (!lengthAware && (row != -1 || r[10] != 0U))
+                || (row >= 0 && r[10] != 0U)) return nil;
         SynaptikMetalScanValueBinding value = { .rank = (uint32_t)rank, .type = (uint32_t)r[1],
                 .width = synaptik_scan_width(r[1]), .gradient = (uint32_t)r[3], .terminal = (uint32_t)r[10],
                 .rowAxis = (int32_t)row, .offset = r[7], .bytes = r[8], .rowInner = r[11] };
@@ -158,6 +169,7 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
         }
         values[v] = value; types[v] = (uint8_t)value.type; states[v] = 1U; offsets[v] = 0U;
         gradients[v] = (uint8_t)value.gradient;
+        allValueTerminals[v] = (uint8_t)value.terminal;
         allValueRowAxes[v] = value.rowAxis; allValueRowInner[v] = value.rowInner;
         [shapes addObject:[shape copy]]; cursor += r[0];
     }
@@ -165,7 +177,8 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
             || w[27] + w[16] != w[28] || ((allocatedEnd + 7U) & ~UINT64_C(7)) > w[30]) return nil;
     for (uint32_t f = 0U; f < w[14]; f++) {
         uint64_t v = w[w[25] + f];
-        if (v >= valueCount || available[v] || (f < w[5] ? values[v].offset == UINT64_MAX : values[v].offset != UINT64_MAX)) return nil;
+        if (v >= valueCount || available[v] || values[v].terminal
+                || (f < w[5] ? values[v].offset == UINT64_MAX : values[v].offset != UINT64_MAX)) return nil;
         if (lengthAware && ((f < w[10] && values[v].rowAxis != 0)
                 || (f >= w[10] && f < w[5] && values[v].rowAxis != -1)
                 || (f >= w[5] + w[6] && values[v].rowAxis != -1))) return nil;
@@ -194,7 +207,7 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
         if (port >= w[15] || (d != 0U && port <= previousDemand)) return nil;
         previousDemand = port;
     }
-    NSMutableArray<SynaptikMetalProgramStep *> *steps = [NSMutableArray arrayWithCapacity:unitCount];
+    NSMutableArray<SynaptikMetalProgramStep *> *steps = [NSMutableArray arrayWithCapacity:(NSUInteger)unitCount * 2U];
     NSMutableArray<id<MTLBuffer>> *controls = [NSMutableArray arrayWithCapacity:unitCount];
     cursor = w[24];
     for (uint32_t u = 0U; u < unitCount; u++) {
@@ -245,10 +258,21 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
         unit.node.auxiliary = unit.node.input_count > 2U ? unit.node.inputs[2] : 0U;
         unit.node.output = unit.node.outputs[0];
         if (unit.control.rowAxis != values[unit.node.output].rowAxis) return nil;
+        BOOL anyInputRow = NO;
+        for (uint32_t i = 0U; i < unit.node.input_count; i++) anyInputRow |= allValueRowAxes[unit.node.inputs[i]] >= 0;
+        if (unit.contraction != (uint32_t)(unit.control.rowAxis < 0 && anyInputRow)) return nil;
         unit.control.rowInner = values[unit.node.output].rowInner;
         const uint8_t *attributeBytes = bytes + (cursor + 14U + r[3] + r[4]) * 8U;
-        if (!synaptik_decode_scan_ordinary_attributes(&unit.node, attributeBytes, (uint32_t)r[5], types)) return nil;
+        if (!synaptik_decode_scan_ordinary_attributes(&unit.node, attributeBytes, (uint32_t)r[5],
+                types, &unit.semanticScatterReduction)) return nil;
         if (!synaptik_scan_validate_gradient_flags(unit.node, types, gradients)) return nil;
+        /* Operand claims are proved declarations or earlier validated SSA results. Ordinary
+         * equations precede the independent coordinate proof; no output claim feeds inference.
+         * Both checks run before any pipeline is built, including genuine zero-output markers.
+         */
+        if (!synaptik_scan_validate_ordinary(unit.node, shapes, types, strides, offsets, states)
+                || (lengthAware && !synaptik_scan_prove_coordinates(
+                        unit.node, shapes, allValueRowAxes, allValueTerminals, w[11]))) return nil;
         if (unit.control.leftScope != UINT32_MAX && (unit.node.operation != 2U || unit.node.input_count != 2U || unit.node.output_count != 1U)) return nil;
         uint64_t expectedScratch = 0U;
         if (unit.node.operation == 35U && unit.node.output_count == 1U) {
@@ -262,14 +286,19 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
                     || !synaptik_scan_multiply(expectedScratch, 4U, &expectedScratch)) return nil;
         }
         if (unit.scratchBytes != expectedScratch) return nil;
-        SynaptikMetalProgramStep *step = synaptik_build_scan_ordinary_step(unit.node, shapes, types, strides, offsets,
-                states, device, library, lowLibrary, &unit.control, allValueRowAxes, allValueRowInner);
-        if (step == nil) return nil;
-        step.scratchOffset = unit.scratchBytes == 0U ? 0U : (NSUInteger)unit.scratchOffset;
-        step.scratchInput = unit.scratchBytes == 0U ? UINT32_MAX : valueCount;
+        unit.firstStage = (uint32_t)steps.count;
+        if (!synaptik_append_scan_ordinary_steps(unit.node, shapes, types, strides, offsets,
+                states, device, library, lowLibrary, &unit.control, allValueRowAxes, allValueRowInner,
+                unit.semanticScatterReduction, steps)) return nil;
+        unit.stageCount = (uint32_t)steps.count - unit.firstStage;
+        for (uint32_t stage = 0U; stage < unit.stageCount; stage++) {
+            SynaptikMetalProgramStep *step = steps[unit.firstStage + stage];
+            step.scratchOffset = unit.scratchBytes == 0U ? 0U : (NSUInteger)unit.scratchOffset;
+            step.scratchInput = unit.scratchBytes == 0U ? UINT32_MAX : valueCount;
+        }
         id<MTLBuffer> controlBuffer = [device newBufferWithBytes:&unit.control length:sizeof(unit.control) options:MTLResourceStorageModeShared];
         if (controlBuffer == nil) return nil;
-        [steps addObject:step]; [controls addObject:controlBuffer]; units[u] = unit; cursor += r[0];
+        [controls addObject:controlBuffer]; units[u] = unit; cursor += r[0];
     }
     if (cursor != w[25] || ((allocatedEnd + 7U) & ~UINT64_C(7)) != w[30]) return nil;
     for (uint32_t r = 0U; r < w[15]; r++) {
@@ -399,7 +428,7 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
     plan.carryOffsets = carryOffsetsData;
     plan.scopeMemberships = membershipData;
     plan.carryPromoted = carryPromotedData;
-    plan.steps = steps; plan.stepControls = controls; plan.bindingPipeline = bindingPipeline;
+    plan.steps = [steps copy]; plan.stepControls = [controls copy]; plan.bindingPipeline = bindingPipeline;
     return plan;
 }
 
@@ -633,7 +662,7 @@ static int32_t synaptik_run_scan_plan(SynaptikMetalScanPlan *plan, id<MTLCommand
             if (requiresValidation) {
                 int32_t status = synaptik_scan_flush(&command, &encoder);
                 if (status != SYNAPTIK_METAL_STATUS_OK) return status;
-                status = synaptik_validate_scan_step(plan.steps[u], unit->node, buffers, (uint32_t)w[12] + 1U,
+                status = synaptik_validate_scan_step(plan.steps[unit->firstStage], unit->node, buffers, (uint32_t)w[12] + 1U,
                         bindingOffsets, control, &unit->control);
                 if (status != SYNAPTIK_METAL_STATUS_OK) return status;
             }
@@ -642,9 +671,12 @@ static int32_t synaptik_run_scan_plan(SynaptikMetalScanPlan *plan, id<MTLCommand
             if (!synaptik_scan_encoder(queue, &command, &encoder)) return SYNAPTIK_METAL_STATUS_EXECUTION_FAILED;
             [encoder setBuffer:workspace offset:(NSUInteger)w[30] atIndex:28U];
             [encoder setBuffer:plan.stepControls[u] offset:0U atIndex:29U];
-            int32_t status = synaptik_encode_scan_step(plan.steps[u], encoder, buffers, (uint32_t)w[12] + 1U, bindingOffsets);
-            if (status != SYNAPTIK_METAL_STATUS_OK) { [encoder endEncoding]; return status; }
-            [encoder memoryBarrierWithScope:MTLBarrierScopeBuffers];
+            for (uint32_t stage = 0U; stage < unit->stageCount; stage++) {
+                int32_t status = synaptik_encode_scan_step(plan.steps[unit->firstStage + stage], encoder,
+                        buffers, (uint32_t)w[12] + 1U, bindingOffsets);
+                if (status != SYNAPTIK_METAL_STATUS_OK) { [encoder endEncoding]; return status; }
+                [encoder memoryBarrierWithScope:MTLBarrierScopeBuffers];
+            }
         }
         for (uint32_t d = 0U; d < w[16]; d++) {
             uint64_t port = w[w[27] + d]; if (port < w[5]) continue;
