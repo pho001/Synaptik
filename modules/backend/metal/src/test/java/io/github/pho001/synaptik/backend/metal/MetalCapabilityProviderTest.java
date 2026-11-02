@@ -363,7 +363,7 @@ class MetalCapabilityProviderTest {
         var fold3d = new Operation(WindowTransformKind.FOLD3D,
                 new Fold3dAttrs(Shape.of(1, 2, 3, 3, 3), window3d));
         for (DataType type : DataType.values()) {
-            boolean supported = type == DataType.FLOAT32 || type == DataType.FLOAT64;
+            boolean supported = type == DataType.FLOAT32;
             for (boolean gradient : List.of(false, true)) {
                 if (gradient && !type.isFloating()) continue;
                 assertEquals(supported, provider.supports(new OperationCapabilityQuery(

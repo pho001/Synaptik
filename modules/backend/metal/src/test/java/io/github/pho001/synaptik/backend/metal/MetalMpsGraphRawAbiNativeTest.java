@@ -123,8 +123,8 @@ class MetalMpsGraphRawAbiNativeTest {
         malformed.add(digestForgery);
         malformed.add(rewriteManifest(
                 valid,
-                "fixed-corpus-bytes 90671\n",
-                "fixed-corpus-bytes 90672\n"));
+                "fixed-corpus-bytes 87905\n",
+                "fixed-corpus-bytes 87906\n"));
 
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(0, abi.create(valid, valid.length));
@@ -2885,7 +2885,7 @@ class MetalMpsGraphRawAbiNativeTest {
                         var values = List.of(
                                 new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {1, columns, columns}, gradient),
                                 new MetalMpsGraphProgram.ValueDescriptor(type, shape, gradient));
-                        if (type == DataType.FLOAT32 || type == DataType.FLOAT64) {
+                        if (type == DataType.FLOAT32) {
                             assertTask0064AcceptedByJavaAndNative(
                                     abi, program, values, new int[] {0}, new int[] {1}, type + " fold" + dimensions);
                         } else {

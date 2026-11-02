@@ -112,8 +112,8 @@ import java.util.Objects;
  * canonicalization, indexing, replacement, selection, ordering, state, predicate, cast, and
  * window occurrences declared below. Reads may use authenticated static affine or
  * transferred materialized layouts; outputs use the operation's exact logical view or canonical
- * materialization. FLOAT32/FLOAT64 image folds accumulate overlapping contributors with one
- * output writer; low image folds and FOLD_AXIS retain exact non-overlapping placement. External
+ * materialization. FLOAT32 image folds accumulate overlapping contributors with one output writer;
+ * FLOAT64/low image folds and FOLD_AXIS retain exact non-overlapping placement. External
  * unsafe aliases, negative strides, storage overlap, and empty or dynamic geometry remain false.</p>
  *
  * <p>For homogeneous BFLOAT16 and FLOAT16 occurrences, this predicate first checks the original
@@ -1308,7 +1308,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return false;
             }
             Window2dAttrs window = attrs.window();
-            if (type != DataType.FLOAT32 && type != DataType.FLOAT64
+            if (type != DataType.FLOAT32
                     && (!nonOverlapping(
                             window.kernelHeight(), window.dilationHeight(), window.strideHeight())
                     || !nonOverlapping(
@@ -1343,7 +1343,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         Window3dAttrs window = attrs.window();
-        if (type != DataType.FLOAT32 && type != DataType.FLOAT64
+        if (type != DataType.FLOAT32
                 && (!nonOverlapping(
                         window.kernelDepth(), window.dilationDepth(), window.strideDepth())
                 || !nonOverlapping(

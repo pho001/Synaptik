@@ -17,7 +17,7 @@ import java.util.zip.CRC32;
  * <p>The format is a backend-local defensive transport, not the tools-owned workload-cache
  * artifact. It contains no executable, native handle, file path, objective, sample, or timing.
  * Decoding is fail-closed and performs no I/O or native work. The current codec is version 39,
- * binding FLOAT32/FLOAT64 image-fold overlap accumulation and Conv3d training;
+ * binding FLOAT32 image-fold overlap accumulation and Conv3d training;
  * version 38 and earlier inputs are incompatible.
  */
 final class MetalNegTuningCodec {

@@ -25,7 +25,7 @@ import java.util.Optional;
  * and the scalar-composition source wire, exact raw constant, rank-one {@code [1]} shape, operand
  * order, and primitive opcode. Graph-local identities, partition object identity, native handles,
  * measurements, and cache state are excluded. Generation is cold, thread-safe, deterministic, and
- * performs no native work. Version 39 binds deterministic FLOAT32/FLOAT64 image-fold overlap
+ * performs no native work. Version 39 binds deterministic FLOAT32 image-fold overlap
  * accumulation and the Conv3d training closure, retaining materializing RESHAPE and dense-view
  * MATMUL composition. Older compatibility is rejected without changing the program schema or routes.
  */

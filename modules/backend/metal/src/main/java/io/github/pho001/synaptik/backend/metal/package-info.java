@@ -6,8 +6,8 @@
  * affine movement/canonicalization/indexing/replacement, all 49 casts, four-carrier floating
  * classification, BOOL logic, the fourteen non-mixed-low promoted WHERE signatures, stable
  * ordering/top-K/numeric arg-extrema, stored comparisons, maximum pooling, promoted integral MATMUL,
- * raw initial state, and output-owned folds. FLOAT32/FLOAT64 image folds may accumulate overlap;
- * low image folds and FOLD_AXIS remain non-overlapping. Authenticated affine views remain logical
+ * raw initial state, and output-owned folds. FLOAT32 image folds may accumulate overlap;
+ * FLOAT64/low image folds and FOLD_AXIS remain non-overlapping. Authenticated affine views remain logical
  * while physical descriptors stay safe; unresolved, empty, unsafe-stride, storage-overlapping, or
  * over-limit geometry remains false. Index roles accept INT32 or INT64 and replacement validates complete
  * bounds and destination uniqueness before mutation.
@@ -136,9 +136,9 @@
  * modular INT32/INT64 PROD, and canonical BOOL ALL/ANY. FOLD_AXIS also admits INT32/INT64;
  * BOOL FOLD_AXIS and integral or BOOL FOLD2D/FOLD3D remain false. Every
  * replacement validates all indices and destination uniqueness before writes; every admitted fold
- * has one output writer and skips conceptual padding. FLOAT32/FLOAT64 image folds additionally
- * accumulate all in-bounds overlapping contributors in their declared precision; binary64 addition
- * uses integer carrier arithmetic without FLOAT32 narrowing or DAZ/FTZ. Non-overlapping folds retain
+ * has one output writer and skips conceptual padding. FLOAT32 image folds additionally
+ * accumulate all in-bounds overlapping contributors in FLOAT32 working precision. FLOAT64 and low
+ * image folds remain non-overlapping. Non-overlapping folds retain
  * exact raw placement, including uncovered carrier zero. Empty reduction axes are point identities
  * without admitting zero-dimensional extents. LOG_SUM_EXP, STANDARD_DEVIATION, and L2_NORM have
  * forceable structural recipes only and remain production-false. The exact bounded L1_NORM and

@@ -394,7 +394,7 @@ static NSString *synaptik_authenticated_fixed_source(void) {
                 "8217948f0c28d3df56c5f2edb5408306b588bf2c5e0b1f90a23463e295ac6b99")
             || !synaptik_source_digest_matches(
                 SynaptikTask0066DtypeLayoutKernelSource,
-                "13fa1dd8f39798edaf1d880efe5cd79d4081c85a5fcc33640fc0c8d8cf9d19a7")
+                "520c56b03ea71e8a18bf731c63236d51a1345955891fb11bf1b981aae1ca5a0e")
             || !synaptik_source_digest_matches(
                 SynaptikTask0071AnchorEpilogueKernelSource,
                 "e165612540f551ce547c145dde4fa48e46ff06e652b4729272b8bfabc75f0663"))
@@ -409,10 +409,10 @@ static NSString *synaptik_authenticated_fixed_source(void) {
     fixed = [[[fixed stringByAppendingString:SynaptikTask0065RngDropoutKernelSource]
             stringByAppendingString:SynaptikTask0066DtypeLayoutKernelSource]
             stringByAppendingString:SynaptikTask0071AnchorEpilogueKernelSource];
-    return [fixed lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 90671U
+    return [fixed lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == 87905U
             && synaptik_source_digest_matches(
                     fixed,
-                    "84356fec924aaa0e1ac00543d5016813087f7b88eca937fe2326ba0fbd8c34b4")
+                    "d694925abca53629bf98312c8925927523ec065113a71d1db5f6eee9c91dfa9a")
             ? fixed : nil;
 }
 
@@ -5920,8 +5920,6 @@ static int32_t synaptik_metal_create_decoded(
                                         || kernel - 1U > (UINT64_MAX - 1U) / dilation
                                         || (declared_types[node.first_input]
                                                         != SYNAPTIK_METAL_TYPE_FLOAT32
-                                                && declared_types[node.first_input]
-                                                        != SYNAPTIK_METAL_TYPE_FLOAT64
                                                 && stride < dilation * (kernel - 1U) + 1U))
                                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                             }
@@ -8304,12 +8302,12 @@ static NSData *synaptik_pointwise_manifest(
             fusion->step_count, fusion->member_count, fusion->binding_count,
             fusion->materialized_count, fusion->instruction_count];
     [text appendFormat:@"stop %u %u\n", rejected_node, cap_reason];
-    [text appendFormat:@"source %u 90671 %u\n",
+    [text appendFormat:@"source %u 87905 %u\n",
             fusion->expected_generated_bytes, fusion->expected_total_bytes];
     [text appendString:@"caps 32 256 16384 262144 1048576\n"];
     [text appendString:@"execution-caps 64 512\n"];
     [text appendString:@"source-size-table 1\n"];
-    [text appendString:@"fixed-corpus-bytes 90671\n"];
+    [text appendString:@"fixed-corpus-bytes 87905\n"];
     [text appendString:@"opcodes floor=1 ceil=2 sign=3 relu=4\n"];
     [text appendString:@"anchor-opcodes scalar-mul=1 add=2 relu=3 clamp=4\n"];
     [text appendString:@"pointmeta-abi size=32 align=8 elementCount=u64@0 gridWidth=u64@8 gridHeight=u64@16 scalar=u32@24 reserved=u32@28\n"];

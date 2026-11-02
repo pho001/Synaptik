@@ -29,8 +29,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * schema-twenty creator accepts zero feeds and compact materialized slots, while execution
  * still binds every ordered live slot buffer. Java preflight independently authenticates all seven
  * carriers, the 49 ordered casts, logical-versus-physical layouts, saved gradient roles, exact
- * replacement safety and fixed custom routing before native entry. FLOAT32/FLOAT64 image folds
- * may accumulate overlap; low image folds and FOLD_AXIS require non-overlapping windows.
+ * replacement safety and fixed custom routing before native entry. FLOAT32 image folds may
+ * accumulate overlap; FLOAT64/low image folds and FOLD_AXIS require non-overlapping windows.
  * Every BFLOAT16/FLOAT16 value is custom-program-only. Native status failures are unchecked and
  * retain both the operation name and raw status value.
  */
@@ -1157,7 +1157,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 && !supportsFoldGeometry(
                                         node, types[node.firstInputIndex()])) {
                             throw new IllegalArgumentException(
-                                    "custom FOLD overlap requires a FLOAT32/FLOAT64 image fold");
+                                    "custom FOLD overlap requires a FLOAT32 image fold");
                         }
                         if ((node.kind() == MetalMpsGraphProgram.NodeKind.SELECT
                                         || node.kind() == MetalMpsGraphProgram.NodeKind.SLICE)
@@ -1879,7 +1879,7 @@ abstract class MetalNativeApi implements AutoCloseable {
             if (node.kind() == MetalMpsGraphProgram.NodeKind.FOLD_AXIS) {
                 return words[2] >= words[1];
             }
-            if (type == ValueType.FLOAT32 || type == ValueType.FLOAT64) return true;
+            if (type == ValueType.FLOAT32) return true;
             int dimensions = node.kind() == MetalMpsGraphProgram.NodeKind.FOLD2D ? 2 : 3;
             int offset = dimensions + 3;
             try {
