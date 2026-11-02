@@ -2,7 +2,8 @@
 #define SYNAPTIK_NORMALIZATION_HOST_H
 
 /* Import after SynaptikMetalDecodedNode, SynaptikNormalizationLossMeta and
- * custom_physical_layout. No source strings, pipeline creation or ABI exports.
+ * custom_physical_layout and the shared broadcast-aware synaptik_storage_layout_supported.
+ * No source strings, pipeline creation or ABI exports.
  * The caller independently validates topology, declared gradient role bits and
  * concrete buffer lengths; this helper validates native actual types, complete
  * siblings, scalar words, shapes, affine address arithmetic and canonical writes.
@@ -30,6 +31,19 @@ static BOOL synaptik_nl_scalar(const uint64_t *words, uint32_t start, BOOL posit
     return YES;
 }
 
+/* Adapts one resolved role to the existing shared storage proof, without a
+ * second nonoverlap algorithm or a blanket exemption for zero-stride axes. */
+static BOOL synaptik_nl_storage_supported(MPSShape *shape,
+        const SynaptikNormalizationLossView *view, uint64_t span, uint8_t state) {
+    uint32_t rank = (uint32_t)shape.count;
+    uint64_t dimensions[16] = {0};
+    for (uint32_t axis = 0U; axis < rank; axis++)
+        dimensions[axis] = shape[axis].unsignedLongLongValue;
+    uint8_t present = 1U, isView = state == 2U || state == 3U;
+    return synaptik_storage_layout_supported(0U, &rank, dimensions, view->strides,
+            &view->offset, &span, &present, &isView, 0U);
+}
+
 static BOOL synaptik_nl_layout(MPSShape *shape, uint32_t value, uint8_t type,
         const uint64_t *strides, const uint64_t *offsets, const uint8_t *states,
         BOOL output, SynaptikNormalizationLossView *view) {
@@ -49,7 +63,7 @@ static BOOL synaptik_nl_layout(MPSShape *shape, uint32_t value, uint8_t type,
             if (extent != 0U && stride > UINT64_MAX / extent) return NO;
             stride *= extent;
         }
-        return YES;
+        return synaptik_nl_storage_supported(shape, view, 0U, states[value]);
     }
     if (!custom_physical_layout(shape, value, strides, offsets, states, view->strides, &view->offset)) return NO;
     uint64_t last = view->offset, canonical = 1U;
@@ -63,7 +77,8 @@ static BOOL synaptik_nl_layout(MPSShape *shape, uint32_t value, uint8_t type,
         if (canonical > UINT64_MAX/extent) return NO;
         canonical *= extent;
     }
-    return last < NSUIntegerMax / width && (!output || view->offset == 0U);
+    return last < NSUIntegerMax / width && (!output || view->offset == 0U)
+            && synaptik_nl_storage_supported(shape, view, last+1U, states[value]);
 }
 
 static BOOL synaptik_normalization_metadata(SynaptikMetalDecodedNode node,

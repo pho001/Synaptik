@@ -51,6 +51,28 @@ class MetalNormalizationLossNativeTest {
     }
 
     @Test
+    void broadcastAxesDoNotExemptRemainingAxesFromStorageNonoverlap() {
+        Shape shape = Shape.of(2, 2, 2);
+        var output = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var operation = new Operation(SoftmaxKind.SOFTMAX, new SoftmaxAttrs(2));
+        var node = node(MetalMpsGraphProgram.NodeKind.SOFTMAX,
+                new int[] {0}, new int[] {1}, AXIS, new long[] {2});
+        var overlap = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {0, 1, 1}, 0, true)), false);
+        assertFalse(MetalNormalizationSupport.supports(operation, List.of(overlap), List.of(output)));
+        assertThrows(IllegalArgumentException.class, () -> MetalNormalizationSupport.validate(
+                node, List.of(MetalMpsGraphProgram.ValueDescriptor.from(overlap),
+                        MetalMpsGraphProgram.ValueDescriptor.from(output))));
+        // The same broadcast axis is valid when the remaining [2,2] footprint is injective.
+        var broadcast = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {0, 2, 1}, 0, true)), false);
+        assertTrue(MetalNormalizationSupport.supports(operation, List.of(broadcast), List.of(output)));
+        MetalNormalizationSupport.validate(node, List.of(
+                MetalMpsGraphProgram.ValueDescriptor.from(broadcast), MetalMpsGraphProgram.ValueDescriptor.from(output)));
+    }
+
+    @Test
     void rawPreflightChecksEveryBatchGradientRoleAndRejectsLowAndMalformedScalars() {
         var node = node(MetalMpsGraphProgram.NodeKind.BATCH_NORM_TRAINING,
                 new int[] {0, 1, 2, 3, 4}, new int[] {5, 6, 7, 8, 9},
