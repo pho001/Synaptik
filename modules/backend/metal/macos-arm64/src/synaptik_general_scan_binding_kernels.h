@@ -10,8 +10,9 @@ typedef struct {
 _Static_assert(sizeof(SynaptikMetalScanBindMeta) == 40, "Scan binding metadata size");
 
 /* Raw movement only. Depends on existing exact load_word/store_word and common Scan controls.
- * mode0 publishes present values, mode1 replaces carried roots (absence writes raw +0), mode2
- * updates accumulators only for present contributions. Inactive carry cells remain raw identity.
+ * mode0 publishes present values or raw +0 padding; mode1 replaces carried roots (absence +0), mode2
+ * updates accumulators only for present contributions; modes3/4 finish these same identities for
+ * promoted writers without copying already-written active-present cells.
  * Buffers source0/destination1/meta2/oldCarry3/control28/step29; ordinary custom_grid geometry.
  */
 static NSString *const SynaptikGeneralScanBindingKernelSource =
@@ -20,7 +21,8 @@ static NSString *const SynaptikGeneralScanBindingKernelSource =
 " ulong linear=ulong(gid.x)+ulong(m.gridWidth)*(ulong(gid.y)+ulong(m.gridHeight)*ulong(gid.z)); if(linear>=m.elementCount)return;\n"
 " bool present=scan_control_output(control,step,linear);\n"
 " if(m.mode!=0u){ bool eligible; if(step.rowAxis<0) eligible=scan_control_any(control,0xffffffffu); else eligible=control[1]!=0ul&&step.rowInner!=0ul&&scan_control_row(control,0xffffffffu,(linear/step.rowInner)%control[1]); if(!eligible){store_word(destination,m.destinationBase+linear,m.width,load_word(oldCarry,linear,m.width));return;} }\n"
-" if(!present){ if(m.mode==1u)store_word(destination,m.destinationBase+linear,m.width,0ul); else if(m.mode==2u)store_word(destination,m.destinationBase+linear,m.width,load_word(oldCarry,linear,m.width)); return; }\n"
+" if(!present){ if(m.mode==0u||m.mode==1u||m.mode==3u)store_word(destination,m.destinationBase+linear,m.width,0ul); else if(m.mode==2u||m.mode==4u)store_word(destination,m.destinationBase+linear,m.width,load_word(oldCarry,linear,m.width)); return; }\n"
+" if(m.mode>=3u)return;\n"
 " ulong word=load_word(source,m.sourceBase+linear,m.width); store_word(destination,m.destinationBase+linear,m.width,word);\n"
 "}\n";
 

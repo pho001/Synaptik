@@ -12,8 +12,8 @@ import java.util.Optional;
  * Cold physical binding facts for one independently scoped native Scan body.
  *
  * <p>Ordinals are local to this plan; they never identify an outer graph value. The ordinary
- * instruction list is stored once, independent of the time count. Every local value has its own
- * physical region, so a next-carry writer cannot overwrite an old carry or a saved primal.
+ * instruction list is stored once, independent of the time count. Every local writer has its own
+ * physical region; external sequence/invariant formals are direct read-only offset bindings.
  * Only demanded outer roles reserve history. Mutable buffers, row-presence bits and time/row
  * coordinates belong to an invocation, not to this immutable prepared plan.</p>
  *

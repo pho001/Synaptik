@@ -20,6 +20,19 @@ final class MetalScanEncoding {
     static final int MAX_UNITS = 512;
     static final int MAX_WORDS = 1 << 20;
 
+
+    /**
+     * Validates raw constructor input through the single bounded Scan grammar.
+     * @param words complete raw attribute payload, retained by neither decoder nor execution
+     * @throws IllegalArgumentException if any intrinsic grammar, control or resource fact disagrees
+     */
+    static void validate(long[] words) {
+        try {
+            MetalScanDecoding.decode(words);
+        } catch (ArithmeticException | IndexOutOfBoundsException invalid) {
+            throw new IllegalArgumentException("Malformed Metal Scan body/binder image", invalid);
+        }
+    }
     private MetalScanEncoding() {}
 
     /**

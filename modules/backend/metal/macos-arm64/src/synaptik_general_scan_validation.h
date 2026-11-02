@@ -57,6 +57,7 @@ static BOOL synaptik_scan_exact_reduction_shape(SynaptikMetalDecodedNode node, M
 
 static BOOL synaptik_scan_validate_ordinary(SynaptikMetalDecodedNode node, NSArray<MPSShape *> *shapes,
         const uint8_t *types, const uint64_t *strides, const uint64_t *offsets, const uint8_t *states) {
+    if (node.operation >= 101U && node.operation <= 105U) return NO; // Not Model ScanBody PURE families.
     if (node.operation == 0U || node.operation > 115U || node.input_count == 0U || node.output_count == 0U) return NO;
     for (uint32_t i = 0U; i < node.input_count; i++)
         if (node.inputs[i] >= shapes.count || !synaptik_scan_carrier_type(types[node.inputs[i]])) return NO;

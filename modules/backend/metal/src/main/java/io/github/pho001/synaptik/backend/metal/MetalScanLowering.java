@@ -53,18 +53,32 @@ final class MetalScanLowering {
      * Lowers one containing Scan to its authenticated once-encoded native body/binder payload.
      * @param query independently revalidated containing occurrence
      * @param inputs ordered outer program input ordinals, including final lengths in length mode
-     * @param outputs ordered outer program result ordinals, retaining latent siblings
+     * @param outputs demanded outer result ordinals, in increasing demanded-role order
      * @return one native GENERAL_SCAN instruction, never a time-expanded image
      * @throws IllegalArgumentException if the occurrence or boundary cardinalities are unsupported
      * @throws ArithmeticException if checked geometry or encoding size overflows
      */
     static MetalMpsGraphProgram.Node lower(OperationCapabilityQuery query, int[] inputs, int[] outputs) {
         MetalScanPlan plan = plan(query);
-        if (inputs.length != plan.header().inputCount() || outputs.length != plan.header().outputCount()) {
+        if (inputs.length != plan.header().inputCount() || outputs.length != plan.demanded().size()) {
             throw invalid("outer ordinal cardinality");
         }
         return MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.GENERAL_SCAN,
                 inputs, outputs, MetalMpsGraphProgram.AttributeKind.GENERAL_SCAN, MetalScanEncoding.encode(plan));
+    }
+
+    /**
+     * Independently validates raw program metadata, without trusting a provider/preparer plan.
+     * @param node raw GENERAL_SCAN node whose result references name demanded roles only
+     * @param values complete outer canonical physical descriptor table
+     * @throws IllegalArgumentException if any body, binding, resource or outer fact is malformed
+     */
+    static void validate(MetalMpsGraphProgram.Node node, List<MetalMpsGraphProgram.ValueDescriptor> values) {
+        try {
+            MetalScanDecoding.validateOuter(node, values);
+        } catch (ArithmeticException | IndexOutOfBoundsException invalid) {
+            throw new IllegalArgumentException("Malformed Metal Scan physical occurrence", invalid);
+        }
     }
 
     /**
@@ -81,6 +95,7 @@ final class MetalScanLowering {
         var body = query.scanBody().orElseThrow(() -> invalid("missing captured body"));
         var graph = body.graph();
         if (graph.values().size() > MetalScanEncoding.MAX_VALUES || graph.nodes().size() > MetalScanEncoding.MAX_UNITS
+                || query.inputs().size() > MetalScanEncoding.MAX_VALUES || query.outputs().size() > MetalScanEncoding.MAX_VALUES
                 || query.inputs().size() != attrs.inputCount() || query.outputs().size() != attrs.outputCount()
                 || body.nextCarry().size() != attrs.carryCount() || body.emissions().size() != attrs.emissionCount()
                 || body.residuals().size() != attrs.residualCount()
@@ -225,10 +240,16 @@ final class MetalScanLowering {
             }
             values.add(new MetalScanPlan.Value(descriptor, row, facts.terminal(), offset, bytes, rowInner));
         }
-        // A second carry bank makes direct old-formal results, swaps and repeated next bindings
-        // simultaneous, without a per-time copy-back or a B-by-parameter gradient bank.
+        // Unique computed next-carry writers already own an alternate bank. Only formal or
+        // repeated next bindings require extra storage to preserve simultaneous transitions.
+        var nextUses = new HashMap<ValueId, Integer>();
+        body.nextCarry().forEach(id -> nextUses.merge(id, 1, Integer::sum));
+        var formalSet = new HashSet<>(graph.inputs());
         for (int c = 0; c < attrs.carryCount(); c++) {
-            cursor = Math.addExact(aligned(cursor), values.get(ordinals.get(graph.inputs().get(c))).byteSize());
+            ValueId next = body.nextCarry().get(c);
+            if (formalSet.contains(next) || nextUses.get(next) != 1) {
+                cursor = Math.addExact(aligned(cursor), values.get(ordinals.get(graph.inputs().get(c))).byteSize());
+            }
         }
         var physicalDescriptors = values.stream().map(v -> MetalMpsGraphProgram.ValueDescriptor.from(v.descriptor())).toList();
         var units = new ArrayList<MetalScanPlan.Unit>();
