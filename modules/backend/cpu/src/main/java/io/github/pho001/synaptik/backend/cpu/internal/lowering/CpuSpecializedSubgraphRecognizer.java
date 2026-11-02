@@ -457,26 +457,8 @@ public final class CpuSpecializedSubgraphRecognizer {
     }
 
     private static boolean injective(long[] extents, long[] strides) {
-        long count = 1;
-        for (long extent : extents) { if (extent == 0) return true; count = Math.multiplyExact(count, extent); }
-        if (count > 1_000_000) {
-            long span = 1; var axes = new ArrayList<Integer>();
-            for (int i = 0; i < extents.length; i++) axes.add(i);
-            axes.sort(Comparator.comparingLong(i -> strides[i]));
-            for (int axis : axes) { if (extents[axis] > 1 && strides[axis] < span) return false;
-                span = Math.addExact(span, Math.multiplyExact(extents[axis] - 1, strides[axis])); }
-            return true;
+            return CpuOutputInjectivity.isInjective(extents, strides);
         }
-        var addresses = new HashSet<Long>(); long[] coordinates = new long[extents.length];
-        for (long i = 0; i < count; i++) {
-            long address = 0; for (int axis = 0; axis < extents.length; axis++)
-                address = Math.addExact(address, Math.multiplyExact(coordinates[axis], strides[axis]));
-            if (!addresses.add(address)) return false;
-            for (int axis = extents.length - 1; axis >= 0; axis--)
-                if (++coordinates[axis] < extents[axis]) break; else coordinates[axis] = 0;
-        }
-        return true;
-    }
 
     private static BaselineUnitFact baselineFact(ExecutionUnitPlan unit) {
         CpuKernelIr encoded = unit.portablePlan().kernelIr();

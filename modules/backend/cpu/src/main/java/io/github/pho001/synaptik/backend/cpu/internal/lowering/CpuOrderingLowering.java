@@ -19,7 +19,7 @@ import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
+
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -255,28 +255,10 @@ public final class CpuOrderingLowering {
     }
 
     private static void validateInjective(long[] extents, long[] strides) {
-        long count = elementCount(extents); if (count == 0) return;
-        var axes = new ArrayList<Integer>();
-        for (int i = 0; i < extents.length; i++) if (extents[i] > 1) axes.add(i);
-        axes.sort(Comparator.comparingLong(i -> strides[i])); long covered = 1;
-        boolean simple = true;
-        for (int axis : axes) {
-            if (strides[axis] < covered) { simple = false; break; }
-            covered = Math.addExact(covered, Math.multiplyExact(extents[axis] - 1, strides[axis]));
-        }
-        if (simple) return;
-        if (count > 1_000_000) throw new IllegalArgumentException("ordering output is not injective");
-        var seen = new HashSet<Long>(); long[] coordinate = new long[extents.length];
-        for (long ordinal = 0; ordinal < count; ordinal++) {
-            long address = 0;
-            for (int i = 0; i < coordinate.length; i++) address = Math.addExact(address,
-                    Math.multiplyExact(coordinate[i], strides[i]));
-            if (!seen.add(address)) throw new IllegalArgumentException("ordering output is not injective");
-            for (int i = coordinate.length - 1; i >= 0; i--) {
-                if (++coordinate[i] < extents[i]) break; coordinate[i] = 0;
+            if (!CpuOutputInjectivity.isInjective(extents, strides)) {
+                throw new IllegalArgumentException("output layout injectivity is unproved");
             }
         }
-    }
 
     /**
      * Immutable resolved layout used only by cold invocation geometry.

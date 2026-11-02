@@ -864,35 +864,11 @@ public final class CpuAggregateLowering {
         return result;
     }
     private static void validateInjective(Layout layout) {
-        long count = elementCount(layout.extents);
-        if (count == 0) return;
-        if (count <= 1_000_000) {
-            var addresses = new HashSet<Long>(); long[] coordinates = new long[layout.extents.length];
-            for (long logical = 0; logical < count; logical++) {
-                long address = 0;
-                for (int axis = 0; axis < coordinates.length; axis++) address = Math.addExact(address,
-                        Math.multiplyExact(coordinates[axis], layout.strides[axis]));
-                if (!addresses.add(address)) throw new IllegalArgumentException(
-                        "aggregate output layout must be injective");
-                increment(coordinates, layout.extents);
+            if (!CpuOutputInjectivity.isInjective(layout.extents, layout.strides)) {
+                throw new IllegalArgumentException("output layout injectivity is unproved");
             }
-            return;
         }
-        var axes = new ArrayList<Integer>();
-        for (int i = 0; i < layout.extents.length; i++) if (layout.extents[i] > 1) axes.add(i);
-        axes.sort(java.util.Comparator.comparingLong(i -> layout.strides[i])); long covered = 1;
-        for (int axis : axes) {
-            if (layout.strides[axis] < covered) throw new IllegalArgumentException(
-                    "aggregate output layout must be injective");
-            covered = Math.addExact(covered,
-                    Math.multiplyExact(layout.extents[axis] - 1, layout.strides[axis]));
-        }
-    }
-    private static void increment(long[] coordinates, long[] extents) {
-        for (int axis = coordinates.length - 1; axis >= 0; axis--) {
-            if (++coordinates[axis] < extents[axis]) break; coordinates[axis] = 0;
-        }
-    }
+    
 
     /**
      * Resolved non-negative layout used only as immutable cold aggregate geometry.

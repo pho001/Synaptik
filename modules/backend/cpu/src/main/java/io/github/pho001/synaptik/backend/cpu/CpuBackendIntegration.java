@@ -180,9 +180,9 @@ public final class CpuBackendIntegration implements AutoCloseable {
      * Reports whether one nominal representation can be cold-bound as exact native host staging
      * for a prepared CPU/Metal storage-layout transfer of any model data type.
      *
-     * <p>The admitted descriptor has positive static extents and a resolved, positive-stride,
-     * non-overlapping physical span. Unresolved, negative, zero-stride broadcast, and overlapping
-     * layouts are rejected at the boundary.</p>
+     * <p>The admitted descriptor has positive static extents and a resolved, positive-stride
+     * layout proved injective by the shared CPU output proof. Unresolved, negative,
+     * zero-stride broadcast, overlapping and unproved layouts are rejected at the boundary.</p>
      *
      * @param representation non-null candidate CPU representation
      * @param descriptor non-null exact logical descriptor
@@ -288,38 +288,15 @@ public final class CpuBackendIntegration implements AutoCloseable {
         long[] dimensions = descriptor.shape().toLongArray();
         LayoutDescriptor layout = descriptor.layout().orElseThrow();
         long[] strides = layout.strides();
-        long[] activeStrides = new long[strides.length];
-        long[] activeDimensions = new long[strides.length];
-        int active = 0;
+        long covered = 1L;
         try {
             for (int axis = 0; axis < dimensions.length; axis++) {
-                if (dimensions[axis] <= 0L || strides[axis] <= 0L) {
-                    return false;
-                }
-                if (dimensions[axis] > 1L) {
-                    int insertion = active;
-                    while (insertion > 0
-                            && activeStrides[insertion - 1] > strides[axis]) {
-                        activeStrides[insertion] = activeStrides[insertion - 1];
-                        activeDimensions[insertion] = activeDimensions[insertion - 1];
-                        insertion--;
-                    }
-                    activeStrides[insertion] = strides[axis];
-                    activeDimensions[insertion] = dimensions[axis];
-                    active++;
-                }
+                if (dimensions[axis] <= 0L || strides[axis] <= 0L) return false;
+                covered = Math.addExact(covered,
+                        Math.multiplyExact(dimensions[axis] - 1L, strides[axis]));
             }
-            long covered = 1L;
-            for (int index = 0; index < active; index++) {
-                if (activeStrides[index] < covered) {
-                    return false;
-                }
-                covered = Math.addExact(
-                        covered,
-                        Math.multiplyExact(
-                                activeDimensions[index] - 1L,
-                                activeStrides[index]));
-            }
+            if (!io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOutputInjectivity
+                    .isInjective(dimensions, strides)) return false;
             return layout.referencedElementSpan()
                     == Math.addExact(layout.storageOffset(), covered)
                     && Math.multiplyExact(

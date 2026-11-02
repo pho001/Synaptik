@@ -16,7 +16,7 @@ import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
+
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -142,17 +142,10 @@ public final class CpuRandomLowering {
     }
 
     private static void validateInjective(Layout layout) {
-        long count = elementCount(layout.extents); if (count == 0) return;
-        var axes = new ArrayList<Integer>();
-        for (int i = 0; i < layout.extents.length; i++) if (layout.extents[i] > 1) axes.add(i);
-        axes.sort(Comparator.comparingLong(i -> layout.strides[i])); long covered = 1;
-        for (int axis : axes) {
-            if (layout.strides[axis] < covered) throw new IllegalArgumentException(
-                    "random output layout must be injective");
-            covered = Math.addExact(covered,
-                    Math.multiplyExact(layout.extents[axis] - 1, layout.strides[axis]));
+            if (!CpuOutputInjectivity.isInjective(layout.extents, layout.strides)) {
+                throw new IllegalArgumentException("output layout injectivity is unproved");
+            }
         }
-    }
 
     /**
      * Resolved cold boundary layout retained independently of a concrete carrier.

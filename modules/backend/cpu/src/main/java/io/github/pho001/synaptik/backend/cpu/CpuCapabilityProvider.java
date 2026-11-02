@@ -1517,38 +1517,9 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     }
 
     private static boolean injective(long[] extents, long[] strides) {
-        if (java.util.Arrays.stream(extents).anyMatch(extent -> extent == 0)) return true;
-        long count = 1;
-        for (int axis = 0; axis < extents.length; axis++) {
-            if (strides[axis] == 0 && extents[axis] > 1) return false;
-            count = Math.multiplyExact(count, extents[axis]);
+            return io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOutputInjectivity
+                    .isInjective(extents, strides);
         }
-        if (count > 1_000_000) {
-            var axes = new java.util.ArrayList<Integer>();
-            for (int axis = 0; axis < extents.length; axis++) if (extents[axis] > 1) axes.add(axis);
-            axes.sort(java.util.Comparator.comparingLong(axis -> strides[axis]));
-            long covered = 1;
-            for (int axis : axes) {
-                if (strides[axis] < covered) return false;
-                covered = Math.addExact(covered,
-                        Math.multiplyExact(extents[axis] - 1, strides[axis]));
-            }
-            return true;
-        }
-        var seen = new java.util.HashSet<Long>();
-        long[] coordinates = new long[extents.length];
-        for (long logical = 0; logical < count; logical++) {
-            long address = 0;
-            for (int axis = 0; axis < extents.length; axis++) address = Math.addExact(address,
-                    Math.multiplyExact(coordinates[axis], strides[axis]));
-            if (!seen.add(address)) return false;
-            for (int axis = extents.length - 1; axis >= 0; axis--) {
-                if (++coordinates[axis] < extents[axis]) break;
-                coordinates[axis] = 0;
-            }
-        }
-        return true;
-    }
 
     private static boolean supportsAffine(OperationCapabilityQuery query, TensorDescriptor output) {
         if (query.inputs().size() != 1) return false;

@@ -21,7 +21,7 @@ import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -234,30 +234,10 @@ public final class CpuIndexingLowering {
     }
 
     private static void validateInjective(long[] extents, long[] strides) {
-        if (Arrays.stream(extents).anyMatch(v -> v == 0)) return;
-        long count = elementCount(extents);
-        if (count > 1_000_000) {
-            var axes = new ArrayList<Integer>();
-            for (int i = 0; i < extents.length; i++) if (extents[i] > 1) axes.add(i);
-            axes.sort(java.util.Comparator.comparingLong(i -> strides[i]));
-            long covered = 1;
-            for (int axis : axes) {
-                if (strides[axis] < covered) throw new IllegalArgumentException(
-                        "indexing output layout is not injective");
-                covered = Math.addExact(covered,
-                        Math.multiplyExact(extents[axis] - 1, strides[axis]));
+            if (!CpuOutputInjectivity.isInjective(extents, strides)) {
+                throw new IllegalArgumentException("output layout injectivity is unproved");
             }
-            return;
         }
-        var seen = new HashSet<Long>(); long[] c = new long[extents.length];
-        for (long n = 0; n < count; n++) {
-            long a = 0; for (int i = 0; i < c.length; i++) a = Math.addExact(a,
-                    Math.multiplyExact(c[i], strides[i]));
-            if (!seen.add(a)) throw new IllegalArgumentException(
-                    "indexing output layout is not injective");
-            for (int i = c.length - 1; i >= 0; i--) { if (++c[i] < extents[i]) break; c[i] = 0; }
-        }
-    }
 
     /**
      * Compact immutable static geometry used by validation and generated output mapping.

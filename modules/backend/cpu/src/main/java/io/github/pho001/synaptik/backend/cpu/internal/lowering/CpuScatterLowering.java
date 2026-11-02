@@ -295,37 +295,12 @@ public final class CpuScatterLowering {
     }
 
     private static void validateInjective(long[] extents, long[] strides) {
-        if (Arrays.stream(extents).anyMatch(v -> v == 0)) return;
-        long count = elementCount(extents);
-        if (count > 1_000_000) {
-            var axes = new ArrayList<Integer>();
-            for (int i = 0; i < extents.length; i++) if (extents[i] > 1) axes.add(i);
-            axes.sort(java.util.Comparator.comparingLong(i -> strides[i]));
-            long covered = 1;
-            for (int a : axes) {
-                if (strides[a] < covered) throw new IllegalArgumentException(
-                        "scatter output layout is not injective");
-                covered = Math.addExact(covered, Math.multiplyExact(extents[a] - 1, strides[a]));
+            if (!CpuOutputInjectivity.isInjective(extents, strides)) {
+                throw new IllegalArgumentException("output layout injectivity is unproved");
             }
-            return;
         }
-        var seen = new HashSet<Long>(); long[] coordinate = new long[extents.length];
-        for (long n = 0; n < count; n++) {
-            long address = 0;
-            for (int i = 0; i < coordinate.length; i++) address = Math.addExact(address,
-                    Math.multiplyExact(coordinate[i], strides[i]));
-            if (!seen.add(address)) throw new IllegalArgumentException(
-                    "scatter output layout is not injective");
-            advance(coordinate, extents);
-        }
-    }
 
-    private static void advance(long[] coordinate, long[] extents) {
-        for (int i = coordinate.length - 1; i >= 0; i--) {
-            if (++coordinate[i] < extents[i]) return;
-            coordinate[i] = 0;
-        }
-    }
+    
 
     /**
      * Compact immutable scatter mapping and scratch geometry retained by the prepared recipe.

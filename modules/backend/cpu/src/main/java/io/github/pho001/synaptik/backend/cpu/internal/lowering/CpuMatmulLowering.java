@@ -594,17 +594,8 @@ public final class CpuMatmulLowering {
         return Math.addExact(maximum, 1);
     }
     private static boolean injective(long[] extents, long[] strides) {
-        if (count(extents) <= 1) return true;
-        Integer[] axes = new Integer[extents.length];
-        for (int i = 0; i < axes.length; i++) axes[i] = i;
-        Arrays.sort(axes, java.util.Comparator.comparingLong(axis -> strides[axis]));
-        long covered = 1;
-        for (int axis : axes) if (extents[axis] > 1) {
-            if (strides[axis] < covered) return false;
-            covered = Math.addExact(covered, Math.multiplyExact(extents[axis] - 1, strides[axis]));
+            return CpuOutputInjectivity.isInjective(extents, strides);
         }
-        return true;
-    }
 
     /**
      * Complete normalized logical geometry. Array components are defensively copied.

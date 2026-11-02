@@ -17,8 +17,8 @@ import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashSet;
+
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -310,45 +310,10 @@ public final class CpuBatchNormInferenceLowering {
     }
 
     private static void validateInjective(Layout layout) {
-        long count = elementCount(layout.extents); if (count == 0) return;
-        // Canonical numeric recipes prove injectivity without enumerating invocation elements.
-        long expected = 1; boolean canonical = true;
-        for (int axis = layout.extents.length - 1; axis >= 0; axis--) {
-            if (layout.strides[axis] != expected) { canonical = false; break; }
-            expected = Math.multiplyExact(expected, layout.extents[axis]);
-        }
-        if (canonical) return;
-        if (count <= 1_000_000) {
-            var addresses = new HashSet<Long>();
-            long[] coordinates = new long[layout.extents.length];
-            for (long logical = 0; logical < count; logical++) {
-                long address = layout.offset;
-                for (int axis = 0; axis < coordinates.length; axis++) {
-                    address = Math.addExact(address,
-                            Math.multiplyExact(coordinates[axis], layout.strides[axis]));
-                }
-                if (!addresses.add(address)) throw new IllegalArgumentException(
-                        "batch-normalization output layout must be injective");
-                for (int axis = coordinates.length - 1; axis >= 0; axis--) {
-                    if (++coordinates[axis] < layout.extents[axis]) break;
-                    coordinates[axis] = 0;
-                }
+            if (!CpuOutputInjectivity.isInjective(layout.extents, layout.strides)) {
+                throw new IllegalArgumentException("output layout injectivity is unproved");
             }
-            return;
         }
-        var axes = new ArrayList<Integer>();
-        for (int axis = 0; axis < layout.extents.length; axis++) {
-            if (layout.extents[axis] > 1) axes.add(axis);
-        }
-        axes.sort(Comparator.comparingLong(axis -> layout.strides[axis]));
-        long covered = 1;
-        for (int axis : axes) {
-            if (layout.strides[axis] < covered) throw new IllegalArgumentException(
-                    "batch-normalization output layout must be injective");
-            covered = Math.addExact(covered,
-                    Math.multiplyExact(layout.extents[axis] - 1, layout.strides[axis]));
-        }
-    }
 
     /**
      * Resolved static non-negative layout in element units.

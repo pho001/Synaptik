@@ -1737,36 +1737,10 @@ public final class CpuPartitionLowering {
     }
 
     private static void validateDistinctWrites(long[] extents, long[] strides) {
-        if (java.util.Arrays.stream(extents).anyMatch(extent -> extent == 0)) return;
-        var seen = new java.util.HashSet<Long>();
-        long count = 1;
-        for (long extent : extents) count = Math.multiplyExact(count, extent);
-        if (count > 1_000_000) {
-            var axes = new ArrayList<Integer>();
-            for (int i = 0; i < extents.length; i++) if (extents[i] > 1) axes.add(i);
-            axes.sort(java.util.Comparator.comparingLong(i -> strides[i]));
-            long covered = 1;
-            for (int axis : axes) {
-                if (strides[axis] < covered) throw new IllegalArgumentException(
-                        "output geometry repeats a write address");
-                covered = Math.addExact(covered,
-                        Math.multiplyExact(extents[axis] - 1, strides[axis]));
-            }
-            return;
-        }
-        long[] coordinates = new long[extents.length];
-        for (long logical = 0; logical < count; logical++) {
-            long address = 0;
-            for (int axis = 0; axis < extents.length; axis++) address = Math.addExact(address,
-                    Math.multiplyExact(coordinates[axis], strides[axis]));
-            if (!seen.add(address)) throw new IllegalArgumentException(
-                    "output geometry repeats a write address");
-            for (int axis = extents.length - 1; axis >= 0; axis--) {
-                if (++coordinates[axis] < extents[axis]) break;
-                coordinates[axis] = 0;
+            if (!CpuOutputInjectivity.isInjective(extents, strides)) {
+                throw new IllegalArgumentException("output layout injectivity is unproved");
             }
         }
-    }
 
     private record PendingInstruction(CompiledNode node, ValueId output) { }
     private record Normalized(CpuAccessPlan plan, CpuAccessPlan.Binding binding) { }

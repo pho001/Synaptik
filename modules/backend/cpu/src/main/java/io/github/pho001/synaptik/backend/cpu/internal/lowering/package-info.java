@@ -15,6 +15,12 @@
  * preparation, but never allocates Runtime resources, selects a physical slot, or delegates graph
  * interpretation to a route implementation.
  *
+ * <p>{@link io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOutputInjectivity}
+ * owns the shared output proof used by capability, lowering, specialization and storage transfer.
+ * It combines separated spans with disjoint stride-gcd residue classes before a bounded exact
+ * fallback. Large unproved mappings fail closed. Offset/span validation and physical input/output
+ * alias policies remain independent; affine copies retain their semantic repeated-write proof.</p>
+ *
  * <p>The bounded affine family accepts only one-through-eight connected one-input/one-output
  * static resolved-layout view occurrences. It composes their coordinate mappings on the cold
  * path, keeps eligible same-unit intermediates virtual, and derives one deterministic source-to-

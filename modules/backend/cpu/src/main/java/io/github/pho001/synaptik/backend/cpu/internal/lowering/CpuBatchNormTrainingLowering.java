@@ -272,14 +272,11 @@ public final class CpuBatchNormTrainingLowering {
     private static long count(long[] e) { for(long x:e) if(x==0)return 0; return product(e,0,e.length); }
     private static long span(Layout l) { if(count(l.extents)==0)return 0; long m=l.offset;
         for(int i=0;i<l.extents.length;i++)m=Math.addExact(m,Math.multiplyExact(l.extents[i]-1,l.strides[i])); return Math.addExact(m,1); }
-    private static void validateInjective(Layout l) { long n=count(l.extents); if(n==0)return;
-        if(n<=1_000_000){var seen=new HashSet<Long>();long[] c=new long[l.extents.length];for(long k=0;k<n;k++){long a=l.offset;
-            for(int i=0;i<c.length;i++)a=Math.addExact(a,Math.multiplyExact(c[i],l.strides[i]));
-            if(!seen.add(a))throw new IllegalArgumentException("training output layout is not injective");
-            for(int i=c.length-1;i>=0;i--){if(++c[i]<l.extents[i])break;c[i]=0;}}return;}
-        var axes=new ArrayList<Integer>();for(int i=0;i<l.extents.length;i++)if(l.extents[i]>1)axes.add(i);
-        axes.sort(Comparator.comparingLong(i->l.strides[i]));long covered=1;for(int i:axes){if(l.strides[i]<covered)
-            throw new IllegalArgumentException("training output layout is not injective");covered=Math.addExact(covered,Math.multiplyExact(l.extents[i]-1,l.strides[i]));}}
+    private static void validateInjective(Layout l) {
+            if (!CpuOutputInjectivity.isInjective(l.extents, l.strides)) {
+                throw new IllegalArgumentException("output layout injectivity is unproved");
+            }
+        }
 
     /**
      * Resolved non-negative layout in element units.

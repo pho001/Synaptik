@@ -30,7 +30,7 @@ import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -681,47 +681,12 @@ public final class CpuNonAffineMovementLowering {
     }
 
     private static void validateInjective(long[] extents, long[] strides) {
-        if (Arrays.stream(extents).anyMatch(extent -> extent == 0)) return;
-        for (int axis = 0; axis < extents.length; axis++) {
-            if (strides[axis] == 0 && extents[axis] > 1) {
-                throw new IllegalArgumentException("movement output layout is not injective");
+            if (!CpuOutputInjectivity.isInjective(extents, strides)) {
+                throw new IllegalArgumentException("output layout injectivity is unproved");
             }
         }
-        long count = 1;
-        for (long extent : extents) count = Math.multiplyExact(count, extent);
-        if (count <= 1_000_000) {
-            var addresses = new HashSet<Long>();
-            long[] coordinates = new long[extents.length];
-            for (long logical = 0; logical < count; logical++) {
-                long address = 0;
-                for (int axis = 0; axis < extents.length; axis++) address = Math.addExact(address,
-                        Math.multiplyExact(coordinates[axis], strides[axis]));
-                if (!addresses.add(address)) {
-                    throw new IllegalArgumentException("movement output layout is not injective");
-                }
-                advanceCoordinates(coordinates, extents);
-            }
-            return;
-        }
-        var axes = new ArrayList<Integer>();
-        for (int axis = 0; axis < extents.length; axis++) if (extents[axis] > 1) axes.add(axis);
-        axes.sort(java.util.Comparator.comparingLong(axis -> strides[axis]));
-        long covered = 1;
-        for (int axis : axes) {
-            if (strides[axis] < covered) {
-                throw new IllegalArgumentException("movement output injectivity is ambiguous");
-            }
-            covered = Math.addExact(covered,
-                    Math.multiplyExact(extents[axis] - 1, strides[axis]));
-        }
-    }
 
-    private static void advanceCoordinates(long[] coordinates, long[] extents) {
-        for (int axis = coordinates.length - 1; axis >= 0; axis--) {
-            if (++coordinates[axis] < extents[axis]) return;
-            coordinates[axis] = 0;
-        }
-    }
+    
 
     /**
      * Compact immutable cold geometry for one movement occurrence.

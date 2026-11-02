@@ -20,8 +20,8 @@ import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashSet;
+
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -439,37 +439,12 @@ public final class CpuFoldLowering {
     }
 
     private static void validateInjective(long[] extents, long[] strides) {
-        if (elementCount(extents) == 0) return;
-        var axes = new ArrayList<Integer>();
-        for (int i = 0; i < extents.length; i++) if (extents[i] > 1) axes.add(i);
-        axes.sort(Comparator.comparingLong(i -> strides[i]));
-        long covered = 1;
-        for (int axis : axes) {
-            if (strides[axis] < covered) {
-                if (elementCount(extents) > 1_000_000) throw new IllegalArgumentException(
-                        "fold output layout is not injective");
-                var seen = new HashSet<Long>();
-                long[] coordinate = new long[extents.length];
-                for (long ordinal = 0; ordinal < elementCount(extents); ordinal++) {
-                    long address = 0;
-                    for (int i = 0; i < coordinate.length; i++) address = Math.addExact(address,
-                            Math.multiplyExact(coordinate[i], strides[i]));
-                    if (!seen.add(address)) throw new IllegalArgumentException(
-                            "fold output layout is not injective");
-                    advance(coordinate, extents);
-                }
-                return;
+            if (!CpuOutputInjectivity.isInjective(extents, strides)) {
+                throw new IllegalArgumentException("output layout injectivity is unproved");
             }
-            covered = Math.addExact(covered, Math.multiplyExact(extents[axis] - 1, strides[axis]));
         }
-    }
 
-    private static void advance(long[] coordinate, long[] extents) {
-        for (int i = coordinate.length - 1; i >= 0; i--) {
-            if (++coordinate[i] < extents[i]) return;
-            coordinate[i] = 0;
-        }
-    }
+    
 
     /** Marks one immutable, already validated family-specific fold coordinate mapping. */
     public sealed interface Mapping permits AxisGeometry, TwoDimensionalGeometry, SpatialGeometry { }

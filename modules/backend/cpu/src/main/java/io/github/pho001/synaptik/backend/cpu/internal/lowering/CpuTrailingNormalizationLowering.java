@@ -328,35 +328,10 @@ public final class CpuTrailingNormalizationLowering {
                 || type == DataType.FLOAT32 || type == DataType.FLOAT64;
     }
     private static void validateInjective(Layout layout) {
-        long count = elementCount(layout.extents); if (count == 0) return;
-        // Canonical numeric recipes prove injectivity without enumerating invocation elements.
-        long expected = 1; boolean canonical = true;
-        for (int axis = layout.extents.length - 1; axis >= 0; axis--) {
-            if (layout.strides[axis] != expected) { canonical = false; break; }
-            expected = Math.multiplyExact(expected, layout.extents[axis]);
-        }
-        if (canonical) return;
-        if (count <= 1_000_000) {
-            var addresses = new HashSet<Long>(); long[] c = new long[layout.extents.length];
-            for (long logical = 0; logical < count; logical++) {
-                long address = layout.offset;
-                for (int axis = 0; axis < c.length; axis++) address = Math.addExact(address,
-                        Math.multiplyExact(c[axis], layout.strides[axis]));
-                if (!addresses.add(address)) throw new IllegalArgumentException(
-                        "trailing-normalization output layout must be injective");
-                for (int axis = c.length - 1; axis >= 0; axis--)
-                    if (++c[axis] < layout.extents[axis]) break; else c[axis] = 0;
+            if (!CpuOutputInjectivity.isInjective(layout.extents, layout.strides)) {
+                throw new IllegalArgumentException("output layout injectivity is unproved");
             }
-            return;
         }
-        var axes = new ArrayList<Integer>();
-        for (int axis = 0; axis < layout.extents.length; axis++) if (layout.extents[axis] > 1) axes.add(axis);
-        axes.sort(Comparator.comparingLong(axis -> layout.strides[axis])); long covered = 1;
-        for (int axis : axes) { if (layout.strides[axis] < covered) throw new IllegalArgumentException(
-                "trailing-normalization output layout must be injective");
-            covered = Math.addExact(covered, Math.multiplyExact(layout.extents[axis] - 1,
-                    layout.strides[axis])); }
-    }
 
     /**
      * Resolved non-negative Shape and element-stride geometry.
