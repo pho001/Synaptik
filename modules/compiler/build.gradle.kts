@@ -3,10 +3,10 @@ import org.gradle.external.javadoc.JavadocMemberLevel
 import org.gradle.external.javadoc.StandardJavadocDocletOptions
 
 dependencies {
-    implementation(project(":modules:model"))
-    implementation(project(":modules:config"))
-    implementation(project(":modules:planning"))
-    implementation(project(":modules:backend-contract"))
+    api(project(":modules:model"))
+    api(project(":modules:config"))
+    api(project(":modules:planning"))
+    api(project(":modules:backend-contract"))
     implementation(project(":modules:trace"))
 }
 

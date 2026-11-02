@@ -6,12 +6,12 @@ import org.gradle.api.tasks.testing.Test
 
 dependencies {
     testImplementation(project(":modules:compiler"))
-    implementation(project(":modules:model"))
+    api(project(":modules:model"))
     implementation(project(":modules:config"))
-    implementation(project(":modules:planning"))
-    implementation(project(":modules:runtime"))
-    implementation(project(":modules:prepare"))
-    implementation(project(":modules:backend-contract"))
+    api(project(":modules:planning"))
+    api(project(":modules:runtime"))
+    api(project(":modules:prepare"))
+    api(project(":modules:backend-contract"))
     implementation(project(":modules:trace"))
     implementation(project(":backends:openblas-provider"))
 }

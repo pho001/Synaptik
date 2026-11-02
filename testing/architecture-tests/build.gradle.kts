@@ -1,3 +1,4 @@
+import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.testing.Test
@@ -16,7 +17,15 @@ dependencies {
     add(isolatedTextApiConsumer.implementationConfigurationName, project(":extensions:text"))
 }
 
+evaluationDependsOn(":backends:cpu")
+val cpuProductionProjects = listOf("api", "implementation", "compileOnly", "compileOnlyApi", "runtimeOnly")
+    .flatMap { name ->
+        project(":backends:cpu").configurations.getByName(name).dependencies
+            .withType<ProjectDependency>().map { it.path }
+    }.distinct().sorted()
+
 tasks.named<Test>("test") {
+    systemProperty("synaptik.architecture.cpuProductionProjects", cpuProductionProjects.joinToString("\n"))
     dependsOn(tasks.named(trainingApiConsumer.compileJavaTaskName))
     dependsOn(tasks.named(nnApiConsumer.compileJavaTaskName))
     dependsOn(tasks.named(checkpointApiConsumer.compileJavaTaskName))

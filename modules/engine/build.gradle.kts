@@ -1,13 +1,12 @@
 dependencies {
-    implementation(project(":modules:model"))
+    api(project(":modules:model"))
     implementation(project(":modules:planning"))
-    implementation(project(":modules:compiler"))
-    implementation(project(":modules:runtime"))
+    api(project(":modules:compiler"))
+    api(project(":modules:runtime"))
     implementation(project(":modules:prepare"))
-    implementation(project(":modules:config"))
+    api(project(":modules:config"))
     implementation(project(":modules:trace"))
     api(project(":backends:cpu"))
     api(project(":backends:metal"))
-    implementation(project(":backends:cuda"))
     implementation(project(":tools:tuning"))
 }
