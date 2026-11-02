@@ -208,17 +208,20 @@ static BOOL synaptik_normalization_metadata(SynaptikMetalDecodedNode node,
 
 /**
  * Validates every eligible index target before any categorical-loss output write.
- * Inputs/offsets are the step's ordered role buffers and their byte binding offsets,
- * not a global value table. Metadata view offsets/strides remain element-addressed.
+ * targetBytes addresses the start of the actual target buffer; targetByteLength
+ * bounds that complete buffer and targetBindingOffset is its byte binding offset.
+ * Metadata view offsets/strides remain element-addressed. A null pointer is valid
+ * when no row is eligible; it is rejected before the first eligible target load.
  * The caller synchronizes a produced target before invoking this CPU read-only
  * preflight; feed targets can be checked before the partition's first mutation.
  * GeneralScan's authenticated host eligibility helper must be defined first.
  * Dense targets remain a Model caller obligation, not a new rejection policy.
  */
-static int32_t synaptik_normalization_preflight(
+static int32_t synaptik_normalization_preflight_target(
         const SynaptikNormalizationLossMeta *m,
-        NSArray<id<MTLBuffer>> *inputs,
-        const NSUInteger *offsets,
+        const void *targetBytes,
+        NSUInteger targetByteLength,
+        NSUInteger targetBindingOffset,
         const uint64_t *scanControl,
         const SynaptikMetalScanStepControl *scanStep) {
     if (m == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
@@ -241,24 +244,19 @@ static int32_t synaptik_normalization_preflight(
     if (scanControl != NULL && m->reduction != 0U && scanStep->rowAxis >= 0)
         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
     uint64_t width = m->indexType == 2U ? 4U : 8U;
-    const uint8_t *targetBytes = NULL;
+    const uint8_t *boundTargetBytes = NULL;
     NSUInteger available = 0U;
     for (uint64_t row = 0U; row < rows; row++) {
         // CE NONE output coordinates are precisely the target's nonclass shape.
         // Reduced CE is SHARED, so its eligibility is the same for every row.
         if (scanControl != NULL && !synaptik_scan_control_output(
                 scanControl, scanStep, m->reduction == 0U ? row : 0U)) continue;
-        if (targetBytes == NULL) {
-            if (inputs == nil || inputs.count < 2U || offsets == NULL)
-                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-            id<MTLBuffer> target = inputs[1];
-            const void *contents = target.contents;
-            if (target == nil || contents == NULL)
-                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-            NSUInteger length = target.length;
-            if (offsets[1] > length) return SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS;
-            targetBytes = (const uint8_t *)contents + offsets[1];
-            available = length-offsets[1];
+        if (boundTargetBytes == NULL) {
+            if (targetBytes == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            if (targetBindingOffset > targetByteLength)
+                return SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS;
+            boundTargetBytes = (const uint8_t *)targetBytes + targetBindingOffset;
+            available = targetByteLength-targetBindingOffset;
         }
         uint64_t remaining = row, address = m->views[1].offset;
         for (uint32_t axis = m->rank; axis-- > 0U;) {
@@ -278,7 +276,7 @@ static int32_t synaptik_normalization_preflight(
         NSUInteger byteAddress = (NSUInteger)(address*width);
         if (byteAddress > available || width > available-byteAddress)
             return SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS;
-        const uint8_t *bytes = targetBytes + byteAddress;
+        const uint8_t *bytes = boundTargetBytes + byteAddress;
         int64_t selected;
         if (m->indexType == 2U) {
             int32_t narrow;
@@ -291,6 +289,25 @@ static int32_t synaptik_normalization_preflight(
             return SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS;
     }
     return SYNAPTIK_METAL_STATUS_OK;
+}
+
+/**
+ * Role-buffer adapter for prepared callers that already own an ordered input
+ * NSArray. Raw execution uses the target-byte core directly without allocating
+ * a transient role array. Both entries share exactly one logical index mapping.
+ */
+static int32_t synaptik_normalization_preflight(
+        const SynaptikNormalizationLossMeta *m,
+        NSArray<id<MTLBuffer>> *inputs,
+        const NSUInteger *offsets,
+        const uint64_t *scanControl,
+        const SynaptikMetalScanStepControl *scanStep) {
+    if (m == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+    if (m->mode != 87U) return SYNAPTIK_METAL_STATUS_OK;
+    id<MTLBuffer> target = inputs.count > 1U ? inputs[1] : nil;
+    return synaptik_normalization_preflight_target(
+            m, offsets != NULL ? target.contents : NULL, target.length,
+            offsets != NULL ? offsets[1] : 0U, scanControl, scanStep);
 }
 
 #endif
