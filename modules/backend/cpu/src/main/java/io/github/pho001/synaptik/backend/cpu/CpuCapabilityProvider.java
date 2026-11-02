@@ -122,15 +122,16 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSpatialWindowG
  * descriptor has a resolved layout, and results obey the
  * Model family's shape rule. The provider also admits the exact one-input, one-output, fully
  * static and resolved-layout occurrences of {@code CONTIGUOUS}, {@code RESHAPE}, {@code EXPAND},
- * {@code PERMUTE}, {@code EXPAND_DIMS}, {@code SQUEEZE}, scalar {@code SELECT}, and positive-step
+ * {@code PERMUTE}, {@code EXPAND_DIMS}, {@code SQUEEZE}, scalar {@code SELECT}, and signed-step
  * {@code SLICE}, including target-relative crop attributes. These affine rows preserve one data
- * type and their exact inferred view. A static noncontiguous-input RESHAPE may instead produce
- * the canonical non-view logical value selected by final Compiler closure; its source ordinal
- * addressing remains unchanged. The provider also
- * admits one fully static, resolved-layout {@code PAD}, {@code TILE}, {@code CONCAT}, or
- * {@code STACK} occurrence for all seven represented data types. Movement inputs preserve their
- * exact semantic occurrence order, the output layout must be injective, and composition is
- * bounded to one through sixteen occurrences. The same movement route admits one
+ * type and their exact inferred view, except that a negative-step slice materializes canonical
+ * non-view storage rather than introducing negative physical strides. A static noncontiguous-input
+ * RESHAPE may also produce the canonical non-view logical value selected by final Compiler closure;
+ * its source ordinal addressing remains unchanged. The provider also admits one fully static,
+ * resolved-layout {@code PAD}, {@code TILE}, {@code CONCAT}, or {@code STACK} occurrence for all
+ * seven represented data types. Movement inputs preserve their exact semantic occurrence order,
+ * the output layout must be injective, and composition obeys checked entry and generated-code budgets.
+ * The same movement route admits one
  * {@code UNFOLD_AXIS} occurrence for all seven represented types or one floating
  * {@code UNFOLD2D} or {@code UNFOLD3D} occurrence with direct positive-zero or exact typed padding. Both window
  * forms require their exact static result geometry and one distinct injective output. A separate
@@ -284,7 +285,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * require one input, one output, the same data type, fully static Shapes, resolved layouts,
      * and their exact current attributes and descriptor relationship. Admitted movement
      * operations additionally require exact static PAD/TILE/composition/window/slice-update shape
-     * relationships, an injective result layout, and at most sixteen composition occurrences.
+     * relationships, an injective result layout, and checked composition entry/code budgets.
      * General-axis unfold admits every represented type; NCHW two-dimensional unfold admits every
      * floating type with exact matching padding type. Indexing rows additionally require
      * INT32/INT64 indices and their exact current Shape
@@ -1336,7 +1337,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
 
     private static boolean supportsMovement(OperationCapabilityQuery query,
             TensorDescriptor output) {
-        if (query.inputs().isEmpty() || query.inputs().size() > 16
+        if (!io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr
+                    .withinCompositionBudget(query.inputs().size(), output.shape().rank())
                 || !injective(output.shape().toLongArray(),
                     output.layout().orElseThrow().strides())) return false;
         if (query.inputs().stream().anyMatch(input -> input.dataType() != output.dataType())) {
@@ -1619,16 +1621,25 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             long[] shape = input.shape().toLongArray();
             long[] strides = inputLayout.strides();
             long offset = inputLayout.storageOffset();
+            boolean materialized = attrs instanceof SliceAttrs signed
+                    && signed.steps().stream().anyMatch(step -> step < 0);
             if (attrs instanceof SliceAttrs slice) {
                 for (int i = 0; i < slice.axes().size(); i++) {
                     int axis = slice.axes().get(i); long step = slice.steps().get(i);
-                    if (axis >= shape.length || step <= 0) return false;
+                    if (axis >= shape.length) return false;
                     long length = slice.lengths().get(i);
-                    if (length > 0 && Math.addExact(slice.starts().get(i),
-                            Math.multiplyExact(length - 1, step)) >= shape[axis]) return false;
+                    if (length > 0) {
+                        long last = Math.addExact(slice.starts().get(i),
+                                Math.multiplyExact(length - 1, step));
+                        if (slice.starts().get(i) >= shape[axis] || last < 0 || last >= shape[axis])
+                            return false;
+                    }
                     shape[axis] = length;
-                    offset = Math.addExact(offset, Math.multiplyExact(slice.starts().get(i), strides[axis]));
-                    strides[axis] = Math.multiplyExact(strides[axis], step);
+                    if (!materialized) {
+                        offset = Math.addExact(offset,
+                                Math.multiplyExact(slice.starts().get(i), strides[axis]));
+                        strides[axis] = Math.multiplyExact(strides[axis], step);
+                    }
                 }
             } else if (attrs instanceof CropToShapeAttrs crop) {
                 if (!crop.targetShape().isFullyStatic() || !crop.prefixShape().isFullyStatic()
@@ -1643,6 +1654,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                 shape = target;
             } else return false;
             if (!java.util.Arrays.equals(shape, output.shape().toLongArray())) return false;
+            if (materialized) return output.layout().orElseThrow()
+                    .equals(LayoutDescriptor.contiguous(output.shape()));
             expected = LayoutDescriptor.of(output.shape(), strides, offset, true);
             return output.layout().orElseThrow().equals(expected);
         }

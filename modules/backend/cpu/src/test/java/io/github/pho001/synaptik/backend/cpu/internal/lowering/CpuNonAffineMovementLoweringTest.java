@@ -197,7 +197,7 @@ public class CpuNonAffineMovementLoweringTest {
                         () -> new CpuNonAffineMovementLowering().lower(fold)));
     }
 
-    @Test void acceptsOneAndSixteenCompositionOccurrencesAndRejectsSeventeen() {
+    @Test void acceptsLegacyAndLargerCompositionOccurrences() {
         var input = descriptor(DataType.INT32, Shape.of(1));
         var one = context(new Operation(TensorCompositionKind.CONCAT,
                         new CompositionAxisAttrs(0)), List.of(0), List.of(input),
@@ -215,8 +215,8 @@ public class CpuNonAffineMovementLoweringTest {
                         .portableKernelIr()).plan().occurrenceToBoundary()),
                 () -> assertEquals(sixteenOccurrences, ((CpuDataMovementIr) lower(sixteen)
                         .portableKernelIr()).plan().occurrenceToBoundary()),
-                () -> assertThrows(IllegalArgumentException.class,
-                        () -> new CpuPartitionLowering().lower(seventeen)));
+                () -> assertEquals(seventeenOccurrences, ((CpuDataMovementIr) lower(seventeen)
+                        .portableKernelIr()).plan().occurrenceToBoundary()));
     }
 
     private static CpuPartitionLowering.LoweredPartition lower(

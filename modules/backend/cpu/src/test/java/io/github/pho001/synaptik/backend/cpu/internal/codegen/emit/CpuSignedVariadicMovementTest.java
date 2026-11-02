@@ -1,0 +1,326 @@
+package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
+import io.github.pho001.synaptik.backend.cpu.CpuGeneralScanCapabilityTest;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
+import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuTypedEmptyScanConsumerTest.Consumer;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
+import io.github.pho001.synaptik.compiler.FunctionalGradientRequest;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.tensor.Scan;
+import io.github.pho001.synaptik.model.tensor.ScanBody;
+import io.github.pho001.synaptik.model.operation.layout.*;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.util.*;
+import java.util.stream.IntStream;
+import org.junit.jupiter.api.Test;
+
+/** Behavioral represented-bit and actual-Compiler-adjoint closure of signed/variadic movement. */
+class CpuSignedVariadicMovementTest {
+    @Test void signedExtractionMaterializesEveryRawTypeFromStridedSources() throws Throwable {
+        for (var type : DataType.values()) try (var arena = Arena.ofConfined()) {
+            Shape source = Shape.of(2, 5), target = Shape.of(2, 3);
+            var input = CpuNonAffineMovementLoweringTest.descriptor(type, source,
+                    LayoutDescriptor.of(source, new long[]{13, 2}, 1, true));
+            var output = CpuNonAffineMovementLoweringTest.descriptor(type, target);
+            var context = CpuNonAffineMovementLoweringTest.context(new Operation(SliceKind.SLICE,
+                    new SliceAttrs(List.of(1L, 4L), List.of(2L, 3L), List.of(0, 1),
+                            List.of(-1L, -2L))), List.of(0), List.of(input), output);
+            var in = arena.allocate(23L * type.byteWidth(), type.byteWidth());
+            var out = arena.allocate(6L * type.byteWidth(), type.byteWidth());
+            for (int i = 0; i < 23; i++) put(type, in, i, pattern(type, i));
+            byte[] before = in.toArray(ValueLayout.JAVA_BYTE);
+            out.fill((byte) 0x55);
+            invoke(context, List.of(in, out), 0, 2);
+            invoke(context, List.of(in, out), 2, 6);
+            for (int row = 0; row < 2; row++) for (int col = 0; col < 3; col++)
+                assertEquals(get(type, in, 1 + (1-row)*13 + (4-2*col)*2),
+                        get(type, out, row*3+col), type.toString());
+            assertArrayEquals(before, in.toArray(ValueLayout.JAVA_BYTE));
+            assertEquals(LayoutDescriptor.contiguous(target), output.layout().orElseThrow());
+        }
+    }
+
+    @Test void signedEmptyAndSingletonDoNotInventNegativeStorageOrOverflow() throws Throwable {
+        for (long length : new long[]{0, 1}) {
+            var context = CpuNonAffineMovementLoweringTest.context(new Operation(SliceKind.SLICE,
+                    new SliceAttrs(List.of(0L), List.of(length), List.of(0), List.of(Long.MIN_VALUE))),
+                    List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(DataType.INT64, Shape.of(1))),
+                    CpuNonAffineMovementLoweringTest.descriptor(DataType.INT64, Shape.of(length)));
+            long[] in = {Long.MIN_VALUE}, out = new long[(int) length];
+            invoke(context, List.of(MemorySegment.ofArray(in), MemorySegment.ofArray(out)), 0, length);
+            if (length != 0) assertEquals(Long.MIN_VALUE, out[0]);
+        }
+    }
+
+    @Test void variadicConcatAndStackWriteEveryOccurrenceAcrossAxesAndRawCarriers() throws Throwable {
+        for (var type : DataType.values()) for (var kind : TensorCompositionKind.values())
+            for (int axis = 0; axis < (kind == TensorCompositionKind.STACK ? 3 : 2); axis++)
+                for (boolean repeated : List.of(false, true)) try (var arena = Arena.ofConfined()) {
+                    int count = 17;
+                    var descriptors = new ArrayList<TensorDescriptor>();
+                    var carriers = new ArrayList<Object>();
+                    int unique = repeated ? 2 : count;
+                    Shape shape = Shape.of(2, 1);
+                    for (int i = 0; i < unique; i++) {
+                        descriptors.add(CpuNonAffineMovementLoweringTest.descriptor(type, shape,
+                                LayoutDescriptor.of(shape, new long[]{3, 1}, 1, true)));
+                        var storage = arena.allocate(5L * type.byteWidth(), type.byteWidth());
+                        put(type, storage, 1, pattern(type, i));
+                        put(type, storage, 4, pattern(type, i+37));
+                        carriers.add(storage);
+                    }
+                    var map = IntStream.range(0, count).map(i -> repeated ? i % 2 : i).boxed().toList();
+                    long[] extents = kind == TensorCompositionKind.STACK
+                            ? axis == 0 ? new long[]{count, 2, 1}
+                              : axis == 1 ? new long[]{2, count, 1} : new long[]{2, 1, count}
+                            : axis == 0 ? new long[]{2L*count, 1} : new long[]{2, count};
+                    var context = CpuNonAffineMovementLoweringTest.context(new Operation(kind,
+                            new CompositionAxisAttrs(axis)), map, descriptors,
+                            CpuNonAffineMovementLoweringTest.descriptor(type, Shape.of(extents)));
+                    var out = arena.allocate(2L * count * type.byteWidth(), type.byteWidth());
+                    carriers.add(out);
+                    invoke(context, carriers, 0, 11);
+                    invoke(context, carriers, 11, 2L*count);
+                    for (int occurrence = 0; occurrence < count; occurrence++) for (int row = 0; row < 2; row++) {
+                        int logical = axis == 0 ? occurrence*2+row : row*count+occurrence;
+                        assertEquals(get(type, (MemorySegment) carriers.get(map.get(occurrence)), 1+row*3),
+                                get(type, out, logical), type + " " + kind + " axis=" + axis);
+                    }
+                }
+    }
+
+    @Test void variadicEmptySourcesAndLargerCheckedEntryExecuteWithoutRecursiveCopies() throws Throwable {
+        for (var kind : TensorCompositionKind.values()) {
+            int count = 80;
+            var inputs = Collections.nCopies(count,
+                    CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(1)));
+            var context = CpuNonAffineMovementLoweringTest.context(new Operation(kind, new CompositionAxisAttrs(0)),
+                    IntStream.range(0, count).boxed().toList(), inputs,
+                    CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32,
+                            kind == TensorCompositionKind.STACK ? Shape.of(count, 1) : Shape.of(count)));
+            var carriers = new ArrayList<Object>();
+            for (int i = 0; i < count; i++) carriers.add(MemorySegment.ofArray(new int[]{i*7}));
+            int[] output = new int[count]; carriers.add(MemorySegment.ofArray(output));
+            invoke(context, carriers, 0, count);
+            assertArrayEquals(IntStream.range(0, count).map(i -> i*7).toArray(), output);
+        }
+        var empty = CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2, 0));
+        var context = CpuNonAffineMovementLoweringTest.context(new Operation(TensorCompositionKind.CONCAT,
+                new CompositionAxisAttrs(1)), Collections.nCopies(33, 0), List.of(empty), empty);
+        invoke(context, List.of(MemorySegment.ofArray(new int[0]), MemorySegment.ofArray(new int[0])), 0, 0);
+        var mixed = CpuNonAffineMovementLoweringTest.context(new Operation(TensorCompositionKind.CONCAT,
+                new CompositionAxisAttrs(1)), IntStream.range(0, 17).map(i -> i % 2).boxed().toList(),
+                List.of(empty, CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2, 1))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2, 8)));
+        int[] mixedOutput = new int[16];
+        invoke(mixed, List.of(MemorySegment.ofArray(new int[0]), MemorySegment.ofArray(new int[]{3, 7}),
+                MemorySegment.ofArray(mixedOutput)), 0, 16);
+        assertArrayEquals(new int[]{3,3,3,3,3,3,3,3,7,7,7,7,7,7,7,7}, mixedOutput);
+        var tooMany = CpuNonAffineMovementLoweringTest.context(new Operation(TensorCompositionKind.CONCAT,
+                new CompositionAxisAttrs(0)), Collections.nCopies(249, 0),
+                List.of(CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(1))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(249)));
+        assertThrows(IllegalArgumentException.class, () -> new CpuPartitionPreparer().analyze(tooMany));
+        assertFalse(CpuDataMovementIr.withinCompositionBudget(17, 100));
+    }
+
+    @Test void actualSliceAndSliceUpdateAdjointsScatterAndExtractNormalizedCoordinates() {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64)) for (boolean update : List.of(false, true)) {
+            Tensor base = tensor(type, true, 2, 5), replacement = tensor(type, true, 2, 3);
+            Tensor output = update ? base.sliceUpdate(replacement, new long[]{4}, new int[]{1}, new long[]{-2})
+                    : base.sliceByLength(new long[]{4}, new long[]{3}, new int[]{1}, new long[]{-2});
+            Tensor seed = tensor(type, false, output.descriptor().shape().toLongArray());
+            var targets = update ? List.of(base, replacement) : List.of(base);
+            var artifact = compile(output, seed, targets);
+            try (var consumer = new Consumer(artifact, OptionalLong.empty())) {
+                double[] x = IntStream.range(0, 10).mapToDouble(i -> i+1).toArray();
+                double[] u = IntStream.range(0, 6).mapToDouble(i -> i+21).toArray();
+                double[] s = IntStream.range(0, update ? 10 : 6).mapToDouble(i -> i+2).toArray();
+                consumer.numbers(base, x); if (update) consumer.numbers(replacement, u); consumer.numbers(seed, s);
+                consumer.bind(); consumer.execute();
+                double[] expected = update ? x.clone() : new double[6], dx = new double[10], du = new double[6];
+                if (update) System.arraycopy(s, 0, dx, 0, dx.length);
+                for (int row = 0; row < 2; row++) for (int col = 0; col < 3; col++) {
+                    int selected = row*5+4-col*2, ordinal = row*3+col;
+                    if (update) { expected[selected] = u[ordinal]; dx[selected] = 0; du[ordinal] = s[selected]; }
+                    else { expected[ordinal] = x[selected]; dx[selected] = s[ordinal]; }
+                }
+                assertArrayEquals(expected, consumer.forward(0), 0);
+                assertArrayEquals(dx, consumer.gradient(0), 0);
+                if (update) assertArrayEquals(du, consumer.gradient(1), 0);
+            }
+        }
+    }
+
+    @Test void actualVariadicCompositionAdjointsAccumulateRepeatedInputIdentities() {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (var kind : TensorCompositionKind.values()) {
+                Tensor a = tensor(type, true, 2, 1), b = tensor(type, true, 2, 1);
+                Tensor[] occurrences = IntStream.range(0, 17).mapToObj(i -> i % 2 == 0 ? a : b)
+                        .toArray(Tensor[]::new);
+                Tensor output = kind == TensorCompositionKind.CONCAT
+                        ? Tensor.concat(1, occurrences) : Tensor.stack(1, occurrences);
+                Tensor seed = tensor(type, false, output.descriptor().shape().toLongArray());
+                var artifact = compile(output, seed, List.of(a, b));
+                try (var consumer = new Consumer(artifact, OptionalLong.empty())) {
+                    consumer.numbers(a, new double[]{3, 7}); consumer.numbers(b, new double[]{5, 11});
+                    double[] s = IntStream.range(0, 34).mapToDouble(i -> i+1).toArray();
+                    consumer.numbers(seed, s); consumer.bind(); consumer.execute();
+                    double[] expected = new double[34], da = new double[2], db = new double[2];
+                    for (int row = 0; row < 2; row++) for (int i = 0; i < 17; i++) {
+                        expected[row*17+i] = i % 2 == 0 ? row == 0 ? 3 : 7 : row == 0 ? 5 : 11;
+                        if (i % 2 == 0) da[row] += s[row*17+i]; else db[row] += s[row*17+i];
+                    }
+                    assertArrayEquals(expected, consumer.forward(0), 0);
+                    assertArrayEquals(da, consumer.gradient(0), 0);
+                    assertArrayEquals(db, consumer.gradient(1), 0);
+                }
+            }
+    }
+
+    @Test void qualifiedScanUsesTheSameSignedUpdateAndActualAdjointsInBothTraversals() {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (boolean reverse : List.of(false, true)) for (boolean lengthMode : List.of(false, true)) {
+                Tensor base = tensor(type, true, 2, 5), update = tensor(type, true, 2, 3);
+                Tensor result = base.sliceUpdate(update, new long[]{4}, new int[]{1}, new long[]{-2});
+                var body = new ScanBody(List.of(), List.of(base, update), List.of(), List.of(), List.of(result));
+                Tensor xs = tensor(type, true, 3, 2, 5), us = tensor(type, true, 3, 2, 3);
+                Tensor lengths = tensor(DataType.INT64, false, 2), seed = tensor(type, false, 3, 2, 5);
+                var scan = lengthMode ? Scan.apply(List.of(), List.of(xs, us), List.of(), lengths, 0,
+                        List.of(OptionalInt.of(0)), body, reverse)
+                        : Scan.apply(List.of(), List.of(xs, us), List.of(), body, reverse);
+                var artifact = compile(scan.outputs().getFirst(), seed, List.of(xs, us));
+                try (var consumer = new Consumer(artifact, OptionalLong.empty())) {
+                    double[] x = IntStream.range(0, 30).mapToDouble(i -> i+1).toArray();
+                    double[] u = IntStream.range(0, 18).mapToDouble(i -> i+51).toArray();
+                    double[] s = IntStream.range(0, 30).mapToDouble(i -> i+2).toArray();
+                    consumer.numbers(xs, x); consumer.numbers(us, u); consumer.numbers(seed, s);
+                    if (lengthMode) consumer.raw(lengths, new long[]{3, 1});
+                    consumer.bind(); consumer.execute();
+                    double[] expected = new double[30], dx = new double[30], du = new double[18];
+                    for (int t = 0; t < 3; t++) for (int row = 0; row < 2; row++)
+                        if (!lengthMode || row == 0 || t == 0) {
+                            for (int col = 0; col < 5; col++) { int i = (t*2+row)*5+col; expected[i] = x[i]; dx[i] = s[i]; }
+                            for (int col = 0; col < 3; col++) {
+                                int i = (t*2+row)*5+4-col*2, j = (t*2+row)*3+col;
+                                expected[i] = u[j]; dx[i] = 0; du[j] = s[i];
+                            }
+                        }
+                    assertArrayEquals(expected, consumer.forward(0), 0);
+                    assertArrayEquals(dx, consumer.gradient(0), 0);
+                    assertArrayEquals(du, consumer.gradient(1), 0);
+                }
+            }
+    }
+
+    private static io.github.pho001.synaptik.compiler.CompileArtifacts compile(Tensor output, Tensor seed, List<Tensor> targets) {
+        var request = new FunctionalGradientRequest(List.of(new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.ForwardTensorReference(output)), List.of(Optional.of(seed)),
+                targets, false, FunctionalGradientRequest.DisconnectedPolicy.ERROR)));
+        return CpuGeneralScanCapabilityTest.compile(List.of(output), Optional.of(request), false, new CpuCapabilityProvider());
+    }
+
+    private static Tensor tensor(DataType type, boolean grad, long... shape) {
+        Shape dimensions = Shape.of(shape);
+        return TensorFactory.create(new TensorDescriptor(type, dimensions,
+                Optional.of(LayoutDescriptor.contiguous(dimensions)), grad));
+    }
+
+    private static void invoke(PrepareContext<CpuPartitionAnalysisInputs> context, List<Object> carriers,
+            long start, long end) throws Throwable {
+        var heapCarriers = new ArrayList<Object>();
+        var pattern = new ArrayList<CarrierAccess>();
+        for (int i = 0; i < carriers.size(); i++) {
+            var type = context.values().get(i).descriptor().dataType();
+            var segment = (MemorySegment) carriers.get(i);
+            heapCarriers.add(switch (type) {
+                case FLOAT64 -> segment.toArray(ValueLayout.JAVA_DOUBLE);
+                case FLOAT32 -> segment.toArray(ValueLayout.JAVA_FLOAT);
+                case BFLOAT16, FLOAT16 -> segment.toArray(ValueLayout.JAVA_SHORT);
+                case INT32 -> segment.toArray(ValueLayout.JAVA_INT);
+                case INT64 -> segment.toArray(ValueLayout.JAVA_LONG);
+                case BOOL -> segment.toArray(ValueLayout.JAVA_BYTE);
+            });
+            pattern.add(switch (type) {
+                case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY;
+                case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
+                case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY;
+                case INT32 -> CarrierAccess.INT_ARRAY;
+                case INT64 -> CarrierAccess.LONG_ARRAY;
+                case BOOL -> CarrierAccess.BYTE_ARRAY;
+            });
+        }
+        invokeGenerated(context, carriers, start, end);
+        var heapContext = new PrepareContext<>(context.partition(), context.nodes(), context.values(),
+                context.memoryRequirements(), context.constants(), new CpuPartitionAnalysisInputs(false, pattern));
+        invokeGenerated(heapContext, heapCarriers, start, end);
+        MemorySegment heapOutput = switch (heapCarriers.getLast()) {
+            case double[] a -> MemorySegment.ofArray(a); case float[] a -> MemorySegment.ofArray(a);
+            case short[] a -> MemorySegment.ofArray(a); case int[] a -> MemorySegment.ofArray(a);
+            case long[] a -> MemorySegment.ofArray(a); case byte[] a -> MemorySegment.ofArray(a);
+            default -> throw new AssertionError("unexpected heap carrier");
+        };
+        assertArrayEquals(((MemorySegment) carriers.getLast()).toArray(ValueLayout.JAVA_BYTE),
+                heapOutput.toArray(ValueLayout.JAVA_BYTE));
+    }
+
+    private static void invokeGenerated(PrepareContext<CpuPartitionAnalysisInputs> context,
+            List<Object> carriers, long start, long end) throws Throwable {
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var generator = new CpuClassFileKernelGenerator();
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(),
+                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var arguments = new ArrayList<>(carriers);
+        arguments.add(plan.movementGeometry().isPresent()
+                ? plan.movementGeometry().orElseThrow().pack(new long[carriers.size()], start, end)
+                : plan.affineAddressPairs());
+        arguments.add(start); arguments.add(end);
+        artifact.entryPoint().invokeWithArguments(arguments);
+    }
+
+    private static long pattern(DataType type, int i) {
+        return switch (type) {
+            case FLOAT64 -> switch (i % 4) { case 0 -> Long.MIN_VALUE; case 1 -> 0x7ff8_0000_0000_0042L+i; case 2 -> 1; default -> 0x3ff0_0000_0000_0000L+i; };
+            case FLOAT32 -> switch (i % 4) { case 0 -> 0x8000_0000L; case 1 -> 0x7fc0_0042L+i; case 2 -> 1; default -> 0x3f80_0000L+i; };
+            case BFLOAT16 -> (i % 2 == 0 ? 0x8000L : 0x7fc0L+i) & 0xffffL;
+            case FLOAT16 -> (i % 2 == 0 ? 0x8000L : 0x7e00L+i) & 0xffffL;
+            case INT64 -> Long.MIN_VALUE+i;
+            case INT32 -> Integer.toUnsignedLong(Integer.MIN_VALUE+i);
+            case BOOL -> i & 1;
+        };
+    }
+    private static void put(DataType type, MemorySegment segment, long index, long bits) {
+        switch (type.byteWidth()) {
+            case 1 -> segment.setAtIndex(ValueLayout.JAVA_BYTE, index, (byte) bits);
+            case 2 -> segment.setAtIndex(ValueLayout.JAVA_SHORT, index, (short) bits);
+            case 4 -> segment.setAtIndex(ValueLayout.JAVA_INT, index, (int) bits);
+            case 8 -> segment.setAtIndex(ValueLayout.JAVA_LONG, index, bits);
+            default -> throw new AssertionError(type);
+        }
+    }
+    private static long get(DataType type, MemorySegment segment, long index) {
+        return switch (type.byteWidth()) {
+            case 1 -> Byte.toUnsignedLong(segment.getAtIndex(ValueLayout.JAVA_BYTE, index));
+            case 2 -> Short.toUnsignedLong(segment.getAtIndex(ValueLayout.JAVA_SHORT, index));
+            case 4 -> Integer.toUnsignedLong(segment.getAtIndex(ValueLayout.JAVA_INT, index));
+            case 8 -> segment.getAtIndex(ValueLayout.JAVA_LONG, index);
+            default -> throw new AssertionError(type);
+        };
+    }
+}

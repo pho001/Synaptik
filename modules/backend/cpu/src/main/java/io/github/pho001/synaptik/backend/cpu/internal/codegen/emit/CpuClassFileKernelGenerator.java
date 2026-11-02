@@ -2293,7 +2293,7 @@ public final class CpuClassFileKernelGenerator {
             boolean affine = kernelIr.familyIdentity().startsWith("affine:");
             if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d && !matmul && !pool2d && !pool3d && !attention && !loss)
                     || affine && kernelIr.values().size() != 2
-                    || movement && (kernelIr.values().size() < 2 || kernelIr.values().size() > 17)
+                    || movement && (kernelIr.values().size() < 2 || kernelIr.values().size() + 6 > 254)
                     || !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d && !matmul && !pool2d && !pool3d && !attention && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
                         .anyMatch(value -> value.kind() != CpuKernelIr.Value.Kind.INPUT)
                     || kernelIr.values().getLast().kind() != CpuKernelIr.Value.Kind.OUTPUT

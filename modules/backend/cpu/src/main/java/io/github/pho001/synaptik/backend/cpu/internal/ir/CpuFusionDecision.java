@@ -225,7 +225,11 @@ public sealed interface CpuFusionDecision permits CpuFusionDecision.LegalCandida
      * @param units one through eight units in stable topological order; copied defensively
      */
     record CandidateIdentity(List<UnitIdentity> units) {
-        /** Validates and snapshots a complete candidate identity. */
+        /**
+         * Validates and snapshots a complete candidate identity. One indivisible single-node
+         * unit may retain variadic movement boundaries up to the checked generated entry budget;
+         * multi-unit and contractible fusion candidates retain the original resource ceilings.
+         */
         public CandidateIdentity {
             units = List.copyOf(units);
             if (units.isEmpty() || units.size() > 8 || units.stream().anyMatch(Objects::isNull)) {
@@ -241,8 +245,11 @@ public sealed interface CpuFusionDecision permits CpuFusionDecision.LegalCandida
             var members = new java.util.BitSet();
             int boundaryPositions = 0;
             int workspaceFacts = 0;
+            boolean singleOccurrence = units.size() == 1
+                    && units.getFirst().topology() == UnitTopology.INDIVISIBLE
+                    && units.getFirst().memberNodePositions().size() == 1;
             for (UnitIdentity unit : units) {
-                if (unit.boundaries().size() > 16) throw new IllegalArgumentException(
+                if (unit.boundaries().size() > (singleOccurrence ? 249 : 16)) throw new IllegalArgumentException(
                         "CPU candidate unit boundary facts exceed the hard ceiling");
                 for (int member : unit.memberNodePositions()) {
                     if (member >= 8 || members.get(member)) throw new IllegalArgumentException(
@@ -252,7 +259,8 @@ public sealed interface CpuFusionDecision permits CpuFusionDecision.LegalCandida
                 boundaryPositions = Math.addExact(boundaryPositions, unit.boundaries().size());
                 if (unit.workspace().isPresent()) workspaceFacts++;
             }
-            if (members.nextClearBit(0) != members.length() || boundaryPositions > 64
+            if (members.nextClearBit(0) != members.length()
+                    || boundaryPositions > (singleOccurrence ? 249 : 64)
                     || workspaceFacts > 8) {
                 throw new IllegalArgumentException(
                         "CPU candidate coverage or resource facts exceed their ceiling");
@@ -287,7 +295,8 @@ public sealed interface CpuFusionDecision permits CpuFusionDecision.LegalCandida
      * Complete resource, hard-budget, and profitability inputs retained for one legal candidate.
      *
      * @param unitCount one through eight final units
-     * @param materializedBoundaryPositions at most 64 ordered positions
+     * @param materializedBoundaryPositions at most 64 ordered positions, or at most 249 for
+     *     one indivisible non-pointwise unit whose identity independently proves one node
      * @param workspaceFacts at most eight workspaces
      * @param crossUnitMaterializedBytes checked total cross-unit referenced bytes
      * @param maximumGeneratedCodeSizeUnits maximum pointwise code-size units
@@ -299,10 +308,11 @@ public sealed interface CpuFusionDecision permits CpuFusionDecision.LegalCandida
             long crossUnitMaterializedBytes, int maximumGeneratedCodeSizeUnits,
             int maximumSimultaneouslyLiveValues, int pointwiseUnitCount,
             int indivisibleNonPointwiseUnitCount) {
-        /** Validates all bounded complete-candidate facts. */
+        /** Validates bounded facts, retaining the single-indivisible-unit variadic entry exception. */
         public CandidateFacts {
             if (unitCount < 1 || unitCount > 8 || materializedBoundaryPositions < 0
-                    || materializedBoundaryPositions > 64 || workspaceFacts < 0
+                    || materializedBoundaryPositions > (unitCount == 1
+                        && indivisibleNonPointwiseUnitCount == 1 ? 249 : 64) || workspaceFacts < 0
                     || workspaceFacts > 8 || crossUnitMaterializedBytes < 0
                     || maximumGeneratedCodeSizeUnits < 0
                     || maximumSimultaneouslyLiveValues < 0 || pointwiseUnitCount < 0

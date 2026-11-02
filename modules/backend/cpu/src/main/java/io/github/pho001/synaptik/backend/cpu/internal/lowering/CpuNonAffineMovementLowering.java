@@ -53,6 +53,10 @@ import java.util.Optional;
  * mapping has the semantic effect of copying the base and replacing selected positions while
  * leaving both inputs unchanged.</p>
  *
+ * <p>Variadic composition uses the shared checked entry/code budget rather than a fixed
+ * sixteen-input semantic guard. Each source occurrence selects directly into the one output
+ * traversal; repeated identities share a read boundary without recursive graphs or staging copies.</p>
+ *
  * <p>Canonical single-named-B occurrences use {@link #lowerBatch(PrepareContext)}. Their
  * original shape relationships are proved structurally and their numeric geometry is resolved
  * once at cold binding, without sampling B or rebuilding a semantic graph.</p>
@@ -101,8 +105,8 @@ public final class CpuNonAffineMovementLowering {
             occurrences.add(input);
             occurrenceMap.add(unique.computeIfAbsent(inputId, ignored -> unique.size()));
         }
-        if (occurrences.isEmpty() || occurrences.size() > 16) {
-            throw new IllegalArgumentException("movement requires one through sixteen inputs");
+        if (!CpuDataMovementIr.withinCompositionBudget(occurrences.size(), outputExtents.length)) {
+            throw new IllegalArgumentException("movement entry/code budget exceeded");
         }
 
         Object kind = node.operation().kind();
@@ -399,10 +403,12 @@ public final class CpuNonAffineMovementLowering {
         var batchDimension = CpuPartitionLowering.requireBatchContext(context);
         if (context.nodes().size() != 1) throw invalidBatch();
         var node = context.nodes().getFirst();
-        if (node.outputs().size() != 1 || node.inputs().isEmpty() || node.inputs().size() > 16)
-            throw invalidBatch();
+        if (node.outputs().size() != 1 || node.inputs().isEmpty()) throw invalidBatch();
         Map<ValueId, GraphValue> values = new LinkedHashMap<>();
         context.values().forEach(v -> values.put(v.id(), v));
+        if (!CpuDataMovementIr.withinCompositionBudget(node.inputs().size(),
+                require(values, node.outputs().getFirst()).descriptor().shape().rank()))
+            throw invalidBatch();
         var unique = new LinkedHashMap<ValueId, Integer>();
         var map = new ArrayList<Integer>();
         for (var id : node.inputs()) map.add(unique.computeIfAbsent(id, ignored -> unique.size()));
@@ -681,12 +687,10 @@ public final class CpuNonAffineMovementLowering {
     }
 
     private static void validateInjective(long[] extents, long[] strides) {
-            if (!CpuOutputInjectivity.isInjective(extents, strides)) {
-                throw new IllegalArgumentException("output layout injectivity is unproved");
-            }
+        if (!CpuOutputInjectivity.isInjective(extents, strides)) {
+            throw new IllegalArgumentException("output layout injectivity is unproved");
         }
-
-    
+    }
 
     /**
      * Compact immutable cold geometry for one movement occurrence.
@@ -1076,7 +1080,7 @@ public final class CpuNonAffineMovementLowering {
             inputs = List.copyOf(inputs);
             Objects.requireNonNull(variant, "variant");
             if (outputOffset < 0 || outputExtents.length != outputStrides.length
-                    || inputs.isEmpty() || inputs.size() > 16) {
+                    || !CpuDataMovementIr.withinCompositionBudget(inputs.size(), outputExtents.length)) {
                 throw new IllegalArgumentException("movement geometry is inconsistent");
             }
         }

@@ -27,6 +27,11 @@ import java.util.*;
  * distinct-address write domain only when every repeated logical coordinate selects the same
  * represented source value.</p>
  *
+ * <p>Signed-step slices reverse-map normalized logical coordinates into the original non-negative
+ * physical layout. Negative steps materialize canonical storage; they never become storage strides.
+ * The same coordinate recipe is used by ordinary copies and qualified Scan body copies, including
+ * the Compiler's existing slice-update pullbacks.</p>
+ *
  * <p>Symbolic Scan helpers retain only numeric extent/stride coefficients and coordinate
  * recipes. Invocation binding composes the ordinary address-pair copy once for the actual batch,
  * including noncontiguous reshape materialization and compatible repeated output addresses.
@@ -310,8 +315,10 @@ public final class CpuAffineLayoutLowering {
             } else if (step.kind() == CpuAffineCopyIr.MappingKind.SLICE) {
                 for (int i = 0; i < step.axes().size(); i++) {
                     int axis = step.axes().get(i);
-                    if (scales.get(i) <= 0 || output[axis] != 0 && Math.addExact(starts[i],
-                            Math.multiplyExact(output[axis] - 1, scales.get(i))) >= input[axis])
+                    long last = output[axis] == 0 ? 0 : Math.addExact(starts[i],
+                            Math.multiplyExact(output[axis] - 1, scales.get(i)));
+                    if (output[axis] != 0 && (starts[i] >= input[axis]
+                            || last < 0 || last >= input[axis]))
                         throw new IllegalArgumentException("affine SLICE exceeds actual extent");
                 }
             } else if (step.kind() == CpuAffineCopyIr.MappingKind.CROP_TO_SHAPE) {

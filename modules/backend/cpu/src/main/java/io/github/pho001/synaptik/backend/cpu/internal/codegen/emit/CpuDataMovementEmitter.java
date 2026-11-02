@@ -29,6 +29,10 @@ import java.util.Arrays;
  * so layout construction is not repeated in their hot loops. Emitted hot loops contain no Model
  * interpretation, reflection, map lookup, or per-element allocation.</p>
  *
+ * <p>Budget-qualified composition above sixteen occurrences emits only the direct general-long
+ * body, bounding classfile growth without adding recursive composition or intermediate copies.
+ * Existing smaller composition identities and emitted bodies are unchanged.</p>
+ *
  * <p>Controlled bodies reuse the general traversal and test the proved output's original row before
  * selecting or loading any operand. Inactive cells store exact carrier zero and advance the same
  * geometry cursors without inspecting their inputs; standalone code generation is unchanged.</p>
@@ -49,6 +53,14 @@ final class CpuDataMovementEmitter {
      */
     void emit(CodeBuilder code, CpuKernelSpecialization specialization, CpuKernelIr ir) {
         Parsed parsed = Parsed.parse(ir.familyIdentity());
+        if ((parsed.family.equals("CONCAT") || parsed.family.equals("STACK"))
+                && parsed.mapping.length > 16) {
+            if (!io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr
+                    .withinCompositionBudget(parsed.mapping.length, parsed.rank))
+                throw new IllegalArgumentException("movement entry/code budget exceeded");
+            emitGeneralLong(code, specialization, ir, parsed);
+            return;
+        }
         if (parsed.family.equals("UNFOLD3D")) {
             emitSpatialUnfold(code, specialization, ir, parsed.bits);
             return;
