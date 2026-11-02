@@ -260,6 +260,21 @@ class MetalGeneralScatterNativeTest {
         }
     }
 
+    @Test
+    void broadcastBaseReadsRemainLegalWhenNonbroadcastAxesAreInjective() {
+        try (Execution e = new Execution(List.of(
+                view(DataType.FLOAT32, new long[] {2, 2, 2}, new long[] {0, 2, 1}, 0),
+                value(DataType.INT32, 1), value(DataType.FLOAT32, 1, 2, 2),
+                value(DataType.FLOAT32, 2, 2, 2)),
+                List.of(MetalMpsGraphProgram.Node.scatterAdd(0, 1, 2, 3, 0)))) {
+            e.upload(0, floats(10, 20, 30, 40));
+            e.upload(1, indices(DataType.INT32, 0));
+            e.upload(2, floats(1, 2, 3, 4));
+            e.run();
+            assertArrayEquals(floats(11, 22, 33, 44, 10, 20, 30, 40), e.output());
+        }
+    }
+
     private static MetalMpsGraphProgram.Node elements(int axis, int reduction, int indexValue) {
         return MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.SCATTER_ELEMENTS,
                 new int[] {0, indexValue, 2}, new int[] {3},

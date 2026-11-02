@@ -108,6 +108,32 @@ class MetalScatterSupportTest {
         }
     }
 
+    @Test
+    void broadcastAxisDoesNotHideCollisionsBetweenNonbroadcastInputAxes() {
+        var operation = new Operation(AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(0));
+        Shape shape = Shape.of(2, 2, 2);
+        var indices = tensor(DataType.INT32, false, 1);
+        var updates = tensor(DataType.FLOAT32, false, 1, 2, 2);
+        var outputs = List.of(tensor(DataType.FLOAT32, false, 2, 2, 2));
+        var node = MetalMpsGraphProgram.Node.scatterAdd(0, 1, 2, 3, 0);
+        for (boolean collision : List.of(false, true)) {
+            var base = new TensorDescriptor(DataType.FLOAT32, shape,
+                    Optional.of(LayoutDescriptor.of(shape,
+                            collision ? new long[] {0, 1, 1} : new long[] {0, 2, 1}, 0, true)), false);
+            var inputs = List.of(base, indices, updates);
+            var raw = values(inputs, outputs);
+            if (collision) {
+                assertFalse(MetalScatterSupport.supports(operation, inputs, outputs));
+                assertThrows(IllegalArgumentException.class, () -> MetalScatterSupport.validate(node, raw));
+                assertThrows(IllegalArgumentException.class, () -> MetalScatterSupport.lower(
+                        operation, new int[] {0, 1, 2}, new int[] {3}, inputs, outputs));
+            } else {
+                assertTrue(MetalScatterSupport.supports(operation, inputs, outputs));
+                assertDoesNotThrow(() -> MetalScatterSupport.validate(node, raw));
+            }
+        }
+    }
+
     private static TensorDescriptor tensor(DataType type, boolean gradient, long... dimensions) {
         Shape shape = Shape.of(dimensions);
         return new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.contiguous(shape)), gradient);

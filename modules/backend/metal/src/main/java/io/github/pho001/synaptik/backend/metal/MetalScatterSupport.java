@@ -21,6 +21,7 @@ import java.util.List;
  * <p>Arithmetic accepts FLOAT32 and exact modular INT32/INT64; FLOAT64 additionally admits
  * raw MIN/MAX. Low carriers remain with their existing independently bounded owner. Every
  * input uses its real positive/zero-stride affine read layout and the result is canonical.
+ * Broadcast axes do not waive the shared storage-layout proof for nonbroadcast axes.
  * Index values and replacement uniqueness are deliberately run-time, pre-write checks.</p>
  */
 final class MetalScatterSupport {
@@ -210,9 +211,8 @@ final class MetalScatterSupport {
         if (!layout.equals(LayoutDescriptor.of(Shape.of(value.dimensions()), layout.strides(), layout.storageOffset(), layout.isView()))) throw invalid();
         if (layout.storageOffset() < 0 || layout.referencedElementSpan() <= 0) throw invalid();
         for (long stride : layout.strides()) if (stride < 0) throw invalid();
-        if (layout.hasZeroStride()) {
-            if (!layout.isView()) throw invalid();
-        } else if (!value.supportsStorageLayout(0)) throw invalid();
+        if (layout.hasZeroStride() && !layout.isView()) throw invalid();
+        if (!value.supportsStorageLayout(0)) throw invalid();
         if (value.elementCount() > MAX_BYTES / value.dataType().byteWidth()
                 || layout.referencedElementSpan() > MAX_BYTES / value.dataType().byteWidth()) throw invalid();
     }

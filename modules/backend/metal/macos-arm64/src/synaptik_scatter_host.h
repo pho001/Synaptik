@@ -43,6 +43,8 @@ static BOOL synaptik_scatter_read_layout(
             uint64_t steps = extent - 1U;
             if (result[axis] > (limit - span) / steps) return NO;
             span += steps * result[axis];
+        }
+        if (extent > 1U && result[axis] != 0U) {
             uint32_t place = axes;
             while (place > 0U && result[order[place - 1U]] > result[axis]) {
                 order[place] = order[place - 1U]; --place;
@@ -51,15 +53,13 @@ static BOOL synaptik_scatter_read_layout(
         }
     }
     if (*offset > limit - span) return NO;
-    if (broadcast) {
-        if (states == NULL || states[value] != SYNAPTIK_METAL_VALUE_AFFINE_VIEW) return NO;
-    } else {
-        uint64_t covered = 1U;
-        for (uint32_t item = 0U; item < axes; ++item) {
-            uint32_t axis = order[item];
-            if (result[axis] < covered) return NO;
-            covered += (shape[axis].unsignedLongLongValue - 1U) * result[axis];
-        }
+    if (broadcast && (states == NULL || states[value] != SYNAPTIK_METAL_VALUE_AFFINE_VIEW))
+        return NO;
+    uint64_t covered = 1U;
+    for (uint32_t item = 0U; item < axes; ++item) {
+        uint32_t axis = order[item];
+        if (result[axis] < covered) return NO;
+        covered += (shape[axis].unsignedLongLongValue - 1U) * result[axis];
     }
     *count = elements;
     return YES;
